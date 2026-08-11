@@ -50,9 +50,9 @@ public static class IntakeEnvelopeLimits
 /// The former <c>DraftReady</c> named the wait for a staff member to press
 /// "Accept and allocate case reference". It had no operator label, no owning
 /// requirement, and no business meaning; it is removed rather than renamed.
-/// Receipts persisted under its <c>draft_ready</c> code read as
-/// <see cref="NeedsSorting"/>, which is what they are: pre-case material that
-/// never became a case and is waiting for a person.
+/// Receipts persisted under its <c>draft_ready</c> code read compatibly as
+/// <see cref="CaseCreated"/> eligibility. The allocation/link projection, not
+/// that legacy processing code, determines whether a Case actually exists.
 /// </remarks>
 public enum IntakeDecision
 {
@@ -362,7 +362,10 @@ public sealed record IntakeReceipt(
     Guid? ManualLinkedCaseId = null,
     long? ManualAssociationVersion = null,
     MailClassificationResult? MailClassificationDecision = null,
-    CaseMatchEvaluationResult? CaseMatchDecision = null)
+    CaseMatchEvaluationResult? CaseMatchDecision = null,
+    IntakeAllocationState? AllocationState = null,
+    string? AcceptedCaseReference = null,
+    string? ManualLinkedCaseReference = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -370,6 +373,11 @@ public sealed record IntakeReceipt(
 
     public Guid? CurrentCaseId =>
         ManualAssociationVersion is null ? AcceptedCaseId : ManualLinkedCaseId;
+
+    public string? CurrentCaseReference =>
+        ManualAssociationVersion is null
+            ? AcceptedCaseReference
+            : ManualLinkedCaseReference ?? AcceptedCaseReference;
 }
 
 public sealed record IntakeReceiptDraft(
@@ -438,7 +446,8 @@ public sealed record IntakeReceiptSummary(
     string? Sender = null,
     string? Subject = null,
     Guid? CaseId = null,
-    string? CaseReference = null);
+    string? CaseReference = null,
+    IntakeAllocationState? AllocationState = null);
 
 public sealed record InstructionExtractionResult(
     InstructionPolicyApplicability Applicability,
@@ -704,7 +713,9 @@ public sealed record AcceptIntakeRequest(
     string PrincipalCode,
     CaseCompleteness Completeness,
     Guid? StandaloneAuditEvidenceId = null,
-    DateOnly? AcceptedInspectionDeadline = null);
+    DateOnly? AcceptedInspectionDeadline = null,
+    Guid? AllocationAttemptId = null,
+    DateTimeOffset? AllocationCompletedAtUtc = null);
 
 public sealed record LinkIntakeRequest(
     Guid ReceiptId,

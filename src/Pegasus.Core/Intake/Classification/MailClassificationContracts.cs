@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Intake;
 
@@ -185,15 +186,25 @@ public sealed record MailClassificationResult(
     IReadOnlyList<MailClassificationPredicateResult> Predicates,
     string Reason,
     string PolicyKey,
-    int PolicyVersion)
+    int PolicyVersion,
+    CaseType? CaseType = null)
 {
     public static MailClassificationResult Classified(
         MailCategory category,
         IReadOnlyList<MailClassificationPredicateResult> predicates,
         string reason,
         string policyKey,
-        int policyVersion) =>
-        new(MailClassificationOutcome.Classified, category, [], predicates, reason, policyKey, policyVersion);
+        int policyVersion,
+        CaseType? caseType = null) =>
+        new(
+            MailClassificationOutcome.Classified,
+            category,
+            [],
+            predicates,
+            reason,
+            policyKey,
+            policyVersion,
+            caseType);
 
     public static MailClassificationResult Ambiguous(
         IReadOnlyList<string> candidates,

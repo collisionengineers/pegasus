@@ -58,6 +58,10 @@ public static class DependencyInjection
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<EfIntakeAllocationStore>();
+        services.AddScoped<IIntakeAllocationStore>(
+            provider => provider.GetRequiredService<EfIntakeAllocationStore>());
+        services.AddScoped<IAllocateIntake, AllocateIntake>();
         services.AddScoped<IListIntake, ListIntake>();
         services.AddScoped<IGetIntake, GetIntake>();
         // The read half of retained mail only. The write port is registered by the

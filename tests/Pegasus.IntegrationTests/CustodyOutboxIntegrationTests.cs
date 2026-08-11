@@ -975,7 +975,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
-                services.GetRequiredService<IAcceptIntake>(),
+                services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
@@ -983,39 +983,25 @@ public sealed class CustodyOutboxIntegrationTests
                 .FindBySourceIdentityAsync(source.Source.SourceIdentity, CancellationToken.None));
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
-        // The queued path allocated the case itself, so this fixture reads what
-        // processing produced rather than accepting a second time. Accepting
-        // again is exactly the conflict the store is meant to raise.
-        var (caseId, custodyWorkId) = await ReadAllocatedCaseAsync(services, receipt.Id);
-        return new(caseId, custodyWorkId, receipt.Id, source.Content);
-    }
-
-    private static async Task<(Guid CaseId, Guid CustodyWorkId)> ReadAllocatedCaseAsync(
-        IServiceProvider services,
-        Guid receiptId)
-    {
-        var contextFactory = services
-            .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<
-                Pegasus.Infrastructure.Persistence.PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var connection = Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions
-            .GetDbConnection(context.Database);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            "SELECT CaseId, CustodyWorkId FROM CaseIntakeLinks WHERE IntakeReceiptId = @receiptId";
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = "@receiptId";
-        parameter.Value = receiptId;
-        command.Parameters.Add(parameter);
-        await using var reader = await command.ExecuteReaderAsync();
-        Assert.True(await reader.ReadAsync(), "Processing did not allocate a case for the receipt.");
-        return (reader.GetGuid(0), reader.GetGuid(1));
+        // Manual uploads have no persisted mailbox classification. Processing
+        // therefore records a truthful case-type-unavailable allocation
+        // failure; the custody scenario supplies the explicit staff acceptance
+        // that turns this reviewable receipt into a case.
+        var failed = Assert.IsType<IntakeAllocationState>(
+            (await services.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receipt.Id, CancellationToken.None))!.AllocationState);
+        Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, failed.FailureKind);
+        var accepted = await AcceptAsync(
+            services,
+            receipt.Id,
+            new CaseCompleteness(false, false, false, false));
+        return new(accepted.Identity.CaseId, accepted.CustodyWorkId, receipt.Id, source.Content);
     }
 
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(
         IServiceProvider services,
-        Guid receiptId)
+        Guid receiptId,
+        CaseCompleteness? completeness = null)
     {
         const string principalCode = QdosPrincipal.Code;
         await SeedPrincipalAsync(services, principalCode);
@@ -1029,7 +1015,7 @@ public sealed class CustodyOutboxIntegrationTests
                     "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
                     principalCode,
-                    new(true, true, true, true)),
+                    completeness ?? new(true, true, true, true)),
                 CancellationToken.None);
     }
 
