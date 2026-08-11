@@ -7,7 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- INT-03 — recognise normal staff-forwarded instruction sender (branch task/inline-forwarded-mail-route, taken 2026-08-11, by agent root)
 
 ## Merged, not deployed
 

@@ -326,7 +326,7 @@ public sealed class MailboxIntakeIntegrationTests
         Directory.CreateDirectory(inboxFolder);
         await File.WriteAllBytesAsync(
             Path.Combine(inboxFolder, "0001-forwarded.eml"),
-            CreateForwardedProtocolMessage());
+            CreateInlineForwardedProtocolMessage());
 
         try
         {
@@ -382,12 +382,12 @@ public sealed class MailboxIntakeIntegrationTests
                 Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);
                 Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
                 var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);
-                Assert.Equal(MailRouteDisposition.NoMatch, route.Disposition);
+                Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
                 Assert.Equal(
-                    "technical-forwarder@collisionengineers.co.uk",
+                    "desk@collisionengineers.co.uk",
                     Assert.Single(route.TransportIdentities).Address);
-                Assert.Equal("original@example.invalid", Assert.Single(route.OriginalIdentities).Address);
-                Assert.Equal("original@example.invalid", route.EffectiveSender?.Address);
+                Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(route.OriginalIdentities).Address);
+                Assert.Equal("instructions@qdosassist.co.uk", route.EffectiveSender?.Address);
             }
 
             Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
@@ -1106,6 +1106,28 @@ public sealed class MailboxIntakeIntegrationTests
         outer.From.Add(new MailboxAddress(
             "Technical Forwarder",
             "technical-forwarder@collisionengineers.co.uk"));
+        outer.To.Add(new MailboxAddress("Approved Inbox", "instructions@collisionengineers.co.uk"));
+
+        using var stream = new MemoryStream();
+        outer.WriteTo(stream);
+        return stream.ToArray();
+    }
+
+    private static byte[] CreateInlineForwardedProtocolMessage()
+    {
+        var outer = new MimeMessage
+        {
+            Subject = "Forwarded protocol container",
+            Body = new TextPart("plain")
+            {
+                Text = "From: QDOS Instructions <instructions@qdosassist.co.uk>\r\n"
+                    + "Sent: 11 August 2031 09:00\r\n"
+                    + "To: Instructions <instructions@collisionengineers.co.uk>\r\n"
+                    + "Subject: Protocol instruction\r\n\r\n"
+                    + "Protocol-only outer content."
+            }
+        };
+        outer.From.Add(new MailboxAddress("Desk", "desk@collisionengineers.co.uk"));
         outer.To.Add(new MailboxAddress("Approved Inbox", "instructions@collisionengineers.co.uk"));
 
         using var stream = new MemoryStream();
