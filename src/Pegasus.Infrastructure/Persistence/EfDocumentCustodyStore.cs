@@ -58,10 +58,15 @@ internal sealed class EfDocumentCustodyStore(
                 cancellationToken);
         if (document is null)
         {
+            var lastOrdinal = await context.Set<CaseDocumentEntity>()
+                .Where(value => value.CaseId == command.CaseId)
+                .Select(value => (int?)value.Ordinal)
+                .MaxAsync(cancellationToken) ?? 1;
             document = new()
             {
                 Id = Guid.NewGuid(),
                 CaseId = command.CaseId,
+                Ordinal = checked(lastOrdinal + 1),
                 SourceOccurrenceIdentity = command.SourceOccurrenceIdentity
             };
             context.Add(document);
@@ -96,6 +101,7 @@ internal sealed class EfDocumentCustodyStore(
             CaseId = command.CaseId,
             DocumentId = document.Id,
             VersionId = version.Id,
+            Ordinal = document.Ordinal,
             SemanticRole = command.SemanticRole,
             Source = command.Source,
             SourceOccurrenceIdentity = command.SourceOccurrenceIdentity,
@@ -103,10 +109,13 @@ internal sealed class EfDocumentCustodyStore(
             OperationKey = command.OperationKey
         };
 
-        await contentStore.StoreAsync(
+        var contentAddress = Address(
             command.CaseId,
             caseReference,
-            version.Id,
+            occurrence,
+            version);
+        var contentWrite = await contentStore.StoreVersionAsync(
+            contentAddress,
             command.Content,
             contentHash,
             cancellationToken);
@@ -133,13 +142,16 @@ internal sealed class EfDocumentCustodyStore(
 
             try
             {
-                await DocumentContentRollback.RemoveOrphanAsync(
-                    dbContextFactory,
-                    contentStore,
-                    command.CaseId,
-                    caseReference,
-                    version.Id,
-                    exception);
+                if (contentWrite.Disposition == DocumentContentWriteDisposition.Created)
+                {
+                    await DocumentContentRollback.RemoveOrphanAsync(
+                        dbContextFactory,
+                        contentStore,
+                        command.CaseId,
+                        caseReference,
+                        version.Id,
+                        exception);
+                }
             }
             catch (Exception cleanupFailure) when (rollbackFailure is not null)
             {
@@ -237,10 +249,8 @@ internal sealed class EfDocumentCustodyStore(
                 afterJson: afterJson);
         }
 
-        var stream = await contentStore.OpenReadAsync(
-            query.CaseId,
-            caseReference,
-            item.Version.Id,
+        var stream = await contentStore.OpenReadVersionAsync(
+            Address(query.CaseId, caseReference, item.Occurrence, item.Version),
             item.Version.Sha256,
             item.Version.ContentLength,
             cancellationToken);
@@ -576,10 +586,8 @@ internal sealed class EfDocumentCustodyStore(
                     var entry = archive.CreateEntry(fileName, CompressionLevel.NoCompression);
                     entry.LastWriteTime = new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
                     await using var destination = entry.Open();
-                    await using var source = await contentStore.OpenReadAsync(
-                        caseId,
-                        caseReference,
-                        item.Version.Id,
+                    await using var source = await contentStore.OpenReadVersionAsync(
+                        Address(caseId, caseReference, item.Occurrence, item.Version),
                         item.Version.Sha256,
                         item.Version.ContentLength,
                         cancellationToken);
@@ -726,7 +734,24 @@ internal sealed class EfDocumentCustodyStore(
         value.SourceOccurrenceIdentity,
         value.RecordedAtUtc,
         value.ThirdPartyVehicleConfirmedAtUtc,
-        value.ThirdPartyVehicleConfirmationReason);
+        value.ThirdPartyVehicleConfirmationReason,
+        value.Ordinal);
+
+    private static ManagedDocumentContentAddress Address(
+        Guid caseId,
+        string caseReference,
+        DocumentOccurrenceEntity occurrence,
+        DocumentVersionEntity version) => new(
+        caseId,
+        caseReference,
+        occurrence.Id,
+        occurrence.Ordinal,
+        occurrence.DocumentId,
+        version.Id,
+        version.Version,
+        occurrence.SemanticRole,
+        version.FileName,
+        version.MediaType);
 
     private static DocumentVersion ToVersion(DocumentVersionEntity value) => new(
         value.Id,

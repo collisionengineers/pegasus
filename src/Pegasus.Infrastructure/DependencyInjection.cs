@@ -179,6 +179,11 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfExternalWorkStore>());
         services.AddScoped<IQueuedExternalWorkReader>(
             provider => provider.GetRequiredService<EfExternalWorkStore>());
+        services.AddScoped<ICustodyRecoveryPersistence>(
+            provider => provider.GetRequiredService<EfExternalWorkStore>());
+        services.AddScoped<ICaseCustodyQueries>(
+            provider => provider.GetRequiredService<EfExternalWorkStore>());
+        services.AddScoped<IRetryCaseCustody, RetryCaseCustody>();
         services.AddScoped<EfVehicleWorkflowStore>();
         services.AddScoped<IRequestVehicleLookupStore>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
@@ -343,8 +348,10 @@ public static class DependencyInjection
             services.AddScoped<EvaHandoffStore>();
             services.AddScoped<IEvaHandoffQueries>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
-            services.AddScoped<IGenerateEvaHandoff>(provider =>
+            services.AddScoped<IEvaHandoffPersistence>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
+            services.AddScoped<IGenerateEvaHandoff, GenerateEvaHandoff>();
+            services.AddScoped<IDownloadEvaHandoff, DownloadEvaHandoff>();
 
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>

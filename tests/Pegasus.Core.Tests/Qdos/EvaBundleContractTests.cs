@@ -28,9 +28,9 @@ public sealed class EvaBundleContractTests
         Assert.Equal(
             [
                 "EVA-QDOS001.json",
-                "11111111111111111111111111111111-overview.jpg",
-                "22222222222222222222222222222222-damage.png",
-                "33333333333333333333333333333333-other.jpg",
+                "Images/002 overview.jpg",
+                "Images/003 damage.png",
+                "Images/004 other.jpg",
                 "provenance.json",
                 "manifest.sha256"
             ],
@@ -55,18 +55,18 @@ public sealed class EvaBundleContractTests
     }
 
     [Fact]
-    public void ChangedRetainedImageSequenceChangesBundleWithoutSelectingOrDuplicatingImages()
+    public void RetainedInputSequenceDoesNotChangePersistedEvidenceOrder()
     {
         var first = EvaBundleSchema.CreateOfflineReplay(Source(), Images());
         var changed = EvaBundleSchema.CreateOfflineReplay(
             Source(),
             Images([OtherOccurrenceId, OverviewOccurrenceId, DamageOccurrenceId]));
 
-        Assert.NotEqual(first.Sha256, changed.Sha256);
+        Assert.Equal(first.Sha256, changed.Sha256);
         using var archive = new ZipArchive(new MemoryStream(changed.Content), ZipArchiveMode.Read);
-        Assert.Equal("33333333333333333333333333333333-other.jpg", archive.Entries[1].FullName);
-        Assert.Equal("11111111111111111111111111111111-overview.jpg", archive.Entries[2].FullName);
-        Assert.Equal("22222222222222222222222222222222-damage.png", archive.Entries[3].FullName);
+        Assert.Equal("Images/002 overview.jpg", archive.Entries[1].FullName);
+        Assert.Equal("Images/003 damage.png", archive.Entries[2].FullName);
+        Assert.Equal("Images/004 other.jpg", archive.Entries[3].FullName);
     }
 
     [Fact]
@@ -80,7 +80,7 @@ public sealed class EvaBundleContractTests
         Assert.Equal(
             [
                 "EVA-QDOS001.json",
-                "11111111111111111111111111111111-overview.jpg",
+                "Images/002 overview.jpg",
                 "provenance.json",
                 "manifest.sha256"
             ],
@@ -124,6 +124,37 @@ public sealed class EvaBundleContractTests
             () => EvaBundleSchema.CreateOfflineReplay(source, Images()));
 
         Assert.Contains("accepted mapping/config version", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BusinessReadableEntryNamesAndManifestGrammarAreExact()
+    {
+        var bundle = EvaBundleSchema.CreateOfflineReplay(Source(), Images());
+
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        var names = archive.Entries.Select(entry => entry.FullName).ToArray();
+        Assert.Equal(
+            [
+                "EVA-QDOS001.json",
+                "Images/002 overview.jpg",
+                "Images/003 damage.png",
+                "Images/004 other.jpg",
+                "provenance.json",
+                "manifest.sha256"
+            ],
+            names);
+        Assert.All(names, name =>
+        {
+            Assert.DoesNotContain(OverviewOccurrenceId.ToString("N"), name, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(DamageOccurrenceId.ToString("N"), name, StringComparison.OrdinalIgnoreCase);
+        });
+        var manifest = Encoding.UTF8.GetString(bundle.ManifestContent);
+        Assert.DoesNotContain('\r', manifest);
+        Assert.False(manifest.EndsWith("\n\n", StringComparison.Ordinal));
+        var lines = manifest.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(names.Length - 1, lines.Length);
+        Assert.All(lines, line => Assert.Matches("^[0-9a-f]{64}  [^\\r\\n]+$", line));
+        Assert.Equal(names[..^1], lines.Select(line => line[66..]));
     }
 
     [Fact]
@@ -223,7 +254,8 @@ public sealed class EvaBundleContractTests
         content,
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant(),
         CustodyConfirmed: true,
-        IsCurrent: true);
+        IsCurrent: true,
+        Ordinal: sequence + 1);
 
     private static readonly string[] FieldNames =
     [

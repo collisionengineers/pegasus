@@ -13,9 +13,21 @@ internal sealed class LocalCaseCustody(
     private const string RootMetadataFileName = ".pegasus-case.json";
     private readonly string rootPath = Path.GetFullPath(rootPath);
 
+    public Task<CaseCustodyRoot> CreateCaseRootAsync(
+        Guid caseId,
+        string caseReference,
+        string operationKey,
+        CancellationToken cancellationToken) => CreateCaseRootAsync(
+            caseId,
+            caseReference,
+            CustodyCreationOwner.Create(),
+            operationKey,
+            cancellationToken);
+
     public async Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
         string caseReference,
+        string creationOwnerToken,
         string operationKey,
         CancellationToken cancellationToken)
     {
@@ -98,6 +110,7 @@ internal sealed class LocalCaseCustody(
     public async Task<string> CreateAuditReferenceFolderAsync(
         CaseCustodyRoot root,
         string auditReference,
+        string creationOwnerToken,
         string operationKey,
         CancellationToken cancellationToken)
     {
@@ -119,6 +132,17 @@ internal sealed class LocalCaseCustody(
             cancellationToken);
         return relativeId;
     }
+
+    public Task<string> CreateAuditReferenceFolderAsync(
+        CaseCustodyRoot root,
+        string auditReference,
+        string operationKey,
+        CancellationToken cancellationToken) => CreateAuditReferenceFolderAsync(
+            root,
+            auditReference,
+            CustodyCreationOwner.Create(),
+            operationKey,
+            cancellationToken);
 
     private async Task ValidateRootAsync(CaseCustodyRoot root, CancellationToken cancellationToken)
     {
@@ -352,6 +376,7 @@ internal sealed class UnavailableCaseCustody : ICaseCustody
     public Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
         string caseReference,
+        string creationOwnerToken,
         string operationKey,
         CancellationToken cancellationToken) =>
         Unavailable<CaseCustodyRoot>();
@@ -372,6 +397,7 @@ internal sealed class UnavailableCaseCustody : ICaseCustody
     public Task<string> CreateAuditReferenceFolderAsync(
         CaseCustodyRoot root,
         string auditReference,
+        string creationOwnerToken,
         string operationKey,
         CancellationToken cancellationToken) =>
         Unavailable<string>();

@@ -11,7 +11,9 @@ internal static class CustodyModelConfiguration
             entity.ToTable("CaseDocuments");
             entity.HasKey(value => value.Id);
             entity.Property(value => value.SourceOccurrenceIdentity).HasMaxLength(512).IsRequired();
+            entity.Property(value => value.Ordinal).IsRequired();
             entity.HasIndex(value => new { value.CaseId, value.SourceOccurrenceIdentity }).IsUnique();
+            entity.HasIndex(value => new { value.CaseId, value.Ordinal }).IsUnique();
             entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -42,6 +44,7 @@ internal static class CustodyModelConfiguration
             entity.Property(value => value.Source).HasConversion<string>().HasMaxLength(32).IsRequired();
             entity.Property(value => value.SourceOccurrenceIdentity).HasMaxLength(512).IsRequired();
             entity.Property(value => value.OperationKey).HasMaxLength(256).IsRequired();
+            entity.Property(value => value.Ordinal).IsRequired();
             entity.Property(value => value.ThirdPartyVehicleConfirmationReason).HasMaxLength(500);
             entity.Property(value => value.ThirdPartyVehicleConfirmationOperationKey).HasMaxLength(100);
             entity.HasIndex(value => new { value.CaseId, value.OperationKey }).IsUnique();

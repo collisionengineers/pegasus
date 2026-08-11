@@ -1,72 +1,107 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Pegasus.Core.Documents;
 
 namespace Pegasus.Infrastructure.Custody;
 
 /// <summary>
-/// Production managed-document content storage in the approved Box custody
-/// root, at <c>{caseReference}/managed/{versionId:N}/content</c> under the
-/// same Case/PO folder as retained intake sources.
-/// <see cref="LocalDocumentContentStore"/> resolves the same identity under
-/// its local <c>cases/</c> prefix, so both profiles resolve one version to
-/// one object; every Box call is fenced to the approved root by
-/// <see cref="BoxContentClient"/>.
+/// Production managed-document content storage beneath the one bound Case/PO
+/// root. Names contain persisted business role, occurrence ordinal, business
+/// revision and original filename; remote/internal identifiers stay in SQL and
+/// provenance rather than Box names.
 /// </summary>
 internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocumentContentStore
 {
-    private const string ContentFileName = "content";
-    private const string ContentMediaType = "application/octet-stream";
+    private const string OccurrenceBindingFileName = "pegasus-document-binding.json";
+    private const string VersionBindingFileName = "pegasus-version-binding.json";
+    private const string BindingMediaType = "application/json";
+    private readonly ConcurrentDictionary<Guid, CreatedFile> createdFiles = [];
 
-    public async Task StoreAsync(
+    public async Task<DocumentContentWriteResult> StoreVersionAsync(
+        ManagedDocumentContentAddress address,
+        ReadOnlyMemory<byte> content,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        Validate(address);
+        var normalizedHash = NormalizeSha256(expectedSha256);
+        Verify(content.Span, normalizedHash, content.Length);
+        var versionFolder = await ResolveVersionFolderAsync(
+                address, normalizedHash, content.Length, create: true, cancellationToken)
+            ?? throw new InvalidOperationException("The managed document folder could not be resolved.");
+        var fileName = CustodyNames.SafeName(address.FileName);
+        var existing = await client.FindChildAsync(versionFolder, fileName, "file", cancellationToken);
+        if (existing is not null)
+        {
+            await VerifyFileMetadataAsync(
+                existing, versionFolder, address.MediaType, content.Length, cancellationToken);
+            var retained = await client.DownloadAsync(existing.Id, cancellationToken);
+            Verify(retained, normalizedHash, content.Length);
+            return new(DocumentContentWriteDisposition.Replay, existing.Id);
+        }
+
+        var created = await client.UploadAsync(
+            versionFolder,
+            fileName,
+            content,
+            address.MediaType,
+            cancellationToken);
+        createdFiles[address.VersionId] = new(
+            created.Id,
+            address.CaseId,
+            address.CaseReference,
+            normalizedHash,
+            content.Length);
+        return new(DocumentContentWriteDisposition.Created, created.Id);
+    }
+
+    public async Task<Stream> OpenReadVersionAsync(
+        ManagedDocumentContentAddress address,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        Validate(address);
+        var normalizedHash = NormalizeSha256(expectedSha256);
+        var versionFolder = await ResolveVersionFolderAsync(
+            address, normalizedHash, expectedLength, create: false, cancellationToken);
+        if (versionFolder is null)
+        {
+            throw new FileNotFoundException("The document content is unavailable.");
+        }
+        var file = await client.FindChildAsync(
+            versionFolder,
+            CustodyNames.SafeName(address.FileName),
+            "file",
+            cancellationToken)
+            ?? throw new FileNotFoundException("The document content is unavailable.");
+        await VerifyFileMetadataAsync(
+            file, versionFolder, address.MediaType, expectedLength, cancellationToken);
+        var content = await client.DownloadAsync(file.Id, cancellationToken);
+        Verify(content, normalizedHash, expectedLength);
+        return new MemoryStream(content, writable: false);
+    }
+
+    public Task StoreAsync(
         Guid caseId,
         string caseReference,
         Guid versionId,
         ReadOnlyMemory<byte> content,
         string expectedSha256,
-        CancellationToken cancellationToken)
-    {
-        ValidateIdentifiers(caseId, caseReference, versionId);
-        var normalizedHash = NormalizeSha256(expectedSha256);
-        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
-        if (!string.Equals(normalizedHash, actualHash, StringComparison.Ordinal))
-        {
-            throw new InvalidDataException("Document content does not match its custody hash.");
-        }
+        CancellationToken cancellationToken) =>
+        throw new InvalidOperationException(
+            "Managed Box writes require the persisted business occurrence and revision address.");
 
-        var versionFolder = await ResolveVersionFolderAsync(caseReference, versionId, create: true, cancellationToken);
-        var existing = await client.FindChildAsync(versionFolder!, ContentFileName, "file", cancellationToken);
-        if (existing is not null)
-        {
-            // A repeated store of identical content is a successful replay, not a conflict.
-            var retained = await client.DownloadAsync(existing.Id, cancellationToken);
-            Verify(retained, normalizedHash, content.Length);
-            return;
-        }
-
-        await client.UploadAsync(versionFolder!, ContentFileName, content, ContentMediaType, cancellationToken);
-    }
-
-    public async Task<Stream> OpenReadAsync(
+    public Task<Stream> OpenReadAsync(
         Guid caseId,
         string caseReference,
         Guid versionId,
         string expectedSha256,
         long expectedLength,
-        CancellationToken cancellationToken)
-    {
-        ValidateIdentifiers(caseId, caseReference, versionId);
-        var versionFolder = await ResolveVersionFolderAsync(caseReference, versionId, create: false, cancellationToken);
-        if (versionFolder is null)
-        {
-            throw new FileNotFoundException("The document content is unavailable.");
-        }
-
-        var file = await client.FindChildAsync(versionFolder, ContentFileName, "file", cancellationToken)
-            ?? throw new FileNotFoundException("The document content is unavailable.");
-        var content = await client.DownloadAsync(file.Id, cancellationToken);
-        Verify(content, NormalizeSha256(expectedSha256), expectedLength);
-        return new MemoryStream(content, writable: false);
-    }
+        CancellationToken cancellationToken) =>
+        throw new InvalidOperationException(
+            "Managed Box reads require the persisted business occurrence and revision address.");
 
     public async Task DeleteAsync(
         Guid caseId,
@@ -74,81 +109,227 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Guid versionId,
         CancellationToken cancellationToken)
     {
-        ValidateIdentifiers(caseId, caseReference, versionId);
-        var versionFolder = await ResolveVersionFolderAsync(caseReference, versionId, create: false, cancellationToken);
-        if (versionFolder is null)
+        if (!createdFiles.TryRemove(versionId, out var created))
         {
             return;
         }
-
-        var file = await client.FindChildAsync(versionFolder, ContentFileName, "file", cancellationToken);
-        if (file is null)
+        if (created.CaseId != caseId
+            || !string.Equals(created.CaseReference, caseReference, StringComparison.Ordinal))
         {
-            return;
+            throw new InvalidDataException(
+                "The uncommitted managed-content rollback does not match its Case identity.");
         }
-
-        await client.DeleteFileAsync(file.Id, cancellationToken);
+        var bytes = await client.DownloadAsync(created.FileId, cancellationToken);
+        Verify(bytes, created.Sha256, created.Length);
+        await client.DeleteFileAsync(created.FileId, cancellationToken);
     }
 
     private async Task<string?> ResolveVersionFolderAsync(
-        string caseReference,
-        Guid versionId,
+        ManagedDocumentContentAddress address,
+        string expectedSha256,
+        long expectedLength,
         bool create,
         CancellationToken cancellationToken)
     {
-        var current = client.RootFolderId;
-        if (create)
+        var rootName = CustodyNames.SafeName(address.CaseReference);
+        var root = await client.FindChildAsync(
+            client.RootFolderId,
+            rootName,
+            "folder",
+            cancellationToken);
+        if (root is null)
         {
-            current = (await client.GetOrCreateFolderAsync(
-                current,
-                SafeCaseFolderName(caseReference),
-                cancellationToken)).Id;
-        }
-        else
-        {
-            var existingRoot = await client.FindChildAsync(
-                current,
-                SafeCaseFolderName(caseReference),
-                "folder",
-                cancellationToken);
-            if (existingRoot is null)
+            if (!create)
             {
                 return null;
             }
-
-            current = existingRoot.Id;
+            throw new InvalidOperationException(
+                "Managed content requires the already bound Case custody root.");
         }
-
-        foreach (var segment in new[] { "managed", versionId.ToString("N") })
+        var bindingFile = await client.FindChildAsync(
+            root.Id,
+            "pegasus-case-binding.json",
+            "file",
+            cancellationToken)
+            ?? throw new InvalidDataException("The Case custody root is missing its immutable binding.");
+        var binding = await client.DownloadAsync(bindingFile.Id, cancellationToken);
+        if (!binding.AsSpan().SequenceEqual(
+                BoxCaseCustody.CaseBinding(address.CaseId, address.CaseReference)))
         {
-            if (create)
-            {
-                current = (await client.GetOrCreateFolderAsync(current, segment, cancellationToken)).Id;
-                continue;
-            }
-
-            var existing = await client.FindChildAsync(current, segment, "folder", cancellationToken);
-            if (existing is null)
-            {
-                return null;
-            }
-
-            current = existing.Id;
+            throw new InvalidDataException("The Case custody root belongs to another Case identity.");
         }
 
-        return current;
+        var evidence = await ResolvePlainFolderAsync(root.Id, "Evidence", create, cancellationToken);
+        if (evidence is null)
+        {
+            return null;
+        }
+        var role = await ResolvePlainFolderAsync(
+            evidence, RoleName(address.SemanticRole), create, cancellationToken);
+        if (role is null)
+        {
+            return null;
+        }
+        var occurrence = await ResolveBoundFolderAsync(
+            role,
+            $"{address.OccurrenceOrdinal:000} {CustodyNames.SafeName(address.FileName)}",
+            OccurrenceBindingFileName,
+            OccurrenceBinding(address),
+            create,
+            cancellationToken);
+        if (occurrence is null)
+        {
+            return null;
+        }
+        return await ResolveBoundFolderAsync(
+            occurrence,
+            $"Revision {address.Version:000}",
+            VersionBindingFileName,
+            VersionBinding(address, expectedSha256, expectedLength),
+            create,
+            cancellationToken);
     }
 
-    private static void Verify(
-        ReadOnlySpan<byte> content,
-        string expectedSha256,
-        long expectedLength)
+    private async Task<string?> ResolvePlainFolderAsync(
+        string parentId,
+        string name,
+        bool create,
+        CancellationToken cancellationToken)
+    {
+        var child = await client.FindChildAsync(parentId, name, "folder", cancellationToken);
+        if (child is not null)
+        {
+            return child.Id;
+        }
+        return create
+            ? (await client.CreateFolderAsync(parentId, name, cancellationToken)).Id
+            : null;
+    }
+
+    private async Task<string?> ResolveBoundFolderAsync(
+        string parentId,
+        string name,
+        string bindingName,
+        byte[] binding,
+        bool create,
+        CancellationToken cancellationToken)
+    {
+        var folder = await client.FindChildAsync(parentId, name, "folder", cancellationToken);
+        if (folder is null)
+        {
+            if (!create)
+            {
+                return null;
+            }
+            folder = await client.CreateFolderAsync(parentId, name, cancellationToken);
+            await client.UploadAsync(
+                folder.Id, bindingName, binding, BindingMediaType, cancellationToken);
+            return folder.Id;
+        }
+
+        var bindingFile = await client.FindChildAsync(
+            folder.Id, bindingName, "file", cancellationToken)
+            ?? throw new InvalidDataException(
+                "A managed Box custody folder is missing its immutable identity binding.");
+        await VerifyBindingAsync(folder.Id, bindingFile, binding, cancellationToken);
+        return folder.Id;
+    }
+
+    private async Task VerifyBindingAsync(
+        string parentId,
+        BoxContentClient.BoxItem file,
+        ReadOnlyMemory<byte> expected,
+        CancellationToken cancellationToken)
+    {
+        await VerifyFileMetadataAsync(
+            file, parentId, BindingMediaType, expected.Length, cancellationToken);
+        var actual = await client.DownloadAsync(file.Id, cancellationToken);
+        if (!actual.AsSpan().SequenceEqual(expected.Span))
+        {
+            throw new InvalidDataException("A managed Box custody binding has different immutable content.");
+        }
+    }
+
+    private async Task VerifyFileMetadataAsync(
+        BoxContentClient.BoxItem file,
+        string expectedParentId,
+        string expectedMediaType,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        var metadata = await client.GetFileAsync(file.Id, cancellationToken);
+        if (!string.Equals(metadata.ParentId, expectedParentId, StringComparison.Ordinal)
+            || metadata.Size != expectedLength
+            || !string.Equals(metadata.MediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException(
+                "Managed Box custody type, ancestry, or length metadata is inconsistent.");
+        }
+    }
+
+    internal static byte[] OccurrenceBinding(ManagedDocumentContentAddress address) =>
+        JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            schemaVersion = 1,
+            address.CaseId,
+            address.CaseReference,
+            address.OccurrenceId,
+            address.OccurrenceOrdinal,
+            address.DocumentId,
+            semanticRole = address.SemanticRole.ToString(),
+            address.FileName
+        });
+
+    internal static byte[] VersionBinding(
+        ManagedDocumentContentAddress address,
+        string sha256,
+        long contentLength) => JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            schemaVersion = 1,
+            address.CaseId,
+            address.OccurrenceId,
+            address.DocumentId,
+            address.VersionId,
+            address.Version,
+            address.FileName,
+            address.MediaType,
+            contentLength,
+            sha256
+        });
+
+    private static string RoleName(DocumentSemanticRole role) => role switch
+    {
+        DocumentSemanticRole.Image => "Images",
+        DocumentSemanticRole.Correspondence => "Correspondence",
+        DocumentSemanticRole.EngineerReport or DocumentSemanticRole.AuditReport => "Reports",
+        _ => "Other evidence"
+    };
+
+    private static void Validate(ManagedDocumentContentAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        if (address.CaseId == Guid.Empty
+            || address.OccurrenceId == Guid.Empty
+            || address.DocumentId == Guid.Empty
+            || address.VersionId == Guid.Empty
+            || address.OccurrenceOrdinal <= 0
+            || address.Version <= 0
+            || string.IsNullOrWhiteSpace(address.CaseReference)
+            || string.IsNullOrWhiteSpace(address.FileName)
+            || string.IsNullOrWhiteSpace(address.MediaType))
+        {
+            throw new ArgumentException("A complete managed document address is required.", nameof(address));
+        }
+        _ = CustodyNames.SafeName(address.CaseReference);
+        _ = CustodyNames.SafeName(address.FileName);
+    }
+
+    private static void Verify(ReadOnlySpan<byte> content, string expectedSha256, long expectedLength)
     {
         if (content.Length != expectedLength)
         {
             throw new InvalidDataException("Document custody length verification failed.");
         }
-
         var actualHash = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
         if (!string.Equals(expectedSha256, actualHash, StringComparison.Ordinal))
         {
@@ -156,32 +337,20 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         }
     }
 
-    private static void ValidateIdentifiers(Guid caseId, string caseReference, Guid versionId)
-    {
-        if (caseId == Guid.Empty
-            || versionId == Guid.Empty
-            || string.IsNullOrWhiteSpace(caseReference)
-            || caseReference.Any(char.IsControl))
-        {
-            throw new ArgumentException("Case, Case/PO, and document version identifiers are required.");
-        }
-    }
-
-    private static string SafeCaseFolderName(string value)
-    {
-        var result = CustodyNames.SafeName(value);
-
-        return result;
-    }
-
     private static string NormalizeSha256(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        if (value.Length != SHA256.HashSizeInBytes * 2 || !value.All(Uri.IsHexDigit))
+        if (value.Length != SHA256.HashSizeInBytes * 2 || !value.All(char.IsAsciiHexDigit))
         {
             throw new ArgumentException("A SHA-256 hash is required.", nameof(value));
         }
-
         return value.ToLowerInvariant();
     }
+
+    private sealed record CreatedFile(
+        string FileId,
+        Guid CaseId,
+        string CaseReference,
+        string Sha256,
+        long Length);
 }

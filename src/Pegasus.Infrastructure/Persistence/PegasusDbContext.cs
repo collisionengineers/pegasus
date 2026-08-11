@@ -57,6 +57,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<EvaHandoffRevisionEntity>();
     internal DbSet<EvaFirstHandoffProxyEntity> EvaFirstHandoffProxies =>
         Set<EvaFirstHandoffProxyEntity>();
+    internal DbSet<EvaHandoffDownloadOperationEntity> EvaHandoffDownloadOperations =>
+        Set<EvaHandoffDownloadOperationEntity>();
     internal DbSet<EvaHandoffOperationEntity> EvaHandoffOperations =>
         Set<EvaHandoffOperationEntity>();
     internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();
@@ -436,6 +438,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ExternalReceipt).HasMaxLength(500);
             entity.Property(item => item.FailureCode).HasMaxLength(100);
             entity.Property(item => item.FailureReason).HasMaxLength(500);
+            entity.Property(item => item.CaseRootCreationToken).HasMaxLength(26).IsFixedLength();
+            entity.Property(item => item.AuditFolderCreationToken).HasMaxLength(26).IsFixedLength();
             entity.HasIndex(item => item.OperationKey).IsUnique();
             entity.HasIndex(item => new { item.State, item.DueAtUtc });
             entity.HasIndex(item => new { item.DueAtUtc, item.Id }).IsDescending(true, false);
@@ -1023,6 +1027,8 @@ internal sealed class ExternalWorkItemEntity
     public string? ExternalReceipt { get; set; }
     public string? FailureCode { get; set; }
     public string? FailureReason { get; set; }
+    public string? CaseRootCreationToken { get; set; }
+    public string? AuditFolderCreationToken { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
 }
 
