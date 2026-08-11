@@ -6,6 +6,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -17,6 +20,60 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class CaseDetailsWebTests
 {
+    [Fact]
+    public async Task CustodyRetryEvaGenerateAndDownloadRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore { ExposeCustodyAndEva = true };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IGetCase>();
+                services.RemoveAll<IAcquireCaseEditLease>();
+                services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IAcquireCaseEditLease>(store);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        var initial = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        using var claim = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}?handler=ClaimLease",
+            Form(
+                AntiforgeryValue(initial),
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", InputValue(initial, "operationKey"))));
+        AssertPrg(claim, store.CaseId);
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        Assert.Contains("handler=RetryCustody", html, StringComparison.Ordinal);
+        Assert.Contains("handler=GenerateEvaHandoff", html, StringComparison.Ordinal);
+        Assert.Contains("handler=EvaDownload", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"expectedVersion\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"operationKey\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"reason\"", html, StringComparison.Ordinal);
+        Assert.Contains("integrity verified", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(new string('a', 64), html, StringComparison.OrdinalIgnoreCase);
+
+        foreach (var handler in new[] { "RetryCustody", "GenerateEvaHandoff", "EvaDownload" })
+        {
+            using var denied = await client.PostAsync(
+                $"/Cases/{store.CaseId:D}?handler={handler}",
+                new FormUrlEncodedContent([]));
+            Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
+        }
+        var constructorPorts = Assert.Single(typeof(Pegasus.Web.Pages.Cases.DetailsModel).GetConstructors())
+            .GetParameters().Select(parameter => parameter.ParameterType).ToArray();
+        Assert.Contains(typeof(IRetryCaseCustody), constructorPorts);
+        Assert.Contains(typeof(IGenerateEvaHandoff), constructorPorts);
+        Assert.Contains(typeof(IDownloadEvaHandoff), constructorPorts);
+    }
+
     [Fact]
     public async Task ManualChasePostUsesAntiforgeryServerActorLiveLeaseVersionAndReplayKey()
     {
@@ -925,6 +982,8 @@ public sealed partial class CaseDetailsWebTests
 
         public long CaseVersion { get; } = 7;
 
+        public bool ExposeCustodyAndEva { get; init; }
+
         public string LeaseToken { get; } = "opaque-live-case-lease";
 
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
@@ -969,7 +1028,20 @@ public sealed partial class CaseDetailsWebTests
                 [],
                 [])
             {
-                Data = CreateData()
+                Data = CreateData(),
+                Custody = ExposeCustodyAndEva
+                    ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
+                    : [],
+                EvaHandoff = ExposeCustodyAndEva
+                    ? new(
+                        CaseId,
+                        CaseVersion,
+                        "QDOS3100042",
+                        [new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1, "damage.jpg", "image/jpeg", 12, new string('a', 64), DocumentSource.StaffUpload, "fixture", 2)],
+                        [new(1, "EVA-QDOS3100042-Revision-001.zip", new string('a', 64), new string('b', 64), _now, "staff", true)],
+                        _now,
+                        [])
+                    : null
             };
             return Task.FromResult<CaseDetails?>(details);
         }

@@ -121,6 +121,12 @@ public sealed class ExternalWorkDispatchTests
             CancellationToken cancellationToken) =>
             Task.CompletedTask;
 
+        public Task<bool> HoldsProcessingLeaseAsync(
+            Guid workItemId,
+            string leaseToken,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
         public Task FailProcessingAsync(
             Guid workItemId,
             string leaseToken,

@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Workflow;
+using Pegasus.Infrastructure.Custody;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -75,6 +77,8 @@ internal sealed class EfQueuedCustodyProcessor(
                     work.Kind,
                     work.CaseId,
                     work.OperationKey,
+                    work.CaseRootCreationToken,
+                    work.AuditFolderCreationToken,
                     cancellationToken);
             }
             catch (Exception exception)
@@ -84,7 +88,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     leaseToken,
                     timeProvider.GetUtcNow(),
                     GetFailureCode(exception),
-                    "Custody evidence could not be confirmed and requires authorized staff retry.",
+                    GetFailureReason(exception),
                     CancellationToken.None);
                 throw;
             }
@@ -94,6 +98,9 @@ internal sealed class EfQueuedCustodyProcessor(
 
         try
         {
+            var leaseGuard = new CustodyEffectLeaseGuard(
+                token => workStore.HoldsProcessingLeaseAsync(workId, leaseToken, token));
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
             var isAuditCustody = string.Equals(
                 payload.WorkKind,
                 "create_audit_reference_custody",
@@ -106,8 +113,11 @@ internal sealed class EfQueuedCustodyProcessor(
                 : await caseCustody.CreateCaseRootAsync(
                     payload.CaseId,
                     payload.CaseReference,
+                    RequireCreationOwner(payload.CaseRootCreationToken),
                     $"{payload.OperationKey}:root",
+                    leaseGuard,
                     cancellationToken);
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
             if (isAuditCustody)
             {
                 if (string.IsNullOrWhiteSpace(payload.AuditReference))
@@ -118,8 +128,11 @@ internal sealed class EfQueuedCustodyProcessor(
                 var auditFolderRemoteId = await caseCustody.CreateAuditReferenceFolderAsync(
                     root,
                     payload.AuditReference,
+                    RequireCreationOwner(payload.AuditFolderCreationToken),
                     $"{payload.OperationKey}:audit",
+                    leaseGuard,
                     cancellationToken);
+                await leaseGuard.RequireCurrentAsync(cancellationToken);
                 await CompleteAuditCustodyAsync(
                     workId,
                     leaseToken,
@@ -136,16 +149,22 @@ internal sealed class EfQueuedCustodyProcessor(
                         payload.SourceFileName,
                         payload.MediaType,
                         payload.SourceHash,
-                        payload.SourceObjectKey),
+                        payload.SourceObjectKey,
+                        payload.SourceLength),
                     $"{payload.OperationKey}:source",
+                    leaseGuard,
                     cancellationToken);
+                await leaseGuard.RequireCurrentAsync(cancellationToken);
                 var auditFolderRemoteId = string.IsNullOrWhiteSpace(payload.AuditReference)
                     ? null
                     : await caseCustody.CreateAuditReferenceFolderAsync(
                         root,
                         payload.AuditReference,
+                        RequireCreationOwner(payload.AuditFolderCreationToken),
                         $"{payload.OperationKey}:audit",
+                        leaseGuard,
                         cancellationToken);
+                await leaseGuard.RequireCurrentAsync(cancellationToken);
                 await CompleteCaseCustodyAsync(
                     workId,
                     leaseToken,
@@ -161,8 +180,8 @@ internal sealed class EfQueuedCustodyProcessor(
                 workId,
                 leaseToken,
                 timeProvider.GetUtcNow(),
-                "cancelled",
-                "Custody processing was cancelled and requires authorized staff retry.",
+                "custody_cancelled",
+                "Case evidence storage was interrupted before completion.",
                 CancellationToken.None);
             throw;
         }
@@ -173,7 +192,7 @@ internal sealed class EfQueuedCustodyProcessor(
                 leaseToken,
                 timeProvider.GetUtcNow(),
                 GetFailureCode(exception),
-                "Custody evidence could not be confirmed and requires authorized staff retry.",
+                GetFailureReason(exception),
                 CancellationToken.None);
             throw;
         }
@@ -184,6 +203,8 @@ internal sealed class EfQueuedCustodyProcessor(
         string workKind,
         Guid caseId,
         string operationKey,
+        string? caseRootCreationToken,
+        string? auditFolderCreationToken,
         CancellationToken cancellationToken)
     {
         var caseEntity = await context.Cases
@@ -234,7 +255,10 @@ internal sealed class EfQueuedCustodyProcessor(
             receipt.MediaType,
             receipt.SourceHash,
             source.StorageKey,
-            operationKey);
+            source.ContentLength,
+            operationKey,
+            caseRootCreationToken,
+            auditFolderCreationToken);
     }
 
     private static void EnsureSourceMatchesReceipt(
@@ -281,9 +305,13 @@ internal sealed class EfQueuedCustodyProcessor(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
         var work = await context.ExternalWorkItems
             .SingleOrDefaultAsync(
-                value => value.Id == workId && value.LeaseToken == leaseToken,
+                value => value.Id == workId
+                    && value.State == "processing"
+                    && value.LeaseToken == leaseToken
+                    && value.LeaseExpiresAtUtc > now,
                 cancellationToken);
         if (work is null)
         {
@@ -307,7 +335,6 @@ internal sealed class EfQueuedCustodyProcessor(
             .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
         ArchivedCaseGuard.RequireMutable(workflow);
 
-        var now = timeProvider.GetUtcNow();
         var beforeVersion = workflow.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.CustodySourceRemoteId = version.RemoteId;
@@ -319,6 +346,14 @@ internal sealed class EfQueuedCustodyProcessor(
         {
             caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
             caseEntity.AuditCustodyConfirmedAtUtc = now;
+        }
+        if (workflow.State == CaseLifecycleState.NotReady.ToString()
+            && caseEntity.InstructionComplete
+            && caseEntity.ImagesComplete
+            && caseEntity.InstructionConfirmedByStaff
+            && caseEntity.ImagesConfirmedByStaff)
+        {
+            workflow.State = CaseLifecycleState.Review.ToString();
         }
         CaseMutationGuard.Complete(workflow);
         work.State = "completed";
@@ -353,9 +388,13 @@ internal sealed class EfQueuedCustodyProcessor(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
         var work = await context.ExternalWorkItems
             .SingleOrDefaultAsync(
-                value => value.Id == workId && value.LeaseToken == leaseToken,
+                value => value.Id == workId
+                    && value.State == "processing"
+                    && value.LeaseToken == leaseToken
+                    && value.LeaseExpiresAtUtc > now,
                 cancellationToken);
         if (work is null)
         {
@@ -392,7 +431,6 @@ internal sealed class EfQueuedCustodyProcessor(
                 "The later Audit custody operation has no immutable Audit identity.");
         }
 
-        var now = timeProvider.GetUtcNow();
         var beforeVersion = workflow.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
@@ -424,11 +462,36 @@ internal sealed class EfQueuedCustodyProcessor(
     private static string GetFailureCode(Exception exception) => exception switch
     {
         FileNotFoundException => "source_unavailable",
-        InvalidDataException => "integrity_failure",
-        UnauthorizedAccessException => "scope_denied",
-        IOException => "custody_io_failure",
-        _ => "custody_dependency_failure"
+        InvalidDataException => "source_integrity_conflict",
+        UnauthorizedAccessException => "custody_scope_denied",
+        CustodyProcessingLeaseLostException => "custody_lease_lost",
+        OperationCanceledException => "custody_cancelled",
+        HttpRequestException or IOException => "custody_dependency_failure",
+        _ => "custody_unexpected_failure"
     };
+
+    private static string GetFailureReason(Exception exception) => GetFailureCode(exception) switch
+    {
+        "source_unavailable" => "The original evidence is unavailable from retained storage.",
+        "source_integrity_conflict" => "The retained evidence no longer matches the accepted source.",
+        "custody_scope_denied" => "The approved Case storage location could not be verified.",
+        "custody_lease_lost" => "Case evidence storage stopped because this processing attempt no longer owns the work.",
+        "custody_dependency_failure" =>
+            "Case evidence could not be stored because the storage service was unavailable.",
+        "custody_cancelled" => "Case evidence storage was interrupted before completion.",
+        _ => "Case evidence could not be stored."
+    };
+
+    private static string RequireCreationOwner(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new InvalidDataException(
+                "The custody operation has no predeclared remote creation owner.");
+        }
+        BoxCaseCustody.ValidateCreationOwnerToken(value);
+        return value;
+    }
 
     private sealed record WorkPayload(
         string WorkKind,
@@ -440,7 +503,10 @@ internal sealed class EfQueuedCustodyProcessor(
         string MediaType,
         string SourceHash,
         string SourceObjectKey,
-        string OperationKey);
+        long SourceLength,
+        string OperationKey,
+        string? CaseRootCreationToken,
+        string? AuditFolderCreationToken);
 
     private sealed record SourcePayload(
         string SourceFileName,
@@ -456,4 +522,5 @@ internal sealed class EfQueuedCustodyProcessor(
         string SourceHash,
         string SourceChannel,
         string ExternalReceiptToken);
+
 }

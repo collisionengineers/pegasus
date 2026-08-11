@@ -6,6 +6,7 @@ internal sealed class CaseDocumentEntity
 {
     public Guid Id { get; set; }
     public Guid CaseId { get; set; }
+    public int Ordinal { get; set; }
     public string SourceOccurrenceIdentity { get; set; } = string.Empty;
 }
 
@@ -33,6 +34,7 @@ internal sealed class DocumentOccurrenceEntity
     public Guid CaseId { get; set; }
     public Guid DocumentId { get; set; }
     public Guid VersionId { get; set; }
+    public int Ordinal { get; set; }
     public DocumentSemanticRole SemanticRole { get; set; }
     public DocumentSource Source { get; set; }
     public string SourceOccurrenceIdentity { get; set; } = string.Empty;

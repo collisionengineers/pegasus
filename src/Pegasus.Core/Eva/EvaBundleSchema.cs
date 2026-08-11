@@ -1,9 +1,11 @@
 using System.IO.Compression;
+using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Eva;
 
@@ -35,7 +37,8 @@ public sealed record EvaBundleImage(
     ReadOnlyMemory<byte> Content,
     string Sha256,
     bool CustodyConfirmed,
-    bool IsCurrent);
+    bool IsCurrent,
+    int Ordinal = 0);
 
 public sealed record EvaBundleImages(IReadOnlyList<EvaBundleImage> RetainedImages);
 
@@ -59,7 +62,8 @@ public sealed record EvaHandoffImageOption(
     long ContentLength,
     string Sha256,
     DocumentSource Source,
-    string SourceOccurrenceIdentity);
+    string SourceOccurrenceIdentity,
+    int Ordinal = 0);
 
 public sealed record EvaHandoffRevisionSummary(
     int Revision,
@@ -134,6 +138,349 @@ public interface IGenerateEvaHandoff
     Task<GenerateEvaHandoffResult> ExecuteAsync(
         GenerateEvaHandoffRequest request,
         CancellationToken cancellationToken = default);
+}
+
+public interface IEvaHandoffPersistence
+{
+    Task<GenerateEvaHandoffResult> GenerateAsync(
+        GenerateEvaHandoffRequest request,
+        string requestHash,
+        EvaHandoffPolicyAuthority policy,
+        CancellationToken cancellationToken);
+
+    Task<DownloadEvaHandoffResult> DownloadAsync(
+        DownloadEvaHandoffRequest request,
+        string normalizedReason,
+        string requestHash,
+        EvaHandoffPolicyAuthority policy,
+        CancellationToken cancellationToken);
+}
+
+public sealed class GenerateEvaHandoff(IEvaHandoffPersistence persistence) : IGenerateEvaHandoff
+{
+    public Task<GenerateEvaHandoffResult> ExecuteAsync(
+        GenerateEvaHandoffRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedReason = EvaHandoffCommandPolicy.ValidateActorAndCommand(
+            request.CaseId,
+            request.ExpectedCaseVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Reason,
+            request.EditLeaseToken);
+        var normalized = request with
+        {
+            OperationKey = request.OperationKey.Trim(),
+            Reason = normalizedReason,
+            EditLeaseToken = request.EditLeaseToken.Trim()
+        };
+        return persistence.GenerateAsync(
+            normalized,
+            EvaHandoffCommandPolicy.GenerationRequestHash(normalized),
+            EvaHandoffPolicyAuthority.Core,
+            cancellationToken);
+    }
+}
+
+public sealed record DownloadEvaHandoffRequest(
+    Guid CaseId,
+    int Revision,
+    long ExpectedCaseVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    string EditLeaseToken);
+
+public enum DownloadEvaHandoffOutcome
+{
+    Prepared,
+    Replay,
+    Conflict,
+    Refused,
+    NotFound
+}
+
+public sealed record DownloadEvaHandoffResult(
+    DownloadEvaHandoffOutcome Outcome,
+    EvaHandoffRevisionArtifact? Artifact,
+    string Message);
+
+public interface IDownloadEvaHandoff
+{
+    Task<DownloadEvaHandoffResult> ExecuteAsync(
+        DownloadEvaHandoffRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class DownloadEvaHandoff(IEvaHandoffPersistence persistence) : IDownloadEvaHandoff
+{
+    public Task<DownloadEvaHandoffResult> ExecuteAsync(
+        DownloadEvaHandoffRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (request.Revision <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request));
+        }
+        var normalized = EvaHandoffCommandPolicy.ValidateActorAndCommand(
+            request.CaseId,
+            request.ExpectedCaseVersion,
+            request.Actor,
+            request.OperationKey,
+            request.Reason,
+            request.EditLeaseToken,
+            humanOnly: true);
+        var material = JsonSerializer.Serialize(new
+        {
+            schemaVersion = 1,
+            request.CaseId,
+            request.Revision,
+            request.ExpectedCaseVersion,
+            actorKind = request.Actor.Kind.ToString(),
+            request.Actor.SubjectId,
+            roles = request.Actor.Roles.OrderBy(value => value).Select(value => value.ToString()).ToArray(),
+            operationKey = request.OperationKey.Trim(),
+            reason = normalized,
+            leaseToken = request.EditLeaseToken.Trim()
+        });
+        var requestHash = Hash(Encoding.UTF8.GetBytes(material));
+        return persistence.DownloadAsync(
+            request, normalized, requestHash, EvaHandoffPolicyAuthority.Core, cancellationToken);
+    }
+
+    private static string Hash(ReadOnlySpan<byte> content) =>
+        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+}
+
+public static class EvaHandoffCommandPolicy
+{
+    public static string GenerationRequestHash(GenerateEvaHandoffRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        Append(hash, "generate-eva-handoff/v1");
+        Append(hash, request.CaseId.ToString("D"));
+        Append(hash, request.ExpectedCaseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        Append(hash, request.Actor.Kind.ToString());
+        Append(hash, request.Actor.SubjectId);
+        foreach (var role in request.Actor.Roles.OrderBy(role => role))
+        {
+            Append(hash, role.ToString());
+        }
+        Append(hash, request.Reason);
+        Append(hash, Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(request.EditLeaseToken))).ToLowerInvariant());
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
+    }
+
+    private static void Append(IncrementalHash hash, string value)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        Span<byte> length = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
+        hash.AppendData(length);
+        hash.AppendData(bytes);
+    }
+
+    public static string ValidateActorAndCommand(
+        Guid caseId,
+        long expectedCaseVersion,
+        ActionActor actor,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        bool humanOnly = false)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (humanOnly && actor.Kind != ActorKind.Staff)
+        {
+            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
+        }
+        if (actor.Kind != ActorKind.Automation)
+        {
+            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        }
+        if (caseId == Guid.Empty || expectedCaseVersion < 0)
+        {
+            throw new ArgumentException("A current Case and rendered workflow version are required.");
+        }
+        _ = Required(operationKey, 100, nameof(operationKey));
+        _ = Required(editLeaseToken, 200, nameof(editLeaseToken));
+        return Required(reason, 500, nameof(reason));
+    }
+
+    private static string Required(string? value, int maximumLength, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("A value is required.", parameterName);
+        }
+        var normalized = value.Trim();
+        if (normalized.Length > maximumLength || normalized.Any(char.IsControl))
+        {
+            throw new ArgumentException("The value is invalid.", parameterName);
+        }
+        return normalized;
+    }
+}
+
+public sealed record EvaHandoffEligibility(
+    CaseLifecycleState State,
+    bool IsArchived,
+    long RenderedWorkflowVersion,
+    long AcceptedEvidenceVersion,
+    bool CaseCustodyConfirmed,
+    bool AuditRequired,
+    bool AuditCustodyConfirmed,
+    bool MappingAccepted,
+    int EligibleImageCount);
+
+public sealed record EvaHandoffImageCandidate(
+    Guid OccurrenceId,
+    Guid DocumentId,
+    Guid VersionId,
+    int Version,
+    string FileName,
+    string MediaType,
+    long ContentLength,
+    string Sha256,
+    DocumentSemanticRole SemanticRole,
+    DocumentSource Source,
+    string SourceOccurrenceIdentity,
+    bool CustodyConfirmed,
+    bool IsCurrent,
+    bool IsLogicallyRemoved,
+    bool IsThirdPartyVehicle,
+    int Ordinal);
+
+public sealed record EvaHandoffRevisionDecision(
+    bool ReuseExisting,
+    int BusinessRevision,
+    bool RecordFirstProxy);
+
+public enum EvaOperationReplayDecision
+{
+    New,
+    Replay,
+    Conflict
+}
+
+/// <summary>
+/// Capability passed by the Core use cases to persistence. Infrastructure may
+/// load state and apply transitions, but cannot manufacture policy authority.
+/// </summary>
+public sealed class EvaHandoffPolicyAuthority
+{
+    private readonly Func<EvaHandoffEligibility, IReadOnlyList<string>> evaluate;
+    private readonly Func<IEnumerable<EvaHandoffImageCandidate>, IReadOnlyList<EvaHandoffImageCandidate>> selectImages;
+    private readonly Func<int?, int, bool, EvaHandoffRevisionDecision> decideRevision;
+    private readonly Func<long, long, string?> renderedVersionConflict;
+
+    private EvaHandoffPolicyAuthority()
+    {
+        evaluate = EvaHandoffPolicy.Evaluate;
+        selectImages = EvaHandoffPolicy.SelectEligibleImages;
+        decideRevision = EvaHandoffPolicy.DecideRevision;
+        renderedVersionConflict = EvaHandoffPolicy.RenderedVersionConflict;
+    }
+
+    public static EvaHandoffPolicyAuthority Core { get; } = new();
+
+    public IReadOnlyList<string> Evaluate(EvaHandoffEligibility eligibility) =>
+        evaluate(eligibility);
+
+    public IReadOnlyList<EvaHandoffImageCandidate> SelectEligibleImages(
+        IEnumerable<EvaHandoffImageCandidate> candidates) =>
+        selectImages(candidates);
+
+    public EvaHandoffRevisionDecision DecideRevision(
+        int? matchingRevision,
+        int currentMaximumRevision,
+        bool firstProxyAlreadyRecorded) =>
+        decideRevision(matchingRevision, currentMaximumRevision, firstProxyAlreadyRecorded);
+
+    public string? RenderedVersionConflict(long renderedVersion, long currentVersion) =>
+        renderedVersionConflict(renderedVersion, currentVersion);
+
+    public EvaOperationReplayDecision DecideReplay(
+        bool operationExists,
+        bool requestMatches)
+    {
+        _ = evaluate;
+        return operationExists
+            ? requestMatches ? EvaOperationReplayDecision.Replay : EvaOperationReplayDecision.Conflict
+            : EvaOperationReplayDecision.New;
+    }
+}
+
+public static class EvaHandoffPolicy
+{
+    public static IReadOnlyList<EvaHandoffImageCandidate> SelectEligibleImages(
+        IEnumerable<EvaHandoffImageCandidate> candidates) => candidates
+        .Where(candidate => candidate.SemanticRole == DocumentSemanticRole.Image
+            && candidate.CustodyConfirmed
+            && candidate.IsCurrent
+            && !candidate.IsLogicallyRemoved
+            && !candidate.IsThirdPartyVehicle
+            && candidate.MediaType is "image/jpeg" or "image/png")
+        .OrderBy(candidate => candidate.Ordinal)
+        .ToArray();
+
+    public static EvaHandoffRevisionDecision DecideRevision(
+        int? matchingRevision,
+        int currentMaximumRevision,
+        bool firstProxyAlreadyRecorded)
+    {
+        if (matchingRevision is > 0)
+        {
+            return new(true, matchingRevision.Value, false);
+        }
+        return new(
+            false,
+            checked(currentMaximumRevision + 1),
+            !firstProxyAlreadyRecorded);
+    }
+
+    public static string? RenderedVersionConflict(long renderedVersion, long currentVersion) =>
+        renderedVersion == currentVersion
+            ? null
+            : "The case changed after the EVA handoff was loaded. Reload before retrying.";
+
+    public static IReadOnlyList<string> Evaluate(EvaHandoffEligibility eligibility)
+    {
+        ArgumentNullException.ThrowIfNull(eligibility);
+        var reasons = new List<string>();
+        if (eligibility.IsArchived)
+        {
+            reasons.Add("Archived cases cannot generate EVA handoffs.");
+        }
+        if (eligibility.State != CaseLifecycleState.Review)
+        {
+            reasons.Add("EVA handoff generation is available only while the case is in Review.");
+        }
+        if (eligibility.RenderedWorkflowVersion != eligibility.AcceptedEvidenceVersion)
+        {
+            reasons.Add("Accepted case evidence is stale relative to the current case version.");
+        }
+        if (!eligibility.CaseCustodyConfirmed)
+        {
+            reasons.Add("Case custody has not been confirmed.");
+        }
+        if (eligibility.AuditRequired && !eligibility.AuditCustodyConfirmed)
+        {
+            reasons.Add("Audit custody has not been confirmed.");
+        }
+        if (!eligibility.MappingAccepted)
+        {
+            reasons.Add(CaseEvaMapping.ActivationGateReason);
+        }
+        if (eligibility.EligibleImageCount <= 0)
+        {
+            reasons.Add("At least one custody-confirmed current image version is required.");
+        }
+        return reasons;
+    }
 }
 
 public sealed record EvaHandoffProxyRequest(
@@ -295,7 +642,16 @@ public static class EvaBundleSchema
             throw new InvalidDataException("At least one retained EVA image is required.");
         }
 
-        return retained.Select(CreateImageEntry).ToList();
+        if (retained.Select(item => item.Image.Ordinal).Any(value => value <= 0)
+            || retained.Select(item => item.Image.Ordinal).Distinct().Count() != retained.Count)
+        {
+            throw new InvalidDataException("Retained EVA images require distinct persisted evidence ordinals.");
+        }
+
+        return retained
+            .OrderBy(item => item.Image.Ordinal)
+            .Select(CreateImageEntry)
+            .ToList();
     }
 
     private static ValidatedImage ValidateImage(EvaBundleImage? image)
@@ -340,7 +696,7 @@ public static class EvaBundleSchema
     }
 
     private static ImageEntry CreateImageEntry(ValidatedImage image) => new(
-        $"{image.Image.OccurrenceId:N}-{SafeFileComponent(image.Image.FileName)}",
+        $"Images/{image.Image.Ordinal:000} {SafeFileComponent(image.Image.FileName)}",
         image.Image,
         image.Sha256);
 
