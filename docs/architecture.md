@@ -244,7 +244,13 @@ Core owns:
 - shared business actions later exposed through Web, Worker, provider API, or MCP;
 - exact provider/domain package validation and deterministic catalog outcomes.
 
-Shared intake code may normalize transport, reconstruct an original sender where staff forwarding is proved, extract subject, body, attachments, and assets, invoke exactly one applicable route policy, and record that policy’s evidence and version. It does not impose a universal case-matching precedence.
+Shared intake code may normalize transport, reconstruct one original sender
+where a staff forward is proved (from an attached email or the strict ordered
+Outlook `From:`, `Sent:`, `To:`, `Subject:` header quartet), extract subject,
+body, attachments, and assets, invoke exactly one applicable route policy, and
+record that policy’s evidence and version. It does not impose a universal
+case-matching precedence. Partial, conflicting, or malformed forwarding
+evidence remains reviewable rather than becoming route identity.
 
 Direct-provider and intermediary policies are separate, code-versioned owners. They may identify the same provider, but each policy applies only to its own message shape and evidence.
 
@@ -572,7 +578,7 @@ The staff `/Received` and `/Inbox` routes are served wherever intake is composed
 | Core intake receipt/query/command use cases | `src/Pegasus.Core/Intake/` |
 | Core source-download contract and policy | `src/Pegasus.Core/Intake/DownloadIntakeSource.cs`, `src/Pegasus.Core/Intake/IntakeContracts.cs` |
 | QDOS extraction policy | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` |
-| QDOS mail route (`qdos_mail_route` v3), classification, and case-match policies | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs` |
+| QDOS mail route (`qdos_mail_route` v4), classification, and case-match policies | `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`, `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosCaseMatchPolicy.cs` |
 | Core case-match evaluator and `CaseMatchIndex` read model | `src/Pegasus.Core/Intake/CaseMatching/`, `src/Pegasus.Infrastructure/Persistence/CaseMatchEntities.cs` |
 | Core image-intake registration, pairing, and lifecycle use cases | `src/Pegasus.Core/ImageIntake/` |
 | In-process ONNX VRM recognition engine (ADR-0019) | `src/Pegasus.Infrastructure/Vision/` |
