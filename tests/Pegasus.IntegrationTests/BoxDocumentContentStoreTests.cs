@@ -64,8 +64,8 @@ public sealed class BoxDocumentContentStoreTests
 
         Assert.Equal(DocumentContentWriteDisposition.Created, first.Disposition);
         Assert.Equal(DocumentContentWriteDisposition.Replay, replay.Disposition);
-        Assert.Equal(2, uploadsAfterFirst); // immutable Case binding plus managed content
-        Assert.Equal(2, box.UploadCount);
+        Assert.Equal(4, uploadsAfterFirst); // Case, occurrence, version bindings plus content
+        Assert.Equal(4, box.UploadCount);
     }
 
     [Fact]
@@ -117,6 +117,34 @@ public sealed class BoxDocumentContentStoreTests
         Assert.Equal(1, box.DeleteCount);
         await Assert.ThrowsAsync<FileNotFoundException>(() => store.OpenReadVersionAsync(
             Address(), hash, content.Length, CancellationToken.None));
+
+        var wrongBinding = new InMemoryBox();
+        wrongBinding.BindCaseRoot();
+        var wrongBindingStore = CreateStore(wrongBinding);
+        await wrongBindingStore.StoreVersionAsync(Address(), content, hash, default);
+        wrongBinding.CorruptFile(
+            $"{CaseReference}/Evidence/Images/002 evidence.jpg/pegasus-document-binding.json");
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            wrongBindingStore.StoreVersionAsync(Address(), content, hash, default));
+
+        var wrongMedia = new InMemoryBox();
+        wrongMedia.BindCaseRoot();
+        var wrongMediaStore = CreateStore(wrongMedia);
+        await wrongMediaStore.StoreVersionAsync(Address(), content, hash, default);
+        wrongMedia.SetMediaType(
+            $"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg",
+            "application/octet-stream");
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            wrongMediaStore.StoreVersionAsync(Address(), content, hash, default));
+
+        var lostResponse = new InMemoryBox();
+        lostResponse.BindCaseRoot();
+        lostResponse.LoseNextUploadResponseForName = "evidence.jpg";
+        var lostResponseStore = CreateStore(lostResponse);
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            lostResponseStore.StoreVersionAsync(Address(), content, hash, default));
+        var reconciled = await lostResponseStore.StoreVersionAsync(Address(), content, hash, default);
+        Assert.Equal(DocumentContentWriteDisposition.Replay, reconciled.Disposition);
     }
 
     [Fact]
@@ -181,7 +209,12 @@ public sealed class BoxDocumentContentStoreTests
     /// <summary>Minimal stateful Box: folders, files, paged listing.</summary>
     private sealed class InMemoryBox
     {
-        private sealed record Node(string Id, string Name, string Type, string? ParentId);
+        private sealed record Node(
+            string Id,
+            string Name,
+            string Type,
+            string? ParentId,
+            string? MediaType = null);
 
         private readonly Dictionary<string, Node> nodes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, byte[]> fileBytes = new(StringComparer.Ordinal);
@@ -193,6 +226,7 @@ public sealed class BoxDocumentContentStoreTests
         public int UploadCount { get; private set; }
         public int DeleteCount { get; private set; }
         public int LargestItemsRequestOffset { get; private set; }
+        public string? LoseNextUploadResponseForName { get; set; }
 
         public string CreateFolderPath(string path)
         {
@@ -220,7 +254,8 @@ public sealed class BoxDocumentContentStoreTests
             }
             var root = AddFolder(ApprovedRootId, CaseReference);
             var bindingId = $"file-{++nextId}";
-            nodes[bindingId] = new Node(bindingId, "pegasus-case-binding.json", "file", root);
+            nodes[bindingId] = new Node(
+                bindingId, "pegasus-case-binding.json", "file", root, "application/json");
             fileBytes[bindingId] = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 schemaVersion = 1,
@@ -251,6 +286,12 @@ public sealed class BoxDocumentContentStoreTests
             fileBytes[fileId] = Encoding.UTF8.GetBytes("corrupted");
         }
 
+        public void SetMediaType(string path, string mediaType)
+        {
+            var fileId = RequireByPath(path);
+            nodes[fileId] = nodes[fileId] with { MediaType = mediaType };
+        }
+
         public HttpResponseMessage Handle(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -268,7 +309,16 @@ public sealed class BoxDocumentContentStoreTests
                     .OrderBy(node => node.Id, StringComparer.Ordinal)
                     .Skip(offset)
                     .Take(limit)
-                    .Select(node => new { id = node.Id, name = node.Name, type = node.Type, etag = "1" });
+                    .Select(node => new
+                    {
+                        id = node.Id,
+                        name = node.Name,
+                        type = node.Type,
+                        etag = "1",
+                        size = node.Type == "file" ? fileBytes[node.Id].LongLength : (long?)null,
+                        content_type = node.MediaType,
+                        parent = node.ParentId is null ? null : new { id = node.ParentId }
+                    });
                 return Json(JsonSerializer.Serialize(new { entries = children }));
             }
 
@@ -283,7 +333,17 @@ public sealed class BoxDocumentContentStoreTests
                     return new HttpResponseMessage(HttpStatusCode.NotFound) { Content = new StringContent("missing") };
                 }
                 var parent = node.ParentId is null ? null : new { id = node.ParentId };
-                return Json(JsonSerializer.Serialize(new { id = node.Id, parent, trashed_at = (string?)null }));
+                return Json(JsonSerializer.Serialize(new
+                {
+                    id = node.Id,
+                    name = node.Name,
+                    type = node.Type,
+                    etag = "1",
+                    size = node.Type == "file" ? fileBytes[node.Id].LongLength : (long?)null,
+                    content_type = node.MediaType,
+                    parent,
+                    trashed_at = (string?)null
+                }));
             }
 
             if (request.Method == HttpMethod.Post && path == "/2.0/folders")
@@ -306,10 +366,21 @@ public sealed class BoxDocumentContentStoreTests
                 var bytes = multipart.First(part =>
                         part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
                     .ReadAsByteArrayAsync().GetAwaiter().GetResult();
+                var mediaType = multipart.First(part =>
+                        part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
+                    .Headers.ContentType?.MediaType;
                 var id = $"file-{++nextId}";
-                nodes[id] = new Node(id, name, "file", parentId);
+                nodes[id] = new Node(id, name, "file", parentId, mediaType);
                 fileBytes[id] = bytes;
                 UploadCount++;
+                if (string.Equals(LoseNextUploadResponseForName, name, StringComparison.Ordinal))
+                {
+                    LoseNextUploadResponseForName = null;
+                    return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)
+                    {
+                        Content = new StringContent("lost upload response")
+                    };
+                }
                 return Json(JsonSerializer.Serialize(new
                 {
                     entries = new[] { new { id, name, type = "file", etag = "1" } }

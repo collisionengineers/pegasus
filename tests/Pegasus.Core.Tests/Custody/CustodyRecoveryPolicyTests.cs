@@ -34,7 +34,7 @@ public sealed class CustodyRecoveryPolicyTests
         Assert.Matches("^[0-9a-f]{64}$", store.RequestHash);
     }
 
-    private sealed class RecordingStore : ICustodyRecoveryStore
+    private sealed class RecordingStore : ICustodyRecoveryPersistence
     {
         public RetryCaseCustodyRequest? Request { get; private set; }
         public string? Reason { get; private set; }
@@ -44,6 +44,7 @@ public sealed class CustodyRecoveryPolicyTests
             RetryCaseCustodyRequest request,
             string normalizedReason,
             string requestHash,
+            CustodyRetryPolicyAuthority policy,
             CancellationToken cancellationToken)
         {
             Request = request;

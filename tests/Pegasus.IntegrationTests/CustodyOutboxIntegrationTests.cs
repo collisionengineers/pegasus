@@ -1060,6 +1060,45 @@ public sealed class CustodyOutboxIntegrationTests
         await RetryFailedCustodyAsync(scope.ServiceProvider, postEffectLeaseLoss, "custody-recovery-after-lease-loss");
         await processor.ExecuteAsync(postEffectLeaseLoss.CustodyWorkId, default);
         Assert.Equal("confirmed", await ReadCaseCustodyStateAsync(scope.ServiceProvider, postEffectLeaseLoss.CaseId));
+
+        // Expiry, without token replacement, is equally authoritative. Expiry
+        // before the first effect makes zero adapter calls; expiry after the
+        // source effect prevents both stale completion and stale failure.
+        var expiredBeforeEffect = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var expireOnCheck = new ExpireLeaseOnCheckStore(normalStore, dbFactory, FixedUtcNow.AddSeconds(-1));
+        var noEffectCustody = new CountingCustody(
+            scope.ServiceProvider.GetRequiredService<ICaseCustody>());
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() =>
+            new EfQueuedCustodyProcessor(
+                dbFactory,
+                expireOnCheck,
+                noEffectCustody,
+                new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(expiredBeforeEffect.CustodyWorkId, default));
+        Assert.Equal(0, noEffectCustody.EffectCalls);
+        Assert.Equal("processing", await ReadExternalWorkStateAsync(
+            scope.ServiceProvider, expiredBeforeEffect.CustodyWorkId));
+
+        var expiredBeforeCompletion = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var expiresAfterSource = new ExpireLeaseAfterEffectCustody(
+            scope.ServiceProvider.GetRequiredService<ICaseCustody>(),
+            dbFactory,
+            expiredBeforeCompletion.CustodyWorkId,
+            FixedUtcNow.AddSeconds(-1));
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() =>
+            new EfQueuedCustodyProcessor(
+                dbFactory,
+                normalStore,
+                expiresAfterSource,
+                new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(expiredBeforeCompletion.CustodyWorkId, default));
+        Assert.True(expiresAfterSource.EffectCalls > 0);
+        Assert.Equal("processing", await ReadExternalWorkStateAsync(
+            scope.ServiceProvider, expiredBeforeCompletion.CustodyWorkId));
+        Assert.Equal("pending", await ReadCaseCustodyStateAsync(
+            scope.ServiceProvider, expiredBeforeCompletion.CaseId));
+        Assert.Equal(0, await CountCaseHistoryAsync(
+            scope.ServiceProvider, expiredBeforeCompletion.CaseId, "custody_failed"));
     }
 
     [Fact]
@@ -1434,6 +1473,32 @@ public sealed class CustodyOutboxIntegrationTests
             inner.FailProcessingAsync(workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
     }
 
+    private sealed class ExpireLeaseOnCheckStore(
+        IExternalWorkStore inner,
+        IDbContextFactory<PegasusDbContext> factory,
+        DateTimeOffset expiredAtUtc) : IExternalWorkStore
+    {
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) =>
+            inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+        public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset dispatchedAtUtc, CancellationToken cancellationToken) =>
+            inner.MarkDispatchedAsync(workItemId, leaseToken, dispatchedAtUtc, cancellationToken);
+        public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) =>
+            inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
+        public Task MarkPoisonedAsync(Guid workItemId, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) =>
+            inner.MarkPoisonedAsync(workItemId, failedAtUtc, cancellationToken);
+        public async Task<bool> HoldsProcessingLeaseAsync(Guid workItemId, string leaseToken, CancellationToken cancellationToken)
+        {
+            await using var context = await factory.CreateDbContextAsync(cancellationToken);
+            await context.ExternalWorkItems.Where(item => item.Id == workItemId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.LeaseExpiresAtUtc, expiredAtUtc),
+                    cancellationToken);
+            return await inner.HoldsProcessingLeaseAsync(workItemId, leaseToken, cancellationToken);
+        }
+        public Task FailProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset failedAtUtc, string failureCode, string failureReason, CancellationToken cancellationToken) =>
+            inner.FailProcessingAsync(workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
+    }
+
     private class CountingCustody(ICaseCustody inner) : ICaseCustody
     {
         public int EffectCalls { get; protected set; }
@@ -1493,6 +1558,29 @@ public sealed class CustodyOutboxIntegrationTests
                     .SetProperty(item => item.State, "processing")
                     .SetProperty(item => item.LeaseToken, newerLeaseToken)
                     .SetProperty(item => item.LeaseExpiresAtUtc, newerLeaseExpiry),
+                    cancellationToken);
+            return result;
+        }
+    }
+
+    private sealed class ExpireLeaseAfterEffectCustody(
+        ICaseCustody inner,
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid workId,
+        DateTimeOffset expiredAtUtc) : CountingCustody(inner)
+    {
+        public override async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root,
+            IntakeSourceCustodyReference source,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            var result = await base.RetainAcceptedIntakeSourceAsync(
+                root, source, operationKey, cancellationToken);
+            await using var context = await factory.CreateDbContextAsync(cancellationToken);
+            await context.ExternalWorkItems.Where(item => item.Id == workId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.LeaseExpiresAtUtc, expiredAtUtc),
                     cancellationToken);
             return result;
         }

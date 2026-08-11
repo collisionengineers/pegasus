@@ -11,7 +11,7 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class EfExternalWorkStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider)
-    : IExternalWorkStore, IQueuedExternalWorkReader, ICaseCustodyQueries, ICustodyRecoveryStore
+    : IExternalWorkStore, IQueuedExternalWorkReader, ICaseCustodyQueries, ICustodyRecoveryPersistence
 {
     private const int CandidateBatchSize = 256;
 
@@ -25,10 +25,12 @@ internal sealed class EfExternalWorkStore(
             return false;
         }
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
         return await context.ExternalWorkItems.AsNoTracking().AnyAsync(
             item => item.Id == workItemId
                 && item.State == "processing"
-                && item.LeaseToken == leaseToken,
+                && item.LeaseToken == leaseToken
+                && item.LeaseExpiresAtUtc > now,
             cancellationToken);
     }
 
@@ -81,6 +83,7 @@ internal sealed class EfExternalWorkStore(
         RetryCaseCustodyRequest request,
         string normalizedReason,
         string requestHash,
+        CustodyRetryPolicyAuthority policy,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -93,18 +96,16 @@ internal sealed class EfExternalWorkStore(
                 && item.OperationKey == request.OperationKey, cancellationToken);
         if (replay is not null)
         {
-            if (!string.Equals(replay.EventType, "custody_retry_requested", StringComparison.Ordinal)
-                || !string.Equals(replay.RequestHash, requestHash, StringComparison.Ordinal))
-            {
-                return new(
-                    RetryCaseCustodyOutcome.Conflict,
-                    null,
-                    "The custody retry operation key was already used for another request.");
-            }
-            return new(
-                RetryCaseCustodyOutcome.Replay,
+            return policy.Decide(new(
+                OperationExists: true,
+                OperationMatches: string.Equals(
+                    replay.EventType, "custody_retry_requested", StringComparison.Ordinal)
+                    && string.Equals(replay.RequestHash, requestHash, StringComparison.Ordinal),
                 replay.AfterVersion,
-                "The original custody retry request is already pending.");
+                CaseExists: false, null, WorkExists: false, null,
+                AnotherRetryWon: false, null,
+                CustodyAlreadyConfirmed: false,
+                AuditReferenceExists: true));
         }
 
         var workflow = await context.CaseWorkflows
@@ -112,7 +113,8 @@ internal sealed class EfExternalWorkStore(
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
         if (workflow is null)
         {
-            return new(RetryCaseCustodyOutcome.NotFound, null, "The case was not found.");
+            return policy.Decide(new(
+                false, false, null, false, null, false, null, false, null, false, true));
         }
         ArchivedCaseGuard.RequireMutable(workflow);
         var kind = request.TargetKind == CustodyTargetKind.CaseSource
@@ -122,7 +124,9 @@ internal sealed class EfExternalWorkStore(
             .SingleOrDefaultAsync(item => item.CaseId == request.CaseId && item.Kind == kind, cancellationToken);
         if (work is null)
         {
-            return new(RetryCaseCustodyOutcome.Refused, workflow.Version, "No matching custody work exists.");
+            return policy.Decide(new(
+                false, false, null, true, workflow.Version, false, null,
+                false, null, false, true));
         }
         if (!string.Equals(work.State, "failed", StringComparison.Ordinal))
         {
@@ -132,11 +136,9 @@ internal sealed class EfExternalWorkStore(
                     && item.EventType == "custody_retry_requested")
                 .OrderByDescending(item => item.OccurredAtUtc)
                 .FirstOrDefaultAsync(cancellationToken);
-            return winner is null
-                ? new(RetryCaseCustodyOutcome.Refused, workflow.Version,
-                    "Only failed custody work can be retried.")
-                : new(RetryCaseCustodyOutcome.Conflict, winner.AfterVersion,
-                    "Another authorized retry already re-armed this custody work with a different operation key.");
+            return policy.Decide(new(
+                false, false, null, true, workflow.Version, true, work.State,
+                winner is not null, winner?.AfterVersion, false, true));
         }
         CaseMutationGuard.Require(
             workflow,
@@ -149,14 +151,24 @@ internal sealed class EfExternalWorkStore(
             || request.TargetKind == CustodyTargetKind.AuditReference
                 && !string.IsNullOrWhiteSpace(workflow.Case.AuditCustodyRemoteId))
         {
-            return new(RetryCaseCustodyOutcome.Refused, workflow.Version,
-                "Confirmed custody cannot be retried.");
+            return policy.Decide(new(
+                false, false, null, true, workflow.Version, true, work.State,
+                false, null, true, true));
         }
         if (request.TargetKind == CustodyTargetKind.AuditReference
             && string.IsNullOrWhiteSpace(workflow.Case.AuditReference))
         {
-            return new(RetryCaseCustodyOutcome.Refused, workflow.Version,
-                "The case has no immutable Audit reference to store.");
+            return policy.Decide(new(
+                false, false, null, true, workflow.Version, true, work.State,
+                false, null, false, false));
+        }
+
+        var decision = policy.Decide(new(
+            false, false, null, true, workflow.Version, true, work.State,
+            false, null, false, true));
+        if (decision.Outcome != RetryCaseCustodyOutcome.Pending)
+        {
+            return decision;
         }
 
         work.CaseRootCreationToken ??= CustodyCreationOwner.Create();
@@ -529,7 +541,10 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         {
             return;
         }
-        if (!string.Equals(work.LeaseToken, leaseToken, StringComparison.Ordinal))
+        var now = timeProvider.GetUtcNow();
+        if (!string.Equals(work.State, "processing", StringComparison.Ordinal)
+            || !string.Equals(work.LeaseToken, leaseToken, StringComparison.Ordinal)
+            || work.LeaseExpiresAtUtc <= now)
         {
             return;
         }

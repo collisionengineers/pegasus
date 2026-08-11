@@ -98,10 +98,9 @@ internal sealed class EfQueuedCustodyProcessor(
 
         try
         {
-            if (!await workStore.HoldsProcessingLeaseAsync(workId, leaseToken, cancellationToken))
-            {
-                throw new CustodyProcessingLeaseLostException();
-            }
+            var leaseGuard = new CustodyEffectLeaseGuard(
+                token => workStore.HoldsProcessingLeaseAsync(workId, leaseToken, token));
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
             var isAuditCustody = string.Equals(
                 payload.WorkKind,
                 "create_audit_reference_custody",
@@ -116,7 +115,9 @@ internal sealed class EfQueuedCustodyProcessor(
                     payload.CaseReference,
                     RequireCreationOwner(payload.CaseRootCreationToken),
                     $"{payload.OperationKey}:root",
+                    leaseGuard,
                     cancellationToken);
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
             if (isAuditCustody)
             {
                 if (string.IsNullOrWhiteSpace(payload.AuditReference))
@@ -129,7 +130,9 @@ internal sealed class EfQueuedCustodyProcessor(
                     payload.AuditReference,
                     RequireCreationOwner(payload.AuditFolderCreationToken),
                     $"{payload.OperationKey}:audit",
+                    leaseGuard,
                     cancellationToken);
+                await leaseGuard.RequireCurrentAsync(cancellationToken);
                 await CompleteAuditCustodyAsync(
                     workId,
                     leaseToken,
@@ -149,7 +152,9 @@ internal sealed class EfQueuedCustodyProcessor(
                         payload.SourceObjectKey,
                         payload.SourceLength),
                     $"{payload.OperationKey}:source",
+                    leaseGuard,
                     cancellationToken);
+                await leaseGuard.RequireCurrentAsync(cancellationToken);
                 var auditFolderRemoteId = string.IsNullOrWhiteSpace(payload.AuditReference)
                     ? null
                     : await caseCustody.CreateAuditReferenceFolderAsync(
@@ -157,7 +162,9 @@ internal sealed class EfQueuedCustodyProcessor(
                         payload.AuditReference,
                         RequireCreationOwner(payload.AuditFolderCreationToken),
                         $"{payload.OperationKey}:audit",
+                        leaseGuard,
                         cancellationToken);
+                await leaseGuard.RequireCurrentAsync(cancellationToken);
                 await CompleteCaseCustodyAsync(
                     workId,
                     leaseToken,
@@ -298,9 +305,13 @@ internal sealed class EfQueuedCustodyProcessor(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
         var work = await context.ExternalWorkItems
             .SingleOrDefaultAsync(
-                value => value.Id == workId && value.LeaseToken == leaseToken,
+                value => value.Id == workId
+                    && value.State == "processing"
+                    && value.LeaseToken == leaseToken
+                    && value.LeaseExpiresAtUtc > now,
                 cancellationToken);
         if (work is null)
         {
@@ -324,7 +335,6 @@ internal sealed class EfQueuedCustodyProcessor(
             .SingleAsync(value => value.CaseId == work.CaseId, cancellationToken);
         ArchivedCaseGuard.RequireMutable(workflow);
 
-        var now = timeProvider.GetUtcNow();
         var beforeVersion = workflow.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.CustodySourceRemoteId = version.RemoteId;
@@ -378,9 +388,13 @@ internal sealed class EfQueuedCustodyProcessor(
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
         var work = await context.ExternalWorkItems
             .SingleOrDefaultAsync(
-                value => value.Id == workId && value.LeaseToken == leaseToken,
+                value => value.Id == workId
+                    && value.State == "processing"
+                    && value.LeaseToken == leaseToken
+                    && value.LeaseExpiresAtUtc > now,
                 cancellationToken);
         if (work is null)
         {
@@ -417,7 +431,6 @@ internal sealed class EfQueuedCustodyProcessor(
                 "The later Audit custody operation has no immutable Audit identity.");
         }
 
-        var now = timeProvider.GetUtcNow();
         var beforeVersion = workflow.Version;
         caseEntity.CustodyRootRemoteId = root.RemoteId;
         caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
@@ -510,6 +523,4 @@ internal sealed class EfQueuedCustodyProcessor(
         string SourceChannel,
         string ExternalReceiptToken);
 
-    private sealed class CustodyProcessingLeaseLostException()
-        : InvalidOperationException("The custody processing lease was lost before the external effect started.");
 }

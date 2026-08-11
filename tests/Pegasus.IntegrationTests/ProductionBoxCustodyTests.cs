@@ -167,7 +167,9 @@ public sealed class ProductionBoxCustodyTests
             || uri.AbsolutePath.Contains("move", StringComparison.OrdinalIgnoreCase)
             || uri.AbsolutePath.Contains("copy", StringComparison.OrdinalIgnoreCase)
             || uri.AbsolutePath.Contains("share", StringComparison.OrdinalIgnoreCase));
-        Assert.Contains(expectedFileName, handler.RequestBodies.Single(), StringComparison.Ordinal);
+        Assert.Contains(
+            handler.RequestBodies,
+            body => body.Contains(expectedFileName, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -201,11 +203,14 @@ public sealed class ProductionBoxCustodyTests
         var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
         var root = await custody.CreateCaseRootAsync(
             caseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
-        await custody.RetainAcceptedIntakeSourceAsync(
-            root,
-            new(Guid.NewGuid(), "instruction.eml", "message/rfc822", Sha256(sourceBytes), "source", sourceBytes.Length),
-            "source-retain",
-            default);
+        var source = new IntakeSourceCustodyReference(
+            Guid.NewGuid(),
+            "instruction.eml",
+            "message/rfc822",
+            Sha256(sourceBytes),
+            "source",
+            sourceBytes.Length);
+        await custody.RetainAcceptedIntakeSourceAsync(root, source, "source-retain", default);
         await custody.CreateAuditReferenceFolderAsync(
             root, "AUD31001", "123456789ABCDEFGHJKMNPQRS0", "audit-create", default);
 
@@ -230,6 +235,31 @@ public sealed class ProductionBoxCustodyTests
             segment.StartsWith(".pegasus-create-", StringComparison.Ordinal)
             || Guid.TryParse(segment, out _)
             || (segment.Length == 64 && segment.All(char.IsAsciiHexDigit)));
+
+        box.SetMediaType(
+            "QDOS31001/Evidence/Original instruction/001 instruction.eml",
+            "application/octet-stream");
+        await Assert.ThrowsAsync<InvalidDataException>(() => custody.RetainAcceptedIntakeSourceAsync(
+            root, source, "source-wrong-media", default));
+        box.SetMediaType(
+            "QDOS31001/Evidence/Original instruction/001 instruction.eml",
+            "message/rfc822");
+        box.CorruptFile("QDOS31001/Evidence/Original instruction/pegasus-accepted-source-binding.json");
+        await Assert.ThrowsAsync<InvalidDataException>(() => custody.RetainAcceptedIntakeSourceAsync(
+            root, source, "source-wrong-binding", default));
+
+        var lostSourceResponse = new StatefulBox();
+        var lostResponseCustody = new BoxCaseCustody(
+            new MemoryArtifactStore(sourceBytes), CreateClient(lostSourceResponse));
+        var lostResponseRoot = await lostResponseCustody.CreateCaseRootAsync(
+            caseId, "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "lost-source-root", default);
+        lostSourceResponse.LoseNextFileUploadResponseForName = "001 instruction.eml";
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            lostResponseCustody.RetainAcceptedIntakeSourceAsync(
+                lostResponseRoot, source, "lost-source", default));
+        var reconciledSource = await lostResponseCustody.RetainAcceptedIntakeSourceAsync(
+            lostResponseRoot, source, "lost-source", default);
+        Assert.NotEmpty(reconciledSource.RemoteId);
     }
 
     [Fact]
@@ -295,6 +325,63 @@ public sealed class ProductionBoxCustodyTests
         await Assert.ThrowsAsync<InvalidDataException>(() => new BoxCaseCustody(
             new EmptyArtifactStore(), CreateClient(unrelated)).CreateCaseRootAsync(
                 caseId, "QDOS31001", caseToken, "case-create", default));
+
+        var expiredBeforeCreate = new StatefulBox();
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() => new BoxCaseCustody(
+            new EmptyArtifactStore(), CreateClient(expiredBeforeCreate)).CreateCaseRootAsync(
+                caseId,
+                "QDOS31001",
+                caseToken,
+                "expired-before-create",
+                new CustodyEffectLeaseGuard(_ => Task.FromResult(false)),
+                default));
+        Assert.Equal(0, expiredBeforeCreate.MutationCount);
+
+        var expiresAfterStaging = new StatefulBox();
+        var stagingChecks = 0;
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() => new BoxCaseCustody(
+            new EmptyArtifactStore(), CreateClient(expiresAfterStaging)).CreateCaseRootAsync(
+                caseId,
+                "QDOS31001",
+                caseToken,
+                "expires-after-staging",
+                new CustodyEffectLeaseGuard(_ =>
+                    Task.FromResult(Interlocked.Increment(ref stagingChecks) == 1)),
+                default));
+        Assert.True(expiresAfterStaging.PathExists($".pegasus-create-{caseToken}"));
+        Assert.False(expiresAfterStaging.PathExists("QDOS31001"));
+        Assert.Equal(1, expiresAfterStaging.MutationCount);
+
+        var expiresAfterPromotion = new StatefulBox();
+        var promotionChecks = 0;
+        var guardedCustody = new BoxCaseCustody(
+            new MemoryArtifactStore("accepted source"u8.ToArray()),
+            CreateClient(expiresAfterPromotion));
+        var promotionGuard = new CustodyEffectLeaseGuard(_ =>
+            Task.FromResult(Interlocked.Increment(ref promotionChecks) <= 3));
+        var promotedRoot = await guardedCustody.CreateCaseRootAsync(
+            caseId,
+            "QDOS31001",
+            caseToken,
+            "promotion-boundary",
+            promotionGuard,
+            default);
+        var sourceBytes = "accepted source"u8.ToArray();
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() =>
+            guardedCustody.RetainAcceptedIntakeSourceAsync(
+                promotedRoot,
+                new(
+                    Guid.Parse("20314253-6475-8697-a8b9-cadbecfd0e1f"),
+                    "instruction.eml",
+                    "message/rfc822",
+                    Sha256(sourceBytes),
+                    "source-key",
+                    sourceBytes.Length),
+                "source-boundary",
+                promotionGuard,
+                default));
+        Assert.True(expiresAfterPromotion.PathExists("QDOS31001/pegasus-case-binding.json"));
+        Assert.False(expiresAfterPromotion.PathExists("QDOS31001/Evidence"));
     }
 
     private static ManagedDocumentContentAddress Address(Guid caseId, int ordinal, int version, string fileName) => new(
@@ -389,13 +476,20 @@ public sealed class ProductionBoxCustodyTests
 
     private sealed class StatefulBox
     {
-        private sealed class Node(string id, string name, string type, string? parentId, byte[]? content = null)
+        private sealed class Node(
+            string id,
+            string name,
+            string type,
+            string? parentId,
+            byte[]? content = null,
+            string? mediaType = null)
         {
             public string Id { get; } = id;
             public string Name { get; set; } = name;
             public string Type { get; } = type;
             public string? ParentId { get; } = parentId;
-            public byte[]? Content { get; } = content;
+            public byte[]? Content { get; set; } = content;
+            public string? MediaType { get; set; } = mediaType;
             public string? MetadataParentOverride { get; set; }
         }
 
@@ -406,6 +500,7 @@ public sealed class ProductionBoxCustodyTests
         public StatefulBox() => nodes[Root] = new(Root, "pegasus", "folder", null);
 
         public bool LoseNextFolderCreateResponse { get; set; }
+        public string? LoseNextFileUploadResponseForName { get; set; }
         public int RenameCount { get; private set; }
         public int DeleteCount { get; private set; }
         public int MutationCount { get; private set; }
@@ -437,6 +532,10 @@ public sealed class ProductionBoxCustodyTests
             return true;
         }
 
+        public void CorruptFile(string path) => RequirePath(path).Content = "wrong binding"u8.ToArray();
+
+        public void SetMediaType(string path, string mediaType) => RequirePath(path).MediaType = mediaType;
+
         public HttpResponseMessage Handle(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -445,7 +544,16 @@ public sealed class ProductionBoxCustodyTests
             {
                 var parent = path["/2.0/folders/".Length..^"/items".Length];
                 var entries = nodes.Values.Where(node => node.ParentId == parent)
-                    .Select(node => new { id = node.Id, name = node.Name, type = node.Type, etag = "1" });
+                    .Select(node => new
+                    {
+                        id = node.Id,
+                        name = node.Name,
+                        type = node.Type,
+                        etag = "1",
+                        size = node.Content?.LongLength,
+                        content_type = node.MediaType,
+                        parent = node.ParentId is null ? null : new { id = node.ParentId }
+                    });
                 return Json(JsonSerializer.Serialize(new { entries }));
             }
             if (request.Method == HttpMethod.Get && path.EndsWith("/content", StringComparison.Ordinal))
@@ -466,6 +574,8 @@ public sealed class ProductionBoxCustodyTests
                     name = node.Name,
                     type = node.Type,
                     etag = "1",
+                    size = node.Content?.LongLength,
+                    content_type = node.MediaType,
                     parent,
                     trashed_at = (string?)null
                 }));
@@ -498,7 +608,17 @@ public sealed class ProductionBoxCustodyTests
                 var parent = parsed.RootElement.GetProperty("parent").GetProperty("id").GetString()!;
                 var bytes = multipart.First(part => part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
                     .ReadAsByteArrayAsync().GetAwaiter().GetResult();
-                var created = Add("file", parent, name, bytes);
+                var mediaType = multipart.First(part => part.Headers.ContentDisposition?.Name?.Trim('"') == "file")
+                    .Headers.ContentType?.MediaType;
+                var created = Add("file", parent, name, bytes, mediaType: mediaType);
+                if (string.Equals(LoseNextFileUploadResponseForName, name, StringComparison.Ordinal))
+                {
+                    LoseNextFileUploadResponseForName = null;
+                    return new(HttpStatusCode.ServiceUnavailable)
+                    {
+                        Content = new StringContent("lost upload response")
+                    };
+                }
                 return Json(JsonSerializer.Serialize(new { entries = new[] { ItemValue(created) } }));
             }
             if (request.Method == HttpMethod.Put && path.StartsWith("/2.0/folders/", StringComparison.Ordinal))
@@ -518,15 +638,33 @@ public sealed class ProductionBoxCustodyTests
             throw new InvalidOperationException($"Unexpected Box request: {request.Method} {request.RequestUri}");
         }
 
-        private Node Add(string type, string parent, string name, byte[]? content, bool countMutation = true)
+        private Node Add(
+            string type,
+            string parent,
+            string name,
+            byte[]? content,
+            bool countMutation = true,
+            string? mediaType = null)
         {
-            var node = new Node($"{type}-{++sequence}", name, type, parent, content);
+            var node = new Node($"{type}-{++sequence}", name, type, parent, content, mediaType);
             nodes[node.Id] = node;
             if (countMutation) MutationCount++;
             return node;
         }
         private Node? Find(string parent, string name) =>
             nodes.Values.SingleOrDefault(node => node.ParentId == parent && node.Name == name);
+        private Node RequirePath(string path)
+        {
+            var parent = Root;
+            Node? item = null;
+            foreach (var segment in path.Split('/'))
+            {
+                item = Find(parent, segment)
+                    ?? throw new InvalidOperationException($"Missing Box path '{path}'.");
+                parent = item.Id;
+            }
+            return item!;
+        }
         private static object ItemValue(Node node) => new { id = node.Id, name = node.Name, type = node.Type, etag = "1" };
         private static HttpResponseMessage Item(Node node) => Json(JsonSerializer.Serialize(ItemValue(node)));
     }

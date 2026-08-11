@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Security.Cryptography;
-using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,8 +26,9 @@ public sealed class OperatorJourneyTests
     [Fact]
     public async Task CustodyRecoveryAndEvaHandoffAreKeyboardUsableWithoutInternalIdentifiersOrExternalClaims()
     {
+        var repositoryFixture = RepositoryEvaFixture.Load();
         var vehicleEvidence = new BrowserVehicleEvidenceQueries();
-        var caseDataState = new BrowserCaseDataState();
+        var caseDataState = new BrowserCaseDataState(repositoryFixture);
         await using var support = await BrowserTestSupport.StartAsync(
             width: 1440,
             height: 900,
@@ -50,16 +51,11 @@ public sealed class OperatorJourneyTests
                     services.AddScoped<ICaseDataQueries>(provider => new BrowserAcceptedCaseDataQueries(
                         provider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
                         caseDataState));
-                    services.RemoveAll<EvaMappingAcceptance>();
-                    services.AddSingleton(new EvaMappingAcceptance(
-                        CaseEvaMapping.MappingKey,
-                        CaseEvaMapping.MappingVersion,
-                        "browser-controlled-accepted-mapping"));
                 });
             });
-        var accepted = await SeedCustodyRecoveryCaseAsync(support.Services);
+        var accepted = await SeedCustodyRecoveryCaseAsync(support.Services, repositoryFixture);
         caseDataState.Set(accepted.CaseId, accepted.Reference);
-        vehicleEvidence.Set(ConfirmedVehicle(accepted.CaseId));
+        vehicleEvidence.Set(ConfirmedVehicle(accepted.CaseId, repositoryFixture));
         await MarkCustodyFailedAsync(support.Services, accepted.CaseId, accepted.CustodyWorkId);
 
         var response = await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
@@ -73,7 +69,8 @@ public sealed class OperatorJourneyTests
         Assert.Contains("Case custody has not been confirmed", initialText, StringComparison.Ordinal);
         AssertOperatorSafe(initialText, accepted.CaseId);
 
-        await SeedEligibleImageAsync(support.Services, accepted.CaseId, accepted.Reference);
+        await SeedEligibleImageAsync(
+            support.Services, accepted.CaseId, repositoryFixture);
         await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
         Assert.DoesNotContain(
             "At least one custody-confirmed current image version is required",
@@ -237,28 +234,16 @@ public sealed class OperatorJourneyTests
         await Assertions.Expect(support.Page.Locator("#main-content")).ToBeFocusedAsync();
     }
 
-    private static async Task<BrowserAcceptedCase> SeedCustodyRecoveryCaseAsync(IServiceProvider services)
+    private static async Task<BrowserAcceptedCase> SeedCustodyRecoveryCaseAsync(
+        IServiceProvider services,
+        RepositoryEvaFixture fixture)
     {
         await using var scope = services.CreateAsyncScope();
         var scopedServices = scope.ServiceProvider;
         var now = scopedServices.GetRequiredService<TimeProvider>().GetUtcNow();
         var email = IntakeTestEvidence.CreateEmail(
-            $"custody-eva-browser-{Guid.NewGuid():N}.eml",
-            """
-            QDOS instruction
-            Claimant Name: Controlled Browser Claimant
-            Claim Number: BROWSER-2031-001
-            Vehicle Registration: AB12 CDE
-            Vehicle Make: Example Make
-            Vehicle Model: Example Model
-            Vehicle Mileage: 12,345 miles
-            Accident Circumstances: Controlled browser protocol circumstances
-            Date of Incident: 04/03/2031
-            Instruction Date: 05/03/2031
-            Inspection Date: 06/03/2031
-            Inspection Address: Image Based Assessment
-            VAT Status: VAT registered
-            """);
+            "AX_SP58WVO.eml",
+            fixture.SourceJson);
         var source = new IntakeSource(
             email.FileName,
             email.MediaType,
@@ -268,7 +253,7 @@ public sealed class OperatorJourneyTests
             new(IntakeSourceChannel.ManualUpload, $"browser-custody-eva:{Guid.NewGuid():N}"));
         var receipt = await scopedServices.GetRequiredService<ProcessIntake>()
             .ExecuteAsync(source, CancellationToken.None);
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         await SeedPrincipalAsync(scopedServices, QdosPrincipal.Code, now);
         var accepted = await scopedServices.GetRequiredService<IAcceptIntake>().ExecuteAsync(
             new(
@@ -281,7 +266,7 @@ public sealed class OperatorJourneyTests
                 QdosPrincipal.Code,
                 new(true, true, true, true),
                 null,
-                new DateOnly(2031, 3, 6)),
+                null),
             CancellationToken.None);
         return new(
             accepted.Identity.CaseId,
@@ -330,25 +315,32 @@ public sealed class OperatorJourneyTests
     private static async Task SeedEligibleImageAsync(
         IServiceProvider services,
         Guid caseId,
-        string caseReference)
+        RepositoryEvaFixture fixture)
     {
-        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        var contentStore = services.GetRequiredService<IDocumentContentStore>();
-        var documentId = Guid.NewGuid();
-        var versionId = Guid.NewGuid();
-        var occurrenceId = Guid.NewGuid();
-        var content = Encoding.UTF8.GetBytes("controlled browser image evidence");
-        var sha256 = Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
-        var now = services.GetRequiredService<TimeProvider>().GetUtcNow();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var ordinal = await context.Set<CaseDocumentEntity>().CountAsync(item => item.CaseId == caseId) + 1;
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO CaseDocuments (Id, CaseId, Ordinal, SourceOccurrenceIdentity) VALUES ({documentId}, {caseId}, {ordinal}, {"browser:damage-image"})");
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO DocumentVersions (Id, DocumentId, Version, FileName, MediaType, ContentLength, Sha256, CustodyStatus, CreatedAtUtc, CreatedBy, IsCurrent, IsLogicallyRemoved) VALUES ({versionId}, {documentId}, {1}, {"Controlled damage.jpg"}, {"image/jpeg"}, {(long)content.Length}, {sha256}, {"Confirmed"}, {now}, {"staff:browser-fixture"}, {true}, {false})");
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"INSERT INTO DocumentOccurrences (Id, CaseId, DocumentId, VersionId, Ordinal, SemanticRole, Source, SourceOccurrenceIdentity, RecordedAtUtc, OperationKey) VALUES ({occurrenceId}, {caseId}, {documentId}, {versionId}, {ordinal}, {"Image"}, {"StaffUpload"}, {"browser:damage-image"}, {now}, {"browser:damage-image"})");
-        await contentStore.StoreAsync(caseId, caseReference, versionId, content, sha256, CancellationToken.None);
+        await using var scope = services.CreateAsyncScope();
+        services = scope.ServiceProvider;
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(await services
+            .GetRequiredService<ICaseWorkflowQueries>()
+            .GetAsync(caseId, CancellationToken.None));
+        var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(caseId, workflow.Version, actor, "browser-reference-image-lease"),
+            CancellationToken.None);
+        var added = await services.GetRequiredService<IAddCaseDocument>().ExecuteAsync(
+            new(
+                caseId,
+                "engineer1.png",
+                "image/png",
+                fixture.ImageBytes,
+                DocumentSemanticRole.Image,
+                DocumentSource.StaffUpload,
+                "reference/eva_information/screenshots/engineer-screens/engineer1.png",
+                actor,
+                "browser-reference-image-add",
+                lease.Version,
+                lease.Token),
+            CancellationToken.None);
+        Assert.Equal(DocumentCustodyStatus.Confirmed, added.Version.CustodyStatus);
     }
 
     private static async Task EnterEditModeByKeyboardAsync(IPage page)
@@ -376,14 +368,16 @@ public sealed class OperatorJourneyTests
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
     }
 
-    private static CaseVehicleEvidence ConfirmedVehicle(Guid caseId) => new(
+    private static CaseVehicleEvidence ConfirmedVehicle(
+        Guid caseId,
+        RepositoryEvaFixture fixture) => new(
         caseId,
         new(
-            VehicleField("AB12CDE"),
-            VehicleField("Example Make"),
-            VehicleField("Example Model"),
-            VehicleField(12345L),
-            VehicleField(VehicleMileageUnit.Miles)),
+            VehicleField(fixture.Vrm),
+            null,
+            VehicleField(fixture.VehicleModel),
+            VehicleField(fixture.Mileage),
+            VehicleField(fixture.MileageUnit)),
         null,
         [],
         []);
@@ -413,11 +407,13 @@ public sealed class OperatorJourneyTests
 
     private sealed record BrowserAcceptedCase(Guid CaseId, string Reference, Guid CustodyWorkId);
 
-    private sealed class BrowserCaseDataState
+    private sealed class BrowserCaseDataState(RepositoryEvaFixture fixture)
     {
         public Guid CaseId { get; private set; }
 
         public string? Reference { get; private set; }
+
+        public RepositoryEvaFixture Fixture { get; } = fixture;
 
         public void Set(Guid caseId, string reference) => (CaseId, Reference) = (caseId, reference);
     }
@@ -440,13 +436,14 @@ public sealed class OperatorJourneyTests
                 .Select(item => item.Version)
                 .SingleAsync(cancellationToken);
             var now = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+            var fixture = state.Fixture;
             return new(
                 new(caseId, QdosPrincipal.Code, 2031, 1, state.Reference),
                 new(
                     Guid.Parse("11111111-1111-1111-1111-111111111111"),
                     IntakeSourceChannel.ManualUpload,
                     "browser-controlled-source",
-                    new string('a', 64),
+                    fixture.SourceSha256,
                     now,
                     "browser-controlled-reader",
                     "1",
@@ -456,23 +453,23 @@ public sealed class OperatorJourneyTests
                 version,
                 CaseLifecycleState.Review,
                 new(new(true, true, true, true), new(true, "browser-completeness", 1)),
-                new(CaseField("QDOS")),
-                new(CaseField("Controlled Browser Claimant")),
-                new(CaseField("BROWSER-2031-001")),
+                new(CaseField(fixture.WorkProvider)),
+                new(CaseField(fixture.ClaimantName)),
+                new(CaseField(fixture.Reference)),
                 new(
-                    CaseField("AB12CDE"),
-                    CaseField("Example Make"),
-                    CaseField("Example Model"),
-                    CaseField(12345L),
-                    CaseField("miles")),
+                    CaseField(fixture.Vrm),
+                    EmptyCaseField<string>(),
+                    CaseField(fixture.VehicleModel),
+                    CaseField(fixture.Mileage),
+                    CaseField(fixture.MileageUnit.ToString())),
                 new(
-                    CaseField(new DateOnly(2031, 3, 4)),
-                    CaseField("Controlled browser protocol circumstances")),
-                new(CaseField("Controlled Contact"), CaseField("browser@example.invalid"), CaseField("01234567890")),
-                new(CaseField(new DateOnly(2031, 3, 5)), CaseField("VAT registered")),
+                    CaseField(fixture.IncidentDate),
+                    CaseField(fixture.AccidentCircumstances)),
+                new(CaseField(fixture.ClaimantName), EmptyCaseField<string>(), EmptyCaseField<string>()),
+                new(CaseField(fixture.InstructionDate), CaseField(fixture.VatStatus)),
                 new(
-                    CaseField(new DateOnly(2031, 3, 6)),
-                    CaseField(new DateOnly(2031, 3, 6)),
+                    CaseField(fixture.InspectionDate),
+                    CaseField(fixture.InspectionDate),
                     CaseField(CaseEvaMapping.ImageBasedAssessment),
                     CaseField(CaseInspectionMode.ImageBasedAssessment)));
         }
@@ -494,6 +491,9 @@ public sealed class OperatorJourneyTests
             null,
             null);
 
+    private static CaseField<T> EmptyCaseField<T>()
+        where T : notnull => new(null, null, null);
+
     private sealed class BrowserVehicleEvidenceQueries : IVehicleEvidenceQueries
     {
         private CaseVehicleEvidence? evidence;
@@ -502,6 +502,66 @@ public sealed class OperatorJourneyTests
 
         public Task<CaseVehicleEvidence?> GetAsync(Guid caseId, CancellationToken cancellationToken) =>
             Task.FromResult(evidence?.CaseId == caseId ? evidence : null);
+    }
+
+    private sealed record RepositoryEvaFixture(
+        string SourceJson,
+        string SourceSha256,
+        byte[] ImageBytes,
+        string WorkProvider,
+        string Vrm,
+        string VehicleModel,
+        string ClaimantName,
+        string Reference,
+        DateOnly IncidentDate,
+        DateOnly InstructionDate,
+        DateOnly InspectionDate,
+        string InspectionAddress,
+        string AccidentCircumstances,
+        string VatStatus,
+        long Mileage,
+        VehicleMileageUnit MileageUnit)
+    {
+        public static RepositoryEvaFixture Load()
+        {
+            var root = FindRepositoryRoot();
+            var sourcePath = Path.Combine(root, "reference", "eva_information", "AX_SP58WVO.json");
+            var imagePath = Path.Combine(
+                root, "reference", "eva_information", "screenshots", "engineer-screens", "engineer1.png");
+            var sourceJson = File.ReadAllText(sourcePath);
+            using var document = JsonDocument.Parse(sourceJson);
+            string Field(string name) => document.RootElement.GetProperty(name).GetString()!;
+            return new(
+                sourceJson,
+                Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(sourcePath))).ToLowerInvariant(),
+                File.ReadAllBytes(imagePath),
+                Field("Work Provider"),
+                Field("VRM"),
+                Field("Vehicle Model"),
+                Field("Claimant Name"),
+                Field("Reference"),
+                DateOnly.ParseExact(Field("Incident Date"), "dd/MM/yyyy", CultureInfo.InvariantCulture),
+                DateOnly.ParseExact(Field("Instruction Date"), "dd/MM/yyyy", CultureInfo.InvariantCulture),
+                DateOnly.ParseExact(Field("Inspection Date"), "dd/MM/yyyy", CultureInfo.InvariantCulture),
+                Field("Inspection Address").Trim(),
+                Field("Accident Circumstances").Trim(),
+                Field("VAT Status"),
+                long.Parse(Field("Mileage"), CultureInfo.InvariantCulture),
+                Field("Mileage Unit").Equals("Miles", StringComparison.OrdinalIgnoreCase)
+                    ? VehicleMileageUnit.Miles
+                    : VehicleMileageUnit.Kilometres);
+        }
+
+        private static string FindRepositoryRoot()
+        {
+            var directory = new DirectoryInfo(AppContext.BaseDirectory);
+            while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "AGENTS.md")))
+            {
+                directory = directory.Parent;
+            }
+            return directory?.FullName
+                ?? throw new InvalidOperationException("The repository root could not be resolved.");
+        }
     }
 
     private static void AssertOrdered(string value, params string[] fragments)
