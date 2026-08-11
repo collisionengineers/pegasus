@@ -53,9 +53,12 @@ internal sealed class BrowserTestSupport : IAsyncDisposable
         int height = 720,
         ForcedColors forcedColors = ForcedColors.None,
         bool javaScriptEnabled = true,
+        bool useIntegrationTestAuthentication = false,
         CancellationToken cancellationToken = default)
     {
-        var factory = new IntakeWebApplicationFactory();
+        var factory = new IntakeWebApplicationFactory(
+            useIntegrationTestAuthentication,
+            initializeDevelopmentOffline: true);
         var applicationClient = IntakeWebDriver.CreateClient(factory);
         var builder = WebApplication.CreateSlimBuilder(
             new WebApplicationOptions

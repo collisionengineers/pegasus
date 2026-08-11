@@ -146,12 +146,6 @@ public interface IIntakeAllocationStore
         BeginIntakeAllocationAttempt request,
         CancellationToken cancellationToken);
 
-    Task<IntakeAllocationAttempt> CompleteSuccessAsync(
-        Guid attemptId,
-        CaseAcceptanceOutcome outcome,
-        DateTimeOffset completedAtUtc,
-        CancellationToken cancellationToken);
-
     Task<IntakeAllocationAttempt> CompleteFailureAsync(
         Guid attemptId,
         IntakeAllocationFailureKind failureKind,
@@ -399,6 +393,7 @@ public sealed class AllocateIntake(
 
         try
         {
+            var completedAtUtc = timeProvider.GetUtcNow();
             var outcome = await acceptIntake.ExecuteAsync(
                 new(
                     command.ReceiptId,
@@ -410,13 +405,18 @@ public sealed class AllocateIntake(
                     command.PrincipalCode,
                     command.Completeness,
                     command.StandaloneAuditEvidenceId,
-                    command.AcceptedInspectionDeadline),
+                    command.AcceptedInspectionDeadline,
+                    begun.Attempt.Id,
+                    completedAtUtc),
                 cancellationToken);
-            var completed = await allocationStore.CompleteSuccessAsync(
-                begun.Attempt.Id,
-                outcome,
-                timeProvider.GetUtcNow(),
-                cancellationToken);
+            var completed = begun.Attempt with
+            {
+                Status = IntakeAllocationAttemptStatus.Succeeded,
+                CompletedAtUtc = completedAtUtc,
+                CaseId = outcome.Identity.CaseId,
+                CaseReference = outcome.Identity.Reference,
+                AuditReference = outcome.Identity.AuditReference
+            };
             return new(IntakeAllocationState.FromAttempt(completed), begun.IsReplay, false);
         }
         catch (OperationCanceledException)

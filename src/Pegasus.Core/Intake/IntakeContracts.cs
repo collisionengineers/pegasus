@@ -363,7 +363,9 @@ public sealed record IntakeReceipt(
     long? ManualAssociationVersion = null,
     MailClassificationResult? MailClassificationDecision = null,
     CaseMatchEvaluationResult? CaseMatchDecision = null,
-    IntakeAllocationState? AllocationState = null)
+    IntakeAllocationState? AllocationState = null,
+    string? AcceptedCaseReference = null,
+    string? ManualLinkedCaseReference = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -371,6 +373,11 @@ public sealed record IntakeReceipt(
 
     public Guid? CurrentCaseId =>
         ManualAssociationVersion is null ? AcceptedCaseId : ManualLinkedCaseId;
+
+    public string? CurrentCaseReference =>
+        ManualAssociationVersion is null
+            ? AcceptedCaseReference
+            : ManualLinkedCaseReference ?? AcceptedCaseReference;
 }
 
 public sealed record IntakeReceiptDraft(
@@ -706,7 +713,9 @@ public sealed record AcceptIntakeRequest(
     string PrincipalCode,
     CaseCompleteness Completeness,
     Guid? StandaloneAuditEvidenceId = null,
-    DateOnly? AcceptedInspectionDeadline = null);
+    DateOnly? AcceptedInspectionDeadline = null,
+    Guid? AllocationAttemptId = null,
+    DateTimeOffset? AllocationCompletedAtUtc = null);
 
 public sealed record LinkIntakeRequest(
     Guid ReceiptId,
