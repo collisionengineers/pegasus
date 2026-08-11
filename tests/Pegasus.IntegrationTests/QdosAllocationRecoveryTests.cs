@@ -1,6 +1,8 @@
+using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -848,7 +850,139 @@ public sealed class IntakeAllocationConsumerTests
             Assert.Equal(new(0, 0, 0), stages);
             Assert.Equal(0, activity.NewCasesToday);
         }
+
+        using var mcpFactory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("Features:AutomationMcp", "true");
+            builder.UseSetting("AutomationMcp:ClientId", AutomationClientId);
+            builder.UseSetting("AutomationMcp:ClientSecret", AutomationClientSecret);
+            builder.UseSetting("AutomationMcp:PublicOrigin", "http://localhost/");
+            builder.UseSetting("AutomationMcp:RegistrationCacheSeconds", "0");
+        });
+        using var client = mcpFactory.CreateClient();
+        var accessToken = await RequestAutomationTokenAsync(client);
+
+        using (var response = await PostAutomationMcpAsync(
+            client,
+            accessToken,
+            ToolCallPayload(
+                1,
+                "pegasus_intake_queue_list",
+                new { page = 1, pageSize = 25 })))
+        {
+            using var document = await ReadJsonRpcAsync(response);
+            var item = Assert.Single(
+                document.RootElement.GetProperty("result").GetProperty("structuredContent")
+                    .GetProperty("items").EnumerateArray());
+            Assert.Equal(receipt.Id, item.GetProperty("receiptId").GetGuid());
+            Assert.Equal("case_created", item.GetProperty("processingDecision").GetString());
+            Assert.Equal("failed_recoverable", item.GetProperty("allocationStatus").GetString());
+            Assert.False(item.TryGetProperty("caseId", out var failedCaseId) && failedCaseId.ValueKind != JsonValueKind.Null);
+            Assert.False(item.TryGetProperty("caseReference", out var failedCaseReference) && failedCaseReference.ValueKind != JsonValueKind.Null);
+        }
+
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "ABSENT");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var current = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receipt.Id, CancellationToken.None));
+            var failed = Assert.IsType<IntakeAllocationState>(current.AllocationState);
+            var retry = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                current.Id,
+                current.Version,
+                failed.AttemptId,
+                ActionActor.Staff(
+                    DevelopmentOfflineIdentity.AdministratorId,
+                    [StaffRole.Administrator]),
+                $"allocation-retry:{Guid.NewGuid():N}",
+                "Principal was corrected for the MCP queue projection proof."));
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retry.State.Status);
+        }
+
+        using (var response = await PostAutomationMcpAsync(
+            client,
+            accessToken,
+            ToolCallPayload(
+                2,
+                "pegasus_intake_queue_list",
+                new { page = 1, pageSize = 25 })))
+        {
+            using var document = await ReadJsonRpcAsync(response);
+            var item = Assert.Single(
+                document.RootElement.GetProperty("result").GetProperty("structuredContent")
+                    .GetProperty("items").EnumerateArray());
+            Assert.Equal(receipt.Id, item.GetProperty("receiptId").GetGuid());
+            Assert.Equal("case_created", item.GetProperty("processingDecision").GetString());
+            Assert.Equal("case_created", item.GetProperty("allocationStatus").GetString());
+            Assert.NotEqual(Guid.Empty, item.GetProperty("caseId").GetGuid());
+            Assert.False(string.IsNullOrWhiteSpace(item.GetProperty("caseReference").GetString()));
+        }
     }
+
+    private const string AutomationClientId = "pegasus-automation";
+    private const string AutomationClientSecret = "integration-test-automation-secret-0123456789";
+
+    private static async Task<string> RequestAutomationTokenAsync(HttpClient client)
+    {
+        using var response = await client.PostAsync(
+            "/connect/token",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["grant_type"] = "client_credentials",
+                ["client_id"] = AutomationClientId,
+                ["client_secret"] = AutomationClientSecret,
+                ["scope"] = "automation.intake"
+            }));
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, $"Token issuance failed: {body}");
+        using var document = JsonDocument.Parse(body);
+        return document.RootElement.GetProperty("access_token").GetString()
+            ?? throw new InvalidOperationException("The token response is missing access_token.");
+    }
+
+    private static async Task<HttpResponseMessage> PostAutomationMcpAsync(
+        HttpClient client,
+        string accessToken,
+        string payload)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp");
+        request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+        request.Headers.Accept.ParseAdd("application/json");
+        request.Headers.Accept.ParseAdd("text/event-stream");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return await client.SendAsync(request);
+    }
+
+    private static async Task<JsonDocument> ReadJsonRpcAsync(HttpResponseMessage response)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        if (response.Content.Headers.ContentType?.MediaType == "text/event-stream")
+        {
+            var data = body
+                .Split('\n')
+                .Select(line => line.TrimEnd('\r'))
+                .Where(line => line.StartsWith("data:", StringComparison.Ordinal))
+                .Select(line => line[5..].Trim())
+                .First(line => line.Length > 0);
+            return JsonDocument.Parse(data);
+        }
+
+        return JsonDocument.Parse(body);
+    }
+
+    private static string ToolCallPayload(int id, string tool, object arguments) =>
+        JsonSerializer.Serialize(new
+        {
+            jsonrpc = "2.0",
+            id,
+            method = "tools/call",
+            @params = new
+            {
+                name = tool,
+                arguments
+            }
+        });
 
     [Fact]
     public async Task QualifyingTriageRemainsOneAcrossAllocationFailureAndSourceReplay()
@@ -856,30 +990,30 @@ public sealed class IntakeAllocationConsumerTests
         using var factory = new IntakeWebApplicationFactory(
             "Development",
             true,
-            extractionPolicy: new ConsumerTriagePolicy());
-        using var client = IntakeWebDriver.CreateClient(factory);
+            extractionPolicy: new ConsumerTriagePolicy(),
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
         var email = IntakeTestEvidence.CreateEmail(
             "triage-allocation-independence.eml",
             "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-ALLOC\r\nVehicle Registration: AB12 CDE");
         var token = Guid.NewGuid().ToString("N");
 
-        var first = await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            email.FileName,
-            email.MediaType,
-            email.Content,
-            token);
-        await IntakeWebDriver.UploadAndProcessAsync(
-            factory,
-            client,
-            email.FileName,
-            email.MediaType,
-            email.Content,
-            token);
-        var receiptId = IntakeWebDriver.ReceiptId(first);
-        Assert.Contains("/Received/", first.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("/Cases/", first.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
+        IntakeSubmissionResult first;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var submission = scope.ServiceProvider.GetRequiredService<ProcessIntakeSubmission>();
+            var source = new IntakeSource(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, token));
+            first = await submission.ExecuteAsync(source, $"mailbox-submit:{Guid.NewGuid():N}");
+            Assert.Equal(IntakeSubmissionDisposition.Processed, first.Disposition);
+        }
+        var receiptId = first.ReceiptId;
 
         IntakeReceipt receipt;
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -887,13 +1021,57 @@ public sealed class IntakeAllocationConsumerTests
             receipt = Assert.IsType<IntakeReceipt>(
                 await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
                     .GetAsync(receiptId, CancellationToken.None));
-            Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, receipt.AllocationState?.FailureKind);
-            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                .ListAsync(null, CancellationToken.None));
+            var failed = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
+            Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, failed.FailureKind);
+            Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, failed.Status);
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
         }
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
 
-        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            receipt = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receiptId, CancellationToken.None));
+            var failed = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
+            var retry = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                receipt.Id,
+                receipt.Version,
+                failed.AttemptId,
+                ActionActor.Staff(
+                    DevelopmentOfflineIdentity.AdministratorId,
+                    [StaffRole.Administrator]),
+                $"allocation-retry:{Guid.NewGuid():N}",
+                "Principal corrected after qualifying Triage allocation failure."));
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retry.State.Status);
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+        }
+
+        IntakeSubmissionResult replay;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var submission = scope.ServiceProvider.GetRequiredService<ProcessIntakeSubmission>();
+            var source = new IntakeSource(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, token));
+            replay = await submission.ExecuteAsync(source, $"mailbox-submit:{Guid.NewGuid():N}");
+        }
+        Assert.Equal(receiptId, replay.ReceiptId);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+        Assert.Equal(2, await AllocationTestData.AllocationEventCountAsync(factory.Services));
+        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM TriageHistory WHERE EventType = N'triage_created'"));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+        }
     }
 
     private sealed class ConsumerTriagePolicy : IInstructionExtractionPolicy
