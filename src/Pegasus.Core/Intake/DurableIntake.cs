@@ -103,7 +103,8 @@ public interface IIntakeSubmission
 public sealed class ProcessIntakeSubmission(
     ReceiveIntake receiveIntake,
     ProcessQueuedIntake processQueuedIntake,
-    IIntakeWorkStore workStore) : IIntakeSubmission
+    IIntakeWorkStore workStore,
+    IIntakeReceiptQueries receiptQueries) : IIntakeSubmission
 {
     /// <summary>
     /// The ceiling on waiting for a request that is actively processing this
@@ -148,6 +149,16 @@ public sealed class ProcessIntakeSubmission(
                 cancellationToken);
         if (evaluation is not null)
         {
+            // Processing publishes the evaluation before the allocator writes
+            // its durable outcome. A concurrent replay must not answer from
+            // that intermediate state: UploadModel would otherwise see the
+            // same completed receipt without its CaseIntakeLink and redirect
+            // the loser to /Received. Wait for the allocation projection to
+            // settle, while retaining a bounded wait for a genuinely stuck
+            // worker.
+            await AwaitAllocationOutcomeAsync(
+                evaluation.ProcessedReceiptId,
+                cancellationToken);
             return new(
                 evaluation.ProcessedReceiptId,
                 received.IsDuplicate,
@@ -176,6 +187,30 @@ public sealed class ProcessIntakeSubmission(
                 IntakeSubmissionDisposition.Queued)
             : throw new InvalidOperationException(
                 "Inline intake processing did not persist a completed evaluation revision.");
+    }
+
+    private async Task AwaitAllocationOutcomeAsync(
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt <= CompletionAttempts; attempt++)
+        {
+            var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
+            if (receipt is null
+                || receipt.Decision != IntakeDecision.CaseCreated
+                || receipt.CurrentCaseId is not null
+                || receipt.AllocationState is { Status: not IntakeAllocationProjectionStatus.Pending })
+            {
+                return;
+            }
+
+            if (attempt == CompletionAttempts)
+            {
+                return;
+            }
+
+            await Task.Delay(CompletionPollInterval, cancellationToken);
+        }
     }
 
     /// <summary>
