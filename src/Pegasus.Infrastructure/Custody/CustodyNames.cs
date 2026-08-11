@@ -19,7 +19,10 @@ internal static class CustodyNames
         var result = new string(value.Trim()
             .Select(character => InvalidCharacters.Contains(character) ? '_' : character)
             .ToArray());
-        if (string.IsNullOrWhiteSpace(result) || result.Length > 180)
+        if (string.IsNullOrWhiteSpace(result)
+            || result is "." or ".."
+            || result.EndsWith('.')
+            || result.Length > 120)
         {
             throw new ArgumentException("The custody name is invalid.", nameof(value));
         }

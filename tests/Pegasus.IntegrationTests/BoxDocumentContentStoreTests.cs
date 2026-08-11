@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Web;
+using Pegasus.Core.Documents;
 using Pegasus.Infrastructure.Custody;
 
 namespace Pegasus.IntegrationTests;
@@ -23,23 +24,26 @@ public sealed class BoxDocumentContentStoreTests
 
     private static readonly Guid CaseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
     private static readonly Guid VersionId = Guid.Parse("20314253-6475-8697-a8b9-cadbecfd0e1f");
+    private static readonly Guid OccurrenceId = Guid.Parse("30415263-7485-96a7-b8c9-daebfc0d1e2f");
+    private static readonly Guid DocumentId = Guid.Parse("40516273-8495-a6b7-c8d9-eafb0c1d2e3f");
     private const string CaseReference = "QDOS31001";
 
     [Fact]
     public async Task StoreThenOpenReadRoundTripsThroughTheManagedLayout()
     {
         var box = new InMemoryBox();
+        box.BindCaseRoot();
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("managed document content");
         var hash = Sha256(content);
 
-        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
+        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
-        var expectedPath = $"{CaseReference}/managed/{VersionId:N}/content";
+        var expectedPath = $"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg";
         Assert.True(box.PathExists(expectedPath), $"Expected Box path {expectedPath} to exist.");
 
-        await using var stream = await store.OpenReadAsync(
-            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None);
+        await using var stream = await store.OpenReadVersionAsync(
+            Address(), hash, content.Length, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
         Assert.Equal(content, buffer.ToArray());
@@ -49,61 +53,70 @@ public sealed class BoxDocumentContentStoreTests
     public async Task IdenticalRepeatStoreIsAReplayNotASecondUpload()
     {
         var box = new InMemoryBox();
+        box.BindCaseRoot();
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("replayed content");
         var hash = Sha256(content);
 
-        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
+        var first = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
         var uploadsAfterFirst = box.UploadCount;
-        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
+        var replay = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
-        Assert.Equal(1, uploadsAfterFirst);
-        Assert.Equal(1, box.UploadCount);
+        Assert.Equal(DocumentContentWriteDisposition.Created, first.Disposition);
+        Assert.Equal(DocumentContentWriteDisposition.Replay, replay.Disposition);
+        Assert.Equal(2, uploadsAfterFirst); // immutable Case binding plus managed content
+        Assert.Equal(2, box.UploadCount);
     }
 
     [Fact]
     public async Task StoreRejectsContentThatDoesNotMatchTheCustodyHash()
     {
         var box = new InMemoryBox();
+        box.BindCaseRoot();
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("actual content");
         var wrongHash = Sha256(Encoding.UTF8.GetBytes("different content"));
 
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            store.StoreAsync(CaseId, CaseReference, VersionId, content, wrongHash, CancellationToken.None));
-        Assert.Equal(0, box.UploadCount);
+            store.StoreVersionAsync(Address(), content, wrongHash, CancellationToken.None));
+        Assert.Equal(1, box.UploadCount);
     }
 
     [Fact]
     public async Task OpenReadFailsClosedWhenStoredContentDoesNotVerify()
     {
         var box = new InMemoryBox();
+        box.BindCaseRoot();
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("original content");
         var hash = Sha256(content);
-        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
+        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
-        box.CorruptFile($"{CaseReference}/managed/{VersionId:N}/content");
+        box.CorruptFile($"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg");
 
-        await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadAsync(
-            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadVersionAsync(
+            Address(), hash, content.Length, CancellationToken.None));
     }
 
     [Fact]
-    public async Task DeleteRemovesTheContentAndStaysIdempotent()
+    public async Task UncommittedWriteRollbackIsTheOnlyDeleteAndNeverRemovesAcceptedCustody()
     {
         var box = new InMemoryBox();
+        box.BindCaseRoot();
         var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("deletable content");
         var hash = Sha256(content);
-        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
+        var created = await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
         await store.DeleteAsync(CaseId, CaseReference, VersionId, CancellationToken.None);
         await store.DeleteAsync(CaseId, CaseReference, VersionId, CancellationToken.None);
 
-        Assert.False(box.PathExists($"{CaseReference}/managed/{VersionId:N}/content"));
-        await Assert.ThrowsAsync<FileNotFoundException>(() => store.OpenReadAsync(
-            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None));
+        Assert.Equal(DocumentContentWriteDisposition.Created, created.Disposition);
+        Assert.False(box.PathExists($"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg"));
+        Assert.True(box.PathExists($"{CaseReference}/pegasus-case-binding.json"));
+        Assert.Equal(1, box.DeleteCount);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => store.OpenReadVersionAsync(
+            Address(), hash, content.Length, CancellationToken.None));
     }
 
     [Fact]
@@ -113,17 +126,18 @@ public sealed class BoxDocumentContentStoreTests
         // so the lookup must keep paging past Box's 1000-item page rather than
         // silently missing a later Case/PO.
         var box = new InMemoryBox();
-        var store = CreateStore(box);
         for (var i = 0; i < 1000; i++)
         {
             box.AddFolder(ApprovedRootId, $"aaaa-decoy-case-{i:D4}");
         }
+        box.BindCaseRoot();
+        var store = CreateStore(box);
         var content = Encoding.UTF8.GetBytes("second page content");
         var hash = Sha256(content);
-        await store.StoreAsync(CaseId, CaseReference, VersionId, content, hash, CancellationToken.None);
+        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
-        await using var stream = await store.OpenReadAsync(
-            CaseId, CaseReference, VersionId, hash, content.Length, CancellationToken.None);
+        await using var stream = await store.OpenReadVersionAsync(
+            Address(), hash, content.Length, CancellationToken.None);
         using var buffer = new MemoryStream();
         await stream.CopyToAsync(buffer);
 
@@ -142,6 +156,18 @@ public sealed class BoxDocumentContentStoreTests
                 "client-secret"),
             new HttpClient(new InMemoryBoxHandler(box)),
             new StaticAuthorizationHeaderProvider()));
+
+    private static ManagedDocumentContentAddress Address() => new(
+        CaseId,
+        CaseReference,
+        OccurrenceId,
+        2,
+        DocumentId,
+        VersionId,
+        1,
+        DocumentSemanticRole.Image,
+        "evidence.jpg",
+        "image/jpeg");
 
     private static string Sha256(byte[] content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
@@ -165,6 +191,7 @@ public sealed class BoxDocumentContentStoreTests
             nodes[ApprovedRootId] = new Node(ApprovedRootId, "pegasus", "folder", null);
 
         public int UploadCount { get; private set; }
+        public int DeleteCount { get; private set; }
         public int LargestItemsRequestOffset { get; private set; }
 
         public string CreateFolderPath(string path)
@@ -183,6 +210,24 @@ public sealed class BoxDocumentContentStoreTests
             var id = $"folder-{++nextId}";
             nodes[id] = new Node(id, name, "folder", parentId);
             return id;
+        }
+
+        public void BindCaseRoot()
+        {
+            if (FindChild(ApprovedRootId, CaseReference, "folder") is not null)
+            {
+                return;
+            }
+            var root = AddFolder(ApprovedRootId, CaseReference);
+            var bindingId = $"file-{++nextId}";
+            nodes[bindingId] = new Node(bindingId, "pegasus-case-binding.json", "file", root);
+            fileBytes[bindingId] = JsonSerializer.SerializeToUtf8Bytes(new
+            {
+                schemaVersion = 1,
+                caseId = CaseId,
+                caseReference = CaseReference
+            });
+            UploadCount++;
         }
 
         public bool PathExists(string path)
@@ -286,6 +331,7 @@ public sealed class BoxDocumentContentStoreTests
                 var id = path["/2.0/files/".Length..];
                 nodes.Remove(id);
                 fileBytes.Remove(id);
+                DeleteCount++;
                 return new HttpResponseMessage(HttpStatusCode.NoContent);
             }
 

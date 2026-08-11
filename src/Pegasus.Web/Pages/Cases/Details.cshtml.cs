@@ -1,6 +1,7 @@
 using System.Collections.Frozen;
 using System.Globalization;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -8,6 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
@@ -50,6 +52,8 @@ public sealed partial class DetailsModel(
     IAcceptVehicleSuggestion acceptVehicleSuggestion,
     IEvaHandoffQueries evaHandoffQueries,
     IGenerateEvaHandoff generateEvaHandoff,
+    IDownloadEvaHandoff downloadEvaHandoff,
+    IRetryCaseCustody retryCaseCustody,
     IAddCaseDocument addCaseDocument,
     ILogicallyRemoveDocument logicallyRemoveDocument,
     IConfirmThirdPartyVehicleEvidence confirmThirdPartyVehicleEvidence,
@@ -251,9 +255,13 @@ public sealed partial class DetailsModel(
         }
     }
 
-    public async Task<IActionResult> OnGetEvaDownloadAsync(
+    public async Task<IActionResult> OnPostEvaDownloadAsync(
         Guid id,
         int revision,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -267,20 +275,27 @@ public sealed partial class DetailsModel(
 
         try
         {
-            var artifact = await evaHandoffQueries.GetRevisionAsync(
-                id,
-                revision,
-                actor,
+            var result = await downloadEvaHandoff.ExecuteAsync(
+                new(id, revision, expectedVersion, actor, operationKey, reason, editLeaseToken),
                 cancellationToken);
-            if (artifact is null
-                || SafeEvaFileName(artifact.FileName) is not { } fileName)
+            if (result.Outcome is DownloadEvaHandoffOutcome.NotFound)
             {
                 return NotFound();
             }
+            if (result.Outcome is DownloadEvaHandoffOutcome.Conflict or DownloadEvaHandoffOutcome.Refused
+                || result.Artifact is not { } artifact
+                || SafeEvaFileName(artifact.FileName) is not { } fileName)
+            {
+                PreserveLeaseState(id, editLeaseToken);
+                TempData["CaseError"] = result.Message;
+                return RedirectToDetails(id);
+            }
 
+            ClearLeaseState();
             Response.Headers.XContentTypeOptions = "nosniff";
             Response.Headers.CacheControl = "private, no-store";
-            Response.Headers["X-Content-SHA256"] = artifact.BundleSha256;
+            Response.Headers["Content-Digest"] =
+                $"sha-256=:{Convert.ToBase64String(SHA256.HashData(artifact.Content))}:";
             Response.ContentLength = artifact.ContentLength;
             return File(artifact.Content, EvaHandoffRevisionArtifact.MediaType, fileName);
         }
@@ -293,6 +308,52 @@ public sealed partial class DetailsModel(
             LogCaseDetailsQueryFailed(logger, id, exception);
             return NotFound();
         }
+    }
+
+    public async Task<IActionResult> OnPostRetryCustodyAsync(
+        Guid id,
+        long expectedVersion,
+        string operationKey,
+        string reason,
+        string editLeaseToken,
+        CustodyTargetKind targetKind,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var result = await retryCaseCustody.ExecuteAsync(
+                new(id, expectedVersion, actor, operationKey, reason, editLeaseToken, targetKind),
+                cancellationToken);
+            if (result.Outcome is RetryCaseCustodyOutcome.Pending or RetryCaseCustodyOutcome.Replay)
+            {
+                ClearLeaseState();
+                TempData["CaseStatus"] = result.Message;
+            }
+            else
+            {
+                PreserveLeaseState(id, editLeaseToken);
+                TempData["CaseError"] = result.Message;
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            ClearLeaseState();
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogCaseCommandFailed(logger, id, "retry_case_custody", exception);
+            HandleLeaseFailure(id, editLeaseToken, exception);
+            TempData["CaseError"] =
+                "Custody retry was not recorded because the case changed or edit mode was lost.";
+        }
+
+        return RedirectToDetails(id);
     }
 
     public async Task<IActionResult> OnPostClaimLeaseAsync(

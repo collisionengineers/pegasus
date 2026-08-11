@@ -65,7 +65,8 @@ public sealed record DocumentOccurrence(
     string SourceOccurrenceIdentity,
     DateTimeOffset RecordedAtUtc,
     DateTimeOffset? ThirdPartyVehicleConfirmedAtUtc,
-    string? ThirdPartyVehicleConfirmationReason);
+    string? ThirdPartyVehicleConfirmationReason,
+    int Ordinal = 0);
 
 public sealed record CaseDocument(
     Guid Id,
@@ -314,4 +315,59 @@ public interface IDocumentContentStore
         string caseReference,
         Guid versionId,
         CancellationToken cancellationToken);
+
+    async Task<DocumentContentWriteResult> StoreVersionAsync(
+        ManagedDocumentContentAddress address,
+        ReadOnlyMemory<byte> content,
+        string expectedSha256,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        await StoreAsync(
+            address.CaseId,
+            address.CaseReference,
+            address.VersionId,
+            content,
+            expectedSha256,
+            cancellationToken);
+        return new(DocumentContentWriteDisposition.Created, null);
+    }
+
+    Task<Stream> OpenReadVersionAsync(
+        ManagedDocumentContentAddress address,
+        string expectedSha256,
+        long expectedLength,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return OpenReadAsync(
+            address.CaseId,
+            address.CaseReference,
+            address.VersionId,
+            expectedSha256,
+            expectedLength,
+            cancellationToken);
+    }
 }
+
+public sealed record ManagedDocumentContentAddress(
+    Guid CaseId,
+    string CaseReference,
+    Guid OccurrenceId,
+    int OccurrenceOrdinal,
+    Guid DocumentId,
+    Guid VersionId,
+    int Version,
+    DocumentSemanticRole SemanticRole,
+    string FileName,
+    string MediaType);
+
+public enum DocumentContentWriteDisposition
+{
+    Created,
+    Replay
+}
+
+public sealed record DocumentContentWriteResult(
+    DocumentContentWriteDisposition Disposition,
+    string? RemoteId);

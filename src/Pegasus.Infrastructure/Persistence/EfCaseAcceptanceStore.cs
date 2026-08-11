@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
@@ -380,7 +381,11 @@ public sealed class EfCaseAcceptanceStore(
             OperationKey = $"case-custody:{caseId:N}",
             State = "pending",
             AttemptCount = 0,
-            DueAtUtc = acceptedAtUtc
+            DueAtUtc = acceptedAtUtc,
+            CaseRootCreationToken = CustodyCreationOwner.Create(),
+            AuditFolderCreationToken = auditReference is null
+                ? null
+                : CustodyCreationOwner.Create()
         });
         receipt.Version++;
         context.IntakeMutationHistory.Add(new()
