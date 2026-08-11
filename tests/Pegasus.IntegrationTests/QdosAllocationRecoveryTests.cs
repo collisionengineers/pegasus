@@ -1015,6 +1015,26 @@ public sealed class IntakeAllocationConsumerTests
         }
         var receiptId = first.ReceiptId;
 
+        IntakeSubmissionResult failedReplay;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var submission = scope.ServiceProvider.GetRequiredService<ProcessIntakeSubmission>();
+            var source = new IntakeSource(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, token));
+            failedReplay = await submission.ExecuteAsync(source, $"mailbox-submit:{Guid.NewGuid():N}");
+        }
+        Assert.Equal(receiptId, failedReplay.ReceiptId);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
+        }
+
         IntakeReceipt receipt;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
