@@ -5,10 +5,10 @@ namespace Pegasus.Core.Tests.Intake.Qdos;
 public sealed class QdosMailRoutePolicyTests
 {
     [Fact]
-    public void PolicyVersionIsThree()
+    public void PolicyVersionIsFour()
     {
         Assert.Equal("qdos_mail_route", QdosMailRoutePolicy.Key);
-        Assert.Equal(3, QdosMailRoutePolicy.Version);
+        Assert.Equal(4, QdosMailRoutePolicy.Version);
     }
 
     [Fact]
@@ -39,7 +39,7 @@ public sealed class QdosMailRoutePolicyTests
         var route = Assert.IsType<MailRouteSelection>(result.SelectedRoute);
         Assert.Equal(MailRouteKind.DirectProvider, route.Kind);
         Assert.Equal("QDOS", route.WorkProviderCode);
-        Assert.Equal(3, result.PolicyVersion);
+        Assert.Equal(4, result.PolicyVersion);
     }
 
     [Theory]
@@ -168,6 +168,63 @@ public sealed class QdosMailRoutePolicyTests
         Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(result.OriginalIdentities).Address);
         Assert.Equal("instructions@qdosassist.co.uk", result.EffectiveSender?.Address);
         Assert.Equal(QdosMailRoutePolicy.Version, result.PolicyVersion);
+    }
+
+    [Fact]
+    public void StaffForwardUsesUnambiguousInlineOriginalAndRetainsTransportIdentity()
+    {
+        var result = new QdosMailRoutePolicy().Evaluate(
+            Readable(
+                transport:
+                [
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "staff@collisionengineers.co.uk",
+                        IntakeSenderIdentityKind.Transport,
+                        "outer message"),
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "instructions@qdosassist.co.uk",
+                        IntakeSenderIdentityKind.InlineForwardedOriginal,
+                        "inline forwarded-message header")
+                ]));
+
+        Assert.Equal(MailRouteDisposition.Accepted, result.Disposition);
+        Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(result.TransportIdentities).Address);
+        var original = Assert.Single(result.OriginalIdentities);
+        Assert.Equal("instructions@qdosassist.co.uk", original.Address);
+        Assert.Equal("inline forwarded-message header", original.SourceLabel);
+        Assert.Equal("instructions@qdosassist.co.uk", result.EffectiveSender?.Address);
+        Assert.Equal(4, result.PolicyVersion);
+    }
+
+    [Fact]
+    public void StaffForwardWithConflictingAttachedAndInlineOriginalsFailsClosed()
+    {
+        var result = new QdosMailRoutePolicy().Evaluate(
+            Readable(
+                transport:
+                [
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "staff@collisionengineers.co.uk",
+                        IntakeSenderIdentityKind.Transport,
+                        "outer message"),
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "first@qdosassist.co.uk",
+                        IntakeSenderIdentityKind.AttachedOriginal,
+                        "attached original"),
+                    new(
+                        IntakeEvidenceSource.Sender,
+                        "second@qdosassist.co.uk",
+                        IntakeSenderIdentityKind.InlineForwardedOriginal,
+                        "inline forwarded-message header")
+                ]));
+
+        Assert.Equal(MailRouteDisposition.NeedsSorting, result.Disposition);
+        Assert.Null(result.EffectiveSender);
+        Assert.Equal(2, result.OriginalIdentities.Count);
     }
 
     [Fact]

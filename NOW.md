@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-10
+# NOW — updated 2026-08-11
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -7,7 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Manifest-bound intake cleanup and fresh mailbox-baseline tooling (branch task/manifest-intake-cleanup, taken 2026-08-10, by agent 93025227-f309-44e1-9f08-7add468e52d6)
 
 ## Merged, not deployed
 
@@ -91,24 +90,6 @@ release claim:
   concurrent use appears, and re-measure on CI or production hardware first —
   the figures above are one workstation
   (task/upload-case-creation-and-inbox review, 2026-08-07).
-- Mailbox identity change stalls or duplicates inbound mail (PR 357 review,
-  diagnosed not fixed — take this before the next mailbox is onboarded).
-  `AdoptStateForAddressAsync` re-keys the poll state and carries the delta
-  cursor. Against Graph that cursor is a URI scoped to the identity that
-  minted it, and `GraphApprovedSources.ValidateDeltaUri` compares the path
-  against the identity now in force, so every tick after an administrator
-  first saves a real mailbox or Inbox-folder identity throws and the failure
-  path keeps the cursor — inbound mail stops permanently, on the documented
-  fallback-retirement path rather than an edge case. Clearing the cursor was
-  tried and is **not** the fix: `MailboxIntake.PrepareMessage` builds the
-  external receipt token from `mailboxId + ImmutableMessageId`, so a replay
-  after the re-key re-receives every message still in the folder under a new
-  identity and writes duplicate receipts (measured: the estate test's receipt
-  count went from 2 to 3). Either the receipt token stops embedding the
-  mutable mailbox identity, or adoption rewrites the stored tokens with it, or
-  recovery dedupes on `ImmutableMessageId`; the folder identity is also not
-  stored on the poll state, so a folder-only change is undetectable today
-  (task/upload-case-creation-and-inbox review, 2026-08-06).
 - Thirteen P2 review findings on the upload/Inbox work, none of them fixed in
   PR 357 (task/upload-case-creation-and-inbox review, 2026-08-06): a mailbox
   identity change cannot be recovered by disable-and-add because the address

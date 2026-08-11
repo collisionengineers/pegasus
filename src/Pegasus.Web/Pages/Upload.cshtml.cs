@@ -253,6 +253,29 @@ public sealed partial class UploadModel(
                 OpensCreateScreen: false);
         }
 
+        if (receipt.AllocationState is { } allocation)
+        {
+            return allocation.Status switch
+            {
+                IntakeAllocationProjectionStatus.Pending => new(
+                    $"{duplicatePrefix} — case creation is in progress.",
+                    receipt.Id,
+                    null,
+                    IsFailure: false,
+                    OpensCreateScreen: false),
+                IntakeAllocationProjectionStatus.FailedRecoverable
+                    or IntakeAllocationProjectionStatus.FailedBlocked => new(
+                    $"{duplicatePrefix} — case not created. "
+                        + (allocation.SafeReason ?? "No reference was allocated."),
+                    receipt.Id,
+                    null,
+                    IsFailure: false,
+                    OpensCreateScreen: false),
+                _ => throw new InvalidOperationException(
+                    $"Allocation state '{allocation.Status}' has no case association.")
+            };
+        }
+
         return receipt.Decision switch
         {
             // Read, but not definitive enough to allocate on its own. The

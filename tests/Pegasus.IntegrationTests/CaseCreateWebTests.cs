@@ -102,7 +102,6 @@ public sealed partial class CaseCreateWebTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var (receipt, originalReportAssetId) =
             await CreateReceiptWithRetainedOriginalReportAsync(factory.Services);
-        await SeedPrincipalAsync(factory.Services, PrincipalCode);
 
         var form = await OpenCreateScreenAsync(client, receipt.Id);
         using var response = await PostCreateAsync(
@@ -113,7 +112,27 @@ public sealed partial class CaseCreateWebTests
         // An Audit is the same four writes with one more in the middle: the
         // retained original report the acceptance gate demands before it will
         // allocate an Audit reference at all.
-        var caseId = AssertCaseRedirect(response);
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Contains("/Received/", response.Headers.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        Guid caseId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var current = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receipt.Id, CancellationToken.None));
+            var failure = Assert.IsType<IntakeAllocationState>(current.AllocationState);
+            var retry = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                current.Id,
+                current.Version,
+                failure.AttemptId,
+                StaffActor,
+                $"allocation-retry:{Guid.NewGuid():N}",
+                "Principal corrected; reuse the already confirmed Audit evidence."));
+            caseId = Assert.IsType<Guid>(retry.State.CaseId);
+        }
         Assert.Equal(1, await CountAsync(factory.Services, "Cases"));
         Assert.Equal("audit", await ReadCaseColumnAsync<string>(factory.Services, caseId, "Type"));
         Assert.Equal(
@@ -139,6 +158,16 @@ public sealed partial class CaseCreateWebTests
                     AND e.IntakeReceiptId = '{receipt.Id:D}'
                     AND e.OriginalReportAssetId = '{originalReportAssetId:D}'
                 """));
+        Assert.Equal(
+            2,
+            await ScalarAsync<int>(
+                factory.Services,
+                $"SELECT COUNT(*) FROM IntakeAllocationAttempts WHERE IntakeReceiptId = '{receipt.Id:D}'"));
+        Assert.Equal(
+            1,
+            await ScalarAsync<int>(
+                factory.Services,
+                $"SELECT COUNT(DISTINCT StandaloneAuditEvidenceId) FROM IntakeAllocationAttempts WHERE IntakeReceiptId = '{receipt.Id:D}' AND CaseType = 'audit'"));
     }
 
     [Fact]
@@ -254,6 +283,30 @@ public sealed partial class CaseCreateWebTests
             "is needed before this item can become a case",
             await response.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FinalCreateFailurePersistsAttemptAndOpensReasonedRecovery()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+
+        using var response = await PostCreateAsync(client, form, KeyedFields());
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal($"/Received/{receipt.Id:D}", response.Headers.Location?.OriginalString);
+        Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
+        Assert.Equal(0, await CountAsync(factory.Services, "CaseSequences"));
+        Assert.Equal(0, await CountAsync(factory.Services, "CaseIntakeLinks"));
+        Assert.Equal(1, await CountAsync(factory.Services, "IntakeAllocationAttempts"));
+        await using var scope = factory.Services.CreateAsyncScope();
+        var updated = Assert.IsType<IntakeReceipt>(
+            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receipt.Id, CancellationToken.None));
+        Assert.Equal(IntakeAllocationFailureKind.PrincipalUnavailable, updated.AllocationState?.FailureKind);
+        Assert.True(updated.AllocationState?.CanRetry == true);
     }
 
     [Fact]
@@ -943,7 +996,8 @@ public sealed partial class CaseCreateWebTests
     {
         var allowed = tableName switch
         {
-            "Cases" or "CaseIntakeLinks" or "CaseSequences" or "IntakeMutationHistory" => tableName,
+            "Cases" or "CaseIntakeLinks" or "CaseSequences" or "IntakeMutationHistory"
+                or "IntakeAllocationAttempts" => tableName,
             _ => throw new ArgumentOutOfRangeException(nameof(tableName))
         };
         return ScalarAsync<int>(services, $"SELECT COUNT(*) FROM [{allowed}]");

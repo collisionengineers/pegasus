@@ -115,9 +115,18 @@ public sealed class MessageModel(GetRetainedMail getRetainedMail) : PageModel
         _ => "Not yet processed"
     };
 
-    public static string OutcomeLabel(IntakeDecision? decision) => decision switch
+    public static string OutcomeLabel(RetainedMailSummary summary) => summary switch
     {
-        IntakeDecision.CaseCreated => "Case created",
+        { CaseId: not null } => "Case created",
+        { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "Creating case",
+        { AllocationState.Status: IntakeAllocationProjectionStatus.FailedRecoverable
+            or IntakeAllocationProjectionStatus.FailedBlocked } => "Case not created",
+        _ => OutcomeLabel(summary.ProcessingOutcome)
+    };
+
+    private static string OutcomeLabel(IntakeDecision? decision) => decision switch
+    {
+        IntakeDecision.CaseCreated => "Ready for case allocation",
         IntakeDecision.NeedsSorting => "Needs sorting",
         IntakeDecision.BlockedIntake => "Blocked",
         IntakeDecision.OcrRequired => "Document text required",

@@ -132,7 +132,7 @@ The classification architecture is fixed:
   added.
 - QDOS direct sender identity is owned by
   [ADR-0020](adr/0020-accepted-qdos-case-association-predicates.md) decision 1
-  (`qdos_mail_route` v3, the accepted three-domain set); an accepted domain
+  (`qdos_mail_route` v4, the accepted three-domain set); an accepted domain
   alone classifies and associates nothing.
 - The Mapped Principals spreadsheet at the opaque source citation
   `../reference/imp-docs/requirementsdocs/provider-extra-info/Mapped%20Principals.xlsx`

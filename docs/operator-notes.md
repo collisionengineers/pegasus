@@ -191,7 +191,12 @@ Email through Outlook supplies the vast majority of Work Instructions and is the
 
 The sender route and the underlying work provider are related but distinct facts.
 
-1. If an email was forwarded by Collision Engineers staff from an `@collisionengineers.co.uk` address, use the original forwarded sender for route identification. Retain the staff forward as transport provenance.
+1. If an email was forwarded by Collision Engineers staff from an
+   `@collisionengineers.co.uk` address, retain that staff sender as transport
+   provenance. Use one proved original sender for route identification: either
+   an attached original email or the one `From:`, `Sent:`, `To:`, `Subject:`
+   header quartet in a normal Outlook forward. A partial, conflicting, or
+   malformed header remains `Needs sorting`.
 2. Determine whether the effective sender belongs to an accepted direct-provider route or an intermediary route.
 3. Extract attachments, email body, and subject before applying the identified route’s rules.
 4. For a direct-provider route, use that provider’s rules to determine instruction type and any related case.
@@ -427,6 +432,12 @@ The current and intended workflows use several different evidence transfers:
   manual drag-and-drop. Its first successful generation is only Pegasus's
   once-per-case `First sent to Engineer` proxy; EVA still owns receipt and
   named-Engineer assignment;
+- the local Pegasus caller now enforces Review stage, applicable confirmed
+  custody, current accepted evidence and all eligible Case-vehicle images,
+  then retains a business revision for authenticated, reasoned download. It
+  makes no EVA network call; production Box migration, deployment, external
+  receipt, named-Engineer assignment and operator drag-and-drop acceptance
+  remain separate evidence states;
 - EVA currently generates the final provider report, while Box stores produced
   Engineer Reports; a PDF's existence or custody does not prove that the report
   was sent or received; and

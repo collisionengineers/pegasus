@@ -36,7 +36,8 @@ public sealed record RetainedMailSummary(
     IntakeDecision? ProcessingOutcome,
     Guid? IntakeReceiptId,
     Guid? CaseId,
-    string? CaseReference);
+    string? CaseReference,
+    IntakeAllocationState? AllocationState = null);
 
 /// <summary>
 /// One page of retained mail.

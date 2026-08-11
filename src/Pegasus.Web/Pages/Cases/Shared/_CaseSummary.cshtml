@@ -18,8 +18,7 @@
         <dt>Instruction date</dt><dd>@(details.Summary.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</dd>
         <dt>Origin</dt><dd>@details.Summary.Origin</dd>
         <dt>State</dt><dd>@workflow.State</dd>
-        <dt>Workflow version</dt><dd>@workflow.Version</dd>
-        <dt>Engineer</dt><dd>@(workflow.AssignedEngineerId?.ToString("D") ?? "Unassigned")</dd>
+        <dt>Engineer</dt><dd>@(workflow.AssignedEngineerId is null ? "Unassigned" : "Assigned")</dd>
     </dl>
 
     @if (workflow.OriginalCaseId is { } originalCaseId)

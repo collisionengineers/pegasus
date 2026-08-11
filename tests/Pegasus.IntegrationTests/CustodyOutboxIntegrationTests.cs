@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -935,6 +936,237 @@ public sealed class CustodyOutboxIntegrationTests
                     CancellationToken.None));
     }
 
+    [Fact]
+    public async Task WorkerDispatchPoisonAndTerminalRedeliveryPreserveOneCustodyEffect()
+    {
+        await AcceptedOfflineCaseRecoversDispatchLeaseAndRetainsExactSourceReplaySafely();
+        await PoisonedCustodyIsTerminallyRecordedWithoutRedispatchOrDuplicateHistory();
+    }
+
+    [Fact]
+    public async Task CancellationSqlFaultAndLeaseLossUseExactTaxonomyAndRequireStaffRecovery()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var processor = scope.ServiceProvider.GetRequiredService<IProcessQueuedCustody>();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            processor.ExecuteAsync(accepted.CustodyWorkId, cancellation.Token));
+        Assert.Equal("pending", await ReadExternalWorkStateAsync(scope.ServiceProvider, accepted.CustodyWorkId));
+
+        var store = scope.ServiceProvider.GetRequiredService<IExternalWorkStore>();
+        await new ReconcilePoisonedExternalWork(store, new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
+        Assert.Equal("failed", await ReadExternalWorkStateAsync(scope.ServiceProvider, accepted.CustodyWorkId));
+        Assert.Equal("failed", await ReadCaseCustodyStateAsync(scope.ServiceProvider, accepted.CaseId));
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(await scope.ServiceProvider
+            .GetRequiredService<ICaseWorkflowQueries>().GetAsync(accepted.CaseId, default));
+        var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(accepted.CaseId, workflow.Version, actor, "custody-recovery-lease"), default);
+        var retried = await scope.ServiceProvider.GetRequiredService<IRetryCaseCustody>().ExecuteAsync(
+            new(
+                accepted.CaseId,
+                lease.Version,
+                actor,
+                "custody-recovery-after-cancellation",
+                "Retry after the persisted custody failure was reviewed.",
+                lease.Token,
+                CustodyTargetKind.CaseSource),
+            default);
+
+        Assert.Equal(RetryCaseCustodyOutcome.Pending, retried.Outcome);
+        Assert.Equal("pending", await ReadExternalWorkStateAsync(scope.ServiceProvider, accepted.CustodyWorkId));
+
+        // The adapter effect can succeed while the following SQL commit fails.
+        // The work becomes a visible, staff-recoverable failure and a reasoned
+        // retry reconciles the idempotent custody effect instead of duplicating it.
+        var sqlFault = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var completionFault = new FailNextCustodyCompletionInterceptor();
+        var faultOptions = new DbContextOptionsBuilder<PegasusDbContext>()
+            .UseSqlServer(factory.Database.ConnectionString)
+            .AddInterceptors(completionFault)
+            .Options;
+        var faultFactory = new OptionsDbContextFactory(faultOptions);
+        var faultStore = new EfExternalWorkStore(faultFactory, new MutableTimeProvider(FixedUtcNow));
+        var countedFaultCustody = new CountingCustody(
+            scope.ServiceProvider.GetRequiredService<ICaseCustody>());
+        completionFault.FailNextCompletion();
+        await Assert.ThrowsAsync<DbUpdateException>(() => new EfQueuedCustodyProcessor(
+            faultFactory,
+            faultStore,
+            countedFaultCustody,
+            new MutableTimeProvider(FixedUtcNow)).ExecuteAsync(sqlFault.CustodyWorkId, default));
+        Assert.True(countedFaultCustody.EffectCalls > 0);
+        Assert.Equal("failed", await ReadExternalWorkStateAsync(scope.ServiceProvider, sqlFault.CustodyWorkId));
+        Assert.Equal("failed", await ReadCaseCustodyStateAsync(scope.ServiceProvider, sqlFault.CaseId));
+        await RetryFailedCustodyAsync(scope.ServiceProvider, sqlFault, "custody-recovery-after-sql-fault");
+        await processor.ExecuteAsync(sqlFault.CustodyWorkId, default);
+        Assert.Equal("confirmed", await ReadCaseCustodyStateAsync(scope.ServiceProvider, sqlFault.CaseId));
+
+        // A newer lease that appears before any adapter call stops the stale
+        // holder. Its failure write is lease-guarded and cannot overwrite the
+        // newer holder; once that technical lease expires, normal dispatch may run.
+        var preEffectLeaseLoss = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var normalStore = new EfExternalWorkStore(dbFactory, new MutableTimeProvider(FixedUtcNow));
+        var stolenBeforeEffect = new StealLeaseOnCheckStore(
+            normalStore,
+            dbFactory,
+            "newer-holder-before-effect",
+            FixedUtcNow.AddMinutes(5));
+        var preEffectCustody = new CountingCustody(
+            scope.ServiceProvider.GetRequiredService<ICaseCustody>());
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => new EfQueuedCustodyProcessor(
+            dbFactory,
+            stolenBeforeEffect,
+            preEffectCustody,
+            new MutableTimeProvider(FixedUtcNow)).ExecuteAsync(preEffectLeaseLoss.CustodyWorkId, default));
+        Assert.Equal(0, preEffectCustody.EffectCalls);
+        Assert.Equal(
+            ("processing", "newer-holder-before-effect"),
+            await ReadWorkLeaseAsync(dbFactory, preEffectLeaseLoss.CustodyWorkId));
+        await ExpireLeaseAsync(dbFactory, preEffectLeaseLoss.CustodyWorkId, FixedUtcNow.AddMinutes(-1));
+        await processor.ExecuteAsync(preEffectLeaseLoss.CustodyWorkId, default);
+        Assert.Equal("confirmed", await ReadCaseCustodyStateAsync(scope.ServiceProvider, preEffectLeaseLoss.CaseId));
+
+        // Lease loss after the remote effect likewise cannot persist stale
+        // success or failure. Poison reconciliation makes it a human decision;
+        // the staff retry then verifies/reuses the already-created custody.
+        var postEffectLeaseLoss = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var postEffectCustody = new StealLeaseAfterEffectCustody(
+            scope.ServiceProvider.GetRequiredService<ICaseCustody>(),
+            dbFactory,
+            postEffectLeaseLoss.CustodyWorkId,
+            "newer-holder-after-effect",
+            FixedUtcNow.AddMinutes(5));
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(() => new EfQueuedCustodyProcessor(
+            dbFactory,
+            normalStore,
+            postEffectCustody,
+            new MutableTimeProvider(FixedUtcNow)).ExecuteAsync(postEffectLeaseLoss.CustodyWorkId, default));
+        Assert.True(postEffectCustody.EffectCalls > 0);
+        Assert.Equal(
+            ("processing", "newer-holder-after-effect"),
+            await ReadWorkLeaseAsync(dbFactory, postEffectLeaseLoss.CustodyWorkId));
+        Assert.Equal("pending", await ReadCaseCustodyStateAsync(scope.ServiceProvider, postEffectLeaseLoss.CaseId));
+        await new ReconcilePoisonedExternalWork(normalStore, new MutableTimeProvider(FixedUtcNow.AddMinutes(6)))
+            .ExecuteAsync(postEffectLeaseLoss.CustodyWorkId, default);
+        Assert.Equal("failed", await ReadExternalWorkStateAsync(scope.ServiceProvider, postEffectLeaseLoss.CustodyWorkId));
+        await RetryFailedCustodyAsync(scope.ServiceProvider, postEffectLeaseLoss, "custody-recovery-after-lease-loss");
+        await processor.ExecuteAsync(postEffectLeaseLoss.CustodyWorkId, default);
+        Assert.Equal("confirmed", await ReadCaseCustodyStateAsync(scope.ServiceProvider, postEffectLeaseLoss.CaseId));
+
+        // Expiry, without token replacement, is equally authoritative. Expiry
+        // before the first effect makes zero adapter calls; expiry after the
+        // source effect prevents both stale completion and stale failure.
+        var expiredBeforeEffect = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var expireOnCheck = new ExpireLeaseOnCheckStore(normalStore, dbFactory, FixedUtcNow.AddSeconds(-1));
+        var noEffectCustody = new CountingCustody(
+            scope.ServiceProvider.GetRequiredService<ICaseCustody>());
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() =>
+            new EfQueuedCustodyProcessor(
+                dbFactory,
+                expireOnCheck,
+                noEffectCustody,
+                new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(expiredBeforeEffect.CustodyWorkId, default));
+        Assert.Equal(0, noEffectCustody.EffectCalls);
+        Assert.Equal("processing", await ReadExternalWorkStateAsync(
+            scope.ServiceProvider, expiredBeforeEffect.CustodyWorkId));
+
+        var expiredBeforeCompletion = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var expiresAfterSource = new ExpireLeaseAfterEffectCustody(
+            scope.ServiceProvider.GetRequiredService<ICaseCustody>(),
+            dbFactory,
+            expiredBeforeCompletion.CustodyWorkId,
+            FixedUtcNow.AddSeconds(-1));
+        await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() =>
+            new EfQueuedCustodyProcessor(
+                dbFactory,
+                normalStore,
+                expiresAfterSource,
+                new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(expiredBeforeCompletion.CustodyWorkId, default));
+        Assert.True(expiresAfterSource.EffectCalls > 0);
+        Assert.Equal("processing", await ReadExternalWorkStateAsync(
+            scope.ServiceProvider, expiredBeforeCompletion.CustodyWorkId));
+        Assert.Equal("pending", await ReadCaseCustodyStateAsync(
+            scope.ServiceProvider, expiredBeforeCompletion.CaseId));
+        Assert.Equal(0, await CountCaseHistoryAsync(
+            scope.ServiceProvider, expiredBeforeCompletion.CaseId, "custody_failed"));
+    }
+
+    [Fact]
+    public async Task ReasonedRetryReplayConflictConcurrencyAndSecondFailureHaveExactCounts()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
+        var workStore = scope.ServiceProvider.GetRequiredService<IExternalWorkStore>();
+        await new ReconcilePoisonedExternalWork(workStore, new MutableTimeProvider(FixedUtcNow))
+            .ExecuteAsync(accepted.CustodyWorkId, default);
+
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+        var workflows = scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>();
+        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
+        var retry = scope.ServiceProvider.GetRequiredService<IRetryCaseCustody>();
+        var failed = Assert.IsType<CaseWorkflowRecord>(await workflows.GetAsync(accepted.CaseId, default));
+        var lease = await leases.ClaimAsync(
+            new(accepted.CaseId, failed.Version, actor, "custody-retry-lease-1"), default);
+        var command = new RetryCaseCustodyRequest(
+            accepted.CaseId,
+            lease.Version,
+            actor,
+            "custody-retry-command-1",
+            "Staff reviewed the provider failure and approved one retry.",
+            lease.Token,
+            CustodyTargetKind.CaseSource);
+
+        var first = await retry.ExecuteAsync(command, default);
+        var replay = await retry.ExecuteAsync(command, default);
+        var conflict = await retry.ExecuteAsync(command with { Reason = "A changed reason must conflict." }, default);
+
+        Assert.Equal(RetryCaseCustodyOutcome.Pending, first.Outcome);
+        Assert.Equal(RetryCaseCustodyOutcome.Replay, replay.Outcome);
+        Assert.Equal(RetryCaseCustodyOutcome.Conflict, conflict.Outcome);
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        var failingProcessor = new EfQueuedCustodyProcessor(
+            contextFactory,
+            workStore,
+            new AlwaysFailingCustody(),
+            new MutableTimeProvider(FixedUtcNow.AddMinutes(1)));
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            failingProcessor.ExecuteAsync(accepted.CustodyWorkId, default));
+
+        var failedAgain = Assert.IsType<CaseWorkflowRecord>(await workflows.GetAsync(accepted.CaseId, default));
+        var secondLease = await leases.ClaimAsync(
+            new(accepted.CaseId, failedAgain.Version, actor, "custody-retry-lease-2"), default);
+        var contenders = await Task.WhenAll(
+            retry.ExecuteAsync(new(
+                accepted.CaseId, secondLease.Version, actor, "custody-retry-command-2a",
+                "Second reviewed recovery attempt A.", secondLease.Token, CustodyTargetKind.CaseSource)),
+            retry.ExecuteAsync(new(
+                accepted.CaseId, secondLease.Version, actor, "custody-retry-command-2b",
+                "Second reviewed recovery attempt B.", secondLease.Token, CustodyTargetKind.CaseSource)));
+
+        Assert.Single(contenders, result => result.Outcome == RetryCaseCustodyOutcome.Pending);
+        Assert.Single(contenders, result => result.Outcome == RetryCaseCustodyOutcome.Conflict);
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            failingProcessor.ExecuteAsync(accepted.CustodyWorkId, default));
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var context = verificationScope.ServiceProvider.GetRequiredService<PegasusDbContext>();
+        Assert.Equal(2, await context.CaseWorkflowEvents.CountAsync(item =>
+            item.CaseId == accepted.CaseId && item.EventType == "custody_retry_requested"));
+        var work = await context.ExternalWorkItems.SingleAsync(item => item.Id == accepted.CustodyWorkId);
+        Assert.Equal("failed", work.State);
+        Assert.Equal(2, work.AttemptCount);
+    }
+
     private static async Task<AcceptedSource> AcceptDirectSourceAsync(IServiceProvider services)
     {
         var source = CreateSource();
@@ -975,7 +1207,7 @@ public sealed class CustodyOutboxIntegrationTests
                 services.GetRequiredService<IIntakeReceiptQueries>(),
                 services.GetRequiredService<ICreateTriageFromIntake>(),
                 services.GetRequiredService<IAutomaticCaseAssociationStore>(),
-                services.GetRequiredService<IAcceptIntake>(),
+                services.GetRequiredService<IAllocateIntake>(),
                 services.GetRequiredService<TimeProvider>())
             .ExecuteAsync(received.StagedReceiptId, CancellationToken.None);
         var receipt = Assert.IsType<IntakeReceipt>(
@@ -983,39 +1215,25 @@ public sealed class CustodyOutboxIntegrationTests
                 .FindBySourceIdentityAsync(source.Source.SourceIdentity, CancellationToken.None));
         Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
 
-        // The queued path allocated the case itself, so this fixture reads what
-        // processing produced rather than accepting a second time. Accepting
-        // again is exactly the conflict the store is meant to raise.
-        var (caseId, custodyWorkId) = await ReadAllocatedCaseAsync(services, receipt.Id);
-        return new(caseId, custodyWorkId, receipt.Id, source.Content);
-    }
-
-    private static async Task<(Guid CaseId, Guid CustodyWorkId)> ReadAllocatedCaseAsync(
-        IServiceProvider services,
-        Guid receiptId)
-    {
-        var contextFactory = services
-            .GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<
-                Pegasus.Infrastructure.Persistence.PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var connection = Microsoft.EntityFrameworkCore.RelationalDatabaseFacadeExtensions
-            .GetDbConnection(context.Database);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText =
-            "SELECT CaseId, CustodyWorkId FROM CaseIntakeLinks WHERE IntakeReceiptId = @receiptId";
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = "@receiptId";
-        parameter.Value = receiptId;
-        command.Parameters.Add(parameter);
-        await using var reader = await command.ExecuteReaderAsync();
-        Assert.True(await reader.ReadAsync(), "Processing did not allocate a case for the receipt.");
-        return (reader.GetGuid(0), reader.GetGuid(1));
+        // Manual uploads have no persisted mailbox classification. Processing
+        // therefore records a truthful case-type-unavailable allocation
+        // failure; the custody scenario supplies the explicit staff acceptance
+        // that turns this reviewable receipt into a case.
+        var failed = Assert.IsType<IntakeAllocationState>(
+            (await services.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receipt.Id, CancellationToken.None))!.AllocationState);
+        Assert.Equal(IntakeAllocationFailureKind.CaseTypeUnavailable, failed.FailureKind);
+        var accepted = await AcceptAsync(
+            services,
+            receipt.Id,
+            new CaseCompleteness(false, false, false, false));
+        return new(accepted.Identity.CaseId, accepted.CustodyWorkId, receipt.Id, source.Content);
     }
 
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(
         IServiceProvider services,
-        Guid receiptId)
+        Guid receiptId,
+        CaseCompleteness? completeness = null)
     {
         const string principalCode = QdosPrincipal.Code;
         await SeedPrincipalAsync(services, principalCode);
@@ -1029,7 +1247,7 @@ public sealed class CustodyOutboxIntegrationTests
                     "Integration fixture confirmed complete intake evidence.",
                     CaseType.Inspection,
                     principalCode,
-                    new(true, true, true, true)),
+                    completeness ?? new(true, true, true, true)),
                 CancellationToken.None);
     }
 
@@ -1144,6 +1362,248 @@ public sealed class CustodyOutboxIntegrationTests
         public override DateTimeOffset GetUtcNow() => currentUtcNow;
 
         public void Advance(TimeSpan interval) => currentUtcNow += interval;
+    }
+
+    private static async Task RetryFailedCustodyAsync(
+        IServiceProvider services,
+        AcceptedSource accepted,
+        string operationKey)
+    {
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        var workflow = Assert.IsType<CaseWorkflowRecord>(await services
+            .GetRequiredService<ICaseWorkflowQueries>().GetAsync(accepted.CaseId, default));
+        var lease = await services.GetRequiredService<ILeaseCaseForEdit>().ClaimAsync(
+            new(accepted.CaseId, workflow.Version, actor, $"{operationKey}:lease"), default);
+        var result = await services.GetRequiredService<IRetryCaseCustody>().ExecuteAsync(
+            new(
+                accepted.CaseId,
+                lease.Version,
+                actor,
+                operationKey,
+                "Staff reviewed the uncertain custody effect and approved reconciliation.",
+                lease.Token,
+                CustodyTargetKind.CaseSource),
+            default);
+        Assert.Equal(RetryCaseCustodyOutcome.Pending, result.Outcome);
+    }
+
+    private static async Task<(string State, string? LeaseToken)> ReadWorkLeaseAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid workId)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        return await context.ExternalWorkItems.AsNoTracking()
+            .Where(item => item.Id == workId)
+            .Select(item => new ValueTuple<string, string?>(item.State, item.LeaseToken))
+            .SingleAsync();
+    }
+
+    private static async Task ExpireLeaseAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid workId,
+        DateTimeOffset expiresAtUtc)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        await context.ExternalWorkItems.Where(item => item.Id == workId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.LeaseExpiresAtUtc, expiresAtUtc));
+    }
+
+    private sealed class OptionsDbContextFactory(DbContextOptions<PegasusDbContext> options)
+        : IDbContextFactory<PegasusDbContext>
+    {
+        public PegasusDbContext CreateDbContext() => new(options);
+    }
+
+    private sealed class FailNextCustodyCompletionInterceptor : SaveChangesInterceptor
+    {
+        private int failNext;
+
+        public void FailNextCompletion() => Interlocked.Exchange(ref failNext, 1);
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (Volatile.Read(ref failNext) == 1
+                && eventData.Context is not null
+                && eventData.Context.ChangeTracker.Entries<ExternalWorkItemEntity>()
+                    .Any(entry => entry.State == EntityState.Modified
+                        && string.Equals(entry.Entity.State, "completed", StringComparison.Ordinal))
+                && Interlocked.Exchange(ref failNext, 0) == 1)
+            {
+                throw new DbUpdateException("Injected post-adapter custody completion failure.");
+            }
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
+    private sealed class StealLeaseOnCheckStore(
+        IExternalWorkStore inner,
+        IDbContextFactory<PegasusDbContext> factory,
+        string newerLeaseToken,
+        DateTimeOffset newerLeaseExpiry) : IExternalWorkStore
+    {
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) =>
+            inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+
+        public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset dispatchedAtUtc, CancellationToken cancellationToken) =>
+            inner.MarkDispatchedAsync(workItemId, leaseToken, dispatchedAtUtc, cancellationToken);
+
+        public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) =>
+            inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
+
+        public Task MarkPoisonedAsync(Guid workItemId, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) =>
+            inner.MarkPoisonedAsync(workItemId, failedAtUtc, cancellationToken);
+
+        public async Task<bool> HoldsProcessingLeaseAsync(Guid workItemId, string leaseToken, CancellationToken cancellationToken)
+        {
+            await using var context = await factory.CreateDbContextAsync(cancellationToken);
+            await context.ExternalWorkItems.Where(item => item.Id == workItemId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.State, "processing")
+                    .SetProperty(item => item.LeaseToken, newerLeaseToken)
+                    .SetProperty(item => item.LeaseExpiresAtUtc, newerLeaseExpiry),
+                    cancellationToken);
+            return false;
+        }
+
+        public Task FailProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset failedAtUtc, string failureCode, string failureReason, CancellationToken cancellationToken) =>
+            inner.FailProcessingAsync(workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
+    }
+
+    private sealed class ExpireLeaseOnCheckStore(
+        IExternalWorkStore inner,
+        IDbContextFactory<PegasusDbContext> factory,
+        DateTimeOffset expiredAtUtc) : IExternalWorkStore
+    {
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) =>
+            inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+        public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset dispatchedAtUtc, CancellationToken cancellationToken) =>
+            inner.MarkDispatchedAsync(workItemId, leaseToken, dispatchedAtUtc, cancellationToken);
+        public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) =>
+            inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
+        public Task MarkPoisonedAsync(Guid workItemId, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) =>
+            inner.MarkPoisonedAsync(workItemId, failedAtUtc, cancellationToken);
+        public async Task<bool> HoldsProcessingLeaseAsync(Guid workItemId, string leaseToken, CancellationToken cancellationToken)
+        {
+            await using var context = await factory.CreateDbContextAsync(cancellationToken);
+            await context.ExternalWorkItems.Where(item => item.Id == workItemId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.LeaseExpiresAtUtc, expiredAtUtc),
+                    cancellationToken);
+            return await inner.HoldsProcessingLeaseAsync(workItemId, leaseToken, cancellationToken);
+        }
+        public Task FailProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset failedAtUtc, string failureCode, string failureReason, CancellationToken cancellationToken) =>
+            inner.FailProcessingAsync(workItemId, leaseToken, failedAtUtc, failureCode, failureReason, cancellationToken);
+    }
+
+    private class CountingCustody(ICaseCustody inner) : ICaseCustody
+    {
+        public int EffectCalls { get; protected set; }
+
+        public virtual async Task<CaseCustodyRoot> CreateCaseRootAsync(
+            Guid caseId, string caseReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken)
+        {
+            EffectCalls++;
+            return await inner.CreateCaseRootAsync(
+                caseId, caseReference, creationOwnerToken, operationKey, cancellationToken);
+        }
+
+        public virtual async Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+            Guid caseId, string caseReference, CancellationToken cancellationToken)
+        {
+            EffectCalls++;
+            return await inner.GetExistingCaseRootAsync(caseId, caseReference, cancellationToken);
+        }
+
+        public virtual async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root, IntakeSourceCustodyReference source, string operationKey,
+            CancellationToken cancellationToken)
+        {
+            EffectCalls++;
+            return await inner.RetainAcceptedIntakeSourceAsync(root, source, operationKey, cancellationToken);
+        }
+
+        public virtual async Task<string> CreateAuditReferenceFolderAsync(
+            CaseCustodyRoot root, string auditReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken)
+        {
+            EffectCalls++;
+            return await inner.CreateAuditReferenceFolderAsync(
+                root, auditReference, creationOwnerToken, operationKey, cancellationToken);
+        }
+    }
+
+    private sealed class StealLeaseAfterEffectCustody(
+        ICaseCustody inner,
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid workId,
+        string newerLeaseToken,
+        DateTimeOffset newerLeaseExpiry) : CountingCustody(inner)
+    {
+        public override async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root,
+            IntakeSourceCustodyReference source,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            var result = await base.RetainAcceptedIntakeSourceAsync(
+                root, source, operationKey, cancellationToken);
+            await using var context = await factory.CreateDbContextAsync(cancellationToken);
+            await context.ExternalWorkItems.Where(item => item.Id == workId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.State, "processing")
+                    .SetProperty(item => item.LeaseToken, newerLeaseToken)
+                    .SetProperty(item => item.LeaseExpiresAtUtc, newerLeaseExpiry),
+                    cancellationToken);
+            return result;
+        }
+    }
+
+    private sealed class ExpireLeaseAfterEffectCustody(
+        ICaseCustody inner,
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid workId,
+        DateTimeOffset expiredAtUtc) : CountingCustody(inner)
+    {
+        public override async Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root,
+            IntakeSourceCustodyReference source,
+            string operationKey,
+            CancellationToken cancellationToken)
+        {
+            var result = await base.RetainAcceptedIntakeSourceAsync(
+                root, source, operationKey, cancellationToken);
+            await using var context = await factory.CreateDbContextAsync(cancellationToken);
+            await context.ExternalWorkItems.Where(item => item.Id == workId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.LeaseExpiresAtUtc, expiredAtUtc),
+                    cancellationToken);
+            return result;
+        }
+    }
+
+    private sealed class AlwaysFailingCustody : ICaseCustody
+    {
+        private static HttpRequestException Failure() => new("Fixture adapter failure.");
+
+        public Task<CaseCustodyRoot> CreateCaseRootAsync(
+            Guid caseId, string caseReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken) => throw Failure();
+
+        public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
+            Guid caseId, string caseReference, CancellationToken cancellationToken) => throw Failure();
+
+        public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
+            CaseCustodyRoot root, IntakeSourceCustodyReference source, string operationKey,
+            CancellationToken cancellationToken) => throw Failure();
+
+        public Task<string> CreateAuditReferenceFolderAsync(
+            CaseCustodyRoot root, string auditReference, string creationOwnerToken, string operationKey,
+            CancellationToken cancellationToken) => throw Failure();
     }
 
     private sealed record SourceFixture(IntakeSource Source, byte[] Content);

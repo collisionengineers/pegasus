@@ -130,7 +130,7 @@ else
             <span asp-validation-for="PrincipalCode" class="field-validation"></span>
 
             <label asp-for="CaseType">Case type</label>
-            <select asp-for="CaseType">
+            <select asp-for="CaseType" data-case-type-selector>
                 <option value="@CaseType.Inspection">Inspection</option>
                 <option value="@CaseType.Audit">Standalone Audit</option>
                 <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
@@ -138,9 +138,7 @@ else
             <span asp-validation-for="CaseType" class="field-validation"></span>
         </section>
 
-        @if (Model.CaseType == CaseType.Audit)
-        {
-            <section class="panel form-panel section-gap" aria-labelledby="audit-title">
+            <section class="panel form-panel section-gap" aria-labelledby="audit-title" data-standalone-audit-fields>
                 <h2 id="audit-title" class="section-label">Standalone Audit evidence</h2>
                 <p>A standalone Audit is an assessment of somebody else's report, so the retained original and the confirming person are kept with it.</p>
 
@@ -171,7 +169,6 @@ else
                     <small>This original-report evidence is already confirmed and immutable. Creating the case reuses it.</small>
                 }
             </section>
-        }
 
         <section class="panel form-panel section-gap" aria-labelledby="completeness-title">
             <h2 id="completeness-title" class="section-label">Evidence completeness</h2>

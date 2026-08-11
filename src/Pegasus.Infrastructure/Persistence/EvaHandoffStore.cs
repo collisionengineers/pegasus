@@ -23,8 +23,13 @@ public sealed class EvaHandoffStore(
     IDocumentContentStore contentStore,
     IEvaHandoffProxy proxy,
     EvaMappingAcceptance mappingAcceptance,
-    TimeProvider timeProvider) : IEvaHandoffQueries, IGenerateEvaHandoff
+    TimeProvider timeProvider) : IEvaHandoffQueries, IEvaHandoffPersistence
 {
+    public Task<GenerateEvaHandoffResult> ExecuteAsync(
+        GenerateEvaHandoffRequest request,
+        CancellationToken cancellationToken = default) =>
+        new GenerateEvaHandoff(this).ExecuteAsync(request, cancellationToken);
+
     private const string GeneratedEvent = "eva_handoff_generated";
     private const string ReusedEvent = "eva_handoff_revision_reused";
 
@@ -59,29 +64,15 @@ public sealed class EvaHandoffStore(
                     workflow.State,
                     workflow.ArchivedAtUtc,
                     caseRecord.CustodyState,
-                    caseRecord.CustodyConfirmedAtUtc
+                    caseRecord.CustodyConfirmedAtUtc,
+                    caseRecord.AuditReference,
+                    caseRecord.AuditCustodyRemoteId,
+                    caseRecord.AuditCustodyConfirmedAtUtc
                 })
             .SingleOrDefaultAsync(cancellationToken);
         if (caseState is null)
         {
             return null;
-        }
-
-        if (caseData.Version != caseState.Version)
-        {
-            reasons.Add("Accepted case evidence is stale relative to the current case version.");
-        }
-        if (!IsConfirmedCustody(caseState.CustodyState, caseState.CustodyConfirmedAtUtc))
-        {
-            reasons.Add("Case custody has not been confirmed.");
-        }
-        if (caseState.ArchivedAtUtc is not null)
-        {
-            reasons.Add("Archived cases cannot generate EVA handoffs.");
-        }
-        if (IsTerminalWorkflow(caseState.State))
-        {
-            reasons.Add("Terminal cases cannot generate EVA handoffs until they are reasoned and reopened.");
         }
 
         var images = await (
@@ -96,7 +87,7 @@ public sealed class EvaHandoffStore(
                        && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                        && occurrence.ThirdPartyVehicleConfirmedAtUtc == null
                        && (version.MediaType == "image/jpeg" || version.MediaType == "image/png")
-                orderby occurrence.RecordedAtUtc, occurrence.Id
+                 orderby occurrence.Ordinal
                 select new EvaHandoffImageOption(
                     occurrence.Id,
                     occurrence.DocumentId,
@@ -107,12 +98,20 @@ public sealed class EvaHandoffStore(
                     version.ContentLength,
                     version.Sha256,
                     occurrence.Source,
-                    occurrence.SourceOccurrenceIdentity))
+                    occurrence.SourceOccurrenceIdentity,
+                    occurrence.Ordinal))
             .ToArrayAsync(cancellationToken);
-        if (images.Length == 0)
-        {
-            reasons.Add("At least one custody-confirmed current image version is required.");
-        }
+        reasons.AddRange(EvaHandoffPolicy.Evaluate(new(
+            ParseLifecycleState(caseState.State),
+            caseState.ArchivedAtUtc is not null,
+            caseState.Version,
+            caseData.Version,
+            IsConfirmedCustody(caseState.CustodyState, caseState.CustodyConfirmedAtUtc),
+            !string.IsNullOrWhiteSpace(caseState.AuditReference),
+            !string.IsNullOrWhiteSpace(caseState.AuditCustodyRemoteId)
+                && caseState.AuditCustodyConfirmedAtUtc is not null,
+            mapping.Source is not null,
+            images.Length)));
 
         var proxyEvidence = await context.EvaFirstHandoffProxies
             .AsNoTracking()
@@ -179,14 +178,172 @@ public sealed class EvaHandoffStore(
         return artifact;
     }
 
-    public async Task<GenerateEvaHandoffResult> ExecuteAsync(
+    public async Task<DownloadEvaHandoffResult> DownloadAsync(
+        DownloadEvaHandoffRequest request,
+        string normalizedReason,
+        string requestHash,
+        EvaHandoffPolicyAuthority policy,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var replay = await context.EvaHandoffDownloadOperations
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OperationKey == request.OperationKey, cancellationToken);
+        var replayDecision = policy.DecideReplay(
+            replay is not null,
+            replay is not null
+                && replay.CaseId == request.CaseId
+                && HashesMatch(replay.RequestHash, requestHash));
+        if (replayDecision == EvaOperationReplayDecision.Conflict)
+        {
+            return new(
+                DownloadEvaHandoffOutcome.Conflict,
+                null,
+                "The EVA download operation key was already used for another request.");
+        }
+        if (replayDecision == EvaOperationReplayDecision.Replay)
+        {
+            var replayRevision = await context.EvaHandoffRevisions
+                .AsNoTracking()
+                .SingleAsync(item => item.Id == replay!.RevisionId, cancellationToken);
+            if (replayRevision.Revision != request.Revision)
+            {
+                return new(
+                    DownloadEvaHandoffOutcome.Conflict,
+                    null,
+                    "The EVA download operation key belongs to another business revision.");
+            }
+            return new(
+                DownloadEvaHandoffOutcome.Replay,
+                Artifact(replayRevision),
+                "The original EVA download preparation was replayed.");
+        }
+
+        var workflow = await context.CaseWorkflows
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
+        if (workflow is null)
+        {
+            return new(DownloadEvaHandoffOutcome.NotFound, null, "The case was not found.");
+        }
+        ArchivedCaseGuard.RequireMutable(workflow);
+        var downloadVersionConflict = policy.RenderedVersionConflict(
+            request.ExpectedCaseVersion, workflow.Version);
+        if (downloadVersionConflict is not null)
+        {
+            return new(DownloadEvaHandoffOutcome.Conflict, null,
+                downloadVersionConflict);
+        }
+        try
+        {
+            RequireLease(workflow, request.Actor, request.EditLeaseToken, timeProvider.GetUtcNow());
+        }
+        catch (InvalidOperationException exception)
+            when (exception is CaseEditLeaseExpiredException or CaseEditLeaseConflictException)
+        {
+            return new(DownloadEvaHandoffOutcome.Conflict, null, exception.Message);
+        }
+        var revision = await context.EvaHandoffRevisions
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId
+                && item.Revision == request.Revision, cancellationToken);
+        if (revision is null)
+        {
+            return new(DownloadEvaHandoffOutcome.NotFound, null,
+                "The EVA handoff revision was not found.");
+        }
+        EvaHandoffRevisionArtifact artifact;
+        try
+        {
+            artifact = Artifact(revision);
+        }
+        catch (InvalidDataException exception)
+        {
+            return new(DownloadEvaHandoffOutcome.Refused, null, exception.Message);
+        }
+
+        var beforeVersion = workflow.Version;
+        workflow.Version = checked(workflow.Version + 1);
+        ClearLease(workflow);
+        var now = timeProvider.GetUtcNow();
+        context.EvaHandoffDownloadOperations.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = request.CaseId,
+            RevisionId = revision.Id,
+            OperationKey = request.OperationKey,
+            RequestHash = requestHash,
+            Reason = normalizedReason,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            PreparedAtUtc = now
+        });
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = request.CaseId,
+            Workflow = workflow,
+            EventType = "eva_handoff_download_prepared",
+            OperationKey = request.OperationKey,
+            RequestHash = requestHash,
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            Reason = normalizedReason,
+            OccurredAtUtc = now,
+            BeforeVersion = beforeVersion,
+            AfterVersion = workflow.Version,
+            ResultJson = JsonSerializer.Serialize(new
+            {
+                revision = revision.Revision,
+                outcome = "prepared"
+            })
+        });
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "case",
+            AggregateId = request.CaseId.ToString("D"),
+            EventKind = "eva_handoff_download_prepared",
+            ActorKind = request.Actor.Kind.ToString(),
+            ActorSubjectId = request.Actor.SubjectId,
+            ActorRolesJson = RolesJson(request.Actor),
+            OccurredAtUtc = now,
+            Outcome = "Succeeded",
+            CorrelationId = request.OperationKey,
+            Reason = normalizedReason,
+            BeforeJson = JsonSerializer.Serialize(new { workflowVersion = beforeVersion }),
+            AfterJson = JsonSerializer.Serialize(new
+            {
+                workflowVersion = workflow.Version,
+                businessRevision = revision.Revision,
+                integrity = "verified"
+            }),
+            PolicyVersion = "eva-handoff-v2"
+        });
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return new(DownloadEvaHandoffOutcome.Conflict, null,
+                "The case changed during EVA download preparation. Reload before retrying.");
+        }
+        return new(DownloadEvaHandoffOutcome.Prepared, artifact,
+            "The EVA handoff archive was prepared.");
+    }
+
+    public async Task<GenerateEvaHandoffResult> GenerateAsync(
         GenerateEvaHandoffRequest request,
+        string requestHash,
+        EvaHandoffPolicyAuthority policy,
         CancellationToken cancellationToken = default)
     {
-        Validate(request);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        var operationKey = request.OperationKey.Trim();
-        var requestHash = HashRequest(request);
+        var operationKey = request.OperationKey;
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
@@ -196,17 +353,21 @@ public sealed class EvaHandoffStore(
         var replay = await context.EvaHandoffOperations
             .AsNoTracking()
             .SingleOrDefaultAsync(item => item.OperationKey == operationKey, cancellationToken);
-        if (replay is not null)
+        var replayDecision = policy.DecideReplay(
+            replay is not null,
+            replay is not null
+                && replay.CaseId == request.CaseId
+                && HashesMatch(replay.RequestHash, requestHash));
+        if (replayDecision == EvaOperationReplayDecision.Conflict)
         {
-            if (replay.CaseId != request.CaseId
-                || !HashesMatch(replay.RequestHash, requestHash))
-            {
-                return Conflict("The EVA handoff operation key was already used for a different request.");
-            }
+            return Conflict("The EVA handoff operation key was already used for a different request.");
+        }
+        if (replayDecision == EvaOperationReplayDecision.Replay)
+        {
 
             var replayRevision = await context.EvaHandoffRevisions
                 .AsNoTracking()
-                .SingleAsync(item => item.Id == replay.RevisionId, cancellationToken);
+                .SingleAsync(item => item.Id == replay!.RevisionId, cancellationToken);
             var firstProxyOperation = await context.EvaFirstHandoffProxies
                 .AsNoTracking()
                 .Where(item => item.CaseId == request.CaseId)
@@ -227,18 +388,26 @@ public sealed class EvaHandoffStore(
                 null,
                 ["The case was not found."]);
         }
-        if (workflow.ArchivedAtUtc is not null)
+        var renderedVersionConflict = policy.RenderedVersionConflict(
+            request.ExpectedCaseVersion, workflow.Version);
+        if (renderedVersionConflict is not null)
         {
-            return Blocked("Archived cases cannot generate EVA handoffs.");
+            return Conflict(renderedVersionConflict);
         }
-        if (IsTerminalWorkflow(workflow.State))
+        var lifecycle = ParseLifecycleState(workflow.State);
+        var stageReasons = policy.Evaluate(new(
+            lifecycle,
+            workflow.ArchivedAtUtc is not null,
+            workflow.Version,
+            workflow.Version,
+            CaseCustodyConfirmed: true,
+            AuditRequired: false,
+            AuditCustodyConfirmed: true,
+            MappingAccepted: true,
+            EligibleImageCount: 1));
+        if (stageReasons.Count != 0)
         {
-            return Blocked(
-                "Terminal cases cannot generate EVA handoffs until they are reasoned and reopened.");
-        }
-        if (workflow.Version != request.ExpectedCaseVersion)
-        {
-            return Conflict("The case changed after the EVA handoff was loaded. Reload before retrying.");
+            return new(GenerateEvaHandoffOutcome.Blocked, null, stageReasons);
         }
 
         var now = timeProvider.GetUtcNow();
@@ -268,26 +437,16 @@ public sealed class EvaHandoffStore(
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
         var mapping = MapAcceptedCase(caseData, vehicle);
         var reasons = mapping.BlockingReasons.ToList();
-        if (!IsConfirmedCustody(workflow.Case.CustodyState, workflow.Case.CustodyConfirmedAtUtc))
-        {
-            reasons.Add("Case custody has not been confirmed.");
-        }
-
-        var selectedRows = await (
+        var candidateRows = await (
                 from occurrence in context.Set<DocumentOccurrenceEntity>()
                 join version in context.Set<DocumentVersionEntity>()
                     on occurrence.VersionId equals version.Id
                 where occurrence.CaseId == request.CaseId
-                      && occurrence.SemanticRole == DocumentSemanticRole.Image
                       && version.DocumentId == occurrence.DocumentId
-                       && version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                       && version.IsCurrent
-                       && !version.IsLogicallyRemoved
-                       && occurrence.ThirdPartyVehicleConfirmedAtUtc == null
-                       && (version.MediaType == "image/jpeg" || version.MediaType == "image/png")
-                orderby occurrence.RecordedAtUtc, occurrence.Id
+                 orderby occurrence.Ordinal
                 select new SelectedDocument(
                     occurrence.Id,
+                    occurrence.Ordinal,
                     occurrence.CaseId,
                     occurrence.DocumentId,
                     occurrence.Source,
@@ -302,12 +461,43 @@ public sealed class EvaHandoffStore(
                     version.Sha256,
                     version.CustodyStatus,
                     version.IsCurrent,
-                    version.IsLogicallyRemoved))
+                    version.IsLogicallyRemoved,
+                    occurrence.ThirdPartyVehicleConfirmedAtUtc != null))
             .ToArrayAsync(cancellationToken);
-        if (selectedRows.Length == 0)
-        {
-            reasons.Add("At least one custody-confirmed current image version is required.");
-        }
+        var eligibleVersionIds = policy.SelectEligibleImages(candidateRows.Select(
+                selected => new EvaHandoffImageCandidate(
+                    selected.OccurrenceId,
+                    selected.DocumentId,
+                    selected.VersionId,
+                    selected.Version,
+                    selected.FileName,
+                    selected.MediaType,
+                    selected.ContentLength,
+                    selected.Sha256,
+                    selected.SemanticRole,
+                    selected.Source,
+                    selected.SourceOccurrenceIdentity,
+                    selected.CustodyStatus == DocumentCustodyStatus.Confirmed,
+                    selected.IsCurrent,
+                    selected.IsLogicallyRemoved,
+                    selected.IsThirdPartyVehicle,
+                    selected.Ordinal)))
+            .Select(candidate => candidate.VersionId)
+            .ToHashSet();
+        var selectedRows = candidateRows
+            .Where(selected => eligibleVersionIds.Contains(selected.VersionId))
+            .ToArray();
+        reasons.AddRange(policy.Evaluate(new(
+            ParseLifecycleState(workflow.State),
+            workflow.ArchivedAtUtc is not null,
+            workflow.Version,
+            caseData.Version,
+            IsConfirmedCustody(workflow.Case.CustodyState, workflow.Case.CustodyConfirmedAtUtc),
+            !string.IsNullOrWhiteSpace(workflow.Case.AuditReference),
+            !string.IsNullOrWhiteSpace(workflow.Case.AuditCustodyRemoteId)
+                && workflow.Case.AuditCustodyConfirmedAtUtc is not null,
+            mapping.Source is not null,
+            selectedRows.Length)));
         if (reasons.Count != 0 || mapping.Source is null)
         {
             return new(
@@ -324,10 +514,18 @@ public sealed class EvaHandoffStore(
                 return Blocked($"The selected image '{selected.FileName}' is too large for the offline EVA handoff.");
             }
 
-            await using var content = await contentStore.OpenReadAsync(
-                request.CaseId,
-                workflow.Case.Reference,
-                selected.VersionId,
+            await using var content = await contentStore.OpenReadVersionAsync(
+                new(
+                    request.CaseId,
+                    workflow.Case.Reference,
+                    selected.OccurrenceId,
+                    selected.Ordinal,
+                    selected.DocumentId,
+                    selected.VersionId,
+                    selected.Version,
+                    selected.SemanticRole,
+                    selected.FileName,
+                    selected.MediaType),
                 selected.Sha256,
                 selected.ContentLength,
                 cancellationToken);
@@ -346,7 +544,8 @@ public sealed class EvaHandoffStore(
                 bytes,
                 selected.Sha256,
                 CustodyConfirmed: true,
-                IsCurrent: true));
+                IsCurrent: true,
+                selected.Ordinal));
         }
 
         var bundle = EvaBundleSchema.CreateOfflineReplay(
@@ -358,24 +557,28 @@ public sealed class EvaHandoffStore(
                         && item.InputFingerprint == bundle.Sha256,
                 cancellationToken);
 
+        var maximumRevision = await context.EvaHandoffRevisions
+            .Where(item => item.CaseId == request.CaseId)
+            .Select(item => (int?)item.Revision)
+            .MaxAsync(cancellationToken) ?? 0;
+        var hasFirstProxy = await context.EvaFirstHandoffProxies
+            .AnyAsync(item => item.CaseId == request.CaseId, cancellationToken);
+        var revisionDecision = policy.DecideRevision(
+            existingRevision?.Revision,
+            maximumRevision,
+            hasFirstProxy);
         var firstSentToEngineerRecorded = false;
         EvaHandoffRevisionEntity revision;
-        if (existingRevision is null)
+        if (!revisionDecision.ReuseExisting)
         {
-            var nextRevision = await context.EvaHandoffRevisions
-                .Where(item => item.CaseId == request.CaseId)
-                .Select(item => (int?)item.Revision)
-                .MaxAsync(cancellationToken) ?? 0;
             revision = NewRevision(
                 request,
-                checked(nextRevision + 1),
+                revisionDecision.BusinessRevision,
                 bundle,
                 now);
             context.EvaHandoffRevisions.Add(revision);
 
-            var hasFirstProxy = await context.EvaFirstHandoffProxies
-                .AnyAsync(item => item.CaseId == request.CaseId, cancellationToken);
-            if (!hasFirstProxy)
+            if (revisionDecision.RecordFirstProxy)
             {
                 var receipt = await proxy.RecordFirstGenerationAsync(
                     new(
@@ -408,7 +611,9 @@ public sealed class EvaHandoffStore(
         }
         else
         {
-            revision = existingRevision;
+            revision = existingRevision
+                ?? throw new InvalidOperationException(
+                    "Core selected revision replay without a matching persisted revision.");
         }
 
         context.EvaHandoffOperations.Add(new()
@@ -645,7 +850,7 @@ public sealed class EvaHandoffStore(
         AcceptedCaseVersion = request.ExpectedCaseVersion,
         SchemaVersion = EvaBundleSchema.SchemaVersion,
         InputFingerprint = bundle.Sha256,
-        FileName = bundle.FileName,
+        FileName = $"{Path.GetFileNameWithoutExtension(bundle.FileName)}-Revision-{revision:000}.zip",
         BundleContent = bundle.Content,
         BundleSha256 = bundle.Sha256,
         JsonContent = bundle.JsonContent,
@@ -740,29 +945,6 @@ public sealed class EvaHandoffStore(
         });
     }
 
-    private static void Validate(GenerateEvaHandoffRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.CaseId == Guid.Empty)
-        {
-            throw new ArgumentException("A case identifier is required.", nameof(request));
-        }
-        if (request.ExpectedCaseVersion < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(request), "The expected case version cannot be negative.");
-        }
-        ArgumentNullException.ThrowIfNull(request.Actor);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.EditLeaseToken);
-        if (request.OperationKey.Length > 100
-            || request.Reason.Length > 300
-            || request.EditLeaseToken.Length > CaseEditAuthority.LeaseTokenLength)
-        {
-            throw new ArgumentException("The EVA operation key, reason, or edit-lease token is too long.", nameof(request));
-        }
-    }
-
     private static void RequireLease(
         CaseWorkflowEntity workflow,
         ActionActor actor,
@@ -772,32 +954,6 @@ public sealed class EvaHandoffStore(
 
     private static void ClearLease(CaseWorkflowEntity workflow) =>
         CaseMutationGuard.ClearLease(workflow);
-
-    private static string HashRequest(GenerateEvaHandoffRequest request)
-    {
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append(hash, "generate-eva-handoff/v1");
-        Append(hash, request.CaseId.ToString("D"));
-        Append(hash, request.ExpectedCaseVersion.ToString(CultureInfo.InvariantCulture));
-        Append(hash, request.Actor.Kind.ToString());
-        Append(hash, request.Actor.SubjectId);
-        foreach (var role in request.Actor.Roles.OrderBy(role => role))
-        {
-            Append(hash, role.ToString());
-        }
-        Append(hash, request.Reason.Trim());
-        Append(hash, Hash(request.EditLeaseToken));
-        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-    }
-
-    private static void Append(IncrementalHash hash, string value)
-    {
-        var bytes = Encoding.UTF8.GetBytes(value);
-        Span<byte> length = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
-        hash.AppendData(length);
-        hash.AppendData(bytes);
-    }
 
     private static string Hash(string value) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
@@ -834,12 +990,35 @@ public sealed class EvaHandoffStore(
         && !fileName.Any(char.IsControl)
         && fileName.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
 
+    private static EvaHandoffRevisionArtifact Artifact(EvaHandoffRevisionEntity revision)
+    {
+        if (!IsSafeBundleFileName(revision.FileName)
+            || revision.BundleContent.Length == 0
+            || revision.BundleSha256.Length != 64
+            || !HashesMatch(revision.BundleSha256, Hash(revision.BundleContent)))
+        {
+            throw new InvalidDataException("The stored EVA handoff archive failed integrity validation.");
+        }
+
+        return new(
+            revision.Revision,
+            revision.FileName,
+            revision.BundleContent,
+            revision.BundleSha256);
+    }
+
     private static bool IsTerminalWorkflow(string state) =>
         Enum.TryParse<CaseLifecycleState>(state, out var parsed)
         && parsed is CaseLifecycleState.PostReportComplete
             or CaseLifecycleState.ProviderCancelled
             or CaseLifecycleState.CollisionEngineersRejected
             or CaseLifecycleState.CreatedInError;
+
+    private static CaseLifecycleState ParseLifecycleState(string state) =>
+        Enum.TryParse<CaseLifecycleState>(state, ignoreCase: false, out var parsed)
+        && Enum.IsDefined(parsed)
+            ? parsed
+            : throw new InvalidDataException($"Unknown case lifecycle state '{state}'.");
 
     private static bool IsConfirmedCustody(string state, DateTimeOffset? confirmedAtUtc) =>
         state.Equals("confirmed", StringComparison.OrdinalIgnoreCase)
@@ -860,6 +1039,7 @@ public sealed class EvaHandoffStore(
 
     private sealed record SelectedDocument(
         Guid OccurrenceId,
+        int Ordinal,
         Guid CaseId,
         Guid DocumentId,
         DocumentSource Source,
@@ -874,5 +1054,6 @@ public sealed class EvaHandoffStore(
         string Sha256,
         DocumentCustodyStatus CustodyStatus,
         bool IsCurrent,
-        bool IsLogicallyRemoved);
+        bool IsLogicallyRemoved,
+        bool IsThirdPartyVehicle);
 }
