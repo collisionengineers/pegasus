@@ -242,7 +242,9 @@ public sealed record CaseAcceptanceRequest(
     CaseCompletenessEvaluation CompletenessEvaluation,
     CaseInspectionMode ProviderInspectionMode,
     Guid? StandaloneAuditEvidenceId = null,
-    DateOnly? AcceptedInspectionDeadline = null);
+    DateOnly? AcceptedInspectionDeadline = null,
+    Guid? AllocationAttemptId = null,
+    DateTimeOffset? AllocationCompletedAtUtc = null);
 
 public sealed record CaseAcceptanceOutcome(
     CaseIdentity Identity,

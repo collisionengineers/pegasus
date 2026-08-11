@@ -197,7 +197,7 @@ internal sealed class IntakeMcpTools(
             $"Unknown intake decision '{(int)decision}'.")
     };
 
-    private static string AllocationCode(IntakeReceiptSummary item) => item switch
+    internal static string AllocationCode(IntakeReceiptSummary item) => item switch
     {
         { CaseId: not null } => "case_created",
         { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "pending",

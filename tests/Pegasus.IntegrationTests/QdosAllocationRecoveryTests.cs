@@ -1,19 +1,245 @@
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.Web.Mcp;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
 public sealed class QdosAllocationRecoveryTests
 {
+    [Fact]
+    public async Task ClassificationNegativeAndAmbiguityFixturesPersistWithoutInventedCaseTypes()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var policy = new QdosMailClassificationPolicy();
+        var fixtures = new[]
+        {
+            (
+                Name: "marker-only",
+                Content: (IReadOnlyList<IntakeContentFragment>)
+                [new(IntakeEvidenceSource.DocumentContent, "instruction", "REPORT + AUDIT REPORT")],
+                Expected: (CaseType?)null),
+            (
+                Name: "different-attachment",
+                Content: (IReadOnlyList<IntakeContentFragment>)
+                [
+                    new(IntakeEvidenceSource.DocumentContent, "instruction", "ENGINEER NOTIFICATION"),
+                    new(IntakeEvidenceSource.DocumentContent, "other attachment", "REPORT + AUDIT REPORT")
+                ],
+                Expected: (CaseType?)CaseType.Inspection),
+            (
+                Name: "nested-combined",
+                Content: (IReadOnlyList<IntakeContentFragment>)
+                [
+                    new(IntakeEvidenceSource.DocumentContent, "instruction", "ENGINEER NOTIFICATION"),
+                    new(IntakeEvidenceSource.DocumentContent, "message body, attached email 1, attached letter", "ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)")
+                ],
+                Expected: (CaseType?)CaseType.Inspection),
+            (
+                Name: "simultaneous-titles",
+                Content: (IReadOnlyList<IntakeContentFragment>)
+                [
+                    new(IntakeEvidenceSource.DocumentContent, "audit instruction", "AUDIT REPORT NOTIFICATION"),
+                    new(IntakeEvidenceSource.DocumentContent, "engineer instruction", "ENGINEER NOTIFICATION")
+                ],
+                Expected: (CaseType?)null)
+        };
+
+        foreach (var fixture in fixtures)
+        {
+            var classification = policy.Classify(new(
+                IntakeSourceReadStatus.Readable,
+                fixture.Content,
+                [],
+                [],
+                false));
+            var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+                factory.Services,
+                classification.CaseType,
+                $"NEG{Guid.NewGuid():N}"[..12].ToUpperInvariant(),
+                classificationDecision: classification);
+            await using var scope = factory.Services.CreateAsyncScope();
+            var persisted = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receipt.Id, CancellationToken.None));
+            Assert.Equal(fixture.Expected, persisted.MailClassificationDecision?.CaseType);
+        }
+
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+    }
+
+    [Fact]
+    public async Task PersistedStaffForwardRetainsOuterTransportAndOriginalQdosIdentity()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var route = new QdosMailRoutePolicy().Evaluate(new(
+            IntakeSourceReadStatus.Readable,
+            [],
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "staff@collisionengineers.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message"),
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.AttachedOriginal,
+                    "attached original")
+            ],
+            [],
+            false));
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "QDOS",
+            route);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var persisted = Assert.IsType<IntakeReceipt>(
+            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receipt.Id, CancellationToken.None));
+        Assert.Equal("staff@collisionengineers.co.uk", Assert.Single(persisted.MailRouteDecision!.TransportIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", Assert.Single(persisted.MailRouteDecision.OriginalIdentities).Address);
+        Assert.Equal("instructions@qdosassist.co.uk", persisted.MailRouteDecision.EffectiveSender?.Address);
+        Assert.Equal(QdosMailRoutePolicy.Version, persisted.MailRouteDecision.PolicyVersion);
+    }
+
+    [Fact]
+    public async Task AtomicSuccessSurvivesAnExceptionAfterAcceptanceWithoutAFalseFailure()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "POSTCOMMIT");
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "POSTCOMMIT");
+        var logs = new CapturingLogger<EfIntakeAllocationStore>();
+
+        IntakeAllocationResult? result;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var store = new EfIntakeAllocationStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                logs);
+            var allocate = new AllocateIntake(
+                scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>(),
+                store,
+                new AfterCommitAcceptIntake(
+                    scope.ServiceProvider.GetRequiredService<IAcceptIntake>(),
+                    cancel: false),
+                scope.ServiceProvider.GetRequiredService<TimeProvider>());
+            result = await allocate.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+        }
+
+        Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.AllocationEventCountAsync(factory.Services));
+        Assert.Equal(0, await AllocationTestData.FailedAllocationEventCountAsync(factory.Services));
+        Assert.DoesNotContain(logs.Entries, entry => entry.EventId.Id == 4721);
+    }
+
+    [Fact]
+    public async Task CancellationAfterAtomicSuccessRethrowsWithoutDeletingOrFailingTheOutcome()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "POSTCANCEL");
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "POSTCANCEL");
+        var logs = new CapturingLogger<EfIntakeAllocationStore>();
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var store = new EfIntakeAllocationStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                logs);
+            var allocate = new AllocateIntake(
+                scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>(),
+                store,
+                new AfterCommitAcceptIntake(
+                    scope.ServiceProvider.GetRequiredService<IAcceptIntake>(),
+                    cancel: true),
+                scope.ServiceProvider.GetRequiredService<TimeProvider>());
+            await Assert.ThrowsAsync<OperationCanceledException>(() =>
+                allocate.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid()));
+
+            var current = await store.GetCurrentAsync(receipt.Id, CancellationToken.None);
+            Assert.Equal(IntakeAllocationAttemptStatus.Succeeded, current?.Status);
+        }
+
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.AllocationEventCountAsync(factory.Services));
+        Assert.Equal(0, await AllocationTestData.FailedAllocationEventCountAsync(factory.Services));
+        Assert.DoesNotContain(logs.Entries, entry => entry.EventId.Id == 4721);
+    }
+
+    [Fact]
+    public async Task InterruptedPendingOperationResumesThroughIdempotentAtomicAcceptance()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "PENDING");
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "PENDING");
+        var evaluationId = Guid.NewGuid();
+        var operationKey = $"intake-allocation:{evaluationId:N}";
+        const string reason = "Created automatically from a definitive authorised instruction.";
+        var command = new IntakeAllocationCommand(
+            receipt.Id,
+            receipt.Version,
+            CaseType.Inspection,
+            "PENDING",
+            new(false, false, false, false),
+            null,
+            receipt.InstructionDraft?.InspectionDate);
+        var actor = ActionActor.SystemWorker("system-worker:intake-processing");
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var store = scope.ServiceProvider.GetRequiredService<IIntakeAllocationStore>();
+            await store.BeginAsync(
+                new(
+                    IntakeAllocationAttemptKind.Automatic,
+                    command,
+                    actor,
+                    operationKey,
+                    AllocationTestData.CommandHash(
+                        IntakeAllocationAttemptKind.Automatic,
+                        command,
+                        actor,
+                        operationKey,
+                        reason),
+                    reason,
+                    null,
+                    scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow()),
+                CancellationToken.None);
+
+            var result = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(receipt.Id, evaluationId);
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result?.State.Status);
+            Assert.True(result?.IsReplay);
+        }
+
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+        Assert.Equal(1, await AllocationTestData.AllocationEventCountAsync(factory.Services));
+    }
+
     [Theory]
     [InlineData(CaseType.Inspection, "inspection")]
     [InlineData(CaseType.InspectionAndAudit, "inspection_and_audit")]
@@ -48,6 +274,65 @@ public sealed class QdosAllocationRecoveryTests
     }
 
     [Fact]
+    public async Task UniqueExistingCaseAssociationBypassesNewAllocationExactlyOnce()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var principal = $"E{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, principal);
+        var original = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            principal);
+        Guid existingCaseId;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var allocated = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(original.Id, Guid.NewGuid());
+            existingCaseId = Assert.IsType<Guid>(allocated?.State.CaseId);
+        }
+
+        var match = new CaseMatchEvaluationResult(
+            CaseMatchOutcome.UniqueMatch,
+            existingCaseId,
+            null,
+            new("EXISTING/1", "AB12CDE", "EXAMPLE", "J", new DateOnly(2031, 8, 10)),
+            [new(existingCaseId, ["claim-reference", "vehicle-registration"], [])],
+            "Exactly one existing case matched.",
+            "qdos_case_match",
+            1);
+        var followOn = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            principal,
+            caseMatchDecision: match);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var association = scope.ServiceProvider.GetRequiredService<IAutomaticCaseAssociationStore>();
+            var first = await association.AssociateFromMatchAsync(
+                new(
+                    followOn.Id,
+                    existingCaseId,
+                    match.PolicyKey,
+                    match.PolicyVersion,
+                    "system-worker:intake-processing",
+                    $"case-match-association:{Guid.NewGuid():N}",
+                    "Automatic association from the recorded unique match."),
+                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                CancellationToken.None);
+            Assert.Equal(AutomaticCaseAssociationOutcome.Associated, first);
+            Assert.Null(await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(followOn.Id, Guid.NewGuid()));
+        }
+
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "IntakeManualAssociations"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseWorkflows"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
+    }
+
+    [Fact]
     public async Task MissingPrincipalFailurePersistsAndReasonedStaffRetryAllocatesExactlyOnce()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -74,6 +359,19 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
 
         await AllocationTestData.SeedPrincipalAsync(factory.Services, "RECOVER");
+        await AllocationTestData.ChangePersistedClassificationCaseTypeAsync(
+            factory.Services,
+            receipt.Id,
+            "inspection_and_audit");
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var completedReplay = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+            Assert.True(completedReplay?.IsSuppressed);
+            Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, completedReplay?.State.Status);
+        }
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+
         var actor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
@@ -98,10 +396,102 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(succeeded.State.CaseId, replay.State.CaseId);
         Assert.True(replay.IsReplay);
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal("inspection", await AllocationTestData.CaseTypeAsync(factory.Services));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
         Assert.Equal(2, await AllocationTestData.CountAsync(
             factory.Services,
             "IntakeAllocationAttempts"));
+        Assert.Equal(2, await AllocationTestData.AllocationEventCountAsync(factory.Services));
+    }
+
+    [Fact]
+    public async Task PrincipalCorrectionAndCompletedSourceRedeliveryCannotAllocateBeforeStaffRetry()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        var email = IntakeTestEvidence.CreateEmail(
+            "qdos-allocation-redelivery.eml",
+            "QDOS instruction\r\nClaimant Name: Redelivery Claimant\r\nClaim Number: RED-1\r\nVehicle Registration: AB12 CDE");
+        var token = Guid.NewGuid().ToString("N");
+
+        IntakeSubmissionResult first;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            first = await scope.ServiceProvider.GetRequiredService<ProcessIntakeSubmission>().ExecuteAsync(
+                new(
+                    email.FileName,
+                    email.MediaType,
+                    email.Content,
+                    scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                    "system-worker:approved-inbox-poller",
+                    new(IntakeSourceChannel.Mailbox, token)),
+                $"mailbox-submit:{Guid.NewGuid():N}");
+        }
+        var receiptId = first.ReceiptId;
+        if (first.Disposition != IntakeSubmissionDisposition.Processed)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            var work = await context.IntakeWorkItems.AsNoTracking()
+                .SingleAsync(item => item.StagedReceiptId == first.ReceiptId);
+            Assert.Fail($"Mailbox fixture queued: {work.State}/{work.FailureCode}");
+        }
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        IntakeSubmissionResult replay;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            replay = await scope.ServiceProvider.GetRequiredService<ProcessIntakeSubmission>().ExecuteAsync(
+                new(
+                    email.FileName,
+                    email.MediaType,
+                    email.Content,
+                    scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                    "system-worker:approved-inbox-poller",
+                    new(IntakeSourceChannel.Mailbox, token)),
+                $"mailbox-submit:{Guid.NewGuid():N}");
+        }
+
+        Assert.Equal(receiptId, replay.ReceiptId);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        await using (var diagnosticScope = factory.Services.CreateAsyncScope())
+        {
+            var diagnostic = Assert.IsType<IntakeReceipt>(
+                await diagnosticScope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receiptId, CancellationToken.None));
+            Assert.True(
+                await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts") == 1,
+                $"decision={diagnostic.Decision}; route={diagnostic.MailRouteDecision?.Disposition}/{diagnostic.MailRouteDecision?.SelectedRoute?.WorkProviderCode}; classification={diagnostic.MailClassificationDecision?.Outcome}/{diagnostic.MailClassificationDecision?.CaseType}");
+        }
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var receipt = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receiptId, CancellationToken.None));
+            var failed = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
+            Assert.True(
+                failed.Status == IntakeAllocationProjectionStatus.FailedRecoverable,
+                $"Allocation={failed.Status}/{failed.FailureKind}; classification={receipt.MailClassificationDecision?.Outcome}/{receipt.MailClassificationDecision?.CaseType}; reason={failed.SafeReason}");
+            var result = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                receipt.Id,
+                receipt.Version,
+                failed.AttemptId,
+                ActionActor.Staff(
+                    DevelopmentOfflineIdentity.AdministratorId,
+                    [StaffRole.Administrator]),
+                $"allocation-retry:{Guid.NewGuid():N}",
+                "Principal corrected after completed-source redelivery was suppressed."));
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result.State.Status);
+        }
+
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+        Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
         Assert.Equal(2, await AllocationTestData.AllocationEventCountAsync(factory.Services));
     }
 
@@ -202,6 +592,60 @@ public sealed class QdosAllocationRecoveryTests
     }
 
     [Fact]
+    public async Task ConcurrencyAndUnexpectedFailuresUseExactTaxonomyAndOneStructuredLogEach()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "FAULTS");
+        var concurrencyReceipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "FAULTS");
+        var unexpectedReceipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "FAULTS");
+        var logs = new CapturingLogger<EfIntakeAllocationStore>();
+
+        async Task<IntakeAllocationResult?> ExecuteAsync(Guid receiptId, Exception exception)
+        {
+            await using var scope = factory.Services.CreateAsyncScope();
+            var store = new EfIntakeAllocationStore(
+                scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+                logs);
+            return await new AllocateIntake(
+                    scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>(),
+                    store,
+                    new ThrowingAcceptIntake(exception),
+                    scope.ServiceProvider.GetRequiredService<TimeProvider>())
+                .AttemptAutomaticAsync(receiptId, Guid.NewGuid());
+        }
+
+        var concurrency = await ExecuteAsync(
+            concurrencyReceipt.Id,
+            new IntakeVersionConflictException());
+        var unexpected = await ExecuteAsync(
+            unexpectedReceipt.Id,
+            new InvalidOperationException("test-only acceptance fault"));
+
+        Assert.Equal(IntakeAllocationFailureKind.ConcurrencyConflict, concurrency?.State.FailureKind);
+        Assert.Equal(IntakeAllocationRecoveryDisposition.ReloadThenRetry, concurrency?.State.RecoveryDisposition);
+        Assert.Equal(IntakeAllocationFailureKind.Unexpected, unexpected?.State.FailureKind);
+        Assert.Equal(IntakeAllocationRecoveryDisposition.Blocked, unexpected?.State.RecoveryDisposition);
+        Assert.Equal(2, logs.Entries.Count(entry => entry.EventId.Id == 4721));
+        Assert.All(
+            logs.Entries.Where(entry => entry.EventId.Id == 4721),
+            entry =>
+            {
+                Assert.Contains("ReceiptId", entry.Properties.Keys);
+                Assert.Contains("CaseType", entry.Properties.Keys);
+                Assert.Contains("FailureKind", entry.Properties.Keys);
+                Assert.NotNull(entry.Exception);
+            });
+        Assert.Equal(2, await AllocationTestData.FailedAllocationEventCountAsync(factory.Services));
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+    }
+
+    [Fact]
     public async Task DistinctParallelRetriesResolveToOneCaseAggregate()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -244,11 +688,116 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
     }
+
+    private sealed class AfterCommitAcceptIntake(IAcceptIntake inner, bool cancel) : IAcceptIntake
+    {
+        public async Task<CaseAcceptanceOutcome> ExecuteAsync(
+            AcceptIntakeRequest request,
+            CancellationToken cancellationToken)
+        {
+            _ = await inner.ExecuteAsync(request, cancellationToken);
+            if (cancel)
+            {
+                throw new OperationCanceledException("test-only post-commit cancellation");
+            }
+
+            throw new InvalidOperationException("test-only post-commit observer failure");
+        }
+    }
+
+    private sealed class ThrowingAcceptIntake(Exception exception) : IAcceptIntake
+    {
+        public Task<CaseAcceptanceOutcome> ExecuteAsync(
+            AcceptIntakeRequest request,
+            CancellationToken cancellationToken) => Task.FromException<CaseAcceptanceOutcome>(exception);
+    }
 }
 
 [Trait("Category", "SqlServer")]
 public sealed class IntakeAllocationConsumerTests
 {
+    [Fact]
+    public async Task TriageIsIndependentOfSuccessfulAllocationReplayAndRetryInBothDirections()
+    {
+        using var triageFactory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            extractionPolicy: new ConsumerTriagePolicy(),
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.SeedPrincipalAsync(triageFactory.Services, "QDOS");
+        var email = IntakeTestEvidence.CreateEmail(
+            "triage-success-independence.eml",
+            "QDOS instruction\r\nClaimant Name: Triage Success\r\nClaim Number: TRIAGE-SUCCESS\r\nVehicle Registration: AB12 CDE");
+        var token = Guid.NewGuid().ToString("N");
+
+        IntakeSubmissionResult first;
+        await using (var scope = triageFactory.Services.CreateAsyncScope())
+        {
+            var submission = scope.ServiceProvider.GetRequiredService<ProcessIntakeSubmission>();
+            var source = new IntakeSource(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, token));
+            first = await submission.ExecuteAsync(source, $"mailbox-submit:{Guid.NewGuid():N}");
+            _ = await submission.ExecuteAsync(source, $"mailbox-submit:{Guid.NewGuid():N}");
+        }
+        var receiptId = first.ReceiptId;
+        await using (var scope = triageFactory.Services.CreateAsyncScope())
+        {
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+            var receipt = Assert.IsType<IntakeReceipt>(
+                await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                    .GetAsync(receiptId, CancellationToken.None));
+            var succeeded = Assert.IsType<IntakeAllocationState>(receipt.AllocationState);
+            Assert.True(
+                succeeded.Status == IntakeAllocationProjectionStatus.Succeeded,
+                $"Allocation={succeeded.Status}/{succeeded.FailureKind}; classification={receipt.MailClassificationDecision?.Outcome}/{receipt.MailClassificationDecision?.CaseType}; reason={succeeded.SafeReason}");
+            var retry = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                receipt.Id,
+                receipt.Version,
+                succeeded.AttemptId,
+                ActionActor.Staff(
+                    DevelopmentOfflineIdentity.AdministratorId,
+                    [StaffRole.Administrator]),
+                $"allocation-retry:{Guid.NewGuid():N}",
+                "Successful allocation replay must not alter Triage."));
+            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, retry.State.Status);
+            Assert.True(retry.IsSuppressed);
+            Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        }
+        Assert.Equal(1, await AllocationTestData.CountAsync(triageFactory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(triageFactory.Services, "Triage"));
+
+        using var nonTriageFactory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.SeedPrincipalAsync(nonTriageFactory.Services, "QDOS");
+        await using (var scope = nonTriageFactory.Services.CreateAsyncScope())
+        {
+            _ = await scope.ServiceProvider.GetRequiredService<ProcessIntakeSubmission>().ExecuteAsync(
+                new(
+                    email.FileName,
+                    email.MediaType,
+                    email.Content,
+                    scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow(),
+                    "system-worker:approved-inbox-poller",
+                    new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+                $"mailbox-submit:{Guid.NewGuid():N}");
+        }
+        Assert.Equal(1, await AllocationTestData.CountAsync(nonTriageFactory.Services, "Cases"));
+        Assert.Equal(0, await AllocationTestData.CountAsync(nonTriageFactory.Services, "Triage"));
+    }
+
     [Fact]
     public async Task ReceivedProjectionSeparatesProcessingDecisionFromFailedAllocation()
     {
@@ -277,6 +826,28 @@ public sealed class IntakeAllocationConsumerTests
             IntakeAllocationProjectionStatus.FailedRecoverable,
             row.AllocationState?.Status);
         Assert.Equal(CaseType.InspectionAndAudit, row.AllocationState?.AttemptedCaseType);
+        Assert.Equal("failed_recoverable", IntakeMcpTools.AllocationCode(row));
+
+        await AllocationTestData.SeedRetainedMessageForReceiptAsync(factory.Services, receipt);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var retained = Assert.Single((await scope.ServiceProvider
+                .GetRequiredService<IRetainedMailQueries>()
+                .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+            Assert.Equal(IntakeDecision.CaseCreated, retained.ProcessingOutcome);
+            Assert.Null(retained.CaseId);
+            Assert.Null(retained.CaseReference);
+            Assert.Equal(IntakeAllocationProjectionStatus.FailedRecoverable, retained.AllocationState?.Status);
+
+            var dashboard = scope.ServiceProvider.GetRequiredService<IDashboardQueries>();
+            var stages = await dashboard.GetCaseStageCountsAsync(CancellationToken.None);
+            var activity = await dashboard.GetCaseActivityCountsAsync(
+                DateTimeOffset.MinValue,
+                DateTimeOffset.MinValue,
+                CancellationToken.None);
+            Assert.Equal(new(0, 0, 0), stages);
+            Assert.Equal(0, activity.NewCasesToday);
+        }
     }
 
     [Fact]
@@ -307,6 +878,8 @@ public sealed class IntakeAllocationConsumerTests
             email.Content,
             token);
         var receiptId = IntakeWebDriver.ReceiptId(first);
+        Assert.Contains("/Received/", first.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/Cases/", first.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
 
         IntakeReceipt receipt;
         await using (var scope = factory.Services.CreateAsyncScope())
@@ -364,7 +937,10 @@ internal static class AllocationTestData
     public static async Task<IntakeReceipt> StoreDefinitiveReceiptAsync(
         IServiceProvider services,
         CaseType? caseType,
-        string principalCode)
+        string principalCode,
+        MailRouteEvaluationResult? routeDecision = null,
+        MailClassificationResult? classificationDecision = null,
+        CaseMatchEvaluationResult? caseMatchDecision = null)
     {
         var token = Guid.NewGuid().ToString("N");
         var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
@@ -396,7 +972,8 @@ internal static class AllocationTestData
                 "1",
                 "qdos-test-policy",
                 1,
-                MailClassificationDecision: MailClassificationResult.Classified(
+                MailRouteDecision: routeDecision,
+                MailClassificationDecision: classificationDecision ?? MailClassificationResult.Classified(
                     MailCategory.Received(
                         ReceivedMailFamily.NewInstructionReceived,
                         caseType == CaseType.Audit ? "audit" : "inspection"),
@@ -404,7 +981,8 @@ internal static class AllocationTestData
                     "Definitive QDOS instruction.",
                     "qdos_mail_classification",
                     QdosMailClassificationPolicy.Version,
-                    caseType)),
+                    caseType),
+                CaseMatchDecision: caseMatchDecision),
             CancellationToken.None);
     }
 
@@ -433,6 +1011,28 @@ internal static class AllocationTestData
         return lineageId;
     }
 
+    public static string CommandHash(
+        IntakeAllocationAttemptKind kind,
+        IntakeAllocationCommand command,
+        ActionActor actor,
+        string operationKey,
+        string reason)
+    {
+        var material = JsonSerializer.Serialize(new
+        {
+            SchemaVersion = 1,
+            Kind = kind.ToString(),
+            Command = command,
+            ActorKind = actor.Kind.ToString(),
+            actor.SubjectId,
+            Roles = actor.Roles.OrderBy(role => role).Select(role => role.ToString()),
+            OperationKey = operationKey,
+            Reason = reason
+        });
+        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(material)))
+            .ToLowerInvariant();
+    }
+
     public static async Task ExhaustSequenceAsync(IServiceProvider services, Guid lineageId)
     {
         await using var scope = services.CreateAsyncScope();
@@ -440,6 +1040,66 @@ internal static class AllocationTestData
         await using var context = await factory.CreateDbContextAsync();
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"INSERT INTO CaseSequences (SequenceLineageId, Year, LastAllocatedSequence) VALUES ({lineageId}, {2031}, {999})");
+    }
+
+    public static async Task ChangePersistedClassificationCaseTypeAsync(
+        IServiceProvider services,
+        Guid receiptId,
+        string caseType)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await factory.CreateDbContextAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE IntakeMailClassificationDecisions SET CaseType = {caseType} WHERE IntakeReceiptId = {receiptId}");
+    }
+
+    public static async Task SeedRetainedMessageForReceiptAsync(
+        IServiceProvider services,
+        IntakeReceipt receipt)
+    {
+        const string mailboxId = "allocation-recovery";
+        const string mailboxAddress = "allocation-recovery@example.invalid";
+        await using (var scope = services.CreateAsyncScope())
+        {
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await factory.CreateDbContextAsync();
+            context.ApprovedInboxPollStates.Add(new()
+            {
+                MailboxId = mailboxId,
+                MailboxAddress = mailboxAddress,
+                DueAtUtc = receipt.ReceivedAtUtc,
+                LastCompletedAtUtc = receipt.ReceivedAtUtc
+            });
+            await context.SaveChangesAsync();
+        }
+
+        await using (var scope = services.CreateAsyncScope())
+        {
+            await scope.ServiceProvider.GetRequiredService<EfRetainedMailboxMessageStore>()
+                .RetainAsync(new(
+                    mailboxId,
+                    mailboxAddress,
+                    $"message-{receipt.Id:N}",
+                    receipt.SourceIdentity.ExternalReceiptToken,
+                    receipt.ReceivedAtUtc,
+                    receipt.SourceLength,
+                    receipt.SourceHash,
+                    new(
+                        "inbox",
+                        $"conversation-{receipt.Id:N}",
+                        $"<{receipt.Id:N}@example.invalid>",
+                        "sender@example.invalid",
+                        "Retained sender",
+                        ["intake@example.invalid"],
+                        [],
+                        "Retained allocation recovery",
+                        "Retained allocation recovery fixture.",
+                        [],
+                        IsRead: false),
+                    receipt.ReceivedAtUtc),
+                    CancellationToken.None);
+        }
     }
 
     public static async Task<int> CountAsync(IServiceProvider services, string table)
@@ -455,6 +1115,7 @@ internal static class AllocationTestData
             "CaseSequences" => await context.CaseSequences.CountAsync(),
             "CaseWorkflows" => await context.CaseWorkflows.CountAsync(),
             "ExternalWorkItems" => await context.ExternalWorkItems.CountAsync(),
+            "IntakeManualAssociations" => await context.IntakeManualAssociations.CountAsync(),
             "Triage" => await context.Triage.CountAsync(),
             _ => throw new ArgumentOutOfRangeException(nameof(table))
         };
@@ -470,6 +1131,15 @@ internal static class AllocationTestData
                 || item.EventType == "intake_allocation_failed");
     }
 
+    public static async Task<int> FailedAllocationEventCountAsync(IServiceProvider services)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await factory.CreateDbContextAsync();
+        return await context.IntakeReceiptEvents.CountAsync(
+            item => item.EventType == "intake_allocation_failed");
+    }
+
     public static async Task<string> CaseTypeAsync(IServiceProvider services)
     {
         await using var scope = services.CreateAsyncScope();
@@ -478,3 +1148,50 @@ internal static class AllocationTestData
         return await context.Cases.Select(item => item.Type).SingleAsync();
     }
 }
+
+internal sealed class ConsumerTypedClassificationPolicy : IMailClassificationPolicy
+{
+    public string WorkProviderCode => "QDOS";
+
+    public string PolicyKey => "qdos-allocation-recovery-test-classification";
+
+    public int PolicyVersion => 1;
+
+    public MailClassificationResult Classify(IntakeSourceReadResult readResult) =>
+        MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            [],
+            "Deterministic typed classification for the SQL allocation caller fixture.",
+            PolicyKey,
+            PolicyVersion,
+            CaseType.Inspection);
+}
+
+internal sealed class CapturingLogger<T> : ILogger<T>
+{
+    public List<CapturedLog> Entries { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(
+        LogLevel logLevel,
+        EventId eventId,
+        TState state,
+        Exception? exception,
+        Func<TState, Exception?, string> formatter)
+    {
+        var properties = state is IEnumerable<KeyValuePair<string, object?>> pairs
+            ? pairs.ToDictionary(item => item.Key, item => item.Value, StringComparer.Ordinal)
+            : new Dictionary<string, object?>(StringComparer.Ordinal);
+        Entries.Add(new(logLevel, eventId, formatter(state, exception), properties, exception));
+    }
+}
+
+internal sealed record CapturedLog(
+    LogLevel Level,
+    EventId EventId,
+    string Message,
+    IReadOnlyDictionary<string, object?> Properties,
+    Exception? Exception);

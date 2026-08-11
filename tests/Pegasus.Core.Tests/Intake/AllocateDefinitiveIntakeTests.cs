@@ -211,23 +211,6 @@ public sealed class AllocateDefinitiveIntakeTests
             return Task.FromResult(new BeginIntakeAllocationResult(Current, false, false));
         }
 
-        public Task<IntakeAllocationAttempt> CompleteSuccessAsync(
-            Guid attemptId,
-            CaseAcceptanceOutcome outcome,
-            DateTimeOffset completedAtUtc,
-            CancellationToken cancellationToken)
-        {
-            Current = Current! with
-            {
-                Status = IntakeAllocationAttemptStatus.Succeeded,
-                CompletedAtUtc = completedAtUtc,
-                CaseId = outcome.Identity.CaseId,
-                CaseReference = outcome.Identity.Reference,
-                AuditReference = outcome.Identity.AuditReference
-            };
-            return Task.FromResult(Current);
-        }
-
         public Task<IntakeAllocationAttempt> CompleteFailureAsync(
             Guid attemptId,
             IntakeAllocationFailureKind failureKind,

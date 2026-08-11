@@ -150,7 +150,25 @@ public sealed class EfCaseAcceptanceStore(
         if (existingLink is not null)
         {
             EnsureExactReplay(existingLink, request, principalCode, command);
-            return Map(existingLink.Case, existingLink.CustodyWorkId, true);
+            var duplicateOutcome = Map(existingLink.Case, existingLink.CustodyWorkId, true);
+            if (request.AllocationAttemptId is { } replayAttemptId)
+            {
+                await EfIntakeAllocationStore.CompleteSuccessInTransactionAsync(
+                    context,
+                    replayAttemptId,
+                    request.IntakeReceiptId,
+                    request.OperationKey,
+                    request.ExpectedIntakeVersion,
+                    ToCode(request.CaseType),
+                    principalCode,
+                    request.StandaloneAuditEvidenceId,
+                    duplicateOutcome,
+                    request.AllocationCompletedAtUtc!.Value,
+                    cancellationToken);
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            return duplicateOutcome;
         }
         CaseDataPolicy.ValidateCompleteness(request.Completeness);
 
@@ -388,9 +406,25 @@ public sealed class EfCaseAcceptanceStore(
             AfterCaseVersion = 0
         });
 
+        var outcome = Map(caseEntity, custodyWorkId, false);
+        if (request.AllocationAttemptId is { } allocationAttemptId)
+        {
+            await EfIntakeAllocationStore.CompleteSuccessInTransactionAsync(
+                context,
+                allocationAttemptId,
+                request.IntakeReceiptId,
+                request.OperationKey,
+                request.ExpectedIntakeVersion,
+                ToCode(request.CaseType),
+                principalCode,
+                request.StandaloneAuditEvidenceId,
+                outcome,
+                request.AllocationCompletedAtUtc!.Value,
+                cancellationToken);
+        }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Map(caseEntity, custodyWorkId, false);
+        return outcome;
     }
 
     private static async Task<StandaloneAuditEvidenceEntity?> ResolveStandaloneAuditEvidenceAsync(

@@ -93,21 +93,39 @@ internal sealed partial class EfIntakeAllocationStore(
         return new(Map(entity), IsReplay: false, IsSuppressed: false);
     }
 
-    public async Task<IntakeAllocationAttempt> CompleteSuccessAsync(
+    internal static async Task<IntakeAllocationAttempt> CompleteSuccessInTransactionAsync(
+        PegasusDbContext context,
         Guid attemptId,
+        Guid receiptId,
+        string operationKey,
+        long expectedReceiptVersion,
+        string caseType,
+        string principalCode,
+        Guid? standaloneAuditEvidenceId,
         CaseAcceptanceOutcome outcome,
         DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken)
     {
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.IntakeAllocationAttempts.SingleAsync(
             item => item.Id == attemptId,
             cancellationToken);
         if (entity.Status == ToCode(IntakeAllocationAttemptStatus.Succeeded))
         {
+            if (entity.IntakeReceiptId != receiptId
+                || !string.Equals(entity.OperationKey, operationKey, StringComparison.Ordinal)
+                || entity.CaseId != outcome.Identity.CaseId)
+            {
+                throw new IntakeAllocationConcurrencyException();
+            }
             return Map(entity);
         }
-        if (entity.Status != ToCode(IntakeAllocationAttemptStatus.Pending))
+        if (entity.Status != ToCode(IntakeAllocationAttemptStatus.Pending)
+            || entity.IntakeReceiptId != receiptId
+            || !string.Equals(entity.OperationKey, operationKey, StringComparison.Ordinal)
+            || entity.ExpectedReceiptVersion != expectedReceiptVersion
+            || !string.Equals(entity.CaseType, caseType, StringComparison.Ordinal)
+            || !string.Equals(entity.PrincipalCode, principalCode, StringComparison.Ordinal)
+            || entity.StandaloneAuditEvidenceId != standaloneAuditEvidenceId)
         {
             throw new IntakeAllocationConcurrencyException();
         }
@@ -118,7 +136,6 @@ internal sealed partial class EfIntakeAllocationStore(
         entity.CaseReference = outcome.Identity.Reference;
         entity.AuditReference = outcome.Identity.AuditReference;
         AddOutcomeEvent(context, entity, "intake_allocation_succeeded", completedAtUtc);
-        await context.SaveChangesAsync(cancellationToken);
         return Map(entity);
     }
 

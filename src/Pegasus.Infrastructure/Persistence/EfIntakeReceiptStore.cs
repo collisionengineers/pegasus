@@ -225,14 +225,15 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         var receiptIds = rows.Select(item => item.Id).ToArray();
         var cases = receiptIds.Length == 0
             ? []
-            : await context.CaseIntakeLinks
+            : await context.IntakeManualAssociations
                 .AsNoTracking()
-                .Where(link => receiptIds.Contains(link.IntakeReceiptId))
-                .Select(link => new
+                .Where(association => association.IsActive
+                    && receiptIds.Contains(association.IntakeReceiptId))
+                .Select(association => new
                 {
-                    link.IntakeReceiptId,
-                    link.CaseId,
-                    link.Case.Reference
+                    association.IntakeReceiptId,
+                    association.CaseId,
+                    association.Case.Reference
                 })
                 .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
         var allocationStates = receiptIds.Length == 0
@@ -288,19 +289,28 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
+            .ThenInclude(item => item!.Case)
             .SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
         if (entity is null)
         {
             return null;
         }
 
-        var acceptedCaseId = await context.CaseIntakeLinks
+        var acceptedCase = await context.CaseIntakeLinks
             .AsNoTracking()
             .Where(item => item.IntakeReceiptId == id)
-            .Select(item => (Guid?)item.CaseId)
+            .Select(item => new { item.CaseId, item.Case.Reference })
             .SingleOrDefaultAsync(cancellationToken);
         var allocationState = await GetAllocationStateAsync(context, id, cancellationToken);
-        return Map(entity, false, acceptedCaseId, allocationState);
+        return Map(
+            entity,
+            false,
+            acceptedCase?.CaseId,
+            allocationState,
+            acceptedCase?.Reference,
+            entity.ManualAssociation is { IsActive: true } association
+                ? association.Case.Reference
+                : null);
     }
 
     public async Task<IntakeReceipt?> FindBySourceIdentityAsync(
@@ -317,6 +327,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Include(item => item.MailClassificationDecision)
             .Include(item => item.CaseMatchDecision)
             .Include(item => item.ManualAssociation)
+            .ThenInclude(item => item!.Case)
             .SingleOrDefaultAsync(
                 item => item.SourceChannel == channelCode
                     && item.ExternalReceiptToken == sourceIdentity.ExternalReceiptToken,
@@ -326,13 +337,21 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             return null;
         }
 
-        var acceptedCaseId = await context.CaseIntakeLinks
+        var acceptedCase = await context.CaseIntakeLinks
             .AsNoTracking()
             .Where(item => item.IntakeReceiptId == entity.Id)
-            .Select(item => (Guid?)item.CaseId)
+            .Select(item => new { item.CaseId, item.Case.Reference })
             .SingleOrDefaultAsync(cancellationToken);
         var allocationState = await GetAllocationStateAsync(context, entity.Id, cancellationToken);
-        return Map(entity, false, acceptedCaseId, allocationState);
+        return Map(
+            entity,
+            false,
+            acceptedCase?.CaseId,
+            allocationState,
+            acceptedCase?.Reference,
+            entity.ManualAssociation is { IsActive: true } association
+                ? association.Case.Reference
+                : null);
     }
 
     public async Task<IntakeAssetRecord?> GetAssetAsync(
@@ -497,7 +516,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeReceiptEntity entity,
         bool isDuplicate,
         Guid? acceptedCaseId = null,
-        IntakeAllocationState? allocationState = null)
+        IntakeAllocationState? allocationState = null,
+        string? acceptedCaseReference = null,
+        string? manualLinkedCaseReference = null)
     {
         var fields = DeserializeFields(entity.FieldsJson);
         return new(
@@ -535,7 +556,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.CaseMatchDecision is null
                 ? null
                 : MapCaseMatchDecision(entity.CaseMatchDecision),
-            allocationState);
+            allocationState,
+            acceptedCaseReference,
+            manualLinkedCaseReference);
     }
 
     private static async Task<IntakeAllocationState?> GetAllocationStateAsync(

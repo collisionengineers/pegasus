@@ -201,6 +201,34 @@ public sealed class QdosMailClassificationPolicyTests
     }
 
     [Fact]
+    public void CombinedMarkerWithoutEngineerTitleDoesNotCreateACaseType()
+    {
+        var result = Classify(document: "REPORT + AUDIT REPORT");
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.Null(result.CaseType);
+    }
+
+    [Fact]
+    public void SimultaneousAuditAndEngineerTitlesAreAmbiguousWithoutACaseType()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.DocumentContent, "audit instruction", "AUDIT REPORT NOTIFICATION"),
+                new(IntakeEvidenceSource.DocumentContent, "engineer instruction", "ENGINEER NOTIFICATION")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(MailClassificationOutcome.Ambiguous, result.Outcome);
+        Assert.Null(result.CaseType);
+        Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
+        Assert.Contains("new-instruction-received/inspection", result.AmbiguousCandidates);
+    }
+
+    [Fact]
     public void EveryPredicateIsAlwaysRecordedWithAUniqueKey()
     {
         var result = Classify(body: "Anything at all.");

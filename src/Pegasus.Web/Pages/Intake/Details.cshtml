@@ -264,7 +264,7 @@ else if (Model.IsDuplicate)
     <h2 id="case-association-title" class="section-label">Current case association</h2>
     @if (Model.Receipt.CurrentCaseId is { } currentCaseId)
     {
-        <p>Currently linked to case <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@currentCaseId</a>.</p>
+        <p>Currently linked to Case/PO <a asp-page="/Cases/Details" asp-route-id="@currentCaseId">@Model.Receipt.CurrentCaseReference</a>.</p>
     }
     else
     {
@@ -288,7 +288,7 @@ else if (Model.IsDuplicate)
             @if (Model.Receipt.CurrentCaseId is { } associatedCaseId)
             {
                 <input type="hidden" name="caseId" value="@associatedCaseId" />
-                <p>Enter the current version of case @associatedCaseId to enter case edit mode.</p>
+                <p>Enter the current version of Case/PO @Model.Receipt.CurrentCaseReference to enter case edit mode.</p>
             }
             else
             {
