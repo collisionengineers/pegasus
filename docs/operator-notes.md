@@ -191,7 +191,12 @@ Email through Outlook supplies the vast majority of Work Instructions and is the
 
 The sender route and the underlying work provider are related but distinct facts.
 
-1. If an email was forwarded by Collision Engineers staff from an `@collisionengineers.co.uk` address, use the original forwarded sender for route identification. Retain the staff forward as transport provenance.
+1. If an email was forwarded by Collision Engineers staff from an
+   `@collisionengineers.co.uk` address, retain that staff sender as transport
+   provenance. Use one proved original sender for route identification: either
+   an attached original email or the one `From:`, `Sent:`, `To:`, `Subject:`
+   header quartet in a normal Outlook forward. A partial, conflicting, or
+   malformed header remains `Needs sorting`.
 2. Determine whether the effective sender belongs to an accepted direct-provider route or an intermediary route.
 3. Extract attachments, email body, and subject before applying the identified route’s rules.
 4. For a direct-provider route, use that provider’s rules to determine instruction type and any related case.

@@ -32,6 +32,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     private const long MaximumDocxUncompressedBytes = 50L * 1024 * 1024;
     private const long MaximumDocxXmlPartBytes = 10L * 1024 * 1024;
     private const long MaximumDocxImageBytes = 25L * 1024 * 1024;
+    private const string StaffTransportDomain = "collisionengineers.co.uk";
 
     public async Task<IntakeSourceReadResult> ReadAsync(
         IntakeSource source,
@@ -635,12 +636,25 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         var body = message.TextBody;
         if (string.IsNullOrWhiteSpace(body) && !string.IsNullOrWhiteSpace(message.HtmlBody))
         {
-            body = WebUtility.HtmlDecode(HtmlTagRegex().Replace(message.HtmlBody, " "));
+            body = WebUtility.HtmlDecode(HtmlTagRegex().Replace(
+                HtmlLineBreakRegex().Replace(message.HtmlBody, "\n"),
+                " "));
         }
 
         if (!string.IsNullOrWhiteSpace(body))
         {
             result.Content.Add(new(IntakeEvidenceSource.EmailBody, $"{sourceLabel}, email body", body));
+
+            if (senderIdentityKind == IntakeSenderIdentityKind.Transport
+                && HasSingleStaffTransportSender(message)
+                && TryReadInlineForwardedOriginalSender(body, out var forwardedSender))
+            {
+                AddSenderTransportEvidence(
+                    forwardedSender,
+                    IntakeSenderIdentityKind.InlineForwardedOriginal,
+                    $"{sourceLabel}, inline forwarded-message header",
+                    result);
+            }
         }
 
         if (message.Body is not null)
@@ -670,6 +684,61 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 senderIdentityKind,
                 sourceLabel));
         }
+    }
+
+    private static bool HasSingleStaffTransportSender(MimeMessage message)
+    {
+        var addresses = message.From.Mailboxes
+            .Select(mailbox => mailbox.Address)
+            .Append(message.Sender?.Address)
+            .Where(address => !string.IsNullOrWhiteSpace(address))
+            .Select(address => address!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        return addresses.Length == 1
+            && TryGetMailboxDomain(addresses[0], out var domain)
+            && string.Equals(domain, StaffTransportDomain, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryReadInlineForwardedOriginalSender(string body, out string sender)
+    {
+        sender = string.Empty;
+        var matches = InlineForwardedHeaderRegex().Matches(body);
+        if (matches.Count != 1)
+        {
+            return false;
+        }
+
+        var fromValue = matches[0].Groups["from"].Value.Trim();
+        var mailboxes = ForwardedMailboxRegex().Matches(fromValue)
+            .Select(match => match.Groups["address"].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (mailboxes.Length != 1 || !TryGetMailboxDomain(mailboxes[0], out _))
+        {
+            return false;
+        }
+
+        sender = mailboxes[0];
+        return true;
+    }
+
+    private static bool TryGetMailboxDomain(string address, out string domain)
+    {
+        domain = string.Empty;
+        var separator = address.IndexOf('@');
+        if (separator <= 0
+            || separator != address.LastIndexOf('@')
+            || separator == address.Length - 1
+            || address.Any(char.IsWhiteSpace)
+            || address.Contains('<')
+            || address.Contains('>'))
+        {
+            return false;
+        }
+
+        domain = address[(separator + 1)..];
+        return true;
     }
 
     private static async Task ReadMimeEntityAsync(
@@ -919,6 +988,19 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
     [GeneratedRegex("<[^>]+>", RegexOptions.CultureInvariant)]
     private static partial Regex HtmlTagRegex();
+
+    [GeneratedRegex("</?(?:br|p|div|tr|li|h[1-6])\\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex HtmlLineBreakRegex();
+
+    [GeneratedRegex(
+        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:[^\r\n]*[\r\n]+Subject:[^\r\n]*",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex InlineForwardedHeaderRegex();
+
+    [GeneratedRegex(
+        "(?i)(?<![a-z0-9._%+-])(?<address>[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,})(?![a-z0-9._%+-])",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex ForwardedMailboxRegex();
 
     private enum SourceFormat
     {

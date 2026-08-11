@@ -11,7 +11,7 @@ namespace Pegasus.Core.Intake;
 public sealed class QdosMailRoutePolicy : IMailRoutePolicy
 {
     public const string Key = "qdos_mail_route";
-    public const int Version = 3;
+    public const int Version = 4;
     private const string PrincipalCode = "QDOS";
     private const string StaffTransportDomain = "collisionengineers.co.uk";
 
@@ -32,7 +32,8 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
             IntakeSenderIdentityKind.Transport);
         var originalIdentities = SenderIdentities(
             readResult.TransportEvidence,
-            IntakeSenderIdentityKind.AttachedOriginal);
+            IntakeSenderIdentityKind.AttachedOriginal,
+            IntakeSenderIdentityKind.InlineForwardedOriginal);
         var hasOneTransportSender = transportIdentities.Length == 1;
         var transportDomain = string.Empty;
         var hasValidTransportSender = hasOneTransportSender
@@ -85,14 +86,14 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
                 "forward.original-exactly-one",
                 hasOneOriginalSender,
                 hasOneOriginalSender
-                    ? "Exactly one attached original sender address was supplied."
-                    : $"Expected one attached original sender address for a staff forward; found {originalIdentities.Length}."),
+                    ? "Exactly one original sender address was supplied."
+                    : $"Expected one original sender address for a staff forward; found {originalIdentities.Length}."),
             new(
                 "forward.original-external",
                 hasExternalOriginalSender,
                 hasExternalOriginalSender
-                    ? "The attached original sender is external to Collision Engineers."
-                    : "No unambiguous external attached original sender was proved."),
+                    ? "The original sender is external to Collision Engineers."
+                    : "No unambiguous external original sender was proved."),
             new(
                 "direct.qdos-domain",
                 matchesDirectQdosDomain,
@@ -135,7 +136,7 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
                 MailRouteDisposition.NeedsSorting,
                 null,
                 predicates,
-                "A staff-forwarded message requires exactly one consistent attached original sender.",
+                "A staff-forwarded message requires exactly one consistent original sender.",
                 transportIdentities,
                 originalIdentities,
                 null);
@@ -147,7 +148,7 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
                 MailRouteDisposition.NeedsSorting,
                 null,
                 predicates,
-                "The attached original sender address is malformed.",
+                "The original sender address is malformed.",
                 transportIdentities,
                 originalIdentities,
                 null);
@@ -159,7 +160,7 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
                 MailRouteDisposition.NeedsSorting,
                 null,
                 predicates,
-                "The attached original sender does not prove an external mail route.",
+                "The original sender does not prove an external mail route.",
                 transportIdentities,
                 originalIdentities,
                 null);
@@ -189,17 +190,17 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
 
     private static MailRouteIdentity[] SenderIdentities(
         IReadOnlyList<IntakeTransportEvidence> transportEvidence,
-        IntakeSenderIdentityKind kind) =>
+        params IntakeSenderIdentityKind[] kinds) =>
         transportEvidence
             .Where(item =>
                 item.Source == IntakeEvidenceSource.Sender
-                && item.SenderIdentityKind == kind)
+                && kinds.Contains(item.SenderIdentityKind))
             .Select(item => new MailRouteIdentity(
                 item.Value.Trim(),
                 string.IsNullOrWhiteSpace(item.SourceLabel)
-                    ? kind == IntakeSenderIdentityKind.Transport
+                    ? kinds.Length == 1 && kinds[0] == IntakeSenderIdentityKind.Transport
                         ? "outer message"
-                        : "attached original message"
+                        : "original message"
                     : item.SourceLabel.Trim()))
             .Where(item => item.Address.Length > 0)
             .DistinctBy(item => item.Address, StringComparer.OrdinalIgnoreCase)
