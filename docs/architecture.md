@@ -389,13 +389,15 @@ Sent-evidence polling remains configuration-driven for one mailbox.
 The current implementation still uses the Graph mailbox identity as the
 inbound poll-state key, carries a cursor when the configured fallback identity
 is adopted, and builds the receipt token from that mutable identity. That is a
-known unsafe coupling, not the target architecture. Proposed
+known unsafe coupling, not the target architecture. Accepted
 [ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
 would narrowly replace it with `ApprovedMailbox.Id` as the durable source
 identity, a versioned Graph cursor-scope fingerprint, immutable receipt-token
-v1 history plus stable `mail:v2:` tokens, and an explicit fresh-only baseline.
-It remains unaccepted and unimplemented; no current caller or deployment claim
-follows from the proposal.
+identity, and one explicit fresh-start activation time per mailbox. It would
+also separate global Worker containment, individual Function settings, and
+per-mailbox enablement; Sent-evidence polling would remain separately enabled.
+It remains unimplemented; no current caller or deployment claim follows from
+the accepted decision.
 
 The poll also writes a retained-message read model — mailbox, folder scope,
 immutable and conversation identities, sender, recipients, subject, received
