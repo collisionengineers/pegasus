@@ -399,13 +399,13 @@ It runs under authenticated staff identity (the DevelopmentOffline profile's ser
 
 ### Core outcome to operator label and persistence
 
-The current caller exposes these exact outcome labels (owned by
-`src/Pegasus.Web/Pages/Intake/Index.cshtml.cs` `DecisionLabel`); implementations
-must not invent aliases.
+The received-items caller combines the processing decision with the actual
+Case link and durable allocation state. A decision is never case-existence
+authority on its own.
 
 | Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
 | --- | --- | --- | --- |
-| `CaseCreated` | Case created | Yes | Yes — the reference is allocated at processing time |
+| `CaseCreated` | Ready for case allocation, Creating case, Case not created, or Case created according to allocation/link state | Yes | Only when the Case intake link exists |
 | `NeedsSorting` | Needs sorting | Yes | No |
 | `BlockedIntake` | Blocked | Yes | No |
 | `OcrRequired` | Needs text extraction | Yes | No |
@@ -414,8 +414,10 @@ must not invent aliases.
 | `ImageIntakeRegistered` | Vehicle images registered | Yes | No Case/PO; allocates the pre-Case image reference |
 
 `DraftReady` is deliberately absent and gets no operator label: the decision
-was removed rather than renamed. Definitive authorised material creates its
-case directly, and ambiguous or unidentified material is `Needs sorting`.
+was removed rather than renamed. `CaseCreated` is the retained processing
+eligibility code; typed allocation records the separate attempt and the Case
+intake link is the only proof that a reference exists. Ambiguous or
+unidentified material is `Needs sorting`.
 
 `Needs text extraction` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
 
@@ -427,9 +429,11 @@ named exactly that wait, and was removed rather than renamed:
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
 manual acceptance gate", and the [operator notes](operator-notes.md) send only ambiguous
 provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
-Definitive intake therefore allocates at processing time, entering `Not ready` when ordinary
-detail is thin; incomplete ordinary detail is never a bar to allocation. Its persisted
-`draft_ready` code stays readable and resolves to `CaseCreated`, the same processing outcome.
+Definitive typed Inspection and Inspection + Audit intake therefore attempts allocation at
+processing time, entering `Not ready` when ordinary detail is thin; incomplete ordinary detail
+is never a bar to allocation. A failure is retained separately and requires a reasoned staff
+retry after correction. The persisted `draft_ready` code stays read-compatible and resolves to
+`CaseCreated`, the same processing outcome, without proving that allocation succeeded.
 `Review` and `Ready to review` denote the Case stage before the report is with an Engineer and
 must never name an intake state.
 

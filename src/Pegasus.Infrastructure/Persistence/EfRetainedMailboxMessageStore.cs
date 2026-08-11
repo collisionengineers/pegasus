@@ -348,6 +348,18 @@ internal sealed class EfRetainedMailboxMessageStore(
                 })
                 .ToListAsync(cancellationToken);
         var casesByReceipt = cases.ToDictionary(item => item.IntakeReceiptId);
+        var allocationStates = receiptIds.Length == 0
+            ? new Dictionary<Guid, IntakeAllocationState>()
+            : (await context.IntakeAllocationAttempts
+                .AsNoTracking()
+                .Where(item => receiptIds.Contains(item.IntakeReceiptId))
+                .OrderByDescending(item => item.AttemptNumber)
+                .ToListAsync(cancellationToken))
+                .GroupBy(item => item.IntakeReceiptId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => IntakeAllocationState.FromAttempt(
+                        EfIntakeAllocationStore.Map(group.First())));
 
         var addresses = rows.Select(item => item.MailboxAddress).Distinct().ToArray();
         var approvedState = ApprovedMailboxState.Approved.ToString();
@@ -367,6 +379,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                 var linkedCase = receipt is null
                     ? null
                     : casesByReceipt.GetValueOrDefault(receipt.Id);
+                var allocationState = receipt is null
+                    ? null
+                    : allocationStates.GetValueOrDefault(receipt.Id);
                 return new RetainedMailSummary(
                     row.Id,
                     row.MailboxId,
@@ -384,7 +399,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                         : EfIntakeReceiptStore.ParseDecision(receipt.Decision),
                     receipt?.Id,
                     linkedCase?.CaseId,
-                    linkedCase?.Reference);
+                    linkedCase?.Reference,
+                    allocationState);
             })
             .ToArray();
     }

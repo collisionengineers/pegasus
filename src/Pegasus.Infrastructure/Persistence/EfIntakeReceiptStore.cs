@@ -1,6 +1,7 @@
 using System.Data;
 using System.Text.Json;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Cases;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -234,11 +235,24 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     link.Case.Reference
                 })
                 .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
+        var allocationStates = receiptIds.Length == 0
+            ? new Dictionary<Guid, IntakeAllocationState>()
+            : (await context.IntakeAllocationAttempts
+                .AsNoTracking()
+                .Where(item => receiptIds.Contains(item.IntakeReceiptId))
+                .OrderByDescending(item => item.AttemptNumber)
+                .ToListAsync(cancellationToken))
+                .GroupBy(item => item.IntakeReceiptId)
+                .ToDictionary(
+                    group => group.Key,
+                    group => IntakeAllocationState.FromAttempt(
+                        EfIntakeAllocationStore.Map(group.First())));
 
         var summaries = rows
             .Select(item =>
             {
                 cases.TryGetValue(item.Id, out var linkedCase);
+                allocationStates.TryGetValue(item.Id, out var allocationState);
                 return new IntakeReceiptSummary(
                     item.Id,
                     item.SourceFileName,
@@ -248,7 +262,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     item.Sender,
                     ReadSubject(item.EvidenceJson),
                     linkedCase?.CaseId,
-                    linkedCase?.Reference);
+                    linkedCase?.Reference,
+                    allocationState);
             })
             .ToArray();
         return new(summaries, page, pageSize, totalCount);
@@ -284,7 +299,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Where(item => item.IntakeReceiptId == id)
             .Select(item => (Guid?)item.CaseId)
             .SingleOrDefaultAsync(cancellationToken);
-        return Map(entity, false, acceptedCaseId);
+        var allocationState = await GetAllocationStateAsync(context, id, cancellationToken);
+        return Map(entity, false, acceptedCaseId, allocationState);
     }
 
     public async Task<IntakeReceipt?> FindBySourceIdentityAsync(
@@ -315,7 +331,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .Where(item => item.IntakeReceiptId == entity.Id)
             .Select(item => (Guid?)item.CaseId)
             .SingleOrDefaultAsync(cancellationToken);
-        return Map(entity, false, acceptedCaseId);
+        var allocationState = await GetAllocationStateAsync(context, entity.Id, cancellationToken);
+        return Map(entity, false, acceptedCaseId, allocationState);
     }
 
     public async Task<IntakeAssetRecord?> GetAssetAsync(
@@ -479,7 +496,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     internal static IntakeReceipt Map(
         IntakeReceiptEntity entity,
         bool isDuplicate,
-        Guid? acceptedCaseId = null)
+        Guid? acceptedCaseId = null,
+        IntakeAllocationState? allocationState = null)
     {
         var fields = DeserializeFields(entity.FieldsJson);
         return new(
@@ -516,7 +534,23 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 : MapMailClassificationDecision(entity.MailClassificationDecision),
             entity.CaseMatchDecision is null
                 ? null
-                : MapCaseMatchDecision(entity.CaseMatchDecision));
+                : MapCaseMatchDecision(entity.CaseMatchDecision),
+            allocationState);
+    }
+
+    private static async Task<IntakeAllocationState?> GetAllocationStateAsync(
+        PegasusDbContext context,
+        Guid receiptId,
+        CancellationToken cancellationToken)
+    {
+        var attempt = await context.IntakeAllocationAttempts
+            .AsNoTracking()
+            .Where(item => item.IntakeReceiptId == receiptId)
+            .OrderByDescending(item => item.AttemptNumber)
+            .FirstOrDefaultAsync(cancellationToken);
+        return attempt is null
+            ? null
+            : IntakeAllocationState.FromAttempt(EfIntakeAllocationStore.Map(attempt));
     }
 
     private static InstructionDraft MapInstructionDraft(InstructionDraftEntity entity) => new(
@@ -566,6 +600,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 ? category.Name
                 : null,
             Subtype = decision.Category?.Subtype,
+            CaseType = decision.CaseType is null ? null : ToCode(decision.CaseType.Value),
             IsReplyContext = decision.Category?.IsReplyContext ?? false,
             OtherName = decision.Category?.OtherName,
             OtherReasoning = decision.Category?.OtherReasoning,
@@ -618,7 +653,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             DeserializeEnvelope<IReadOnlyList<MailClassificationPredicateResult>>(entity.PredicatesJson),
             entity.Reason,
             entity.PolicyKey,
-            entity.PolicyVersion);
+            entity.PolicyVersion,
+            entity.CaseType is null ? null : ParseCaseType(entity.CaseType));
     }
 
     private static void ApplyMailClassificationDecision(
@@ -648,6 +684,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.Direction = replacement.Direction;
         entity.Family = replacement.Family;
         entity.Subtype = replacement.Subtype;
+        entity.CaseType = replacement.CaseType;
         entity.IsReplyContext = replacement.IsReplyContext;
         entity.OtherName = replacement.OtherName;
         entity.OtherReasoning = replacement.OtherReasoning;
@@ -1011,6 +1048,22 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "ambiguous" => MailClassificationOutcome.Ambiguous,
         "unclassified" => MailClassificationOutcome.Unclassified,
         _ => throw UnknownCode("mail-classification outcome", value)
+    };
+
+    private static string ToCode(CaseType value) => value switch
+    {
+        CaseType.Inspection => "inspection",
+        CaseType.Audit => "audit",
+        CaseType.InspectionAndAudit => "inspection_and_audit",
+        _ => throw UnknownEnum(value)
+    };
+
+    private static CaseType ParseCaseType(string value) => value switch
+    {
+        "inspection" => CaseType.Inspection,
+        "audit" => CaseType.Audit,
+        "inspection_and_audit" => CaseType.InspectionAndAudit,
+        _ => throw UnknownCode("case type", value)
     };
 
     private static string ToCode(CaseMatchOutcome value) => value switch

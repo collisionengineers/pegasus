@@ -83,6 +83,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     internal DbSet<IntakeWorkItemEntity> IntakeWorkItems => Set<IntakeWorkItemEntity>();
     internal DbSet<IntakeEvaluationEntity> IntakeEvaluations => Set<IntakeEvaluationEntity>();
+    internal DbSet<IntakeAllocationAttemptEntity> IntakeAllocationAttempts =>
+        Set<IntakeAllocationAttemptEntity>();
     internal DbSet<ApprovedInboxPollStateEntity> ApprovedInboxPollStates =>
         Set<ApprovedInboxPollStateEntity>();
     internal DbSet<ApprovedInboxPoisonMessageEntity> ApprovedInboxPoisonMessages =>
@@ -156,6 +158,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         VehicleModelConfiguration.Configure(builder);
         EvaHandoffModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
+        IntakeAllocationModelConfiguration.Configure(builder);
 
         builder.Entity<PegasusIdentityUser>(entity =>
         {
