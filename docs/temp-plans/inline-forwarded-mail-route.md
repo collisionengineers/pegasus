@@ -13,6 +13,16 @@ Today the MIME reader emits an original-sender identity only for a nested
 staff forward in `Needs sorting` with "A staff-forwarded message requires
 exactly one consistent attached original sender." This is the confirmed cause.
 
+The 2026-08-11 read-only production check confirmed four retained messages
+from `desk@collisionengineers.co.uk`. Every recorded a `Needs sorting` route
+at policy version 3 with no original identity and the same refusal reason.
+None had an attached `.eml`; each body instead contains exactly one ordered
+Outlook-style `From:`, `Sent:`, `To:`, `Subject:` header quartet and an address
+at one of the accepted QDOS domains. These messages do **not** carry either
+the `-----Original Message-----` or `Forwarded message` separator, so separator
+recognition would reject the real intake format and is deliberately not part of
+the grammar.
+
 ## Atomic breakdown
 
 1. **Read-only estate confirmation.** For the affected retained message, read
@@ -23,9 +33,10 @@ exactly one consistent attached original sender." This is the confirmed cause.
 
 2. **Define the narrow forward grammar.** Add a Core contract value for an
    inline original sender. The reader recognises one standard forwarded-message
-   header block in the outer email's text or decoded HTML: a recognised forward
-   separator followed by a header section containing exactly one valid `From:`
-   mailbox. It does not treat an arbitrary `From:` line in prose as identity.
+   header quartet in the outer email's text or decoded HTML: line-start `From:`,
+   `Sent:`, `To:`, and `Subject:` headers in that order, containing exactly one
+   valid `From:` mailbox. It does not treat an arbitrary `From:` line in prose,
+   a separator alone, or a partial/misordered header group as identity.
 
 3. **Extract and retain provenance.** In the MIME reader, extract that sender
    only when the outer transport sender is an exact
@@ -38,7 +49,7 @@ exactly one consistent attached original sender." This is the confirmed cause.
 4. **Make route selection deterministic.** Update the QDOS route policy to
    accept one original sender from either an attached email or a recognised
    inline forward. If the sources disagree, more than one distinct original is
-   present, the header is malformed, or no recognised forward block exists,
+   present, the header is malformed, or no recognised header quartet exists,
    preserve `Needs sorting`. Keep the exact existing three QDOS domains and
    every direct/intermediary boundary unchanged. Increment the policy version
    so existing receipts retain their recorded route decision.
@@ -49,11 +60,12 @@ exactly one consistent attached original sender." This is the confirmed cause.
    mailbox with one accepted QDOS sender must result in that sender as the
    persisted effective sender and QDOS direct route.
 
-6. **Prove refusal boundaries.** Test an arbitrary body `From:` line, no
-   separator, a malformed address, multiple conflicting inline blocks,
-   conflicting inline and attached originals, and a non-Collision Engineers
-   outer sender. Each must remain unaccepted or `Needs sorting`; direct mail
-   and attached `.eml` forwarding must remain unchanged.
+6. **Prove refusal boundaries.** Test an arbitrary body `From:` line, a
+   separator without the ordered quartet, a partial or misordered quartet, a
+   malformed address, multiple conflicting inline blocks, conflicting inline
+   and attached originals, and a non-Collision Engineers outer sender. Each
+   must remain unaccepted or `Needs sorting`; direct mail and attached `.eml`
+   forwarding must remain unchanged.
 
 7. **Document the operational contract.** Update the authoritative operator
    and architecture wording to say normal Outlook forwarding is supported, the

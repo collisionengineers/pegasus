@@ -211,7 +211,8 @@ public sealed record IntakeContentFragment(
 public enum IntakeSenderIdentityKind
 {
     Transport,
-    AttachedOriginal
+    AttachedOriginal,
+    InlineForwardedOriginal
 }
 
 public sealed record IntakeTransportEvidence(
