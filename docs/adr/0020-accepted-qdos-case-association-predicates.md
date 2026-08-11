@@ -38,7 +38,7 @@ For mail on the accepted QDOS direct route only:
 
 1. **Route identity.** QDOS direct sender identity is exact whole-domain
    equality against `qdosassist.co.uk`, `qdoslaw.co.uk`, or
-   `qdosassists.co.uk` (`qdos_mail_route` v4) — no suffix or subdomain
+   `qdosassists.co.uk` (`qdos_mail_route` v3) — no suffix or subdomain
    widening. An accepted domain alone still classifies nothing and associates
    nothing.
 2. **Match keys** (`qdos_case_match` v1), extracted label-anchored with a

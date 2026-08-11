@@ -82,6 +82,19 @@ public sealed class InlineForwardedMailRouteTests
             item => item.SenderIdentityKind == IntakeSenderIdentityKind.InlineForwardedOriginal);
     }
 
+    [Theory]
+    [InlineData("From: not-an-address\r\nSent: now\r\nTo: inbox@example.invalid\r\nSubject: instruction")]
+    [InlineData("From: first@qdosassist.co.uk\r\nSent: now\r\nTo: inbox@example.invalid\r\nSubject: first\r\n\r\nFrom: second@qdosassist.co.uk\r\nSent: now\r\nTo: inbox@example.invalid\r\nSubject: second")]
+    public async Task MalformedOrMultipleInlineHeadersRemainNeedsSorting(string body)
+    {
+        var result = await ReadAsync("desk@collisionengineers.co.uk", body);
+
+        var route = new QdosMailRoutePolicy().Evaluate(result);
+
+        Assert.Equal(MailRouteDisposition.NeedsSorting, route.Disposition);
+        Assert.Null(route.EffectiveSender);
+    }
+
     private static async Task<IntakeSourceReadResult> ReadAsync(string sender, string body)
     {
         var message = CreateMessage(sender);
