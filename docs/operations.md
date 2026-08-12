@@ -439,7 +439,3 @@ Do not create an implementation, profile, fixture, port, queue, table, endpoint,
 - S1 or deployment slots.
 
 Malware scanning has no activation path. There is no scanner port, fixture, client, quarantine state, or release claim.
-Current staff operations are owned by `/Operations`: retryable external work,
-active unexpired Pegasus upload links, and the newest Automation API receipts.
-Inbox alone displays general email. Manual and email receipts are not shown on
-Operations, and the superseded Box File Request has no Operations caller.

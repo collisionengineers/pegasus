@@ -96,107 +96,6 @@ public sealed class OperationsUseCaseTests
         Assert.Equal(FixedUtcNow, retryStore.RetryAtUtc);
     }
 
-    [Theory]
-    [InlineData(StaffRole.Administrator)]
-    [InlineData(StaffRole.Engineer)]
-    [InlineData(StaffRole.User)]
-    public async Task AutomationProjectionIsAvailableToEveryStaffRole(StaffRole role)
-    {
-        var receiptId = Guid.NewGuid();
-        var store = new RecordingAutomationStore([
-            new(
-                receiptId,
-                "api.pdf",
-                FixedUtcNow,
-                "case_created",
-                null,
-                Guid.NewGuid(),
-                "C-123",
-                "succeeded")]);
-        var query = new GetAutomationIntakeActivity(store);
-
-        var result = await query.ExecuteAsync(
-            ActionActor.Staff(Guid.NewGuid(), [role]),
-            CancellationToken.None);
-
-        var item = Assert.Single(result);
-        Assert.Equal(receiptId, item.ReceiptId);
-        Assert.Equal("C-123", item.CaseReference);
-        Assert.Equal("succeeded", item.AllocationState);
-        Assert.Equal(GetAutomationIntakeActivity.MaximumItems, store.MaximumItems);
-    }
-
-    [Fact]
-    public async Task AutomationProjectionRejectsNonStaffActorsBeforeReadingState()
-    {
-        var store = new RecordingAutomationStore([]);
-        var query = new GetAutomationIntakeActivity(store);
-
-        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            query.ExecuteAsync(ActionActor.SystemWorker("worker"), CancellationToken.None));
-
-        Assert.Null(store.MaximumItems);
-    }
-
-    [Fact]
-    public async Task AutomationProjectionRejectsUninitializedOrOverBoundStoreResults()
-    {
-        var query = new GetAutomationIntakeActivity(
-            new RecordingAutomationStore(
-                Enumerable.Repeat(
-                    new AutomationIntakeProjection(
-                        Guid.NewGuid(),
-                        "api.pdf",
-                        FixedUtcNow,
-                        "case_created",
-                        null,
-                        null,
-                        null,
-                        "succeeded"),
-                    GetAutomationIntakeActivity.MaximumItems + 1)
-                    .ToImmutableArray()));
-
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            query.ExecuteAsync(StaffActor(), CancellationToken.None));
-
-        var defaultResult = new GetAutomationIntakeActivity(
-            new RecordingAutomationStore(default));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            defaultResult.ExecuteAsync(StaffActor(), CancellationToken.None));
-    }
-
-    [Fact]
-    public async Task AutomationProjectionRejectsInvalidCaseAndAllocationState()
-    {
-        var invalidCase = new GetAutomationIntakeActivity(
-            new RecordingAutomationStore([
-                new(
-                    Guid.NewGuid(),
-                    "api.pdf",
-                    FixedUtcNow,
-                    "case_created",
-                    null,
-                    Guid.NewGuid(),
-                    null,
-                    "succeeded")]));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            invalidCase.ExecuteAsync(StaffActor(), CancellationToken.None));
-
-        var invalidAllocation = new GetAutomationIntakeActivity(
-            new RecordingAutomationStore([
-                new(
-                    Guid.NewGuid(),
-                    "api.pdf",
-                    FixedUtcNow,
-                    "case_created",
-                    null,
-                    null,
-                    null,
-                    "unknown")]));
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            invalidAllocation.ExecuteAsync(StaffActor(), CancellationToken.None));
-    }
-
     private static ActionActor StaffActor() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
@@ -272,21 +171,6 @@ public sealed class OperationsUseCaseTests
             return Task.FromResult(new RequestOperationsProjection(
                 ImmutableArray<RequestOperationProjection>.Empty,
                 LimitReached: false));
-        }
-    }
-
-    private sealed class RecordingAutomationStore(
-        ImmutableArray<AutomationIntakeProjection> result)
-        : IAutomationIntakeProjectionStore
-    {
-        public int? MaximumItems { get; private set; }
-
-        public Task<ImmutableArray<AutomationIntakeProjection>> GetRecentAsync(
-            int maximumItems,
-            CancellationToken cancellationToken)
-        {
-            MaximumItems = maximumItems;
-            return Task.FromResult(result);
         }
     }
 

@@ -12,7 +12,6 @@ internal sealed class EfOperationsStore(
     RequestUploadLimits? requestUploadLimits = null) :
     IEmailOperationsProjectionStore,
     IRequestOperationsProjectionStore,
-    IAutomationIntakeProjectionStore,
     IMailboxProcessingRetryStore,
     IExternalWorkRetryStore
 {
@@ -20,73 +19,6 @@ internal sealed class EfOperationsStore(
 
     private readonly IDbContextFactory<PegasusDbContext> contextFactory =
         contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
-
-    async Task<ImmutableArray<AutomationIntakeProjection>> IAutomationIntakeProjectionStore.GetRecentAsync(
-        int maximumItems,
-        CancellationToken cancellationToken)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-
-        var rows = await context.IntakeReceipts
-            .AsNoTracking()
-            .Where(item => item.SourceChannel == "automation")
-            .OrderByDescending(item => item.ReceivedAtUtc)
-            .ThenByDescending(item => item.Id)
-            .Take(maximumItems)
-            .Select(item => new
-            {
-                item.Id,
-                item.SourceFileName,
-                item.ReceivedAtUtc,
-                item.Decision,
-                item.FailureReason,
-                item.DecisionReason
-            })
-            .ToListAsync(cancellationToken);
-
-        var receiptIds = rows.Select(item => item.Id).ToArray();
-        var cases = receiptIds.Length == 0
-            ? []
-            : await context.CaseIntakeLinks
-                .AsNoTracking()
-                .Where(item => receiptIds.Contains(item.IntakeReceiptId))
-                .Select(item => new
-                {
-                    item.IntakeReceiptId,
-                    item.CaseId,
-                    item.Case.Reference
-                })
-                .ToDictionaryAsync(item => item.IntakeReceiptId, cancellationToken);
-        var allocationStates = receiptIds.Length == 0
-            ? new Dictionary<Guid, string>()
-            : (await context.IntakeAllocationAttempts
-                .AsNoTracking()
-                .Where(item => receiptIds.Contains(item.IntakeReceiptId))
-                .OrderByDescending(item => item.AttemptNumber)
-                .Select(item => new { item.IntakeReceiptId, item.Status })
-                .ToListAsync(cancellationToken))
-                .GroupBy(item => item.IntakeReceiptId)
-                .ToDictionary(group => group.Key, group => group.First().Status);
-
-        return rows.Select(item =>
-            {
-                cases.TryGetValue(item.Id, out var linkedCase);
-                allocationStates.TryGetValue(item.Id, out var allocationState);
-                return new AutomationIntakeProjection(
-                    item.Id,
-                    item.SourceFileName,
-                    item.ReceivedAtUtc,
-                    item.Decision,
-                    string.IsNullOrWhiteSpace(item.FailureReason)
-                        ? item.DecisionReason
-                        : item.FailureReason,
-                    linkedCase?.CaseId,
-                    linkedCase?.Reference,
-                    allocationState);
-            })
-            .ToImmutableArray();
-    }
 
     async Task<EmailOperationsProjection> IEmailOperationsProjectionStore.GetAsync(
         int maximumItemsPerDirection,

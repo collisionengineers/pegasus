@@ -62,59 +62,6 @@ public sealed record RequestOperationsProjection(
     ImmutableArray<RequestOperationProjection> Items,
     bool LimitReached);
 
-public sealed record AutomationIntakeProjection(
-    Guid ReceiptId,
-    string SourceFileName,
-    DateTimeOffset ReceivedAtUtc,
-    string Outcome,
-    string? FailureReason,
-    Guid? CaseId,
-    string? CaseReference,
-    string? AllocationState);
-
-public interface IAutomationIntakeProjectionStore
-{
-    Task<ImmutableArray<AutomationIntakeProjection>> GetRecentAsync(
-        int maximumItems,
-        CancellationToken cancellationToken);
-}
-
-public sealed class GetAutomationIntakeActivity(IAutomationIntakeProjectionStore store)
-{
-    public const int MaximumItems = 50;
-
-    private readonly IAutomationIntakeProjectionStore store =
-        store ?? throw new ArgumentNullException(nameof(store));
-
-    public async Task<ImmutableArray<AutomationIntakeProjection>> ExecuteAsync(
-        ActionActor actor,
-        CancellationToken cancellationToken = default)
-    {
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        var items = await store.GetRecentAsync(MaximumItems, cancellationToken);
-        if (items.IsDefault || items.Length > MaximumItems)
-        {
-            throw new InvalidDataException("Automation intake activity exceeded its Core result bound.");
-        }
-
-        foreach (var item in items)
-        {
-            if (item.ReceiptId == Guid.Empty ||
-                string.IsNullOrWhiteSpace(item.SourceFileName) ||
-                string.IsNullOrWhiteSpace(item.Outcome) ||
-                (item.CaseId is null) != (item.CaseReference is null) ||
-                item.CaseId is not null && string.IsNullOrWhiteSpace(item.CaseReference) ||
-                item.AllocationState is not null &&
-                item.AllocationState is not ("pending" or "succeeded" or "failed"))
-            {
-                throw new InvalidDataException("Automation intake activity contains invalid identity or state.");
-            }
-        }
-
-        return items;
-    }
-}
-
 public interface IRequestOperationsProjectionStore
 {
     Task<RequestOperationsProjection> GetAsync(
