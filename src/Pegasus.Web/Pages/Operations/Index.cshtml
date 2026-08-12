@@ -32,6 +32,7 @@
     {
         <div class="table-wrap">
             <table>
+                <caption class="sr-only">Retryable external work</caption>
                 <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
                 <tbody>
                 @foreach (var item in externalWork)
@@ -67,7 +68,8 @@
     {
         <div class="table-wrap">
             <table>
-                <thead><tr><th scope="col">Case</th><th scope="col">Created</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">Action</th></tr></thead>
+                <caption class="sr-only">Active Pegasus upload links</caption>
+                <thead><tr><th scope="col">Case</th><th scope="col">Last activity</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">Action</th></tr></thead>
                 <tbody>
                 @foreach (var item in uploadLinks)
                 {
@@ -111,40 +113,12 @@
     }
 </section>
 
-<section class="section-gap" aria-labelledby="api-title">
-    <h2 id="api-title" class="section-label">Received through API</h2>
-    @if (Model.ReceivedThroughApi.Length == 0)
-    {
-        <p class="empty-state">No Automation API receipts have been recorded.</p>
-    }
-    else
-    {
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th scope="col">File</th><th scope="col">Received</th><th scope="col">Outcome</th><th scope="col">Allocation</th><th scope="col">Case</th></tr></thead>
-                <tbody>
-                @foreach (var item in Model.ReceivedThroughApi)
-                {
-                    <tr>
-                        <td>@item.SourceFileName</td>
-                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
-                        <td>@item.Outcome @if (!string.IsNullOrWhiteSpace(item.FailureReason)) { <small class="empty-state">@item.FailureReason</small> }</td>
-                        <td>@(item.AllocationState ?? "Not started")</td>
-                        <td>@if (item.CaseId is { } caseId) { <a asp-page="/Cases/Details" asp-route-id="@caseId">@item.CaseReference</a> } else { <span class="empty-state">Not associated</span> }</td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
-    }
-</section>
-
 <section class="section-gap" aria-labelledby="ai-title">
     <h2 id="ai-title" class="section-label">AI operations</h2>
-    <p>Requesting an AI job and viewing live AI work are planned and unavailable here. The gated Automation MCP and Send-to-AI transport are not production-enabled by this screen.</p>
+    <p>Requesting an AI job and viewing live AI work are planned and unavailable here.</p>
 </section>
 
-@if (Model.Operations.LimitReached || Model.ReceivedThroughApi.Length == 50)
+@if (Model.Operations.LimitReached)
 {
     <p class="empty-state section-gap">Showing bounded operational results. Refresh for the latest activity.</p>
 }

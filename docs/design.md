@@ -46,13 +46,13 @@ merged into Cases, which has the identical backing query; the combined intake
 screen split into Inbox and Upload; and `Triage` stopped naming a route while
 keeping its settled meaning as a pre-case entity inside Queues.
 
-Operations is the staff-wide information workspace. It contains four sections:
-retryable external work, active internally generated upload links, read-only
-Automation API receipts, and informational AI operations copy. Empty and
-bounded-result states are explicit; API rows have no approval or mutation
-controls, and Operations has no general receipt filter or email ledger. Safe
-upload-link withdrawal and existing retry feedback retain antiforgery, reason,
-lease, version, actor, idempotency and PRG behaviour.
+Operations is the staff-wide information workspace. It contains three sections:
+retryable external work, active internally generated upload links, and
+informational AI operations copy. Empty and bounded-result states are explicit;
+Operations has no general receipt filter or email ledger. The separately planned
+principal-scoped provider API is not represented by the staff Automation/MCP
+ingress. Safe upload-link withdrawal and existing retry feedback retain
+antiforgery, reason, lease, version, actor, idempotency and PRG behaviour.
 
 The common hierarchy is:
 
@@ -925,7 +925,18 @@ Status: **Specification for the shipped `0.1.0-alpha.1` interface. The shell and
 4. Named workflow/evidence/lease/exception state and consequential action.
 5. Provenance, external identity, permanent business history and limitation.
 
-The routes are Dashboard, Inbox, Upload, Queues, Cases and authorised Administration (operator decision 2026-08-04, shipped in releases 6 and 7). Search merged into Cases, which has the identical backing query; the combined intake screen split into Inbox and Upload; `Triage` no longer names a route while keeping its settled meaning as a pre-case entity inside Queues. Each comparison direction uses the same focused-flow set. Production email allocated `Next / 0.3.0` appears only after its gates; every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](capabilities.md#capabilities). Deferred capabilities have no alpha placeholder route or control — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](design.md#deferred-casework-and-advanced-surfaces).
+The routes shipped in releases 6 and 7 are Dashboard, Inbox, Upload, Queues,
+Cases and authorised Administration (operator decision 2026-08-04). Operations
+is a scoped staff workspace in the implementation; its documentation does not
+prove a deployed or released route. Search merged into Cases, which has the
+identical backing query; the combined intake screen split into Inbox and Upload;
+`Triage` no longer names a route while keeping its settled meaning as a pre-case
+entity inside Queues. Each comparison direction uses the same focused-flow set.
+Production email allocated `Next / 0.3.0` appears only after its gates; every
+deferred `Next` or `Later` capability carries its exact target in the [capability
+inventory](capabilities.md#capabilities). Deferred capabilities have no alpha
+placeholder route or control — except the recorded routeless UI-15/AI-09 review
+artifacts, owned by [design § Deferred casework and advanced surfaces](design.md#deferred-casework-and-advanced-surfaces).
 
 The Development/local email evaluator is separately owned and has no QDOS-alpha
 route, navigation, control, `unchecked`/`checked` workbench, review-report
