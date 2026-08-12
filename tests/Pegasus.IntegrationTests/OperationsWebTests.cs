@@ -141,6 +141,31 @@ public sealed partial class OperationsWebTests
     }
 
     [Fact]
+    public async Task OperationsPageIsStaffWorkspaceWithReadOnlyApiRowsAndNoBoxSurface()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        using var factory = Configure(baseFactory, store);
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Operations");
+
+        Assert.Contains("Operations", html, StringComparison.Ordinal);
+        Assert.Contains("Attention required", html, StringComparison.Ordinal);
+        Assert.Contains("Active upload links", html, StringComparison.Ordinal);
+        Assert.Contains("Received through API", html, StringComparison.Ordinal);
+        Assert.Contains("AI operations", html, StringComparison.Ordinal);
+        Assert.Contains("Requesting an AI job and viewing live AI work are planned", html, StringComparison.Ordinal);
+        Assert.Contains("api-received.pdf", html, StringComparison.Ordinal);
+        Assert.Contains($"href=\"/Cases/{store.CaseId:D}\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Box file request", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Approve", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reject", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Operations/Requests", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Operations/Email", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task OperationsPostsUseAntiforgeryServerActorLeaseVersionsAndPrg()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
@@ -262,6 +287,7 @@ public sealed partial class OperationsWebTests
             {
                 services.RemoveAll<IEmailOperationsProjectionStore>();
                 services.RemoveAll<IRequestOperationsProjectionStore>();
+                services.RemoveAll<IAutomationIntakeProjectionStore>();
                 services.RemoveAll<IMailboxProcessingRetryStore>();
                 services.RemoveAll<IExternalWorkRetryStore>();
                 services.RemoveAll<IAcquireCaseEditLease>();
@@ -271,6 +297,7 @@ public sealed partial class OperationsWebTests
                 services.RemoveAll<IRevokeRequestUploadLink>();
                 services.AddSingleton<IEmailOperationsProjectionStore>(store);
                 services.AddSingleton<IRequestOperationsProjectionStore>(store);
+                services.AddSingleton<IAutomationIntakeProjectionStore>(store);
                 services.AddSingleton<IMailboxProcessingRetryStore>(store);
                 services.AddSingleton<IExternalWorkRetryStore>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
@@ -332,6 +359,7 @@ public sealed partial class OperationsWebTests
     private sealed class RecordingOperationsStore :
         IEmailOperationsProjectionStore,
         IRequestOperationsProjectionStore,
+        IAutomationIntakeProjectionStore,
         IMailboxProcessingRetryStore,
         IExternalWorkRetryStore,
         IAcquireCaseEditLease,
@@ -346,6 +374,7 @@ public sealed partial class OperationsWebTests
         public Guid BoxRequestId { get; } = Guid.NewGuid();
         public Guid PegasusRequestId { get; } = Guid.NewGuid();
         public Guid ExternalWorkId { get; } = Guid.NewGuid();
+        public Guid AutomationReceiptId { get; } = Guid.NewGuid();
         public long CaseVersion { get; } = 10;
         public string LeaseToken { get; } = "opaque-operations-lease";
         public string ReceivedMailboxId { get; } = "approved-inbox";
@@ -390,6 +419,19 @@ public sealed partial class OperationsWebTests
                     Request(Guid.NewGuid(), RequestOperationKind.ExternalWork, RequestOperationState.Pending),
                     Request(Guid.NewGuid(), RequestOperationKind.ExternalWork, RequestOperationState.UnknownExternal)),
                 LimitReached: false));
+
+        Task<ImmutableArray<AutomationIntakeProjection>> IAutomationIntakeProjectionStore.GetRecentAsync(
+            int maximumItems,
+            CancellationToken cancellationToken) => Task.FromResult(ImmutableArray.Create(
+                new AutomationIntakeProjection(
+                    AutomationReceiptId,
+                    "api-received.pdf",
+                    FixedUtcNow,
+                    "case_created",
+                    null,
+                    CaseId,
+                    "QD31001",
+                    "succeeded")));
 
         public Task<OperationsRetryResult> RetryAsync(
             RetryMailboxProcessingCommand command,
