@@ -1,4 +1,4 @@
-# NOW — updated 2026-08-11
+# NOW — updated 2026-08-12
 
 (Anything here older than 14 days is stale: delete it, don't investigate it.)
 
@@ -8,26 +8,36 @@ Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
 
-## Merged, not deployed
+## Production state
 
-The estate serves **release 8** (2026-08-07, revision `ded44fd7…`, image
-`sha256:c993eb0e…`, Web revision `pegasus-prod-web-252ow37gij--ded44fd7be0a`),
-which carries every source change in `dev` and `main`. PRs 342, 356 and 357 are
-deployed; PR 340 is `workspaces/` source no application build compiles. Its
-three migrations were applied explicitly before activation and verified against
-`__EFMigrationsHistory`. Smoke passed: health, exact version and source-SHA, and
-the anonymous `/Cases` redirect to the https sign-in route. The
-deployed-evidence record is owned by
-[operations § Production environment](docs/operations.md#production-environment).
+Production Web serves an **un-numbered post-release-8 deployment** observed on
+2026-08-12: revision `pegasus-prod-web-252ow37gij--13m13ph`, source revision
+`dd61ac56840d2cf0c1f0667f995c3941cbb19fc5` (PR 370), and image
+`sha256:04d39c20f1fb4494dbc26b93f151683674233e20ff6e99b76b3b9f951ac4b7f3`.
+`/health/live` and `/health/ready` returned 200; the version diagnostic matched
+that source SHA; anonymous `/Cases` redirected to the https sign-in route.
 
-**Nothing here is live-verified beyond smoke.** No browser journey has exercised
-the upload-to-case path, the Inbox, or CASE-27 edit authority against the
-deployed estate, and UI-10 is not claimed as accepted. Release 6 is the standing
-warning: live verification found six defects local testing could not, because a
-count query and a rendered time cannot be proved locally.
+The Worker is intentionally **enabled** for deployed production: all nine
+`AzureWebJobs.<function>.Disabled` settings are `false` and
+`pegasus-prod-worker-252ow37gij` is running. This proves live configuration,
+not that a trigger, mailbox poll, intake, custody action, or other business
+caller has run.
 
-Two things are deployed as code without being active, and neither is a
-release claim:
+This source contains the three post-release-8 migrations
+`20260811063940_QdosAllocationRecovery`,
+`20260811122654_CaseCustodyEvaRecovery`, and
+`20260812010335_ManualInspectionAuditCustody`. An authorised
+`__EFMigrationsHistory` readback on 2026-08-12 confirmed all three are applied.
+Do not assign a new numbered release until the immutable manifest and migration
+transcript are recovered.
+
+**Nothing here is live-verified beyond smoke and Worker configuration.** No
+browser journey has exercised the upload-to-case path, the Inbox, CASE-27 edit
+authority, or an enabled Worker caller against the deployed estate. Release 6
+remains the standing warning that local testing did not find every live defect.
+
+The following are previously recorded release-6 restrictions, not fresh
+activation or identity evidence from the 2026-08-12 inventory:
 
 - **AI-09 Send to AI round trip and the Automation Actor assessment toolset
   (MCP-06)** (PR 332, merge `5555440`) reached production in release 6, but
@@ -46,6 +56,12 @@ release claim:
 
 ## Next (ordered queue — take from the top)
 
+- **Complete the production release record for source
+  `dd61ac56840d2cf0c1f0667f995c3941cbb19fc5`.** Recover the clean immutable
+  manifest and its image/migration transcript. Record a numbered release only if
+  those artifacts prove the complete release route; Web smoke, the enabled
+  Worker configuration and the post-migration history readback are already live
+  evidence, not caller or acceptance evidence.
 - **`Invoke-AzureDatabaseBootstrap.ps1` cannot pass after release 6, so the
   runtime-role effective-permission check did not complete for release 8.** Its
   expected matrix is built from `20260729199000_RuntimeRoleReconciliation`
@@ -60,17 +76,14 @@ release claim:
   were skipped. Build the expected matrix from the full migration set, then run
   the script against production to close the gap this release left open
   (release 8, 2026-08-07).
-- Reconcile the local `azd` environment with the estate, or stop trusting it.
-  Release 8's provision failed because `.azure/pegasus-prod/.env` still pointed
-  the Box secret references at `cespkboxkvv76a47`, a vault soft-deleted on
-  2026-08-03 during consolidation — two days before release 7 deployed
-  successfully from the same environment. Its recorded image digest and revision
-  suffix were still release 3's. The running Container App held the truth: the
-  secret versions were unchanged and only the vault host had moved to
-  `pegasusprodkv252ow37g`. Either the release route reads the deployed resource
-  rather than the local environment, or the environment is refreshed and checked
-  as a release step. Also note `cespkboxkvv76a47` and `cespkenrichkvgi62sd` are
-  scheduled to purge 2026-08-10 (release 8, 2026-08-07).
+- Reconcile the local `azd` environment with the estate before the next release,
+  or stop trusting it. Release 8 proved that its stale secret-vault references,
+  image digest and revision suffix could disagree with the running estate. The
+  current observed Web deployment is revision
+  `pegasus-prod-web-252ow37gij--13m13ph` at source
+  `dd61ac56840d2cf0c1f0667f995c3941cbb19fc5`; never use ignored local
+  environment state as deployed evidence. The former vault purge dates have
+  passed but were not re-read in this inventory.
 
 - Reduce contention in the intake write path, or decide it does not matter.
   Operator decision 2026-08-07: the `qdos-pressure` write budget was
@@ -414,14 +427,11 @@ release claim:
   forms only; `requirements.md`, `operations.md`, `operator-notes.md`,
   `open-decisions.md` and `engineering.md` have had no claim-level
   verification against code (artifact critique, 2026-08-06).
-- Queue-and-claims hygiene: the report-renderer planning Doing line is
-  superseded and closed by its successor line yet still listed; the
-  CASE-27 Doing line's branch has already released its claim (`c02d75a` —
-  coordinate with open PR 342); remote branch `task/vault-consolidation`
-  has no Doing line; and the two live `docs/temp-plans/` files have no
-  matching Doing line (staleness ladder applies — confirm ADR-0021
-  carries their durable content before deletion) (repository audit,
-  2026-08-06).
+- Queue-and-claims hygiene: `Doing` is empty and no `origin/task/*` branch
+  remains, but 19 `docs/temp-plans/` files are still tracked. Reconcile each
+  artifact against its merged, closed, waiting, or still-required task before
+  removing it under the task-workflow rules; do not treat an unclaimed plan as
+  active work (reconciled 2026-08-12).
 
 - Reconcile the report-renderer MCP plan with the merged AI-09 work: PR 332
   landed an `automation.assessment` scope, five Automation Actor tools and the
