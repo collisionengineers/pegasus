@@ -170,8 +170,6 @@ public static class DependencyInjection
         services.AddScoped<IListOrganizations, ListOrganizations>();
         services.AddScoped<IGetOrganization, GetOrganization>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
-        services.AddScoped<IConfirmStandaloneAuditEvidence>(
-            provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
         services.AddScoped<IRecordAutomaticStandaloneAuditEvidence>(
             provider => provider.GetRequiredService<EfStandaloneAuditEvidenceStore>());
         services.AddScoped<IStandaloneAuditEvidenceQueries>(

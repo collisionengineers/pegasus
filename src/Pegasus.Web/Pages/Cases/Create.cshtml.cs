@@ -23,9 +23,9 @@ namespace Pegasus.Web.Pages.Cases;
 /// extraction found already in the boxes, and this is the only place in the
 /// application that begins a staff allocation through <see cref="IAllocateIntake"/>.
 ///
-/// <para><strong>One button.</strong> Creating a case takes up to four writes
-/// — the corrected draft, the inspection address, Audit evidence,
-/// and the acceptance itself. They are sequenced here, on one submit, because
+/// <para><strong>One button.</strong> Creating a case takes up to three writes
+/// — the corrected draft, the inspection address, and the acceptance itself.
+/// They are sequenced here, on one submit, because
 /// the operator's action is a single one: check the detail, create the case.
 /// Three separate forms each demanding their own reason is the narration the
 /// operator notes forbid.</para>
@@ -51,8 +51,6 @@ public sealed partial class CreateModel(
     IResolveIntake resolveIntake,
     IAllocateIntake allocateIntake,
     IInspectionAddressResolutionStore addressResolutionStore,
-    IConfirmStandaloneAuditEvidence confirmStandaloneAuditEvidence,
-    IStandaloneAuditEvidenceQueries standaloneAuditEvidenceQueries,
     IProviderInspectionModeStore providerInspectionModeStore,
     ILogger<CreateModel> logger) : PageModel
 {
@@ -75,8 +73,6 @@ public sealed partial class CreateModel(
     public InspectionAddressResolutionSnapshot AddressResolution { get; private set; } = null!;
 
     public bool ProviderIsImageBased { get; private set; }
-
-    public StandaloneAuditEvidence? ConfirmedStandaloneAuditEvidence { get; private set; }
 
     public string? UploadOutcomeMessage { get; private set; }
 
@@ -150,15 +146,6 @@ public sealed partial class CreateModel(
 
     [BindProperty]
     public string? InspectionAddress { get; set; }
-
-    [BindProperty]
-    public AuditAssessment? StandaloneAuditAssessment { get; set; }
-
-    [BindProperty]
-    public Guid? StandaloneAuditOriginalReportAssetId { get; set; }
-
-    [BindProperty]
-    public string? StandaloneAuditEvidenceReason { get; set; }
 
     [BindProperty]
     public bool InstructionComplete { get; set; }
@@ -266,14 +253,6 @@ public sealed partial class CreateModel(
         InspectionAddress = AddressSuggestion is null
             ? draft?.InspectionAddress ?? string.Empty
             : string.Empty;
-        if (ConfirmedStandaloneAuditEvidence is { } confirmed)
-        {
-            CaseType = CaseType.Audit;
-            StandaloneAuditAssessment = confirmed.Assessment;
-            StandaloneAuditOriginalReportAssetId = confirmed.OriginalReportAssetId;
-            StandaloneAuditEvidenceReason = confirmed.Reason;
-        }
-
         ReceiptId = Receipt.Id;
         OperationId = Guid.NewGuid().ToString("N");
         ExpectedReceiptVersion = Receipt.Version;
@@ -335,7 +314,6 @@ public sealed partial class CreateModel(
         // if any required one was empty, so they are non-null from here.
         var reason = Reason!;
         var principalCode = PrincipalCode!;
-        var auditReason = StandaloneAuditEvidenceReason!;
 
         try
         {
@@ -379,36 +357,7 @@ public sealed partial class CreateModel(
                 version = snapshot.ReceiptVersion;
             }
 
-            // 3. An Audit allocates only against its retained
-            //    original report and literal outcome.
-            Guid? standaloneAuditEvidenceId = null;
-            if (CaseType == CaseType.Audit)
-            {
-                var evidence = ConfirmedStandaloneAuditEvidence
-                    ?? await confirmStandaloneAuditEvidence.ExecuteAsync(
-                        new(
-                            DeriveOperationId(operationId, "audit"),
-                            Receipt.Id,
-                            version,
-                            StandaloneAuditOriginalReportAssetId.GetValueOrDefault(),
-                            StandaloneAuditAssessment.GetValueOrDefault(),
-                            actor,
-                            $"standalone-audit-evidence:{operationId:N}",
-                            auditReason),
-                        cancellationToken);
-                ConfirmedStandaloneAuditEvidence = evidence;
-                standaloneAuditEvidenceId = evidence.Id;
-                // Never a plain assignment. Evidence confirmed on this submit
-                // carries the newest version, but evidence confirmed on an
-                // earlier attempt carries the version it was written at, and
-                // step 1 has bumped the receipt past that since. Assigning
-                // would walk the chain backwards and hand step 4 a stale
-                // version, so a resumed Audit could never become a case: every
-                // retry would write another correction and fail again.
-                version = Math.Max(version, evidence.ReceiptVersion);
-            }
-
-            // 4. The acceptance itself, at the version the last write returned.
+            // 3. The acceptance itself, at the version the last write returned.
             var allocation = await allocateIntake.AttemptStaffCreateAsync(
                 new(
                     Receipt.Id,
@@ -423,7 +372,7 @@ public sealed partial class CreateModel(
                         ImagesComplete,
                         InstructionConfirmedByStaff,
                         ImagesConfirmedByStaff),
-                    standaloneAuditEvidenceId,
+                    null,
                     corrected.InstructionDraft?.InspectionDate),
                 cancellationToken);
 
@@ -454,12 +403,6 @@ public sealed partial class CreateModel(
             ModelState.AddModelError(
                 string.Empty,
                 "This item was already turned into a case using different details. Reload the page.");
-        }
-        catch (StandaloneAuditEvidenceConflictException)
-        {
-            ModelState.AddModelError(
-                string.Empty,
-                "The retained original report for this Audit was already confirmed with different details. Reload the page.");
         }
         catch (CaseIdentitySequenceExhaustedException exception)
         {
@@ -529,7 +472,7 @@ public sealed partial class CreateModel(
         }
 
         ValidateAddressChoice();
-        ValidateStandaloneAudit();
+        ValidateAuditCannotBeManuallyCreated();
 
         var draft = new InstructionDraft(
             Optional(SuggestedPrincipalCode) ?? Optional(PrincipalCode),
@@ -602,62 +545,13 @@ public sealed partial class CreateModel(
         }
     }
 
-    private void ValidateStandaloneAudit()
+    private void ValidateAuditCannotBeManuallyCreated()
     {
-        StandaloneAuditEvidenceReason = (StandaloneAuditEvidenceReason ?? string.Empty).Trim();
-        if (StandaloneAuditAssessment is { } assessment && !Enum.IsDefined(assessment))
-        {
-            ModelState.AddModelError(
-                nameof(StandaloneAuditAssessment),
-                "Choose a valid Audit assessment.");
-            return;
-        }
-
         if (CaseType == CaseType.Audit)
-        {
-            if (StandaloneAuditAssessment is null)
-            {
-                ModelState.AddModelError(
-                    nameof(StandaloneAuditAssessment),
-                    "Choose the original report's Repairable or Total loss outcome.");
-            }
-            if (StandaloneAuditOriginalReportAssetId is not { } assetId || assetId == Guid.Empty)
-            {
-                ModelState.AddModelError(
-                    nameof(StandaloneAuditOriginalReportAssetId),
-                    "Select the retained original Engineer report.");
-            }
-            if (StandaloneAuditEvidenceReason.Length == 0
-                || StandaloneAuditEvidenceReason.Length > 500)
-            {
-                ModelState.AddModelError(
-                    nameof(StandaloneAuditEvidenceReason),
-                    "Record why this retained report supports the Audit assessment (500 characters maximum).");
-            }
-            if (ConfirmedStandaloneAuditEvidence is { } confirmed
-                && (StandaloneAuditAssessment != confirmed.Assessment
-                    || StandaloneAuditOriginalReportAssetId != confirmed.OriginalReportAssetId
-                    || !string.Equals(
-                        StandaloneAuditEvidenceReason,
-                        confirmed.Reason,
-                        StringComparison.Ordinal)))
-            {
-                ModelState.AddModelError(
-                    string.Empty,
-                    "The Audit evidence was already confirmed with different immutable details.");
-            }
-
-            return;
-        }
-
-        if (StandaloneAuditAssessment is not null
-            || StandaloneAuditOriginalReportAssetId is not null
-            || StandaloneAuditEvidenceReason.Length > 0
-            || ConfirmedStandaloneAuditEvidence is not null)
         {
             ModelState.AddModelError(
                 string.Empty,
-                "Retained original-report evidence can be linked only to an Audit.");
+                "Audits are created automatically from the retained Audit instruction and original report.");
         }
     }
 
@@ -729,8 +623,6 @@ public sealed partial class CreateModel(
 
         Receipt = receipt;
         ReceiptId = receipt.Id;
-        ConfirmedStandaloneAuditEvidence =
-            await standaloneAuditEvidenceQueries.GetForReceiptAsync(receiptId, cancellationToken);
         // The mode belongs to the principal the case is actually allocated
         // against. On the first GET that is the extracted suggestion, but as
         // soon as an operator confirms a different principal it is theirs —
