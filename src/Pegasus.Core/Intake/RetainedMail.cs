@@ -28,6 +28,7 @@ public sealed record RetainedMailSummary(
     bool MailboxIsPolled,
     string? SenderAddress,
     string? SenderDisplayName,
+    string? EffectiveSenderAddress,
     string? Subject,
     string? BodyExcerpt,
     DateTimeOffset ReceivedAtUtc,

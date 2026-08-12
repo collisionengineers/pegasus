@@ -83,7 +83,7 @@ Required outcomes:
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
 - retain source identity, chronology, custody, decisions, corrections, and action history;
-- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, processing, or standalone Audit evidence is incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`;
+- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, checks, or standalone-Audit assessment as `Not ready`;
 - keep business decisions in `Pegasus.Core`, with infrastructure, UI, Worker, MCP, imported workspaces, skills, prompts, and models subordinate to Core policy and human approval;
 - support deterministic, repeatable local verification and separately authorised live verification;
 - preserve deferred capability seams and data identities without building dormant capability.
@@ -95,7 +95,7 @@ Required outcomes:
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Incomplete ordinary business detail, images, or required external checks create or retain the Case as `Not ready`; they do not leave a valid instruction pre-Case.
 - The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
-- A standalone Audit derives lowercase `a.` or `ap.` only from an unambiguous repairable or total-loss assessment in the original Engineer report. Missing or ambiguous evidence blocks case creation and allocation.
+- A standalone Audit derives lowercase `a.` or `ap.` only from an unambiguous repairable or total-loss assessment in the original Engineer report. Missing or ambiguous evidence withholds that Audit reference, never the normal Case/PO: the definitive Audit instruction creates its Case as `Not ready` without staff confirmation.
 - Inspection + Audit begins with the normal Inspection reference. After Collision Engineers’ Engineer records the assessment, the applicable lowercase Audit reference is created inside that case; it does not consume another sequence value.
 - A used principal code is replaced by one linked successor in an atomic Core transaction: deactivate the predecessor, continue its next unused sequence in the Europe/London cutover year, and begin later years at `001`. Both identities and the reason remain permanent.
 - A wrong-principal case closes as `Created in error`, with a reason and a linked replacement. Neither reference is reused; the original never reopens.
@@ -179,13 +179,14 @@ Before creating a case or allocating a reference, Pegasus must establish:
 - provider/intermediary route identity and enabled policy where relevant;
 - unambiguous case type and Principal association;
 - processing and size/format limits;
-- required standalone Audit evidence; and
 - absence of unresolved wrong-Principal, duplicate-occurrence, receipt-integrity, or source-custody ambiguity.
 
 Once those identity-critical facts are established, Pegasus creates the Case/PO
 and allocates its permanent reference. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
-not form another pre-Case acceptance gate. If the route cannot establish an
+not form another pre-Case acceptance gate. A standalone Audit's original-report
+evidence is also not a Case/PO gate: it establishes the later `a.` or `ap.` Audit
+reference only when retained and unambiguous. If the route cannot establish an
 identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution
