@@ -45,8 +45,7 @@
     <h2 id="email-activity-title" class="section-label">E-mail activity</h2>
     <div class="metric-strip metric-strip--3">
         @* The count is of mail that arrived, so it opens the mail workspace.
-           The two beside it are processing outcomes over receipts, so they stay
-           on Received items. *@
+           The other values remain dashboard metrics without a general receipt-ledger destination. *@
         <a class="metric" asp-page="/Mail/Index">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-file-text" /></svg>
@@ -54,20 +53,20 @@
             </span>
             <strong class="metric__value">@Model.MailActivity.ReceivedToday</strong>
         </a>
-        <a class="metric" data-state="needs-sorting" asp-page="/Intake/Index" asp-route-decision="needs_sorting">
+        <span class="metric" data-state="needs-sorting">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                 Needs sorting
             </span>
             <strong class="metric__value">@Model.MailActivity.NeedsSorting</strong>
-        </a>
-        <a class="metric" data-state="blocked" asp-page="/Intake/Index" asp-route-decision="blocked_intake">
+        </span>
+        <span class="metric" data-state="blocked">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
                 Blocked
             </span>
             <strong class="metric__value">@Model.Counts.BlockedIntake</strong>
-        </a>
+        </span>
     </div>
 </section>
 
@@ -112,18 +111,9 @@
     </div>
 </section>
 
-@* The two screens these open are fully working. They used to be reachable
-   only through dashboard cards that carried an "Unavailable" chip and the
-   copy "No dashboard aggregate exists for this route" — a tile explaining
-   why it has no number, in front of a page that works. A card is the wrong
-   shape for a link with no metric behind it; a link is the right shape. *@
 <nav class="drilldowns" aria-label="Other operations views">
-    <a asp-page="/Operations/Requests">
-        Upload links and external work
-        <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
-    </a>
-    <a asp-page="/Operations/Email">
-        E-mail processing outcomes
+    <a asp-page="/Operations">
+        Open Operations
         <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
     </a>
 </nav>

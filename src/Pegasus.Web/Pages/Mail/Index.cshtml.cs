@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Mail;
 
@@ -168,6 +169,30 @@ public sealed class IndexModel(
             ? Results.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : null
     };
+
+    public static string MailFailureSentence(string? failureCode, long? sourceLength = null)
+    {
+        var size = sourceLength is { } bytes ? $" It is {OperatorLabels.FileSize(bytes)}." : string.Empty;
+        return failureCode switch
+        {
+            null or "" => "This message could not be processed.",
+            "source_unavailable" => "The message could not be read from the mailbox.",
+            "sent_mailbox_not_approved" => "The mailbox it was sent from is not an approved mailbox.",
+            "sent_source_throttled" => "The mailbox refused further reads for a while.",
+            "sent_evidence_poll_failure" => "The sent folder could not be read.",
+            "message_too_large" => $"This message is larger than the {OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumMailboxContentLength)} limit, so it was kept but not read.{size}",
+            "empty_message" => "This message arrived with no content, so there was nothing to read.",
+            "missing_message_identity" or "message_identity_too_long" => "This message did not carry a usable identity, so it could not be tracked.",
+            "missing_message_file_name" or "invalid_message_file_name" or "message_file_name_too_long" => "This message did not carry a usable file name, so it could not be retained.",
+            "immutable_source_changed" => "This message changed in the mailbox after it was first seen, so it was kept unread for review.",
+            "immutable_source_missing" => "This message was no longer in the mailbox when it came to be read.",
+            "source_identity_conflict" => "A different message is already recorded under this message's identity.",
+            "artifact_retention_failure" => "This message could not be kept safely, so it was not processed.",
+            "invalid_mailbox_source" => "The mailbox returned something that could not be read.",
+            "mailbox_poll_failure" => "The last message from this mailbox could not be processed.",
+            _ => "The last message from this mailbox could not be processed."
+        };
+    }
 
     internal static bool TryParseFolder(string? value, out MailFolderScope folder)
     {

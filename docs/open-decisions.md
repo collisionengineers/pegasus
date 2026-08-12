@@ -12,6 +12,14 @@ Staff roles and access, principal and historical case-party identity, the Case/P
 
 ## First production journey and release sequencing
 
+## Future AI Operations boundary
+
+The future AI job catalogue and AI Viewer remain unresolved and unimplemented.
+Before allocation, decide the permitted job types and eligibility, request and
+execution lifecycle, transcript/event wire format, retention, redaction, and
+the production transport and activation evidence. Operations must not imply
+that `Features:SendToAi` or `Features:AutomationMcp` is production enabled.
+
 Decided 2026-08-02: the first live journey is the full QDOS cutover — a genuine
 QDOS instruction email through intake, review, Case/PO allocation, Box custody,
 and the EVA handoff bundle. [`NOW.md`](../NOW.md) "Path" owns the ordered

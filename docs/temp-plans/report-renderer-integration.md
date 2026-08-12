@@ -28,15 +28,12 @@ relocating source is not integration, integration is not activation, and
 activation is not acceptance
 ([evidence tiers](../engineering.md#required-evidence-tiers)).
 
-## Deviation from the temp-plan contract
+## Plan-set structure
 
-The [temp-plan contract](README.md) specifies one `<task-slug>.md` per
-claimed task. This claim carries six distinct planning subjects, each large
-enough that a single file would be unreviewable. On operator direction the
-plan is split across sibling files sharing the `report-renderer-integration`
-slug prefix, so that the orphan rule and the post-merge deletion still work
-on the whole set. The supporting files are listed under
-[Plan set](#plan-set).
+This claim carries six distinct planning subjects, each large enough that a
+single file would be unreviewable. The plan is split across sibling files
+sharing the `report-renderer-integration` slug prefix. The supporting files are
+listed under [Plan set](#plan-set).
 
 ## Operator decisions, 2026-08-03
 

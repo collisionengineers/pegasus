@@ -868,7 +868,10 @@ Provider operations use the same Core intake and authorization policies as Web
 and Worker callers. Receipt, submission, status, result, source-custody, and
 idempotency identities remain distinct per principal, and the provider client
 is the attributable action actor. Cross-principal query or result disclosure
-fails closed.
+fails closed. The transport channel alone never changes extraction, instruction
+eligibility, or automatic allocation: a definitive provider-API instruction
+for its authenticated principal follows the same case-creation path as an
+equally definitive email instruction.
 
 **Source limitation:** the accepted sources do not define an external tenant
 model, exact routes, headers, schema, attachment encoding, request limits,
