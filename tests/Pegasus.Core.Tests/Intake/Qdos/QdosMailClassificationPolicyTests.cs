@@ -9,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(2, QdosMailClassificationPolicy.Version);
+        Assert.Equal(3, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -35,6 +35,77 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Equal(ReceivedMailFamily.NewInstructionReceived, category.ReceivedFamily);
         Assert.Equal("audit", category.Subtype);
         Assert.Equal(CaseType.Audit, result.CaseType);
+        Assert.Null(result.StandaloneAuditReport);
+    }
+
+    [Theory]
+    [InlineData("The vehicle is repairable.", AuditAssessment.Repairable)]
+    [InlineData("This vehicle is a total loss.", AuditAssessment.TotalLoss)]
+    public void AuditInstructionAndSeparateOriginalReportProduceTheLiteralAssessment(
+        string reportText,
+        AuditAssessment expectedAssessment)
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1, audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "message, attachment 2, original-report.pdf, page 1",
+                    reportText)
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(CaseType.Audit, result.CaseType);
+        var report = Assert.IsType<StandaloneAuditReportEvaluation>(result.StandaloneAuditReport);
+        Assert.Equal(expectedAssessment, report.Assessment);
+        Assert.Equal("message, attachment 2, original-report.pdf", report.AssetSourceLabel);
+    }
+
+    [Fact]
+    public void AuditInstructionWithoutASeparateOriginalReportCannotProduceAnAssessment()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1, audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nThis assessment is repairable.")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(CaseType.Audit, result.CaseType);
+        Assert.Null(result.StandaloneAuditReport);
+    }
+
+    [Fact]
+    public void OriginalReportWithBothOutcomesCannotProduceAnAssessment()
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1, audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "message, attachment 2, original-report.pdf, page 1",
+                    "The vehicle is repairable and also a total loss.")
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Null(result.StandaloneAuditReport);
     }
 
     [Theory]

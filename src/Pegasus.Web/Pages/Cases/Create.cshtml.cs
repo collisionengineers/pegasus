@@ -24,7 +24,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// application that begins a staff allocation through <see cref="IAllocateIntake"/>.
 ///
 /// <para><strong>One button.</strong> Creating a case takes up to four writes
-/// — the corrected draft, the inspection address, standalone Audit evidence,
+/// — the corrected draft, the inspection address, Audit evidence,
 /// and the acceptance itself. They are sequenced here, on one submit, because
 /// the operator's action is a single one: check the detail, create the case.
 /// Three separate forms each demanding their own reason is the narration the
@@ -335,7 +335,7 @@ public sealed partial class CreateModel(
         // if any required one was empty, so they are non-null from here.
         var reason = Reason!;
         var principalCode = PrincipalCode!;
-        var auditReason = StandaloneAuditEvidenceReason ?? string.Empty;
+        var auditReason = StandaloneAuditEvidenceReason!;
 
         try
         {
@@ -379,11 +379,10 @@ public sealed partial class CreateModel(
                 version = snapshot.ReceiptVersion;
             }
 
-            // 3. Optional standalone Audit evidence establishes the later
-            //    Audit reference. It never gates creation of the Case/PO.
+            // 3. An Audit allocates only against its retained
+            //    original report and literal outcome.
             Guid? standaloneAuditEvidenceId = null;
-            if (CaseType == CaseType.Audit
-                && HasStandaloneAuditEvidenceInput())
+            if (CaseType == CaseType.Audit)
             {
                 var evidence = ConfirmedStandaloneAuditEvidence
                     ?? await confirmStandaloneAuditEvidence.ExecuteAsync(
@@ -616,15 +615,11 @@ public sealed partial class CreateModel(
 
         if (CaseType == CaseType.Audit)
         {
-            if (!HasStandaloneAuditEvidenceInput())
-            {
-                return;
-            }
             if (StandaloneAuditAssessment is null)
             {
                 ModelState.AddModelError(
                     nameof(StandaloneAuditAssessment),
-                    "Choose an Audit assessment when recording Audit reference evidence.");
+                    "Choose the original report's Repairable or Total loss outcome.");
             }
             if (StandaloneAuditOriginalReportAssetId is not { } assetId || assetId == Guid.Empty)
             {
@@ -649,7 +644,7 @@ public sealed partial class CreateModel(
             {
                 ModelState.AddModelError(
                     string.Empty,
-                    "The standalone Audit evidence was already confirmed with different immutable details.");
+                    "The Audit evidence was already confirmed with different immutable details.");
             }
 
             return;
@@ -662,15 +657,9 @@ public sealed partial class CreateModel(
         {
             ModelState.AddModelError(
                 string.Empty,
-                "Retained original-report evidence can be linked only to a standalone Audit.");
+                "Retained original-report evidence can be linked only to an Audit.");
         }
     }
-
-    private bool HasStandaloneAuditEvidenceInput() =>
-        StandaloneAuditAssessment is not null
-        || StandaloneAuditOriginalReportAssetId is not null
-        || !string.IsNullOrWhiteSpace(StandaloneAuditEvidenceReason)
-        || ConfirmedStandaloneAuditEvidence is not null;
 
     /// <summary>
     /// The address that goes into the draft, so the completeness check and the
