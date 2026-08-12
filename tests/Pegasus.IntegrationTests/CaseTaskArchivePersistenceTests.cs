@@ -201,6 +201,7 @@ public sealed class CaseTaskArchivePersistenceTests
     public async Task ArchiveRequiresConfirmedAuditCustodyAndCompletedAuditCustodyWork()
     {
         await using var harness = await Harness.CreateAsync();
+        await harness.SetCaseTypeAsync(harness.TaskCaseId, "audit");
         var request = await PrepareArchiveRequestAsync(harness, "audit-custody");
         await harness.SetAuditCustodyAsync(harness.TaskCaseId, confirmed: false);
         var auditCustodyWorkId = await harness.AddExternalWorkAsync(
@@ -916,6 +917,9 @@ public sealed class CaseTaskArchivePersistenceTests
 
         public Task SetCustodyStateAsync(Guid caseId, string state) => database.ExecuteAsync(
             $"UPDATE Cases SET CustodyState = '{state}' WHERE Id = '{caseId:D}'");
+
+        public Task SetCaseTypeAsync(Guid caseId, string type) => database.ExecuteAsync(
+            $"UPDATE Cases SET Type = '{type}' WHERE Id = '{caseId:D}'");
 
         public async Task<Guid> AddExternalWorkAsync(
             Guid caseId,
