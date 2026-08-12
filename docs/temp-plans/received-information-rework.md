@@ -1,45 +1,156 @@
-# Rework `/Received` as information and management
+# Replace Received Items with Operations
 
 ## Summary
 
-Replace the mailbox/receipt duplicate at `/Received` with a staff-readable `Received` information screen. It will show only usable chaser upload links, API-submitted files with their resulting case links, and successful API writes. It will have no approval, retry, withdrawal, or other mutation controls.
+Replace the existing plan for a staff-wide `/Operations` workspace. The page
+will combine useful operational information with the existing safe
+request-management actions. It will not expose the general intake receipt
+ledger, manual uploads, email receipts, or mailbox processing.
 
-Move the present `/Operations/Requests` management functionality to `/Received/Manage`, including upload-link withdrawal and external-work retries. Remove `/Operations/Requests` so it returns 404.
+`User` remains the lowest application role; `/Operations` is available to
+`User`, `Engineer`, and `Administrator`. Renaming the system-administration
+role to `SuperUser` is outside this task.
 
-## Implementation changes
+## Implementation tickets
 
-- Add a Core-owned, read-only received-information projection and EF query:
-  - active Pegasus upload links only: `Active` and not expired;
-  - Automation-channel file receipts with processing/allocation state and any linked Case;
-  - successful Automation API writes only, classified from the known mutating MCP operations; exclude reads, denials, failures, correlation IDs, raw targets, and credentials.
-  - Use independent, bounded pagination for the three lists; no migration or new persistence store.
+### OPS-PAGE-01 — Operations read model
 
-- Rebuild `Pages/Intake/Index` as `/Received`:
-  - sections: `Active upload links`, `Files received via API`, and `API activity`;
-  - retain only informational links to safe Case/receipt detail routes;
-  - remove Received/Sent tabs, mailbox filters, email failures, retry handler, mail-operation dependencies, and all email/receipt list UI.
-  - label the primary navigation item `Received`, keeping Inbox as the separate email workspace.
+- Add a Core-owned `OperationsWorkspaceProjection` under
+  `src/Pegasus.Core/Operations/`.
+- Include:
+  - active, unexpired Pegasus upload links;
+  - active Box file requests;
+  - retryable external-work failures;
+  - the 50 most recent `Automation`-channel intake receipts, including
+    filename, received time, outcome, allocation state, and actual linked Case;
+  - summary counts for each section.
+- Extend the existing operations EF store in
+  `src/Pegasus.Infrastructure/Persistence/EfOperationsStore.cs`.
+- Filter API activity by persisted `IntakeSourceChannel.Automation`; exclude
+  manual uploads and mailbox receipts at query level.
+- Use existing tables and indexes. Do not add a migration, store, or deployment
+  unit.
 
-- Transfer the existing `Operations/Requests` Razor PageModel and all management handlers into `Pages/Intake/Management` at `/Received/Manage`; retain existing authorization, antiforgery, leases, withdraw, and retry behaviour.
-  - Delete the old Operations Requests page so `/Operations/Requests` is an actual 404.
-  - Update the dashboard drill-down and accessibility/navigation references to the new management route.
+### OPS-PAGE-02 — Canonical `/Operations` page
 
-- Update architecture, design, and operations documentation to state that `/Received` is a read-only staff observability view of upload/API outcomes; this does not expose an API in the browser or grant staff API access.
+- Add `src/Pegasus.Web/Pages/Operations/Index.cshtml` and `.cshtml.cs`.
+- Authorize all existing staff roles: `User`, `Engineer`, and `Administrator`.
+- Present four focused sections:
+  - `Attention required` for retryable external-work failures;
+  - `Active upload links` for usable Pegasus and Box requests;
+  - `Received through API` for recent Automation-channel files and resulting
+    Cases;
+  - `AI operations` as an informational future-capability panel only.
+- Move the existing `/Operations/Requests` handlers into the new PageModel
+  unchanged in policy:
+  - retry external work;
+  - claim, renew, and release Case edit leases;
+  - withdraw Pegasus upload links;
+  - revoke Box file requests.
+- Preserve antiforgery, idempotency keys, reasons, lease enforcement,
+  attribution, PRG, and fail-closed error handling.
+- API activity remains read-only and requires no approval action.
+- The AI panel must state that job requesting and live work viewing are planned,
+  not currently available from this screen.
+
+### OPS-PAGE-03 — Retire obsolete list pages
+
+- Delete only these list-page files:
+  - `src/Pegasus.Web/Pages/Intake/Index.cshtml`
+  - `src/Pegasus.Web/Pages/Intake/Index.cshtml.cs`
+  - `src/Pegasus.Web/Pages/Operations/Requests.cshtml`
+  - `src/Pegasus.Web/Pages/Operations/Requests.cshtml.cs`
+  - `src/Pegasus.Web/Pages/Operations/Email.cshtml`
+  - `src/Pegasus.Web/Pages/Operations/Email.cshtml.cs`
+- `/Received`, `/Operations/Requests`, and `/Operations/Email` must return `404`;
+  add no redirects.
+- Preserve `/Received/{id}`, `/Received/{id}/Source`, EVA hand-off, and other
+  receipt-specific workflow routes because existing intake and Case workflows
+  call them.
+- Remove the mailbox retry control with the retired `/Received` list. Inbox
+  remains the email workspace.
+
+### OPS-PAGE-04 — Navigation and dashboard
+
+- Replace the `Received items` primary-navigation entry in
+  `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` with `Operations` targeting
+  `/Operations`.
+- Keep `/` titled `Dashboard`; Operations becomes a separate primary
+  destination.
+- Remove dashboard links targeting `/Operations/Requests`, `/Operations/Email`,
+  or `/Received`.
+- Keep dashboard metrics, but render a metric without a link when no canonical
+  non-receipt destination exists.
+- Do not introduce links to hidden receipt filters or rebuild the receipt ledger
+  elsewhere.
+
+### OPS-PAGE-05 — Future AI operations contract
+
+- Do not add AI request controls, an AI Viewer, transcript persistence, or
+  connector changes in this delivery.
+- Update `docs/capabilities.md` to record two future capabilities:
+  - a named, extensible job catalogue beginning with the existing
+    case-assessment job;
+  - an AI Viewer for request lifecycle and, eventually, live work events.
+- Update `docs/open-decisions.md` to state that job types, eligibility,
+  transcript/event wire format, retention, redaction, and production transport
+  remain unresolved before implementation.
+- Preserve the current `Features:SendToAi` offline-only composition gate and
+  existing Case Assessment controls.
+
+### OPS-PAGE-06 — Documentation truth
+
+- Update `docs/architecture.md` and `docs/design.md` so:
+  - `/Operations` owns staff operational actions and focused API activity;
+  - `/Received` is no longer a list/workspace;
+  - receipt detail routes remain internal workflow callers;
+  - Inbox alone owns email display;
+  - Operations does not imply browser API access or production AI availability.
+- Update affected route maps and implementation maps without changing
+  historical evidence or operator statements.
 
 ## Test plan
 
-- Add focused Core/persistence tests proving:
-  - only usable upload links appear;
-  - only Automation-origin receipts appear, with linked-case state;
-  - only successful, classified Automation writes appear; reads, failures, denials, identifiers, and unrelated audit records do not.
+- Core/persistence tests:
+  - include only active, unexpired upload requests;
+  - include only retryable external failures;
+  - include only the latest 50 Automation-channel receipts;
+  - exclude manual and mailbox receipts;
+  - expose the actual linked Case and allocation outcome;
+  - return honest empty states.
+- Web tests in `tests/Pegasus.IntegrationTests/OperationsWebTests.cs`:
+  - all three staff roles can load `/Operations`;
+  - anonymous access is challenged;
+  - every inherited mutation retains antiforgery, lease, reason, idempotency,
+    attribution, and PRG behaviour;
+  - API rows have no approval or mutation controls;
+  - AI content is clearly marked as planned;
+  - obsolete list routes return `404`;
+  - retained `/Received/{id}` workflow routes continue working.
+- Update shell, mailbox, intake, image-intake, operator-journey, and
+  accessibility tests that currently expect the `Received items` navigation
+  entry or `/Received` list.
+- Run:
 
-- Replace `/Received` web assertions that expect mailbox rows, filters, or retry forms with information-screen assertions.
-- Move the existing request-management tests to `/Received/Manage`; assert every inherited handler preserves PRG and authorization behaviour.
-- Assert `/Operations/Requests` returns 404, dashboard/navigation use the new route, and both pages meet existing accessibility coverage.
-- Run the repository’s locked restore, Release build, and focused Web/Core test profiles before full-suite verification.
+```powershell
+dotnet restore ./Pegasus.slnx --locked-mode
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~OperationsWebTests"
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser"
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+git diff --check
+git status --short
+```
 
 ## Assumptions
 
-- “API” means the existing Automation/MCP ingress, not a deferred provider API.
-- A Case is shown only when it is the actual allocation/link outcome of an Automation receipt; Pegasus has no direct API case-creation endpoint.
-- “Links sent as chasers” means currently usable chaser upload links. The screen will not claim a link was delivered, because current chasers are manually copied and do not prove delivery.
+- “Admin workers” means ordinary administration staff, including the lowest
+  `User` role—not only the `Administrator` system role.
+- “API” means the existing Automation/MCP intake channel.
+- Recent API activity is bounded to 50 newest receipts with no general receipt
+  filters.
+- Email and manual intake continue to exist operationally but receive no general
+  ledger page.
+- AI job requesting and live viewing are documentation-only future capabilities
+  in this delivery.
