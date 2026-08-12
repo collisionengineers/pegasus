@@ -229,7 +229,7 @@ Only an **ambiguous** case match is withheld from automatic allocation. An Audit
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
-- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. The `case_created` decision code supersedes `draft_ready`, which stays readable as the same processing outcome; neither code is case-existence authority. Received items, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
+- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. The `case_created` decision code supersedes `draft_ready`, which stays readable as the same processing outcome; neither code is case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
 
 ## Business-rule ownership
 
