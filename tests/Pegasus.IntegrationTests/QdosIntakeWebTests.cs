@@ -256,7 +256,7 @@ public sealed class QdosIntakeWebTests
         var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
         var counts = await queries.GetCountsAsync(CancellationToken.None);
         var dashboard = await client.GetStringAsync("/");
-        var sortingQueue = await client.GetStringAsync("/Received?decision=needs_sorting");
+        var sortingQueue = await queries.ListAsync(IntakeDecision.NeedsSorting, 1, 25, CancellationToken.None);
 
         Assert.Equal(new IntakeQueueCounts(1, 1), counts);
         Assert.Contains(
@@ -267,8 +267,9 @@ public sealed class QdosIntakeWebTests
             "<strong>1</strong><span>Needs sorting</span><small>Current intake receipts</small>",
             dashboard,
             StringComparison.Ordinal);
-        Assert.Contains("Needs sorting", sortingQueue, StringComparison.Ordinal);
-        Assert.Contains(NeedsSortingEmailHash[..12], sortingQueue, StringComparison.Ordinal);
+        var sortingItem = Assert.Single(sortingQueue.Items);
+        Assert.Equal(IntakeDecision.NeedsSorting, sortingItem.Decision);
+        Assert.False(string.IsNullOrWhiteSpace(sortingItem.SourceFileName));
     }
 
     private static async Task<IntakeReceipt> GetReceiptAsync(
