@@ -133,8 +133,7 @@ public sealed partial class UploadModel(
             {
                 TempData["UploadOutcomeMessage"] =
                     $"{fileName} was received and is being processed. It will appear here shortly.";
-                // The received-items list, which is the "/Received" route.
-                return RedirectToPage("/Intake/Index");
+                return RedirectToPage();
             }
 
             // Post-redirect-get, landing on what the upload produced. The
