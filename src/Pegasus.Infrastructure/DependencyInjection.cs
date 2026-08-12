@@ -199,12 +199,15 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfOperationsStore>());
         services.AddScoped<IRequestOperationsProjectionStore>(
             provider => provider.GetRequiredService<EfOperationsStore>());
+        services.AddScoped<IAutomationIntakeProjectionStore>(
+            provider => provider.GetRequiredService<EfOperationsStore>());
         services.AddScoped<IMailboxProcessingRetryStore>(
             provider => provider.GetRequiredService<EfOperationsStore>());
         services.AddScoped<IExternalWorkRetryStore>(
             provider => provider.GetRequiredService<EfOperationsStore>());
         services.AddScoped<GetEmailOperations>();
         services.AddScoped<GetRequestOperations>();
+        services.AddScoped<GetAutomationIntakeActivity>();
         services.AddScoped<RetryMailboxProcessing>();
         services.AddScoped<RetryExternalWork>();
         services.AddScoped<IDashboardQueries, EfDashboardQueries>();
