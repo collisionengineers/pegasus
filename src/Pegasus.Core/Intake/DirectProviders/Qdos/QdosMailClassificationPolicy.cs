@@ -221,11 +221,12 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     }
 
     private static bool ContainsRepairable(string text) =>
-        text.Contains("repairable", StringComparison.OrdinalIgnoreCase);
+        RepairableLiteralRegex().IsMatch(text)
+        && !NegatedRepairableLiteralRegex().IsMatch(text);
 
     private static bool ContainsTotalLoss(string text) =>
-        text.Contains("total loss", StringComparison.OrdinalIgnoreCase)
-        || text.Contains("total-loss", StringComparison.OrdinalIgnoreCase);
+        TotalLossLiteralRegex().IsMatch(text)
+        && !NegatedTotalLossLiteralRegex().IsMatch(text);
 
     private static string[] Texts(
         IntakeSourceReadResult readResult,
@@ -251,4 +252,19 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
 
     [GeneratedRegex(@"^\s*RE\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReplyPrefixRegex();
+
+    // A word occurrence is not automatically a report outcome: "unrepairable",
+    // "not repairable", and "not a total loss" must never allocate a permanent
+    // Audit identity. The report is accepted only on an unnegated literal.
+    [GeneratedRegex(@"\brepairable\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex RepairableLiteralRegex();
+
+    [GeneratedRegex(@"\b(?:not|no)\b(?:\s+(?:a|the))?[\s-]+repairable\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NegatedRepairableLiteralRegex();
+
+    [GeneratedRegex(@"\btotal[\s-]+loss\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex TotalLossLiteralRegex();
+
+    [GeneratedRegex(@"\b(?:not|no)\b(?:\s+(?:a|the))?[\s-]+total[\s-]+loss\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NegatedTotalLossLiteralRegex();
 }

@@ -109,6 +109,32 @@ public sealed class QdosMailClassificationPolicyTests
     }
 
     [Theory]
+    [InlineData("The vehicle is unrepairable.")]
+    [InlineData("The vehicle is not repairable.")]
+    [InlineData("The vehicle is not a total loss.")]
+    public void NegatedOrSubwordOutcomeCannotProduceAnAssessment(string reportText)
+    {
+        var result = new QdosMailClassificationPolicy().Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1, audit-instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "message, attachment 2, original-report.pdf, page 1",
+                    reportText)
+            ],
+            [],
+            [],
+            false));
+
+        Assert.Equal(CaseType.Audit, result.CaseType);
+        Assert.Null(result.StandaloneAuditReport);
+    }
+
+    [Theory]
     [InlineData("ENGINEER NOTIFICATION (REPORT + AUDIT REPORT)\nOur Ref: 23456/1")]
     [InlineData("ENGINEER NOTIFICATION\nOur Ref: 23456/1")]
     public void EngineerNotificationTitleClassifiesNewInstructionInspection(string document)
