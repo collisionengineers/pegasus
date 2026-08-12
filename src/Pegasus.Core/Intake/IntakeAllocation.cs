@@ -204,7 +204,8 @@ public sealed class AllocateIntake(
     IIntakeReceiptQueries receiptQueries,
     IIntakeAllocationStore allocationStore,
     IAcceptIntake acceptIntake,
-    TimeProvider timeProvider) : IAllocateIntake
+    TimeProvider timeProvider,
+    IStandaloneAuditEvidenceQueries? standaloneAuditEvidenceQueries = null) : IAllocateIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly CaseCompleteness EmptyCompleteness = new(false, false, false, false);
@@ -224,13 +225,18 @@ public sealed class AllocateIntake(
         var caseType = receipt.MailClassificationDecision?.CaseType;
         var principalCode = receipt.InstructionDraft?.SuggestedPrincipalCode?.Trim().ToUpperInvariant()
             ?? string.Empty;
+        var standaloneAuditEvidenceId = caseType == CaseType.Audit
+            ? (standaloneAuditEvidenceQueries is null
+                ? null
+                : (await standaloneAuditEvidenceQueries.GetForReceiptAsync(receipt.Id, cancellationToken))?.Id)
+            : null;
         var command = new IntakeAllocationCommand(
             receipt.Id,
             receipt.Version,
             caseType,
             principalCode,
             EmptyCompleteness,
-            StandaloneAuditEvidenceId: null,
+            StandaloneAuditEvidenceId: standaloneAuditEvidenceId,
             receipt.InstructionDraft?.InspectionDate);
         var actor = ActionActor.SystemWorker(SystemActor);
         return await ExecuteAsync(

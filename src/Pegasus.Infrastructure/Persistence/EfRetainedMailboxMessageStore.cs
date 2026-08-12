@@ -328,7 +328,10 @@ internal sealed class EfRetainedMailboxMessageStore(
             {
                 item.Id,
                 item.ExternalReceiptToken,
-                item.Decision
+                item.Decision,
+                EffectiveSenderAddress = item.MailRouteDecision == null
+                    ? null
+                    : item.MailRouteDecision.EffectiveSenderAddress
             })
             .ToListAsync(cancellationToken);
         var receiptsByToken = receipts.ToDictionary(
@@ -389,6 +392,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                     polledAddresses.Contains(row.MailboxAddress),
                     row.SenderAddress,
                     row.SenderDisplayName,
+                    receipt?.EffectiveSenderAddress,
                     row.Subject,
                     row.BodyExcerpt,
                     row.ReceivedAtUtc,
