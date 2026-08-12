@@ -48,10 +48,13 @@ public sealed class ImageIntakeWebTests
         Assert.Contains("AB12CDE-01", detailsAfter);
         Assert.DoesNotContain("Register Image intake</h2>", detailsAfter);
 
-        var queue = await GetAsync(client, "/Received?decision=image_intake_registered");
-        Assert.Contains("Vehicle images registered", queue);
-        var sortingQueue = await GetAsync(client, "/Received?decision=needs_sorting");
-        Assert.DoesNotContain("vehicle.png", sortingQueue);
+        await using var receiptScope = factory.Services.CreateAsyncScope();
+        var receipt = await receiptScope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        Assert.NotNull(receipt);
+        Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt.Decision);
+        Assert.Equal("vehicle.png", receipt.SourceFileName);
 
         var indexByReference = await GetAsync(client, "/VehicleImages?query=AB12CDE-01");
         Assert.Contains("AB12CDE-01", indexByReference);

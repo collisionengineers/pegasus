@@ -190,9 +190,12 @@ public sealed class OperatorJourneyTests
         await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Review" }).ClickAsync();
         Assert.Equal("/Triage?queue=review", new Uri(support.Page.Url).PathAndQuery);
 
-        await support.GoToAsync("/");
-        await support.Page.Locator(".metric-strip a.metric", new PageLocatorOptions { HasText = "Needs sorting" }).ClickAsync();
-        Assert.Equal("/Received?decision=needs_sorting", new Uri(support.Page.Url).PathAndQuery);
+        await support.GoToAsync("/Operations");
+        Assert.Equal(
+            "Operations",
+            await support.Page.GetByRole(
+                AriaRole.Heading,
+                new PageGetByRoleOptions { Name = "Operations", Exact = true }).InnerTextAsync());
     }
 
     [Fact]

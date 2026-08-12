@@ -1,5 +1,5 @@
 using Pegasus.Core.Intake;
-using Pegasus.Web.Pages.Intake;
+using Pegasus.Web.Pages.Mail;
 
 namespace Pegasus.IntegrationTests;
 

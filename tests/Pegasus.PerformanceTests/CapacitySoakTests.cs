@@ -137,7 +137,7 @@ public sealed partial class CapacitySoakTests
         {
             await MeasureAsync(readDurations, async () =>
             {
-                var path = read == 0 ? "/" : "/Received";
+                var path = read == 0 ? "/" : "/Operations";
                 using var response = await client.GetAsync(path);
                 if (response.StatusCode != HttpStatusCode.OK)
                 {

@@ -21,113 +21,6 @@ public sealed partial class OperationsWebTests
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     [Fact]
-    public async Task ExactOperationsRoutesRenderBoundedStatesActionsAndDeepLinks()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingOperationsStore();
-        using var factory = Configure(baseFactory, store);
-        using var client = CreateClient(factory);
-
-        // The separate Email screen is retired: its route redirects into the
-        // Inbox, whose Received and Sent tabs and Failed filter carry what it
-        // showed. Merging it away solves its discoverability — its only entry
-        // was a dashboard card labelled "Unavailable" — rather than giving that
-        // card better copy.
-        using var emailRedirect = await client.GetAsync("/Operations/Email");
-        Assert.Equal(HttpStatusCode.MovedPermanently, emailRedirect.StatusCode);
-        Assert.Contains(
-            "/Received",
-            emailRedirect.Headers.Location?.OriginalString ?? string.Empty,
-            StringComparison.Ordinal);
-
-        var emailHtml = await GetHtmlAsync(client, "/Received?decision=failed");
-        using var requestsResponse = await client.GetAsync("/Operations/Requests");
-        var initialRequestsHtml = await requestsResponse.Content.ReadAsStringAsync();
-
-        Assert.Contains("Received", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Sent", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Failed", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("Retry", emailHtml, StringComparison.Ordinal);
-
-        // The recorded failure code is never shown to the operator; a sentence
-        // is. It still round-trips as a hidden guard so a retry cannot act on a
-        // failure that has since changed, which is why the assertion is about
-        // what is read rather than about the string being absent entirely.
-        Assert.Contains(
-            "The message could not be read from the mailbox.",
-            emailHtml,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            $">{store.MailboxFailureCode}<",
-            emailHtml,
-            StringComparison.Ordinal);
-
-        Assert.Equal(HttpStatusCode.OK, requestsResponse.StatusCode);
-        foreach (var state in new[]
-                 {
-                     "Active", "Expired", "Exhausted", "Revoked", "Failed", "Pending", "Unknown external"
-                 })
-        {
-            Assert.Contains(state, initialRequestsHtml, StringComparison.Ordinal);
-        }
-        Assert.Contains("Withdraw link", initialRequestsHtml, StringComparison.Ordinal);
-        Assert.Contains("Retry", initialRequestsHtml, StringComparison.Ordinal);
-        Assert.Contains($"href=\"/Cases/{store.CaseId:D}\"", initialRequestsHtml, StringComparison.Ordinal);
-
-        // The concurrency protocol is not the operator's to run. Whether
-        // someone else is editing the case is the result of trying to withdraw
-        // a link, reported as a sentence; it is never a mode the operator
-        // enters, renews and leaves by hand.
-        foreach (var mechanism in new[]
-                 {
-                     "Enter edit mode to revoke",
-                     "Recover edit mode to revoke",
-                     "Renew edit mode",
-                     "Leave edit mode",
-                     "Revocation is unavailable until the current edit mode expires or is released.",
-                     "Edit mode"
-                 })
-        {
-            Assert.DoesNotContain(mechanism, initialRequestsHtml, StringComparison.Ordinal);
-        }
-
-        // Byte counts and the internal limits-version integer are gone; sizes
-        // an operator reads are MB to one decimal.
-        Assert.DoesNotContain("Limits version", initialRequestsHtml, StringComparison.Ordinal);
-        Assert.DoesNotContain("Byte limit", initialRequestsHtml, StringComparison.Ordinal);
-
-        // Box file requests are superseded and therefore absent, not shown in
-        // a state nobody acts on.
-        Assert.DoesNotContain("Box file request", initialRequestsHtml, StringComparison.Ordinal);
-
-        // One post performs the whole operation server-side. The lease token is
-        // an internal handle and never reaches the page in any state.
-        using var withdraw = await client.PostAsync(
-            "/Operations/Requests?handler=RevokeLink",
-            Form(
-                AntiforgeryValue(initialRequestsHtml),
-                ("requestId", store.PegasusRequestId.ToString("D")),
-                ("caseId", store.CaseId.ToString("D")),
-                ("expectedVersion", "4"),
-                ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("reason", "No longer required"),
-                ("operationKey", "withdraw-link")));
-        AssertPrg(withdraw, "/Operations/Requests");
-
-        Assert.Equal(ActorKind.Staff, store.PegasusRevoke!.Actor.Kind);
-        Assert.Equal(4, store.PegasusRevoke.ExpectedRequestVersion);
-        Assert.Equal(store.CaseVersion, store.PegasusRevoke.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, store.PegasusRevoke.EditLeaseToken);
-
-        using var afterResponse = await client.GetAsync("/Operations/Requests");
-        var afterHtml = await afterResponse.Content.ReadAsStringAsync();
-        Assert.True(afterResponse.Headers.CacheControl?.NoStore == true);
-        Assert.DoesNotContain(store.LeaseToken, afterHtml, StringComparison.Ordinal);
-        Assert.Contains("__RequestVerificationToken", emailHtml, StringComparison.Ordinal);
-        Assert.Contains("__RequestVerificationToken", afterHtml, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task OperationsCockpitLinksBothExactWorkspaces()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -137,115 +30,78 @@ public sealed partial class OperationsWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("href=\"/Operations/Requests\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Operations\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task OperationsPostsUseAntiforgeryServerActorLeaseVersionsAndPrg()
+    public async Task OperationsPageIsStaffWorkspaceWithNoReceiptLedgerOrBoxSurface()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
         var store = new RecordingOperationsStore();
         using var factory = Configure(baseFactory, store);
         using var client = CreateClient(factory);
 
-        var emailHtml = await GetHtmlAsync(client, "/Received?decision=failed");
-        using var emailPost = await client.PostAsync(
-            "/Received?handler=RetryMailbox",
-            Form(
-                AntiforgeryValue(emailHtml),
-                ("mailboxId", store.ReceivedMailboxId),
-                ("direction", nameof(EmailOperationDirection.Received)),
-                ("expectedFailureCode", store.MailboxFailureCode),
-                ("expectedDueAtUtc", store.MailboxFailureDueAtUtc.ToString("O")),
-                ("operationKey", "mailbox-retry")));
+        var html = await GetHtmlAsync(client, "/Operations");
 
-        var requestsHtml = await GetHtmlAsync(client, "/Operations/Requests");
-        using var externalPost = await client.PostAsync(
-            "/Operations/Requests?handler=RetryExternal",
-            Form(
-                AntiforgeryValue(requestsHtml),
-                ("workItemId", store.ExternalWorkId.ToString("D")),
-                ("expectedAttemptCount", store.ExternalAttemptCount.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", "external-retry")));
+        Assert.Contains("Operations", html, StringComparison.Ordinal);
+        Assert.Contains("Attention required", html, StringComparison.Ordinal);
+        Assert.Contains("Active upload links", html, StringComparison.Ordinal);
+        Assert.Contains("AI operations", html, StringComparison.Ordinal);
+        Assert.Contains("Requesting an AI job and viewing live AI work are planned", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Automation MCP", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Send-to-AI transport", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Box file request", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Approve", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Reject", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Operations/Requests", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("/Operations/Email", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Received through API", html, StringComparison.Ordinal);
+    }
 
-        using var revokeWithoutLease = await client.PostAsync(
-            "/Operations/Requests?handler=RevokeBox",
-            Form(
-                AntiforgeryValue(requestsHtml),
-                ("requestId", store.BoxRequestId.ToString("D")),
-                ("caseId", store.CaseId.ToString("D")),
-                ("expectedVersion", "3"),
-                ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("reason", "No longer required"),
-                ("operationKey", "box-revoke-without-lease")));
-        AssertPrg(revokeWithoutLease, "/Operations/Requests");
-        Assert.Null(store.BoxRevoke);
+    [Fact]
+    public async Task OperationsWithdrawalUsesTheCanonicalAntiforgeryAndLeaseGuardedCommand()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingOperationsStore();
+        using var factory = Configure(baseFactory, store);
+        using var client = CreateClient(factory);
+        var html = await GetHtmlAsync(client, "/Operations");
 
-        await ClaimLeaseAsync(client, store);
-        requestsHtml = await GetHtmlAsync(client, "/Operations/Requests");
-        using var boxPost = await client.PostAsync(
-            "/Operations/Requests?handler=RevokeBox",
+        using var response = await client.PostAsync(
+            "/Operations?handler=RevokeLink",
             Form(
-                AntiforgeryValue(requestsHtml),
-                ("requestId", store.BoxRequestId.ToString("D")),
-                ("caseId", store.CaseId.ToString("D")),
-                ("expectedVersion", "3"),
-                ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("reason", "No longer required"),
-                ("operationKey", "box-revoke")));
-
-        await ClaimLeaseAsync(client, store);
-        requestsHtml = await GetHtmlAsync(client, "/Operations/Requests");
-        using var pegasusPost = await client.PostAsync(
-            "/Operations/Requests?handler=RevokePegasus",
-            Form(
-                AntiforgeryValue(requestsHtml),
+                AntiforgeryValue(html),
                 ("requestId", store.PegasusRequestId.ToString("D")),
                 ("caseId", store.CaseId.ToString("D")),
                 ("expectedVersion", "4"),
                 ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("reason", "No longer required"),
-                ("operationKey", "pegasus-revoke")));
+                ("reason", "The chaser is no longer needed."),
+                ("operationKey", OperationKeyValue(html))));
 
-        AssertPrg(emailPost, "/Received");
-
-        // The outcome the operator is told, so a silent failure branch cannot
-        // pass as a successful retry.
-        Assert.Contains(
-            "Processing was scheduled to run again.",
-            await GetHtmlAsync(client, "/Received?decision=failed"),
-            StringComparison.Ordinal);
-        AssertPrg(externalPost, "/Operations/Requests");
-        AssertPrg(boxPost, "/Operations/Requests");
-        AssertPrg(pegasusPost, "/Operations/Requests");
-        Assert.Equal(ActorKind.Staff, store.MailboxRetry!.Actor.Kind);
-        Assert.Equal(EmailOperationDirection.Received, store.MailboxRetry.Direction);
-        Assert.Equal(store.MailboxFailureDueAtUtc, store.MailboxRetry.ExpectedDueAtUtc);
-        Assert.Equal(ActorKind.Staff, store.ExternalRetry!.Actor.Kind);
-        Assert.Equal(store.ExternalAttemptCount, store.ExternalRetry.ExpectedAttemptCount);
-        Assert.Equal(ActorKind.Staff, store.BoxRevoke!.Actor.Kind);
-        Assert.Equal(3, store.BoxRevoke.ExpectedFileRequestVersion);
-        Assert.Equal(store.CaseVersion, store.BoxRevoke.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, store.BoxRevoke.EditLeaseToken);
-        Assert.Equal(ActorKind.Staff, store.PegasusRevoke!.Actor.Kind);
-        Assert.Equal(4, store.PegasusRevoke.ExpectedRequestVersion);
-        Assert.Equal(store.CaseVersion, store.PegasusRevoke.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, store.PegasusRevoke.EditLeaseToken);
+        AssertPrg(response, "/Operations");
+        var command = Assert.IsType<RevokeRequestUploadLinkCommand>(store.PegasusRevoke);
+        Assert.Equal(store.CaseId, command.CaseId);
+        Assert.Equal(store.PegasusRequestId, command.RequestId);
+        Assert.Equal(store.CaseVersion, command.ExpectedCaseVersion);
+        Assert.Equal(store.LeaseToken, command.EditLeaseToken);
+        Assert.Equal(ActorKind.Staff, command.Actor.Kind);
+        Assert.Equal("The chaser is no longer needed.", command.Reason);
     }
 
-    private static async Task ClaimLeaseAsync(
-        HttpClient client,
-        RecordingOperationsStore store)
+    [Theory]
+    [InlineData("/Received")]
+    [InlineData("/Received?decision=needs_sorting")]
+    [InlineData("/Operations/Requests")]
+    [InlineData("/Operations/Requests?handler=RetryExternal")]
+    [InlineData("/Operations/Email")]
+    public async Task ObsoleteListRoutesReturnNotFound(string route)
     {
-        var html = await GetHtmlAsync(client, "/Operations/Requests");
-        using var response = await client.PostAsync(
-            "/Operations/Requests?handler=ClaimLease",
-            Form(
-                AntiforgeryValue(html),
-                ("caseId", store.CaseId.ToString("D")),
-                ("expectedCaseVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                ("operationKey", OperationKeyValue(html))));
-        AssertPrg(response, "/Operations/Requests");
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+
+        using var response = await client.GetAsync(route);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
     }
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
@@ -265,18 +121,14 @@ public sealed partial class OperationsWebTests
                 services.RemoveAll<IMailboxProcessingRetryStore>();
                 services.RemoveAll<IExternalWorkRetryStore>();
                 services.RemoveAll<IAcquireCaseEditLease>();
-                services.RemoveAll<IRenewCaseEditLease>();
                 services.RemoveAll<IReleaseCaseEditLease>();
-                services.RemoveAll<IRevokeBoxFileRequest>();
                 services.RemoveAll<IRevokeRequestUploadLink>();
                 services.AddSingleton<IEmailOperationsProjectionStore>(store);
                 services.AddSingleton<IRequestOperationsProjectionStore>(store);
                 services.AddSingleton<IMailboxProcessingRetryStore>(store);
                 services.AddSingleton<IExternalWorkRetryStore>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
-                services.AddSingleton<IRenewCaseEditLease>(store);
                 services.AddSingleton<IReleaseCaseEditLease>(store);
-                services.AddSingleton<IRevokeBoxFileRequest>(store);
                 services.AddSingleton<IRevokeRequestUploadLink>(store);
             }));
 
@@ -335,15 +187,12 @@ public sealed partial class OperationsWebTests
         IMailboxProcessingRetryStore,
         IExternalWorkRetryStore,
         IAcquireCaseEditLease,
-        IRenewCaseEditLease,
         IReleaseCaseEditLease,
-        IRevokeBoxFileRequest,
         IRevokeRequestUploadLink
     {
         public Guid CaseId { get; } = Guid.NewGuid();
         public Guid IntakeId { get; } = Guid.NewGuid();
         public Guid TriageId { get; } = Guid.NewGuid();
-        public Guid BoxRequestId { get; } = Guid.NewGuid();
         public Guid PegasusRequestId { get; } = Guid.NewGuid();
         public Guid ExternalWorkId { get; } = Guid.NewGuid();
         public long CaseVersion { get; } = 10;
@@ -354,7 +203,6 @@ public sealed partial class OperationsWebTests
         public int ExternalAttemptCount { get; } = 5;
         public RetryMailboxProcessingCommand? MailboxRetry { get; private set; }
         public RetryExternalWorkCommand? ExternalRetry { get; private set; }
-        public RevokeBoxFileRequestCommand? BoxRevoke { get; private set; }
         public RevokeRequestUploadLinkCommand? PegasusRevoke { get; private set; }
         private bool LeaseIsActive { get; set; }
         private string? LeaseHolder { get; set; }
@@ -381,7 +229,6 @@ public sealed partial class OperationsWebTests
             DateTimeOffset nowUtc,
             CancellationToken cancellationToken) => Task.FromResult(new RequestOperationsProjection(
                 ImmutableArray.Create(
-                    Request(BoxRequestId, RequestOperationKind.BoxFileRequest, RequestOperationState.Active, version: 3, canRevoke: true),
                     Request(PegasusRequestId, RequestOperationKind.PegasusUploadLink, RequestOperationState.Active, version: 4, canRevoke: true),
                     Request(Guid.NewGuid(), RequestOperationKind.PegasusUploadLink, RequestOperationState.Expired),
                     Request(Guid.NewGuid(), RequestOperationKind.PegasusUploadLink, RequestOperationState.Exhausted),
@@ -424,21 +271,6 @@ public sealed partial class OperationsWebTests
                 FixedUtcNow.AddMinutes(5)));
         }
 
-        Task<CaseEditLease> IRenewCaseEditLease.ExecuteAsync(
-            RenewCaseEditLeaseRequest request,
-            CancellationToken cancellationToken)
-        {
-            LeaseIsActive = true;
-            LeaseHolder = request.Actor.SubjectId;
-            LeaseOperationKey = request.OperationKey;
-            return Task.FromResult(new CaseEditLease(
-                request.CaseId,
-                LeaseToken,
-                request.Actor.SubjectId,
-                CaseVersion,
-                FixedUtcNow.AddMinutes(5)));
-        }
-
         Task IReleaseCaseEditLease.ExecuteAsync(
             ReleaseCaseEditLeaseRequest request,
             CancellationToken cancellationToken)
@@ -447,24 +279,6 @@ public sealed partial class OperationsWebTests
             LeaseHolder = null;
             LeaseOperationKey = null;
             return Task.CompletedTask;
-        }
-
-        public Task<BoxFileRequest> ExecuteAsync(
-            RevokeBoxFileRequestCommand command,
-            CancellationToken cancellationToken = default)
-        {
-            BoxRevoke = command;
-            LeaseIsActive = false;
-            LeaseHolder = null;
-            LeaseOperationKey = null;
-            return Task.FromResult(new BoxFileRequest(
-                command.FileRequestId,
-                command.CaseId,
-                BoxFileRequestStatus.Deactivated,
-                FixedUtcNow.AddHours(-1),
-                FixedUtcNow.AddDays(1),
-                FixedUtcNow,
-                command.ExpectedFileRequestVersion + 1));
         }
 
         public Task ExecuteAsync(
