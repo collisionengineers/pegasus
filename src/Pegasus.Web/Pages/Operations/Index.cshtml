@@ -1,0 +1,150 @@
+@page "/Operations"
+@using Pegasus.Core.Operations
+@using Pegasus.Web.Presentation
+@model Pegasus.Web.Pages.Operations.IndexModel
+@{
+    ViewData["Title"] = "Operations";
+    var uploadLinks = Model.Operations.Items
+        .Where(item => item.Kind == RequestOperationKind.PegasusUploadLink)
+        .ToArray();
+    var externalWork = Model.Operations.Items
+        .Where(item => item.Kind == RequestOperationKind.ExternalWork && item.CanRetry)
+        .ToArray();
+}
+
+<header class="page-heading">
+    <h1>Operations</h1>
+    <a class="secondary-action" asp-page="/Index">Back to Dashboard</a>
+</header>
+
+@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+{
+    <div class="status-card" role="status">@Model.StatusMessage</div>
+}
+
+<section aria-labelledby="attention-title">
+    <h2 id="attention-title" class="section-label">Attention required</h2>
+    @if (externalWork.Length == 0)
+    {
+        <p class="empty-state">No retryable external work is waiting for attention.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th scope="col">Case</th><th scope="col">Work</th><th scope="col">Attempts</th><th scope="col">Failure</th><th scope="col">Action</th></tr></thead>
+                <tbody>
+                @foreach (var item in externalWork)
+                {
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
+                        <td>@OperatorLabels.Humanise(item.ExternalKind)</td>
+                        <td class="tabular">@item.AttemptCount</td>
+                        <td>@item.FailureReason</td>
+                        <td>
+                            <form method="post" asp-page-handler="RetryExternal">
+                                <input type="hidden" name="workItemId" value="@item.Id" />
+                                <input type="hidden" name="expectedAttemptCount" value="@item.AttemptCount" />
+                                <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                <button class="btn btn--dark" type="submit">Retry this work</button>
+                            </form>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="section-gap" aria-labelledby="upload-links-title">
+    <h2 id="upload-links-title" class="section-label">Active upload links</h2>
+    @if (uploadLinks.Length == 0)
+    {
+        <p class="empty-state">No active upload links are currently available.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th scope="col">Case</th><th scope="col">Created</th><th scope="col">Accepted</th><th scope="col">Expires</th><th scope="col">Action</th></tr></thead>
+                <tbody>
+                @foreach (var item in uploadLinks)
+                {
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.CaseReference</a></td>
+                        <td><time datetime="@item.LastActivityAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.LastActivityAtUtc)</time></td>
+                        <td>
+                            @if (item.MaximumByteCount is { } maximumBytes)
+                            {
+                                <span>@OperatorLabels.FileSize(item.AcceptedByteCount ?? 0) of @OperatorLabels.FileSize(maximumBytes)</span>
+                            }
+                            @if (item.MaximumFileCount is { } maximumFiles)
+                            {
+                                <span> · @item.AcceptedFileCount of @maximumFiles files</span>
+                            }
+                        </td>
+                        <td>@if (item.ExpiresAtUtc is { } expiry) { <time datetime="@expiry.ToString("O")">@OperatorLabels.OfficeTime(expiry)</time> }</td>
+                        <td>
+                            @if (item.CanRevoke)
+                            {
+                                <details>
+                                    <summary class="btn">Withdraw link</summary>
+                                    <form method="post" asp-page-handler="RevokeLink" class="row-confirm">
+                                        <input type="hidden" name="requestId" value="@item.Id" />
+                                        <input type="hidden" name="caseId" value="@item.CaseId" />
+                                        <input type="hidden" name="expectedVersion" value="@item.Version" />
+                                        <input type="hidden" name="expectedCaseVersion" value="@item.CaseVersion" />
+                                        <input type="hidden" name="operationKey" value="@IndexModel.NewOperationKey()" />
+                                        <label for="withdraw-reason-@item.Id">Reason</label>
+                                        <input id="withdraw-reason-@item.Id" name="reason" maxlength="500" required value="@(Model.PreservedRequestId == item.Id ? Model.PreservedReason : null)" />
+                                        <button class="btn btn--dark" type="submit">Withdraw link</button>
+                                    </form>
+                                </details>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="section-gap" aria-labelledby="api-title">
+    <h2 id="api-title" class="section-label">Received through API</h2>
+    @if (Model.ReceivedThroughApi.Length == 0)
+    {
+        <p class="empty-state">No Automation API receipts have been recorded.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th scope="col">File</th><th scope="col">Received</th><th scope="col">Outcome</th><th scope="col">Allocation</th><th scope="col">Case</th></tr></thead>
+                <tbody>
+                @foreach (var item in Model.ReceivedThroughApi)
+                {
+                    <tr>
+                        <td>@item.SourceFileName</td>
+                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
+                        <td>@item.Outcome @if (!string.IsNullOrWhiteSpace(item.FailureReason)) { <small class="empty-state">@item.FailureReason</small> }</td>
+                        <td>@(item.AllocationState ?? "Not started")</td>
+                        <td>@if (item.CaseId is { } caseId) { <a asp-page="/Cases/Details" asp-route-id="@caseId">@item.CaseReference</a> } else { <span class="empty-state">Not associated</span> }</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+<section class="section-gap" aria-labelledby="ai-title">
+    <h2 id="ai-title" class="section-label">AI operations</h2>
+    <p>Requesting an AI job and viewing live AI work are planned and unavailable here. The gated Automation MCP and Send-to-AI transport are not production-enabled by this screen.</p>
+</section>
+
+@if (Model.Operations.LimitReached || Model.ReceivedThroughApi.Length == 50)
+{
+    <p class="empty-state section-gap">Showing bounded operational results. Refresh for the latest activity.</p>
+}
