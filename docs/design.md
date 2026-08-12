@@ -35,8 +35,9 @@ The authenticated routes are:
 3. Upload
 4. Queues
 5. Cases
-6. Administration, visible only to authorised Administrators
-7. authenticated user/sign-out controls
+6. Operations
+7. Administration, visible only to authorised Administrators
+8. authenticated user/sign-out controls
 
 This order was settled by the operator on 2026-08-04 and shipped in releases
 6 and 7. It supersedes the earlier planned order
@@ -44,6 +45,14 @@ This order was settled by the operator on 2026-08-04 and shipped in releases
 merged into Cases, which has the identical backing query; the combined intake
 screen split into Inbox and Upload; and `Triage` stopped naming a route while
 keeping its settled meaning as a pre-case entity inside Queues.
+
+Operations is the staff-wide information workspace. It contains four sections:
+retryable external work, active internally generated upload links, read-only
+Automation API receipts, and informational AI operations copy. Empty and
+bounded-result states are explicit; API rows have no approval or mutation
+controls, and Operations has no general receipt filter or email ledger. Safe
+upload-link withdrawal and existing retry feedback retain antiforgery, reason,
+lease, version, actor, idempotency and PRG behaviour.
 
 The common hierarchy is:
 
