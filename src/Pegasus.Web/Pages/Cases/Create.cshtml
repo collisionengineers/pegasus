@@ -132,15 +132,15 @@ else
             <label asp-for="CaseType">Case type</label>
             <select asp-for="CaseType" data-case-type-selector>
                 <option value="@CaseType.Inspection">Inspection</option>
-                <option value="@CaseType.Audit">Standalone Audit</option>
+                <option value="@CaseType.Audit">Audit</option>
                 <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
             </select>
             <span asp-validation-for="CaseType" class="field-validation"></span>
         </section>
 
             <section class="panel form-panel section-gap" aria-labelledby="audit-title" data-standalone-audit-fields>
-                <h2 id="audit-title" class="section-label">Optional standalone Audit reference evidence</h2>
-                <p>Creating the Case/PO does not need these fields. Supply all of them only when recording the retained original report that establishes its Audit reference.</p>
+                <h2 id="audit-title" class="section-label">Original report</h2>
+                <p>An Audit needs the attached third-party original report and its stated Repairable or Total loss outcome.</p>
 
                 <label asp-for="StandaloneAuditAssessment">Audit assessment</label>
                 <select asp-for="StandaloneAuditAssessment">

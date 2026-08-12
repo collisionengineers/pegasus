@@ -244,7 +244,6 @@ public sealed class QdosAllocationRecoveryTests
 
     [Theory]
     [InlineData(CaseType.Inspection, "inspection")]
-    [InlineData(CaseType.Audit, "audit")]
     [InlineData(CaseType.InspectionAndAudit, "inspection_and_audit")]
     public async Task DefinitiveTypedInstructionAllocatesOneExistingCaseAggregate(
         CaseType caseType,

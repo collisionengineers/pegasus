@@ -13,8 +13,10 @@ internal sealed class EfStandaloneAuditEvidenceStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     IIntakeArtifactStore artifactStore,
     TimeProvider timeProvider)
-    : IConfirmStandaloneAuditEvidence, IStandaloneAuditEvidenceQueries
+    : IConfirmStandaloneAuditEvidence, IRecordAutomaticStandaloneAuditEvidence, IStandaloneAuditEvidenceQueries
 {
+    private const string AutomaticActor = "system-worker:automatic-standalone-audit";
+
     public async Task<StandaloneAuditEvidence?> GetForReceiptAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken)
@@ -140,6 +142,92 @@ internal sealed class EfStandaloneAuditEvidenceStore(
         return Map(evidence, isDuplicate: false);
     }
 
+    public async Task<StandaloneAuditEvidence> ExecuteAsync(
+        RecordAutomaticStandaloneAuditEvidenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.IntakeReceiptId == Guid.Empty || request.OriginalReportAssetId == Guid.Empty)
+        {
+            throw new ArgumentException("Automatic Audit evidence requires receipt and report identities.", nameof(request));
+        }
+        if (request.ExpectedIntakeVersion < 0 || !Enum.IsDefined(request.Assessment))
+        {
+            throw new ArgumentOutOfRangeException(nameof(request));
+        }
+
+        var operationKey = $"automatic-standalone-audit:{request.IntakeReceiptId:N}";
+        var reason = $"The retained original report states {request.Assessment}.";
+        var requestHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            $"{request.IntakeReceiptId:N}|{request.OriginalReportAssetId:N}|{request.Assessment}"))).ToLowerInvariant();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        var existing = await context.Set<StandaloneAuditEvidenceEntity>()
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.IntakeReceiptId == request.IntakeReceiptId, cancellationToken);
+        if (existing is not null)
+        {
+            if (existing.OriginalReportAssetId != request.OriginalReportAssetId
+                || !string.Equals(existing.Assessment, ToCode(request.Assessment), StringComparison.Ordinal))
+            {
+                throw new StandaloneAuditEvidenceConflictException(request.IntakeReceiptId);
+            }
+            return Map(existing, isDuplicate: true);
+        }
+
+        var receipt = await context.IntakeReceipts.SingleOrDefaultAsync(
+            item => item.Id == request.IntakeReceiptId, cancellationToken)
+            ?? throw new InvalidOperationException("The intake receipt does not exist.");
+        if (receipt.Version != request.ExpectedIntakeVersion)
+        {
+            throw new DbUpdateConcurrencyException(
+                "The intake receipt changed before automatic original-report evidence could be recorded.");
+        }
+        var originalReport = await context.IntakeAssets.AsNoTracking().SingleOrDefaultAsync(
+            item => item.Id == request.OriginalReportAssetId && item.IntakeReceiptId == request.IntakeReceiptId,
+            cancellationToken)
+            ?? throw new InvalidOperationException("The classified original Engineer report is not a retained asset.");
+        await RequireRetainedOriginalReportAsync(originalReport, cancellationToken);
+
+        var recordedAtUtc = timeProvider.GetUtcNow().ToUniversalTime();
+        receipt.Version++;
+        var evidence = new StandaloneAuditEvidenceEntity
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            IntakeReceipt = receipt,
+            OriginalReportAssetId = originalReport.Id,
+            Assessment = ToCode(request.Assessment),
+            ConfirmedByKind = nameof(ActorKind.SystemWorker),
+            ConfirmedBySubjectId = AutomaticActor,
+            ConfirmedByRolesJson = "[]",
+            ConfirmedAtUtc = recordedAtUtc,
+            OperationKey = operationKey,
+            Reason = reason,
+            RequestHash = requestHash,
+            ResultingReceiptVersion = receipt.Version
+        };
+        context.Set<StandaloneAuditEvidenceEntity>().Add(evidence);
+        context.IntakeReceiptEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = receipt.Id,
+            EventType = "standalone_audit_evidence_recorded",
+            Actor = AutomaticActor,
+            OccurredAtUtc = recordedAtUtc,
+            DetailsJson = JsonSerializer.Serialize(new
+            {
+                schemaVersion = 1,
+                evidenceId = evidence.Id,
+                originalReportAssetId = evidence.OriginalReportAssetId,
+                assessment = evidence.Assessment,
+                source = "literal_original_report"
+            })
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(evidence, isDuplicate: false);
+    }
+
     private async Task RequireRetainedOriginalReportAsync(
         IntakeAssetEntity asset,
         CancellationToken cancellationToken)
@@ -185,12 +273,20 @@ internal sealed class EfStandaloneAuditEvidenceStore(
         StandaloneAuditEvidenceEntity entity,
         bool isDuplicate)
     {
-        if (!string.Equals(entity.ConfirmedByKind, nameof(ActorKind.Staff), StringComparison.Ordinal)
-            || !Guid.TryParse(entity.ConfirmedBySubjectId, out var staffId)
-            || staffId == Guid.Empty)
+        var staffId = Guid.Empty;
+        if (string.Equals(entity.ConfirmedByKind, nameof(ActorKind.Staff), StringComparison.Ordinal))
+        {
+            if (!Guid.TryParse(entity.ConfirmedBySubjectId, out staffId) || staffId == Guid.Empty)
+            {
+                throw new InvalidDataException(
+                    "The retained standalone Audit evidence has an invalid confirming staff identity.");
+            }
+        }
+        else if (!string.Equals(entity.ConfirmedByKind, nameof(ActorKind.SystemWorker), StringComparison.Ordinal)
+            || !string.Equals(entity.ConfirmedBySubjectId, AutomaticActor, StringComparison.Ordinal))
         {
             throw new InvalidDataException(
-                "The retained standalone Audit evidence has an invalid confirming staff identity.");
+                "The retained standalone Audit evidence has an invalid recording identity.");
         }
 
         return new(

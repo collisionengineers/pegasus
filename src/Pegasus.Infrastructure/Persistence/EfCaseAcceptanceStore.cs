@@ -60,6 +60,13 @@ public sealed class EfCaseAcceptanceStore(
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
+        if (request.CaseType == CaseType.Audit
+            && request.StandaloneAuditEvidenceId is null)
+        {
+            throw new ArgumentException(
+                "A standalone Audit requires retained original-report evidence.",
+                nameof(request));
+        }
         if (request.StandaloneAuditEvidenceId == Guid.Empty)
         {
             throw new ArgumentException(
@@ -451,9 +458,18 @@ public sealed class EfCaseAcceptanceStore(
                 cancellationToken)
             ?? throw new InvalidOperationException(
                 "The standalone Audit evidence is not retained for this intake receipt.");
-        if (!string.Equals(evidence.ConfirmedByKind, "Staff", StringComparison.Ordinal)
-            || !Guid.TryParse(evidence.ConfirmedBySubjectId, out var staffId)
-            || staffId == Guid.Empty
+        var hasValidStaffRecord = string.Equals(evidence.ConfirmedByKind, "Staff", StringComparison.Ordinal)
+            && Guid.TryParse(evidence.ConfirmedBySubjectId, out var staffId)
+            && staffId != Guid.Empty;
+        var hasAutomaticLiteralRecord = string.Equals(
+                evidence.ConfirmedByKind,
+                nameof(ActorKind.SystemWorker),
+                StringComparison.Ordinal)
+            && string.Equals(
+                evidence.ConfirmedBySubjectId,
+                "system-worker:automatic-standalone-audit",
+                StringComparison.Ordinal);
+        if ((!hasValidStaffRecord && !hasAutomaticLiteralRecord)
             || evidence.ResultingReceiptVersion > request.ExpectedIntakeVersion
             || evidence.RequestHash.Length != 64
             || evidence.RequestHash.Any(character => !char.IsAsciiHexDigit(character)))

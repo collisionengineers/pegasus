@@ -1119,7 +1119,7 @@ public sealed class EfCaseWorkflowStore(
     {
         var isCustodyConfirmed =
             string.Equals(caseEntity.CustodyState, "confirmed", StringComparison.Ordinal)
-            && (string.IsNullOrWhiteSpace(caseEntity.AuditReference)
+            && (!string.Equals(caseEntity.Type, "audit", StringComparison.Ordinal)
                 || (!string.IsNullOrWhiteSpace(caseEntity.AuditCustodyRemoteId)
                     && caseEntity.AuditCustodyConfirmedAtUtc is not null));
         var hasBlockingExternalWork = await context.ExternalWorkItems

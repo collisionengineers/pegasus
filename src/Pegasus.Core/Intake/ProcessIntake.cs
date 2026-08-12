@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
+using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Intake;
 
@@ -11,7 +12,8 @@ public sealed class ProcessIntake(
     IMailRoutePolicy mailRoutePolicy,
     IEnumerable<IMailClassificationPolicy> mailClassificationPolicies,
     EvaluateIntakeCaseMatch caseMatchEvaluator,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
@@ -57,6 +59,10 @@ public sealed class ProcessIntake(
 
             if (!replaceExisting)
             {
+                await RecordAutomaticAuditEvidenceAsync(
+                    existing,
+                    existing.MailClassificationDecision,
+                    cancellationToken);
                 activity?.SetTag("intake.reader_result", "not_read_replay");
                 activity?.SetTag("intake.reader_key", existing.SourceReaderKey);
                 RecordTelemetry(activity, existing, "replay", started);
@@ -146,6 +152,18 @@ public sealed class ProcessIntake(
             safeSource.SourceIdentity.Channel,
             processedAtUtc,
             cancellationToken);
+        if (assessment.Decision == IntakeDecision.CaseCreated
+            && assessment.MailClassificationDecision is
+                { CaseType: CaseType.Audit, StandaloneAuditReport: null })
+        {
+            assessment = assessment with
+            {
+                Decision = IntakeDecision.NeedsSorting,
+                DecisionReason = "A standalone Audit instruction requires one attached original report stating Repairable or Total loss.",
+                InstructionDraft = null,
+                MissingFields = []
+            };
+        }
         activity?.SetTag("intake.policy_key", assessment.ExtractionPolicyKey);
         activity?.SetTag("intake.policy_version", assessment.ExtractionPolicyVersion);
         activity?.SetTag(
@@ -214,8 +232,40 @@ public sealed class ProcessIntake(
             RecordFailureTelemetry(activity, "persistence_failure", started);
             throw;
         }
+        await RecordAutomaticAuditEvidenceAsync(
+            receipt,
+            assessment.MailClassificationDecision,
+            cancellationToken);
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
+    }
+
+    private async Task RecordAutomaticAuditEvidenceAsync(
+        IntakeReceipt receipt,
+        MailClassificationResult? classification,
+        CancellationToken cancellationToken)
+    {
+        if (classification?.StandaloneAuditReport is not { } report)
+        {
+            return;
+        }
+
+        var reportAsset = receipt.AssetRecords.SingleOrDefault(asset =>
+            string.Equals(asset.SourceLabel, report.AssetSourceLabel, StringComparison.Ordinal));
+        if (reportAsset is null)
+        {
+            throw new InvalidDataException(
+                "The classified Audit report is not retained as an intake attachment.");
+        }
+        if (automaticStandaloneAuditEvidence is null)
+        {
+            throw new InvalidOperationException(
+                "Automatic Audit evidence recording is not configured.");
+        }
+
+        await automaticStandaloneAuditEvidence.ExecuteAsync(
+            new(receipt.Id, receipt.Version, reportAsset.Id, report.Assessment),
+            cancellationToken);
     }
 
     private async Task<IntakeAssessment> AssessAsync(

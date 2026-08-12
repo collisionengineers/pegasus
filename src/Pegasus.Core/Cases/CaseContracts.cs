@@ -161,6 +161,12 @@ public sealed record ConfirmStandaloneAuditEvidenceRequest(
     ActionActor Actor,
     string OperationKey,
     string Reason);
+
+public sealed record RecordAutomaticStandaloneAuditEvidenceRequest(
+    Guid IntakeReceiptId,
+    long ExpectedIntakeVersion,
+    Guid OriginalReportAssetId,
+    AuditAssessment Assessment);
 public static class StandaloneAuditEvidencePolicy
 {
     public static Guid ValidateConfirmation(ConfirmStandaloneAuditEvidenceRequest request)
@@ -220,6 +226,13 @@ public interface IConfirmStandaloneAuditEvidence
 {
     Task<StandaloneAuditEvidence> ExecuteAsync(
         ConfirmStandaloneAuditEvidenceRequest request,
+        CancellationToken cancellationToken);
+}
+
+public interface IRecordAutomaticStandaloneAuditEvidence
+{
+    Task<StandaloneAuditEvidence> ExecuteAsync(
+        RecordAutomaticStandaloneAuditEvidenceRequest request,
         CancellationToken cancellationToken);
 }
 

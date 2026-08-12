@@ -57,6 +57,13 @@ public sealed class AcceptIntake(
         }
 
         var principalCode = CasePrincipalCode.Normalize(request.PrincipalCode);
+        if (request.CaseType == CaseType.Audit
+            && request.StandaloneAuditEvidenceId is null)
+        {
+            throw new ArgumentException(
+                "A standalone Audit requires its retained original-report evidence before identity allocation.",
+                nameof(request));
+        }
         if (request.StandaloneAuditEvidenceId == Guid.Empty)
         {
             throw new ArgumentException(
