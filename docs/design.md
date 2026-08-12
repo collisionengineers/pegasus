@@ -429,9 +429,11 @@ named exactly that wait, and was removed rather than renamed:
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
 manual acceptance gate", and the [operator notes](operator-notes.md) send only ambiguous
 provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
-Definitive typed Inspection and Inspection + Audit intake therefore attempts allocation at
-processing time, entering `Not ready` when ordinary detail is thin; incomplete ordinary detail
-is never a bar to allocation. A failure is retained separately and requires a reasoned staff
+Every definitive typed instruction attempts allocation at processing time. An Audit is definitive
+only when its separate original report supplies one literal outcome: `repairable` or `total loss`.
+An Audit instruction with no separate report, a conflicting report, or an unclear outcome is
+`Needs sorting`; it allocates neither a Case/PO nor an Audit reference.
+Incomplete ordinary detail is never a bar to allocation. A failure is retained separately and requires a reasoned staff
 retry after correction. The persisted `draft_ready` code stays read-compatible and resolves to
 `CaseCreated`, the same processing outcome, without proving that allocation succeeded.
 `Review` and `Ready to review` denote the Case stage before the report is with an Engineer and
@@ -443,11 +445,12 @@ must never name an intake state.
 | --- | --- | --- |
 | Definitive authorised instruction with instruction and image completeness satisfied | `Review` | Create exactly one case/reference through shared fail-closed acceptance |
 | Definitive authorised instruction without both completeness requirements | `Not ready` | Create exactly one incomplete case/reference |
-| Staff-resolved acceptance with explicit confirmation of both completeness requirements | `Review` | Create exactly one case/reference |
-| Staff-resolved acceptance without explicit confirmation of both requirements | `Not ready` | Create exactly one incomplete case/reference |
+| Audit instruction without a separate original report carrying one literal outcome | `Needs sorting` | No Case/PO or reference; preserve the received evidence for sorting |
+| Staff-resolved intake with both completeness requirements recorded | `Review` | Create exactly one case/reference |
+| Staff-resolved intake without both completeness requirements recorded | `Not ready` | Create exactly one incomplete case/reference |
 | Explicit confirmation of both requirements on an existing `Not ready` case | `Review` | Transition the existing case; do not create another case/reference |
 | `Blocked intake` | Shown as `Blocked`, with required reason | Persist pre-case intake work only; no case/reference |
-| `Needs sorting`, unsupported/incomplete source, ambiguity, custody/integrity/replay/occurrence conflict or missing evidence | Needs sorting or named pre-case failure | No case/reference |
+| `Needs sorting`, unsupported/incomplete source, identity-critical ambiguity, custody/integrity/replay/occurrence conflict or missing identity evidence | Needs sorting or named pre-case failure | No case/reference |
 | Resolve/retry of blocked or failed intake | Re-enter ordinary fail-closed intake | Create exactly one case/reference only if the ordinary gates then pass |
 
 ## Component map

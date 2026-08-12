@@ -57,9 +57,9 @@ the authority rule.
 
 ## Product invariants
 
-- Fail closed before case creation or reference allocation when processing,
-  limits, principal identity, or standalone Audit evidence is incomplete or
-  ambiguous.
+- Fail closed before case creation or normal Case/PO allocation when processing,
+  limits, or principal identity are incomplete or ambiguous. Missing or
+  ambiguous standalone Audit evidence withholds only the later Audit reference.
 - Principal and reference are immutable after allocation. Wrong-principal work
   closes as `Created in error` with a reason and linked replacement; neither
   reference is reused and the original never reopens.

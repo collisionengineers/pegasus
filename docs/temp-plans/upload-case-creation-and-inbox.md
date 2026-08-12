@@ -81,8 +81,8 @@ administrator cannot add a mailbox or stop one being polled.
 4. A new `Pages/Cases/Create.cshtml` ("New case") takes a receipt id and shows
    what extraction found — the `InstructionReviewField` set with its
    candidates and provenance, editable — plus principal, case type,
-   completeness, inspection address resolution, and standalone Audit evidence
-   where the type demands it. Confirming posts corrections through
+   completeness, inspection address resolution, and optional standalone Audit
+   reference evidence. Confirming posts corrections through
    `IResolveIntake` with `IntakeResolutionKind.CorrectDraft` and then allocates
    through `IAcceptIntake`. Both are existing Core use cases; no acceptance or
    correction rule is reimplemented in Web.
@@ -196,8 +196,9 @@ caller, not a deployment.
   mark, or delete anything in a mailbox, and the read/unread state it shows is
   the retained one.
 - No case deletion, no reference reuse, no reopening without a reason.
-  Allocation stays fail-closed on incomplete or ambiguous principal identity,
-  limits, or standalone Audit evidence.
+  Allocation stays fail-closed on incomplete or ambiguous principal identity
+  or limits; standalone Audit evidence withholds only the later Audit
+  reference.
 - `corpus/` and `workspaces/` are untouched.
 
 ## Landed so far

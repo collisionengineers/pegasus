@@ -15,7 +15,7 @@ namespace Pegasus.Core.Intake;
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
     public const string Key = "qdos_mail_classification";
-    public const int Version = 2;
+    public const int Version = 3;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string AuditNotificationTitle = "AUDIT REPORT NOTIFICATION";
@@ -163,14 +163,70 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                     : CaseType.Inspection
                 : null;
 
+        var standaloneAuditReport = caseType == CaseType.Audit
+            ? EvaluateStandaloneAuditReport(readResult)
+            : null;
+
         return MailClassificationResult.Classified(
             category,
             predicates,
             "Exactly one accepted classification predicate family matched.",
             Key,
             Version,
-            caseType);
+            caseType,
+            standaloneAuditReport);
     }
+
+    private static StandaloneAuditReportEvaluation? EvaluateStandaloneAuditReport(
+        IntakeSourceReadResult readResult)
+    {
+        var attachments = readResult.Content
+            .Where(fragment => fragment.Source is IntakeEvidenceSource.DocumentContent or IntakeEvidenceSource.PdfContent)
+            .Where(fragment => !IsNestedMessageContent(fragment))
+            .Where(fragment => fragment.SourceLabel.Contains(", attachment ", StringComparison.Ordinal))
+            .GroupBy(fragment => AssetSourceLabel(fragment.SourceLabel), StringComparer.Ordinal)
+            .Select(group => new
+            {
+                AssetSourceLabel = group.Key,
+                HasInstruction = group.Any(fragment => fragment.Text.Contains(AuditNotificationTitle, StringComparison.Ordinal)),
+                HasRepairable = group.Any(fragment => ContainsRepairable(fragment.Text)),
+                HasTotalLoss = group.Any(fragment => ContainsTotalLoss(fragment.Text))
+            })
+            .ToArray();
+
+        // An Audit is not inferred from the email body or from a lone
+        // notification.  It requires two distinct document attachments: the
+        // generated Audit instruction and the original report being audited.
+        // The report itself must say one, and only one, of the two outcomes.
+        if (attachments.Length < 2 || attachments.Count(group => group.HasInstruction) != 1)
+        {
+            return null;
+        }
+
+        var outcomes = attachments
+            .Where(group => !group.HasInstruction && group.HasRepairable != group.HasTotalLoss)
+            .ToArray();
+
+        return outcomes.Length == 1
+            ? new(
+                outcomes[0].AssetSourceLabel,
+                outcomes[0].HasRepairable ? AuditAssessment.Repairable : AuditAssessment.TotalLoss)
+            : null;
+    }
+
+    private static string AssetSourceLabel(string sourceLabel)
+    {
+        var pageIndex = sourceLabel.IndexOf(", page ", StringComparison.Ordinal);
+        return pageIndex < 0 ? sourceLabel : sourceLabel[..pageIndex];
+    }
+
+    private static bool ContainsRepairable(string text) =>
+        RepairableLiteralRegex().IsMatch(text)
+        && !NegatedRepairableLiteralRegex().IsMatch(text);
+
+    private static bool ContainsTotalLoss(string text) =>
+        TotalLossLiteralRegex().IsMatch(text)
+        && !NegatedTotalLossLiteralRegex().IsMatch(text);
 
     private static string[] Texts(
         IntakeSourceReadResult readResult,
@@ -196,4 +252,19 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
 
     [GeneratedRegex(@"^\s*RE\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReplyPrefixRegex();
+
+    // A word occurrence is not automatically a report outcome: "unrepairable",
+    // "not repairable", and "not a total loss" must never allocate a permanent
+    // Audit identity. The report is accepted only on an unnegated literal.
+    [GeneratedRegex(@"\brepairable\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex RepairableLiteralRegex();
+
+    [GeneratedRegex(@"\b(?:not|no)\b(?:\s+(?:a|the))?[\s-]+repairable\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NegatedRepairableLiteralRegex();
+
+    [GeneratedRegex(@"\btotal[\s-]+loss\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex TotalLossLiteralRegex();
+
+    [GeneratedRegex(@"\b(?:not|no)\b(?:\s+(?:a|the))?[\s-]+total[\s-]+loss\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex NegatedTotalLossLiteralRegex();
 }

@@ -7,10 +7,6 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
-- Show the proven original sender for a forwarded Inbox message while retaining
-  the Collision Engineers forwarder as provenance (branch
-  task/inbox-effective-forwarded-sender, taken 2026-08-12, by Codex).
-
 
 ## Merged, not deployed
 

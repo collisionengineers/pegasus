@@ -201,6 +201,7 @@ public sealed class CaseTaskArchivePersistenceTests
     public async Task ArchiveRequiresConfirmedAuditCustodyAndCompletedAuditCustodyWork()
     {
         await using var harness = await Harness.CreateAsync();
+        await harness.SetCaseTypeAsync(harness.TaskCaseId, "audit");
         var request = await PrepareArchiveRequestAsync(harness, "audit-custody");
         await harness.SetAuditCustodyAsync(harness.TaskCaseId, confirmed: false);
         var auditCustodyWorkId = await harness.AddExternalWorkAsync(
@@ -618,7 +619,7 @@ public sealed class CaseTaskArchivePersistenceTests
     }
 
     [Fact]
-    public async Task EngineerFindingAllocatesAndProcessesOneNestedAuditCustodyWorkAcrossReplayAndConcurrency()
+    public async Task EngineerFindingKeepsTheLaterAuditBoxFolderManualAcrossReplayAndConcurrency()
     {
         await using var harness = await Harness.CreateAsync();
         var custody = harness.Services.GetRequiredService<ICaseCustody>();
@@ -661,20 +662,11 @@ public sealed class CaseTaskArchivePersistenceTests
 
         Assert.Equal(results[0], results[1]);
         Assert.NotNull(results[0].AuditReference);
-        Assert.Equal(1L, await harness.ScalarAsync<long>(
+        Assert.Equal(0L, await harness.ScalarAsync<long>(
             $"SELECT COUNT_BIG(*) FROM ExternalWorkItems WHERE CaseId = '{harness.FindingCaseId:D}' AND Kind = '{ExternalWorkKinds.CreateAuditReferenceCustody}'"));
-        var workId = await harness.ScalarAsync<Guid>(
-            $"SELECT Id FROM ExternalWorkItems WHERE CaseId = '{harness.FindingCaseId:D}' AND Kind = '{ExternalWorkKinds.CreateAuditReferenceCustody}'");
-
-        var processor = harness.Services.GetRequiredService<IProcessQueuedCustody>();
-        await processor.ExecuteAsync(workId, default);
-        await processor.ExecuteAsync(workId, default);
-
-        Assert.Equal("completed", await harness.ScalarAsync<string>(
-            $"SELECT State FROM ExternalWorkItems WHERE Id = '{workId:D}'"));
-        Assert.Equal(1L, await harness.ScalarAsync<long>(
+        Assert.Equal(0L, await harness.ScalarAsync<long>(
             $"SELECT COUNT_BIG(*) FROM CaseHistory WHERE CaseId = '{harness.FindingCaseId:D}' AND EventType = 'audit_custody_confirmed'"));
-        Assert.False(string.IsNullOrWhiteSpace(await harness.ScalarAsync<string>(
+        Assert.True(string.IsNullOrWhiteSpace(await harness.ScalarAsync<string>(
             $"SELECT AuditCustodyRemoteId FROM Cases WHERE Id = '{harness.FindingCaseId:D}'")));
     }
 
@@ -925,6 +917,9 @@ public sealed class CaseTaskArchivePersistenceTests
 
         public Task SetCustodyStateAsync(Guid caseId, string state) => database.ExecuteAsync(
             $"UPDATE Cases SET CustodyState = '{state}' WHERE Id = '{caseId:D}'");
+
+        public Task SetCaseTypeAsync(Guid caseId, string type) => database.ExecuteAsync(
+            $"UPDATE Cases SET Type = '{type}' WHERE Id = '{caseId:D}'");
 
         public async Task<Guid> AddExternalWorkAsync(
             Guid caseId,

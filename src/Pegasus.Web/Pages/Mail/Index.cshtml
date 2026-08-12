@@ -82,8 +82,12 @@
                                 <span class="vh">Unread</span>
                             }
                         </strong>
-                        @if (item.SenderAddress is { Length: > 0 } address
-                             && !string.Equals(address, Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item), StringComparison.Ordinal))
+                        @if (Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item) is { } forwarder)
+                        {
+                            <small>Forwarded by @forwarder</small>
+                        }
+                        else if (item.SenderAddress is { Length: > 0 } address
+                                 && !string.Equals(address, Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item), StringComparison.Ordinal))
                         {
                             <small>@address</small>
                         }
