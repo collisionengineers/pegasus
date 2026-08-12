@@ -118,20 +118,4 @@
         render();
     });
 
-    // The standalone-Audit evidence fields stay present without JavaScript so
-    // the server workflow remains reachable. With JavaScript they are hidden
-    // only when another case type is selected.
-    document.querySelectorAll('[data-case-type-selector]').forEach(function (selector) {
-        var form = selector.closest('form');
-        var fields = form && form.querySelector('[data-standalone-audit-fields]');
-        if (!fields) {
-            return;
-        }
-
-        var render = function () {
-            fields.hidden = selector.value !== 'Audit';
-        };
-        selector.addEventListener('change', render);
-        render();
-    });
 }());

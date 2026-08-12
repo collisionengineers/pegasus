@@ -458,9 +458,6 @@ public sealed class EfCaseAcceptanceStore(
                 cancellationToken)
             ?? throw new InvalidOperationException(
                 "The standalone Audit evidence is not retained for this intake receipt.");
-        var hasValidStaffRecord = string.Equals(evidence.ConfirmedByKind, "Staff", StringComparison.Ordinal)
-            && Guid.TryParse(evidence.ConfirmedBySubjectId, out var staffId)
-            && staffId != Guid.Empty;
         var hasAutomaticLiteralRecord = string.Equals(
                 evidence.ConfirmedByKind,
                 nameof(ActorKind.SystemWorker),
@@ -469,13 +466,13 @@ public sealed class EfCaseAcceptanceStore(
                 evidence.ConfirmedBySubjectId,
                 "system-worker:automatic-standalone-audit",
                 StringComparison.Ordinal);
-        if ((!hasValidStaffRecord && !hasAutomaticLiteralRecord)
+        if (!hasAutomaticLiteralRecord
             || evidence.ResultingReceiptVersion > request.ExpectedIntakeVersion
             || evidence.RequestHash.Length != 64
             || evidence.RequestHash.Any(character => !char.IsAsciiHexDigit(character)))
         {
             throw new InvalidDataException(
-                "The retained standalone Audit confirmation is incomplete or invalid.");
+                "The retained Audit evidence is incomplete or invalid.");
         }
 
         var report = evidence.OriginalReportAsset;
@@ -488,7 +485,7 @@ public sealed class EfCaseAcceptanceStore(
             || report.ContentHash.Any(character => !char.IsAsciiHexDigit(character)))
         {
             throw new InvalidDataException(
-                "The retained standalone Audit confirmation does not identify a valid original Engineer report.");
+                "The retained Audit evidence does not identify a valid original Engineer report.");
         }
 
         _ = ParseAuditAssessment(evidence.Assessment);

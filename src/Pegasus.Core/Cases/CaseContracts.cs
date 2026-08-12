@@ -152,81 +152,16 @@ public sealed record StandaloneAuditEvidence(
     long ReceiptVersion,
     bool IsDuplicate);
 
-public sealed record ConfirmStandaloneAuditEvidenceRequest(
-    Guid EvidenceId,
-    Guid IntakeReceiptId,
-    long ExpectedIntakeVersion,
-    Guid OriginalReportAssetId,
-    AuditAssessment Assessment,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason);
-
 public sealed record RecordAutomaticStandaloneAuditEvidenceRequest(
     Guid IntakeReceiptId,
     long ExpectedIntakeVersion,
     Guid OriginalReportAssetId,
     AuditAssessment Assessment);
-public static class StandaloneAuditEvidencePolicy
-{
-    public static Guid ValidateConfirmation(ConfirmStandaloneAuditEvidenceRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        if (request.EvidenceId == Guid.Empty
-            || request.IntakeReceiptId == Guid.Empty
-            || request.OriginalReportAssetId == Guid.Empty)
-        {
-            throw new ArgumentException(
-                "Standalone Audit evidence requires stable receipt, report, and evidence identities.",
-                nameof(request));
-        }
-        if (request.ExpectedIntakeVersion < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request),
-                "The expected intake version cannot be negative.");
-        }
-        if (!Enum.IsDefined(request.Assessment))
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request),
-                "The original-report assessment is invalid.");
-        }
-        ArgumentNullException.ThrowIfNull(request.Actor);
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
-        if (request.Actor.Kind != ActorKind.Staff
-            || !Guid.TryParse(request.Actor.SubjectId, out var staffId)
-            || staffId == Guid.Empty)
-        {
-            throw new InvalidOperationException(
-                "Standalone Audit evidence must be confirmed by an authenticated staff member.");
-        }
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.OperationKey);
-        ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
-        if (request.OperationKey.Length > 100 || request.Reason.Length > 500)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(request),
-                "The evidence operation key or reason exceeds its supported length.");
-        }
-
-        return staffId;
-    }
-}
-
-
 public sealed class StandaloneAuditEvidenceConflictException(Guid intakeReceiptId)
     : InvalidOperationException(
         $"Standalone Audit evidence for intake receipt '{intakeReceiptId}' was already confirmed with different evidence.")
 {
     public Guid IntakeReceiptId { get; } = intakeReceiptId;
-}
-
-public interface IConfirmStandaloneAuditEvidence
-{
-    Task<StandaloneAuditEvidence> ExecuteAsync(
-        ConfirmStandaloneAuditEvidenceRequest request,
-        CancellationToken cancellationToken);
 }
 
 public interface IRecordAutomaticStandaloneAuditEvidence

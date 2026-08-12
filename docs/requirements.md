@@ -83,7 +83,7 @@ Required outcomes:
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
 - retain source identity, chronology, custody, decisions, corrections, and action history;
-- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, checks, or standalone-Audit assessment as `Not ready`;
+- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`; an Audit's original report and literal outcome remain identity-critical as stated below;
 - keep business decisions in `Pegasus.Core`, with infrastructure, UI, Worker, MCP, imported workspaces, skills, prompts, and models subordinate to Core policy and human approval;
 - support deterministic, repeatable local verification and separately authorised live verification;
 - preserve deferred capability seams and data identities without building dormant capability.
@@ -187,7 +187,8 @@ images, or mandatory external checks retain that Case as `Not ready`; they do
 not form another pre-Case acceptance gate. An Audit's retained original report
 is identity-critical: without one separate report with one literal outcome,
 Pegasus cannot determine whether the reference is `a.` or `ap.` and enters
-`Needs sorting`. If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
+`Needs sorting`. The manual case-create screen does not offer Audit; it is
+created only by this retained-email route. If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution
 evidence and each retry result. It never allocates a reusable identity as a
