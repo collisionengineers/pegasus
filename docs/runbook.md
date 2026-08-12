@@ -3,8 +3,9 @@
 This file owns executable setup, local development, database, testing, release,
 approval, monitoring, recovery, and maintenance procedures. Current production,
 release, evidence, monitoring, and recovery state is recorded in
-[operations](operations.md); repository workflow and evidence tiers are owned by
-[engineering](engineering.md).
+[operations](operations.md). The task operating procedure is owned by
+[`AGENTS.md`](../AGENTS.md#repository-task-workflow); engineering evidence
+tiers are owned by [engineering](engineering.md#required-evidence-tiers).
 
 ## Supported platform
 
@@ -1085,9 +1086,9 @@ Predecessor retirement executed on 2026-08-02 through the exact verified manifes
 
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
-Tracking and staleness policy is owned by the [`NOW.md`](../NOW.md) rules
-footer; task execution and Git safety are owned by the
-[engineering workflow](engineering.md#task-workflow).
+The current queue is [`NOW.md`](../NOW.md); task execution, tracking,
+staleness, and Git safety are owned by the
+[repository task workflow](../AGENTS.md#repository-task-workflow).
 
 ## Maintenance
 

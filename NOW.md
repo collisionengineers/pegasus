@@ -1,11 +1,6 @@
 # NOW — updated 2026-08-12
 
-(Anything here older than 14 days is stale: delete it, don't investigate it.)
-
 ## Doing (one line per live claim)
-
-Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
-<agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
 - Rework Received as API/upload information and management (branch
   task/received-information-rework, taken 2026-08-12, by Codex)
@@ -529,17 +524,3 @@ Explicitly NOT on the path (allocated but non-blocking): MCP-01–04, INT-17 VRM
 ---
 
 Roadmap: [docs/capabilities.md](docs/capabilities.md) · Questions: [docs/open-decisions.md](docs/open-decisions.md) · How-to: [docs/runbook.md](docs/runbook.md)
-
-Rules: the claimable unit is a task line — goal text first, capability IDs
-when they apply, several small features may share one line; one task = one
-worktree = one PR. The authoritative copy of this file is the one on
-`origin/dev` after a fetch. Claiming, releasing, abandoning, and stale-claim
-removal happen through the task workflow owned by
-[engineering](docs/engineering.md#task-workflow); claim and maintenance
-pushes to `dev` touch only this file and `docs/temp-plans/` deletions.
-Staleness ladder, removable by anyone: a claim whose `task/<slug>` branch was
-never pushed within 48 hours; a `Doing` line older than 14 days with no
-branch activity; an orphaned `docs/temp-plans/` file with no matching `Doing`
-line. The date above is bumped whenever this file is touched. No other file
-may contain a "current status" or "next steps" section; transient task plans
-under `docs/temp-plans/` are the one exception.
