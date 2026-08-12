@@ -104,6 +104,8 @@ public sealed class GetRequestOperations(
         {
             if (item.Id == Guid.Empty ||
                 item.CaseId == Guid.Empty ||
+                string.IsNullOrWhiteSpace(item.CaseReference) ||
+                string.IsNullOrWhiteSpace(item.PrincipalCode) ||
                 item.CaseVersion < 0 ||
                 !Enum.IsDefined(item.Kind) ||
                 !Enum.IsDefined(item.State) ||
@@ -121,6 +123,13 @@ public sealed class GetRequestOperations(
             {
                 throw new InvalidDataException(
                     "An active request edit lease must have a complete future lease projection.");
+            }
+            if (item.Kind == RequestOperationKind.PegasusUploadLink &&
+                item.State == RequestOperationState.Active &&
+                (item.ExpiresAtUtc is not { } uploadExpiry || uploadExpiry <= nowUtc))
+            {
+                throw new InvalidDataException(
+                    "An active upload link must have a future expiry in the request projection.");
             }
             if (item.CaseEditLeaseState != RequestCaseEditLeaseState.Active &&
                 item.ActiveEditLease is not null)

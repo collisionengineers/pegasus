@@ -24,14 +24,6 @@ public sealed class QdosAllocationRecoveryBrowserTests
                 .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
         }
 
-        await support.GoToAsync("/Received");
-        var strandedRow = support.Page.Locator("tbody tr", new() { HasText = "Case not created" });
-        Assert.True(await strandedRow.IsVisibleAsync());
-        Assert.DoesNotContain(
-            receipt.Id.ToString("D"),
-            await strandedRow.InnerTextAsync(),
-            StringComparison.OrdinalIgnoreCase);
-
         var response = await support.GoToAsync($"/Received/{receipt.Id:D}");
 
         Assert.Equal(200, response.Status);
@@ -172,12 +164,6 @@ public sealed class QdosAllocationRecoveryBrowserTests
         Assert.DoesNotContain(caseId.ToString("D"), successReceiptText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Retry case creation", successReceiptText, StringComparison.OrdinalIgnoreCase);
 
-        await support.GoToAsync("/Received");
-        var successRow = support.Page.Locator("tbody tr", new() { HasText = caseReference });
-        Assert.True(await successRow.IsVisibleAsync());
-        var successRowText = await successRow.InnerTextAsync();
-        Assert.DoesNotContain(receipt.Id.ToString("D"), successRowText, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(caseId.ToString("D"), successRowText, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

@@ -36,18 +36,11 @@
                 <span>Pegasus</span>
             </a>
             <nav class="nav-links" aria-label="Primary">
-                <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index", "/Operations")">Dashboard</a>
+                <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index")">Dashboard</a>
                 @if (inboxEnabled)
                 {
-                    @* Two items, because they are two things. Inbox is the mail
-                       the estate polled; Received items is the record of what
-                       processing made of it. One nav item pointing at the second
-                       and calling it the first is what this task set out to
-                       stop. CurrentWhen compares the page path, not the URL, so
-                       these prefixes are the folder names and stay correct after
-                       the route rename. *@
                     <a class="nav-link" asp-page="/Mail/Index" aria-current="@CurrentWhen("/Mail")">Inbox</a>
-                    <a class="nav-link" asp-page="/Intake/Index" aria-current="@CurrentWhen("/Intake", "/ImageIntake")">Received items</a>
+                    <a class="nav-link" asp-page="/Operations/Index" aria-current="@CurrentWhen("/Operations")">Operations</a>
                     <a class="nav-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">Upload</a>
                 }
                 <a class="nav-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">Queues</a>

@@ -243,80 +243,6 @@ internal sealed class EfOperationsStore(
         var sourceLimit = checked(maximumItems + 1);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var boxCreatedIds = await context.Set<BoxFileRequestEntity>()
-            .AsNoTracking()
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(sourceLimit)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var boxDeactivatedIds = await context.Set<BoxFileRequestEntity>()
-            .AsNoTracking()
-            .Where(item => item.DeactivatedAtUtc != null)
-            .OrderByDescending(item => item.DeactivatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(sourceLimit)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var boxCandidateIds = boxCreatedIds.Concat(boxDeactivatedIds).Distinct().ToArray();
-        var boxRows = await (
-                from request in context.Set<BoxFileRequestEntity>().AsNoTracking()
-                join caseRecord in context.Cases.AsNoTracking()
-                    on request.CaseId equals caseRecord.Id
-                join workflow in context.CaseWorkflows.AsNoTracking()
-                    on request.CaseId equals workflow.CaseId
-                where boxCandidateIds.Contains(request.Id)
-                select new BoxRequestRow(
-                    request.Id,
-                    request.Status,
-                    request.CaseId,
-                    caseRecord.Reference,
-                    caseRecord.Principal.Code,
-                    request.CreatedAtUtc,
-                    request.ExpiresAtUtc,
-                    request.DeactivatedAtUtc,
-                    request.Version,
-                    workflow.Version,
-                    workflow.EditLeaseTokenHash != null,
-                    workflow.EditLeaseHolder,
-                    workflow.EditLeaseOperationKey,
-                    workflow.EditLeaseExpiresAtUtc,
-                    workflow.ArchivedAtUtc != null))
-            .ToListAsync(cancellationToken);
-
-        var uploadCreatedIds = await context.Set<RequestUploadLinkEntity>()
-            .AsNoTracking()
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(sourceLimit)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var uploadRevokedIds = await context.Set<RequestUploadLinkEntity>()
-            .AsNoTracking()
-            .Where(item => item.RevokedAtUtc != null)
-            .OrderByDescending(item => item.RevokedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(sourceLimit)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var uploadReceiptIds = await context.Set<RequestUploadReceiptEntity>()
-            .AsNoTracking()
-            .GroupBy(item => item.RequestId)
-            .Select(group => new
-            {
-                RequestId = group.Key,
-                LastReceiptAtUtc = group.Max(item => item.ReceivedAtUtc)
-            })
-            .OrderByDescending(item => item.LastReceiptAtUtc)
-            .ThenBy(item => item.RequestId)
-            .Take(sourceLimit)
-            .Select(item => item.RequestId)
-            .ToListAsync(cancellationToken);
-        var uploadCandidateIds = uploadCreatedIds
-            .Concat(uploadRevokedIds)
-            .Concat(uploadReceiptIds)
-            .Distinct()
-            .ToArray();
         var uploadRows = await (
                 from request in context.Set<RequestUploadLinkEntity>().AsNoTracking()
                 join caseRecord in context.Cases.AsNoTracking()
@@ -326,7 +252,10 @@ internal sealed class EfOperationsStore(
                 let lastReceiptAtUtc = context.Set<RequestUploadReceiptEntity>()
                     .Where(receipt => receipt.RequestId == request.Id)
                     .Max(receipt => (DateTimeOffset?)receipt.ReceivedAtUtc)
-                where uploadCandidateIds.Contains(request.Id)
+                let activityAtUtc = lastReceiptAtUtc ?? request.CreatedAtUtc
+                where request.Status == RequestUploadStatus.Active
+                    && request.ExpiresAtUtc > nowUtc
+                orderby activityAtUtc descending, request.Id
                 select new UploadRequestRow(
                     request.Id,
                     request.Status,
@@ -347,41 +276,17 @@ internal sealed class EfOperationsStore(
                     workflow.EditLeaseOperationKey,
                     workflow.EditLeaseExpiresAtUtc,
                     workflow.ArchivedAtUtc != null))
+            .Take(sourceLimit)
             .ToListAsync(cancellationToken);
 
-        var workDueIds = await context.ExternalWorkItems
-            .AsNoTracking()
-            .OrderByDescending(item => item.DueAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(sourceLimit)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var workLeaseIds = await context.ExternalWorkItems
-            .AsNoTracking()
-            .Where(item => item.LeaseExpiresAtUtc != null)
-            .OrderByDescending(item => item.LeaseExpiresAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(sourceLimit)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var workCompletedIds = await context.ExternalWorkItems
-            .AsNoTracking()
-            .Where(item => item.CompletedAtUtc != null)
-            .OrderByDescending(item => item.CompletedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(sourceLimit)
-            .Select(item => item.Id)
-            .ToListAsync(cancellationToken);
-        var workCandidateIds = workDueIds
-            .Concat(workLeaseIds)
-            .Concat(workCompletedIds)
-            .Distinct()
-            .ToArray();
         var workRows = await (
                 from item in context.ExternalWorkItems.AsNoTracking()
                 join workflow in context.CaseWorkflows.AsNoTracking()
                     on item.CaseId equals workflow.CaseId
-                where workCandidateIds.Contains(item.Id)
+                where item.State == "failed"
+                    && ((item.LeaseToken == null && item.LeaseExpiresAtUtc == null)
+                        || (item.LeaseToken != null && item.LeaseExpiresAtUtc <= nowUtc))
+                orderby item.DueAtUtc descending, item.Id
                 select new ExternalWorkRow(
                     item.Id,
                     item.State,
@@ -402,11 +307,11 @@ internal sealed class EfOperationsStore(
                     workflow.EditLeaseOperationKey,
                     workflow.EditLeaseExpiresAtUtc,
                     workflow.ArchivedAtUtc != null))
+            .Take(sourceLimit)
             .ToListAsync(cancellationToken);
 
         var candidates = new List<RequestOperationProjection>(
-            boxRows.Count + uploadRows.Count + workRows.Count);
-        candidates.AddRange(boxRows.Select(item => MapBoxRequest(item, nowUtc)));
+            uploadRows.Count + workRows.Count);
         candidates.AddRange(uploadRows.Select(item => MapUploadRequest(item, nowUtc)));
         candidates.AddRange(workRows.Select(item => MapExternalWork(item, nowUtc)));
         var ordered = candidates
@@ -751,51 +656,6 @@ internal sealed class EfOperationsStore(
             ? new CaseEditLeaseSnapshot(holder!, expiresAtUtc!.Value, operationKey!)
             : null;
 
-    private static RequestOperationProjection MapBoxRequest(
-        BoxRequestRow item,
-        DateTimeOffset nowUtc)
-    {
-        var state = MapBoxState(item.Status, item.ExpiresAtUtc, nowUtc);
-        var leaseState = MapLeaseState(
-            item.HasCaseEditLease,
-            item.CaseEditLeaseHolder,
-            item.CaseEditLeaseOperationKey,
-            item.CaseEditLeaseExpiresAtUtc,
-            nowUtc);
-        return new(
-            item.Id,
-            RequestOperationKind.BoxFileRequest,
-            state,
-            item.CaseId,
-            item.CaseReference,
-            item.PrincipalCode,
-            item.DeactivatedAtUtc ?? item.CreatedAtUtc,
-            item.ExpiresAtUtc,
-            item.Version,
-            AcceptedFileCount: null,
-            AcceptedByteCount: null,
-            MaximumFileCount: null,
-            MaximumByteCount: null,
-            LimitsVersion: null,
-            ExternalKind: null,
-            AttemptCount: null,
-            FailureCode: state == RequestOperationState.Failed ? "box_request_failed" : null,
-            FailureReason: null,
-            CanRetry: false,
-            CanRevoke: !item.CaseIsArchived &&
-                state is RequestOperationState.Pending or RequestOperationState.Active,
-            item.CaseVersion,
-            leaseState,
-            item.CaseEditLeaseExpiresAtUtc)
-        {
-            ActiveEditLease = MapActiveEditLease(
-                leaseState,
-                item.CaseEditLeaseHolder,
-                item.CaseEditLeaseOperationKey,
-                item.CaseEditLeaseExpiresAtUtc)
-        };
-    }
-
     private static RequestOperationProjection MapExternalWork(
         ExternalWorkRow item,
         DateTimeOffset nowUtc)
@@ -849,22 +709,6 @@ internal sealed class EfOperationsStore(
                 item.CaseEditLeaseExpiresAtUtc)
         };
     }
-
-    private static RequestOperationState MapBoxState(
-        BoxFileRequestStatus status,
-        DateTimeOffset? expiresAtUtc,
-        DateTimeOffset nowUtc) => status switch
-    {
-        BoxFileRequestStatus.Pending => RequestOperationState.Pending,
-        BoxFileRequestStatus.Active when expiresAtUtc is not null && expiresAtUtc <= nowUtc =>
-            RequestOperationState.Expired,
-        BoxFileRequestStatus.Active => RequestOperationState.Active,
-        BoxFileRequestStatus.Deactivated => RequestOperationState.Revoked,
-        BoxFileRequestStatus.Failed => RequestOperationState.Failed,
-        BoxFileRequestStatus.Unavailable or BoxFileRequestStatus.Unknown =>
-            RequestOperationState.UnknownExternal,
-        _ => RequestOperationState.UnknownExternal
-    };
 
     private static RequestOperationState MapUploadState(
         RequestUploadStatus status,
@@ -942,23 +786,6 @@ internal sealed class EfOperationsStore(
         Guid? CaseId,
         string? CaseReference,
         string? PrincipalCode);
-
-    private sealed record BoxRequestRow(
-        Guid Id,
-        BoxFileRequestStatus Status,
-        Guid CaseId,
-        string CaseReference,
-        string PrincipalCode,
-        DateTimeOffset CreatedAtUtc,
-        DateTimeOffset? ExpiresAtUtc,
-        DateTimeOffset? DeactivatedAtUtc,
-        long Version,
-        long CaseVersion,
-        bool HasCaseEditLease,
-        string? CaseEditLeaseHolder,
-        string? CaseEditLeaseOperationKey,
-        DateTimeOffset? CaseEditLeaseExpiresAtUtc,
-        bool CaseIsArchived);
 
     private sealed record UploadRequestRow(
         Guid Id,

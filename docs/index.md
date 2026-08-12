@@ -14,7 +14,8 @@ design assets remain under [`design/`](../design/).
 | What exists now? | [Architecture](architecture.md) |
 | What is deployed, released, monitored, or recovery-proved now? | [Operations](operations.md) |
 | How do I set up, develop, test, run, release, monitor, or recover? | [Runbook](runbook.md) |
-| How is repository work done? | [Engineering](engineering.md) |
+| What engineering guidance and evidence tiers apply? | [Engineering](engineering.md) |
+| What procedure governs task claims, plans, reviews, and Git safety? | [Repository task workflow](../AGENTS.md#repository-task-workflow) |
 | What durable technical decisions apply? | [Decision index](adr/README.md) (ADR bodies are immutable) |
 | What raw supplied evidence exists? | [Reference evidence](../reference/README.md) |
 | What are the UI rules? | [Design](design.md) |
