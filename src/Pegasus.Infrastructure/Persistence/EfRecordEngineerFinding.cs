@@ -5,7 +5,6 @@ using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -80,22 +79,9 @@ internal sealed class EfRecordEngineerFinding(
 
         var beforeVersion = workflow.Version;
         var auditReference = AuditIdentity.Create(workflow.Case.Reference, request.Assessment);
-        var custodyWork = new ExternalWorkItemEntity
-        {
-            Id = Guid.NewGuid(),
-            CaseId = workflow.CaseId,
-            Case = workflow.Case,
-            Kind = "create_audit_reference_custody",
-            OperationKey = $"audit-custody:{workflow.CaseId:N}",
-            State = "pending",
-            AttemptCount = 0,
-            DueAtUtc = recordedAtUtc,
-            AuditFolderCreationToken = CustodyCreationOwner.Create()
-        };
         workflow.Case.AuditReference = auditReference;
         workflow.Version = checked(workflow.Version + 1);
         ClearLease(workflow);
-        context.ExternalWorkItems.Add(custodyWork);
         context.Set<CaseEngineerFindingEntity>().Add(new()
         {
             CaseId = workflow.CaseId,
@@ -108,8 +94,8 @@ internal sealed class EfRecordEngineerFinding(
             RecordedAtUtc = recordedAtUtc,
             OperationKey = operationKey,
             RequestHash = requestHash,
-            CustodyWorkId = custodyWork.Id,
-            CustodyWork = custodyWork
+            CustodyWorkId = null,
+            CustodyWork = null
         });
         context.CaseWorkflowEvents.Add(new()
         {

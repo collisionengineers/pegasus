@@ -186,6 +186,25 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task AForwardedMessageShowsTheProvenOriginalSenderAndItsForwarder()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreForwardedRouteAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var inbox = await GetHtmlAsync(client, "/Inbox");
+        var detail = await GetHtmlAsync(client, "/Inbox/" + ids[0].ToString("D"));
+
+        Assert.Contains("original@qdosassist.co.uk", inbox, StringComparison.Ordinal);
+        Assert.Contains("Forwarded by", inbox, StringComparison.Ordinal);
+        Assert.Contains("A Sender", inbox, StringComparison.Ordinal);
+        Assert.Contains("original@qdosassist.co.uk", detail, StringComparison.Ordinal);
+        Assert.Contains("<dt>Forwarded by</dt>", detail, StringComparison.Ordinal);
+        Assert.Contains("sender@example.invalid", detail, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AMessageOpenedFromAScopeItIsNotInStillRendersWithTheWayBack()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -315,6 +334,48 @@ public sealed class MailWorkspaceWebTests
             .OrderByDescending(item => item.ReceivedAtUtc)
             .Select(item => item.Id)
             .ToArrayAsync();
+    }
+
+    private static async Task StoreForwardedRouteAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+            new(
+                SourceFileName: "forwarded.eml",
+                MediaType: "message/rfc822",
+                SourceLength: 1,
+                SourceHash: new string('B', 64),
+                SourceIdentity: new(IntakeSourceChannel.Mailbox, mailboxId.Length + ":" + mailboxId + messageId),
+                ReceivedAtUtc: NowUtc,
+                ProcessedAtUtc: NowUtc,
+                Actor: "system-worker:approved-inbox-poller",
+                Decision: IntakeDecision.NeedsSorting,
+                DecisionReason: "Fixture evaluation.",
+                Evidence: [],
+                Fields: [],
+                InstructionDraft: null,
+                MissingFields: [],
+                FailureCode: null,
+                FailureReason: null,
+                SourceReaderKey: "protocol_reader",
+                SourceReaderVersion: "1",
+                ExtractionPolicyKey: "protocol_policy",
+                ExtractionPolicyVersion: 1,
+                Assets: [],
+                MailRouteDecision: new(
+                    MailRouteDisposition.Accepted,
+                    new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+                    [],
+                    "Fixture accepted route.",
+                    "qdos_mail_route",
+                    1,
+                    [new("desk@collisionengineers.co.uk", "transport")],
+                    [new("original@qdosassist.co.uk", "inline forward")],
+                    new("original@qdosassist.co.uk", "inline forward"))),
+            CancellationToken.None);
     }
 
     private sealed class MovableTimeProvider(DateTimeOffset utcNow) : TimeProvider

@@ -83,7 +83,7 @@ Required outcomes:
 
 - make receiving work, incomplete intake, Triage, active cases, due work, queries, and completed work visible without reconstructing state from multiple systems;
 - retain source identity, chronology, custody, decisions, corrections, and action history;
-- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, processing, or standalone Audit evidence is incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`;
+- fail closed before source receipt or reference allocation when safe persistence, identity-critical route facts, limits, or processing are incomplete or ambiguous; once safe processing establishes Principal and Case type, allocate the Case/PO and retain incomplete ordinary detail, images, or checks as `Not ready`; an Audit's original report and literal outcome remain identity-critical as stated below;
 - keep business decisions in `Pegasus.Core`, with infrastructure, UI, Worker, MCP, imported workspaces, skills, prompts, and models subordinate to Core policy and human approval;
 - support deterministic, repeatable local verification and separately authorised live verification;
 - preserve deferred capability seams and data identities without building dormant capability.
@@ -95,8 +95,8 @@ Required outcomes:
 - Principal and internal reference are immutable after allocation.
 - Reference allocation occurs once safe source processing establishes an unambiguous Principal and Case type and all identity-critical gates pass. Incomplete ordinary business detail, images, or required external checks create or retain the Case as `Not ready`; they do not leave a valid instruction pre-Case.
 - The normal Case/PO is `{principal code}{YY}{shared sequence}` with a three-digit minimum: `001` through `999`, then `1000` through `9999`. Inspection, standalone Audit, and Inspection + Audit consume one principal/year sequence. Exhaustion at `9999` is visible and blocks allocation; references and sequence values never wrap or return to use.
-- A standalone Audit derives lowercase `a.` or `ap.` only from an unambiguous repairable or total-loss assessment in the original Engineer report. Missing or ambiguous evidence blocks case creation and allocation.
-- Inspection + Audit begins with the normal Inspection reference. After Collision Engineers’ Engineer records the assessment, the applicable lowercase Audit reference is created inside that case; it does not consume another sequence value.
+- An Audit requires two separate document attachments: the Audit instruction and the original report to be audited. Pegasus reads the literal outcome in that original report: `repairable` derives `a.{Case/PO}` and `total loss` derives `ap.{Case/PO}`. A missing, conflicting, or ambiguous report is `Needs sorting`; it does not create a case or reference. No staff confirmation is an intake gate.
+- Inspection + Audit begins with the normal Inspection Case/PO reference. After Collision Engineers’ Engineer produces the later Audit report through EVA, the Engineer manually creates the applicable `a.{Case/PO}` or `ap.{Case/PO}` Box subfolder under that existing Box folder. Pegasus does not create that later folder until it replaces EVA under a separately accepted integration.
 - A used principal code is replaced by one linked successor in an atomic Core transaction: deactivate the predecessor, continue its next unused sequence in the Europe/London cutover year, and begin later years at `001`. Both identities and the reason remain permanent.
 - A wrong-principal case closes as `Created in error`, with a reason and a linked replacement. Neither reference is reused; the original never reopens.
 - A case is never deleted. Reopening requires a reason and the normal destination gates.
@@ -179,14 +179,16 @@ Before creating a case or allocating a reference, Pegasus must establish:
 - provider/intermediary route identity and enabled policy where relevant;
 - unambiguous case type and Principal association;
 - processing and size/format limits;
-- required standalone Audit evidence; and
 - absence of unresolved wrong-Principal, duplicate-occurrence, receipt-integrity, or source-custody ambiguity.
 
 Once those identity-critical facts are established, Pegasus creates the Case/PO
 and allocates its permanent reference. Incomplete ordinary business detail,
 images, or mandatory external checks retain that Case as `Not ready`; they do
-not form another pre-Case acceptance gate. If the route cannot establish an
-identity-critical fact, it persists only what is safe and enters the
+not form another pre-Case acceptance gate. An Audit's retained original report
+is identity-critical: without one separate report with one literal outcome,
+Pegasus cannot determine whether the reference is `a.` or `ap.` and enters
+`Needs sorting`. The manual case-create screen does not offer Audit; it is
+created only by this retained-email route. If the route cannot establish an identity-critical fact, it persists only what is safe and enters the
 corresponding pre-Case outcome. `Blocked intake` records a reason and visible
 warning, offers reasoned resolve and retry actions, and retains the resolution
 evidence and each retry result. It never allocates a reusable identity as a
@@ -285,7 +287,7 @@ Cancellation and reopen require reasons. Reopen always returns to `Open` and nev
 The active alpha types are:
 
 - **Inspection:** Collision Engineers prepares accepted work for its Engineer’s desktop assessment and returns that Engineer’s report to the provider.
-- **Standalone Audit:** another engineering firm has already inspected the vehicle; Collision Engineers accepts that firm’s original Engineer report and audits or double-checks the work.
+- **Audit:** another engineering firm has already inspected the vehicle; Collision Engineers receives that firm’s original Engineer report with the Audit instruction and audits or double-checks the work.
 - **Inspection + Audit:** Collision Engineers completes an Inspection report and then immediately performs a distinct Audit of that report in the same Case; the Audit retains its own identity, evidence, and acceptance boundary.
 
 Diminution and Commercial remain deferred unless their capability rows and activation evidence say otherwise. They are not active alpha aliases or generic case types.

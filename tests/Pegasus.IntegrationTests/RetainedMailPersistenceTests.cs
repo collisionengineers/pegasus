@@ -162,6 +162,61 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task AForwardedMessageUsesTheProvenOriginalSenderAndRetainsTheForwarder()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message(
+            "message-forwarded",
+            senderAddress: "desk@collisionengineers.co.uk",
+            senderDisplayName: "Desk");
+        await RetainAsync(database, message);
+
+        await database.StoreAsync(new(
+            SourceFileName: "message-forwarded.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: new string('B', 64),
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, message.ExternalReceiptToken),
+            ReceivedAtUtc: ReceivedAtUtc,
+            ProcessedAtUtc: ReceivedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: [],
+            MailRouteDecision: new(
+                MailRouteDisposition.Accepted,
+                new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+                [],
+                "Fixture accepted route.",
+                "qdos_mail_route",
+                1,
+                [new("desk@collisionengineers.co.uk", "transport")],
+                [new("original@qdosassist.co.uk", "inline forward")],
+                new("original@qdosassist.co.uk", "inline forward"))));
+
+        await using var scope = database.CreateAsyncScope();
+        var page = await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
+        var summary = Assert.Single(page.Items);
+
+        Assert.Equal("original@qdosassist.co.uk", summary.EffectiveSenderAddress);
+        Assert.Equal("desk@collisionengineers.co.uk", summary.SenderAddress);
+        Assert.Equal("Desk", summary.SenderDisplayName);
+    }
+
+    [Fact]
     public async Task ADisabledMailboxKeepsItsMessagesAndReportsThatItIsNoLongerPolled()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -301,7 +356,9 @@ public sealed class RetainedMailPersistenceTests
     private static RetainedMailboxMessage Message(
         string immutableMessageId,
         string? subject = "An instruction",
-        DateTimeOffset? receivedAtUtc = null) => new(
+        DateTimeOffset? receivedAtUtc = null,
+        string? senderAddress = "sender@example.invalid",
+        string? senderDisplayName = "A Sender") => new(
         MailboxId,
         MailboxAddress,
         immutableMessageId,
@@ -313,8 +370,8 @@ public sealed class RetainedMailPersistenceTests
             "inbox",
             "conversation-1",
             $"<{immutableMessageId}@example.invalid>",
-            "sender@example.invalid",
-            "A Sender",
+            senderAddress,
+            senderDisplayName,
             ["intake@collisionengineers.co.uk"],
             ["copied@collisionengineers.co.uk"],
             subject,

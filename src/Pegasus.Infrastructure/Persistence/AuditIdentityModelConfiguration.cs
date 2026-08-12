@@ -98,6 +98,6 @@ internal sealed class CaseEngineerFindingEntity
     public DateTimeOffset RecordedAtUtc { get; set; }
     public required string OperationKey { get; set; }
     public required string RequestHash { get; set; }
-    public Guid CustodyWorkId { get; set; }
-    public ExternalWorkItemEntity CustodyWork { get; set; } = null!;
+    public Guid? CustodyWorkId { get; set; }
+    public ExternalWorkItemEntity? CustodyWork { get; set; }
 }

@@ -132,43 +132,10 @@ else
             <label asp-for="CaseType">Case type</label>
             <select asp-for="CaseType" data-case-type-selector>
                 <option value="@CaseType.Inspection">Inspection</option>
-                <option value="@CaseType.Audit">Standalone Audit</option>
                 <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
             </select>
             <span asp-validation-for="CaseType" class="field-validation"></span>
         </section>
-
-            <section class="panel form-panel section-gap" aria-labelledby="audit-title" data-standalone-audit-fields>
-                <h2 id="audit-title" class="section-label">Standalone Audit evidence</h2>
-                <p>A standalone Audit is an assessment of somebody else's report, so the retained original and the confirming person are kept with it.</p>
-
-                <label asp-for="StandaloneAuditAssessment">Audit assessment</label>
-                <select asp-for="StandaloneAuditAssessment">
-                    <option value="">Not chosen</option>
-                    <option value="@AuditAssessment.Repairable">Repairable</option>
-                    <option value="@AuditAssessment.TotalLoss">Total loss</option>
-                </select>
-                <span asp-validation-for="StandaloneAuditAssessment" class="field-validation"></span>
-
-                <label asp-for="StandaloneAuditOriginalReportAssetId">Retained original Engineer report</label>
-                <select asp-for="StandaloneAuditOriginalReportAssetId">
-                    <option value="">Not chosen</option>
-                    @foreach (var asset in Model.Receipt.AssetRecords.Where(
-                        asset => asset.Kind is IntakeAssetKind.Source or IntakeAssetKind.Attachment))
-                    {
-                        <option value="@asset.Id">@asset.FileName · @asset.SourceLabel</option>
-                    }
-                </select>
-                <span asp-validation-for="StandaloneAuditOriginalReportAssetId" class="field-validation"></span>
-
-                <label asp-for="StandaloneAuditEvidenceReason">Why this report supports the assessment</label>
-                <textarea asp-for="StandaloneAuditEvidenceReason" maxlength="500" rows="3"></textarea>
-                <span asp-validation-for="StandaloneAuditEvidenceReason" class="field-validation"></span>
-                @if (Model.ConfirmedStandaloneAuditEvidence is not null)
-                {
-                    <small>This original-report evidence is already confirmed and immutable. Creating the case reuses it.</small>
-                }
-            </section>
 
         <section class="panel form-panel section-gap" aria-labelledby="completeness-title">
             <h2 id="completeness-title" class="section-label">Evidence completeness</h2>

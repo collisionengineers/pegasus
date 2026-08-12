@@ -38,7 +38,4 @@ public static class IntakeDecisionPolicy
         _ => throw new InvalidOperationException(
             $"Unknown intake decision value '{(int)decision}'.")
     };
-
-    public static bool RequiresStandaloneAuditEvidence(CaseType? caseType) =>
-        caseType == CaseType.Audit;
 }

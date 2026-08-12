@@ -1346,7 +1346,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
-                    b.Property<Guid>("CustodyWorkId")
+                    b.Property<Guid?>("CustodyWorkId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("OperationKey")
@@ -1385,7 +1385,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("CaseId");
 
                     b.HasIndex("CustodyWorkId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[CustodyWorkId] IS NOT NULL");
 
                     b.HasIndex("OperationKey")
                         .IsUnique();
@@ -5427,8 +5428,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.ExternalWorkItemEntity", "CustodyWork")
                         .WithOne()
                         .HasForeignKey("Pegasus.Infrastructure.Persistence.CaseEngineerFindingEntity", "CustodyWorkId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Case");
 
