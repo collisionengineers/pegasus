@@ -240,8 +240,8 @@ public sealed class MailWorkspaceWebTests
         var html = await GetHtmlAsync(client, "/Inbox");
 
         Assert.Contains("href=\"/Inbox\"", html, StringComparison.Ordinal);
-        Assert.Contains("href=\"/Received\"", html, StringComparison.Ordinal);
-        Assert.Contains(">Received items<", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Operations\"", html, StringComparison.Ordinal);
+        Assert.Contains(">Operations<", html, StringComparison.Ordinal);
     }
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string route)

@@ -137,7 +137,7 @@ public sealed partial class OperationsWebTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains("href=\"/Operations/Requests\"", html, StringComparison.Ordinal);
+        Assert.Contains("href=\"/Operations\"", html, StringComparison.Ordinal);
     }
 
     [Fact]
