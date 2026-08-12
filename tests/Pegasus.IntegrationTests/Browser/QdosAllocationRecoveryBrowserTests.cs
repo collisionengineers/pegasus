@@ -181,7 +181,7 @@ public sealed class QdosAllocationRecoveryBrowserTests
     }
 
     [Fact]
-    public async Task TypedStandaloneAuditOpensWithEvidenceControlsReachable()
+    public async Task TypedAuditDoesNotOfferManualCaseCreation()
     {
         await using var support = await BrowserTestSupport.StartAsync(javaScriptEnabled: false);
         var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
@@ -192,12 +192,15 @@ public sealed class QdosAllocationRecoveryBrowserTests
         var response = await support.GoToAsync($"/Cases/Create?receiptId={receipt.Id:D}");
 
         Assert.Equal(200, response.Status);
-        Assert.Equal("Audit", await support.Page.Locator("[data-case-type-selector]").InputValueAsync());
-        Assert.True(await support.Page.Locator("[data-standalone-audit-fields]").IsVisibleAsync());
+        Assert.Contains(
+            "This Audit is created automatically from the retained Audit instruction and original report.",
+            await support.Page.Locator("main").InnerTextAsync(),
+            StringComparison.Ordinal);
+        Assert.Equal(0, await support.Page.Locator("[data-case-type-selector]").CountAsync());
     }
 
     [Fact]
-    public async Task CaseTypeSelectorProgressivelyDisclosesStandaloneAuditEvidence()
+    public async Task CaseTypeSelectorDoesNotOfferAudit()
     {
         await using var support = await BrowserTestSupport.StartAsync();
         var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
@@ -206,12 +209,8 @@ public sealed class QdosAllocationRecoveryBrowserTests
             "NOTACTIVE");
         await support.GoToAsync($"/Cases/Create?receiptId={receipt.Id:D}");
         var selector = support.Page.Locator("[data-case-type-selector]");
-        var fields = support.Page.Locator("[data-standalone-audit-fields]");
-
-        Assert.False(await fields.IsVisibleAsync());
-        await selector.SelectOptionAsync("Audit");
-        Assert.True(await fields.IsVisibleAsync());
-        await selector.SelectOptionAsync("Inspection");
-        Assert.False(await fields.IsVisibleAsync());
+        Assert.Equal(
+            ["Inspection", "Inspection and Audit"],
+            await selector.Locator("option").AllTextContentsAsync());
     }
 }

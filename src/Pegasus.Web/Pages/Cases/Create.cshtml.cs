@@ -583,6 +583,11 @@ public sealed partial class CreateModel(
 
     private string? DescribeRefusal()
     {
+        if (Receipt.MailClassificationDecision?.CaseType == CaseType.Audit)
+        {
+            return "This Audit is created automatically from the retained Audit instruction and original report.";
+        }
+
         // Little or no text came out of the document, which is exactly the
         // hand-keyed case: the correction step normalises the decision, so it
         // is allowed through rather than refused.
