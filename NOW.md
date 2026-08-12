@@ -7,6 +7,8 @@
 Claim format: `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by
 <agent>)`. Nothing is in flight unless it is claimed here on `origin/dev`.
 
+- Rework Received as API/upload information and management (branch
+  task/received-information-rework, taken 2026-08-12, by Codex)
 
 ## Production state
 
