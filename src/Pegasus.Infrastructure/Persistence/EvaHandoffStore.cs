@@ -65,6 +65,7 @@ public sealed class EvaHandoffStore(
                     workflow.ArchivedAtUtc,
                     caseRecord.CustodyState,
                     caseRecord.CustodyConfirmedAtUtc,
+                    caseRecord.Type,
                     caseRecord.AuditReference,
                     caseRecord.AuditCustodyRemoteId,
                     caseRecord.AuditCustodyConfirmedAtUtc
@@ -107,9 +108,10 @@ public sealed class EvaHandoffStore(
             caseState.Version,
             caseData.Version,
             IsConfirmedCustody(caseState.CustodyState, caseState.CustodyConfirmedAtUtc),
-            !string.IsNullOrWhiteSpace(caseState.AuditReference),
-            !string.IsNullOrWhiteSpace(caseState.AuditCustodyRemoteId)
-                && caseState.AuditCustodyConfirmedAtUtc is not null,
+            string.Equals(caseState.Type, "audit", StringComparison.Ordinal),
+            !string.Equals(caseState.Type, "audit", StringComparison.Ordinal)
+                || (!string.IsNullOrWhiteSpace(caseState.AuditCustodyRemoteId)
+                    && caseState.AuditCustodyConfirmedAtUtc is not null),
             mapping.Source is not null,
             images.Length)));
 
@@ -493,9 +495,10 @@ public sealed class EvaHandoffStore(
             workflow.Version,
             caseData.Version,
             IsConfirmedCustody(workflow.Case.CustodyState, workflow.Case.CustodyConfirmedAtUtc),
-            !string.IsNullOrWhiteSpace(workflow.Case.AuditReference),
-            !string.IsNullOrWhiteSpace(workflow.Case.AuditCustodyRemoteId)
-                && workflow.Case.AuditCustodyConfirmedAtUtc is not null,
+            string.Equals(workflow.Case.Type, "audit", StringComparison.Ordinal),
+            !string.Equals(workflow.Case.Type, "audit", StringComparison.Ordinal)
+                || (!string.IsNullOrWhiteSpace(workflow.Case.AuditCustodyRemoteId)
+                    && workflow.Case.AuditCustodyConfirmedAtUtc is not null),
             mapping.Source is not null,
             selectedRows.Length)));
         if (reasons.Count != 0 || mapping.Source is null)

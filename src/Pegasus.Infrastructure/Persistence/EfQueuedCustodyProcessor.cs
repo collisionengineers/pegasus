@@ -105,6 +105,11 @@ internal sealed class EfQueuedCustodyProcessor(
                 payload.WorkKind,
                 "create_audit_reference_custody",
                 StringComparison.Ordinal);
+            var isAuditCase = string.Equals(payload.CaseType, "audit", StringComparison.Ordinal);
+            var rootReference = isAuditCase
+                ? payload.AuditReference ?? throw new InvalidDataException(
+                    "The Audit case has no allocated Audit reference for custody.")
+                : payload.CaseReference;
             var root = isAuditCustody
                 ? await caseCustody.GetExistingCaseRootAsync(
                     payload.CaseId,
@@ -112,7 +117,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     cancellationToken)
                 : await caseCustody.CreateCaseRootAsync(
                     payload.CaseId,
-                    payload.CaseReference,
+                    rootReference,
                     RequireCreationOwner(payload.CaseRootCreationToken),
                     $"{payload.OperationKey}:root",
                     leaseGuard,
@@ -155,9 +160,11 @@ internal sealed class EfQueuedCustodyProcessor(
                     leaseGuard,
                     cancellationToken);
                 await leaseGuard.RequireCurrentAsync(cancellationToken);
-                var auditFolderRemoteId = string.IsNullOrWhiteSpace(payload.AuditReference)
-                    ? null
-                    : await caseCustody.CreateAuditReferenceFolderAsync(
+                var auditFolderRemoteId = isAuditCase
+                    ? root.RemoteId
+                    : string.IsNullOrWhiteSpace(payload.AuditReference)
+                        ? null
+                        : await caseCustody.CreateAuditReferenceFolderAsync(
                         root,
                         payload.AuditReference,
                         RequireCreationOwner(payload.AuditFolderCreationToken),
@@ -248,6 +255,7 @@ internal sealed class EfQueuedCustodyProcessor(
         return new(
             workKind,
             caseEntity.Id,
+            caseEntity.Type,
             caseEntity.Reference,
             caseEntity.AuditReference,
             receipt.Id,
@@ -496,6 +504,7 @@ internal sealed class EfQueuedCustodyProcessor(
     private sealed record WorkPayload(
         string WorkKind,
         Guid CaseId,
+        string CaseType,
         string CaseReference,
         string? AuditReference,
         Guid IntakeReceiptId,

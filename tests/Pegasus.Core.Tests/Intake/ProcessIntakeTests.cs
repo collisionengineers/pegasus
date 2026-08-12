@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -332,6 +333,59 @@ public sealed class ProcessIntakeTests
         Assert.Equal("instructions@qdosassist.co.uk", route.EffectiveSender?.Address);
         Assert.NotEmpty(route.Predicates);
         Assert.Same(route, Assert.Single(store.Drafts).MailRouteDecision);
+    }
+
+    [Fact]
+    public async Task AuditWithSeparateOriginalReportRecordsLiteralOutcomeBeforeAllocation()
+    {
+        const string instructionLabel = "message, attachment 1: audit-instructions.pdf";
+        const string reportLabel = "message, attachment 2: original-report.pdf";
+        var automaticEvidence = new RecordingAutomaticAuditEvidence();
+        var readResult = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    instructionLabel,
+                    "AUDIT REPORT NOTIFICATION\nQDOS instruction\nClaimant Name: Review Claimant\nClaim Number: Q-AUDIT"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    $"{reportLabel}, page 1",
+                    "The vehicle is repairable.")
+            ],
+            [new(IntakeEvidenceSource.Sender, "instructions@qdosassist.co.uk", IntakeSenderIdentityKind.Transport, "outer message")],
+            [],
+            false,
+            Assets:
+            [
+                new(instructionLabel, "audit-instructions.pdf", "application/pdf", new byte[] { 1 }, IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment),
+                new(reportLabel, "original-report.pdf", "application/pdf", new byte[] { 2 }, IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment)
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            automaticStandaloneAuditEvidence: automaticEvidence);
+
+        var source = CreateSource() with
+        {
+            FileName = "audit.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "audit-with-original-report")
+        };
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        var recorded = Assert.Single(automaticEvidence.Requests);
+        Assert.Equal(AuditAssessment.Repairable, recorded.Assessment);
+        Assert.Equal(Assert.Single(Assert.Single(store.Drafts).Assets!, asset => asset.SourceLabel == reportLabel).Id, recorded.OriginalReportAssetId);
+
+        // A transient evidence-store failure after receipt persistence is
+        // retried from the existing durable receipt, without rereading email.
+        store.ExistingRecord = result;
+        var replay = await sut.ExecuteAsync(source);
+        Assert.True(replay.IsDuplicate);
+        Assert.Equal(2, automaticEvidence.Requests.Count);
     }
 
     [Fact]
@@ -843,13 +897,15 @@ public sealed class ProcessIntakeTests
         IInstructionExtractionPolicy? extractionPolicy = null,
         IMailRoutePolicy? mailRoutePolicy = null,
         EvaluateIntakeCaseMatch? caseMatchEvaluator = null,
-        IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null) =>
+        IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null,
+        IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
             mailRoutePolicy ?? new QdosMailRoutePolicy(),
             classificationPolicies ?? [new QdosMailClassificationPolicy()],
             caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
-            new FixedTimeProvider(ProcessedAtUtc));
+            new FixedTimeProvider(ProcessedAtUtc),
+            automaticStandaloneAuditEvidence);
 
     private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
     {
@@ -993,6 +1049,7 @@ public sealed class ProcessIntakeTests
                 draft.SourceReaderVersion,
                 draft.ExtractionPolicyKey,
                 draft.ExtractionPolicyVersion,
+                Assets: draft.Assets,
                 MailRouteDecision: draft.MailRouteDecision,
                 MailClassificationDecision: draft.MailClassificationDecision,
                 CaseMatchDecision: draft.CaseMatchDecision);
@@ -1023,5 +1080,27 @@ public sealed class ProcessIntakeTests
             string storageKey,
             CancellationToken cancellationToken) =>
             Task.FromResult<ReadOnlyMemory<byte>?>(null);
+    }
+
+    private sealed class RecordingAutomaticAuditEvidence : IRecordAutomaticStandaloneAuditEvidence
+    {
+        public List<RecordAutomaticStandaloneAuditEvidenceRequest> Requests { get; } = [];
+
+        public Task<StandaloneAuditEvidence> ExecuteAsync(
+            RecordAutomaticStandaloneAuditEvidenceRequest request,
+            CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult(new StandaloneAuditEvidence(
+                Guid.NewGuid(),
+                request.IntakeReceiptId,
+                request.OriginalReportAssetId,
+                request.Assessment,
+                Guid.Empty,
+                ProcessedAtUtc,
+                "The retained original report states the literal outcome.",
+                request.ExpectedIntakeVersion + 1,
+                false));
+        }
     }
 }

@@ -173,6 +173,10 @@ public sealed record MailClassificationPredicateResult(
     bool Matched,
     string Detail);
 
+public sealed record StandaloneAuditReportEvaluation(
+    string AssetSourceLabel,
+    AuditAssessment Assessment);
+
 /// <summary>
 /// The recorded outcome of one classification evaluation. Ambiguity is an explicit
 /// fail-closed outcome: when predicates for more than one family match simultaneously,
@@ -187,7 +191,8 @@ public sealed record MailClassificationResult(
     string Reason,
     string PolicyKey,
     int PolicyVersion,
-    CaseType? CaseType = null)
+    CaseType? CaseType = null,
+    StandaloneAuditReportEvaluation? StandaloneAuditReport = null)
 {
     public static MailClassificationResult Classified(
         MailCategory category,
@@ -195,7 +200,8 @@ public sealed record MailClassificationResult(
         string reason,
         string policyKey,
         int policyVersion,
-        CaseType? caseType = null) =>
+        CaseType? caseType = null,
+        StandaloneAuditReportEvaluation? standaloneAuditReport = null) =>
         new(
             MailClassificationOutcome.Classified,
             category,
@@ -204,7 +210,8 @@ public sealed record MailClassificationResult(
             reason,
             policyKey,
             policyVersion,
-            caseType);
+            caseType,
+            standaloneAuditReport);
 
     public static MailClassificationResult Ambiguous(
         IReadOnlyList<string> candidates,

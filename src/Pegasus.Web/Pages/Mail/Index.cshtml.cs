@@ -101,9 +101,31 @@ public sealed class IndexModel(
     /// or a plain statement rather than an invented name.
     /// </summary>
     public static string SenderLine(RetainedMailSummary item) =>
-        item.SenderDisplayName
+        item.EffectiveSenderAddress
+        ?? item.SenderDisplayName
         ?? item.SenderAddress
         ?? "Sender not recorded";
+
+    /// <summary>
+    /// The Graph envelope remains the provenance for an inline forward even
+    /// where intake has proved an original sender from its forwarded header.
+    /// </summary>
+    public static string? ForwarderLine(RetainedMailSummary item)
+    {
+        if (string.IsNullOrWhiteSpace(item.EffectiveSenderAddress)
+            || string.IsNullOrWhiteSpace(item.SenderAddress)
+            || string.Equals(
+                item.EffectiveSenderAddress,
+                item.SenderAddress,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return item.SenderDisplayName is { Length: > 0 } displayName
+            ? $"{displayName} <{item.SenderAddress}>"
+            : item.SenderAddress;
+    }
 
     public static string SubjectLine(RetainedMailSummary item) =>
         string.IsNullOrWhiteSpace(item.Subject) ? "No subject" : item.Subject;

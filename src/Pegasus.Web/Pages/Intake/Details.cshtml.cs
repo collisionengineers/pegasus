@@ -379,7 +379,7 @@ public sealed partial class DetailsModel(
     public static string CaseTypeLabel(CaseType? caseType) => caseType switch
     {
         CaseType.Inspection => "Inspection",
-        CaseType.Audit => "Standalone Audit",
+        CaseType.Audit => "Audit",
         CaseType.InspectionAndAudit => "Inspection and Audit",
         _ => "Not available"
     };

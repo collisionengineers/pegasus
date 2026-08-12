@@ -8,7 +8,7 @@ namespace Pegasus.Web.Presentation;
 /// </summary>
 /// <remarks>
 /// Two screens ask for the same eleven values: the create screen, where a
-/// person confirms or keys them before a reference is allocated, and the
+/// person reviews or keys them while a reference is allocated, and the
 /// received-item screen, where a blocked item is corrected so it has a route
 /// forward. Two Web callers of one Core use case is not duplicate business
 /// implementation — <see cref="IResolveIntake"/> owns the rule either way — but

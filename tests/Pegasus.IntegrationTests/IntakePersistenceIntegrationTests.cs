@@ -66,7 +66,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260805223036_RetainedMailboxMessages",
                 "20260806090000_ApprovedInboxPollStateIdentityAdoption",
                 "20260811063940_QdosAllocationRecovery",
-                "20260811122654_CaseCustodyEvaRecovery"
+                "20260811122654_CaseCustodyEvaRecovery",
+                "20260812010335_ManualInspectionAuditCustody"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

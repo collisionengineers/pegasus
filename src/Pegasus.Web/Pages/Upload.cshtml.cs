@@ -279,7 +279,7 @@ public sealed partial class UploadModel(
         return receipt.Decision switch
         {
             // Read, but not definitive enough to allocate on its own. The
-            // extracted detail is on the create screen for a person to confirm.
+            // extracted detail remains available on the create screen for review.
             IntakeDecision.NeedsSorting or IntakeDecision.CaseCreated => new(
                 $"{duplicatePrefix} — check the details and create the case.",
                 receipt.Id,
