@@ -42,11 +42,8 @@ public sealed class DefinitiveIntakeCaseTypeTests
     }
 
     [Fact]
-    public void StandaloneAuditRequiresStaffEvidenceButOtherTypedWorkDoesNot()
+    public void EveryDefinitiveTypedInstructionCanBecomeACase()
     {
-        Assert.True(IntakeDecisionPolicy.RequiresStandaloneAuditEvidence(CaseType.Audit));
-        Assert.False(IntakeDecisionPolicy.RequiresStandaloneAuditEvidence(CaseType.Inspection));
-        Assert.False(IntakeDecisionPolicy.RequiresStandaloneAuditEvidence(CaseType.InspectionAndAudit));
-        Assert.False(IntakeDecisionPolicy.RequiresStandaloneAuditEvidence(null));
+        Assert.True(IntakeDecisionPolicy.CanBecomeCase(IntakeDecision.CaseCreated));
     }
 }

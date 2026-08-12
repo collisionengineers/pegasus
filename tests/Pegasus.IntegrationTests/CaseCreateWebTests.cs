@@ -109,9 +109,8 @@ public sealed partial class CaseCreateWebTests
             form,
             AuditFields(originalReportAssetId));
 
-        // An Audit is the same four writes with one more in the middle: the
-        // retained original report the acceptance gate demands before it will
-        // allocate an Audit reference at all.
+        // Recording an Audit reference adds a retained original report before
+        // allocation; a Case/PO itself does not require that optional step.
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/Received/", response.Headers.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
         Assert.Equal(0, await CountAsync(factory.Services, "Cases"));
@@ -168,6 +167,33 @@ public sealed partial class CaseCreateWebTests
             await ScalarAsync<int>(
                 factory.Services,
                 $"SELECT COUNT(DISTINCT StandaloneAuditEvidenceId) FROM IntakeAllocationAttempts WHERE IntakeReceiptId = '{receipt.Id:D}' AND CaseType = 'audit'"));
+    }
+
+    [Fact]
+    public async Task AStandaloneAuditCreateDoesNotRequireReferenceEvidence()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var receipt = await CreateBareReceiptAsync(factory.Services);
+        await SeedPrincipalAsync(factory.Services, PrincipalCode);
+        var form = await OpenCreateScreenAsync(client, receipt.Id);
+        var fields = KeyedFields();
+        fields["CaseType"] = CaseType.Audit.ToString();
+
+        using var response = await PostCreateAsync(client, form, fields);
+
+        var caseId = AssertCaseRedirect(response);
+        Assert.Equal("audit", await ReadCaseColumnAsync<string>(factory.Services, caseId, "Type"));
+        Assert.Equal(
+            0,
+            await ScalarAsync<int>(
+                factory.Services,
+                $"SELECT COUNT(*) FROM StandaloneAuditEvidence WHERE IntakeReceiptId = '{receipt.Id:D}'"));
+        Assert.Equal(
+            1,
+            await ScalarAsync<int>(
+                factory.Services,
+                $"SELECT COUNT(*) FROM Cases WHERE Id = '{caseId:D}' AND AuditReference IS NULL AND StandaloneAuditEvidenceId IS NULL"));
     }
 
     [Fact]

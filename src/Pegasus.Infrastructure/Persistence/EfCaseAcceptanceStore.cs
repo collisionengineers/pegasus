@@ -60,12 +60,10 @@ public sealed class EfCaseAcceptanceStore(
         {
             throw new ArgumentOutOfRangeException(nameof(request), "The case type is invalid.");
         }
-        if (request.CaseType == CaseType.Audit
-            && (request.StandaloneAuditEvidenceId is null
-                || request.StandaloneAuditEvidenceId == Guid.Empty))
+        if (request.StandaloneAuditEvidenceId == Guid.Empty)
         {
             throw new ArgumentException(
-                "A standalone Audit requires retained original-report evidence.",
+                "The standalone Audit evidence identity is invalid.",
                 nameof(request));
         }
         if (request.CaseType != CaseType.Audit && request.StandaloneAuditEvidenceId is not null)
@@ -437,12 +435,13 @@ public sealed class EfCaseAcceptanceStore(
         CaseAcceptanceRequest request,
         CancellationToken cancellationToken)
     {
-        if (request.CaseType != CaseType.Audit)
+        if (request.CaseType != CaseType.Audit
+            || request.StandaloneAuditEvidenceId is null)
         {
             return null;
         }
 
-        var evidenceId = request.StandaloneAuditEvidenceId!.Value;
+        var evidenceId = request.StandaloneAuditEvidenceId.Value;
         var evidence = await context.Set<StandaloneAuditEvidenceEntity>()
             .AsNoTracking()
             .Include(item => item.OriginalReportAsset)

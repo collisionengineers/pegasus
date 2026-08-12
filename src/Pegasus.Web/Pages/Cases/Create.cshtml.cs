@@ -335,7 +335,7 @@ public sealed partial class CreateModel(
         // if any required one was empty, so they are non-null from here.
         var reason = Reason!;
         var principalCode = PrincipalCode!;
-        var auditReason = StandaloneAuditEvidenceReason!;
+        var auditReason = StandaloneAuditEvidenceReason ?? string.Empty;
 
         try
         {
@@ -379,10 +379,11 @@ public sealed partial class CreateModel(
                 version = snapshot.ReceiptVersion;
             }
 
-            // 3. Standalone Audit evidence, which the acceptance gate requires
-            //    before it will allocate an Audit reference.
+            // 3. Optional standalone Audit evidence establishes the later
+            //    Audit reference. It never gates creation of the Case/PO.
             Guid? standaloneAuditEvidenceId = null;
-            if (CaseType == CaseType.Audit)
+            if (CaseType == CaseType.Audit
+                && HasStandaloneAuditEvidenceInput())
             {
                 var evidence = ConfirmedStandaloneAuditEvidence
                     ?? await confirmStandaloneAuditEvidence.ExecuteAsync(
@@ -615,11 +616,15 @@ public sealed partial class CreateModel(
 
         if (CaseType == CaseType.Audit)
         {
+            if (!HasStandaloneAuditEvidenceInput())
+            {
+                return;
+            }
             if (StandaloneAuditAssessment is null)
             {
                 ModelState.AddModelError(
                     nameof(StandaloneAuditAssessment),
-                    "Confirm the standalone Audit assessment before creating the case.");
+                    "Choose an Audit assessment when recording Audit reference evidence.");
             }
             if (StandaloneAuditOriginalReportAssetId is not { } assetId || assetId == Guid.Empty)
             {
@@ -660,6 +665,12 @@ public sealed partial class CreateModel(
                 "Retained original-report evidence can be linked only to a standalone Audit.");
         }
     }
+
+    private bool HasStandaloneAuditEvidenceInput() =>
+        StandaloneAuditAssessment is not null
+        || StandaloneAuditOriginalReportAssetId is not null
+        || !string.IsNullOrWhiteSpace(StandaloneAuditEvidenceReason)
+        || ConfirmedStandaloneAuditEvidence is not null;
 
     /// <summary>
     /// The address that goes into the draft, so the completeness check and the

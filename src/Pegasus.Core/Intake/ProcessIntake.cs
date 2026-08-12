@@ -321,18 +321,6 @@ public sealed class ProcessIntake(
             reason = "Competing candidate cases match this message; the association requires manual sorting.";
         }
 
-        // Standalone Audit work fails closed. An Audit case cannot be created
-        // without its confirmed original-report evidence, and nothing in
-        // processing can supply that, so an audit instruction waits for a
-        // person rather than being allocated a reference it cannot justify.
-        if (decision == IntakeDecision.CaseCreated
-            && IntakeDecisionPolicy.RequiresStandaloneAuditEvidence(
-                mailClassificationDecision?.CaseType))
-        {
-            decision = IntakeDecision.NeedsSorting;
-            reason = "This is audit work; a case is created once the original report is confirmed.";
-        }
-
         return new(
             decision,
             reason,

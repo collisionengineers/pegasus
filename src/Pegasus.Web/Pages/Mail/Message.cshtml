@@ -82,8 +82,15 @@
         <dl class="detail-list">
             <div>
                 <dt>From</dt>
-                <dd>@(summary.SenderAddress ?? "Not recorded")</dd>
+                <dd>@(summary.EffectiveSenderAddress ?? summary.SenderAddress ?? "Not recorded")</dd>
             </div>
+            @if (Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(summary) is { } forwarder)
+            {
+                <div>
+                    <dt>Forwarded by</dt>
+                    <dd>@forwarder</dd>
+                </div>
+            }
             <div>
                 <dt>To</dt>
                 <dd>@(Model.Detail.ToAddresses.Count == 0 ? "Not recorded" : string.Join(", ", Model.Detail.ToAddresses))</dd>
