@@ -218,6 +218,9 @@ form `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by <agent>)`.
    the PR diff and description for missing or unauthorized scope. A task PR may
    merge into `dev` only after that review passes and CI is green. Explicit
    `MERGE AUTH GRANTED` is required only for `dev` to `main`.
+   Committing is not gated: commit to your own task branch freely and often, in
+   small logical slices, without operator authority. Only the `dev` → `main`
+   merge requires `MERGE AUTH GRANTED`.
 7. **Release or abandon.** After merge, a maintenance push may delete every
    temporary-plan file owned by the task; then remove its worktree and branch.
    To abandon, discard only the task's own unpushed work, remove its claim from
