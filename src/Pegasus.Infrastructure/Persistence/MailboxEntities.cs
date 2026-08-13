@@ -141,6 +141,8 @@ internal sealed class IntakeMailClassificationDecisionEntity
     public required string Reason { get; set; }
     public required string PolicyKey { get; set; }
     public int PolicyVersion { get; set; }
+    public string? StandaloneAuditReportAssetSourceLabel { get; set; }
+    public string? StandaloneAuditReportAssessment { get; set; }
 }
 
 internal sealed class IntakeMailRouteDecisionEntity
