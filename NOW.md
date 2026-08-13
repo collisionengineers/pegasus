@@ -5,6 +5,11 @@
 - Keep the production Web Container App warm by persisting its minimum replica count (branch task/keep-web-warm, taken 2026-08-13, by Codex)
 - Rework Received as API/upload information and management (branch
   task/received-information-rework, taken 2026-08-12, by Codex)
+- Fix the forwarded QDOS Audit intake so it mints a Case/PO and Box folder
+  (automatic standalone-audit evidence + allocation), seed the missing QDOS
+  Organization/Principal in production, and de-clutter the Inbox display of
+  forwarded provider emails (branch task/qdos-audit-intake-inbox, taken
+  2026-08-13, by Claude)
 
 ## Production state
 
