@@ -91,14 +91,14 @@ accepted match rules. The
    first ~2 days cost £1.71 (Functions Flex worker £0.73, Storage £0.40,
    ACR Basic £0.31, Container Apps web £0.22, Monitor £0.05); SQL S0 had
    not yet billed (list ≈ £12/month — the only 24/7-provisioned line;
-   every other resource is consumption or bottom tier, and the web app is
-   0.5 vCPU/1 GiB scale-to-zero, max 1 replica). Trailing 30 days totalled
+   every other resource is consumption or bottom tier; at that observation the
+   web app was 0.5 vCPU/1 GiB scale-to-zero, max 1 replica). Trailing 30 days totalled
    £85.78, of which £85.40 was `rg-collisionspike-dev` compute/AI already
    removed by the 2026-08-02 runbook (Foundry Models £40.17, Functions
    £28.22, Storage £9.47); that group's residual cost is two Key Vaults at
    effectively £0. Projected steady state ≈ £30–35/month at alpha
    staff-hours usage, inside the £75 alert. `INT-17` needs no new
-   resource: the engine runs in-process on the existing scale-to-zero web
+   resource: the engine runs in-process on the existing always-warm web
    container, and the cheapest non-impacting headroom change, if ONNX
    sessions pressure 1 GiB, is 2 GiB memory on the same Consumption
    billing — not a dedicated plan or external service. Watch items: the
