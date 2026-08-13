@@ -6,9 +6,9 @@ services:
     project: ./src/Pegasus.Web
     host: containerapp
     language: csharp
-    remoteBuild: false
+    remoteBuild: true
   worker:
     project: ./src/Pegasus.Worker
     host: function
     language: csharp
-    remoteBuild: false
+    remoteBuild: true

@@ -152,6 +152,8 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.PredicatesJson).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.PolicyKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.StandaloneAuditReportAssetSourceLabel).HasMaxLength(500);
+            entity.Property(item => item.StandaloneAuditReportAssessment).HasMaxLength(40);
             entity.HasOne(item => item.IntakeReceipt)
                 .WithOne(item => item.MailClassificationDecision)
                 .HasForeignKey<IntakeMailClassificationDecisionEntity>(item => item.IntakeReceiptId)

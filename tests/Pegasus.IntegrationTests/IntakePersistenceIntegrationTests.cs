@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Infrastructure;
@@ -67,7 +68,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260806090000_ApprovedInboxPollStateIdentityAdoption",
                 "20260811063940_QdosAllocationRecovery",
                 "20260811122654_CaseCustodyEvaRecovery",
-                "20260812010335_ManualInspectionAuditCustody"
+                "20260812010335_ManualInspectionAuditCustody",
+                "20260813025241_StandaloneAuditReportDecision"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -302,6 +304,42 @@ public sealed class IntakePersistenceIntegrationTests
         Assert.Equal(new IntakeQueueCounts(1, 0), await database.GetCountsAsync());
     }
 
+    [Fact]
+    public async Task StandaloneAuditReportSurvivesTheReceiptRoundTrip()
+    {
+        // Regression for the Audit auto-create defect: the standalone Audit
+        // report evaluation must survive the receipt persistence round-trip, or
+        // the retry-from-durable-receipt replay records no Audit evidence and no
+        // Audit case can ever mint. A real EF round-trip is required because the
+        // unit test double returned the same in-memory object and hid this.
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var draft = CreateDraft(1, IntakeDecision.CaseCreated) with
+        {
+            MailClassificationDecision = MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "audit"),
+                [],
+                "A standalone Audit instruction was identified.",
+                "qdos-mail-classification",
+                1,
+                CaseType.Audit,
+                new StandaloneAuditReportEvaluation(
+                    "uploaded original.eml, attachment 1: original-report.pdf",
+                    AuditAssessment.Repairable))
+        };
+
+        var stored = await database.StoreAsync(draft);
+        var readBack = await database.GetReceiptAsync(stored.Id);
+
+        Assert.NotNull(readBack);
+        Assert.NotNull(readBack!.MailClassificationDecision);
+        var report = readBack.MailClassificationDecision!.StandaloneAuditReport;
+        Assert.NotNull(report);
+        Assert.Equal(
+            "uploaded original.eml, attachment 1: original-report.pdf",
+            report!.AssetSourceLabel);
+        Assert.Equal(AuditAssessment.Repairable, report.Assessment);
+    }
+
     private static IntakeReceiptDraft CreateDraft(
         int id,
         IntakeDecision decision) => new(
@@ -513,6 +551,13 @@ internal sealed class LocalDbTestDatabase : IAsyncDisposable
         await using var scope = services.CreateAsyncScope();
         return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>()
             .StoreAsync(draft, CancellationToken.None);
+    }
+
+    public async Task<IntakeReceipt?> GetReceiptAsync(Guid id)
+    {
+        await using var scope = services.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(id, CancellationToken.None);
     }
 
     public async Task<IReadOnlyList<IntakeReceiptSummary>> ListAsync(IntakeDecision decision)
