@@ -20,16 +20,14 @@ tags: [intake, policy]
 The first usable release must prove full functionality for one principal, QDOS.
 The current local slice took that release cohort too far into the reusable intake
 spine: generic receipt identity, multi-format reading, evidence, assets,
-persistence, routes, queues, and future caller guidance were all QDOS-named.
+persistence, routes, and queues were all QDOS-named. QDOS-specific recognition
+and field extraction are intentional; a QDOS-shaped transport and storage model
+is not. Case identity and workflow are uniform across principals, and ADR-0001
+requires provider extraction rules to remain isolated behind a common contract.
 
-QDOS-specific recognition and field extraction are intentional. A QDOS-shaped
-transport and storage model is not. Case identity and workflow are uniform across
-principals, and ADR-0001 requires provider extraction rules to remain isolated
-behind a common contract.
-
-No Pegasus database or deployment had entered live use when this decision was made.
-The existing local database was disposable development evidence rather than a
-compatibility boundary.
+No Pegasus database or deployment had entered live use when this decision was
+made; the existing local database was disposable development evidence rather than
+a compatibility boundary.
 
 ## Decision
 
@@ -39,8 +37,8 @@ compatibility boundary.
 2. The multi-format reader, artifact store, receipt/query store, evidence,
    assets, typed instruction draft, Web route, feature flag, and queue language
    are provider-neutral.
-3. One concrete `QdosInstructionExtractionPolicy` owns the accepted QDOS marker,
-   label, precedence, typed-suggestion, and policy-version rules. It returns
+3. One concrete `QdosInstructionExtractionPolicy` is the single provider policy
+   and owns the accepted QDOS marker, label, and typed-suggestion rules. It returns
    evidence-backed `Applicable`, `NotApplicable`, or `Indeterminate` assessment
    plus neutral field candidates. It does not categorise a mailbox item, accept
    a case, allocate a reference, or resolve another provider.
@@ -70,6 +68,9 @@ compatibility boundary.
 
 No provider registry, rules engine, second policy, mailbox classifier, provider
 table, dormant transport, or compatibility route is introduced.
+
+Functional behaviour: see [FRD-02](../frd/frd-02-intake-and-source-identity.md)
+and [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md).
 
 ## Consequences
 
