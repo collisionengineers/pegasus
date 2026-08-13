@@ -24,22 +24,20 @@ tags: [mailbox, identity]
 ADR-0022 correctly moved the choice of approved inbound mailboxes into the
 administrator-owned `ApprovedMailboxes` estate and kept the Worker read-only on
 that policy table. Its use of a Graph mailbox identity as the poll-state key,
-and its promise to preserve the cursor on re-enablement, couple Pegasus state
-to replaceable provider coordinates. A Graph delta cursor is valid only for the
-mailbox, folder, and request shape that minted it.
+and its promise to preserve the cursor on re-enablement, couple Pegasus state to
+replaceable provider coordinates: a Graph delta cursor is valid only for the
+mailbox, folder, and request shape that minted it, so it cannot be the durable
+identity of an inbound source.
 
-The product decision is intentionally simple: Pegasus is not yet released, so
-it will not create a pre-launch mail backlog. An administrator may switch an
-approved inbound mailbox on or off independently. Every switch-on begins a
-fresh activation cycle at its recorded UTC time; Pegasus ignores earlier mail
-in that mailbox. This decision concerns Pegasus operational data only. It never
-authorises clearing, moving, or otherwise mutating Outlook mailboxes or
-messages.
-
-The existing Worker has individual function settings, but only two functions
-read mail: `InboxPollFunction` reads approved incoming mail and
-`SentEvidencePollFunction` reads approved Sent folders. The latter is a separate
-capability and must not become active merely because inbound mail is activated.
+Pegasus is not yet released and will not create a pre-launch mail backlog, so an
+administrator may switch an approved inbound mailbox on or off independently, and
+every switch-on begins a fresh activation cycle at its recorded UTC time (§2).
+This decision concerns Pegasus operational data only; it never authorises
+clearing, moving, or otherwise mutating Outlook mailboxes or messages. Of the
+Worker functions, only `InboxPollFunction` reads approved incoming mail and
+`SentEvidencePollFunction` reads approved Sent folders; the latter is a separate
+capability that must not become active merely because inbound mail is activated
+(§4).
 
 Production containment left the current Worker disabled. This ADR records the
 accepted target contract only; it is not implementation, deployment, or live
@@ -156,6 +154,8 @@ follows from this decision.
 - Production remains in its separately evidenced contained state until later
   tickets implement, deploy, activate, and live-verify the accepted contract
   under their own approvals.
+
+Functional behaviour: see [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md).
 
 ## Implementation boundary
 
