@@ -7,7 +7,7 @@ roadmap, not an implementation-status ledger.
 
 ## Historical allocation provenance
 
-The active inventory contains 228 stable IDs. It was reconciled from a 213-row
+The active inventory contains 231 stable IDs. It was reconciled from a 213-row
 allocation worksheet and its normalized maturity map; those deleted source rows
 are provenance, not a second allocation table. On 2026-08-02, `DOC-06` was
 merged into `INT-31` — both recorded the same request-scoped in-house
@@ -21,7 +21,7 @@ never reused.
 
 The additional stable IDs split compound outcomes or explicit boundaries; they
 do not invent a second product scope. Active timing uses `Now`, `Next`, `Later`,
-or `Not planned`. All 199 planned capabilities have an exact first-introduction
+or `Not planned`. All 202 planned capabilities have an exact first-introduction
 target; the 29 permanent boundaries remain `unallocated`. Allocation,
 implementation, registration, build, deployment, live verification, and
 acceptance remain separate states.
@@ -32,10 +32,10 @@ acceptance remain separate states.
 | --- | ---: | --- |
 | Now | 131 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
 | Next | 29 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
-| Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
+| Later | 42 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
-Total: **230 capabilities; 230 unique IDs**.
+Total: **231 capabilities; 231 unique IDs**.
 
 | Target release | Planned capabilities |
 | --- | ---: |
