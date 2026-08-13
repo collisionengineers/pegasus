@@ -6,7 +6,7 @@ design assets remain under [`design/`](../design/).
 
 | Question | File |
 | --- | --- |
-| What is in flight and what can I take? | [`NOW.md`](../NOW.md) (repo root; authoritative copy is `origin/dev`'s) |
+| What is in flight and what can I take? | The Kanmer board (`.kanmer/`, via the `kanmer` tools) |
 | Why must Pegasus do it — business need, users, outcomes, scope? | [PRD](prd/README.md) |
 | How must a capability behave — I/O, states, rules, edge cases, acceptance? | [FRD index](frd/README.md) |
 | What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap and capability-ID registry; its *Canonical owner* column joins each ID to its PRD, FRD, or ADR |

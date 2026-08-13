@@ -3,7 +3,7 @@
 How repository work is done. Product behavior lives in
 [requirements](prd/README.md), the roadmap in [capabilities](capabilities.md),
 procedures in the [runbook](runbook.md), operational evidence in
-[operations](operations.md), and current work in [`NOW.md`](../NOW.md).
+[operations](operations.md), and current work on the Kanmer board (`.kanmer/`).
 Authority order is defined once in the
 [documentation index](index.md).
 

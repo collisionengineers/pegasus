@@ -113,7 +113,7 @@ internal sealed class EfApprovedInboxPollStore(
     /// retained-message and quarantine rows that reference it follow by
     /// cascade, and the whole thing is inside the claiming transaction.
     ///
-    /// Known gap, queued in NOW.md: against Graph the carried cursor is a URI
+    /// Known gap, tracked on the Kanmer board: against Graph the carried cursor is a URI
     /// scoped to the identity that minted it, so ValidateDeltaUri rejects it
     /// after the re-key and the mailbox stalls. Simply clearing the cursor is
     /// not the fix — the external receipt token embeds the mailbox identity

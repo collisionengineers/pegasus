@@ -14,7 +14,7 @@ This repo's work is tracked on a Kanmer board in `.kanmer/`.
 # Pegasus repository instructions
 
 Pegasus is Collision Engineers' clean-room case-management and reporting
-application. Read [`NOW.md`](NOW.md) for current work, then the
+application. Read the Kanmer board (`.kanmer/`, via the `kanmer` tools) for current work, then the
 [documentation index](docs/index.md) for the file that owns your question and
 the authority rule.
 
@@ -109,7 +109,7 @@ contract and existing workspace tree.
 
 ## Planning process
 
-- [`NOW.md`](NOW.md) is the multi-agent queue.
+- The Kanmer board (`.kanmer/`) is the multi-agent work queue.
   [Capabilities](docs/capabilities.md) is the roadmap;
   [open decisions](docs/open-decisions.md) holds unresolved questions;
   [ADRs](docs/adr/README.md) hold durable technical decisions.
@@ -187,52 +187,49 @@ contract and existing workspace tree.
 ## Repository task workflow
 
 Multiple agents may work in parallel. One task uses one `task/<slug>` branch,
-one worktree, and one PR. The claimable unit is a task line in `NOW.md`; after
-`git fetch origin`, `origin/dev:NOW.md` is authoritative. A live claim has the
-form `- <IDs and/or goal> (branch task/<slug>, taken YYYY-MM-DD, by <agent>)`.
+one worktree, and one PR. **The claimable unit is a Kanmer ticket** on the board
+in `.kanmer/`. Taking a ticket with `take_ticket` records the branch, worktree,
+date, and agent and moves it to the working stage — that record *is* the claim.
 
-1. **Take.** Read `origin/dev:NOW.md`. Do not take work whose capability IDs or
-   files overlap an in-flight claim. Check `git worktree list` and
-   `git branch --list 'task/*'` for same-machine work.
+1. **Take.** Orient with `get_status` and `list_items`, then `take_ticket` your
+   ticket with the real branch and worktree. Do not take work whose capability
+   IDs or files overlap an already-taken ticket. Check `git worktree list` and
+   `git branch --list 'task/*'` for same-machine work; if a ticket is already
+   taken, coordinate rather than passing `force`.
 2. **Worktree.** Create `../pegasus-worktrees/<slug>` on `task/<slug>` from
    `origin/dev`.
-3. **Claim.** In that worktree, commit only the `NOW.md` claim line, including
-   branch, date, and agent, and push it directly to `dev`. If rejected, fetch,
-   discard only the unpushed claim commit, re-read `origin/dev:NOW.md`, and
-   retry only if the task remains free.
-4. **Plan.** A non-docs-only task creates a root plan at
-   `docs/temp-plans/<slug>.md`. Create as many supporting plans, tickets,
-   research notes, or review artifacts under `docs/temp-plans/` as the task
-   needs. The root plan inventories its supporting files and owns whole-task
-   scope, sequencing, dependencies, acceptance conditions, commands, and
-   verification. Supporting files share the claim and need no separate branch
-   or `NOW.md` line. A task is docs-only only when every changed path is a
-   Markdown file outside `src/`, `tests/`, `infra/`, and `scripts/`; such a task
-   may skip the root plan.
-5. **Work and PR.** Implement and verify in the task worktree. The PR targets
-   `dev` and removes its own claim line. If `NOW.md` conflicts, merge
-   `origin/dev`, take its `NOW.md`, and reapply only the task's claim removal.
-6. **Review and merge.** Before merge, an agent that did not implement the task
-   answers whether the plan missed anything implied by the claim and whether
-   implementation missed anything in the plan. For a docs-only task, review
-   the PR diff and description for missing or unauthorized scope. A task PR may
-   merge into `dev` only after that review passes and CI is green. Explicit
+3. **Plan.** A non-docs-only task creates a root plan at
+   `docs/temp-plans/<slug>.md`. Create as many supporting plans, research notes,
+   or review artifacts under `docs/temp-plans/` as the task needs. The root plan
+   inventories its supporting files and owns whole-task scope, sequencing,
+   dependencies, acceptance conditions, commands, and verification. Supporting
+   files share the ticket and need no separate branch or ticket. A task is
+   docs-only only when every changed path is a Markdown file outside `src/`,
+   `tests/`, `infra/`, and `scripts/`; such a task may skip the root plan. Work
+   the ticket's document pipeline (research + impact → plan → checklist →
+   proof); `proof.md` is required before the ticket reaches the final stage.
+4. **Work and PR.** Implement and verify in the task worktree. The PR targets
+   `dev`. Keep the ticket's stage and checklist current as you go.
+5. **Review and merge.** Before merge, an agent that did not implement the task
+   answers whether the plan missed anything implied by the ticket and whether
+   implementation missed anything in the plan. For a docs-only task, review the
+   PR diff and description for missing or unauthorized scope. A task PR may merge
+   into `dev` only after that review passes and CI is green. Explicit
    `MERGE AUTH GRANTED` is required only for `dev` to `main`.
    Committing is not gated: commit to your own task branch freely and often, in
    small logical slices, without operator authority. Only the `dev` → `main`
    merge requires `MERGE AUTH GRANTED`.
-7. **Release or abandon.** After merge, a maintenance push may delete every
-   temporary-plan file owned by the task; then remove its worktree and branch.
-   To abandon, discard only the task's own unpushed work, remove its claim from
-   fresh `origin/dev`, push that claim-only maintenance change, and remove its
-   worktree and branch.
+6. **Release or abandon.** After merge, a maintenance push may delete every
+   temporary-plan file owned by the task; then remove its worktree and branch and
+   move the ticket to the final stage. To abandon, discard only the task's own
+   unpushed work, release the ticket (`take_ticket action: "release"`), and
+   remove its worktree and branch.
 
-A claim is stale and removable by anyone when its branch was never pushed
-within 48 hours, or its `Doing` line is older than 14 days with no branch
-activity. Temporary planning material with no matching active task is orphaned
-and may be removed after its shared task ownership has been checked; a
-supporting file does not require its own claim. Bump the date at the top of
-`NOW.md` whenever that file changes.
+A claim is stale and removable by anyone when its branch was never pushed within
+48 hours, or its taken ticket is older than 14 days with no branch activity.
+Temporary planning material with no matching active ticket is orphaned and may be
+removed after its shared ownership has been checked; a supporting file does not
+require its own ticket.
 
 Never touch work that is not yours. Allowed operations are discarding only your
 own unpushed commits in your own task worktree, merging `origin/dev` into that
