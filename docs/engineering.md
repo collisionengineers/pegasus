@@ -1,7 +1,7 @@
 # Engineering guidance
 
 How repository work is done. Product behavior lives in
-[requirements](requirements.md), the roadmap in [capabilities](capabilities.md),
+[requirements](prd/README.md), the roadmap in [capabilities](capabilities.md),
 procedures in the [runbook](runbook.md), operational evidence in
 [operations](operations.md), and current work in [`NOW.md`](../NOW.md).
 Authority order is defined once in the

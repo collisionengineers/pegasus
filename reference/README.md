@@ -2,7 +2,7 @@
 
 Supplied and raw material is evidence, not a requirement, implementation proof,
 current directory, or authorization. Accepted behavior lives in
-[requirements](../docs/requirements.md), current callers in
+[requirements](../docs/prd/README.md), current callers in
 [architecture](../docs/architecture.md), unresolved questions in
 [open decisions](../docs/open-decisions.md), operator truth in
 [operator notes](../docs/operator-notes.md), and UI rules in
@@ -29,7 +29,7 @@ authority.
 
 These reports remain source-labelled evidence and accepted-decision provenance.
 Their current product clauses are centralized in
-[requirements](../docs/requirements.md); retention does not make predecessor
+[requirements](../docs/prd/README.md); retention does not make predecessor
 implementation or raw source rows authoritative. Reports overtaken by current
 documentation are removed; git history retains them.
 

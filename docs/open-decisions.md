@@ -1,6 +1,6 @@
 # Open decisions
 
-This is the sole register of material unresolved decisions. Most product decisions reviewed through 2026-07-25 are not reopened here. The [requirements](requirements.md) and [capability inventory](capabilities.md) own scope context; deliberately deferred, conditional, and `Unclear` capabilities are not current-scope questions merely because their activation evidence is recorded here.
+This is the sole register of material unresolved decisions. Most product decisions reviewed through 2026-07-25 are not reopened here. The [requirements](prd/README.md) and [capability inventory](capabilities.md) own scope context; deliberately deferred, conditional, and `Unclear` capabilities are not current-scope questions merely because their activation evidence is recorded here.
 
 Evidence tiers are defined once in [engineering](engineering.md#required-evidence-tiers); no stronger state is inferred below.
 
@@ -8,7 +8,7 @@ Accepted decisions move to an [ADR](adr/README.md) or their canonical owner. Del
 
 [ADR-0013](adr/0013-qdos-alpha-implementation-contract.md) settles checkpoint 1's clause-specific QDOS implementation and Razor/Worker/MCP caller boundary, the separately owned evaluator allocation boundary, and the post-alpha repository-policy deferral. It does not close the evidence-dependent questions below or prove implementation, a caller, deployment, live verification, or acceptance.
 
-Staff roles and access, principal and historical case-party identity, the Case/PO and case-type rules, Triage’s normal workflow, named terminal outcomes and reasoned reopen, exclusive one-case edit actions, immutable source-occurrence/dispatch identity, and reasoned source/Case or outbound-evidence reassociation are settled. Their canonical clauses are [principal and case-party identity](requirements.md#principal-reference-organisation-and-case-party-identity), [source occurrence and dispatch](requirements.md#source-occurrence-and-dispatch-identity), [matching and reversible association](requirements.md#matching-conflicts-and-reversible-association), [Triage](requirements.md#normal-workflow-and-completion-evidence), [case lifecycle](requirements.md#lifecycle-closure-and-correspondence), [case edit authority](requirements.md#case-edit-authority-and-recovery), [staff role access](requirements.md#staff-role-access-matrix), and [outbound correspondence evidence](requirements.md#outbound-correspondence-evidence). This register may block only the named automatic predicate, transport, credential, or activation detail; it must not reopen those settled behaviors.
+Staff roles and access, principal and historical case-party identity, the Case/PO and case-type rules, Triage’s normal workflow, named terminal outcomes and reasoned reopen, exclusive one-case edit actions, immutable source-occurrence/dispatch identity, and reasoned source/Case or outbound-evidence reassociation are settled. Their canonical clauses are [principal and case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), [source occurrence and dispatch](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity), [matching and reversible association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association), [Triage](frd/frd-03-triage.md#normal-workflow-and-completion-evidence), [case lifecycle](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence), [case edit authority](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery), [staff role access](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), and [outbound correspondence evidence](frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence). This register may block only the named automatic predicate, transport, credential, or activation detail; it must not reopen those settled behaviors.
 
 ## First production journey and release sequencing
 
@@ -38,7 +38,7 @@ correspondence, and staff-added documents) are kept beneath that same root.
 The application may retain Case and version UUIDs as internal identities, but
 neither a separate `cases/{caseId}` tree nor a UUID-derived Box case folder is
 part of the accepted custody layout (owner:
-[requirements](requirements.md#documents-extraction-and-custody)). No remote
+[requirements](frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)). No remote
 content migration is authorised by this decision; any existing-content
 relocation requires a separately approved target, inventory, recovery plan,
 and approval.
@@ -120,7 +120,7 @@ accepted match rules. The
 
 The [Received/Sent taxonomy, mirrored Reply rule, `Other` behavior, separation
 of classification from destination, and correction/reversal audit
-contract](requirements.md#settled-mailbox-taxonomy-and-correction) are settled
+contract](frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction) are settled
 and are not reopened here. `new-instruction-received` is a Received family with
 no confirmed Sent counterpart; that direction boundary does not decide which
 rule wins when several predicates match.
