@@ -2,7 +2,6 @@
 
 ## Doing (one line per live claim)
 
-- Keep the production Web Container App warm by persisting its minimum replica count (branch task/keep-web-warm, taken 2026-08-13, by Codex)
 - Rework Received as API/upload information and management (branch
   task/received-information-rework, taken 2026-08-12, by Codex)
 

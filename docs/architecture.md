@@ -525,7 +525,7 @@ There is no Azure development, test, integration, or staging environment; see
 [ADR-0014](adr/0014-local-to-production-deployment.md). Target Bicep must
 describe only the approved production resource group containing:
 
-- a .NET 10 Linux/AMD64 Razor Pages Web Container App on Azure Container Apps Consumption, scaled from zero to one replica and pulled by digest from a separate production Basic ACR;
+- a .NET 10 Linux/AMD64 Razor Pages Web Container App on Azure Container Apps Consumption, kept at one replica and pulled by digest from a separate production Basic ACR;
 - a .NET 10 isolated Functions Worker;
 - Azure SQL database `pegasus`;
 - separate transport/deployment and custody/protection Azure Storage accounts;

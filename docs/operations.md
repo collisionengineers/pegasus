@@ -87,7 +87,7 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 
 | Boundary | Local evidence | Separately approved live evidence |
 | --- | --- | --- |
-| ASP.NET Core / Container Apps | Kestrel, `WebApplicationFactory`, Playwright, local HTTPS, local OCI-layout inspection | Linux/AMD64 Container Apps Consumption runtime, digest-pinned ACR pull, scale-to-zero cold/warm behavior, probes, revision restart, managed identity |
+| ASP.NET Core / Container Apps | Kestrel, `WebApplicationFactory`, Playwright, local HTTPS, local OCI-layout inspection | Linux/AMD64 Container Apps Consumption runtime, digest-pinned ACR pull, always-warm minimum replica, probes, revision restart, managed identity |
 | SQL Server / Azure SQL | Disposable LocalDB for migrations, locking, allocation, rollback, backup, and restore | Entra identity, Azure SQL configuration/throttling, point-in-time restore, 15-minute RPO and four-hour RTO |
 | Blob / Queue / Functions | Azurite and actual Functions host for staging, identifiers, duplicate/poison/restart behavior | Storage RBAC, managed identity, durability, Flex scale/concurrency, platform diagnostics |
 | Key Vault / identity | Mock the owned port; developer credentials only for approved development resources | Deployed managed identity, least-privilege RBAC, firewall behavior |
