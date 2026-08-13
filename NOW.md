@@ -4,6 +4,8 @@
 
 - Rework Received as API/upload information and management (branch
   task/received-information-rework, taken 2026-08-12, by Codex)
+- Make ai-centre a standalone repository (branch
+  task/ai-centre-standalone-repository, taken 2026-08-13, by Codex)
 
 ## Production state
 
