@@ -1,3 +1,13 @@
+---
+id: ADR-0024
+status: accepted
+date: 2026-08-10
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-08]
+tags: [mailbox, identity]
+---
 # ADR-0024: Stable approved-mailbox identity and per-mailbox fresh start
 
 - Date: 2026-08-10

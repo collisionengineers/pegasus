@@ -1,3 +1,13 @@
+---
+id: ADR-0022
+status: accepted
+date: 2026-08-06
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-08]
+tags: [mailbox, config]
+---
 # ADR-0022: Approved-mailbox identity and enablement as an administrator-editable database setting
 
 - Date: 2026-08-06

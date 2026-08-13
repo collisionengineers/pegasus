@@ -1,3 +1,13 @@
+---
+id: ADR-0005
+status: accepted
+date: 2026-07-23
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-02, frd-05]
+tags: [intake, assets]
+---
 # ADR-0005: Multi-format intake and review assets
 
 Status: **Accepted for the local `0.1.0-alpha.1` slice**

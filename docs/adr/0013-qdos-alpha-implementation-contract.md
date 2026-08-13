@@ -1,3 +1,13 @@
+---
+id: ADR-0013
+status: accepted
+date: 2026-07-30
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-01, frd-02, frd-06, frd-07, frd-08, frd-12]
+tags: [qdos, contract]
+---
 # ADR-0013 — QDOS alpha implementation contract
 
 **Status:** Accepted (2026-07-30).
