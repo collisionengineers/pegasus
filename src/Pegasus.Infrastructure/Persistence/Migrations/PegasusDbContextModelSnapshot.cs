@@ -3405,6 +3405,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("StandaloneAuditReportAssessment")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("StandaloneAuditReportAssetSourceLabel")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<string>("Subtype")
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");

@@ -199,15 +199,23 @@ internal sealed class EfRetainedMailboxMessageStore(
             .Select(item => new
             {
                 Classification = item.MailClassificationDecision!.Outcome,
-                Route = item.MailRouteDecision!.Disposition
+                Route = item.MailRouteDecision!.Disposition,
+                EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress
             })
             .SingleOrDefaultAsync(cancellationToken);
+
+        // A staff forward is de-cluttered on read so existing (write-once) rows
+        // are corrected too: the effective sender differs from the transport
+        // sender exactly when the route unwrapped a Collision Engineers forward.
+        var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
+            && !string.Equals(effectiveSender, entity.SenderAddress, StringComparison.OrdinalIgnoreCase);
+        var body = StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
 
         return new(
             summary,
             Deserialize(entity.ToAddressesJson),
             Deserialize(entity.CcAddressesJson),
-            entity.BodyPlainText,
+            body,
             entity.Attachments
                 .OrderBy(item => item.Ordinal)
                 .Select(item => new RetainedMailAttachment(
@@ -385,6 +393,16 @@ internal sealed class EfRetainedMailboxMessageStore(
                 var allocationState = receipt is null
                     ? null
                     : allocationStates.GetValueOrDefault(receipt.Id);
+                var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
+                    && !string.Equals(effectiveSender, row.SenderAddress, StringComparison.OrdinalIgnoreCase);
+                var cleanedExcerpt = row.BodyExcerpt is { } excerpt
+                    ? StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)
+                    : null;
+                if (string.IsNullOrWhiteSpace(cleanedExcerpt))
+                {
+                    cleanedExcerpt = null;
+                }
+
                 return new RetainedMailSummary(
                     row.Id,
                     row.MailboxId,
@@ -394,7 +412,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                     row.SenderDisplayName,
                     receipt?.EffectiveSenderAddress,
                     row.Subject,
-                    row.BodyExcerpt,
+                    cleanedExcerpt,
                     row.ReceivedAtUtc,
                     row.IsRead,
                     row.AttachmentCount,

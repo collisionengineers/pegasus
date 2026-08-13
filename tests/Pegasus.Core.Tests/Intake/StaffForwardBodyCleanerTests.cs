@@ -1,0 +1,80 @@
+using Pegasus.Core.Intake;
+
+namespace Pegasus.Core.Tests.Intake;
+
+/// <summary>
+/// The inbox de-clutter policy for a Collision Engineers staff forward: leaked
+/// inline-image content-id tokens are removed, and for a staff forward the
+/// forwarder's preamble and signature above the quoted original are dropped so
+/// the work provider's message is the focus.
+/// </summary>
+public sealed class StaffForwardBodyCleanerTests
+{
+    private const string StaffForward =
+        "[cid:4931302a-3f0a-4510-af7f-a979337b17ab]\n\n" +
+        "Alex Mercer\n" +
+        "IT Systems & Automations Developer\n" +
+        "Contact: engineers@collisionengineers.co.uk\n\n" +
+        "From: Nicholas Duncombe <nduncombe@qdosassist.co.uk>\n" +
+        "Sent: 12 August 2026 14:00\n" +
+        "To: desk@collisionengineers.co.uk\n" +
+        "Subject: (EREF18) RTA on 08/07/2026\n\n" +
+        "Please find attached the audit instruction for the vehicle.";
+
+    [Fact]
+    public void StripsContentIdTokens()
+    {
+        var cleaned = StaffForwardBodyCleaner.Clean(
+            "See the logo [cid:image001.png@01D] and <cid:image002.png> here.",
+            isStaffForward: false);
+
+        Assert.DoesNotContain("cid:", cleaned, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("See the logo", cleaned, StringComparison.Ordinal);
+        Assert.Contains("here.", cleaned, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void StaffForwardFocusesTheProviderOriginalAndDropsTheForwarderSignature()
+    {
+        var cleaned = StaffForwardBodyCleaner.Clean(StaffForward, isStaffForward: true);
+
+        Assert.StartsWith("From: Nicholas Duncombe", cleaned, StringComparison.Ordinal);
+        Assert.Contains("Please find attached the audit instruction", cleaned, StringComparison.Ordinal);
+        Assert.DoesNotContain("Alex Mercer", cleaned, StringComparison.Ordinal);
+        Assert.DoesNotContain("IT Systems & Automations Developer", cleaned, StringComparison.Ordinal);
+        Assert.DoesNotContain("cid:", cleaned, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void NonStaffForwardKeepsTheBodyButStillStripsContentIds()
+    {
+        var cleaned = StaffForwardBodyCleaner.Clean(StaffForward, isStaffForward: false);
+
+        // Not a staff forward: no forwarded original is assumed, so the body is
+        // preserved (only the content-id token is removed).
+        Assert.Contains("Alex Mercer", cleaned, StringComparison.Ordinal);
+        Assert.Contains("Please find attached the audit instruction", cleaned, StringComparison.Ordinal);
+        Assert.DoesNotContain("cid:", cleaned, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void StaffForwardWithoutAForwardedHeaderKeepsTheBody()
+    {
+        // A staff forward whose body carries no From/Sent/To/Subject boundary
+        // (e.g. an attached-original forward whose provider body is already the
+        // focus) is left intact apart from content-id removal.
+        const string body = "Please review the attached QDOS audit instruction. [cid:x@y]";
+
+        var cleaned = StaffForwardBodyCleaner.Clean(body, isStaffForward: true);
+
+        Assert.Contains("Please review the attached QDOS audit instruction.", cleaned, StringComparison.Ordinal);
+        Assert.DoesNotContain("cid:", cleaned, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EmptyBodyIsReturnedEmpty()
+    {
+        Assert.Equal(string.Empty, StaffForwardBodyCleaner.Clean(string.Empty, isStaffForward: true));
+        Assert.Equal(string.Empty, StaffForwardBodyCleaner.Clean("   \r\n  ", isStaffForward: false));
+    }
+}

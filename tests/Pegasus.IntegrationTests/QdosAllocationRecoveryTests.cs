@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Triage;
@@ -554,6 +555,110 @@ public sealed class QdosAllocationRecoveryTests
         Assert.Equal(2, await AllocationTestData.AllocationEventCountAsync(factory.Services));
         Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+    }
+
+    [Fact]
+    public async Task CompletedSourceReplayRecoversAllocationLostBeforeItPersisted()
+    {
+        // Defect B: automatic allocation runs after CompleteProcessingAsync and
+        // outside the try/catch. If it is lost before it persists any attempt (a
+        // transient begin failure), the receipt is a definitive case_created with
+        // no case and zero attempts. The completed-work replay branch must
+        // re-drive allocation and mint the stranded case, without double-allocating.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var email = IntakeTestEvidence.CreateEmail(
+            "qdos-replay-recovery.eml",
+            "QDOS instruction\r\nClaimant Name: Replay Claimant\r\nClaim Number: REP-1\r\nVehicle Registration: AB12 CDE");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var clock = services.GetRequiredService<TimeProvider>();
+        var store = services.GetRequiredService<IIntakeWorkStore>();
+        var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
+
+        var received = await new ReceiveIntake(artifactStore, store, clock).ExecuteAsync(
+            new(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                clock.GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+            $"qdos-alpha:replay-recovery:{Guid.NewGuid():N}");
+        var dispatch = await store.ClaimDispatchAsync(
+            clock.GetUtcNow(), TimeSpan.FromMinutes(1), CancellationToken.None);
+        Assert.NotNull(dispatch);
+        await store.MarkDispatchedAsync(
+            dispatch!.Id, dispatch.LeaseToken!, clock.GetUtcNow(), CancellationToken.None);
+
+        var spy = new FirstAutomaticAllocationLost(
+            services.GetRequiredService<IAllocateIntake>());
+        var processor = new ProcessQueuedIntake(
+            store,
+            artifactStore,
+            services.GetRequiredService<ProcessIntake>(),
+            services.GetRequiredService<IIntakeReceiptQueries>(),
+            services.GetRequiredService<ICreateTriageFromIntake>(),
+            services.GetRequiredService<IAutomaticCaseAssociationStore>(),
+            spy,
+            clock,
+            services.GetService<IImageIntakeAutomation>());
+
+        // First pass: processes to a definitive receipt, but the automatic
+        // allocation is lost before it persists — no case, no attempt.
+        await processor.ExecuteAsync(received.StagedReceiptId);
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+
+        // Replay: the work item is already completed, so it enters the
+        // completed-work replay branch, which now re-drives allocation and mints
+        // the stranded case.
+        await processor.ExecuteAsync(received.StagedReceiptId);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+
+        // A further replay does not double-allocate.
+        await processor.ExecuteAsync(received.StagedReceiptId);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
+        Assert.True(spy.AutomaticCalls >= 2);
+    }
+
+    private sealed class FirstAutomaticAllocationLost(IAllocateIntake inner) : IAllocateIntake
+    {
+        private int automaticCalls;
+
+        public int AutomaticCalls => automaticCalls;
+
+        public Task<IntakeAllocationResult?> AttemptAutomaticAsync(
+            Guid receiptId,
+            Guid evaluationId,
+            CancellationToken cancellationToken = default)
+        {
+            // The first automatic attempt is lost before it persists anything,
+            // mirroring a transient allocation-begin failure after completion.
+            if (Interlocked.Increment(ref automaticCalls) == 1)
+            {
+                return Task.FromResult<IntakeAllocationResult?>(null);
+            }
+
+            return inner.AttemptAutomaticAsync(receiptId, evaluationId, cancellationToken);
+        }
+
+        public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
+            AcceptIntakeRequest request,
+            CancellationToken cancellationToken = default) =>
+            inner.AttemptStaffCreateAsync(request, cancellationToken);
+
+        public Task<IntakeAllocationResult> RetryAsync(
+            RetryIntakeAllocationRequest request,
+            CancellationToken cancellationToken = default) =>
+            inner.RetryAsync(request, cancellationToken);
     }
 
     [Fact]
