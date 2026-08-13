@@ -1,56 +1,54 @@
 # Decision index
 
-Published ADR bodies, including their decision clauses, rationale, and dated
-provenance, are normally immutable. An explicit direct user instruction may
-authorize an in-place amendment for the affected decision; otherwise reviewed
-navigation, current status, and supersession metadata is maintained in this
-index without changing a decision's meaning, and a changed choice is recorded
-by a dated addendum or superseding decision.
+Architecture Decision Records capture durable **technical/architectural** product
+decisions only. The conventions for writing them — stable IDs, YAML frontmatter,
+one decision per ADR, supersede-don't-renumber — live in
+[`AGENTS.md`](../../AGENTS.md#adr-conventions). Documentation rules, product
+intent, and feature behaviour are **not** ADRs; see the PRD/FRD taxonomy in
+[`AGENTS.md`](../../AGENTS.md) and the [documentation index](../index.md).
 
-Acceptance of a decision is design authority within its scope. No ADR or index
-entry proves implementation, registration, a real caller, deployment, live
-verification, or operator acceptance unless separately named evidence records
-that exact state.
+Every ADR carries frontmatter (`id`, `status`, `date`, `supersedes`,
+`superseded_by`, `related_capabilities`, `related_frd`, `tags`). The **current
+architecture is the set below with `status: accepted`**. Published bodies are
+immutable; a changed decision is recorded by a new, superseding ADR — IDs are
+never renumbered or reused.
 
-2026-08-01, user-authorized in-place amendment: ADR-0002's development-platform
-wording was narrowed to PowerShell 7 without an operating-system requirement.
-No decision clause, rationale, or dated provenance changed, and the Azure Linux
-runtime clauses in the same decision are unaffected. ADR-0007's Windows release
-terminal is unchanged and remains the release route.
+## Current architecture decisions (`status: accepted`)
 
-## Architecture decision records
+| ADR | Title | Related FRD |
+| --- | --- | --- |
+| [0001](0001-hybrid-pdf-extraction.md) | Hybrid PDF extraction | FRD-05 |
+| [0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure | — |
+| [0003](0003-pdfpig-for-first-qdos-slice.md) | PdfPig for the first QDOS embedded-text slice | FRD-05 |
+| [0004](0004-provider-api-and-staff-mcp-authentication.md) | Provider API and staff MCP authentication | FRD-09, FRD-10 |
+| [0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | FRD-02, FRD-05 |
+| [0006](0006-provider-neutral-intake-with-contained-qdos-policy.md) | Provider-neutral intake with contained QDOS policy | FRD-02 |
+| [0007](0007-direct-terminal-azure-deployment.md) | Direct authorised-terminal Azure deployment | — |
+| [0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | FRD-08, FRD-09 |
+| [0009](0009-adopt-pegasus-monorepo-workspaces.md) | Adopt Pegasus monorepo source workspaces | — |
+| [0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | FRD-10 |
+| [0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | FRD-01/02/06/07/08/12 |
+| [0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | — |
+| [0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | — |
+| [0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | FRD-08 |
+| [0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | FRD-02, FRD-06 |
+| [0019](0019-in-process-onnx-vrm-recognition.md) | In-process ONNX VRM recognition engine | FRD-06 |
+| [0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract | FRD-10, FRD-11 |
+| [0022](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as a database setting | FRD-08 |
+| [0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | Stable approved-mailbox identity and per-mailbox fresh start | FRD-08 |
 
-| Decision | Current status and qualification |
-| --- | --- |
-| [ADR-0001: Hybrid PDF extraction](0001-hybrid-pdf-extraction.md) | Accepted. ADR-0003 selects the embedded engine and ADR-0005 refines scan qualification; neither supersedes hybrid extraction, uncertainty/review routing, or provider-boundary rationale. |
-| [ADR-0002: .NET modular monolith on Azure App Service](0002-dotnet-modular-monolith-on-azure.md) | Accepted target architecture, partially superseded by ADR-0004 for API/MCP authentication, ADR-0007 for deployment mechanism, ADR-0009 where the older repository shape implied no source workspaces, ADR-0013 clause 12 for login protection (transient throttling, not the persistent Identity account lockout this body names), and ADR-0015 for Web hosting, tier, and fixed-compute clauses. |
-| [ADR-0003: PdfPig for the first QDOS embedded-text slice](0003-pdfpig-for-first-qdos-slice.md) | Accepted for the first local embedded-text slice. Its immutable body retains the historical literal `docs/evaluation/qdos-pdf-engine-benchmark.md`; that path no longer exists and is not a live link. |
-| [ADR-0004: Provider API and staff MCP authentication](0004-provider-api-and-staff-mcp-authentication.md) | Accepted security design. Its provider-API boundary remains accepted; ADR-0011 supersedes its per-staff MCP access/authentication clauses. Provider API is allocated to `0.4.0`; broader classified-email/MCP work is allocated to `0.3.0`. |
-| [ADR-0005: Multi-format intake and review assets](0005-multiformat-intake-assets.md) | Accepted local-slice policy; decision 1 only is superseded by ADR-0006. Every visible placement/occurrence is retained; hashes correlate equal bytes but do not delete placements. |
-| [ADR-0006: Provider-neutral intake with contained QDOS policy](0006-provider-neutral-intake-with-contained-qdos-policy.md) | Accepted pre-release policy; supersedes ADR-0005 decision 1 only, and is itself partially superseded by ADR-0008 for separate direct-provider/intermediary policies and registry limits, and on its Development SQLite clause — SQL Server is the sole supported provider on every platform. Provider-neutral transport, provenance, storage, migration, and fail-closed boundaries remain. |
-| [ADR-0007: Direct authorised-terminal Azure deployment](0007-direct-terminal-azure-deployment.md) | Partially superseded by ADR-0014 for topology, ADR-0015 for the Web ZIP deployment mechanism, and on its recovery-boundary clause — the RPO/RTO proof is deferred with OPS-09 and gates no release. Its authorised-terminal, immutable-artifact, migration, health, smoke, and rollback route remains current. |
-| [ADR-0011: Restrict MCP to a vendor-neutral Automation Actor](0011-restrict-mcp-to-automation-actor.md) | Accepted. MCP is a management/development-controlled ingress for one named Automation Actor; ordinary staff have no MCP access. Claude Desktop may provide initial acceptance evidence without owning the actor or Core policy. |
-| [ADR-0012: Conservative MOT mileage estimation](0012-conservative-mot-mileage-estimation.md) | Accepted. The future DVSA estimation policy favors source-labelled, reviewable estimates or abstention over unsupported mileage values. |
-| [ADR-0013: QDOS alpha implementation contract](0013-qdos-alpha-implementation-contract.md) | Accepted clause-level boundary for the reviewed QDOS plan. It settles image-intake, mandatory progression gates, cancellation, Box retry, dashboard, sequence, EVA-image, AI/MCP, evaluation-workbench, login-protection (clause 12 supersedes ADR-0002's lockout wording), and Azure-approval contradictions. |
-| [ADR-0014: Local-to-production deployment only](0014-local-to-production-deployment.md) | Accepted current deployment topology. Pegasus is validated locally and deployed directly to production; it has no Azure development, test, integration, or staging environment. |
-| [ADR-0015: Host Pegasus Web on Azure Container Apps Consumption](0015-host-web-on-container-apps-consumption.md) | Accepted Web hosting and release route. Pegasus.Web uses UK South Container Apps Consumption, a separate Basic ACR, scale-to-zero, managed-identity pull, and a locally built digest-pinned OCI artifact. |
-| [ADR-0019: In-process ONNX VRM recognition engine](0019-in-process-onnx-vrm-recognition.md) | Accepted engine selection for `INT-17`: vendored, hash-pinned fast-alpr/fast-plate-ocr ONNX models via `Microsoft.ML.OnnxRuntime`; abstention over guessing, no image egress. Filed as ADR-0019 to resolve a numbering collision (its body was originally headed ADR-0018, taken concurrently by the provider-inspection-mode decision). 2026-08-03: the operator exercised the separately gated `INT-28`/`INT-32` decision this body names — automatic Image-intake registration and unambiguous-match association ([requirements](../frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) owns the amended boundary and match rules) — and then accepted the threshold from the full-cohort evaluation (run `20260803-092906`: 2,818 cohort images, bar **0.80**, 315 suggestions, 3.2% genuine near-misses, 13.7% correctly read third-party registrations, zero technical failures), closing former open decision 1. The one-time holdout confirmation ran 2026-08-03 (run `20260803-102921`: 705 untouched images at the accepted 0.80 bar — 88 suggestions at 12.5%, **2 genuine near-misses at 2.3%**, 14 correctly read third-party registrations, zero technical failures), consistent with the cohort. |
+## Superseded and relocated
 
-## Repository decisions
+| ADR | Title | Now owned by |
+| --- | --- | --- |
+| [0010](0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | `AGENTS.md` / [`docs/index.md`](../index.md) — governance is not an ADR |
+| [0012](0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | [FRD-06](../frd/frd-06-vehicle-and-engineering-evidence.md) |
+| [0020](0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | [FRD-09](../frd/frd-09-provider-and-intermediary-routes.md) |
+| [0023](0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | `AGENTS.md` / [`docs/index.md`](../index.md) — governance is not an ADR |
 
-| Decision | Current status and qualification |
-| --- | --- |
-| [ADR-0008: Separate direct-provider and intermediary email policies](0008-separate-direct-provider-and-intermediary-email-policies.md) | Accepted route-policy authority. Design/alpha target only until registry, selectors, policies, Worker, case model, and callers are exercised. |
-| [ADR-0009: Adopt Pegasus monorepo source workspaces](0009-adopt-pegasus-monorepo-workspaces.md) | Accepted, with its repository-workflow owner superseded by operator decision on 2026-08-12: `AGENTS.md` owns the task operating procedure. `.agents/skills/` still implements reusable routes subject to repository instructions, and all workspace isolation and integration boundaries remain unchanged. |
-| [ADR-0010: Adopt single-context domain documentation](0010-adopt-single-context-domain-documentation.md) | Accepted. Root `CONTEXT.md` is the domain glossary and `docs/adr/` is the sole root durable-decision store; existing source roles and workspace-local decisions remain unchanged. |
-| [ADR-0016: Standalone local desktop email evaluator](0016-standalone-desktop-email-evaluator.md) | Accepted. Local development-only EML evaluator; separately owned prerequisite, not QDOS delivery. Filed as ADR-0016 to resolve a numbering collision (its body was originally headed ADR-0010). |
-| [ADR-0018: Provider-determined inspection mode as a database setting](0018-provider-inspection-mode-database-setting.md) | Accepted. Each Principal persists an inspection-mode setting (QDOS seeded image-based); case creation autofills the exact `Image Based Assessment` value with provider-setting provenance and staff may override per case with a reason. Scoped exception to ADR-0008's code-owned-configuration consequence for this one attribute; route selection stays code-owned. Filed as ADR-0018 to resolve a numbering collision (its body was originally headed ADR-0017). |
-| [ADR-0020: Accepted QDOS automatic case-association predicates](0020-accepted-qdos-case-association-predicates.md) | Accepted. Operator-accepted eliminator predicates for the QDOS direct route: label-anchored claim-token/client-VRM/surname+initial keys, incident date as eliminator only, one survivor auto-associates, ambiguity fails closed to `Needs sorting`, `Created in error` redirects to its replacement, no numeric confidence. Instantiates ADR-0008 clause 7 for QDOS; supersedes clause 11's single-domain sender identity with the accepted three-domain set (`qdos_mail_route` v3); pulls the QDOS-direct subset of MAIL-09 to `Now / 0.1.0-alpha.1`. The corpus evidence note its Context cites was a transient `docs/temp-plans/` file, deleted per the temp-plans contract (2026-08-03); the durable findings are restated in the ADR Context and pinned as negative tests in code. |
-| [ADR-0022: Approved-mailbox identity and enablement as an administrator-editable database setting](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Accepted historical authority. The approved-mailbox allowlist is the Core-owned authority for which mailboxes inbound Intake reads, approval is re-asserted inside the claiming transaction, and the Worker remains read-only on `ApprovedMailboxes`. [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) narrowly supersedes this decision's inbound Graph-coordinate immutability/disable-and-add, Graph-identity poll key, cursor-carrying adoption, and unconditional cursor-preservation consequences. Every other clause remains accepted. |
-| [ADR-0024: Stable approved-mailbox identity and per-mailbox fresh start](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | **Accepted 2026-08-11.** `ApprovedMailbox.Id` is the durable inbound source identity; Graph coordinates are replaceable cursor scope; each mailbox receives its own fresh-start time whenever it is enabled; and global Worker, individual-function, and mailbox controls are separate. Sent-evidence polling remains off unless separately approved. This accepts the design only: implementation and live operation require later evidence and approval. |
-| [ADR-0021: Automation Actor direct-write assessment contract and the Send to AI transport slice](0021-automation-actor-direct-write-assessment-contract.md) | Accepted. Promotes the settled Automation Actor contract to a durable decision and records the operator-decided direct-write model: automation assessment/case-detail writes share every staff guard with logging parity, land unconfirmed, and are reviewed at manual engineer assignment; findings stay recordable-not-confirmable; the inventory widens to fourteen tools with the `automation.assessment` scope; the gated `Features:SendToAi` pointer hand-off implements AI-09 whose contract wording changes from proposal-only to direct-writing worker. Everything stays DevelopmentOffline-gated. |
-| [ADR-0023: Restructure repository documentation and reference evidence](0023-restructure-repository-documentation-and-reference-evidence.md) | Accepted, with clause 4's task-workflow ownership superseded by operator decision on 2026-08-12: `AGENTS.md` now owns the repository task operating procedure. Its documentation structure, evidence placement, operations/runbook split, design ownership, and remaining rule owners are unchanged. |
+ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
+is intentional and the number is not reused.
 
-New durable decisions use `NNNN-purpose.md`. Reviewed navigation, current
-status, and supersession metadata is maintained here; published bodies remain
-unchanged.
+Acceptance of a decision is design authority within its scope. No ADR proves
+implementation, a real caller, deployment, live verification, or operator
+acceptance unless separately named evidence records that exact state.
