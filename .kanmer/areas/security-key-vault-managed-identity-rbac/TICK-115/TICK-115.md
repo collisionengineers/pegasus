@@ -10,10 +10,11 @@ labels:
   - now
   - source-now
   - requires-live-approval
-links: []
-archived: false
+links:
+  - TICK-110
+archived: true
 created: '2026-08-12T15:08:02.376Z'
-updated: '2026-08-12T15:08:02.376Z'
+updated: '2026-08-13T14:39:29.773Z'
 ---
 
 ## What
@@ -38,3 +39,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 - Source: `NOW.md` — Waiting — predecessor vault purge.
 - Live-system work requires fresh exact-target approval before any external operation.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[TICK-110]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

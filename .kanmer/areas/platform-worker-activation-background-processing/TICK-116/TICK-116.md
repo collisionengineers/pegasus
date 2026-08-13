@@ -14,9 +14,10 @@ labels:
 links:
   - TICK-012
   - TICK-112
-archived: false
+  - BUG-001
+archived: true
 created: '2026-08-12T15:08:02.400Z'
-updated: '2026-08-12T15:09:20.346Z'
+updated: '2026-08-13T14:39:29.789Z'
 ---
 
 ## What
@@ -44,3 +45,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 - Blocked by: Establish the QDOS Organisation and Principal in production.
 - Live-system work requires fresh exact-target approval before any external operation.
 - Blocked by: [[TICK-112]] — The journey cannot allocate a Case/PO until QDOS Principal setup is complete.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[BUG-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

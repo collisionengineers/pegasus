@@ -14,9 +14,9 @@ labels:
   - requires-live-approval
 links:
   - TICK-001
-archived: false
+archived: true
 created: '2026-08-12T15:08:02.223Z'
-updated: '2026-08-12T15:08:02.223Z'
+updated: '2026-08-13T14:39:29.730Z'
 ---
 
 ## What
@@ -42,3 +42,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 - Source: `NOW.md` — Next — release record.
 - Related capability: OPS-10 ([[TICK-001]]).
 - Live-system work requires fresh exact-target approval before any external operation.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[TICK-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

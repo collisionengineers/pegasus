@@ -4,7 +4,7 @@ type: ticket
 title: >-
   EVAL-01 — Local development-only EML categorisation evaluator over a read-only
   local working copy, recording adjudications into t…
-status: todo
+status: done
 area: evaluation-local-email-evaluator
 priority: medium
 assignee: ''
@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.819Z'
-updated: '2026-08-12T15:03:52.819Z'
+updated: '2026-08-13T14:38:59.337Z'
 ---
 
 ## What

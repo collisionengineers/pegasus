@@ -2,7 +2,7 @@
 id: TICK-017
 type: ticket
 title: DOC-01 — Automatic Box case-folder creation using the Case/PO name
-status: todo
+status: in-progress
 area: files-staging-custody-box
 priority: medium
 assignee: ''
@@ -14,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.105Z'
-updated: '2026-08-12T15:03:53.105Z'
+updated: '2026-08-13T14:46:57.049Z'
 ---
 
 ## What

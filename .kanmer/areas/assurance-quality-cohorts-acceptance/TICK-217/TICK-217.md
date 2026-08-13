@@ -12,9 +12,10 @@ labels:
   - decision-required
 links:
   - TICK-009
-archived: false
+  - TICK-186
+archived: true
 created: '2026-08-12T15:10:50.296Z'
-updated: '2026-08-12T15:10:50.296Z'
+updated: '2026-08-13T14:39:29.980Z'
 ---
 
 ## What
@@ -39,3 +40,7 @@ This is the unresolved third step of the QDOS production path in `NOW.md`; assem
 
 - Source: `NOW.md` — Path 3.
 - Related capability: MAIL-21 ([[TICK-009]]) .
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[TICK-186]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

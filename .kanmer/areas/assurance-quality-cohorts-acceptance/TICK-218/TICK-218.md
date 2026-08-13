@@ -13,9 +13,10 @@ labels:
   - blocked
 links:
   - TICK-031
-archived: false
+  - TICK-001
+archived: true
 created: '2026-08-12T15:10:50.326Z'
-updated: '2026-08-12T15:10:50.326Z'
+updated: '2026-08-13T14:39:29.744Z'
 ---
 
 ## What
@@ -41,3 +42,7 @@ Record designated-operator acceptance of the real end-to-end QDOS production wor
 - Source: `NOW.md` — Path 8.
 - Related capability: OPS-23 ([[TICK-031]]) .
 - Blocked by: completion of the live QDOS workflow-path evidence.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[TICK-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

@@ -11,10 +11,11 @@ labels:
   - OPS-23
   - now
   - requires-live-approval
-links: []
-archived: false
+links:
+  - TICK-001
+archived: true
 created: '2026-08-12T15:03:53.413Z'
-updated: '2026-08-12T15:03:53.413Z'
+updated: '2026-08-13T14:39:29.696Z'
 ---
 
 ## What
@@ -40,3 +41,7 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 - Source: `docs/capabilities.md` — OPS-23.
 - Canonical owner: [Requirements](requirements.md#operator-experience)
 - Activation/boundary: Required before 0.1.0-alpha.1 acceptance.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[TICK-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

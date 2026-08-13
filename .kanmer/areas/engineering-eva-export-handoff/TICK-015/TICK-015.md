@@ -4,7 +4,7 @@ type: ticket
 title: >-
   CASE-21 — First successful manual EVA bundle generation records the
   once-per-case First sent to Engineer handoff proxy; EVA owns…
-status: todo
+status: in-progress
 area: engineering-eva-export-handoff
 priority: medium
 assignee: ''
@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.066Z'
-updated: '2026-08-12T15:03:53.066Z'
+updated: '2026-08-13T14:47:05.946Z'
 ---
 
 ## What

@@ -1,7 +1,7 @@
 ---
 id: TICK-118
 type: ticket
-title: 'Prove live staff completeness, Review, Not ready, and Held queues'
+title: 'Activate live completeness and Review, Not ready, and Held queues'
 status: todo
 area: ui-operations-dashboard-administration
 priority: medium
@@ -13,28 +13,32 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:08:02.439Z'
-updated: '2026-08-12T15:08:02.439Z'
+updated: '2026-08-13T14:40:07.645Z'
 ---
 
 ## What
 
-Prove live staff completeness, Review, Not ready, and Held queues.
+Activate the staff workflow that records instruction and image completeness and presents accurate Review, Not ready, and Held queues against live application data.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+Local registrations and tests do not establish that staff can use the deployed queues or that queue counts and case state agree in the live workflow.
 
 ## Approach
 
-- At activation, re-check the exact current source, caller, and evidence state before choosing an implementation path.
-- Write the task-level plan first; do not infer authority for live, credential, mailbox, Box, Azure, or other external operations.
+- Ensure the deployed caller reads the Core-owned completeness and workflow state.
+- Correct any composition, data, routing, or presentation gap preventing staff use.
+- Exercise authenticated staff transitions and confirm dashboard, queue, and case-detail agreement.
+- Retain accessibility, authorization, and stale-state behavior required by the canonical workflow.
 
 ## Verification
 
-- [ ] The task plan defines the owned change, failure behavior, tests, and acceptance evidence.
-- [ ] Completion is recorded only at the evidence tier actually proved.
+- [ ] Staff can record both completeness judgements through the live caller.
+- [ ] Review, Not ready, and Held contain the correct cases and agree with case detail/dashboard counts.
+- [ ] Authorization, validation, and visible failure behavior are exercised.
+- [ ] Live evidence states exact environment, caller, and limitations.
 
 ## Notes
 
-- Source: `NOW.md` — Path 4 — staff review path.
-- Live-system work requires fresh exact-target approval before any external operation.
+- Source: `NOW.md` QDOS production path step 4.
+- Live Azure, credential, deployment, or external operations require fresh approval for exact targets.

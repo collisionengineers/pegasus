@@ -2,8 +2,8 @@
 id: TICK-002
 type: ticket
 title: OPS-22 — Genuine-corpus local evaluation harness
-status: todo
-area: platform-azure-production-release-estate
+status: done
+area: evaluation-local-email-evaluator
 priority: medium
 assignee: ''
 labels:
@@ -14,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.795Z'
-updated: '2026-08-12T15:03:52.795Z'
+updated: '2026-08-13T14:49:24.456Z'
 ---
 
 ## What

@@ -1,5 +1,5 @@
 {
-  "TICK": 219,
+  "TICK": 221,
   "DOCUME": 0,
   "UIEMAI": 0,
   "UICASE": 0,
@@ -33,5 +33,7 @@
   "ASSURA": 0,
   "PERFOR": 0,
   "DELIVE": 0,
-  "REPOHY": 0
+  "REPOHY": 0,
+  "SIMPLI": 14,
+  "BUG": 1
 }

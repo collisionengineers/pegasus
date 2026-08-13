@@ -9,10 +9,11 @@ assignee: ''
 labels:
   - now
   - source-now
-links: []
-archived: false
+links:
+  - SIMPLI-014
+archived: true
 created: '2026-08-12T15:08:05.577Z'
-updated: '2026-08-12T15:08:05.577Z'
+updated: '2026-08-13T14:39:29.937Z'
 ---
 
 ## What
@@ -36,3 +37,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 ## Notes
 
 - Source: `NOW.md` — Next — renderer proofs.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[SIMPLI-014]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.
