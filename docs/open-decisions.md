@@ -22,11 +22,24 @@ that `Features:SendToAi` or `Features:AutomationMcp` is production enabled.
 
 Decided 2026-08-02: the first live journey is the full QDOS cutover — a genuine
 QDOS instruction email through intake, review, Case/PO allocation, Box custody,
-and the EVA handoff bundle. [`NOW.md`](../NOW.md) "Path" owns the ordered
-critical path, the non-blocking capability set, and the acceptance boundary
-(OPS-23/OPS-25 close `0.1.0-alpha.1`). The remaining evidence gate on that
-path is item 3 (extraction
-thresholds) below. The Box production custody boundary was decided 2026-08-02:
+and the EVA handoff bundle. This section owns the ordered critical path, the
+non-blocking capability set, and the acceptance boundary (OPS-23/OPS-25 close
+`0.1.0-alpha.1`). The remaining evidence gate on that path is item 3 (extraction
+thresholds) below.
+
+The ordered critical path (full QDOS cutover — every new QDOS instruction is
+worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports):
+
+1. Green `main` through a PR with a passing `repository-check` run.
+2. Prove the spine on one genuine QDOS email in production: mailbox intake → custody → extraction draft → principal → Case/PO minted → Box folder (INT-02/08/09/19/22/25, CASE-07, DOC-01/02) — needs the composition fix deployed.
+3. Accept extraction thresholds from the reviewed cohort + holdout (INT-21); zero false case creation.
+4. Production document content store live (DOC-02), then staff review path live: completeness gates and Review/Not ready/Held queues (CASE-13/14/15/16, UI-02/08).
+5. EVA bundle from a real case: exact 13-key JSON + images + SHA-256 manifest (EXT-03), the `First sent to Engineer` proxy event (CASE-21), operator accepts every field mapping via a real drag-and-drop run.
+6. Chasing live: due-by, 7-day chase schedule, copyable chasers (CASE-17/18, MAIL-18).
+7. Web telemetry exporter (OPS-07) and minimum cutover alerts (Box custody failure, intake poison, chaser sweep), then the cutover date: all new QDOS instructions enter Pegasus; watch alerts and telemetry daily for the first week.
+8. Record operator acceptance and management approval (OPS-23, OPS-25) — this closes `0.1.0-alpha.1`.
+
+Explicitly NOT on the path (allocated but non-blocking): MCP-01–04, INT-17 VRM reading, INT-31 upload links, the EVAL evaluator cluster, live DVLA/DVSA adapters (approved replay/`Unavailable` is fine), MAIL-14/16 report-sent detection (post-report tracking starts manual via MAIL-15), and OPS-09 recovery proof (removed as a release gate 2026-08-03). The Box production custody boundary was decided 2026-08-02:
 folder `405543781910` ("pegasus") is the production custody root and all case
 folders are created only under it (owner:
 [operations](operations.md#approved-box-integration-test-target)).
