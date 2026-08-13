@@ -3,7 +3,7 @@ id: ADR-0022
 status: accepted
 date: 2026-08-06
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0024]
 related_capabilities: []
 related_frd: [frd-08]
 tags: [mailbox, config]

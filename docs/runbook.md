@@ -490,12 +490,13 @@ Graph then rejects that cursor against the new scope. Clearing the cursor can
 re-receive the same message under another token. A folder-only scope change is
 also undetectable in current poll state.
 
-Production is contained with all nine Worker functions disabled. Until the
-stable-ID and per-mailbox fresh-start implementation is accepted, migrated,
-deployed, and verified, do not bind or replace production inbound Graph
-coordinates, clear a cursor, treat Graph 410 as permission to restart
-enumeration, or re-enable the Worker. The current fallback is evidence of
-deployed configuration, not a safe transition mechanism.
+The production Worker state is owned by
+[operations](operations.md#production-environment) — currently **enabled**
+(live-verified 2026-08-13). Independently of that, until the stable-ID and
+per-mailbox fresh-start implementation is accepted, migrated, deployed, and
+verified, do not bind or replace production inbound Graph coordinates, clear a
+cursor, or treat Graph 410 as permission to restart enumeration. The current
+fallback is evidence of deployed configuration, not a safe transition mechanism.
 
 Accepted
 [ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
