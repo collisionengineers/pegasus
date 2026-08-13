@@ -142,16 +142,22 @@ exact approved mailbox/folder scope. It does not introduce a backlog scan,
 reconstruction, bulk replay, Case allocation, or mailbox mutation.
 
 Which mailboxes an Outlook/Graph inbound route reads is settled by the approved
-mailbox allowlist, not by deployment configuration. Each approved row carries
-the exact mailbox identity and folder identity the read uses, alongside its
-enabled state, and each mailbox holds its own lease and its own durable cursor,
-so one mailbox's failure or backlog never affects another. Disabling a mailbox
-stops polling at the next tick and deletes nothing: retained messages, receipts,
-assets, quarantined items, and case associations all remain visible, and the
-cursor is preserved so re-enabling resumes rather than restarts. Approving a
-mailbox in Pegasus never grants Exchange access; the Microsoft 365 tenant must
-separately admit the application to that mailbox, and until it does, polling
-that mailbox alone fails and says so.
+mailbox allowlist, not by deployment configuration. `ApprovedMailbox.Id` is the
+durable source identity; the Graph mailbox and folder coordinates are replaceable
+cursor scope, and each mailbox holds its own lease and its own durable cursor, so
+one mailbox's failure or backlog never affects another. Each mailbox has its own
+fresh-start activation cycle: enabling begins a new cycle at a recorded UTC
+activation time, and mail received before that time advances the cursor but is
+not retained, quarantined, passed to intake, or allocated. Disabling a mailbox
+stops polling at the next tick and deletes nothing — retained messages, receipts,
+assets, quarantined items, and case associations all remain visible — and
+re-enabling begins a new fresh-start cycle rather than resuming the old cursor, so
+mail received while disabled never becomes a backlog. Global Worker,
+individual-function, and per-mailbox controls are separate, and Sent-evidence
+polling stays off unless separately approved. Approving a mailbox in Pegasus
+never grants Exchange access; the Microsoft 365 tenant must separately admit the
+application to that mailbox, and until it does, polling that mailbox alone fails
+and says so.
 
 An Outlook/Graph route must, before activation:
 
