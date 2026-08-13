@@ -1086,7 +1086,7 @@ Predecessor retirement executed on 2026-08-02 through the exact verified manifes
 
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
-The current queue is [`NOW.md`](../NOW.md); task execution, tracking,
+The current work queue is the Kanmer board (`.kanmer/`); task execution, tracking,
 staleness, and Git safety are owned by the
 [repository task workflow](../AGENTS.md#repository-task-workflow).
 

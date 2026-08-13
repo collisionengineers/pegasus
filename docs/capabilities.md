@@ -2,9 +2,8 @@
 
 This is the stable product-capability inventory. Each capability keeps its
 settled ID and durable outcome, has one canonical owner, and uses an exact
-Semantic Version or `unallocated`. Work tracking lives in
-[`NOW.md`](../NOW.md); this table is the roadmap, not an implementation-status
-ledger.
+Semantic Version or `unallocated`. Work tracking lives on the Kanmer board (`.kanmer/`); this table is the
+roadmap, not an implementation-status ledger.
 
 ## Historical allocation provenance
 
