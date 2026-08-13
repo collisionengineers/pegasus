@@ -1,3 +1,16 @@
+<!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
+# Kanmer operating instructions
+
+This repo's work is tracked on a Kanmer board in `.kanmer/`.
+
+- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
+- Take a ticket before working: `take_ticket` records the time, branch and worktree, and moves the stage.
+- Follow the doc pipeline in the ticket's folder: research.md + impact.md → plan.md → checklist.md → proof.md.
+- proof.md is required before a ticket can reach the final stage.
+- Add progress notes with `set_ticket_doc` (append: true) — don't rewrite whole documents to add a line.
+- Archive, don't delete. Reference other items with [[ID]] wiki-links.
+<!-- kanmer:instructions:end -->
+
 # Pegasus repository instructions
 
 Pegasus is Collision Engineers' clean-room case-management and reporting

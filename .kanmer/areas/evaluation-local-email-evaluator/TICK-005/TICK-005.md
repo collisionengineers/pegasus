@@ -4,7 +4,7 @@ type: ticket
 title: >-
   EVAL-03 — Other category lets the reviewer enter a new category name and
   reasoning
-status: todo
+status: done
 area: evaluation-local-email-evaluator
 priority: medium
 assignee: ''
@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.870Z'
-updated: '2026-08-12T15:03:52.870Z'
+updated: '2026-08-13T14:38:59.357Z'
 ---
 
 ## What

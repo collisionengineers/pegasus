@@ -4,7 +4,7 @@ type: ticket
 title: >-
   EVAL-04 — Copying the reviewed EML into the local emailevallocal tree and
   appending the JSONL adjudication log records the human…
-status: todo
+status: done
 area: evaluation-local-email-evaluator
 priority: medium
 assignee: ''
@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.892Z'
-updated: '2026-08-12T15:03:52.892Z'
+updated: '2026-08-13T14:38:59.377Z'
 ---
 
 ## What

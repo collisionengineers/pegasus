@@ -148,6 +148,21 @@ areas:
     name: Repo Hygiene
     color: "#5b8cff"
     prefix: REPOHY
+  - id: kanmer-meta
+    name: kanmer-meta
+    color: "#5b8cff"
+  - id: simplify
+    name: simplify
+    color: "#5b8cff"
+    prefix: SIMPLI
+  - id: pr-review
+    name: PR Review
+    color: "#8b5cf6"
+    prefix: PR
+  - id: bugs
+    name: Bugs
+    color: "#ef4444"
+    prefix: BUG
 priorities:
   - id: low
     name: Low

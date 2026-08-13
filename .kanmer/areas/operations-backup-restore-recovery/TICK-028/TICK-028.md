@@ -1,7 +1,7 @@
 ---
 id: TICK-028
 type: ticket
-title: 'OPS-09 — Database backup, restore proof, 15-minute RPO, and four-hour RTO'
+title: 'Establish database backup, restore, RPO, and RTO capability'
 status: todo
 area: operations-backup-restore-recovery
 priority: medium
@@ -14,29 +14,33 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.347Z'
-updated: '2026-08-12T15:03:53.347Z'
+updated: '2026-08-13T14:40:07.630Z'
 ---
 
 ## What
 
-Plan and research **OPS-09**: Database backup, restore proof, 15-minute RPO, and four-hour RTO
+Establish the database recovery capability that can create a supported backup, restore it into a new database, verify the restored result, and measure the outcome against the 15-minute RPO and four-hour RTO objectives.
 
 ## Why
 
-The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This is a current allocation with incomplete evidence or activation work; plan the remaining caller, contract, and acceptance proof before implementation.
+A written procedure or isolated backup artifact is insufficient. The capability requires an executable, recoverable route with retained evidence and safe reclamation behavior.
 
 ## Approach
 
-- Establish the current Core policy owner, real caller, persistence/infrastructure boundary, and acceptance evidence before proposing implementation.
-- Recover and resolve the stated activation boundary without treating allocation, registration, or a build as deployment or acceptance.
+- Use the runbook-owned production recovery contract and supported SQL Server boundary.
+- Implement or correct any missing backup, restore, verification, and cleanup behavior.
+- Exercise the migrated validation checks in this ticket's `checklist.md`.
+- Preserve exact target enumeration, recovery-source checks, and approval gates before destructive or live operations.
 
 ## Verification
 
-- [ ] A task-level plan records the exact feature contract, caller, failure behavior, and required tests.
-- [ ] The activation criteria have been satisfied or explicitly accepted before implementation begins.
+- [ ] A backup can be produced through the supported route.
+- [ ] The backup restores into a new database and the result is verified.
+- [ ] Measured RPO/RTO evidence and limitations are recorded.
+- [ ] Abandoned LocalDB and backup-file reclamation has a safe, observed outcome.
 
 ## Notes
 
-- Source: `docs/capabilities.md` — OPS-09.
-- Canonical owner: [Quality and recovery objectives](requirements.md#quality-capacity-security-and-evidence)
-- Activation/boundary: Allocated but non-blocking; deferred and gates no release (2026-08-03). The linked requirement owns the objectives and the [runbook](runbook.md#production-recovery) owns the proof procedure.
+- Source capability: OPS-09.
+- Canonical procedure: `docs/runbook.md#production-recovery`.
+- The capability is non-blocking for the alpha release but remains real work, not a standalone proof ticket.

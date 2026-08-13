@@ -1,7 +1,7 @@
 ---
 id: TICK-120
 type: ticket
-title: Prove live due-by and seven-day chase behaviour
+title: Activate production due-by and seven-day chasing
 status: todo
 area: mail-chasing-outbound-sent-evidence
 priority: medium
@@ -15,29 +15,32 @@ links:
   - TICK-116
 archived: false
 created: '2026-08-12T15:08:02.478Z'
-updated: '2026-08-12T15:09:20.414Z'
+updated: '2026-08-13T14:40:07.661Z'
 ---
 
 ## What
 
-Prove live due-by and seven-day chase behaviour.
+Activate the production workflow that retains due-by dates, identifies the seven-day chase condition, and provides the approved staff chasing behavior.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+Local policy tests do not establish that deployed intake, persisted case state, scheduling, staff visibility, and chase output work together in production.
 
 ## Approach
 
-- At activation, re-check the exact current source, caller, and evidence state before choosing an implementation path.
-- Write the task-level plan first; do not infer authority for live, credential, mailbox, Box, Azure, or other external operations.
+- Ensure due-by evidence flows through the real intake/case caller into persisted Core-owned state.
+- Ensure the seven-day chase schedule and copyable staff chaser behavior use that state idempotently.
+- Correct composition, scheduling, persistence, or staff-view gaps found during activation.
+- Keep automatic outbound sending out of scope unless separately approved; the current path is staff-sent copyable text.
 
 ## Verification
 
-- [ ] The task plan defines the owned change, failure behavior, tests, and acceptance evidence.
-- [ ] Completion is recorded only at the evidence tier actually proved.
+- [ ] A production-path case retains and displays the correct due-by date.
+- [ ] The seven-day condition becomes visible at the correct time without duplicate effects.
+- [ ] Staff can generate the approved copyable chaser and the system does not claim it was sent.
+- [ ] Live evidence records environment, caller, timing, and limitations.
 
 ## Notes
 
-- Source: `NOW.md` — Path 6 — chasing live.
-- Live-system work requires fresh exact-target approval before any external operation.
-- Blocked by: [[TICK-116]] — Live chase evidence needs a live accepted case.
+- Source: `NOW.md` QDOS production path step 6.
+- Live mailbox, Azure, credential, deployment, or external operations require fresh approval for exact targets.

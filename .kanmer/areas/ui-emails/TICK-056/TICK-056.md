@@ -2,7 +2,7 @@
 id: TICK-056
 type: ticket
 title: UI-10 — Full email-management workspace
-status: todo
+status: in-progress
 area: ui-emails
 priority: medium
 assignee: ''
@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-12T15:05:19.367Z'
+updated: '2026-08-13T14:50:05.132Z'
 ---
 
 ## What

@@ -1,7 +1,7 @@
 ---
 id: TICK-199
 type: ticket
-title: Verify whether .infisical.json is used before removing it
+title: Retire .infisical.json or document its active owner
 status: todo
 area: repo-hygiene
 priority: medium
@@ -12,27 +12,30 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:08:04.949Z'
-updated: '2026-08-12T15:08:04.949Z'
+updated: '2026-08-13T14:40:07.676Z'
 ---
 
 ## What
 
-Verify whether .infisical.json is used before removing it.
+Resolve `.infisical.json` to one explicit repository state: remove it if it has no supported consumer, or document its active owner, caller, configuration contract, and verification route if it remains required.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+An unexplained credential-tool configuration file can become stale authority or be removed while still supporting a real workflow. The repository needs one evidenced answer rather than a perpetual verification-only ticket.
 
 ## Approach
 
-- At activation, re-check the exact current source, caller, and evidence state before choosing an implementation path.
-- Write the task-level plan first; do not infer authority for live, credential, mailbox, Box, Azure, or other external operations.
+- Trace every repository, CI, runbook, deployment, and local-tool reference to `.infisical.json`.
+- Identify the actual executable consumer and supported workflow, if any.
+- If unused, remove the file and stale references in the owning task; if used, document its owner and exact verification command in the canonical documentation.
+- Do not read, rotate, or mutate credentials or external Infisical state without separate exact-target approval.
 
 ## Verification
 
-- [ ] The task plan defines the owned change, failure behavior, tests, and acceptance evidence.
-- [ ] Completion is recorded only at the evidence tier actually proved.
+- [ ] No supported caller is left undocumented or broken.
+- [ ] The file is either absent with stale references removed, or retained with an explicit owner and exercised local verification route.
+- [ ] No secret value is printed, copied, or committed.
 
 ## Notes
 
-- Source: `NOW.md` — Next — repository hygiene.
+- Source: `NOW.md` repository-hygiene item.

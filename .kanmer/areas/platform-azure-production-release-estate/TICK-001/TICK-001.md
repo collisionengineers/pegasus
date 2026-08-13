@@ -1,7 +1,7 @@
 ---
 id: TICK-001
 type: ticket
-title: OPS-10 — Production environment deployed directly from an authorised terminal
+title: Complete the QDOS alpha production release
 status: todo
 area: platform-azure-production-release-estate
 priority: medium
@@ -14,29 +14,33 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.764Z'
-updated: '2026-08-12T15:03:52.764Z'
+updated: '2026-08-13T14:40:07.615Z'
 ---
 
 ## What
 
-Plan and research **OPS-10**: Production environment deployed directly from an authorised terminal
+Complete the QDOS alpha production release as one controlled outcome: recover its immutable release record, close the demonstrated production workflow, obtain operator acceptance, and record Collision Engineers management approval.
 
 ## Why
 
-The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This is a current allocation with incomplete evidence or activation work; plan the remaining caller, contract, and acceptance proof before implementation.
+Deployment alone is not release completion. The repository separates implementation, deployment, live caller evidence, operator acceptance, and management approval, and the release must retain those distinctions.
 
 ## Approach
 
-- Establish the current Core policy owner, real caller, persistence/infrastructure boundary, and acceptance evidence before proposing implementation.
-- Recover and resolve the stated activation boundary without treating allocation, registration, or a build as deployment or acceptance.
+- Recover and verify the immutable manifest, image identity, source revision, and migration transcript for the intended release.
+- Complete the production-path checks consolidated into this ticket's `checklist.md`.
+- Record the exact evidence tier and limitations of each observation.
+- Obtain designated-operator acceptance and explicit management approval only for the demonstrated scope.
 
 ## Verification
 
-- [ ] A task-level plan records the exact feature contract, caller, failure behavior, and required tests.
-- [ ] The activation criteria have been satisfied or explicitly accepted before implementation begins.
+- [ ] The immutable release record is complete and internally consistent.
+- [ ] Every required production journey is linked with its limitations.
+- [ ] Operator acceptance and management approval are explicit and separately recorded.
+- [ ] No numbered release or live-caller claim exceeds the recovered evidence.
 
 ## Notes
 
-- Source: `docs/capabilities.md` — OPS-10.
-- Canonical owner: [ADR-0014](adr/0014-local-to-production-deployment.md)
-- Activation/boundary: Executed for releases 1–3 ([operations — production environment](operations.md#production-environment) owns the evidence); operator acceptance outstanding.
+- Source capability: OPS-10.
+- Source: `NOW.md` production state and QDOS production path.
+- Live Azure, credential, mailbox, Box, deployment, destructive, or other external operations require fresh approval for exact targets.

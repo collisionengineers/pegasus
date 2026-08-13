@@ -2,7 +2,7 @@
 id: TICK-019
 type: ticket
 title: DOC-03 — Retained document versions
-status: todo
+status: done
 area: files-staging-custody-box
 priority: medium
 assignee: ''
@@ -14,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.142Z'
-updated: '2026-08-12T15:03:53.142Z'
+updated: '2026-08-13T14:38:59.547Z'
 ---
 
 ## What

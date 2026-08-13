@@ -14,9 +14,9 @@ labels:
 links:
   - TICK-022
   - TICK-116
-archived: false
+archived: true
 created: '2026-08-12T15:08:02.458Z'
-updated: '2026-08-12T15:09:20.390Z'
+updated: '2026-08-13T14:39:29.830Z'
 ---
 
 ## What
@@ -43,3 +43,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 - Related capability: EXT-03 ([[TICK-022]]).
 - Live-system work requires fresh exact-target approval before any external operation.
 - Blocked by: [[TICK-116]] — EVA handoff needs an accepted live Case/PO.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[TICK-022]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

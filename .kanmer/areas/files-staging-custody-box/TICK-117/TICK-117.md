@@ -14,9 +14,10 @@ labels:
 links:
   - TICK-018
   - TICK-116
-archived: false
+  - BUG-001
+archived: true
 created: '2026-08-12T15:08:02.419Z'
-updated: '2026-08-12T15:09:20.368Z'
+updated: '2026-08-13T14:39:29.808Z'
 ---
 
 ## What
@@ -43,3 +44,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 - Related capability: DOC-02 ([[TICK-018]]).
 - Live-system work requires fresh exact-target approval before any external operation.
 - Blocked by: [[TICK-116]] — Box custody proof needs the first accepted production case.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[BUG-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "kanmer": {
+      "type": "stdio",
+      "command": "C:\\Users\\Alex\\Documents\\GitHub\\kanmer\\apps\\gui\\release\\win-unpacked\\Kanmer.exe",
+      "args": [
+        "C:\\Users\\Alex\\Documents\\GitHub\\kanmer\\apps\\gui\\release\\win-unpacked\\resources\\mcp\\kanmer-mcp.cjs",
+        "--root",
+        "C:\\Users\\Alex\\Documents\\GitHub\\pegasus"
+      ],
+      "env": {
+        "ELECTRON_RUN_AS_NODE": "1"
+      }
+    }
+  }
+}

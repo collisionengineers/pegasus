@@ -14,9 +14,10 @@ labels:
 links:
   - TICK-032
   - TICK-218
-archived: false
+  - TICK-001
+archived: true
 created: '2026-08-12T15:10:50.349Z'
-updated: '2026-08-12T15:11:19.387Z'
+updated: '2026-08-13T14:39:29.756Z'
 ---
 
 ## What
@@ -42,3 +43,7 @@ Record Collision Engineers management approval before the QDOS production releas
 - Source: `NOW.md` — Path 8.
 - Related capability: OPS-25 ([[TICK-032]]) .
 - Blocked by: [[TICK-218]] — designated-operator acceptance of the demonstrated workflow.
+
+## Migrated validation
+
+This standalone proof/validation ticket was consolidated into [[TICK-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.

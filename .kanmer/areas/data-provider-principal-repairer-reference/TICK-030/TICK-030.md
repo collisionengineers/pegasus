@@ -4,7 +4,7 @@ type: ticket
 title: >-
   DATA-01 — Publish immutable cumulative provider-domain reference snapshots
   from approved spreadsheets
-status: todo
+status: done
 area: data-provider-principal-repairer-reference
 priority: medium
 assignee: ''
@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.389Z'
-updated: '2026-08-12T15:03:53.389Z'
+updated: '2026-08-13T14:38:59.397Z'
 ---
 
 ## What

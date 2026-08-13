@@ -2,7 +2,7 @@
 id: TICK-012
 type: ticket
 title: INT-25 — Automatic case creation from definitive authorised intake
-status: todo
+status: in-progress
 area: intake-manual-upload-source-intake
 priority: medium
 assignee: ''
@@ -14,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.008Z'
-updated: '2026-08-12T15:03:53.008Z'
+updated: '2026-08-13T14:47:42.923Z'
 ---
 
 ## What
