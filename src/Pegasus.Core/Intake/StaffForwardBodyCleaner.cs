@@ -11,10 +11,10 @@ namespace Pegasus.Core.Intake;
 /// </summary>
 /// <remarks>
 /// A pure text policy: it takes already-decoded text and never touches MIME. The
-/// forwarded-header boundary mirrors
+/// forwarded-header boundary is kept byte-identical to
 /// <c>MimeKitPdfPigOpenXmlIntakeSourceReader.InlineForwardedHeaderRegex</c> so the
-/// display and classification views agree on where a forward begins; a parity
-/// test pins the two patterns together.
+/// display and classification views agree on where a forward begins; the two
+/// patterns must be changed together.
 /// </remarks>
 public static partial class StaffForwardBodyCleaner
 {
