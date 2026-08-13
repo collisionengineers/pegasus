@@ -1,3 +1,13 @@
+---
+id: ADR-0008
+status: accepted
+date: 2026-07-27
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-08, frd-09]
+tags: [email, routing]
+---
 # ADR-0008: Separate direct-provider and intermediary email policies
 
 - Date: 2026-07-27

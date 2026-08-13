@@ -1,5 +1,11 @@
 ---
+id: ADR-0011
 status: accepted
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-10]
+tags: [mcp, auth]
 ---
 
 # ADR-0011: Restrict MCP to a vendor-neutral Automation Actor

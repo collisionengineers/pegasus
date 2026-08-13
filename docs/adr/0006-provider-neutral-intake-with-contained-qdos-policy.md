@@ -1,3 +1,13 @@
+---
+id: ADR-0006
+status: accepted
+date: 2026-07-24
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-02]
+tags: [intake, policy]
+---
 # ADR-0006: Provider-neutral intake with a contained QDOS policy
 
 - Status: Accepted for the pre-release local intake slice

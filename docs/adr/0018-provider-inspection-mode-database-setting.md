@@ -1,3 +1,13 @@
+---
+id: ADR-0018
+status: accepted
+date: 2026-08-03
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-02, frd-06]
+tags: [intake, config]
+---
 # ADR-0018: Provider-determined inspection mode as a database setting
 
 - Date: 2026-08-03

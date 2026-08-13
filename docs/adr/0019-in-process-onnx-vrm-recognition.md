@@ -1,3 +1,13 @@
+---
+id: ADR-0019
+status: accepted
+date: 2026-08-03
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-06]
+tags: [vrm, onnx, image]
+---
 # ADR-0019: In-process ONNX VRM recognition engine
 
 - Date: 2026-08-03

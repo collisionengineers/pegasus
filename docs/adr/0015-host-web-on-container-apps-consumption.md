@@ -1,3 +1,13 @@
+---
+id: ADR-0015
+status: accepted
+date: 2026-08-01
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: []
+tags: [hosting, containerapps]
+---
 # ADR-0015: Host Pegasus Web on Azure Container Apps Consumption
 
 **Status:** Accepted (2026-08-01)

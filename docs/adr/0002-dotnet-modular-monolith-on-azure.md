@@ -1,3 +1,13 @@
+---
+id: ADR-0002
+status: accepted
+date: 2026-07-23
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: []
+tags: [architecture, stack, hosting]
+---
 # ADR-0002: .NET modular monolith on Azure App Service
 
 - Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004 and deployment mechanism partially superseded by ADR-0007

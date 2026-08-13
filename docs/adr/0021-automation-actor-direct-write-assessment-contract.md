@@ -1,5 +1,11 @@
 ---
+id: ADR-0021
 status: accepted
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-10, frd-11]
+tags: [mcp, automation, ai]
 ---
 
 # ADR-0021: Automation Actor direct-write assessment contract and the Send to AI transport slice
