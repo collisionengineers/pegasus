@@ -18,6 +18,95 @@ application. Read [`NOW.md`](NOW.md) for current work, then the
 [documentation index](docs/index.md) for the file that owns your question and
 the authority rule.
 
+## Documentation model — PRD, FRD, ADR
+
+This repository separates three questions and gives each a home. **Governance —
+this model, the routing rules below, ADR conventions, and where new Markdown
+goes — lives in this file, never in an ADR.** [`docs/index.md`](docs/index.md)
+is the navigation index and owns the authority chain.
+
+- **`operator-notes.md`** — the binding business truth (what Collision Engineers
+  actually said). Protected: stop for user resolution before changing its
+  meaning. It is the seed for every PRD and FRD; they restate and structure it,
+  never overrule it.
+- **PRD — `docs/prd/`** — *what the product must do and why*: business need,
+  users, outcomes, scope, permanent boundaries, quality/capacity targets, and
+  the acceptance model. A PRD states no mechanics.
+- **FRD — `docs/frd/`** — *how a capability must behave*: inputs/outputs,
+  states, rules, edge cases, fail-closed behaviour, and acceptance evidence. An
+  FRD implements a PRD outcome and cites `docs/design.md` for UI behaviour. It
+  never invents product scope or records a technical decision.
+- **ADR — `docs/adr/`** — a durable *technical/architectural* product decision
+  only. Not documentation rules, not process, not feature behaviour. If a
+  decision has behavioural consequences, the behaviour is written in the FRD and
+  the ADR links to it.
+- **`docs/capabilities.md`** — the schedule and capability-ID registry. Its
+  *Canonical owner* column is the join key from each capability ID to its PRD,
+  FRD, or ADR. It never holds normative behaviour.
+- **`docs/architecture.md` / `docs/operations.md`** — current implemented shape
+  and current live state. **`docs/runbook.md` / `docs/engineering.md` /
+  `docs/design.md`** — working rules within their scopes. These are downstream
+  of PRD/FRD/ADR and never override them.
+
+Routing — where to write, and where to send an agent:
+
+| The change is about… | Write it in |
+| --- | --- |
+| Product intent, scope, an outcome, a boundary, success criteria | a **PRD** |
+| Required behaviour of a capability — I/O, states, rules, edge cases, acceptance | an **FRD** |
+| A chosen technical mechanism or architectural boundary | a **thin ADR** + the behaviour in the FRD |
+| Schedule, allocation, a capability ID | **`docs/capabilities.md`** |
+| A current-state fact (deployed, live, monitored) | **`docs/operations.md`** / **`docs/architecture.md`** |
+| A business statement from the operator | **`docs/operator-notes.md`** (protected) |
+| A repository rule, convention, or process | **this file** |
+
+### ADR conventions
+
+ADRs are an append-only decision log of durable technical/architectural choices.
+
+- **Stable IDs.** Never renumber, reuse, or delete an ADR. Supersede a decision
+  by writing a **new** ADR (the next free number) and setting the old one's
+  `status: superseded`. The number is a permanent citation key used across code,
+  tests, and tracked plans.
+- **One decision per ADR** — a durable technical/architectural choice, not a
+  bundle of them.
+- **YAML frontmatter** on every ADR, so currency and relationships are
+  machine-readable:
+
+  ```yaml
+  ---
+  id: ADR-0002
+  status: accepted        # proposed | accepted | superseded | deprecated
+  date: 2026-07-23
+  supersedes: []
+  superseded_by: []
+  related_capabilities: []
+  related_frd: []
+  tags: []
+  ---
+  ```
+
+- **Template:** `Status · Context · Decision · Consequences · Options considered
+  (optional) · Links`. Status is stated first so a body-only read is never
+  mistaken for current when it is superseded.
+- **Keep ADRs durable.** No dated cost tables, retail prices, or historical
+  runbooks in an ADR — those belong in `docs/operations.md`/`docs/runbook.md`;
+  git history keeps the record. Feature behaviour belongs in an FRD.
+- **The index** (`docs/adr/README.md`) is a thin table derived from frontmatter:
+  `ID | Title | Status | Superseded-by | Owner capability`. The set of current
+  architecture decisions is that index filtered to `status: accepted` — a view,
+  not a renumbering.
+
+### New Markdown placement
+
+A new Markdown file is one of: a **PRD** under `docs/prd/`, an **FRD** under
+`docs/frd/`, a **technical ADR** under `docs/adr/`, or a **transient task plan**
+under `docs/temp-plans/`. Everything else edits an existing canonical file. No
+ADR is required to authorise a PRD or FRD; a new PRD or FRD records its canonical
+owner in `docs/capabilities.md` and is linked from `docs/index.md`.
+Workspace-local documentation stays governed by its accepted integration
+contract and existing workspace tree.
+
 ## Planning process
 
 - [`NOW.md`](NOW.md) is the multi-agent queue.

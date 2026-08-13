@@ -4,7 +4,7 @@ AI Centre is currently a source-only development and evaluation workspace. The r
 
 Intended, implemented, caller-proved, deployed and accepted are distinct evidence states. Documentation or code may express intent without proving implementation; an implementation does not prove a real Pegasus caller; a caller does not prove deployment or acceptance; and acceptance must come from the appropriate product, architecture and operational authority.
 
-Product scope is owned by [requirements](../../../docs/requirements.md) and [capabilities](../../../docs/capabilities.md). Unresolved choices remain in [open decisions](../../../docs/open-decisions.md).
+Product scope is owned by [requirements](../../../docs/prd/README.md) and [capabilities](../../../docs/capabilities.md). Unresolved choices remain in [open decisions](../../../docs/open-decisions.md).
 
 The retained source-workspace decisions are
 [ADR-0001: repository and runtime boundaries](adr/0001-repository-and-runtime-boundaries.md)

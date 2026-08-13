@@ -797,13 +797,13 @@ dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 
 ## Release dependency order
 
-Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
+Release allocation does not waive technical prerequisites. [Delivery dependencies](capabilities.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
 
 Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. The Automation MCP ingress stays composition-gated off outside local evidence runs, and its live caller remains a separately approved activation. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
 ## Release validation rules
 
-The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; [requirements](requirements.md) remains the behavior owner:
+The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; [requirements](prd/README.md) remains the behavior owner:
 
 - positive, contradictory/ambiguous, transient, terminal, and unknown outcomes produce the ordered decision, persisted result, action history or telemetry, and operator-visible result;
 - definitive intake creates one idempotent case or links the definitive existing case, enters `Review` only after both completeness gates pass or are explicitly confirmed, otherwise enters `Not ready`, and preserves reversible source associations and both origins;
@@ -1071,7 +1071,7 @@ A production recovery exercise must:
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
 
-The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
+The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.
