@@ -53,8 +53,11 @@ public static partial class LocalEmailDisplayReader
         // than the forwarder's wrapper, which is often only a blank line and the
         // Collision Engineers signature.
         var attachedOriginal = FindAttachedOriginal(message);
-        var isStaffForward = attachedOriginal is not null;
-        if (attachedOriginal is not null)
+        // Only treat an attached message/rfc822 as a forward to surface when the
+        // subject marks it as a forward, so an email that merely attaches a prior
+        // .eml as evidence keeps its own top-level body.
+        var isStaffForward = attachedOriginal is not null && IsForwardSubject(message.Subject);
+        if (isStaffForward && attachedOriginal is not null)
         {
             var originalBody = attachedOriginal.TextBody;
             if (string.IsNullOrWhiteSpace(originalBody)
@@ -185,6 +188,18 @@ public static partial class LocalEmailDisplayReader
 
     private static string? NullIfBlank(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value;
+
+    private static bool IsForwardSubject(string? subject)
+    {
+        if (subject is null)
+        {
+            return false;
+        }
+
+        var trimmed = subject.TrimStart();
+        return trimmed.StartsWith("fw:", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("fwd:", StringComparison.OrdinalIgnoreCase);
+    }
 
     private static string ToInertText(string html) =>
         WebUtility.HtmlDecode(HtmlTagRegex().Replace(html, " "))
