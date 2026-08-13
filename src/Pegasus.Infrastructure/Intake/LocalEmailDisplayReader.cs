@@ -48,6 +48,29 @@ public static partial class LocalEmailDisplayReader
             body = ToInertText(message.HtmlBody);
         }
 
+        // A staff forward that carries the provider's original as an attached
+        // message/rfc822 part: surface that original's body as the focus rather
+        // than the forwarder's wrapper, which is often only a blank line and the
+        // Collision Engineers signature.
+        var attachedOriginal = FindAttachedOriginal(message);
+        var isStaffForward = attachedOriginal is not null;
+        if (attachedOriginal is not null)
+        {
+            var originalBody = attachedOriginal.TextBody;
+            if (string.IsNullOrWhiteSpace(originalBody)
+                && !string.IsNullOrWhiteSpace(attachedOriginal.HtmlBody))
+            {
+                originalBody = ToInertText(attachedOriginal.HtmlBody);
+            }
+
+            if (!string.IsNullOrWhiteSpace(originalBody))
+            {
+                body = originalBody;
+            }
+        }
+
+        body = StaffForwardBodyCleaner.Clean(body ?? string.Empty, isStaffForward);
+
         var sender = message.From.Mailboxes.FirstOrDefault();
         return new LocalEmailDisplay(
             message.From.ToString(),
@@ -77,6 +100,44 @@ public static partial class LocalEmailDisplayReader
             .Select(mailbox => mailbox.Address)
             .Where(address => !string.IsNullOrWhiteSpace(address))
             .ToArray();
+
+    /// <summary>
+    /// The first attached original message (a <c>message/rfc822</c> part) in the
+    /// body tree, if any. This is the provider's original when a staff member
+    /// forwards it as an attachment rather than inline.
+    /// </summary>
+    private static MimeMessage? FindAttachedOriginal(MimeMessage message)
+    {
+        foreach (var entity in EnumerateEntities(message.Body))
+        {
+            if (entity is MessagePart { Message: { } nested })
+            {
+                return nested;
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<MimeEntity> EnumerateEntities(MimeEntity? entity)
+    {
+        if (entity is null)
+        {
+            yield break;
+        }
+
+        yield return entity;
+        if (entity is Multipart multipart)
+        {
+            foreach (var child in multipart)
+            {
+                foreach (var descendant in EnumerateEntities(child))
+                {
+                    yield return descendant;
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// Attachment names, media types and decoded lengths. The length is measured by
