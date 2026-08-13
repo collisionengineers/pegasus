@@ -634,11 +634,31 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
+            if (replayAssociated)
+            {
+                completedReceipt = await receiptQueries.GetAsync(
+                    completedEvaluation.ProcessedReceiptId,
+                    cancellationToken) ?? completedReceipt;
+            }
+
+            // Re-drive automatic allocation on replay. The live path allocates
+            // after CompleteProcessingAsync and outside its try/catch, so a
+            // recoverable throw (e.g. a serializable begin failing transiently)
+            // after completion would otherwise strand a definitive receipt with
+            // no case. AttemptAutomaticAsync is idempotent: it no-ops once a case
+            // exists and suppresses a duplicate automatic attempt, so replaying
+            // it either mints the missing case or does nothing.
+            var replayAllocation = await allocateIntake.AttemptAutomaticAsync(
+                completedReceipt.Id,
+                completedEvaluation.Id,
+                cancellationToken);
+            var replayAllocated =
+                replayAllocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
             await CreateTriageIfQualifyingAsync(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
-            if (replayAssociated)
+            if (replayAllocated)
             {
                 completedReceipt = await receiptQueries.GetAsync(
                     completedEvaluation.ProcessedReceiptId,
