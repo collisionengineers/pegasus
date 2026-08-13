@@ -133,9 +133,11 @@ contract and existing workspace tree.
   [runbook](docs/runbook.md#locked-restore-build-and-test).
 - Preserve work that is not yours. The single authoritative allowed/banned
   operation list is in [Repository task workflow](#repository-task-workflow).
-- Cloud reads and every Azure, deployment, credential, account, destructive, or
-  external write require explicit approval for exact targets. Never delete
-  `rg-collisionspike-dev` as a first step. The approval matrix is owned by the
+- **Read-only Azure/cloud checks are fully permitted** with no per-target
+  approval. Every Azure, deployment, credential, account, destructive, or
+  external **write**, and any operation that changes cloud state, requires
+  explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a
+  first step. The approval matrix is owned by the
   [runbook](docs/runbook.md#live-operation-approval-matrix).
 - `docs/operator-notes.md` is authoritative operator truth: preserve every
   material business statement and stop for user resolution before changing
