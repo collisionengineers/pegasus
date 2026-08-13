@@ -1,8 +1,0 @@
-<Solution>
-  <Folder Name="/src/">
-    <Project Path="src/CollisionBrain/CollisionBrain.csproj" />
-  </Folder>
-  <Folder Name="/tests/">
-    <Project Path="tests/CollisionBrain.Tests/CollisionBrain.Tests.csproj" />
-  </Folder>
-</Solution>

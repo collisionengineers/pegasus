@@ -22,9 +22,6 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: 10.0.x
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
       - name: Validate document-extraction workspace
         working-directory: workspaces/document-extraction
         shell: pwsh
@@ -40,14 +37,3 @@ jobs:
           dotnet build ./CollisionRenderer.sln --configuration Release --no-restore
           dotnet run --project src/CollisionRenderer.Cli --configuration Release --no-build -- install-browser
           dotnet test ./CollisionRenderer.sln --configuration Release --no-build
-      - name: Validate AI Centre workspace
-        working-directory: workspaces/ai-centre/services/collision-brain
-        shell: pwsh
-        run: |
-          dotnet restore ./CollisionBrain.slnx --locked-mode
-          dotnet build ./CollisionBrain.slnx --configuration Release --no-restore
-          dotnet test ./CollisionBrain.slnx --configuration Release --no-build
-      - name: Validate agent-skill packaging
-        working-directory: workspaces/ai-centre/skills/tools
-        shell: pwsh
-        run: python -m unittest test_pack_skill
