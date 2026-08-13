@@ -5,70 +5,88 @@ description: Track and organise work in Kanmer, the file-based kanban shared liv
 
 # Working with Kanmer
 
-Kanmer stores tickets, plans and research notes as Markdown files in the
-project's `.kanmer/` folder. The human sees the same data on a live kanban
-board (the Kanmer desktop app), so every item you create or move is instantly
-visible to them — treat the board as your shared workspace, not a log.
+Kanmer stores tickets as folders in the project's `.kanmer/` tree — each
+ticket owns its markdown file plus a pipeline of documents (research, impact,
+plan, checklist, proof) that live beside it. The human sees the same data on a
+live kanban board (the Kanmer desktop app), so every item you create or move
+is instantly visible to them — treat the board as your shared workspace, not
+a log.
 
 All access goes through the `kanmer` MCP tools. Never edit `.kanmer/` files
-directly; the tools keep ids, timestamps and frontmatter consistent.
+directly; the tools keep ids, timestamps, folders and frontmatter consistent.
 
-## The working loop
+## The ticket lifecycle
 
-1. **Orient first.** Call `list_board` once per session for the stages, areas
-   and priorities — ids vary per project, and inventing one silently mis-files
-   the item. Default stages: todo → planning → implementing → review →
-   verifying → done. Then `list_items` for current state, and `search_items`
-   before creating: if something close already exists, update or link it rather
-   than filing a near-duplicate.
-2. **One ticket per unit of work**, created before you start (`create_item`
-   with `type: "ticket"`, body from `assets/ticket-template.md`). New tickets
-   belong in `todo` — filing a ticket isn't the same as starting it, so if the
-   user only asked you to file one, create it and stop there. Set `area` and
-   `priority` from step 1's ids; if the board has no areas defined yet, omit
-   `area` rather than inventing one. Labels are free-form — use them only where
-   the project already has a convention.
-3. **Move through the stages as you work.** Call `move_item` at each real
-   transition: `planning` while you design the approach, `implementing` while
-   you write code, `review` when it needs the user's eyes, `verifying` while
-   tests or checks run, `done` once verified. The human reads these transitions
-   to know where you are, so move as you go rather than batching at the end —
-   and don't mark something done that you haven't actually checked.
-4. **Plans coordinate tickets.** For multi-ticket work, create the tickets
-   first and then the plan (`assets/plan-template.md`) with their real ids in
-   its table — that order saves you rewriting the plan body afterwards. Give
-   each ticket `links: ["PLAN-00X"]` once the plan exists, or link it later with
-   `link_items`. Note that `update_item` replaces the whole `body`, so a late
-   edit means re-sending it in full.
-5. **Research feeds decisions.** Findings worth keeping outlive the
-   conversation, so put them in a research note
-   (`assets/research-template.md`), linked from the ticket or plan that
-   prompted it. An open question with no findings yet isn't a research note —
-   it belongs in a plan's Risks section.
-6. **Link once, in one direction.** Backlinks are derived, so linking A→B is
-   enough; `get_links` shows both sides. Use `links` at create time where you
-   can, `link_items` for relations you discover later, and `[[ID]]` inside a
-   body for inline references while writing prose.
-7. **Archive, don't delete.** `update_item` with `archived: true` hides an item
-   from the board but keeps it recoverable. `delete_item` is permanent —
-   reserve it for items the user explicitly wants gone.
-
-Plans and research notes carry a status like anything else, but they aren't
-worked through the stages the way tickets are. Leave them in `todo` unless the
-user wants them tracked on the board.
+1. **Orient first: `get_status`, once per session.** It tells you whether
+   `.kanmer/` exists, the format version, whether the board is real or the
+   synthesized default, per-stage counts and any file warnings — before you
+   write anything. Then `list_board` for the stage/area/priority ids (they
+   vary per project; writes with unknown ids are rejected, and the error
+   lists the valid ones) and `list_items` for current state. `search_items`
+   before creating: if something close already exists, update or link it
+   rather than filing a near-duplicate.
+2. **One ticket per unit of work**, created before you start (`create_item`,
+   body from `assets/ticket-template.md`). Set `area` from the board's list —
+   the area determines the ticket's id prefix (a ticket born in `api` becomes
+   `API-00X`) — and put PR feedback in the default **PR Review** area. New
+   tickets belong in the board's first stage (leave `status` unset). Filing a
+   ticket isn't the same as starting it: if the user only asked you to file
+   one, create it and stop there. For several at once use `create_items` and
+   check its per-entry results.
+3. **Take the ticket before working it.** `take_ticket` with the real
+   `branch` (and `worktree` if you're in one) records when and where the work
+   is happening and moves the ticket to the working stage. The human's board
+   shows the ⛏ taken badge — that's how they know it's live. If it's already
+   taken, coordinate rather than passing `force`.
+4. **Work the document pipeline** with `get_ticket_doc` / `set_ticket_doc`:
+   - **research.md** — what you learned (template: `assets/research-template.md`);
+   - **impact.md** — the files/modules the change touches and how
+     (`assets/impact-template.md`);
+   - **plan.md** — written FROM research + impact, never before them
+     (`assets/plan-template.md`);
+   - **checklist.md** — the plan distilled into `- [ ]` steps
+     (`assets/checklist-template.md`); tick items as you complete them and
+     add progress notes with `set_ticket_doc(append: true)` — never resend a
+     whole document just to add a line;
+   - **proof.md** — the evidence it works: test output, commands run, what
+     you observed (`assets/proof-template.md`). **Required**: the board
+     rejects moving a ticket to the final stage without it.
+5. **Move through the stages as you work**, choosing ids from `list_board` by
+   what they *mean* — designing, implementing, awaiting the user's eyes,
+   verifying, finished. On a fresh board that's `planning` → `implementing` →
+   `review` → `verifying` → `done`; older boards commonly differ. Move as you
+   go rather than batching at the end, and don't mark something done you
+   haven't checked — proof.md first, then `move_item` to the final stage.
+6. **Release when you stop.** `take_ticket action: "release"` clears
+   taken/branch/worktree — whether the work is finished or you're handing it
+   back. A ticket left taken looks in-progress to everyone.
+7. **Link once, in one direction.** Backlinks are derived, so linking A→B is
+   enough; `get_links` shows both sides plus typed dependency edges. Use
+   `link_items rel: "blocks"` when one ticket must land before another — the
+   blocked ticket shows it automatically. `[[ID]]` inside prose works for
+   inline references.
+8. **Archive, don't delete.** `update_item` with `archived: true` hides an
+   item but keeps it recoverable. `delete_item` removes the ticket's whole
+   folder — documents and all — permanently; reserve it for items the user
+   explicitly wants gone.
 
 ## Conventions that keep the board useful
 
-- Titles are imperative and specific: "Wire retry logic into upload queue", not
-  "Fix bug". The board is read at a glance, so the title carries the meaning.
-- Bodies say *why* and *how to verify*, not just *what*. Drop template sections
-  that genuinely don't apply; `## Notes` in particular starts empty and fills up
-  as you work.
-- Priority, roughly: `urgent` is blocking someone right now, `high` is this
-  week, `medium` is normal, `low` is nice-to-have. If the user's wording is
-  genuinely ambiguous, ask instead of guessing.
-- If the board's stages don't fit the work, ask before restructuring —
-  `add_column` changes the board for everyone who looks at it.
+- Titles are imperative and specific: "Wire retry logic into upload queue",
+  not "Fix bug". The board is read at a glance, so the title carries meaning.
+- Ticket bodies say *why* and *how to verify*; the pipeline documents carry
+  the depth. Don't duplicate plan.md into the body.
+- When rewriting a ticket body or a document late, pass `expected_updated`
+  (the `updated` you last read) so a concurrent edit surfaces as a conflict
+  instead of being overwritten.
+- Set `due` (YYYY-MM-DD) only when the user gives a real deadline. Priority,
+  roughly: `urgent` blocks someone now, `high` is this week, `medium` normal,
+  `low` nice-to-have. Ambiguous wording → ask.
+- Use `move_item position` ("top" / "bottom" / after another id) when the
+  user asks for ordering — "top of the todo column" is meaningful now.
+- Board changes are shared state: `add_column`/`update_column`/
+  `reorder_columns` change what everyone sees, and `remove_column` needs
+  `migrate_to` when items still use the column. Ask before restructuring.
 
 For exact tool parameters and what each field means, read
 `references/tool-reference.md`.

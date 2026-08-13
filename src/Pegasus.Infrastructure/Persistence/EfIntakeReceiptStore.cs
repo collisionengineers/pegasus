@@ -631,7 +631,11 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             PredicatesJson = SerializeEnvelope(decision.Predicates),
             Reason = decision.Reason,
             PolicyKey = decision.PolicyKey,
-            PolicyVersion = decision.PolicyVersion
+            PolicyVersion = decision.PolicyVersion,
+            StandaloneAuditReportAssetSourceLabel = decision.StandaloneAuditReport?.AssetSourceLabel,
+            StandaloneAuditReportAssessment = decision.StandaloneAuditReport is { } report
+                ? ToCode(report.Assessment)
+                : null
         };
 
     private static MailClassificationResult MapMailClassificationDecision(
@@ -669,6 +673,16 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     entity.IsReplyContext);
         }
 
+        var hasAnyAuditReportValue = entity.StandaloneAuditReportAssetSourceLabel is not null
+            || entity.StandaloneAuditReportAssessment is not null;
+        var hasCompleteAuditReport = entity.StandaloneAuditReportAssetSourceLabel is not null
+            && entity.StandaloneAuditReportAssessment is not null;
+        if (hasAnyAuditReportValue != hasCompleteAuditReport)
+        {
+            throw new InvalidDataException(
+                "The persisted standalone Audit report evaluation is incomplete.");
+        }
+
         return new(
             ParseMailClassificationOutcome(entity.Outcome),
             category,
@@ -677,7 +691,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             entity.Reason,
             entity.PolicyKey,
             entity.PolicyVersion,
-            entity.CaseType is null ? null : ParseCaseType(entity.CaseType));
+            entity.CaseType is null ? null : ParseCaseType(entity.CaseType),
+            hasCompleteAuditReport
+                ? new(
+                    entity.StandaloneAuditReportAssetSourceLabel!,
+                    ParseAuditAssessment(entity.StandaloneAuditReportAssessment!))
+                : null);
     }
 
     private static void ApplyMailClassificationDecision(
@@ -716,6 +735,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.Reason = replacement.Reason;
         entity.PolicyKey = replacement.PolicyKey;
         entity.PolicyVersion = replacement.PolicyVersion;
+        entity.StandaloneAuditReportAssetSourceLabel = replacement.StandaloneAuditReportAssetSourceLabel;
+        entity.StandaloneAuditReportAssessment = replacement.StandaloneAuditReportAssessment;
     }
 
     private static IntakeCaseMatchDecisionEntity MapCaseMatchDecision(
@@ -1087,6 +1108,20 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         "audit" => CaseType.Audit,
         "inspection_and_audit" => CaseType.InspectionAndAudit,
         _ => throw UnknownCode("case type", value)
+    };
+
+    private static string ToCode(AuditAssessment value) => value switch
+    {
+        AuditAssessment.Repairable => "repairable",
+        AuditAssessment.TotalLoss => "total_loss",
+        _ => throw UnknownEnum(value)
+    };
+
+    private static AuditAssessment ParseAuditAssessment(string value) => value switch
+    {
+        "repairable" => AuditAssessment.Repairable,
+        "total_loss" => AuditAssessment.TotalLoss,
+        _ => throw UnknownCode("audit assessment", value)
     };
 
     private static string ToCode(CaseMatchOutcome value) => value switch
