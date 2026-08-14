@@ -392,18 +392,21 @@ released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
 Sent-evidence polling remains configuration-driven for one mailbox.
 
-The current implementation still uses the Graph mailbox identity as the
-inbound poll-state key, carries a cursor when the configured fallback identity
-is adopted, and builds the receipt token from that mutable identity. That is a
-known unsafe coupling, not the target architecture. Accepted
+The current implementation uses the Graph mailbox identity as the inbound
+poll-state key, carries a cursor when the configured fallback identity is
+adopted, and builds the receipt token from that identity. The target is the
+stable-identity model — `ApprovedMailbox.Id` as the durable source identity, a
+versioned Graph cursor-scope fingerprint, an immutable receipt-token identity,
+and one explicit fresh-start activation time per mailbox, with global Worker,
+individual-Function, and per-mailbox controls kept separate. That technical
+decision is
 [ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
-would narrowly replace it with `ApprovedMailbox.Id` as the durable source
-identity, a versioned Graph cursor-scope fingerprint, immutable receipt-token
-identity, and one explicit fresh-start activation time per mailbox. It would
-also separate global Worker containment, individual Function settings, and
-per-mailbox enablement; Sent-evidence polling would remain separately enabled.
-It remains unimplemented; no current caller or deployment claim follows from
-the accepted decision.
+and the required behaviour is specified in
+[FRD-08](frd/frd-08-email-mailbox-and-background-processing.md); the migration to
+it is tracked on the Kanmer board and is not yet implemented. The production
+Worker is enabled (see [operations](operations.md#production-environment)); until
+that migration lands, production inbound Graph coordinates are not rebound or
+replaced and cursors are not cleared outside it.
 
 The poll also writes a retained-message read model — mailbox, folder scope,
 immutable and conversation identities, sender, recipients, subject, received
