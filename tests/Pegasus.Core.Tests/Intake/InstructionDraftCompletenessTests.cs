@@ -75,8 +75,9 @@ public sealed class InstructionDraftCompletenessTests
 
     /// <summary>
     /// The allocation gate is narrower than the completeness rule on purpose:
-    /// `requirements.md` fails closed on identity-critical route facts, then
-    /// requires allocation with thin ordinary detail retained as `Not ready`.
+    /// FRD-02 (intake and source identity) fails closed on identity-critical
+    /// route facts, then requires allocation with thin ordinary detail retained
+    /// as `Not ready`.
     /// </summary>
     [Theory]
     [InlineData("Claimant name")]

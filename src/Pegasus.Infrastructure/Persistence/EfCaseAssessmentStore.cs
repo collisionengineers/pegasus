@@ -174,8 +174,8 @@ public sealed class EfCaseAssessmentStore(
             {
                 // An automation resubmission of a value that has not changed
                 // leaves the record alone: saving unchanged data must not
-                // reset readiness or advisory state (requirements.md, the
-                // lifecycle progression rules), so a value a staff Engineer
+                // reset readiness or advisory state (FRD-01 case identity and
+                // lifecycle, the progression rules), so a value a staff Engineer
                 // already confirmed stays confirmed and keeps its
                 // provenance. A staff save still re-stamps, because that is
                 // how an Engineer confirms a value.
