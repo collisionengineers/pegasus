@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Documents
+@using Pegasus.Core.Cases
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
@@ -9,6 +10,17 @@
 
 <section class="panel form-panel" aria-labelledby="case-documents-title">
     <h2 id="case-documents-title" class="section-label">Document custody</h2>
+    <p>
+        @if (details.CustodyState == CaseCustodyState.Confirmed
+             && !string.IsNullOrWhiteSpace(details.CustodyFolderRemoteId))
+        {
+            <a href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener">Open Box case folder</a>
+        }
+        else
+        {
+            @OperatorLabels.CustodyFolderState(details.CustodyState)
+        }
+    </p>
     @if (details.Documents.Count == 0)
     {
         <p class="empty-state">No document occurrences are retained for this case.</p>
@@ -108,39 +120,6 @@
             <label>Document<input type="file" name="upload" required /></label>
             <label>Semantic role<select name="semanticRole">@foreach (var role in Model.DocumentSemanticRoles){<option value="@role">@role</option>}</select></label>
             <button type="submit" class="primary-action">Retain document</button>
-        </form>
-    }
-</section>
-
-<section class="panel form-panel" aria-labelledby="case-file-requests-title">
-    <h2 id="case-file-requests-title" class="section-label">Box file requests</h2>
-    @if (details.BoxFileRequests.Count == 0)
-    {
-        <p class="empty-state">No Box file requests are recorded. This does not imply the provider is available.</p>
-    }
-    else
-    {
-        <ul>
-        @foreach (var request in details.BoxFileRequests)
-        {
-            <li>
-                <strong>@OperatorLabels.UploadLinkState(request.Status)</strong> — created @OperatorLabels.OfficeTime(request.CreatedAtUtc) — expires @(OperatorLabels.OfficeTime(request.ExpiresAtUtc, "not supplied"))
-                @if (mayEdit && request.Status is BoxFileRequestStatus.Pending or BoxFileRequestStatus.Active)
-                {
-                    <form method="post" asp-page-handler="RevokeBoxFileRequest">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="fileRequestId" value="@request.Id" /><input type="hidden" name="expectedFileRequestVersion" value="@request.Version" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Revoke request</button>
-                    </form>
-                }
-            </li>
-        }
-        </ul>
-    }
-    @if (mayEdit)
-    {
-        <form method="post" asp-page-handler="CreateBoxFileRequest" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Expiry (optional)<input type="datetime-local" name="expiresAtUtc" /></label><button type="submit" class="primary-action">Create Box file request</button>
         </form>
     }
 </section>

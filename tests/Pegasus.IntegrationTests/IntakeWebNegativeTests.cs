@@ -28,7 +28,6 @@ public sealed class IntakeWebNegativeTests
         ("CaseHistory", 0),
         ("ExternalWorkItems", 0),
         ("CaseIntakeLinks", 0),
-        ("BoxFileRequests", 0),
         ("CaseDocuments", 0),
         ("RequestUploadLinks", 0),
         ("DocumentVersions", 0),
