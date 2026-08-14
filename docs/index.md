@@ -13,7 +13,7 @@ design assets remain under [`design/`](../design/).
 | What is deferred or deliberately excluded, and why? | [Boundaries](boundaries.md) |
 | What is undecided? | [Open decisions](open-decisions.md) |
 | What did Collision Engineers actually say? | [Operator notes](operator-notes.md) |
-| What exists now? | [Architecture](architecture.md) |
+| What exists now (the as-built snapshot)? | [Current architecture](current-architecture.md) |
 | What is deployed, released, monitored, or recovery-proved now? | [Operations](operations.md) |
 | How do I set up, develop, test, run, release, monitor, or recover? | [Runbook](runbook.md) |
 | What engineering guidance and evidence tiers apply? | [Engineering](engineering.md) |
@@ -30,7 +30,7 @@ design assets remain under [`design/`](../design/).
 operator-notes.md (business fact) > PRD (`prd/`, product intent — what and why) >
 FRD (`frd/`, functional specification — required behaviour) > capabilities.md
 (schedule and capability-ID registry) > ADRs (durable technical decisions) >
-architecture.md and operations.md (current state) > runbook.md, engineering.md,
+current-architecture.md and operations.md (current state) > runbook.md, engineering.md,
 and design.md (working rules within their scopes). Code plus passing tests beat any document about
 current state. On conflict: fix the losing document in the same commit you
 notice it; if the conflict is material and you cannot resolve it, put one line

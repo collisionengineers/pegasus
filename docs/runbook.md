@@ -870,7 +870,7 @@ dated names are not current identity proof.
 
 ## Deployment and release
 
-The accepted direct-terminal Azure design is indexed by [architecture](architecture.md) and the [decision register](adr/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
+The accepted direct-terminal Azure design is indexed by [architecture](current-architecture.md) and the [decision register](adr/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
 
 `azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 

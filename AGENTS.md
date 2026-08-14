@@ -45,10 +45,12 @@ is the navigation index and owns the authority chain.
   FRD, or ADR. It never holds normative behaviour.
 - **`docs/boundaries.md`** — what is deliberately **deferred or excluded**, and
   the seams preserved to add it later. Boundary rules, not scheduling data.
-- **`docs/architecture.md` / `docs/operations.md`** — current implemented shape
-  and current live state. **`docs/runbook.md` / `docs/engineering.md` /
-  `docs/design.md`** — working rules within their scopes. These are downstream
-  of PRD/FRD/ADR and never override them.
+- **`docs/current-architecture.md` / `docs/operations.md`** — the as-built
+  snapshot (what exists and how it is wired now) and the deployed/runtime state.
+  Both are living snapshots and must be refreshed after every deploy (see
+  Safety rails). **`docs/runbook.md` / `docs/engineering.md` / `docs/design.md`**
+  — working rules within their scopes. These are downstream of PRD/FRD/ADR and
+  never override them.
 
 Routing — where to write, and where to send an agent:
 
@@ -58,7 +60,7 @@ Routing — where to write, and where to send an agent:
 | Required behaviour of a capability — I/O, states, rules, edge cases, acceptance | an **FRD** |
 | A chosen technical mechanism or architectural boundary | a **thin ADR** + the behaviour in the FRD |
 | Schedule, allocation, a capability ID | **`docs/capabilities.md`** |
-| A current-state fact (deployed, live, monitored) | **`docs/operations.md`** / **`docs/architecture.md`** |
+| A current-state fact (deployed, live, monitored) | **`docs/operations.md`** / **`docs/current-architecture.md`** |
 | A business statement from the operator | **`docs/operator-notes.md`** (protected) |
 | A repository rule, convention, or process | **this file** |
 
@@ -141,6 +143,11 @@ contract and existing workspace tree.
   explicit approval for exact targets. Never delete `rg-collisionspike-dev` as a
   first step. The approval matrix is owned by the
   [runbook](docs/runbook.md#live-operation-approval-matrix).
+- After any deployment or release, refresh the current-state docs in the same
+  task, before it merges: [`docs/current-architecture.md`](docs/current-architecture.md)
+  (the as-built shape) and [`docs/operations.md`](docs/operations.md) (deployed
+  and runtime state) must match the reality just shipped. A deploy that leaves
+  either stale is unfinished.
 - `docs/operator-notes.md` is authoritative operator truth: preserve every
   material business statement and stop for user resolution before changing
   meaning. Supplied references and the predecessor are evidence, not

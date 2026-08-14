@@ -272,7 +272,7 @@ brand-asset ownership statements. **There is no root `NOTICE` file, and
 activation condition in the workspace register.
 
 **Question.** Do the surviving licence conclusions become a "Third-party
-components" table under `docs/architecture.md`, or do you authorise a root notice
+components" table under `docs/current-architecture.md`, or do you authorise a root notice
 file as an exception to the one-file-per-question rule?
 
 Two of the conclusions currently read "No conclusion stated in the retained
