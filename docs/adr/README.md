@@ -34,7 +34,6 @@ never renumbered or reused.
 | [0018](0018-provider-inspection-mode-database-setting.md) | Provider-determined inspection mode as a database setting | FRD-02, FRD-06 |
 | [0019](0019-in-process-onnx-vrm-recognition.md) | In-process ONNX VRM recognition engine | FRD-06 |
 | [0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract | FRD-10, FRD-11 |
-| [0022](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as a database setting | FRD-08 |
 | [0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | Stable approved-mailbox identity and per-mailbox fresh start | FRD-08 |
 
 ## Superseded and relocated
@@ -44,6 +43,7 @@ never renumbered or reused.
 | [0010](0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | `AGENTS.md` / [`docs/index.md`](../index.md) — governance is not an ADR |
 | [0012](0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | [FRD-06](../frd/frd-06-vehicle-and-engineering-evidence.md) |
 | [0020](0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | [FRD-09](../frd/frd-09-provider-and-intermediary-routes.md) |
+| [0022](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as a database setting | [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) — estate decision carried forward; behaviour in [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md) |
 | [0023](0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | `AGENTS.md` / [`docs/index.md`](../index.md) — governance is not an ADR |
 
 ADR-0017 was never issued (a numbering collision while filing 0018/0019); the gap
