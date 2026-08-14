@@ -64,9 +64,9 @@ step it names.
 
 The former item 1 (`INT-17` VRM recognition thresholds) closed 2026-08-03:
 the operator accepted the full-cohort evaluation at the **0.80** bar with the
-accepted match rules. The
-[ADR-0019 index entry](adr/README.md#architecture-decision-records) and the
-`INT-17` capability row own the accepted numbers and their qualification.
+accepted match rules.
+[Operations § dated evidence](operations.md#dated-evidence-qualifications) owns
+the accepted numbers and their qualification.
 
 1. **`INT-31` upload-link limits** — Exact token lifetime, aggregate and
    per-file byte limits, file count, allowed content types, per-token/per-IP
