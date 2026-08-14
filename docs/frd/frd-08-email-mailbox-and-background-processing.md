@@ -1,5 +1,5 @@
 # FRD-08: Email, mailbox, and background processing
-> Owner capabilities: MAIL · Migrated from docs/requirements.md · UI behaviour: docs/design.md
+> Owner capabilities: MAIL · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
 
 ## Email, mailbox, and background processing
 

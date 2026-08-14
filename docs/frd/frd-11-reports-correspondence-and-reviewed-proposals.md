@@ -1,5 +1,5 @@
 # FRD-11: Reports, correspondence, and reviewed proposals
-> Owner capabilities: RPT, AI · Migrated from docs/requirements.md · UI behaviour: docs/design.md
+> Owner capabilities: RPT, AI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
 
 ## Reports, correspondence, and reviewed proposals
 

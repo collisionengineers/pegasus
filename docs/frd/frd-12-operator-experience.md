@@ -1,5 +1,5 @@
 # FRD-12: Operator experience
-> Owner capabilities: UI · Migrated from docs/requirements.md · UI behaviour: docs/design.md
+> Owner capabilities: UI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
 
 ## Operator experience
 

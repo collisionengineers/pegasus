@@ -1,5 +1,5 @@
 # FRD-07: EVA and external engineering handoff
-> Owner capabilities: EXT · Migrated from docs/requirements.md · UI behaviour: docs/design.md
+> Owner capabilities: EXT · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
 
 ## EVA and external engineering handoff
 

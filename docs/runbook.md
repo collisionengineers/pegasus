@@ -805,7 +805,7 @@ Operationally, do not run later caller or release gates before the revalidated s
 
 ## Release validation rules
 
-The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; [requirements](prd/README.md) remains the behavior owner:
+The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; the [FRDs](frd/README.md) remain the behaviour owner:
 
 - positive, contradictory/ambiguous, transient, terminal, and unknown outcomes produce the ordered decision, persisted result, action history or telemetry, and operator-visible result;
 - definitive intake creates one idempotent case or links the definitive existing case, enters `Review` only after both completeness gates pass or are explicitly confirmed, otherwise enters `Not ready`, and preserves reversible source associations and both origins;

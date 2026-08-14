@@ -434,7 +434,7 @@ Validation or refusal before an accepted intake receipt must not be described as
 
 There is no decision meaning "a human has not pressed the button yet". The former `DraftReady`
 named exactly that wait, and was removed rather than renamed:
-[requirements](prd/README.md) is explicit that definitive authorised intake creates
+[FRD-02](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) is explicit that definitive authorised intake creates
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
 manual acceptance gate", and the [operator notes](operator-notes.md) send only ambiguous
 provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
@@ -733,8 +733,9 @@ There is no alpha control, route or placeholder for:
 Deferred AI may propose but must not mutate, accept or send autonomously. Future deterministic outputs must use one accepted structured case/engineering record, validate accepted data, calculate once and avoid duplicate truth owners or output-specific source forks.
 
 One recorded exception (operator widening, 2026-08-03; extended by the
-operator-approved AI-09 specification
-`docs/temp-plans/send-to-claude-channel-integration.md`, which is the
+operator-approved AI-09 specification —
+[ADR-0021](adr/0021-automation-actor-direct-write-assessment-contract.md) and
+[FRD-11](frd/frd-11-reports-correspondence-and-reviewed-proposals.md), the
 re-entry specification for exactly this slice): the Engineer assessment
 workbench (UI-15) exists as design markup under
 `src/Pegasus.Web/Pages/Cases/Assessment/`, and the AI-09 wiring task
