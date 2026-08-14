@@ -1701,20 +1701,6 @@ table tfoot th {
 .page-heading { align-items: center; }
 .page-heading .refresh { margin-left: auto; }
 
-/* A link with no metric behind it is a link, not a card pretending to be one. */
-.drilldowns { display: flex; flex-wrap: wrap; gap: var(--sp-6); margin-top: var(--sp-6); }
-
-.drilldowns a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  color: var(--charcoal);
-  font-size: var(--t-sm);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.drilldowns a:hover { color: var(--ce-red); text-decoration: underline; }
 
 /* An action that needs a reason confirms in the row it belongs to, rather than
    making the operator manage a mode before they can take it. */
