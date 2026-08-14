@@ -219,7 +219,8 @@ public sealed record AssessmentFieldValue(
 /// <summary>
 /// The case-owned fields the assessment surface reads without owning:
 /// current accepted values from the case-data projection, single-owner per
-/// docs/temp-plans/mcp-assessment-toolset.md D4.
+/// ADR-0021 / FRD-10 (docs/adr/0021-automation-actor-direct-write-assessment-contract.md,
+/// docs/frd/frd-10-mcp-automation-and-actor-boundary.md).
 /// </summary>
 public sealed record AssessmentCaseOwnedData(
     string? Registration,

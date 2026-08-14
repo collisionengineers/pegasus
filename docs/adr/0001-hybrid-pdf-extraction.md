@@ -1,3 +1,13 @@
+---
+id: ADR-0001
+status: accepted
+date: 2026-07-23
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-05]
+tags: [extraction, pdf]
+---
 # ADR-0001: Hybrid PDF extraction
 
 - Status: Accepted; embedded engine selected by ADR-0003; scan qualification refined by ADR-0005

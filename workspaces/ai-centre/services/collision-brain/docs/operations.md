@@ -1,6 +1,6 @@
 # Operations
 
-This document is the canonical operational contract for Collision Brain. Functional requirements remain owned by [requirements.md](../../../../../docs/requirements.md).
+This document is the canonical operational contract for Collision Brain. Functional requirements remain owned by [the FRDs](../../../../../docs/frd/README.md).
 
 Retained supporting contracts are [security](security.md),
 [ADR-0001: provider boundaries](adr/0001-provider-boundaries.md), and
