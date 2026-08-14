@@ -108,7 +108,7 @@ internal sealed class EfApprovedInboxPollStore(
     /// Adoption is also the right answer rather than merely the safe one: the
     /// row carries the delta cursor, so re-keying it resumes where the mailbox
     /// had got to instead of replaying or skipping mail, which is the
-    /// disable-and-resume promise ADR-0022 makes. A primary key cannot be
+    /// disable-and-resume model ADR-0022 specified. A primary key cannot be
     /// changed through a tracked entity, so the re-key is a statement; the
     /// retained-message and quarantine rows that reference it follow by
     /// cascade, and the whole thing is inside the claiming transaction.
@@ -119,7 +119,9 @@ internal sealed class EfApprovedInboxPollStore(
     /// not the fix — the external receipt token embeds the mailbox identity
     /// (MailboxIntake.PrepareMessage), so a replay after adoption re-receives
     /// every message in the folder under a new identity and duplicates the
-    /// receipts. Both halves have to move together.
+    /// receipts. Both halves have to move together. ADR-0024 supersedes this
+    /// resume model with a per-mailbox fresh start (no carried cursor);
+    /// reconciling this store to ADR-0024 is the tracked work.
     /// </remarks>
     private static async Task<ApprovedInboxPollStateEntity?> AdoptStateForAddressAsync(
         PegasusDbContext context,
