@@ -749,7 +749,8 @@ Controlled synthetic fixtures may prove protocols, security controls, and resour
 
 | Action | Exact scope required | Required approval and evidence |
 | --- | --- | --- |
-| Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
+| Read Azure state (inventory, config, diagnostics) | Subscription, resource group, resource | **Permitted — no per-target approval.** Read-only `az`/ARM/portal reads that change no state and incur no material cost |
+| Change or use an Azure service (write/mutation/cost) | Subscription, resource group, resource, operation | Explicit approval for the exact target, fresh inventory, least-privilege identity |
 | Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
 | Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller under the decided root `405543781910` |

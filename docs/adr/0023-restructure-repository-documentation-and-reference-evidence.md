@@ -4,6 +4,8 @@ status: superseded
 date: 2026-08-10
 supersedes: []
 superseded_by: []
+related_capabilities: []
+related_frd: []
 tags: [documentation, governance]
 ---
 

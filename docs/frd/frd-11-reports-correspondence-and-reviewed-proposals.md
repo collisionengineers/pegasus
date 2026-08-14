@@ -17,7 +17,8 @@ the issued report. A closed case must be reasonedly reopened before its report
 or evidence is revised.
 
 The report-sent business event is the exact approved-mailbox Sent-item evidence
-defined above and remains final if Outlook later moves or deletes the item.
+specified in [FRD-08 § Outbound correspondence evidence](frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)
+and remains final if Outlook later moves or deletes the item.
 Outlook `sentDateTime` remains the business time; discovery and link times are
 not substitutes. Report sent enters post-report work rather than closing the
 case. A Box report PDF, file upload, generated artifact, draft, queue result, or

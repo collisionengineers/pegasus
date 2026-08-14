@@ -41,7 +41,7 @@ Total: **231 capabilities; 231 unique IDs**.
 | --- | ---: |
 | `0.1.0-alpha.1` | 131 |
 | `0.2.0` | 5 |
-| `0.3.0` | 19 |
+| `0.3.0` | 20 |
 | `0.4.0` | 5 |
 | `0.5.0` | 5 |
 | `0.6.0` | 5 |
@@ -330,7 +330,7 @@ credential, external operation, deployment, or acceptance. The
 | ---: | --- | --- | ---: |
 | 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 131 |
 | 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 5 |
-| 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 19 |
+| 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 20 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
 | 05 | `0.5.0` | Extended case types and staff/outbound communication channels | 5 |
 | 06 | `0.6.0` | Individually approved operator AI assistance | 5 |
@@ -341,7 +341,7 @@ credential, external operation, deployment, or acceptance. The
 | 11 | `1.3.0` | Engineer-reviewed query proposals, staff-selected AI Assessor, and conditional Automation/Send-to-AI administration | 3 |
 | 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
 
-The 201 planned capabilities use these twelve targets; 29 permanent boundaries
+The 202 planned capabilities use these twelve targets; 29 permanent boundaries
 remain `Not planned / unallocated`.
 
 Sequence constraints:

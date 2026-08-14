@@ -134,7 +134,8 @@ internal sealed record EvaHandoffStatusToolResult(
 
 /// <summary>
 /// Automation Actor assessment tools (the tranche specified by
-/// docs/temp-plans/mcp-assessment-toolset.md): direct writes over the same
+/// ADR-0021 / FRD-10 (docs/adr/0021-automation-actor-direct-write-assessment-contract.md,
+/// docs/frd/frd-10-mcp-automation-and-actor-boundary.md)): direct writes over the same
 /// Core commands, edit lease, and version guards as a staff save, attributed
 /// to the Automation actor with the values stored unconfirmed until staff
 /// review. Structurally absent, on purpose: any finding-confirmation tool,

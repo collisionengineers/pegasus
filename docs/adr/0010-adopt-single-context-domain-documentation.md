@@ -1,8 +1,11 @@
 ---
 id: ADR-0010
 status: superseded
+date: 2026-07-29
 supersedes: []
 superseded_by: []
+related_capabilities: []
+related_frd: []
 tags: [documentation, governance]
 ---
 
