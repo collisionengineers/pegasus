@@ -1,0 +1,182 @@
+statuses:
+  - id: todo
+    name: To Do
+    color: "#ff5c5c"
+  - id: in-progress
+    name: In Progress
+    color: "#ffea00"
+  - id: review
+    name: Review
+    color: "#e60fd4"
+  - id: done
+    name: Done
+    color: "#04ff00"
+areas:
+  - id: document-extraction
+    name: Document Extraction
+    color: "#5cf4ff"
+    prefix: DOCUME
+  - id: ui-emails
+    name: UI- Emails
+    color: "#e9f1e4"
+    prefix: UIEMAI
+  - id: ui-case-screen
+    name: UI- Case Screen
+    color: "#5b8cff"
+    prefix: UICASE
+  - id: ui-engineer-screen
+    name: UI - Engineer Screen
+    color: "#5b8cff"
+    prefix: UIENGI
+  - id: mcp-server-claude-cowork-automation
+    name: MCP Server - Claude Cowork Automation
+    color: "#5b8cff"
+    prefix: MCPSER
+  - id: intake-manual-upload-source-intake
+    name: Intake — Manual Upload & Source Intake
+    color: "#e67e22"
+    prefix: INTAKE
+  - id: intake-image-vrm-matching
+    name: Intake — Image, VRM & Matching
+    color: "#f39c12"
+    prefix: INTAK2
+  - id: intake-triage-needs-sorting-blocked
+    name: Intake — Triage, Needs Sorting & Blocked
+    color: "#d35400"
+    prefix: INTAK3
+  - id: files-staging-custody-box
+    name: Files — Staging, Custody & Box
+    color: "#8e44ad"
+    prefix: FILESS
+  - id: mail-approved-mailboxes-graph-worker-polling
+    name: Mail — Approved Mailboxes, Graph & Worker Polling
+    color: "#16a085"
+    prefix: MAILAP
+  - id: mail-chasing-outbound-sent-evidence
+    name: Mail — Chasing, Outbound & Sent Evidence
+    color: "#1abc9c"
+    prefix: MAILCH
+  - id: case-allocation-principals-references
+    name: Case — Allocation, Principals & References
+    color: "#c0392b"
+    prefix: CASEAL
+  - id: case-lifecycle-chasing-edit-leases
+    name: Case — Lifecycle, Chasing & Edit Leases
+    color: "#e74c3c"
+    prefix: CASELI
+  - id: case-audit-workflow-recovery
+    name: Case — Audit Workflow & Recovery
+    color: "#9b59b6"
+    prefix: CASEAU
+  - id: engineering-vehicle-mot-inspection-evidence
+    name: Engineering — Vehicle, MOT & Inspection Evidence
+    color: "#27ae60"
+    prefix: ENGINE
+  - id: engineering-eva-export-handoff
+    name: Engineering — EVA Export & Handoff
+    color: "#2ecc71"
+    prefix: ENGIN2
+  - id: reports-renderer-lifecycle-correspondence
+    name: Reports — Renderer, Report Lifecycle & Correspondence
+    color: "#2980b9"
+    prefix: REPORT
+  - id: data-provider-principal-repairer-reference
+    name: Data — Provider, Principal & Repairer Reference Data
+    color: "#34495e"
+    prefix: DATAPR
+  - id: admin-staff-accounts-roles-configuration
+    name: Admin — Staff Accounts, Roles & Configuration
+    color: "#7f8c8d"
+    prefix: ADMINS
+  - id: ui-operations-dashboard-administration
+    name: UI — Operations Dashboard & Administration
+    color: "#3498db"
+    prefix: UIOPER
+  - id: integration-provider-api-external-accounts
+    name: Integration — Provider API & External Accounts
+    color: "#2c3e50"
+    prefix: INTEGR
+  - id: integration-dvla-dvsa-whatsapp-guided-capture
+    name: Integration — DVLA/DVSA, WhatsApp & Guided Capture
+    color: "#17a2b8"
+    prefix: INTEG2
+  - id: automation-ai-assessment-send-to-ai
+    name: Automation — AI Assessment & Send to AI
+    color: "#6c5ce7"
+    prefix: AUTOMA
+  - id: evaluation-local-email-evaluator
+    name: Evaluation — Local Email Evaluator
+    color: "#a29bfe"
+    prefix: EVALUA
+  - id: platform-azure-production-release-estate
+    name: Platform — Azure Production Release & Estate
+    color: "#e17055"
+    prefix: PLATFO
+  - id: platform-azure-sql-migrations-runtime-permissions
+    name: Platform — Azure SQL, Migrations & Runtime Permissions
+    color: "#d63031"
+    prefix: PLATF2
+  - id: platform-worker-activation-background-processing
+    name: Platform — Worker Activation & Background Processing
+    color: "#fdcb6e"
+    prefix: PLATF3
+  - id: security-key-vault-managed-identity-rbac
+    name: Security — Key Vault, Managed Identity & RBAC
+    color: "#00b894"
+    prefix: SECURI
+  - id: operations-telemetry-alerts-live-diagnostics
+    name: Operations — Telemetry, Alerts & Live Diagnostics
+    color: "#0984e3"
+    prefix: OPERAT
+  - id: operations-backup-restore-recovery
+    name: Operations — Backup, Restore & Recovery
+    color: "#636e72"
+    prefix: OPERA2
+  - id: assurance-quality-cohorts-acceptance
+    name: Assurance — Quality, Cohorts & Acceptance
+    color: "#00cec9"
+    prefix: ASSURA
+  - id: performance-intake-concurrency-capacity
+    name: Performance — Intake Concurrency & Capacity
+    color: "#e84393"
+    prefix: PERFOR
+  - id: delivery-build-ci-documentation-governance
+    name: Delivery — Build, CI, Documentation & Governance
+    color: "#6c5ce7"
+    prefix: DELIVE
+  - id: repo-hygiene
+    name: Repo Hygiene
+    color: "#5b8cff"
+    prefix: REPOHY
+  - id: kanmer-meta
+    name: kanmer-meta
+    color: "#5b8cff"
+  - id: simplify
+    name: simplify
+    color: "#5b8cff"
+    prefix: SIMPLI
+  - id: pr-review
+    name: PR Review
+    color: "#8b5cf6"
+    prefix: PR
+  - id: bugs
+    name: Bugs
+    color: "#ef4444"
+    prefix: BUG
+priorities:
+  - id: low
+    name: Low
+    color: "#6b7280"
+  - id: medium
+    name: Medium
+    color: "#5b8cff"
+  - id: high
+    name: High
+    color: "#ffcf7a"
+  - id: urgent
+    name: Urgent
+    color: "#ff6b6b"
+idPrefixes:
+  ticket: TICK
+  plan: PLAN
+  research: RES
