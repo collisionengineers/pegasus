@@ -248,3 +248,7 @@
 {"ts":"2026-08-14T02:35:49.840Z","id":"SIMPLI-001","op":"take","field":"branch","to":"task/ai-centre-standalone-repository","actor":"claude-code"}
 {"ts":"2026-08-14T02:35:51.073Z","id":"SIMPLI-006","op":"update","field":"blocks","to":["SIMPLI-001"],"actor":"claude-code"}
 {"ts":"2026-08-14T02:36:20.023Z","id":"SIMPLI-001","op":"doc","field":"plan","to":"append","actor":"claude-code"}
+{"ts":"2026-08-14T03:43:57.908Z","id":"SIMPLI-002","op":"update","field":"status","from":"review","to":"done","actor":"claude-code"}
+{"ts":"2026-08-14T03:43:58.975Z","id":"SIMPLI-004","op":"update","field":"status","from":"review","to":"done","actor":"claude-code"}
+{"ts":"2026-08-14T03:44:00.037Z","id":"SIMPLI-005","op":"update","field":"status","from":"review","to":"done","actor":"claude-code"}
+{"ts":"2026-08-14T03:44:01.087Z","id":"SIMPLI-006","op":"update","field":"status","from":"review","to":"done","actor":"claude-code"}

@@ -2,7 +2,7 @@
 id: SIMPLI-002
 type: ticket
 title: Rewrite AGENTS.md
-status: review
+status: done
 area: simplify
 priority: medium
 order: 80
@@ -14,7 +14,7 @@ labels: []
 links: []
 archived: false
 created: '2026-08-13T12:00:32.076Z'
-updated: '2026-08-13T23:11:21.389Z'
+updated: '2026-08-14T03:43:57.904Z'
 ---
 
 ## What
