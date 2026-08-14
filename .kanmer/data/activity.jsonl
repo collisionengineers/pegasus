@@ -253,3 +253,8 @@
 {"ts":"2026-08-14T03:44:00.037Z","id":"SIMPLI-005","op":"update","field":"status","from":"review","to":"done","actor":"claude-code"}
 {"ts":"2026-08-14T03:44:01.087Z","id":"SIMPLI-006","op":"update","field":"status","from":"review","to":"done","actor":"claude-code"}
 {"ts":"2026-08-14T03:52:32.047Z","id":"SIMPLI-001","op":"doc","field":"plan","to":"write","actor":"claude-code"}
+{"ts":"2026-08-14T04:26:19.608Z","id":"TICK-188","op":"update","field":"archived","from":false,"to":true,"actor":"gui"}
+{"ts":"2026-08-14T04:26:21.726Z","id":"TICK-189","op":"update","field":"archived","from":false,"to":true,"actor":"gui"}
+{"ts":"2026-08-14T04:26:23.548Z","id":"TICK-199","op":"update","field":"archived","from":false,"to":true,"actor":"gui"}
+{"ts":"2026-08-14T04:26:54.719Z","id":"SIMPLI-001","op":"doc","field":"proof","to":"write","actor":"claude-code"}
+{"ts":"2026-08-14T04:26:58.937Z","id":"SIMPLI-001","op":"update","field":"status","from":"review","to":"done","actor":"claude-code"}
