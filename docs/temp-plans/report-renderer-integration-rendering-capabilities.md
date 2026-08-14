@@ -76,7 +76,7 @@ those three capabilities.
 
 | Rule | Source |
 | --- | --- |
-| `Pegasus.Core` is the single owner of business policy; Infrastructure implements ports and owns no business decision | [architecture](../architecture.md) |
+| `Pegasus.Core` is the single owner of business policy; Infrastructure implements ports and owns no business decision | [architecture](../current-architecture.md) |
 | Future rendering consumes a Core-owned render contract; report policy does not move into Infrastructure or the renderer | [ADR-0009](../adr/0009-adopt-pegasus-monorepo-workspaces.md) |
 | Where a capability already owns a concept, this plan defers to it and creates no second owner | [master plan](report-renderer-integration.md) stop conditions |
 | Report wording is an open decision; no wording is invented, defaulted, or paraphrased | [open decisions](../open-decisions.md) "Report wording" |

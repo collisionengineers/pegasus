@@ -230,7 +230,7 @@ surface stays behind its existing `Features:AutomationMcp` composition gate.
 
 `docs/capabilities.md` CASE-27 and the MCP-02/MCP-04 rows gain the renew
 tool and the settled disclosure/retention behaviour if their activation text
-becomes inaccurate; `docs/architecture.md:390` names nine MCP tools and
+becomes inaccurate; `docs/current-architecture.md:390` names nine MCP tools and
 becomes ten. No new Markdown file beyond this plan, and no ADR: nothing here
 constrains future architecture beyond the "one Core owner" rule that already
 binds.
@@ -239,5 +239,5 @@ binds.
 
 `task/send-to-ai-round-trip` is in flight and adds five Automation Actor
 tools; both tasks touch `src/Pegasus.Web/Mcp/` and the tool inventory
-recorded in `docs/architecture.md`. The collision is additive (a new tool
+recorded in `docs/current-architecture.md`. The collision is additive (a new tool
 each) and resolves by merging `origin/dev` into this branch before the PR.

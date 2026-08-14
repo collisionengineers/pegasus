@@ -65,7 +65,7 @@ Run policy tests first, adapter contracts second, persistence/transaction tests 
 
 ## Engineering invariants
 
-Topology and accepted boundaries are owned by [architecture](architecture.md).
+Topology and accepted boundaries are owned by [architecture](current-architecture.md).
 
 ### One Core owner
 

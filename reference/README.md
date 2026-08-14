@@ -3,7 +3,7 @@
 Supplied and raw material is evidence, not a requirement, implementation proof,
 current directory, or authorization. Accepted behavior lives in
 [requirements](../docs/prd/README.md), current callers in
-[architecture](../docs/architecture.md), unresolved questions in
+[architecture](../docs/current-architecture.md), unresolved questions in
 [open decisions](../docs/open-decisions.md), operator truth in
 [operator notes](../docs/operator-notes.md), and UI rules in
 [design](../docs/design.md).

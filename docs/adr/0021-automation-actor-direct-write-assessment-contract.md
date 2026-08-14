@@ -19,7 +19,7 @@ ingress implemented that contract with nine tools, per-area scopes, permanent
 attributable history, and a two-layer kill switch, all behind a composition
 gate limited to DevelopmentOffline evidence runs. Its settled
 identity/authentication/tool-inventory contract lived only in
-architecture.md/operations.md prose after its temp plan was deleted; the backlog
+current-architecture.md/operations.md prose after its temp plan was deleted; the backlog
 queued promoting it to an ADR.
 
 Two operator decisions on 2026-08-03 reshaped the remaining work: the Automation

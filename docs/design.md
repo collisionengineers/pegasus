@@ -1,6 +1,6 @@
 # Design authority
 
-This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](prd/README.md) and [capabilities](capabilities.md); architecture and deployed state remain with [architecture](architecture.md) and [operations](operations.md), procedures with the [runbook](runbook.md), operator truth with [operator notes](operator-notes.md), and repository workflow with [engineering](engineering.md).
+This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](prd/README.md) and [capabilities](capabilities.md); architecture and deployed state remain with [architecture](current-architecture.md) and [operations](operations.md), procedures with the [runbook](runbook.md), operator truth with [operator notes](operator-notes.md), and repository workflow with [engineering](engineering.md).
 
 ## Evidence discipline
 
@@ -325,7 +325,7 @@ what an operator reads.
 
 ## Access and permissions
 
-Staff accounts, authentication, and authorisation are implemented and enforced through authenticated Web callers ([architecture](architecture.md)). Accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
+Staff accounts, authentication, and authorisation are implemented and enforced through authenticated Web callers ([architecture](current-architecture.md)). Accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
 
 | Actor | Planned UI boundary |
 | --- | --- |
@@ -793,7 +793,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | --- | --- | --- |
 | Product capability and horizon | [Requirements](prd/README.md), [capabilities](capabilities.md) | Planned staff routes; current caller is narrower |
 | Open policy and token questions | [Open decisions](open-decisions.md) | No implementation inference until resolved |
-| Architecture and caller boundaries | [Architecture](architecture.md) | Core, Web, Worker, MCP and external adapters |
+| Architecture and caller boundaries | [Architecture](current-architecture.md) | Core, Web, Worker, MCP and external adapters |
 | Production, release, monitoring, and recovery state | [Operations](operations.md) | No deployment claim from design or source presence |
 | Setup, testing, release, and recovery procedure | [Runbook](runbook.md) | Procedure is not execution evidence |
 | Engineering procedure | [Engineering](engineering.md) | Reviewed implementation and verification; `.agents/skills/` routes remain subject to it |
@@ -842,7 +842,7 @@ Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selec
 
 ### Evidence state and scope
 
-The implemented route set is owned by [architecture — current callers](architecture.md); the alpha shell spans intake, image intake, cases, triage, search, operations, and administration; the desktop evaluator is separately owned ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
+The implemented route set is owned by [architecture — current callers](current-architecture.md); the alpha shell spans intake, image intake, cases, triage, search, operations, and administration; the desktop evaluator is separately owned ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
 
 The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
 

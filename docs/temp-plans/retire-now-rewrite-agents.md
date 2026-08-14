@@ -29,7 +29,7 @@ superseding + indexing, never renumbering.
 - Retire `requirements.md`; PRD tier inherits its "intent" authority.
 - Per-domain granularity: ~1 PRD + ~12 FRDs, keyed to capability IDs.
 - Authority chain: `operator-notes.md > PRD > FRD > capabilities.md > ADR >
-  architecture.md/operations.md > runbook.md/engineering.md/design.md`.
+  current-architecture.md/operations.md > runbook.md/engineering.md/design.md`.
 - Kanmer is the claim mechanism (no NOW.md line); AGENTS.md gains a
   read-only-Azure-permitted rule; prod Worker is enabled (live-verified
   2026-08-13) → `operations.md` takes that value; `operator-notes.md` protected;
