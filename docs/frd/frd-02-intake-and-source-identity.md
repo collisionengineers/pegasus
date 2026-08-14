@@ -7,7 +7,7 @@
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; the ADR-0019 index entry owns the accepted numbers). Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
+Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
 
 Every intake path must:
 

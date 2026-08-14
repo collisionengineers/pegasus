@@ -125,7 +125,7 @@ intake artifact stores behind one storage profile. These are **Deployed**
 
 In-process ONNX vehicle-registration recognition (ADR-0019) is implemented
 in `src/Pegasus.Infrastructure/Vision/` behind the Core `ImageIntake`
-automation; the ADR-0019 index entry owns the accepted evaluation numbers.
+automation; [operations § dated evidence](operations.md#dated-evidence-qualifications) owns the accepted evaluation numbers.
 Implementation is not live-caller acceptance.
 
 The following remain planned or absent, not merely unverified:
