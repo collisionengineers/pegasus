@@ -1,3 +1,13 @@
+---
+id: ADR-0016
+status: accepted
+date: 2026-07-29
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-08]
+tags: [evaluator, tooling]
+---
 # ADR-0016: Standalone local desktop email evaluator
 
 - Date: 2026-07-29

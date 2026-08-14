@@ -171,6 +171,7 @@ The retained evidence observations are qualified as follows:
 - A 2026-07-23 corpus inventory describes only the observed local scope and safety boundary; it does not prove current contents, extraction accuracy, workflow behavior, deployment, or acceptance.
 - A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is the authenticated `/Upload` POST through `ProcessIntakeSubmission`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
 - A 2026-07-23 embedded-PDF benchmark used 74 unique PDFs and 567 reported pages from an immutable local QDOS cohort through a disposable benchmark harness. It records comparative embedded-text decoding and marker coverage only; it does not prove literal field accuracy, OCR, future layouts, production runtime behavior, or operator acceptance.
+- A 2026-08-03 VRM recognition evaluation accepted the automatic image-registration reading threshold (`INT-17`) at the **0.80** confidence bar with the `INT-28`/`INT-32` match rules, closing former open decision 1; the engine selection is [ADR-0019](adr/0019-in-process-onnx-vrm-recognition.md). The full-cohort run `20260803-092906` covered 2,818 cohort images at the 0.80 bar — 315 suggestions, 3.2% genuine near-misses, 13.7% correctly read third-party registrations, zero technical failures. The one-time holdout confirmation run `20260803-102921` covered 705 untouched images at the accepted 0.80 bar — 88 suggestions at 12.5%, 2 genuine near-misses at 2.3%, 14 correctly read third-party registrations, zero technical failures, consistent with the cohort. This records operator acceptance of the threshold against these cohorts; it does not prove current-caller production execution or future-layout accuracy.
 
 ## Planned EML evaluator
 
@@ -302,7 +303,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     Case/PO fail-closed gate is satisfied.
   - **Release 1** live-verified Graph Inbox/Sent processing through the
     production Worker: 83 successful executions, zero exceptions.
-  - **Current Worker containment (2026-08-10):** release/package history is
+  - **Worker containment (2026-08-10, later reversed — see current state below):** release/package history is
     unchanged, but the exact production Worker
     `pegasus-prod-worker-252ow37gij` is intentionally not active. One scoped
     app-settings write completed at `2026-08-10T21:34:34Z` and changed exactly
@@ -320,6 +321,31 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     This proves the scoped disabled containment state only. It is not a package
     repair, baseline, activation, mail receipt, Case/PO, Box-custody, or
     product-acceptance claim.
+
+    **Current Worker state (2026-08-13, live-verified):** the containment above
+    was reversed — the production Worker `pegasus-prod-worker-252ow37gij` is now
+    **enabled**. All nine `AzureWebJobs.<function>.Disabled` settings read
+    `false` (`az functionapp config appsettings list`, 2026-08-13; the same nine
+    `false` values were recorded on 2026-08-12 for the post-release-8 source
+    below). This proves live configuration only — not that any trigger, mailbox
+    poll, intake, custody action, or other business caller has run against the
+    deployed estate.
+- **Post-release-8 deployment (observed 2026-08-12):** Production Web serves an
+  un-numbered post-release-8 deployment: revision
+  `pegasus-prod-web-252ow37gij--13m13ph`, source revision
+  `dd61ac56840d2cf0c1f0667f995c3941cbb19fc5` (PR 370), image
+  `sha256:04d39c20f1fb4494dbc26b93f151683674233e20ff6e99b76b3b9f951ac4b7f3`.
+  `/health/live` and `/health/ready` returned 200, the version diagnostic
+  matched that source SHA, and anonymous `/Cases` redirected to the https
+  sign-in route. This source contains three post-release-8 migrations —
+  `20260811063940_QdosAllocationRecovery`, `20260811122654_CaseCustodyEvaRecovery`,
+  and `20260812010335_ManualInspectionAuditCustody` — and an authorised
+  `__EFMigrationsHistory` readback on 2026-08-12 confirmed all three are applied.
+  **Do not assign a new numbered release until the immutable manifest and
+  migration transcript are recovered.** Nothing here is live-verified beyond
+  smoke and Worker configuration: no browser journey has exercised the
+  upload-to-case path, the Inbox, CASE-27 edit authority, or an enabled Worker
+  caller against the deployed estate.
 - **Temporary verification account:** `claudeuiverification` exists on the
   production estate as an enabled Administrator, seeded by release 6 from the
   `Bootstrap:VerificationAccount` block committed to `appsettings.json`. It

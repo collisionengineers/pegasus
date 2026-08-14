@@ -64,10 +64,10 @@ applies migrations.
 
 Exact prerequisites, initialization, migration, test profiles, and evidence
 limits are in the [runbook](docs/runbook.md); deployed state and dated evidence
-are in [operations](docs/operations.md). Current work is tracked in
-[`NOW.md`](NOW.md); start with the [documentation map](docs/index.md),
-[requirements](docs/requirements.md), [capabilities](docs/capabilities.md),
-[architecture](docs/architecture.md), and the
+are in [operations](docs/operations.md). Current work is tracked on the Kanmer board (`.kanmer/`); start with the
+[documentation map](docs/index.md),
+[requirements](docs/prd/README.md), [capabilities](docs/capabilities.md),
+[architecture](docs/current-architecture.md), and the
 [engineering workflow](docs/engineering.md).
 
 `workspaces/` contains independently maintained and buildable source imports.
