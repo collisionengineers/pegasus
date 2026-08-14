@@ -6,12 +6,14 @@ design assets remain under [`design/`](../design/).
 
 | Question | File |
 | --- | --- |
-| What is in flight and what can I take? | [`NOW.md`](../NOW.md) (repo root; authoritative copy is `origin/dev`'s) |
-| What must Pegasus do? | [Requirements](requirements.md) |
-| What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap: 228 stable IDs with release targets |
+| What is in flight and what can I take? | The Kanmer board (`.kanmer/`, via the `kanmer` tools) |
+| Why must Pegasus do it — business need, users, outcomes, scope? | [PRD](prd/README.md) |
+| How must a capability behave — I/O, states, rules, edge cases, acceptance? | [FRD index](frd/README.md) |
+| What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap and capability-ID registry; its *Canonical owner* column joins each ID to its PRD, FRD, or ADR |
+| What is deferred or deliberately excluded, and why? | [Boundaries](boundaries.md) |
 | What is undecided? | [Open decisions](open-decisions.md) |
 | What did Collision Engineers actually say? | [Operator notes](operator-notes.md) |
-| What exists now? | [Architecture](architecture.md) |
+| What exists now (the as-built snapshot)? | [Current architecture](current-architecture.md) |
 | What is deployed, released, monitored, or recovery-proved now? | [Operations](operations.md) |
 | How do I set up, develop, test, run, release, monitor, or recover? | [Runbook](runbook.md) |
 | What engineering guidance and evidence tiers apply? | [Engineering](engineering.md) |
@@ -25,21 +27,24 @@ design assets remain under [`design/`](../design/).
 
 ## Authority
 
-operator-notes.md (business fact) > requirements.md (intent) >
-capabilities.md (schedule) > ADRs (technical decisions) > architecture.md and
-operations.md (current state) > runbook.md, engineering.md, and design.md
-(working rules within their scopes). Code plus passing tests beat any document about
+operator-notes.md (business fact) > PRD (`prd/`, product intent — what and why) >
+FRD (`frd/`, functional specification — required behaviour) > capabilities.md
+(schedule and capability-ID registry) > ADRs (durable technical decisions) >
+current-architecture.md and operations.md (current state) > runbook.md, engineering.md,
+and design.md (working rules within their scopes). Code plus passing tests beat any document about
 current state. On conflict: fix the losing document in the same commit you
 notice it; if the conflict is material and you cannot resolve it, put one line
 in [open decisions](open-decisions.md) and stop the affected work.
 
 ## New Markdown files
 
-ADR-0023 is the one authorised restructure exception: this change creates
-`docs/runbook.md` and moves the existing design authority to `docs/design.md`.
-After that restructure, new Markdown files are created only as accepted
-decisions under
-[docs/adr/](adr/README.md) or as transient task plans under
-[docs/temp-plans/](temp-plans/README.md). Everything else edits an existing
-canonical file. Workspace-local documentation remains governed by its accepted
-integration contract and existing workspace tree.
+A new Markdown file is one of: a product requirements document under
+[`docs/prd/`](prd/README.md); a functional requirements document under
+[`docs/frd/`](frd/README.md); a durable technical decision under
+[`docs/adr/`](adr/README.md); or a transient task plan under
+[`docs/temp-plans/`](temp-plans/README.md). A new PRD or FRD records its
+canonical owner in [capabilities.md](capabilities.md) and is linked from this
+index. Everything else edits an existing canonical file. Documentation rules and
+conventions themselves live in [`AGENTS.md`](../AGENTS.md), not in an ADR.
+Workspace-local documentation remains governed by its accepted integration
+contract and existing workspace tree.

@@ -1,0 +1,4 @@
+
+[mcp_servers."mcp_microsoftdocs"]
+url = "https://learn.microsoft.com/api/mcp"
+enabled = true

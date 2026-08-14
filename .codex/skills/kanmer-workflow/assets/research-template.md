@@ -1,28 +1,19 @@
-# Research body template
-
-Use for `create_item` bodies with `type: "research"`. A research note captures
-findings that outlive the conversation — written so a reader who wasn't there
-can trust and reuse them.
-
----
+# Research — <ticket id>: <topic>
 
 ## Question
 
-What this note answers, in one sentence.
+What this research set out to answer, in one or two sentences.
 
 ## Findings
 
-- Fact or measurement — with the source (URL, file path, command output).
-- Distinguish observed facts from inference; say which is which.
+- Finding, with where it came from (file, doc, experiment, URL).
+- Keep each finding one bullet; depth goes in a sub-bullet.
 
-## Recommendation
+## Implications
 
-What the findings imply for the work: the option to take, with the trade-off named.
+What the findings mean for this ticket — constraints discovered, options
+ruled out, the approach they suggest.
 
-## Sources
+## Open questions
 
-- Links, docs, files inspected, commands run.
-
-## Feeds into
-
-[[PLAN-00X]] / [[TICK-00Y]] — link with `link_items` after creating.
+- Anything still unknown that plan.md must not silently assume.
