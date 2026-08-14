@@ -2,10 +2,14 @@
 id: TICK-017
 type: ticket
 title: DOC-01 — Automatic Box case-folder creation using the Case/PO name
-status: in-progress
+status: review
 area: files-staging-custody-box
 priority: medium
-assignee: ''
+order: 40
+assignee: claude-code
+taken_at: '2026-08-13T20:09:42.224Z'
+branch: task/int-25-doc-01-planning
+worktree: 'C:\Users\PC\Documents\GitHub\pegasus-worktrees\int-25-doc-01-planning'
 labels:
   - capability
   - DOC-01
@@ -14,7 +18,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.105Z'
-updated: '2026-08-13T14:46:57.049Z'
+updated: '2026-08-13T21:23:10.884Z'
 ---
 
 ## What

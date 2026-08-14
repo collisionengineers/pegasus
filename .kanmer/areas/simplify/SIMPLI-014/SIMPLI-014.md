@@ -2,16 +2,17 @@
 id: SIMPLI-014
 type: ticket
 title: Make report renderer standalone
-status: todo
+status: in-progress
 area: simplify
 priority: medium
+order: 200
 assignee: ''
 labels: []
 links:
   - TICK-221
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-13T14:38:42.351Z'
+updated: '2026-08-13T19:25:07.117Z'
 ---
 
 ## What

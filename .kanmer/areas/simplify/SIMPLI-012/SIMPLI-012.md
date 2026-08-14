@@ -2,15 +2,16 @@
 id: SIMPLI-012
 type: ticket
 title: Decide the post-alpha disposition of AI and MCP
-status: todo
+status: in-progress
 area: simplify
 priority: low
+order: 180
 assignee: ''
 labels: []
 links: []
 archived: false
 created: '2026-08-13T12:12:48.943Z'
-updated: '2026-08-13T12:12:48.943Z'
+updated: '2026-08-13T19:25:06.817Z'
 ---
 
 ## What
