@@ -1,4 +1,0 @@
-interface:
-  display_name: "Salvage Categorisation"
-  short_description: "ABI salvage category decision support"
-  default_prompt: "Use $salvage-categorisation to assess Cat A, B, S, or N evidence and draft a defensible category recommendation."

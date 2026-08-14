@@ -1,7 +1,0 @@
-{
-  "repairable": true,
-  "structural_damage": null,
-  "non_structural_salvage_reason": "",
-  "special_factors": ["hv_battery"],
-  "evidence_quality": "weak"
-}

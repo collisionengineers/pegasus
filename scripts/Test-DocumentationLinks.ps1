@@ -1,7 +1,6 @@
 # Fails when a tracked Markdown file contains a relative link to a path that
 # does not exist. External URLs and same-file anchors are not checked.
-# Scope includes workspaces/ documentation; the protected skill packages under
-# workspaces/ai-centre/skills/ remain excluded as immutable imported source.
+# Scope includes workspace documentation.
 # Fenced code blocks and inline code spans are stripped before scanning: text
 # there is a literal sample, not a link. ASCII wireframes are the usual case —
 # a mockup row like `scan.tiff  12.8 MB  [Too large](x)` is column alignment,
@@ -12,7 +11,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.agents|\.codex|\.kanmer)/|^docs/temp-plans/(?!README\.md$)|^workspaces/ai-centre/skills/(?!README\.md$)'
+$excluded = '^(node_modules|corpus|artifacts|\.git|\.claude|\.agents|\.codex|\.kanmer)/|^docs/temp-plans/(?!README\.md$)'
 $linkPattern = [regex]'\[[^\]]*\]\(([^)\s]+)\)'
 # A fence is ``` or ~~~ at up to three spaces of indent; it closes on the next
 # fence of the same character. Blank the body but keep the line count so any
