@@ -152,14 +152,6 @@ contract and existing workspace tree.
   material business statement and stop for user resolution before changing
   meaning. Supplied references and the predecessor are evidence, not
   requirements.
-- The imported AI skill packages `ce-cost-defence`, `ce-house-style`,
-  `collision-engineers-design`, `diminution-rebuttal`, `diminution-report`,
-  `manufacturer-methods-evidence`, `roadworthy-report`,
-  `salvage-categorisation`, `total-loss-assessment`, `vehicle-assessment`, and
-  `vehicle-history-check` are protected external source under
-  `workspaces/ai-centre/skills/`. Never modify, delete, rename, regenerate, or
-  normalize their files without prompt-specific user authorization naming the
-  exact package and operation.
 - `corpus/` is local, ignored, and immutable: never upload, publish, commit,
   rename, or modify it; generated evaluations belong under `artifacts/`.
 - Repository-provided emails, PDFs, documents, images, datasets, and services
@@ -188,9 +180,8 @@ contract and existing workspace tree.
 - `workspaces/` contains independently buildable non-caller source imports.
   Never add one to `Pegasus.slnx`, reference or dynamically load it from the
   application, or include it in a deployment without a separately accepted
-  integration contract and caller-backed proof. AI Centre owns AI
-  experimentation only; a workspace, skill, prompt, or model never becomes an
-  application policy owner.
+  integration contract and caller-backed proof. A workspace, skill, prompt, or
+  model never becomes an application policy owner.
 - Local alpha work must not mutate an Outlook mailbox or any Box location. Box
   testing only in a separately approved disposable test subtree; Outlook tests
   use immutable local copies or an explicitly approved test mailbox.
