@@ -14,9 +14,11 @@ branch: task/retire-now-rewrite-agents
 worktree: 'C:\Users\PC\Documents\GitHub\pegasus-worktrees\retire-now-rewrite-agents'
 labels: []
 links: []
+blocks:
+  - SIMPLI-001
 archived: false
 created: '2026-08-13T12:12:48.821Z'
-updated: '2026-08-13T23:11:19.325Z'
+updated: '2026-08-14T02:35:51.070Z'
 ---
 
 ## What
