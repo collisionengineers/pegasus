@@ -165,7 +165,7 @@ The current documentation appears to distribute truth across:
 * `docs/index.md`
 * `docs/requirements.md`
 * `docs/capabilities.md`
-* `docs/current-architecture.md`
+* `docs/architecture.md`
 * `docs/design.md`
 * `docs/engineering.md`
 * `docs/operations.md`
@@ -183,7 +183,7 @@ That is too many potential places to answer â€œwhat does Pegasus currently do?â€
 | ---------------------- | ----------------------------------------------------------- |
 | `README.md`            | What Pegasus is and how to start                            |
 | `docs/product.md`      | Current business capabilities and genuine future priorities |
-| `docs/current-architecture.md` | Current system shape and important boundaries               |
+| `docs/architecture.md` | Current system shape and important boundaries               |
 | `docs/runbook.md`      | Build, test, deploy, migrate and recover                    |
 | `docs/operations.md`   | Current deployed configuration and known operational issues |
 

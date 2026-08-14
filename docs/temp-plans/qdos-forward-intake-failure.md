@@ -81,7 +81,7 @@ The size bound is an operator decision, taken 2026-08-05: raise it to 750 MB.
 
 1. **Separate the two size bounds.** `IntakeEnvelopeLimits` gains
    `MaximumMailboxContentLength` at 750 MiB. The 10 MiB figure is documented as
-   the upload form's one-file bound (`current-architecture.md`), and the mailbox path
+   the upload form's one-file bound (`architecture.md`), and the mailbox path
    had been reusing it; a received instruction carries the whole job. The
    upload form, the multipart request and the MCP tool keep 10 MiB — a 750 MB
    multipart body through a 0.5 vCPU / 1 GiB container is not a thing to
@@ -105,7 +105,7 @@ so both sides of the boundary stay covered by a test without writing 750 MB to
 disk. Nothing configures it; production takes the default.
 
 Findings that are not code changes edit existing canonical files only — the
-`NOW.md` queue line for the missing Principal, and `docs/current-architecture.md` for
+`NOW.md` queue line for the missing Principal, and `docs/architecture.md` for
 the limits table.
 
 ## Verification

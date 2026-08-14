@@ -1,6 +1,7 @@
 ---
 id: ADR-0021
 status: accepted
+date: 2026-08-03
 supersedes: []
 superseded_by: []
 related_capabilities: []

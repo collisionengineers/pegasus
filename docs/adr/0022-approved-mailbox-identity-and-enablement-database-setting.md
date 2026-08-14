@@ -1,6 +1,6 @@
 ---
 id: ADR-0022
-status: accepted
+status: superseded
 date: 2026-08-06
 supersedes: []
 superseded_by: [ADR-0024]

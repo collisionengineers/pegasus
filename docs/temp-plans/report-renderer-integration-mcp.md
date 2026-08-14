@@ -325,11 +325,11 @@ Two options for how Infrastructure reaches the renderer, and **neither is
 permitted by the accepted architecture as it stands**:
 
 1. `ProjectReference` from `src/Pegasus.Infrastructure` into
-   `workspaces/report-renderer/...`. Contradicts `docs/current-architecture.md:395-405`.
+   `workspaces/report-renderer/...`. Contradicts `docs/architecture.md:395-405`.
 2. Vendor the needed renderer source into `src/`. This is what the parallel seam
    plan recommends, and it requires the accepted ADR that plan drafts.
 
-`docs/current-architecture.md:407-415` says a workspace "may enter the application only
+`docs/architecture.md:407-415` says a workspace "may enter the application only
 through a separately accepted contract" with a real caller, parity evidence,
 security/licence evidence, migration behaviour, failure behaviour, and operator
 acceptance. **This is a stop condition.** It is owned by the parallel seam plan,
@@ -633,7 +633,7 @@ nothing now.
 
 1. The Core-owned render port is not landed by the parallel seam plan.
 2. Reaching the renderer from `src/` requires a `ProjectReference` into
-   `workspaces/` and no accepted decision supersedes `docs/current-architecture.md:395-405`.
+   `workspaces/` and no accepted decision supersedes `docs/architecture.md:395-405`.
    This is the most likely blocker.
 3. The capability allocation is unresolved: `RPT-01`/`EXT-08` are
    `Later / 1.1.0` while `MCP-01–04` are `Now / 0.1.0-alpha.1`. There is no

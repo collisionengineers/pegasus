@@ -70,7 +70,7 @@ evidence.
 Found by `git grep`, and not previously listed:
 
 - `workspaces/ai-centre/README.md:58,109,144` and
-  `workspaces/ai-centre/docs/current-architecture.md:29,50,109` name
+  `workspaces/ai-centre/docs/architecture.md:29,50,109` name
   `workspaces/report-renderer` as the owner of deterministic document assembly.
   These are retained-workspace documents, are not protected skill packages, and
   **must be repointed in the same commit as the deletion**.
@@ -92,7 +92,7 @@ Found by `git grep`, and not previously listed:
 `docs/index.md:3-5`: one file per question; edit canonical files in place; new
 Markdown files only as ADRs or transient plans. Authority order
 (`docs/index.md:24-32`): `operator-notes.md` > `requirements.md` >
-`capabilities.md` > ADRs > `current-architecture.md` and `operations.md` >
+`capabilities.md` > ADRs > `architecture.md` and `operations.md` >
 `engineering.md` and `docs/design.md`. Code plus passing tests beat any
 document about current state. On conflict, fix the losing document in the same
 commit you notice it.
@@ -111,12 +111,12 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 
 | Source section | Class | Target | Verdict |
 | --- | --- | --- | --- |
-| L1-3 "one Core engine serves CLI, Windows GUI, HTTP API and MCP host" | PT + OBS | `docs/current-architecture.md` implementation map and the new renderer subsection | Fold the engine statement; the four-host list is only true of the surviving hosts |
+| L1-3 "one Core engine serves CLI, Windows GUI, HTTP API and MCP host" | PT + OBS | `docs/architecture.md` implementation map and the new renderer subsection | Fold the engine statement; the four-host list is only true of the surviving hosts |
 | L5 workspace-boundary blockquote | OBS | capability notes and `docs/requirements.md:893-896` | Retire the sentence, re-assert the non-activation claim in the capability notes |
-| L9-18 five shipped and two test projects | PT | `docs/current-architecture.md` components and implementation map | Fold, rewritten against post-move project names. Do not carry names that no longer exist |
-| L19 "Core converts typed JSON to HTML with Scriban and the shared design assets, then renders A4 PDF through Chromium; PDFsharp only appends existing PDF evidence, it is not the layout engine" | PT + DEC | `docs/current-architecture.md` renderer subsection; engine choice is a clause of the new root ADR | Fold verbatim in meaning. The single most load-bearing sentence in the workspace |
-| L21-37 the exact 12 template IDs | PT | `docs/current-architecture.md` renderer subsection | Fold as a list. Not `capabilities.md` — the roadmap owns capability IDs, not template IDs |
-| L38 "Core also owns blank drafts, starter drafts, form definitions and attachment policies. Hosts must not invent template-specific rendering or validation rules" | DEC | New root ADR clause; restated as current state in `docs/current-architecture.md` | Promote |
+| L9-18 five shipped and two test projects | PT | `docs/architecture.md` components and implementation map | Fold, rewritten against post-move project names. Do not carry names that no longer exist |
+| L19 "Core converts typed JSON to HTML with Scriban and the shared design assets, then renders A4 PDF through Chromium; PDFsharp only appends existing PDF evidence, it is not the layout engine" | PT + DEC | `docs/architecture.md` renderer subsection; engine choice is a clause of the new root ADR | Fold verbatim in meaning. The single most load-bearing sentence in the workspace |
+| L21-37 the exact 12 template IDs | PT | `docs/architecture.md` renderer subsection | Fold as a list. Not `capabilities.md` — the roadmap owns capability IDs, not template IDs |
+| L38 "Core also owns blank drafts, starter drafts, form definitions and attachment policies. Hosts must not invent template-specific rendering or validation rules" | DEC | New root ADR clause; restated as current state in `docs/architecture.md` | Promote |
 | L40-56 quick start | BP | none | Retire. `docs/runbook.md` owns build/test procedure and `docs/engineering.md` owns verification gates |
 | L58-64 documentation link list | OBS | none | Retire |
 | L66 "Generated PDFs, screenshots, extracted reference text and test artefacts belong under ignored `artifacts/`. Do not commit customer or case data" | PT policy | already owned by root `AGENTS.md` and `docs/runbook.md` corpus safety | Verify the owners say this; retire the copy. If a gap is found, fix the owner in the same commit |
@@ -126,7 +126,7 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | Source section | Class | Target | Verdict |
 | --- | --- | --- | --- |
 | L1-6 preamble, "source-only and non-caller", "does not infer a licence" | OBS + policy | capability notes; the caveat travels with the licence table | Retire framing, keep the caveat |
-| L9-19 direct package licence table | PT, licence evidence | **No canonical owner exists** — see stop condition S1 | Interim: fold surviving rows into a "Third-party components" table under `docs/current-architecture.md` source-and-generated-material roles. Rows for packages that do not survive are dropped |
+| L9-19 direct package licence table | PT, licence evidence | **No canonical owner exists** — see stop condition S1 | Interim: fold surviving rows into a "Third-party components" table under `docs/architecture.md` source-and-generated-material roles. Rows for packages that do not survive are dropped |
 | L21-31 runtime/test/container component licences (Chromium BSD-3-Clause, .NET MIT, xUnit Apache-2.0, Liberation OFL, DejaVu GPL-with-exception) | PT, licence evidence | same | Fold rows that remain true |
 | L33-42 brand assets: master logo path, signatures, "never redraw", "payload-supplied signatures are case data", "build-time embedding transfers no ownership", Tw Cen MT/Futura not shipped, Arial or metric substitute | PT + DEC, design authority | `docs/design.md` logo section and the Web/renderer boundary table | Fold. `docs/design.md` already states most of this; add only the genuinely additional statements |
 | L44-54 design and source provenance | DEC | `docs/design.md` Web and renderer boundary | Fold; mostly a confirmation of an existing rule |
@@ -142,19 +142,19 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | Source section | Class | Target | Verdict |
 | --- | --- | --- | --- |
 | L3 design-authority blockquote | DEC | `docs/design.md` already says it | Retire (duplicate) |
-| L5 "one shared engine, thin hosts"; Core owns models, catalogues, forms, attachment policy, validation, HTML composition, density fitting and PDF production | DEC | new root ADR clause; current-state restatement in `docs/current-architecture.md` | Promote |
+| L5 "one shared engine, thin hosts"; Core owns models, catalogues, forms, attachment policy, validation, HTML composition, density fitting and PDF production | DEC | new root ADR clause; current-state restatement in `docs/architecture.md` | Promote |
 | L7-9 workspace boundary | OBS | capability notes | Retire |
-| L11-29 project graph table and direct package versions | PT | `docs/current-architecture.md` components; third-party table | Fold, rewritten for surviving projects only |
-| L31-54 composition and the nine principal contracts | PT | `docs/current-architecture.md` renderer subsection, at contract-name granularity only | Fold names and seam meaning. **Do not** copy signatures into docs — code plus passing tests are the authority for shape |
-| L55-68 the eight-step pipeline, "errors stop the render, warnings continue", "retain clean multi-page output and add a warning rather than clipping", SHA-256 of output | PT, determinism rules | `docs/current-architecture.md` renderer subsection | Fold. This is the render contract in prose and must land somewhere canonical |
+| L11-29 project graph table and direct package versions | PT | `docs/architecture.md` components; third-party table | Fold, rewritten for surviving projects only |
+| L31-54 composition and the nine principal contracts | PT | `docs/architecture.md` renderer subsection, at contract-name granularity only | Fold names and seam meaning. **Do not** copy signatures into docs — code plus passing tests are the authority for shape |
+| L55-68 the eight-step pipeline, "errors stop the render, warnings continue", "retain clean multi-page output and add a warning rather than clipping", SHA-256 of output | PT, determinism rules | `docs/architecture.md` renderer subsection | Fold. This is the render contract in prose and must land somewhere canonical |
 | L68 "templates are first-party embedded artefacts; payload text is HTML-encoded; end-user text is not compiled as Scriban" | DEC, security | new root ADR (the Scriban acceptance depends on it) | Promote |
-| L70-84 HTML/page furniture: A4 margins, running footer rule and strapline, VAT-number swap for fee notes, `thead` header groups, `break-inside: avoid`, print backgrounds, reserved footer margin, image-format limit, PDFsharp append | PT + design invariant | design invariants → `docs/design.md`; the mechanism → `docs/current-architecture.md` | Split as shown |
-| L85-95 density fitting | DEC + PT | new root ADR clause; behaviour in `docs/current-architecture.md` | Promote and fold |
-| L97-114 exact catalogue table and the seven block types | PT | `docs/current-architecture.md` renderer subsection, one canonical copy shared with the README's 12 IDs | Fold once, not twice |
-| L116-151 host surfaces and parity, the API route table, the JSON render shape, the stricter API attachment policy, the seven MCP tools | PT, host-specific | only for surviving hosts | Retire with the hosts. The one statement that survives is "parity means capabilities come from Core, not that every medium has identical controls" → `docs/current-architecture.md` |
+| L70-84 HTML/page furniture: A4 margins, running footer rule and strapline, VAT-number swap for fee notes, `thead` header groups, `break-inside: avoid`, print backgrounds, reserved footer margin, image-format limit, PDFsharp append | PT + design invariant | design invariants → `docs/design.md`; the mechanism → `docs/architecture.md` | Split as shown |
+| L85-95 density fitting | DEC + PT | new root ADR clause; behaviour in `docs/architecture.md` | Promote and fold |
+| L97-114 exact catalogue table and the seven block types | PT | `docs/architecture.md` renderer subsection, one canonical copy shared with the README's 12 IDs | Fold once, not twice |
+| L116-151 host surfaces and parity, the API route table, the JSON render shape, the stricter API attachment policy, the seven MCP tools | PT, host-specific | only for surviving hosts | Retire with the hosts. The one statement that survives is "parity means capabilities come from Core, not that every medium has identical controls" → `docs/architecture.md` |
 | L153-164 API authentication variables | DEC, contradicted | none | Retire |
 | L166-168 container topology | BP + PT | `docs/runbook.md` only if a Pegasus image actually gains Chromium and fonts; deployed image state belongs in `docs/operations.md` | Conditional; the seam plan owns it |
-| L170-180 current limits: Chromium required, no runtime user templates, auto-fit is a ladder, dense content may exceed target, page counting is not a forensic parser, PDFsharp does not replace layout, local-path capability is not remote filesystem access, **no tagged-PDF / PDF-UA claim**, reference folders are not build inputs | PT, honest-limit statements | `docs/current-architecture.md` evidence qualifications or the renderer subsection | Fold all of them. These are anti-overclaim statements and are exactly the kind this repository preserves |
+| L170-180 current limits: Chromium required, no runtime user templates, auto-fit is a ladder, dense content may exceed target, page counting is not a forensic parser, PDFsharp does not replace layout, local-path capability is not remote filesystem access, **no tagged-PDF / PDF-UA claim**, reference folders are not build inputs | PT, honest-limit statements | `docs/architecture.md` evidence qualifications or the renderer subsection | Fold all of them. These are anti-overclaim statements and are exactly the kind this repository preserves |
 
 ### `docs/DEVELOPMENT.md` (312 lines)
 
@@ -174,7 +174,7 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | L203-219 run the GUI | PT, host-specific | none | Retire with the host |
 | L221-231 run the MCP host, seven tools, `%LOCALAPPDATA%` artefacts, "keep stdout reserved for the MCP protocol" | PT, host-specific | none | Retire. Pegasus MCP is `/mcp` in `Pegasus.Web` and is a different thing |
 | L233-256 container build/run; repository-root build context "required by linked design assets" | BP | the build-context fact matters if any Pegasus image embeds the design assets | Retire the commands; carry the constraint only if an image needs it |
-| L258-268 host-parity checks and "byte identity should not be promised across differing Chromium/font environments; contract and visual parity are the portable guarantees" | **PT, determinism boundary** | `docs/current-architecture.md` evidence qualifications | Fold. A real anti-overclaim rule about PDF determinism that must not be lost |
+| L258-268 host-parity checks and "byte identity should not be promised across differing Chromium/font environments; contract and visual parity are the portable guarantees" | **PT, determinism boundary** | `docs/architecture.md` evidence qualifications | Fold. A real anti-overclaim rule about PDF determinism that must not be lost |
 | L270-290 troubleshooting: missing/mismatched Chromium; "do not copy a random system Chromium into the expected revision directory"; Linux font widths; `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false` | BP, operationally real | `docs/runbook.md` failure/observability rules and the Linux capability table | Fold the two genuine operational facts |
 | L292-294 GUI build fails on non-Windows | BP | none | Retire |
 | L296-309 401 diagnosis; multipart rejection checklist | BP, host-specific | none | Retire with the hosts |
@@ -185,14 +185,14 @@ Classes: **PT** product truth, **DEC** durable decision, **BP** build procedure,
 | Source section | Class | Target | Verdict |
 | --- | --- | --- | --- |
 | L8-13 "**the letterhead and footer are not part of any template body**"; a `.scriban` body never draws the logo, ref block, page numbers or strapline | **DEC, design invariant** | `docs/design.md` Web and renderer boundary | Promote into design authority. The load-bearing house-style rule |
-| L16-31 three-part build; JSON options; templates/stylesheet/logo/signatures embedded so output is identical from CLI, desktop or Linux container | PT + DEC | `docs/current-architecture.md` renderer subsection; ADR clause for the templating decision | Fold. The asset path under `design/` is already canonical and survives unchanged |
+| L16-31 three-part build; JSON options; templates/stylesheet/logo/signatures embedded so output is identical from CLI, desktop or Linux container | PT + DEC | `docs/architecture.md` renderer subsection; ADR clause for the templating decision | Fold. The asset path under `design/` is already canonical and survives unchanged |
 | L33-51 shared-shell guarantees: ref-block fallbacks, footer rule and strapline text, the fee-note VAT swap, centred UPPERCASE title, red-ruled section headings | **Design invariant, brand-visible** | `docs/design.md` | Fold. Includes the exact strapline string, which is operator-visible brand copy |
-| L55-67 payload conventions; **text is HTML-encoded by the composer, payload cannot inject markup**; shared `meta` | PT + security | `docs/current-architecture.md` renderer subsection; the encoding clause also anchors the Scriban ADR | Fold |
-| L71-85 the four base template families table | PT | `docs/current-architecture.md`, folded into the single catalogue list | Fold at family granularity |
+| L55-67 payload conventions; **text is HTML-encoded by the composer, payload cannot inject markup**; shared `meta` | PT + security | `docs/architecture.md` renderer subsection; the encoding clause also anchors the Scriban ADR | Fold |
+| L71-85 the four base template families table | PT | `docs/architecture.md`, folded into the single catalogue list | Fold at family granularity |
 | L86-270 the four per-template payload shapes with JSON examples and per-template notes | PT, but **schema detail** | none — the code and its validators are the authority | **Retire as documentation.** Under "code plus passing tests beat any document about current state" a 180-line hand-maintained schema mirror is a liability. Preserve only: bundled signature keys are a fixed set (→ `docs/design.md`), and the firm-only sign-off convention if the operator confirms it is business copy |
-| L274-292 content-block catalogue: exactly seven block types and the validator rejects any other | PT | `docs/current-architecture.md` renderer subsection, once | Fold once |
+| L274-292 content-block catalogue: exactly seven block types and the validator rejects any other | PT | `docs/architecture.md` renderer subsection, once | Fold once |
 | L293-399 per-block JSON examples; the `mediarow` Core-versus-API image policy split | PT, schema detail + host-specific | none | Retire. The Core/API split dies with the `.Api` host |
-| L403-416 robustness: A4 `@page`, repeating `thead`, `break-inside: avoid`, "provided it uses the existing table and block CSS classes rather than inventing its own" | Design invariant + PT | `docs/design.md` (CSS-class rule) and `docs/current-architecture.md` (paging) | Fold. Drop the two sample-document measurements — dated evidence, not rules |
+| L403-416 robustness: A4 `@page`, repeating `thead`, `break-inside: avoid`, "provided it uses the existing table and block CSS classes rather than inventing its own" | Design invariant + PT | `docs/design.md` (CSS-class rule) and `docs/architecture.md` (paging) | Fold. Drop the two sample-document measurements — dated evidence, not rules |
 | L420-513 "add a new template" five-step recipe with code snippets and the `.csproj` embedded-resource note | BP, path-keyed | none as written | **Retire as written** — every path changes on the move. If the operator wants the recipe kept it is a rewrite against post-move paths in `docs/engineering.md`, and a separate task. The one durable statement is "adding a template is no engine change" → ADR clause |
 | L514-529 verify commands | BP | none | Retire |
 
@@ -205,7 +205,7 @@ body is therefore not available** unless the operator explicitly authorises that
 amendment for the named ADR. Reviewed navigation, status and supersession
 metadata may be maintained in `docs/adr/README.md` without changing meaning, so
 index rows are always editable. The four available verdicts are: promote to a new
-root ADR, fold into `current-architecture.md` / `operations.md` / `docs/design.md`
+root ADR, fold into `architecture.md` / `operations.md` / `docs/design.md`
 prose, retire as obsolete, or (rarely, on explicit instruction) amend a root body.
 
 `docs/adr/README.md:44` records root ADR-0010's carve-out: "`docs/adr/` is the
@@ -225,12 +225,12 @@ decision that changes repository-wide build policy.
 | WS ADR | Subject | Contradiction risk | Verdict | Target |
 | --- | --- | --- | --- | --- |
 | 0001 | Rendering engine: headless Chromium via Playwright | None known | **Promote** | New root ADR clause 1, restated with Pegasus consequences: a Playwright/Chromium dependency in the application build, CI browser lane, and image |
-| 0002 | Modular shared Core, thin CLI/GUI/API clients | **Yes** — the seam plan retires the `.Api` host, and "thin clients" is stated over three surfaces that will not all survive | **Promote, narrowed** | New root ADR clause 2, narrowed to "one engine owns document models, catalogues, forms, attachment policy, validation, composition, density and PDF production; every surface is a caller of that engine and owns no render rule". The surviving-host list is current state and belongs in `docs/current-architecture.md` |
+| 0002 | Modular shared Core, thin CLI/GUI/API clients | **Yes** — the seam plan retires the `.Api` host, and "thin clients" is stated over three surfaces that will not all survive | **Promote, narrowed** | New root ADR clause 2, narrowed to "one engine owns document models, catalogues, forms, attachment policy, validation, composition, density and PDF production; every surface is a caller of that engine and owns no render rule". The surviving-host list is current state and belongs in `docs/architecture.md` |
 | 0003 | Unified .NET 8 stack | **Yes** — contradicted by the .NET 10 uplift; `global.json` already pins SDK 10.0.300 | **Retire as obsolete** | Record in the new ADR's retired-decisions clause. Its surviving content ("one language and runtime, no split codebase") is already root ADR-0002's modular-monolith decision |
 | 0004 | Templating: Scriban bodies + C# letterhead shell + embedded brand CSS | None; the `.scriban` assets already live under `design/` | **Promote** | New root ADR clause 3, including "templates are first-party embedded artefacts; end users never author or compile runtime templates; payload values are HTML-encoded and passed as values" — the precondition the advisory acceptance rests on |
 | 0005 | Reuse the brand CSS design system | None | **Fold into `docs/design.md`** | A root ADR restating it would create a second design source. Fold the specific tokens it names into `docs/design.md` only where that file does not already state them |
 | 0006 | Page furniture via Chromium header/footer + paged-media CSS | None | **Split** | Design invariants (footer composition, strapline, page numbering, repeating headers, unbreakable blocks) → `docs/design.md`. The mechanism choice → new root ADR clause 4 |
-| 0007 | Density auto-fit | None | **Promote** | New root ADR clause 5. Current behaviour → `docs/current-architecture.md`. Note the seam plan proposes that issued artifacts render at a fixed density, so the clause must say auto-fit is engine behaviour, not issued-artifact contract |
+| 0007 | Density auto-fit | None | **Promote** | New root ADR clause 5. Current behaviour → `docs/architecture.md`. Note the seam plan proposes that issued artifacts render at a fixed density, so the clause must say auto-fit is engine behaviour, not issued-artifact contract |
 | 0008 | Cloud portability: ASP.NET Core API + Playwright Docker image | **Yes** — if the `.Api` host is retired the decision has no subject; its bearer access control is already superseded by WS-0011 | **Retire as obsolete for the host and container; keep one clause** | The surviving statement is "the engine carries no Windows-only dependency, so it runs on the Linux runtime" → new root ADR clause 2. Pegasus hosting is owned by root ADR-0015 and ADR-0002 |
 | 0009 | Local reference material is git-ignored, never committed | None; already this repository's rule | **Fold into prose** | `docs/runbook.md` safety rules and `reference/README.md` handling rules. Verify both carry the substance; add only genuine gaps. No root ADR |
 | 0010 | Accept/suppress Scriban advisories NU1901–NU1904 | **Yes** — collides with root `TreatWarningsAsErrors=true` | **Promote as its own clause, with an explicit build-policy consequence, and stop for the operator** | See below |
@@ -281,7 +281,7 @@ with its date.
 
 `workspaces/` is **edited, not deleted**. `document-extraction/` and `ai-centre/`
 remain, so `workspaces/README.md`, `workspaces/AGENTS.md`,
-`docs/current-architecture.md`'s Workspaces section and
+`docs/architecture.md`'s Workspaces section and
 `.github/workflows/workspaces.yml` all keep existing with fewer entries.
 
 | File:line | Current text (abbreviated) | Replacement intent |
@@ -293,12 +293,12 @@ remain, so `workspaces/README.md`, `workspaces/AGENTS.md`,
 | `workspaces/AGENTS.md:5` | "Treat every child as a non-caller source workspace…" | **No edit required.** It quantifies over "every child"; after retirement the children are `document-extraction/` and `ai-centre/`, for which it stays exactly true |
 | `workspaces/AGENTS.md:8` | "Do not execute a skill, model, training job, evaluator, external connector, renderer, or document converter against operational data…" | **Keep the word `renderer`.** Removing it would loosen a live safety rule that still binds `ai-centre/skills/` packages, which call a `collisionrenderer` connector. Optional clarifying clause only; do not weaken the sentence |
 | `workspaces/AGENTS.md:10` | "A future application integration needs a named capability, accepted contract and change record, actual caller…" | **No edit required.** Still true for the two remaining workspaces. Note in the PR that the renderer's integration is exactly the event this sentence anticipates |
-| `docs/current-architecture.md:391` | "three independently buildable source workspaces imported from four sources" | "two independently buildable source workspaces imported from three sources" |
-| `docs/current-architecture.md:394` | "- report rendering;" | **Delete the bullet** |
-| `docs/current-architecture.md:397-417` | not-a-caller list; entry conditions | Unchanged. Add nothing here about the renderer — its new home is the renderer subsection |
-| `docs/current-architecture.md` implementation map (L496-512) | responsibility → current source | **Add rows** for the moved render engine, in the same commit as the code move, naming real post-move paths only |
-| `docs/current-architecture.md` source-and-generated-material roles (L518-530) | path/role/qualification table | **Add** a `design/assets/report-renderer/` row and, if the GUI is retired, resolve what happens to `design/assets/report-renderer/gui/**` |
-| `docs/current-architecture.md` integration boundaries (L351-417) | existing `###` subsections | **Add one `###` subsection** as the canonical home for the folded render contract: engine, pipeline, contracts by name, the 12 template IDs, the seven block types, density behaviour, and the limits list |
+| `docs/architecture.md:391` | "three independently buildable source workspaces imported from four sources" | "two independently buildable source workspaces imported from three sources" |
+| `docs/architecture.md:394` | "- report rendering;" | **Delete the bullet** |
+| `docs/architecture.md:397-417` | not-a-caller list; entry conditions | Unchanged. Add nothing here about the renderer — its new home is the renderer subsection |
+| `docs/architecture.md` implementation map (L496-512) | responsibility → current source | **Add rows** for the moved render engine, in the same commit as the code move, naming real post-move paths only |
+| `docs/architecture.md` source-and-generated-material roles (L518-530) | path/role/qualification table | **Add** a `design/assets/report-renderer/` row and, if the GUI is retired, resolve what happens to `design/assets/report-renderer/gui/**` |
+| `docs/architecture.md` integration boundaries (L351-417) | existing `###` subsections | **Add one `###` subsection** as the canonical home for the folded render contract: engine, pipeline, contracts by name, the 12 template IDs, the seven block types, density behaviour, and the limits list |
 | Historical pre-restructure `docs/operations.md:52` | `poppler-utils` row citing `workspaces/report-renderer/scripts/visual-regression.ps1` | The cited script dies with the workspace. Either repoint the procedure in `docs/runbook.md` if the script is migrated to `scripts/`, or **delete the row** — with no consumer, `poppler-utils` is not a Linux capability advantage for this repository |
 | Historical pre-restructure `docs/operations.md:53` | `fonts-liberation`/`fonts-dejavu-core` row justified by "the renderer's container image" | After retirement there is no renderer container image. Repoint the prerequisite in `docs/runbook.md` to whichever image actually installs them **only if that is true**; otherwise restate it as a local-render font-metric prerequisite with no container claim. Record deployed image state in `docs/operations.md`; do not name an image that does not install the fonts |
 | Historical pre-restructure `docs/operations.md:66` | "`scripts/email-eval-desktop` and `CollisionRenderer.Gui` — These target `net10.0-windows` with Windows Forms and WinUI 3 respectively." | **Factual error — fix required.** Per `docs/index.md:30-32` this must be fixed in the same commit it is noticed, i.e. the first commit of this work, independently of whether the migration proceeds. When the GUI is retired the row narrows to `scripts/email-eval-desktop` alone |
@@ -321,7 +321,7 @@ remain, so `workspaces/README.md`, `workspaces/AGENTS.md`,
 | `reference/README.md:22` | "- `rendererref1/` — report-renderer reference material." | The 14 tracked files stay. Reword so it does not name a retired workspace, e.g. "report-rendering reference material: supplied sample reports, design spec, and signature/logo source. Evidence only" |
 | `CONTEXT.md` | — | **No edit required.** Verified: no renderer, workspace or `report-renderer` term |
 | `workspaces/ai-centre/README.md:58,109,144` | three references naming `workspaces/report-renderer` | **Required, and not previously listed.** Repoint each. L109's "`report-renderer` package proposal" refers to an upstream AI Centre package proposal, not this workspace — verify before touching it |
-| `workspaces/ai-centre/docs/current-architecture.md:29,50,109` | dependency table row, Mermaid node `Report["workspaces/report-renderer"]`, dependency bullet | **Required, and not previously listed.** The Mermaid node label is a string, so the link checker will not catch it — check by grep, not by CI |
+| `workspaces/ai-centre/docs/architecture.md:29,50,109` | dependency table row, Mermaid node `Report["workspaces/report-renderer"]`, dependency bullet | **Required, and not previously listed.** The Mermaid node label is a string, so the link checker will not catch it — check by grep, not by CI |
 | `workspaces/ai-centre/skills/**` | ≈20 `collisionrenderer` connector references across 10 packages | **Do not touch.** Protected external source per root `AGENTS.md`. They describe an upstream MCP connector, not this repository's tree. Record this exclusion explicitly in the PR |
 | `docs/adr/0009-adopt-pegasus-monorepo-workspaces.md:34` | "`report-renderer/`, imported from `collisionrenderer`; and" | **Immutable body — do not edit.** A dated record of what was imported |
 | `docs/adr/README.md:43-44` | ADR-0009 and ADR-0010 index rows | Index maintenance is explicitly permitted. Add reviewed status metadata noting that the report-renderer import was retired into the application by the new ADR, without changing either decision's meaning. Add the new ADR's own row |
@@ -354,7 +354,7 @@ Recommended mechanism, in preference order:
    deletion.** Root ADR bodies carry dated provenance and are immutable, which is
    exactly the durability property wanted. The ADR that accepts the integration is
    the natural place to record what was integrated and from where.
-2. Add a one-line pointer in `docs/current-architecture.md`'s source-and-generated-material
+2. Add a one-line pointer in `docs/architecture.md`'s source-and-generated-material
    roles so the lineage is reachable from current-state documentation without
    duplicating the hashes.
 3. Amend `workspaces/README.md` with the two sentences listed in the edit table,
@@ -439,7 +439,7 @@ Keeping the job green:
 
 1. Delete `workspaces/README.md:16` in the same commit as the tree deletion.
 2. Create the promoted root ADR file **before or in the same commit** as the
-   first index row and any `current-architecture.md` link to it. A documentation-only
+   first index row and any `architecture.md` link to it. A documentation-only
    commit that links a not-yet-created ADR fails the lane on every subsequent PR
    until fixed.
 3. Add no new relative link to any path the same commit does not create.
@@ -464,21 +464,21 @@ same commit so no link dangles. **Must precede Commit 4.**
 **Commit 3 — with the code move (owned by the seam plan, listed for sequencing).**
 `Pegasus.slnx` project list, the `DependencyDirectionTests` literal path array,
 per-project `packages.lock.json` files, the scoped Scriban `NoWarn` (or the
-Scriban upgrade), and the `docs/current-architecture.md` implementation-map and
+Scriban upgrade), and the `docs/architecture.md` implementation-map and
 components rows. Code and its architecture rows land together or
-`current-architecture.md` describes a tree that does not exist.
+`architecture.md` describes a tree that does not exist.
 
 **Commit 4 — the deletion.** `git rm -r workspaces/report-renderer` together
 with, in the same commit and no other: `workspaces/README.md` rows 16 and 25 plus
 the two added sentences; the workspaces workflow step deletion;
 the historical pre-restructure `docs/operations.md:378` command;
-`docs/current-architecture.md:391,394`;
+`docs/architecture.md:391,394`;
 `docs/design.md:162-163,230-240,665-669`; `reference/README.md:22`; the
 six `ai-centre` document repoints. Splitting any of these from the deletion
 leaves either a dangling link (CI red) or a document asserting a tree that is
 gone (authority-rule violation).
 
-**Commit 5 — the folds.** The renderer subsection in `docs/current-architecture.md`, the
+**Commit 5 — the folds.** The renderer subsection in `docs/architecture.md`, the
 design invariants in `docs/design.md`, the preserved operator statements in
 `docs/runbook.md` safety rules, the third-party component table, the
 `docs/requirements.md:893-896` rewrite, and the Stage A capability notes.
@@ -571,7 +571,7 @@ acceptance.
 - Creating any new Markdown file other than the one promoted root ADR and this
   transient plan.
 - Deleting `workspaces/README.md`, `workspaces/AGENTS.md`,
-  `docs/current-architecture.md`'s Workspaces section, or
+  `docs/architecture.md`'s Workspaces section, or
   `.github/workflows/workspaces.yml` — all four are **edited**.
 
 ### Stop conditions
@@ -595,7 +595,7 @@ acceptance.
    NU1901–NU1904 exists, or scope the suppression to the one project that
    references it? (Root `NoWarn` is not offered.) Blocks the code move.
 2. **Third-party licence facts.** Where do the surviving licence conclusions land
-   — a table in `docs/current-architecture.md`, or an authorised root notice file? Blocks
+   — a table in `docs/architecture.md`, or an authorised root notice file? Blocks
    Commit 5.
 3. **ADR shape.** One consolidated root ADR with clauses (recommended), or
    separate ADRs per promoted decision? Blocks Commit 2.
