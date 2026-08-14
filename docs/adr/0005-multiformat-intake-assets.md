@@ -1,3 +1,13 @@
+---
+id: ADR-0005
+status: accepted
+date: 2026-07-23
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-02, frd-05]
+tags: [intake, assets]
+---
 # ADR-0005: Multi-format intake and review assets
 
 Status: **Accepted for the local `0.1.0-alpha.1` slice**
@@ -8,15 +18,14 @@ Date: 2026-07-23
 
 QDOS instructions and evidence arrive as email bodies, nested email, PDF, Word
 documents, Outlook containers, and separate or embedded images. The first local
-slice read only EML bodies and PDF embedded text. It skipped nested messages,
-non-PDF attachments, and images, while its low-text threshold could send an
-ordinary low-text PDF to OCR without first establishing that the page was a
-scan.
+slice read only EML bodies and PDF embedded text, skipping nested messages,
+non-PDF attachments, and images, and its low-text threshold could send an
+ordinary low-text PDF to OCR without first establishing that the page was a scan.
 
-The application needs one extraction route with visible provenance. Extracted
-or duplicate evidence must never replace the authoritative source occurrence.
-The `0.1.0-alpha.1` does not need automated interpretation of every historical file
-container.
+The application needs one extraction route, built on a small set of stable
+parsing libraries, with visible provenance; extracted or duplicate evidence must
+never replace the authoritative source occurrence. The `0.1.0-alpha.1` slice does
+not need automated interpretation of every historical file container.
 
 ## Decision
 
@@ -37,29 +46,27 @@ container.
    PDF image object as a separate asset occurrence with source label, media
    type, hash, disposition, and available page/bounds/sample dimensions. Do not
    segment a flattened collage or infer several photographs from one raster.
-6. Group exact content hashes for review but retain every occurrence and its
-   provenance. Exact matching is not deletion.
-7. Use OCR only when a PDF page has fewer than 80 non-whitespace embedded-text
+6. Use OCR only when a PDF page has fewer than 80 non-whitespace embedded-text
    characters and a raster image covers at least 80 percent of the page. Persist
    the page candidate explicitly. A low-text page without a dominant raster is
    manual review, not OCR. Ordinary attached, embedded, inline, or direct images
    are not sent to OCR. Automated vehicle-registration OCR/VLM is later scope.
-8. The local Web proof retains immutable content-addressed bytes under ignored
+7. The local Web proof retains immutable content-addressed bytes under ignored
    `artifacts/` and stores only asset metadata and opaque storage keys in SQL.
    Production staging must use private Blob storage through the Infrastructure
    adapter: Web's managed identity stages manual/provider uploads, while the
    Worker's managed identity stages Graph sources and reads queued work. Long-term
    case custody remains Box and is not proved by this local store.
-9. Never fetch DOCX external relationships. A corrupt top-level DOCX is a visible
+8. Never fetch DOCX external relationships. A corrupt top-level DOCX is a visible
    terminal unsupported outcome; attachment failures retain the surrounding
    email for review.
-10. Preflight DOCX packages at 512 entries, 50 MB aggregate uncompressed bytes,
-    10 MB per XML/relationship part, and 25 MB aggregate extracted images. Open
-    XML also enforces the per-part character limit; URI-deduplicated part traversal
-    is iterative and already bounded by the package-entry ceiling.
-11. Verify content hashes when reusing or reading local content-addressed files.
+9. Preflight DOCX packages at 512 entries, 50 MB aggregate uncompressed bytes,
+   10 MB per XML/relationship part, and 25 MB aggregate extracted images. Open
+   XML also enforces the per-part character limit; URI-deduplicated part traversal
+   is iterative and already bounded by the package-entry ceiling.
+10. Verify content hashes when reusing or reading local content-addressed files.
     Refuse to serve a retained asset whose bytes no longer match its key.
-12. Read every page of each PDF; do not truncate an otherwise processable file at
+11. Read every page of each PDF; do not truncate an otherwise processable file at
     an arbitrary page count. Apply one aggregate PDF budget across a complete
     intake, including PDF attachments: 5 Mi characters of extracted text, 512
     discrete image occurrences, 100 million decoded image sample pixels, and
@@ -73,34 +80,12 @@ container.
 
 ### 2026-07-25 DOCX placement clarification
 
-Every visible placement of a DOCX image is an asset occurrence. If the same bytes
-are placed twice, both placements are retained; a hash may group them for review
-but must not collapse them. The current URI-deduplicated part traversal is not
-compliant when a part is reused at more than one visible placement. A repeated-
-placement regression fixture is required before that behavior can be claimed as
-implemented. This clarification does not introduce a general layout engine.
-
-## Evidence and limits
-
-The real `POST /Intake/Upload` caller has synthetic before/after integration
-coverage for DOCX, deferred DOC/MSG, direct JPEG/PNG, mixed and nested EML,
-exact duplicate occurrences, malformed/resource-heavy DOCX, MIME limits even
-when earlier content confirms QDOS, and local artifact integrity. This proves
-format routing and visible retention, not field accuracy on the genuine corpus.
-
-PDF processing is all-pages-or-incomplete: the adapter has no page-count cut-off,
-and aggregate expansion/time limits cannot be reset by placing PDFs in separate
-email attachments. In-process deadline and cancellation checks are cooperative
-between PdfPig page/image operations; hard CPU and memory isolation for a
-pathological single-page decode remains a production Worker hosting concern.
-
-PdfPig image extraction is implemented through `Page.GetImages()`, using a raw
-JPEG stream where present or PdfPig's PNG conversion. Unsupported image encodings
-remain a visible decode issue. No PDF collage segmentation or image OCR is added.
-
-Document Intelligence OCR, Graph mailbox delivery, private Blob staging, Box
-custody, and automated DOC/MSG extraction remain separate caller-backed
-increments. A registered but uncalled cloud adapter would not complete them.
+The current URI-deduplicated Open XML part traversal is not compliant when an
+image part is reused at more than one visible placement, because each placement
+is a distinct asset occurrence rather than a single deduplicated part. A
+repeated-placement regression fixture is required before compliant behaviour can
+be claimed as implemented. This clarification does not introduce a general layout
+engine.
 
 ## Consequences
 
@@ -116,3 +101,5 @@ increments. A registered but uncalled cloud adapter would not complete them.
 - Production intake remains disabled until authentication, Worker delivery,
   durable cloud staging, Box custody, and operator-accepted extraction evidence
   exist.
+
+Functional behaviour: see [FRD-02](../frd/frd-02-intake-and-source-identity.md) and [FRD-05](../frd/frd-05-documents-extraction-and-custody.md).

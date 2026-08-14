@@ -27,7 +27,7 @@ The imported delivery plan was last marked **21 July 2026** and remains sequenci
 | Concern | Canonical owner |
 |---|---|
 | Documentation entry point | [Documentation map](../../docs/index.md) |
-| Product and control requirements | [Requirements](../../docs/requirements.md) |
+| Product and control requirements | [Requirements](../../docs/prd/README.md) |
 | Bounded capabilities and evidence | [Capabilities](../../docs/capabilities.md) |
 | Unresolved allocations and choices | [Open decisions](../../docs/open-decisions.md) |
 | System, runtime, and desktop boundaries | [Architecture](docs/architecture.md) |

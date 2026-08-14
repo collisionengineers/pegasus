@@ -163,9 +163,10 @@ public sealed partial class CaseCreateWebTests
 
     /// <summary>
     /// Thin ordinary detail must not stop a reference being allocated.
-    /// <c>requirements.md</c>: once safe processing establishes Principal and
-    /// Case type, allocate the Case/PO and retain incomplete ordinary detail as
-    /// `Not ready`. Refusing here instead left a real instruction with no case.
+    /// FRD-02 (intake and source identity): once safe processing establishes
+    /// Principal and Case type, allocate the Case/PO and retain incomplete
+    /// ordinary detail as `Not ready`. Refusing here instead left a real
+    /// instruction with no case.
     /// </summary>
     [Fact]
     public async Task CreateAllocatesWhenOrdinaryDetailIsThin()

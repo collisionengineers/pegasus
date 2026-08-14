@@ -6,7 +6,7 @@ This document is the sole owner of programme dependencies, delivery gaps, activa
 
 Canonical ownership is split as follows:
 
-- [Requirements](../../../docs/requirements.md) own product obligations and exclusions.
+- [Requirements](../../../docs/prd/README.md) own product obligations and exclusions.
 - [Capabilities](../../../docs/capabilities.md) are the only current support and evidence-state matrix.
 - [Open decisions](../../../docs/open-decisions.md) own unresolved choices.
 - [Architecture](architecture.md) owns technical contracts and design rationale.

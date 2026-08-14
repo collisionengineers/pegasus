@@ -83,7 +83,7 @@ public sealed partial class CapacitySoakTests
         //
         // The contention itself is not fixed and should not be papered over: the
         // isolation causing it is what enforces one receipt per source and one
-        // reference per case, so it is queued in NOW.md rather than loosened for
+        // reference per case, so it is tracked on the Kanmer board rather than loosened for
         // speed the estate does not yet need.
         Assert.True(Percentile95(writeDurations) <= TimeSpan.FromSeconds(20),
             $"Warm write p95 was {Percentile95(writeDurations).TotalMilliseconds:F0} ms. {Spread(writeDurations)}");
