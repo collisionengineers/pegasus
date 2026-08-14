@@ -1,7 +1,6 @@
 {
   "mcpServers": {
     "kanmer": {
-      "type": "stdio",
       "command": "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\Kanmer.exe",
       "args": [
         "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanmer-mcp.cjs",

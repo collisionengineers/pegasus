@@ -3,12 +3,15 @@
 
 This repo's work is tracked on a Kanmer board in `.kanmer/`.
 
-- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
-- Take a ticket before working: `take_ticket` records the time, branch and worktree, and moves the stage.
-- Follow the doc pipeline in the ticket's folder: research.md + impact.md → plan.md → checklist.md → proof.md.
-- proof.md is required before a ticket can reach the final stage.
-- Add progress notes with `set_ticket_doc` (append: true) — don't rewrite whole documents to add a line.
+- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket. `get_doc_gates` shows which documents each stage transition needs.
+- Work each ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage.
+- Stages: backlog → researching → planning → implementing → review → verifying → done — hard document gates guard the transitions.
+- Before a ticket leaves Backlog, link a governing doc (`link_doc` → a PRD/FRD/ADR in `/docs/`) or set `docs_todo`.
+- Doc pipeline: research.md + impact.md → plan.md → checklist.md → post-implementation-report.md; write proof.md on merged main before Done.
+- Add running notes with `append_scratch` (not `set_ticket_doc`) — scratch is the notepad and is never gated.
+- Review passes → the PR is merged → the ticket enters Verifying; write proof.md on merged main, move to Done, then close out (record commits/PRs/deployment).
 - Archive, don't delete. Reference other items with [[ID]] wiki-links.
+- Skills, one per phase: kanmer-tickets (manage), -docs, -research, -plan, -execute, -review, -verify, -closeout, -auto, -report, -groom, -import, -setup.
 <!-- kanmer:instructions:end -->
 
 # Pegasus repository instructions
