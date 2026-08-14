@@ -1,5 +1,5 @@
 # FRD-09: Provider and intermediary routes
-> Owner capabilities: API (provider/intermediary routes) · Migrated from docs/requirements.md · UI behaviour: docs/design.md
+> Owner capabilities: API (provider/intermediary routes) · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
 
 ## Provider and intermediary routes
 

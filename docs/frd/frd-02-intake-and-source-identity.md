@@ -1,5 +1,5 @@
 # FRD-02: Intake and source identity
-> Owner capabilities: INT · Migrated from docs/requirements.md · UI behaviour: docs/design.md
+> Owner capabilities: INT · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
 
 ## Intake and source identity
 
