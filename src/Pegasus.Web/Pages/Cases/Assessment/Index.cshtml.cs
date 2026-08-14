@@ -12,8 +12,9 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Cases.Assessment;
 
 /// <summary>
-/// The Send to AI wiring for the assessment surface (AI-09, stage D of
-/// docs/temp-plans/send-to-claude-channel-integration.md). This model binds
+/// The Send to AI wiring for the assessment surface (AI-09; see ADR-0021 /
+/// FRD-11: docs/adr/0021-automation-actor-direct-write-assessment-contract.md,
+/// docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md). This model binds
 /// the case identity header, the Send to Claude panel, and the PAV slider's
 /// recorded-evidence data; the section forms themselves stay unbound design
 /// markup until the UI-15 activation task wires the staff save paths.

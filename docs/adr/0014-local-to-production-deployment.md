@@ -1,3 +1,13 @@
+---
+id: ADR-0014
+status: accepted
+date: 2026-07-31
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: []
+tags: [deployment, environment]
+---
 # ADR-0014: Local-to-production deployment only
 
 **Status:** Accepted (2026-07-31)  

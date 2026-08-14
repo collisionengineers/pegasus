@@ -2,7 +2,7 @@
 
 This document is the sole owner of package composition, local release-candidate construction, inspection, release readiness, updates, rollback and support policy for CollisionDocNet.
 
-A locally built candidate is not thereby published, deployed, caller-proved or accepted. Intended variants, implemented packaging automation, successful local execution, caller acceptance and deployment are separate evidence states. Capability and format support remain governed by the [capability evidence](../../../docs/capabilities.md) and [requirements](../../../docs/requirements.md); packaging cannot advance those claims.
+A locally built candidate is not thereby published, deployed, caller-proved or accepted. Intended variants, implemented packaging automation, successful local execution, caller acceptance and deployment are separate evidence states. Capability and format support remain governed by the [capability evidence](../../../docs/capabilities.md) and [requirements](../../../docs/prd/README.md); packaging cannot advance those claims.
 
 ## Supported product surfaces
 

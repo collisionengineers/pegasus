@@ -12,7 +12,7 @@ It specifies intended scope and acceptance evidence; it does not by itself prove
 
 The wider product, architecture, repository-development, operational-state,
 and decision context remains owned by the [documentation index](../../../docs/index.md),
-[requirements](../../../docs/requirements.md), [capabilities](../../../docs/capabilities.md),
+[requirements](../../../docs/prd/README.md), [capabilities](../../../docs/capabilities.md),
 [architecture](architecture.md), [engineering](../../../docs/engineering.md),
 [operations](../../../docs/operations.md), [operator notes](../../../docs/operator-notes.md),
 [open decisions](../../../docs/open-decisions.md), and the
