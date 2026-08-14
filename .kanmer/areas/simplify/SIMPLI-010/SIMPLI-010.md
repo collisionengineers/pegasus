@@ -2,15 +2,16 @@
 id: SIMPLI-010
 type: ticket
 title: Consolidate intake state around the receipt-to-case link
-status: todo
+status: in-progress
 area: simplify
 priority: medium
+order: 160
 assignee: ''
 labels: []
 links: []
 archived: false
 created: '2026-08-13T12:12:48.901Z'
-updated: '2026-08-13T12:12:48.901Z'
+updated: '2026-08-13T19:25:06.509Z'
 ---
 
 ## What

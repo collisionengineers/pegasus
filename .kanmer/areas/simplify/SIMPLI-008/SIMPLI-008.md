@@ -2,15 +2,16 @@
 id: SIMPLI-008
 type: ticket
 title: Show queued receipt processing status to staff
-status: todo
+status: in-progress
 area: simplify
 priority: high
+order: 140
 assignee: ''
 labels: []
 links: []
 archived: false
 created: '2026-08-13T12:12:48.862Z'
-updated: '2026-08-13T12:12:48.862Z'
+updated: '2026-08-13T19:25:06.212Z'
 ---
 
 ## What

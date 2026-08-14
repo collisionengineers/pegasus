@@ -2,7 +2,7 @@
 
 > Retained vendor reference evidence only (predecessor-era notes). The current
 > accepted EVA integration is the manual 13-key JSON/image handoff owned by
-> [requirements](../../docs/requirements.md) and
+> [requirements](../../docs/prd/README.md) and
 > [open decisions § EVA](../../docs/open-decisions.md); the vendor API text below is
 > not the current specification and grants no permission to call EVA
 > ([capabilities](../../docs/capabilities.md) allocates direct EVA API use to
