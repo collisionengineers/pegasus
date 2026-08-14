@@ -142,21 +142,6 @@ public sealed class EfCaseQueryStore(
         var summaryRow = await SearchRows(context)
             .SingleAsync(item => item.CaseId == query.CaseId, cancellationToken);
         var documents = await ReadDocumentsAsync(context, query.CaseId, cancellationToken);
-        var boxFileRequests = await context.Set<BoxFileRequestEntity>()
-            .AsNoTracking()
-            .Where(item => item.CaseId == query.CaseId)
-            .OrderByDescending(item => item.CreatedAtUtc)
-            .ThenBy(item => item.Id)
-            .Take(100)
-            .Select(item => new BoxFileRequest(
-                item.Id,
-                item.CaseId,
-                item.Status,
-                item.CreatedAtUtc,
-                item.ExpiresAtUtc,
-                item.DeactivatedAtUtc,
-                item.Version))
-            .ToArrayAsync(cancellationToken);
         var requestUploadLinks = await context.Set<RequestUploadLinkEntity>()
             .AsNoTracking()
             .Where(item => item.CaseId == query.CaseId)
@@ -208,11 +193,21 @@ public sealed class EfCaseQueryStore(
             MapWorkflow(workflow),
             activeLease,
             documents,
-            boxFileRequests,
+            workflow.Case.CustodyRootRemoteId,
+            ParseCustodyState(workflow.Case.CustodyState),
             requestUploadLinks,
             availableReportSentEvidence.Select(MapRetainedEvidence).ToArray(),
             history);
     }
+
+    private static CaseCustodyState ParseCustodyState(string value) => value switch
+    {
+        "pending" => CaseCustodyState.Pending,
+        "confirmed" => CaseCustodyState.Confirmed,
+        "failed" => CaseCustodyState.Failed,
+        _ => throw new InvalidDataException(
+            $"Unknown persisted case custody state '{value}'.")
+    };
 
     private static IQueryable<SearchRow> SearchRows(PegasusDbContext context) =>
         from workflow in context.CaseWorkflows.AsNoTracking()
