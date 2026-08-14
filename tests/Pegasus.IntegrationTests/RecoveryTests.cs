@@ -73,7 +73,7 @@ public sealed class RecoveryTests
         var received = await receiver.ExecuteAsync(
             CreateSource("immediate-dispatch"),
             "qdos-alpha:immediate-dispatch");
-        var processor = services.GetRequiredService<ProcessQueuedIntake>();
+        var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
         var dispatcher = new DispatchPendingIntakeWork(
             store,
             new ImmediateIntakeWorkEnqueuer(processor),
@@ -119,7 +119,11 @@ public sealed class RecoveryTests
             dispatchWork.LeaseToken!,
             clock.GetUtcNow(),
             CancellationToken.None);
-        var processor = services.GetRequiredService<ProcessQueuedIntake>();
+        var statusQueries = services.GetRequiredService<IQueuedIntakeStatusQueries>();
+        Assert.Equal(
+            QueuedIntakeStatusKind.Received,
+            Assert.IsType<QueuedIntakeStatus>(await statusQueries.GetAsync(received.StagedReceiptId)).Status);
+        var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
 
         await processor.ExecuteAsync(received.StagedReceiptId);
         await processor.ExecuteAsync(received.StagedReceiptId);
@@ -134,6 +138,10 @@ public sealed class RecoveryTests
         Assert.Equal(received.StagedReceiptId, evaluation.StagedReceiptId);
         Assert.Equal(retained.Id, evaluation.ProcessedReceiptId);
         Assert.Equal(1, evaluation.Revision);
+        var completedStatus = Assert.IsType<QueuedIntakeStatus>(
+            await statusQueries.GetAsync(received.StagedReceiptId));
+        Assert.Equal(QueuedIntakeStatusKind.Complete, completedStatus.Status);
+        Assert.Equal(retained.Id, completedStatus.ProcessedReceiptId);
         Assert.Null(await store.ClaimProcessingAsync(
             received.StagedReceiptId,
             clock.GetUtcNow(),
@@ -235,6 +243,165 @@ public sealed class RecoveryTests
         await IntakeTestEvidence.AssertNoDurableIntakeReceiptsAsync(factory);
     }
 
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task ProcessorDistinguishesTransientAndUnexpectedFailures(
+        bool transient,
+        bool remoteDependency)
+    {
+        var clock = new AdjustableTimeProvider(new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        var artifactStore = new ReadFailureArtifactStore(transient, remoteDependency);
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            clock,
+            artifactStore);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<IIntakeWorkStore>();
+        var received = await new ReceiveIntake(artifactStore, store, clock).ExecuteAsync(
+            CreateSource(transient ? "transient-failure" : "unexpected-failure"),
+            $"qdos-alpha:failure:{transient}");
+        var dispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await store.MarkDispatchedAsync(
+            dispatch.Id,
+            dispatch.LeaseToken!,
+            clock.GetUtcNow(),
+            CancellationToken.None);
+
+        var outcome = await ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services)
+            .ExecuteAsync(received.StagedReceiptId);
+
+        Assert.Equal(
+            transient
+                ? QueuedIntakeProcessingOutcome.RetryScheduled
+                : QueuedIntakeProcessingOutcome.UnexpectedFailed,
+            outcome);
+        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
+            received.StagedReceiptId,
+            CancellationToken.None));
+        Assert.Equal(transient ? IntakeWorkState.RetryScheduled : IntakeWorkState.Failed, work.State);
+        if (!transient)
+        {
+            Assert.Equal("unexpected_intake_processing_failure", work.FailureCode);
+        }
+        else
+        {
+            Assert.NotNull(work.FailureCode);
+        }
+        var status = Assert.IsType<QueuedIntakeStatus>(
+            await services.GetRequiredService<IQueuedIntakeStatusQueries>()
+                .GetAsync(received.StagedReceiptId));
+        Assert.Equal(
+            transient ? QueuedIntakeStatusKind.Received : QueuedIntakeStatusKind.Failed,
+            status.Status);
+        if (!transient)
+        {
+            using var failedPage = await client.GetAsync(
+                $"/Upload/Status/{received.StagedReceiptId:D}");
+            failedPage.EnsureSuccessStatusCode();
+            var html = await failedPage.Content.ReadAsStringAsync();
+            Assert.Contains("<h1>Failed</h1>", html, StringComparison.Ordinal);
+            Assert.DoesNotContain(
+                "unexpected_intake_processing_failure",
+                html,
+                StringComparison.Ordinal);
+        }
+        await IntakeTestEvidence.AssertNoDurableIntakeReceiptsAsync(factory);
+    }
+
+    [Fact]
+    public async Task QueuedStatusProjectsAnActiveProcessingLease()
+    {
+        var clock = new AdjustableTimeProvider(new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        using var factory = new IntakeWebApplicationFactory(clock);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<IIntakeWorkStore>();
+        var received = await new ReceiveIntake(
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            store,
+            clock).ExecuteAsync(
+                CreateSource("processing-status"),
+                "qdos-alpha:processing-status");
+        var dispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await store.MarkDispatchedAsync(
+            dispatch.Id,
+            dispatch.LeaseToken!,
+            clock.GetUtcNow(),
+            CancellationToken.None);
+        Assert.NotNull(await store.ClaimProcessingAsync(
+            received.StagedReceiptId,
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(5),
+            CancellationToken.None));
+
+        var status = Assert.IsType<QueuedIntakeStatus>(
+            await services.GetRequiredService<IQueuedIntakeStatusQueries>()
+                .GetAsync(received.StagedReceiptId));
+        Assert.Equal(QueuedIntakeStatusKind.Processing, status.Status);
+    }
+
+    [Fact]
+    public async Task TransientProcessingFailureExhaustsTheBoundedRetrySchedule()
+    {
+        var clock = new AdjustableTimeProvider(new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        var artifactStore = new ReadFailureArtifactStore(transient: true, remoteDependency: false);
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            clock,
+            artifactStore);
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<IIntakeWorkStore>();
+        var received = await new ReceiveIntake(artifactStore, store, clock).ExecuteAsync(
+            CreateSource("retry-exhaustion"),
+            "qdos-alpha:retry-exhaustion");
+        var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            var dispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+                clock.GetUtcNow(),
+                TimeSpan.FromMinutes(1),
+                CancellationToken.None));
+            await store.MarkDispatchedAsync(
+                dispatch.Id,
+                dispatch.LeaseToken!,
+                clock.GetUtcNow(),
+                CancellationToken.None);
+            var outcome = await processor.ExecuteAsync(received.StagedReceiptId);
+            Assert.Equal(
+                attempt < 5
+                    ? QueuedIntakeProcessingOutcome.RetryScheduled
+                    : QueuedIntakeProcessingOutcome.Failed,
+                outcome);
+            clock.Advance(TimeSpan.FromHours(3));
+        }
+
+        var work = Assert.IsType<IntakeWorkItem>(await store.FindWorkItemAsync(
+            received.StagedReceiptId,
+            CancellationToken.None));
+        Assert.Equal(5, work.AttemptCount);
+        Assert.Equal(IntakeWorkState.Failed, work.State);
+        Assert.Null(await store.ClaimDispatchAsync(
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+    }
+
     private static IntakeSource CreateSource(string identity)
     {
         var email = IntakeTestEvidence.CreateEmail(
@@ -252,10 +419,39 @@ public sealed class RecoveryTests
     private sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)
         : IIntakeWorkEnqueuer
     {
-        public Task EnqueueAsync(
+        public async Task EnqueueAsync(
             Guid stagedReceiptId,
+            CancellationToken cancellationToken)
+        {
+            _ = await processor.ExecuteAsync(stagedReceiptId, cancellationToken);
+        }
+    }
+
+    private sealed class ReadFailureArtifactStore(bool transient, bool remoteDependency)
+        : IIntakeArtifactStore
+    {
+        private string? storageKey;
+
+        public Task<string> StoreAsync(
+            string contentHash,
+            ReadOnlyMemory<byte> value,
+            CancellationToken cancellationToken)
+        {
+            storageKey = $"test/{contentHash}";
+            return Task.FromResult(storageKey);
+        }
+
+        public Task<ReadOnlyMemory<byte>?> ReadAsync(
+            string key,
             CancellationToken cancellationToken) =>
-            processor.ExecuteAsync(stagedReceiptId, cancellationToken);
+            string.Equals(key, storageKey, StringComparison.Ordinal)
+                ? Task.FromException<ReadOnlyMemory<byte>?>(remoteDependency
+                    ? new IntakeDependencyUnavailableException(
+                        "Controlled remote dependency failure.")
+                    : transient
+                        ? new IOException("Controlled transient read failure.")
+                        : new InvalidOperationException("Controlled unexpected read failure."))
+                : Task.FromResult<ReadOnlyMemory<byte>?>(null);
     }
 
     private sealed class AdjustableTimeProvider(DateTimeOffset initialUtcNow) : TimeProvider

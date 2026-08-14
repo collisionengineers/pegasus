@@ -1,0 +1,39 @@
+@page "/Upload/Status/{id:guid}"
+@model Pegasus.Web.Pages.UploadStatusModel
+@using Pegasus.Core.Intake
+@{
+    ViewData["Title"] = "Upload status";
+}
+
+<main class="page-shell" data-auto-refresh="@(Model.RefreshAutomatically ? "2000" : null)">
+    <header class="page-header">
+        <div>
+            <p class="eyebrow">Upload status</p>
+            <h1>@Model.Heading</h1>
+            <p class="lede" aria-live="polite">@Model.Message</p>
+        </div>
+    </header>
+
+    <section class="panel stack" aria-labelledby="upload-file-heading">
+        <h2 id="upload-file-heading">@Model.Status.SourceFileName</h2>
+        <dl class="summary-list">
+            <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>
+            <div><dt>Receipt</dt><dd>@Model.Status.StagedReceiptId</dd></div>
+        </dl>
+
+        <div class="button-row">
+            @if (Model.Status.CaseId is { } caseId)
+            {
+                <a class="button button--primary" asp-page="/Cases/Details" asp-route-id="@caseId">Open case</a>
+            }
+            else if (Model.Status.Status == QueuedIntakeStatusKind.Complete
+                && Model.Status.ProcessedReceiptId is { } receiptId)
+            {
+                <a class="button button--primary" asp-page="/Intake/Details" asp-route-id="@receiptId">Open receipt</a>
+            }
+
+            <a class="button" href="@($"{Request.Path}{Request.QueryString}")">Refresh</a>
+            <a class="button" asp-page="/Upload">Upload another file</a>
+        </div>
+    </section>
+</main>

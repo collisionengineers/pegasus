@@ -671,11 +671,6 @@ public sealed class PollApprovedInboxTests
             return Task.FromResult(new ReceivedIntake(receipt.Id, duplicate));
         }
 
-        public Task<ReceivedIntake> ReceiveForProcessingAsync(
-            IntakeStagedReceipt receipt,
-            string operationKey,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
-
         public Task<IntakeWorkItem?> ClaimDispatchAsync(
             DateTimeOffset nowUtc,
             TimeSpan leaseDuration,

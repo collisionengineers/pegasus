@@ -6,6 +6,14 @@
 // hash allowance, so an inline script is silently discarded in Production. The
 // enhancements below therefore ran only in Development until they moved here.
 (function () {
+    var autoRefresh = document.querySelector('[data-auto-refresh]');
+    if (autoRefresh) {
+        var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
+        if (Number.isFinite(delay) && delay > 0) {
+            window.setTimeout(function () { window.location.reload(); }, delay);
+        }
+    }
+
     'use strict';
 
     // Manual refresh feedback. The label change is the signal; the spin is
