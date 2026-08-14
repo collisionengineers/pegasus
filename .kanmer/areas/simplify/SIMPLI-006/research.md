@@ -1,29 +1,25 @@
-# Research — Consolidate ADRs
+# Research — ADRs under the PRD/FRD/ADR taxonomy
 
-Root plan: `docs/temp-plans/retire-now-rewrite-agents.md` (shared with
-[[SIMPLI-004]] [[SIMPLI-002]] [[SIMPLI-005]]). Agreed mapping already on disk:
-`docs/temp-plans/simplify/adr-consolidation.md` — implement it, don't re-derive.
+Reshaped from the renumber-to-9 approach (`adr-consolidation.md`, superseded).
+Root/approved plan: `docs/temp-plans/retire-now-rewrite-agents.md`.
 
-## Current state
-- `docs/adr/` holds 24 ADRs: `0001`–`0016`, `0018`–`0024` (**ADR-0017 is
-  absent** — a numbering collision was resolved into 0018/0019 per README).
-  `README.md` is a rich supersession index.
-- `docs/index.md:19,38` and ADR-0010/0023 currently own documentation-structure
-  and new-Markdown-placement rules; the plan moves that ownership INTO
-  `docs/index.md` (self-contained) and keeps the task workflow solely in
-  `AGENTS.md`.
-- ADR-0009 and ADR-0023 already record a **2026-08-12 operator decision:
-  "AGENTS.md owns the task operating procedure"** — the direction is partly
-  ratified.
-- `azure.yaml` has `remoteBuild: true` on **both** `web` and `worker`.
-- `infra/modules/platform.bicep:456` is already `minReplicas: 1` (warm), but
-  `scripts/Test-AzureDeploymentPlan.ps1:190` still asserts `minReplicas: 0` —
-  a stale assertion the plan's "require minReplicas:1" edit reconciles.
-- `scripts/Test-AzureDeploymentPlan.ps1` already forbids remote build via
-  `SCM_DO_BUILD_DURING_DEPLOYMENT` (line 201) but does not check `azure.yaml`
-  `remoteBuild`. `-Mode Local` runs `az bicep build` (needs the `az` CLI).
+## ADR classification (24 files; 0017 absent)
+- **13 pure-technical** — keep as stable ADRs: 0001,0002,0003,0004,0007,0009,
+  0011,0014,0015,0016,0019 (+ the technical cores of the mixed set).
+- **8 mixed** (technical decision entangled with feature behaviour) — thin to the
+  technical core, functional clauses → FRDs: 0005,0006,0008,0013,0018,0021,0022,0024.
+- **2 feature-rules mis-filed as ADRs** → FRD: 0012 (MOT mileage) → FRD-06;
+  0020 (QDOS case-association predicates) → FRD-09.
+- **2 documentation-governance ADRs** → AGENTS.md/index: 0010, 0023.
 
-## Target (from adr-consolidation.md)
-9 self-contained ADRs `0001`–`0009` per the fixed mapping table; no supersession
-chains. Remove ADR-0010, ADR-0016, ADR-0023. Move ADR-0013 product rules into
-Requirements/Capabilities. Retarget every tracked reference to the new ids.
+## Why the ADR method needed modernizing (evidence: 0002, 0024, README)
+- No machine-readable metadata — status/supersession were inconsistent prose bullets.
+- Mega-ADRs (0002 decides ~7 things + a dated cost forecast) → pervasive partial
+  supersession + stale bodies (0002 still read "App Service" after 0015).
+- Inconsistent templates; numbering collisions/gaps (0016 was 0010; 0017 absent).
+
+## Best-practice target (professional + AI-agent friendly)
+Stable append-only IDs (never renumber); YAML frontmatter as the single source of
+currency/relationships; one decision per ADR; a thin frontmatter-driven index
+whose `status: accepted` filter is the current-architecture view; governance and
+feature behaviour live OUTSIDE ADRs (AGENTS.md and the FRDs respectively).
