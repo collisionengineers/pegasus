@@ -1,3 +1,13 @@
+---
+id: ADR-0007
+status: accepted
+date: 2026-07-25
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: []
+tags: [deployment]
+---
 # ADR-0007: Direct authorised-terminal Azure deployment
 
 - Status: Accepted

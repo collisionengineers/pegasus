@@ -78,10 +78,11 @@ public static class InstructionDraftCompleteness
     /// <remarks>
     /// A complete draft and an allocatable one are different questions, and
     /// answering the second with the first refuses real work.
-    /// <c>requirements.md</c> is explicit: fail closed before allocation when
-    /// identity-critical route facts are incomplete or ambiguous, but "once safe
-    /// processing establishes Principal and Case type, allocate the Case/PO and
-    /// retain incomplete ordinary detail, images, or checks as `Not ready`".
+    /// FRD-02 (intake and source identity) is explicit: fail closed before
+    /// allocation when identity-critical route facts are incomplete or
+    /// ambiguous, but "once safe processing establishes Principal and Case type,
+    /// allocate the Case/PO and retain incomplete ordinary detail, images, or
+    /// checks as `Not ready`".
     /// Vehicle make, model and mileage, the accident circumstances and the dates
     /// are that ordinary detail: an instruction that arrives without them is a
     /// case waiting for detail, not a case that cannot exist. The inspection

@@ -488,12 +488,13 @@ Graph then rejects that cursor against the new scope. Clearing the cursor can
 re-receive the same message under another token. A folder-only scope change is
 also undetectable in current poll state.
 
-Production is contained with all nine Worker functions disabled. Until the
-stable-ID and per-mailbox fresh-start implementation is accepted, migrated,
-deployed, and verified, do not bind or replace production inbound Graph
-coordinates, clear a cursor, treat Graph 410 as permission to restart
-enumeration, or re-enable the Worker. The current fallback is evidence of
-deployed configuration, not a safe transition mechanism.
+The production Worker state is owned by
+[operations](operations.md#production-environment) — currently **enabled**
+(live-verified 2026-08-13). Independently of that, until the stable-ID and
+per-mailbox fresh-start implementation is accepted, migrated, deployed, and
+verified, do not bind or replace production inbound Graph coordinates, clear a
+cursor, or treat Graph 410 as permission to restart enumeration. The current
+fallback is evidence of deployed configuration, not a safe transition mechanism.
 
 Accepted
 [ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
@@ -746,7 +747,8 @@ Controlled synthetic fixtures may prove protocols, security controls, and resour
 
 | Action | Exact scope required | Required approval and evidence |
 | --- | --- | --- |
-| Use an Azure service | Subscription, resource group, resource, operation | Explicit mutation/cost approval, fresh inventory, least-privilege identity |
+| Read Azure state (inventory, config, diagnostics) | Subscription, resource group, resource | **Permitted — no per-target approval.** Read-only `az`/ARM/portal reads that change no state and incur no material cost |
+| Change or use an Azure service (write/mutation/cost) | Subscription, resource group, resource, operation | Explicit approval for the exact target, fresh inventory, least-privilege identity |
 | Read or change an Outlook mailbox | Tenant, application, mailbox, folder, action | Exchange Application RBAC approval and negative scope test before the Graph call |
 | Use Box or another vendor sandbox | Enterprise/account, folder/project, operation | Credential/data approval and controlled non-corpus input |
 | Use the approved Box integration-test target | Folder `392761581105`; local or explicitly approved non-production deployment; create and update controlled non-corpus artifacts only | Approved disposable test subtree; no delete, move, copy, share, broader folder access, or credential exposure; production case custody belongs only to the activated production caller under the decided root `405543781910` |
@@ -795,13 +797,13 @@ dotnet test ./tests/Pegasus.IntegrationTests --filter Category=Corpus
 
 ## Release dependency order
 
-Release allocation does not waive technical prerequisites. [Delivery dependencies](requirements.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
+Release allocation does not waive technical prerequisites. [Delivery dependencies](capabilities.md#delivery-dependencies) owns current precedence. The predecessor delivery roadmap (git history) preserved the prerequisite, parallel-branch, and rejoin route; revalidate any of its claims against current canonical owners before use.
 
 Operationally, do not run later caller or release gates before the revalidated spine has supplied relational intake state, trusted staff identity/action history, principal/configuration data, durable custody and the allocator, definitive acceptance, then case files/editing/lifecycle/UI, the real Worker and Triage, vehicle/EVA, and finally Azure migration/recovery and operator acceptance. The Automation MCP ingress stays composition-gated off outside local evidence runs, and its live caller remains a separately approved activation. A local check, generated package, Bicep file, or deployment cannot advance a missing predecessor gate.
 
 ## Release validation rules
 
-The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; [requirements](requirements.md) remains the behavior owner:
+The following contracts must be proved through the owning Core policy and actual caller before the corresponding release claim. This is an evidence checklist; the [FRDs](frd/README.md) remain the behaviour owner:
 
 - positive, contradictory/ambiguous, transient, terminal, and unknown outcomes produce the ordered decision, persisted result, action history or telemetry, and operator-visible result;
 - definitive intake creates one idempotent case or links the definitive existing case, enters `Review` only after both completeness gates pass or are explicitly confirmed, otherwise enters `Not ready`, and preserves reversible source associations and both origins;
@@ -866,7 +868,7 @@ dated names are not current identity proof.
 
 ## Deployment and release
 
-The accepted direct-terminal Azure design is indexed by [architecture](architecture.md) and the [decision register](adr/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
+The accepted direct-terminal Azure design is indexed by [architecture](current-architecture.md) and the [decision register](adr/README.md). The target files are `infra/`, `azure.yaml`, and `.azure/deployment-plan.md`.
 
 `azd up` is not the release procedure. GitHub Actions/OIDC deployment is `Not planned`.
 
@@ -1069,7 +1071,7 @@ A production recovery exercise must:
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
 
-The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](requirements.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
+The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
 
 - a 15-minute recovery point objective; and
 - a four-hour restoration path.
@@ -1084,7 +1086,7 @@ Predecessor retirement executed on 2026-08-02 through the exact verified manifes
 
 Repository visibility was explicitly authorised as public on 2026-07-27. The tracked history and documentation, including [operator notes](operator-notes.md) and supplied reference material, are publicly readable. Never commit secrets, personal/case material, or anything not approved for public source control.
 
-The current queue is [`NOW.md`](../NOW.md); task execution, tracking,
+The current work queue is the Kanmer board (`.kanmer/`); task execution, tracking,
 staleness, and Git safety are owned by the
 [repository task workflow](../AGENTS.md#repository-task-workflow).
 

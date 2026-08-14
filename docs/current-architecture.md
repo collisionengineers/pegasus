@@ -1,5 +1,7 @@
 # Architecture
 
+> This file is the current **as-built snapshot**: what components exist and how the running system is wired *now*. It is not the owner of rules. Product intent and invariants live in the [PRD](prd/pegasus-product.md) and [AGENTS.md](../AGENTS.md#product-invariants); required behaviour in the [FRDs](frd/README.md); durable technical decisions in the [ADRs](adr/README.md); repository governance in [AGENTS.md](../AGENTS.md); deployed/runtime state and dated evidence in [operations](operations.md); the schedule and capability IDs in [capabilities](capabilities.md). Where this file describes a rule, it is reporting how the system is wired, not competing with those owners. **Keep it current: after any deployment or release, update this file (and [operations](operations.md)) to match reality in the same task.**
+
 This document is the canonical owner for the current system architecture, caller evidence, dependency direction, and application boundaries. Requirements, capability scope, unresolved decisions, operations, and historical decisions remain with their respective canonical owners.
 
 Implementation, caller proof, deployment, and acceptance are distinct:
@@ -56,29 +58,25 @@ A new project, runtime, store, migration stream, deployment unit, or top-level a
 
 ## Architecture invariants
 
-`Pegasus.Core` is the single owner of business policy. Each business rule,
-classifier, allocator, parser, workflow transition, and external effect has
-one implementation; a third implementation is a stop condition requiring
-consolidation and removal of the replaced path.
+These invariants — `Pegasus.Core` is the single owner of business policy;
+duplicate business implementation is a stop condition; a new top-level project,
+store, runtime, migration stream, or deployment unit requires an accepted ADR
+proving the existing boundary cannot carry it; and `Audit`, `Triage`,
+`Needs sorting`, and `Blocked intake` keep their settled distinct meanings — are
+owned by [AGENTS.md § Product invariants](../AGENTS.md#product-invariants). This
+section reports how the running system is wired to them; it does not restate or
+compete with that owner.
 
-Organize source by business capability and Collision Engineers' business
-language. Do not introduce horizontal `Common`, `Helpers`, `Utilities`, or
-undifferentiated `Services` folders, or names such as `V2`, `New`, `Manager`,
-`Helper`, or `Util` as a substitute for a capability boundary. `Audit` and
-`Triage` retain their reserved business meanings, and operator UI must not
-expose internal deployment, extraction, or orchestration mechanics.
+Two current engineering conventions are not yet stated in AGENTS.md and remain
+in force here:
 
-Add an abstraction only for a real external boundary, two concrete callers or
-implementations, or an accepted architecture decision. Deferred capabilities
-remain in capability allocation, an accepted decision, or open decisions until
-a current caller exists; do not express them as dormant registration,
-disabled flags, placeholders, or speculative compatibility shims.
-
-Classifier and extraction precedence must be explicit, ordered, documented, and
-covered by contradiction tests. External clients and catch paths distinguish
-`terminal`, `transient`, and `unknown`; terminal outcomes stop retries,
-unknown outcomes remain unknown, and metrics count successful effects rather
-than attempts.
+- Do not introduce horizontal `Common`, `Helpers`, `Utilities` packages or
+  version-suffixed names such as `V2`, `New`, or `Manager`.
+- Classifier and extraction precedence must be explicit, ordered, documented,
+  and covered by contradiction tests. External clients and catch paths
+  distinguish `terminal`, `transient`, and `unknown`; terminal outcomes stop
+  retries, unknown outcomes remain unknown, and metrics count successful effects
+  rather than attempts.
 
 ## Current callers and entry points
 
@@ -109,9 +107,10 @@ A Worker `local.settings.json` is unnecessary at this baseline. Copy `src/Pegasu
 
 Worker production composition registers bounded Graph Inbox/Sent, Box
 custody, and DVLA/DVSA adapters plus Azure Blob/queue transport. These are
-**Deployed**, but deployment is not current execution evidence: production
-containment on 2026-08-10 disabled all nine functions after the enabled estate
-executed zero times. Graph Inbox/Sent processing was live-verified for release
+**Deployed**, but deployment is not current execution evidence: the production
+Worker is enabled, and its live runtime and estate state are owned by
+[operations § Production environment](operations.md#production-environment).
+Graph Inbox/Sent processing was live-verified for release
 1; that historical proof does not establish the current retained-mail or
 administrator-estate path. Exact current state is owned by
 [operations § Production environment](operations.md#production-environment),
@@ -125,7 +124,7 @@ intake artifact stores behind one storage profile. These are **Deployed**
 
 In-process ONNX vehicle-registration recognition (ADR-0019) is implemented
 in `src/Pegasus.Infrastructure/Vision/` behind the Core `ImageIntake`
-automation; the ADR-0019 index entry owns the accepted evaluation numbers.
+automation; [operations § dated evidence](operations.md#dated-evidence-qualifications) owns the accepted evaluation numbers.
 Implementation is not live-caller acceptance.
 
 The following remain planned or absent, not merely unverified:
@@ -392,18 +391,21 @@ released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
 Sent-evidence polling remains configuration-driven for one mailbox.
 
-The current implementation still uses the Graph mailbox identity as the
-inbound poll-state key, carries a cursor when the configured fallback identity
-is adopted, and builds the receipt token from that mutable identity. That is a
-known unsafe coupling, not the target architecture. Accepted
+The current implementation uses the Graph mailbox identity as the inbound
+poll-state key, carries a cursor when the configured fallback identity is
+adopted, and builds the receipt token from that identity. The target is the
+stable-identity model — `ApprovedMailbox.Id` as the durable source identity, a
+versioned Graph cursor-scope fingerprint, an immutable receipt-token identity,
+and one explicit fresh-start activation time per mailbox, with global Worker,
+individual-Function, and per-mailbox controls kept separate. That technical
+decision is
 [ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
-would narrowly replace it with `ApprovedMailbox.Id` as the durable source
-identity, a versioned Graph cursor-scope fingerprint, immutable receipt-token
-identity, and one explicit fresh-start activation time per mailbox. It would
-also separate global Worker containment, individual Function settings, and
-per-mailbox enablement; Sent-evidence polling would remain separately enabled.
-It remains unimplemented; no current caller or deployment claim follows from
-the accepted decision.
+and the required behaviour is specified in
+[FRD-08](frd/frd-08-email-mailbox-and-background-processing.md); the migration to
+it is tracked on the Kanmer board and is not yet implemented. The production
+Worker is enabled (see [operations](operations.md#production-environment)); until
+that migration lands, production inbound Graph coordinates are not rebound or
+replaced and cursors are not cleared outside it.
 
 The poll also writes a retained-message read model — mailbox, folder scope,
 immutable and conversation identities, sender, recipients, subject, received
@@ -427,8 +429,8 @@ presenting an empty scope as "nothing was received"
 ([open decisions](open-decisions.md#mail-workspace-freshness-threshold-and-retention-start)).
 
 The Graph mailbox intake route was live-verified under exact Exchange
-Application RBAC for release 1. Its current production trigger is disabled by
-the 2026-08-10 containment operation; exact current state is owned by
+Application RBAC for release 1. The production Worker is enabled; the current
+runtime state of the mailbox Graph trigger is owned by
 [operations § Production environment](operations.md#production-environment).
 The historical verification predates the administrator-managed estate and the
 retained-message read model described above, and does not extend to them: both
@@ -507,47 +509,21 @@ Transient work may retry only within named bounds. Terminal failures must remain
 
 Worker timer and poison-queue callers reconcile persisted intake and external-work failures. For Box custody, an initial failed operation remains terminal and visible for authorised staff to retry; no automatic business retry is permitted. These source-level callers do not prove live Azure queue delivery, deployment, or operator acceptance.
 
-Production recovery is forward-oriented:
-
-1. retain prior immutable application packages;
-2. apply explicit migrations before application deployment;
-3. verify health and smoke evidence;
-4. restore data through the accepted backup and recovery path;
-5. avoid automatic schema down-migration.
-
-The four-hour restoration and 15-minute recovery-point outcomes remain unproved (OPS-09 — deferred; gates no release).
+The numbered forward-recovery procedure is owned by the [runbook](runbook.md), and the OPS-09 four-hour restoration and 15-minute recovery-point targets are owned by [operations](operations.md); both remain unproved (OPS-09 — deferred; gates no release).
 
 ## Deployment boundary
 
-The intended topology consists of isolated local development and production only.
-There is no Azure development, test, integration, or staging environment; see
-[ADR-0014](adr/0014-local-to-production-deployment.md). Target Bicep must
-describe only the approved production resource group containing:
-
-- a .NET 10 Linux/AMD64 Razor Pages Web Container App on Azure Container Apps Consumption, kept at one replica and pulled by digest from a separate production Basic ACR;
-- a .NET 10 isolated Functions Worker;
-- Azure SQL database `pegasus`;
-- separate transport/deployment and custody/protection Azure Storage accounts;
-- Key Vault;
-- Application Insights and Log Analytics;
-- a Container Apps environment and Basic ACR with admin credentials disabled;
-- managed identities, including Web identity `AcrPull` at the production ACR.
-
-The intended release owner uses an authorized Windows terminal, required by the `win-x64` migration bundle fixed in ADR-0007 rather than by the development platform, committed Bicep, `azd`, the .NET SDK OCI publisher, and ORAS. GitHub Actions deployment is not planned. Base infrastructure is provisioned without the public Web resource; the reviewed OCI digest is uploaded and verified, then an explicit database migration and Administrator bootstrap precede Container App activation.
-
-This route executed on 2026-08-02. The current production state — deployed
-resources, revisions, integrations, and their qualifications — is owned
-exclusively by [operations § Production environment](operations.md#production-environment);
-the full runbook and hashes are in git history. Deployment does not prove an
-untested provider outcome.
-
-Bicep compilation proves syntax and type consistency only.
-
-Any Azure resource creation, deployment, role or credential change, setting change, or retirement requires explicit user approval for the exact target. Ownership of shared Foundry, ACR/ValuationBot, capture, or default-workspace assets must not be inferred from the predecessor resource group.
-
-The release design and live-inventory qualifications are owned by
-[operations](operations.md#production-environment); deployment procedures are
-owned by the [runbook](runbook.md#deployment-and-release).
+The intended topology is isolated local development and production only — there
+is no Azure development, test, integration, or staging environment (see
+[ADR-0014](adr/0014-local-to-production-deployment.md)). The production resource
+inventory and SKUs, the deploy procedure, and the rule that any Azure resource
+creation, deployment, role or credential change, setting change, or retirement
+requires explicit user approval for the exact target are owned by
+[operations § production environment](operations.md#production-environment), the
+[runbook](runbook.md#deployment-and-release), and the
+[runbook approval matrix](runbook.md#live-operation-approval-matrix). Bicep
+compilation proves syntax and type consistency only, and deployment does not
+prove an untested provider outcome.
 
 ## Local development procedure
 
@@ -621,51 +597,20 @@ Infrastructure and release definitions under `infra/` describe target infrastruc
 
 ## Evidence qualifications
 
-Evidence applies only to the revision, environment, inputs, and caller exercised.
-
-At accepted provider-domain revision `d0965e1264dadc8d9942ac54fd68a4b45fd06f28`, Release runs passed 62 Core, 33 Architecture, and 98 Integration tests. Those counts prove that revision only.
-
-An earlier implementation checkpoint covered repository structure and ignored-boundary guards, Release restore/build, 13 integration tests, 5 architecture tests, Bicep compilation, and project-skill validation. It included a now-retired checkbox-driven reference-allocation proof. The current relational-draft design removed that allocator and replaced it with pre-case source identity, typed-draft, and no-case-schema evidence.
-
-At the 2026-07-23 multi-format checkpoint:
-
-- synthetic multi-format tests and 11 SHA-pinned genuine-corpus tests were caller evidence;
-- genuine smoke coverage included DOCX, DOC, MSG, JPEG, and PNG without exposing source filenames or content;
-- 11 Core, 57 non-corpus Integration, 29 Architecture, and 11 corpus tests ran with no failures or skips.
-
-At the 2026-07-24 provider-neutral intake checkpoint:
-
-- Release build completed without warnings or errors;
-- 28 Core, 82 non-corpus Integration, 30 Architecture, and 11 genuine-corpus tests ran with no failures or skips;
-- repository structure, Bicep compilation, ignored-boundary checks, and project-skill validation passed;
-- a disposable LocalDB cohort passed 11 tests with no skips, applying the committed SQL Server initial migration and covering constraints, concurrency, action-history rollback, and retry;
-- independent checks reran the actual upload no-default path, unknown persisted-code failures, inconsistent policy-result guards, and case-variant receipt replay.
-
-The local corpus changed between checkpoints:
-
-- the historical implementation checkpoint recorded 9,443 files and 6,041,636,339 bytes;
-- the 2026-07-23 checkout recorded 166 files and 321,396,569 bytes with redacted-manifest SHA-256 `90EFBFD7A2C730BB73839AC031CA1FB3394BA9309CCA87F353D97F707D53D958`.
-
-Both inventories were local and ignored. The later inventory does not replace or reinterpret the historical one.
-
-These results do not prove:
-
-- extraction accuracy beyond the exercised assertions;
-- live database upgrade or Azure SQL behavior;
-- production Blob or Box custody;
-- backup or recovery outcomes;
-- application authentication or authorization;
-- route activation for provider-domain data;
-- Azure deployment;
-- operator acceptance.
+The dated test-count checkpoints, corpus inventories, and the qualifications on what those results do and do not prove are owned by [operations § dated evidence](operations.md#dated-evidence-qualifications).
 
 ## Architectural constraints
 
-- Do not add duplicated rule engines, dormant integrations, generic services, speculative abstractions, or compatibility shims for unreleased behavior.
-- Do not infer authority from a predecessor, local corpus, supplied references, plans, tests, dependency registration, migration presence, or workspace import.
-- Do not enable a route because a package, adapter, port, migration, or test exists.
-- Do not copy the current intake rules into Worker when adding mailbox automation.
-- Do not treat local artifacts or transient Blob storage as Box custody.
-- Do not treat accepted design as implementation, implementation as caller proof, caller proof as deployment, or deployment as operator acceptance.
+These constraints — no duplicated rule engines, dormant integrations, generic
+services, speculative abstractions, or compatibility shims for unreleased
+behaviour; no inferring authority from a predecessor, local corpus, supplied
+references, plans, tests, dependency registration, migration presence, or
+workspace import; no enabling a route because a package, adapter, port,
+migration, or test exists; no copying intake rules into Worker; no treating
+local artifacts or transient Blob storage as Box custody; and no treating
+accepted design as implementation, implementation as caller proof, caller proof
+as deployment, or deployment as operator acceptance — are governance owned by
+[AGENTS.md](../AGENTS.md) (its safety rails and Repository task workflow). This
+file is wired to follow them; it does not own them.
 
-Product behavior is governed by [requirements](requirements.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by the [runbook](runbook.md), current operational evidence by [operations](operations.md), repository-development workflow by [engineering](engineering.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by git history.
+Product intent is owned by the [PRD](prd/README.md), functional behaviour by the [FRDs](frd/README.md), capability scope by [capabilities](capabilities.md), unresolved gates by [open decisions](open-decisions.md), operational procedures by the [runbook](runbook.md), current operational evidence by [operations](operations.md), repository-development workflow by [engineering](engineering.md), and business authority by [operator notes](operator-notes.md). Repository navigation is maintained by the [documentation index](index.md), and durable change history by git history.

@@ -1,3 +1,13 @@
+---
+id: ADR-0019
+status: accepted
+date: 2026-08-03
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-06]
+tags: [vrm, onnx, image]
+---
 # ADR-0019: In-process ONNX VRM recognition engine
 
 - Date: 2026-08-03
@@ -77,3 +87,11 @@ gate, not a silent swap. Automatic image-led/instruction-led matching
 (`INT-28`/`INT-32`) remains separately gated: reading a plate is not
 associating a record. Open decision 1 retains only the still-open
 threshold acceptance from the operator-reviewed cohort.
+
+## Update — 2026-08-03 threshold accepted
+
+The engine selection above is unchanged. The cohort evaluation it names has
+since run and the operator accepted the **0.80** threshold with the
+`INT-28`/`INT-32` match rules; former open decision 1 is closed. The accepted
+full-cohort and holdout numbers and their qualification are owned by
+[operations § dated evidence](../operations.md#dated-evidence-qualifications).

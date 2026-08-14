@@ -2,15 +2,16 @@
 id: SIMPLI-003
 type: ticket
 title: Define the alpha journey and freeze non-cutover scope
-status: todo
+status: in-progress
 area: simplify
 priority: high
+order: 90
 assignee: ''
 labels: []
 links: []
 archived: false
 created: '2026-08-13T12:12:48.758Z'
-updated: '2026-08-13T12:12:48.758Z'
+updated: '2026-08-13T19:25:05.472Z'
 ---
 
 ## What

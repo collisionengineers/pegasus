@@ -44,7 +44,7 @@ The normal workflow is:
 4. send the response on the original reply chain; and
 5. complete the Triage only when the exact approved-mailbox reply-chain Sent item is confirmed.
 
-An acknowledgement, information request, Draft, or other correspondence is not a finding or completion. `Cancelled` is the only end without a finding and reply. The canonical product transitions and evidence boundary are centralized in [Triage normal workflow and completion evidence](requirements.md#normal-workflow-and-completion-evidence).
+An acknowledgement, information request, Draft, or other correspondence is not a finding or completion. `Cancelled` is the only end without a finding and reply. The canonical product transitions and evidence boundary are centralized in [Triage normal workflow and completion evidence](frd/frd-03-triage.md#normal-workflow-and-completion-evidence).
 
 Triage may record these independently optional findings:
 
@@ -95,7 +95,7 @@ most recent recorded channel/outcome, optional note, and next permitted action
 together. Preparing or copying a chaser is not evidence that it was sent,
 delivered, or answered. The product owner for these fields and their schedule is
 [due work, chasing, and action
-history](requirements.md#due-work-chasing-and-action-history).
+history](frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history).
 
 ## Stage 2 — Inspection
 
@@ -113,7 +113,7 @@ version, correction reason, superseding finding, actor, and chronology. A closed
 case must be reasonedly reopened before revision, and a finding correction does
 not itself change a fee or invoice. The canonical product contract is
 [professional engineering findings and
-correction](requirements.md#professional-engineering-findings-and-correction).
+correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction).
 
 ## Stage 3 — Post-report
 
@@ -125,7 +125,7 @@ The Engineer sends the report to the provider. Queries or disputes may then be r
 
 The Engineer must respond to those queries or disputes.
 
-A retained acknowledgement, source receipt, outbound message record, or `Report sent` event is not post-report completion. Report sent enters post-report work; the separately named, reasoned closure outcome ends it. The canonical distinction is [lifecycle closure and correspondence](requirements.md#lifecycle-closure-and-correspondence).
+A retained acknowledgement, source receipt, outbound message record, or `Report sent` event is not post-report completion. Report sent enters post-report work; the separately named, reasoned closure outcome ends it. The canonical distinction is [lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence).
 
 The exact state machine for later query/dispute handling, including reply
 evidence and final resolution, remains an [open external/report
@@ -172,8 +172,8 @@ These are distinct evidence classes, not interchangeable labels:
 
 The durable behavior and refresh/reconciliation rules are centralized in
 [ordinary-image VRM and image
-analysis](requirements.md#ordinary-image-vrm-and-image-analysis) and [vehicle
-data and MOT enrichment](requirements.md#vehicle-data-and-mot-enrichment). This
+analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) and [vehicle
+data and MOT enrichment](frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment). This
 note preserves operator provenance rather than defining an adapter or lookup
 contract.
 
@@ -218,7 +218,7 @@ Ambiguous provider, instruction-type, or case evidence remains pre-case for staf
 Alex directly confirmed the Received/Sent taxonomy, its subtypes, and the
 mirrored Reply rule. The exact categories and behavior are centralized in the
 [settled mailbox taxonomy and correction
-clause](requirements.md#settled-mailbox-taxonomy-and-correction), including
+clause](frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction), including
 `Other`, the separation of classification from queues, Triage, and Outlook
 folders, and the reasoned, append-only correction/reversal audit contract. This
 operator note records the confirmation and provenance; it is not a second
@@ -271,7 +271,7 @@ The operator decisions distinguish reusable organisation identity from the funct
 
 One organisation or individual may hold more than one function on the same case. An ambiguous sender does not establish Principal merely because it transmitted an email or images, and operator-facing labels must name the known function rather than substitute an ambiguous `client` label.
 
-Each case retains the inspection address, organisation identities, and case-party functions accepted for that case. A later correction to reusable repairer or organisation directory data must not rewrite that historical case evidence. The canonical product contract is [principal, reference, organisation, and case-party identity](requirements.md#principal-reference-organisation-and-case-party-identity); this note preserves the accepted operator provenance rather than defining a second implementation policy.
+Each case retains the inspection address, organisation identities, and case-party functions accepted for that case. A later correction to reusable repairer or organisation directory data must not rewrite that historical case evidence. The canonical product contract is [principal, reference, organisation, and case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity); this note preserves the accepted operator provenance rather than defining a second implementation policy.
 
 # Case references and types
 
@@ -316,7 +316,7 @@ The current staff roles are:
 | Engineer | Cases, inbox items, documents, evidence, all authorised case actions, and the pre-Engineer-assignment review gate | No account, role, access-review, principal, configuration, or approved-mailbox administration |
 | User | Cases, inbox items, documents, evidence, all authorised case actions, and the pre-Engineer-assignment review gate | No account, role, access-review, principal, configuration, or approved-mailbox administration |
 
-Andrew and Alex are the initial Administrator assignments held as application data/configuration, never hard-coded authorization. External customers have no application account or access. The exact fail-closed product matrix and automated-actor boundary are centralized in the [staff role access matrix](requirements.md#staff-role-access-matrix); this section records the operator decision and provenance.
+Andrew and Alex are the initial Administrator assignments held as application data/configuration, never hard-coded authorization. External customers have no application account or access. The exact fail-closed product matrix and automated-actor boundary are centralized in the [staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix); this section records the operator decision and provenance.
 
 # Required product capabilities
 
