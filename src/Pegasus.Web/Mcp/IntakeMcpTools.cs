@@ -175,9 +175,9 @@ internal sealed class IntakeMcpTools(
                     normalizedKey,
                     cancellationToken);
                 return new IntakeSubmitToolResult(
-                    result.ReceiptId,
+                    result.StagedReceiptId,
                     result.IsDuplicate,
-                    result.Disposition.ToString(),
+                    "Queued",
                     normalizedToken,
                     normalizedKey,
                     AutomationMcpAuditor.CorrelationId(context, normalizedKey));

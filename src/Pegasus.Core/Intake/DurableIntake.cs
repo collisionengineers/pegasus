@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Data.Common;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -74,6 +75,39 @@ public sealed record ReconcileStagedArtifactsResult(
 
 public sealed record ReceivedIntake(Guid StagedReceiptId, bool IsDuplicate);
 
+public enum QueuedIntakeStatusKind
+{
+    Received = 0,
+    Processing = 1,
+    Complete = 2,
+    Failed = 3
+}
+
+public sealed record QueuedIntakeStatus(
+    Guid StagedReceiptId,
+    string SourceFileName,
+    DateTimeOffset ReceivedAtUtc,
+    QueuedIntakeStatusKind Status,
+    Guid? ProcessedReceiptId,
+    Guid? CaseId,
+    string? FailureCode);
+
+public interface IQueuedIntakeStatusQueries
+{
+    Task<QueuedIntakeStatus?> GetAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken = default);
+}
+
+public enum QueuedIntakeProcessingOutcome
+{
+    NoOp = 0,
+    Completed = 1,
+    RetryScheduled = 2,
+    Failed = 3,
+    UnexpectedFailed = 4
+}
+
 public sealed record IntakeEvaluationRevision(
     Guid Id,
     Guid StagedReceiptId,
@@ -81,225 +115,13 @@ public sealed record IntakeEvaluationRevision(
     int Revision,
     DateTimeOffset EvaluatedAtUtc);
 
-public enum IntakeSubmissionDisposition
-{
-    Processed = 1,
-    Queued = 2
-}
-
-public sealed record IntakeSubmissionResult(
-    Guid ReceiptId,
-    bool IsDuplicate,
-    IntakeSubmissionDisposition Disposition);
-
 public interface IIntakeSubmission
 {
-    Task<IntakeSubmissionResult> ExecuteAsync(
+    Task<ReceivedIntake> ExecuteAsync(
         IntakeSource source,
         string operationKey,
         CancellationToken cancellationToken = default);
 }
-
-public sealed class ProcessIntakeSubmission(
-    ReceiveIntake receiveIntake,
-    ProcessQueuedIntake processQueuedIntake,
-    IIntakeWorkStore workStore,
-    IIntakeReceiptQueries receiptQueries) : IIntakeSubmission
-{
-    /// <summary>
-    /// The ceiling on waiting for a request that is actively processing this
-    /// receipt: 100 attempts at 100ms, so ten seconds. Well past the observed
-    /// processing time for one upload, and far short of any request timeout.
-    /// Normally unreachable — the wait ends as soon as the winner finishes, or
-    /// as soon as it stops processing.
-    /// </summary>
-    /// <remarks>
-    /// Deliberately the real clock and not the injected <c>TimeProvider</c>.
-    /// This is a wait on another in-flight request finishing, not a business
-    /// instant: <c>TimeProvider</c> carries the domain clock, which tests freeze
-    /// to a fixed instant, and a frozen clock would make this wait never end.
-    /// Nothing here is recorded, compared, or reasoned about as a time.
-    /// </remarks>
-    private const int CompletionAttempts = 100;
-
-    private static readonly TimeSpan CompletionPollInterval = TimeSpan.FromMilliseconds(100);
-
-
-    public async Task<IntakeSubmissionResult> ExecuteAsync(
-        IntakeSource source,
-        string operationKey,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
-
-        var received = await receiveIntake.ExecuteInlineAsync(
-            source,
-            operationKey,
-            cancellationToken);
-        // Waiting is only worth it when processing got as far as handing the
-        // receipt to someone. If this request's own attempt fell over, the item
-        // it may already have leased is going nowhere until the Worker recovers
-        // it, and waiting on ourselves is just ten seconds of nothing.
-        var processed = await TryProcessAsync(received.StagedReceiptId, cancellationToken);
-        var evaluation = processed
-            ? await AwaitCompletedEvaluationAsync(received.StagedReceiptId, cancellationToken)
-            : await workStore.GetCompletedEvaluationAsync(
-                received.StagedReceiptId,
-                cancellationToken);
-        if (evaluation is not null)
-        {
-            // Processing publishes the evaluation before the allocator writes
-            // its durable outcome. A concurrent replay must not answer from
-            // that intermediate state: UploadModel would otherwise see the
-            // same completed receipt without its CaseIntakeLink and redirect
-            // the loser to /Received. Wait for the allocation projection to
-            // settle, while retaining a bounded wait for a genuinely stuck
-            // worker.
-            await AwaitAllocationOutcomeAsync(
-                evaluation.ProcessedReceiptId,
-                cancellationToken);
-            return new(
-                evaluation.ProcessedReceiptId,
-                received.IsDuplicate,
-                IntakeSubmissionDisposition.Processed);
-        }
-
-        // No result yet. That is not the same as no result ever, and the
-        // difference is the whole answer the operator gets.
-        //
-        // Processing that hits a recoverable failure — lock contention from
-        // another upload, most often — is not lost: ProcessQueuedIntake records
-        // it and schedules a retry, leaving the work item alive and due shortly.
-        // It returns normally when it does that, because from its side nothing
-        // went wrong. Reading no evaluation and calling it a failed upload made
-        // "we are still working on this" indistinguishable from "this file is
-        // broken", and staff were told to try again for a file that was already
-        // on its way to becoming a case.
-        var workItem = await workStore.FindWorkItemAsync(
-            received.StagedReceiptId,
-            cancellationToken);
-        return workItem is not null
-            && workItem.State is not (IntakeWorkState.Completed or IntakeWorkState.Failed)
-            ? new(
-                received.StagedReceiptId,
-                received.IsDuplicate,
-                IntakeSubmissionDisposition.Queued)
-            : throw new InvalidOperationException(
-                "Inline intake processing did not persist a completed evaluation revision.");
-    }
-
-    private async Task AwaitAllocationOutcomeAsync(
-        Guid receiptId,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; attempt <= CompletionAttempts; attempt++)
-        {
-            var receipt = await receiptQueries.GetAsync(receiptId, cancellationToken);
-            if (receipt is null
-                || receipt.Decision != IntakeDecision.CaseCreated
-                || receipt.CurrentCaseId is not null
-                || receipt.AllocationState is { Status: not IntakeAllocationProjectionStatus.Pending })
-            {
-                return;
-            }
-
-            if (attempt == CompletionAttempts)
-            {
-                return;
-            }
-
-            await Task.Delay(CompletionPollInterval, cancellationToken);
-        }
-    }
-
-    /// <summary>
-    /// The completed evaluation for this staged receipt, waiting for it if
-    /// another request is still producing it.
-    /// </summary>
-    /// <remarks>
-    /// One upload replayed concurrently is one piece of work: the requests all
-    /// resolve to the same staged receipt, exactly one of them wins
-    /// <c>ClaimProcessingAsync</c>, and the others return from
-    /// <see cref="ProcessQueuedIntake"/> having done nothing — correctly, because
-    /// the work is in hand. Reading the evaluation immediately after that and
-    /// treating its absence as a failure made losing the race indistinguishable
-    /// from the file being unreadable, so the operator was told "the file could
-    /// not be processed" for an upload that was processing normally. Two staff
-    /// uploading at the same moment hit the same thing.
-    ///
-    /// Waiting is the whole fix: no second receipt is staged, no second case is
-    /// allocated, and nothing is retried — this request just does not answer
-    /// until the answer exists.
-    /// </remarks>
-    /// <summary>
-    /// Processes the staged receipt. False when a recoverable failure stopped
-    /// this request from finishing the work — not that the work is lost.
-    /// </summary>
-    /// <remarks>
-    /// Several staff uploading at once contend for the same tables, and the
-    /// serializable reads intake uses turn that contention into deadlocks and
-    /// lock timeouts. The staged receipt is already durable and the work item is
-    /// still alive — dispatched, or leased and recovered by the Worker once the
-    /// lease expires — so nothing here is lost and nothing needs undoing.
-    ///
-    /// Deliberately no in-request retry. Retrying four times took the upload to
-    /// roughly ten seconds under this contention (measured: writes clustered at
-    /// 4.7s and 9.7s against a 3s budget) and still often ended with no result,
-    /// because each attempt blocks on the same locks. Answering "received, in
-    /// progress" in a hundred milliseconds is both faster and more honest than
-    /// making the operator wait ten seconds for the same answer.
-    /// </remarks>
-    private async Task<bool> TryProcessAsync(Guid stagedReceiptId, CancellationToken cancellationToken)
-    {
-        try
-        {
-            await processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
-            return true;
-        }
-        catch (Exception exception) when (
-            exception is not OperationCanceledException
-            && IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            return false;
-        }
-    }
-
-    private async Task<IntakeEvaluationRevision?> AwaitCompletedEvaluationAsync(
-        Guid stagedReceiptId,
-        CancellationToken cancellationToken)
-    {
-        for (var attempt = 0; ; attempt++)
-        {
-            var evaluation = await workStore.GetCompletedEvaluationAsync(
-                stagedReceiptId,
-                cancellationToken);
-            if (evaluation is not null)
-            {
-                return evaluation;
-            }
-
-            // Only another request actively finishing this receipt is worth
-            // waiting for. Work pushed onto its retry is due in half a minute at
-            // the earliest and will be done by the Worker, so holding the page
-            // open for it just makes the operator wait to be told the same
-            // thing. Anything else has no result coming either.
-            var workItem = await workStore.FindWorkItemAsync(stagedReceiptId, cancellationToken);
-            if (workItem is null || workItem.State is not IntakeWorkState.Processing)
-            {
-                return null;
-            }
-
-            if (attempt >= CompletionAttempts)
-            {
-                return null;
-            }
-
-            await Task.Delay(CompletionPollInterval, cancellationToken);
-        }
-    }
-}
-
 
 public interface IIntakeWorkStore
 {
@@ -308,11 +130,6 @@ public interface IIntakeWorkStore
         CancellationToken cancellationToken);
 
     Task<ReceivedIntake> ReceiveAsync(
-        IntakeStagedReceipt receipt,
-        string operationKey,
-        CancellationToken cancellationToken);
-
-    Task<ReceivedIntake> ReceiveForProcessingAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
         CancellationToken cancellationToken);
@@ -403,18 +220,11 @@ public sealed class ReceiveIntake(
         IntakeSource source,
         string operationKey,
         CancellationToken cancellationToken = default) =>
-        ReceiveCoreAsync(source, operationKey, processInline: false, cancellationToken);
-
-    public Task<ReceivedIntake> ExecuteInlineAsync(
-        IntakeSource source,
-        string operationKey,
-        CancellationToken cancellationToken = default) =>
-        ReceiveCoreAsync(source, operationKey, processInline: true, cancellationToken);
+        ReceiveCoreAsync(source, operationKey, cancellationToken);
 
     private async Task<ReceivedIntake> ReceiveCoreAsync(
         IntakeSource source,
         string operationKey,
-        bool processInline,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -468,15 +278,7 @@ public sealed class ReceiveIntake(
                 throw new IntakeSourceIdentityConflictException(existing.SourceHash, sourceHash);
             }
 
-            return processInline
-                ? await workStore.ReceiveForProcessingAsync(
-                    existing,
-                    operationKey,
-                    cancellationToken)
-                : await workStore.ReceiveAsync(
-                    existing,
-                    operationKey,
-                    cancellationToken);
+            return await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
         }
 
         var stagedReceiptId = Guid.NewGuid();
@@ -507,27 +309,7 @@ public sealed class ReceiveIntake(
             source.Actor,
             stagedArtifact.StorageKey,
             nowUtc);
-        return processInline
-            ? await workStore.ReceiveForProcessingAsync(
-                stagedReceipt,
-                operationKey,
-                cancellationToken)
-            : await workStore.ReceiveAsync(
-                stagedReceipt,
-                operationKey,
-                cancellationToken);
-    }
-
-    async Task<IntakeSubmissionResult> IIntakeSubmission.ExecuteAsync(
-        IntakeSource source,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        var receipt = await ExecuteAsync(source, operationKey, cancellationToken);
-        return new(
-            receipt.StagedReceiptId,
-            receipt.IsDuplicate,
-            IntakeSubmissionDisposition.Queued);
+        return await workStore.ReceiveAsync(stagedReceipt, operationKey, cancellationToken);
     }
 
     private static void ValidateLength(string value, int maximumLength, string parameterName)
@@ -608,7 +390,9 @@ public sealed class ProcessQueuedIntake(
         TimeSpan.FromHours(2)
     ];
 
-    public async Task ExecuteAsync(Guid stagedReceiptId, CancellationToken cancellationToken = default)
+    public async Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken = default)
     {
         var claimed = await workStore.ClaimProcessingAsync(
             stagedReceiptId,
@@ -622,7 +406,7 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken);
             if (completedEvaluation is null)
             {
-                return;
+                return QueuedIntakeProcessingOutcome.NoOp;
             }
 
             var completedReceipt = await receiptQueries.GetAsync(
@@ -666,7 +450,7 @@ public sealed class ProcessQueuedIntake(
             }
 
             await ApplyImageIntakeAutomationAsync(completedReceipt, cancellationToken);
-            return;
+            return QueuedIntakeProcessingOutcome.NoOp;
         }
 
         var (workItem, stagedReceipt) = claimed.Value;
@@ -712,21 +496,34 @@ public sealed class ProcessQueuedIntake(
         catch (IntakeArtifactIntegrityException exception)
         {
             await FailProcessingAsync(workItem, exception, terminal: true, cancellationToken);
-            return;
+            return QueuedIntakeProcessingOutcome.Failed;
         }
         catch (InvalidDataException exception)
         {
             await FailProcessingAsync(workItem, exception, terminal: true, cancellationToken);
-            return;
+            return QueuedIntakeProcessingOutcome.Failed;
         }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (IsTransientProcessingFailure(exception))
+        {
+            var terminal = workItem.AttemptCount >= RetryDelays.Length;
+            await FailProcessingAsync(
+                workItem,
+                exception,
+                terminal,
+                cancellationToken);
+            return terminal
+                ? QueuedIntakeProcessingOutcome.Failed
+                : QueuedIntakeProcessingOutcome.RetryScheduled;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
             await FailProcessingAsync(
                 workItem,
                 exception,
-                terminal: workItem.AttemptCount >= RetryDelays.Length,
-                cancellationToken);
-            return;
+                terminal: true,
+                cancellationToken,
+                "unexpected_intake_processing_failure");
+            return QueuedIntakeProcessingOutcome.UnexpectedFailed;
         }
 
         await TryDeleteCompletedStagingAsync(
@@ -753,6 +550,7 @@ public sealed class ProcessQueuedIntake(
         }
 
         await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+        return QueuedIntakeProcessingOutcome.Completed;
     }
 
     /// <summary>
@@ -874,7 +672,8 @@ public sealed class ProcessQueuedIntake(
         IntakeWorkItem workItem,
         Exception exception,
         bool terminal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? failureCode = null)
     {
         var nowUtc = timeProvider.GetUtcNow();
         var dueAtUtc = terminal
@@ -885,10 +684,22 @@ public sealed class ProcessQueuedIntake(
             workItem.LeaseToken
                 ?? throw new InvalidOperationException("A claimed intake work item must have a lease token."),
             dueAtUtc,
-            FailureCode(exception),
+            failureCode ?? FailureCode(exception),
             terminal,
             cancellationToken);
     }
+
+    private static bool IsTransientProcessingFailure(Exception exception) => exception switch
+    {
+        IntakeArtifactRetentionException => true,
+        IntakeOperationConflictException => true,
+        IntakeVersionConflictException => true,
+        IntakeDependencyUnavailableException => true,
+        IOException => true,
+        TimeoutException => true,
+        DbException => true,
+        _ => false
+    };
 
     private async Task CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,

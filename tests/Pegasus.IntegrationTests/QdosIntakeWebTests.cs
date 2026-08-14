@@ -1,4 +1,5 @@
 using System.Net;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -16,7 +17,7 @@ public sealed class QdosIntakeWebTests
     private const string NeedsSortingEmailHash = "28F896A1A20ACBE869570B78A2A5722B7AA514A5216150A8B86EEF5AFC47B65B";
 
     [Fact]
-    public async Task ReadableManualUploadIsProcessedOnTheSpotAndOpensTheCreateScreen()
+    public async Task ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage()
     {
         using var factory = new IntakeWebApplicationFactory(
             "Development",
@@ -34,20 +35,35 @@ public sealed class QdosIntakeWebTests
             email.Content,
             receiptToken);
 
-        // The file is read while the operator waits, so the upload ends on the
-        // thing the file became rather than on a page claiming it "is being
-        // processed" while the list below reads "No intake receipts match this
-        // view". Readable material that did not allocate its own case goes to
-        // the create screen, because deciding that is the next thing to do.
-        var receiptId = IntakeWebDriver.CreateScreenReceiptId(upload);
-        using var createScreen = await client.GetAsync(upload.Location);
-        createScreen.EnsureSuccessStatusCode();
-        var html = await createScreen.Content.ReadAsStringAsync();
-        Assert.Contains("New case", html, StringComparison.Ordinal);
-        // The dash in the sentence is encoded by the default HTML encoder, so
-        // the assertion stays on the part that is the operator's own words.
-        Assert.Contains("ordinary-correspondence.eml received", html, StringComparison.Ordinal);
-        Assert.Contains("check the details and create the case.", html, StringComparison.Ordinal);
+        var stagedReceiptId = Assert.IsType<Guid>(IntakeWebDriver.Landing(upload).StagedReceiptId);
+        Assert.StartsWith("/Upload/Status/", upload.Location!.OriginalString, StringComparison.OrdinalIgnoreCase);
+        await using (var statusScope = factory.Services.CreateAsyncScope())
+        {
+            var work = Assert.IsType<IntakeWorkItem>(
+                await statusScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>()
+                    .FindWorkItemAsync(stagedReceiptId, CancellationToken.None));
+            Assert.Equal(IntakeWorkState.Pending, work.State);
+            Assert.Null(await statusScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>()
+                .GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None));
+            Assert.Throws<InvalidOperationException>(
+                () => statusScope.ServiceProvider.GetRequiredService<ProcessQueuedIntake>());
+        }
+        using var statusPage = await client.GetAsync(upload.Location);
+        statusPage.EnsureSuccessStatusCode();
+        var html = await statusPage.Content.ReadAsStringAsync();
+        Assert.Contains("Received", html, StringComparison.Ordinal);
+        Assert.Contains("ordinary-correspondence.eml", html, StringComparison.Ordinal);
+        Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
+
+        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        using var completedStatusPage = await client.GetAsync(upload.Location);
+        completedStatusPage.EnsureSuccessStatusCode();
+        var completedHtml = await completedStatusPage.Content.ReadAsStringAsync();
+        Assert.Contains("<h1>Complete</h1>", completedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("data-auto-refresh=\"2000\"", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Open receipt", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("/Received/", completedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open case", completedHtml, StringComparison.Ordinal);
 
         var duplicate = await IntakeWebDriver.UploadAsync(
             client,
@@ -55,20 +71,79 @@ public sealed class QdosIntakeWebTests
             email.MediaType,
             email.Content,
             receiptToken);
-        Assert.Equal(receiptId, IntakeWebDriver.CreateScreenReceiptId(duplicate));
-        using var duplicateScreen = await client.GetAsync(duplicate.Location);
-        duplicateScreen.EnsureSuccessStatusCode();
-        var duplicateHtml = await duplicateScreen.Content.ReadAsStringAsync();
+        Assert.Equal(stagedReceiptId, IntakeWebDriver.Landing(duplicate).StagedReceiptId);
+        using var duplicateStatusPage = await client.GetAsync(duplicate.Location);
         Assert.Contains(
-            "ordinary-correspondence.eml was already received. No duplicate was created",
-            duplicateHtml,
+            "was already received. No duplicate was created",
+            await duplicateStatusPage.Content.ReadAsStringAsync(),
             StringComparison.Ordinal);
 
-        // The queue-only composition still binds the automation ingress, which
-        // has no operator waiting on a screen.
         await using var scope = factory.Services.CreateAsyncScope();
         Assert.IsType<ReceiveIntake>(
             scope.ServiceProvider.GetRequiredService<IIntakeSubmission>());
+    }
+
+    [Fact]
+    public async Task UploadStatusIsStaffOnlyAndUnknownReceiptsReturnNotFound()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var missing = await client.GetAsync($"/Upload/Status/{Guid.NewGuid():D}");
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+
+        using var anonymousRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Upload/Status/{Guid.NewGuid():D}");
+        anonymousRequest.Headers.Add("X-Test-Anonymous", "1");
+        using var anonymous = await client.SendAsync(anonymousRequest);
+        Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
+
+        using var rolelessRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Upload/Status/{Guid.NewGuid():D}");
+        rolelessRequest.Headers.Add("X-Test-Roleless", "1");
+        using var roleless = await client.SendAsync(rolelessRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompletedAllocatedUploadStatusLinksOnlyToItsCase()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEmail(
+            "allocated-status.eml",
+            "QDOS instruction\r\nClaimant Name: Status Claimant\r\nClaim Number: STATUS-001\r\nVehicle Registration: AB12 CDE");
+        var upload = await IntakeWebDriver.UploadAsync(
+            client,
+            email.FileName,
+            email.MediaType,
+            email.Content);
+
+        _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var principal = $"S{Guid.NewGuid():N}"[..12].ToUpperInvariant();
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, principal);
+        var allocatedReceipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            principal);
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var allocation = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(allocatedReceipt.Id, Guid.NewGuid());
+            Assert.NotNull(allocation?.State.CaseId);
+        }
+        await AllocationTestData.PointCompletedWorkAtReceiptAsync(
+            factory.Services,
+            Assert.IsType<Guid>(IntakeWebDriver.Landing(upload).StagedReceiptId),
+            allocatedReceipt.Id);
+        using var statusPage = await client.GetAsync(upload.Location);
+        statusPage.EnsureSuccessStatusCode();
+        var html = await statusPage.Content.ReadAsStringAsync();
+        Assert.Contains("Open case", html, StringComparison.Ordinal);
+        Assert.Contains("/Cases/", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open receipt", html, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash)]

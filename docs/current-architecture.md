@@ -148,12 +148,15 @@ This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and IN
 
 ```text
 Staff Intake Razor Page
-  -> Core ProcessIntake
+  -> ReceiveIntake stages original bytes and Pending work
+  -> Worker dispatcher publishes the staged receipt id
+  -> intake-work queue
+  -> Worker ProcessQueuedIntake
   -> QDOS IInstructionExtractionPolicy
   -> MimeKit/PdfPig/Open XML source reader
   -> ignored content-addressed artifact storage
   -> EF Core receipt and typed-draft persistence
-  -> dashboard, queue, and review queries
+  -> staged-receipt status, dashboard, queue, and review queries
 ```
 
 ### Accepted local inputs

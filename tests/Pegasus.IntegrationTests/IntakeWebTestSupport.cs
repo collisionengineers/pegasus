@@ -344,16 +344,10 @@ internal static partial class IntakeWebDriver
     /// opened, and points the result at the received-item screen.
     /// </summary>
     /// <remarks>
-    /// This used to be the only way an upload ever got processed: the page
-    /// staged the bytes and returned, and this helper drove
-    /// <c>DispatchPendingIntakeWork</c> by hand to stand in for the Worker
-    /// timer. Manual upload now reads the file while the operator waits, so
-    /// for that caller the evaluation is already complete before the redirect
-    /// arrives and there is nothing to dispatch — asserting that a dispatch
-    /// happened would fail on work that has already been done.
-    ///
-    /// The dispatch loop stays for the mailbox and automation callers, which
-    /// genuinely still queue.
+    /// Every ingress stages pending work. This helper drives
+    /// <c>DispatchPendingIntakeWork</c> with an immediate test enqueuer to stand
+    /// in for the Worker timer and queue trigger. A duplicate may already name
+    /// completed work, so it reads the completed evaluation before dispatching.
     ///
     /// Either way the result is pointed at <c>/Received/{id}</c>, because that is
     /// what the callers of this helper want next: the retained record of what
@@ -410,7 +404,7 @@ internal static partial class IntakeWebDriver
                 ?? throw new InvalidOperationException(
                     $"The upload landed on '{upload.Location}', which names nothing that can be processed.");
             var workStore = services.GetRequiredService<IIntakeWorkStore>();
-            var processor = services.GetRequiredService<ProcessQueuedIntake>();
+            var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
             var dispatcher = new DispatchPendingIntakeWork(
                 workStore,
                 new ImmediateIntakeWorkEnqueuer(processor),
@@ -508,6 +502,11 @@ internal static partial class IntakeWebDriver
         if (!Guid.TryParse(lastSegment, out var pathId))
         {
             return new(null, null, null, IsCreateScreen: false, isDuplicate);
+        }
+
+        if (path.StartsWith("/Upload/Status/", StringComparison.OrdinalIgnoreCase))
+        {
+            return new(null, null, pathId, IsCreateScreen: false, isDuplicate);
         }
 
         return path.StartsWith("/Cases/", StringComparison.OrdinalIgnoreCase)

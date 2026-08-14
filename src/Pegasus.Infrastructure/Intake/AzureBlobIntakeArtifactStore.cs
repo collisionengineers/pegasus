@@ -158,6 +158,12 @@ public sealed class AzureBlobIntakeArtifactStore
         {
             return null;
         }
+        catch (RequestFailedException exception)
+        {
+            throw new IntakeDependencyUnavailableException(
+                "The intake artifact dependency is unavailable.",
+                exception);
+        }
     }
 
     public async Task<StagedArtifactInventoryItem> StageAsync(
@@ -394,25 +400,34 @@ public sealed class AzureBlobIntakeArtifactStore
         IDictionary<string, string>? tags,
         CancellationToken cancellationToken)
     {
-        await EnsureContainerExistsAsync(cancellationToken);
-        var blob = container.GetBlobClient(storageKey);
-        using var stream = new MemoryStream(content.ToArray(), writable: false);
         try
         {
-            await blob.UploadAsync(stream, new BlobUploadOptions
+            await EnsureContainerExistsAsync(cancellationToken);
+            var blob = container.GetBlobClient(storageKey);
+            using var stream = new MemoryStream(content.ToArray(), writable: false);
+            try
             {
-                Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All },
-                Metadata = metadata,
-                Tags = tags
-            }, cancellationToken);
+                await blob.UploadAsync(stream, new BlobUploadOptions
+                {
+                    Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All },
+                    Metadata = metadata,
+                    Tags = tags
+                }, cancellationToken);
+            }
+            catch (RequestFailedException exception) when (exception.Status is 409 or 412)
+            {
+                await VerifyBlobAsync(
+                    blob,
+                    expectedHash,
+                    content.Length,
+                    cancellationToken);
+            }
         }
-        catch (RequestFailedException exception) when (exception.Status is 409 or 412)
+        catch (RequestFailedException exception)
         {
-            await VerifyBlobAsync(
-                blob,
-                expectedHash,
-                content.Length,
-                cancellationToken);
+            throw new IntakeDependencyUnavailableException(
+                "The intake artifact dependency is unavailable.",
+                exception);
         }
     }
 

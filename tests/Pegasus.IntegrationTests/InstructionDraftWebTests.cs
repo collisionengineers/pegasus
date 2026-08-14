@@ -38,7 +38,7 @@ public sealed class InstructionDraftWebTests
         using var replayReview = await client.GetAsync(replay.Location);
         var replayHtml = await replayReview.Content.ReadAsStringAsync();
         Assert.Equal(HttpStatusCode.OK, replayReview.StatusCode);
-        Assert.Contains("was already received", replayHtml, StringComparison.Ordinal);
+        Assert.Contains(CompleteUploadName, replayHtml, StringComparison.Ordinal);
         Assert.Equal(1, await CountRowsAsync(factory, "IntakeReceipts"));
         Assert.Equal(1, await CountRowsAsync(factory, "InstructionDrafts"));
         Assert.Equal(receipt.AssetRecords.Count, await CountRowsAsync(factory, "IntakeAssets"));
