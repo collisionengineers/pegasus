@@ -10,6 +10,7 @@ design assets remain under [`design/`](../design/).
 | Why must Pegasus do it — business need, users, outcomes, scope? | [PRD](prd/README.md) |
 | How must a capability behave — I/O, states, rules, edge cases, acceptance? | [FRD index](frd/README.md) |
 | What does the product do, in what order? | [Capabilities](capabilities.md) — the roadmap and capability-ID registry; its *Canonical owner* column joins each ID to its PRD, FRD, or ADR |
+| What is deferred or deliberately excluded, and why? | [Boundaries](boundaries.md) |
 | What is undecided? | [Open decisions](open-decisions.md) |
 | What did Collision Engineers actually say? | [Operator notes](operator-notes.md) |
 | What exists now? | [Architecture](architecture.md) |

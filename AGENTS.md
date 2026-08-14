@@ -43,6 +43,8 @@ is the navigation index and owns the authority chain.
 - **`docs/capabilities.md`** — the schedule and capability-ID registry. Its
   *Canonical owner* column is the join key from each capability ID to its PRD,
   FRD, or ADR. It never holds normative behaviour.
+- **`docs/boundaries.md`** — what is deliberately **deferred or excluded**, and
+  the seams preserved to add it later. Boundary rules, not scheduling data.
 - **`docs/architecture.md` / `docs/operations.md`** — current implemented shape
   and current live state. **`docs/runbook.md` / `docs/engineering.md` /
   `docs/design.md`** — working rules within their scopes. These are downstream
