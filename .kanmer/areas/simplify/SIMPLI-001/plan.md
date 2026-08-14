@@ -37,3 +37,58 @@ Extract AI Centre as an independently governed source repository while preservin
 - The current corpus is deliberately outside Git at the Pegasus-root path. Choosing a new custody root is a policy and operational decision, not a mechanical directory move.
 - Existing relative links will break after extraction unless they are repointed. Cross-repository URLs cannot be finalised until the target repository is known.
 - A filtered history needs a clean, isolated clone and a manifest comparison; it must never rewrite `dev`, `main`, or the existing Pegasus history.
+
+---
+
+## Rectification — taken over by claude-code 2026-08-14
+
+**Discrepancy resolved.** Investigated `origin/task/ai-centre-standalone-repository`
+(272 files, −22,892 lines). This branch **deletes the entire `workspaces/ai-centre/`
+tree**, including that workspace's OWN internal ADRs
+(`workspaces/ai-centre/docs/adr/*`, `.../collision-brain/docs/adr/*`). It creates
+**no** Pegasus-root `docs/adr/` ADRs, and PR #374 creates none either. So the
+"new ADRs were created" concern is unfounded — the only "ADRs" touched are the
+extracted workspace's internal ones. The real discrepancy is that (a) the
+extraction decision is not yet recorded as a **root** ADR, and (b) several
+Pegasus-root docs still describe ai-centre as a **local** workspace.
+
+**Hard dependency (blocked-by [[SIMPLI-006]] / PR #374):** rebase on #374 BEFORE
+executing. #374 deletes `docs/requirements.md` and renames
+`docs/architecture.md → docs/current-architecture.md`. Step 7 above (which named
+`docs/architecture.md`) must target **`docs/current-architecture.md`**.
+
+**Exact remove/change list (Pegasus-root, applied after the ai-centre tree deletion):**
+
+1. **New root ADR** `docs/adr/0025-extract-ai-centre-to-standalone-repository.md`
+   (next free ID; frontmatter `status: accepted`, `supersedes: [ADR-0009]` for the
+   ai-centre clause only). Records that ai-centre is extracted to its own repo and
+   is no longer a local monorepo workspace. **Do not edit the immutable ADR-0009**;
+   reflect the partial supersession in `docs/adr/README.md` (move nothing else) and,
+   if desired, ADR-0009's `superseded_by` note scoped to ai-centre. *This is the
+   ADR that rectifies the discrepancy.*
+2. **AGENTS.md** (= CLAUDE.md symlink): remove the protected-skills safety rail
+   (~L160, "…protected external source under `workspaces/ai-centre/skills/`…Never
+   modify…") and update the product-invariant line (~L191, "AI Centre owns AI
+   experimentation only…") so neither implies a local ai-centre workspace.
+3. **docs/current-architecture.md**: in `### Workspaces`, remove the AI Centre
+   register entry ("…merged under `ai-centre/skills/`") and note it is now an
+   external standalone repository.
+4. **workspaces/README.md**: remove the ai-centre register/provenance row (keep
+   document-extraction and report-renderer). Also apply the #374 review reply on
+   **workspace provenance** for the document-extraction extraction edits here.
+5. **.github/workflows/workspaces.yml**: remove ONLY the two ai-centre steps
+   (~L43-51: "Validate AI Centre workspace" collision-brain build/test +
+   `skills/tools` unittest). Leave the other workspaces' steps intact.
+6. **docs/runbook.md**: remove/repoint the ai-centre references — ~L41 (AI Centre
+   pgvector container note) and ~L370-371 (the `workspaces/ai-centre/…` build/test
+   commands).
+7. **Sequence:** ship the standalone ai-centre repo first (independently reviewed,
+   green, reachable to its maintainers); only then this Pegasus retirement PR
+   removes the tree + references. Do not disturb the other workspaces or immutable
+   ADRs (except the new ADR-0025 + the index supersession note).
+
+**Verification:** `pwsh ./scripts/Test-DocumentationLinks.ps1` green; `git grep -niE
+'ai-centre|collision-brain'` returns only git history, ADR-0009, ADR-0025, and the
+standalone-repo pointer; `source-workspaces` CI passes without the ai-centre steps;
+the protected-skills AGENTS rail is gone; the 7 AGENTS.md-marker integration tests
+still pass.
