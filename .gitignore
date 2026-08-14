@@ -1,7 +1,6 @@
 # Genuine local evaluation corpus. Never commit operational emails or case files.
 /corpus/
 **/emailevallocal/
-
 # Local secrets and environment state
 .env
 .env.*
@@ -12,7 +11,6 @@ appsettings.*.local.json
 !/.azure/deployment-plan.md
 **/local.settings.json
 *.user
-
 # .NET build and test output
 **/bin/
 **/obj/
@@ -21,7 +19,6 @@ appsettings.*.local.json
 **/coverage/
 **/artifacts/
 /artifacts/
-
 # Tool and editor working state
 /.claude/
 /.vs/
@@ -33,7 +30,6 @@ appsettings.*.local.json
 node_modules/
 .bicep/
 /src/Pegasus.Web/wwwroot/lib/
-
 # Imported source-workspace outputs and local/private material
 /workspaces/**/.git/
 /workspaces/**/node_modules/
@@ -52,7 +48,7 @@ node_modules/
 /workspaces/**/*.nupkg
 /workspaces/**/*.snupkg
 /workspaces/document-extraction/sample-doc-files/
-
+/workspaces/ai-centre/ml-ops/data/
 # Operating-system files
 .DS_Store
 Thumbs.db
@@ -62,4 +58,10 @@ Thumbs.db
 .obsidian/plugins/realclaudian/main.js
 .obsidian/plugins/realclaudian/manifest.json
 .obsidian/plugins/realclaudian/styles.css
-/.worktrees
+# Generated workspace outputs and imported review bundle
+/workspaces/ai-centre/services/collision-brain/bin/
+/workspaces/ai-centre/services/collision-brain/obj/
+/workspaces/ai-centre/services/collision-brain/publish/
+/workspaces/ai-centre/skills/tools/__pycache__/
+.kanmer/
+.worktrees/
