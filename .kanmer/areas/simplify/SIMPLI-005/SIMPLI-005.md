@@ -2,7 +2,7 @@
 id: SIMPLI-005
 type: ticket
 title: Archive non-actionable Kanmer backlog items and orphaned temporary plans
-status: in-progress
+status: review
 area: simplify
 priority: high
 order: 110
@@ -14,7 +14,7 @@ labels: []
 links: []
 archived: false
 created: '2026-08-13T12:12:48.799Z'
-updated: '2026-08-14T00:45:05.389Z'
+updated: '2026-08-14T02:25:51.887Z'
 ---
 
 ## What

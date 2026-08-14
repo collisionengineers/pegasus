@@ -32,8 +32,9 @@
   "OPERA2": 0,
   "ASSURA": 0,
   "PERFOR": 0,
-  "DELIVE": 0,
+  "DELIVE": 1,
   "REPOHY": 0,
   "SIMPLI": 14,
-  "BUG": 1
+  "BUG": 1,
+  "KANMER": 1
 }
