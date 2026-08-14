@@ -180,3 +180,11 @@ idPrefixes:
   ticket: TICK
   plan: PLAN
   research: RES
+docs:
+  repoDocs:
+    prd: docs/prd/**
+    frd: docs/frd/**
+    adr: docs/adr/**
+deployment:
+  environments:
+    - production
