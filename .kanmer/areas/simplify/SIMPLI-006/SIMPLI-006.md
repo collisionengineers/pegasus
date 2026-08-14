@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Adopt PRD/FRD/ADR taxonomy; move doc+ADR governance to AGENTS.md; modernize
   ADRs
-status: review
+status: done
 area: simplify
 priority: medium
 order: 120
@@ -18,7 +18,7 @@ blocks:
   - SIMPLI-001
 archived: false
 created: '2026-08-13T12:12:48.821Z'
-updated: '2026-08-14T02:35:51.070Z'
+updated: '2026-08-14T03:44:01.083Z'
 ---
 
 ## What
