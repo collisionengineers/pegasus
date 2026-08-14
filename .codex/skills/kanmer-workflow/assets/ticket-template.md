@@ -12,7 +12,10 @@ One or two sentences: the concrete change or outcome this ticket delivers.
 
 ## Why
 
-The problem or need driving it. Link context inline: see [[PLAN-001]] or [[RES-003]].
+The problem or need driving it. Reference other tickets inline with
+`[[API-003]]`-style wiki-links. The deeper material — findings, file survey,
+plan, checklist, proof — lives in this ticket's own documents
+(`set_ticket_doc`), not in the body.
 
 ## Approach
 

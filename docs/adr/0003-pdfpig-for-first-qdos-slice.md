@@ -1,3 +1,13 @@
+---
+id: ADR-0003
+status: accepted
+date: 2026-07-23
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-05]
+tags: [extraction, pdf]
+---
 # ADR-0003: PdfPig for the first QDOS embedded-text slice
 
 - Status: Accepted for the first local QDOS slice

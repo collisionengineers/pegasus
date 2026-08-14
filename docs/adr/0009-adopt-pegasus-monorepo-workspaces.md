@@ -1,3 +1,13 @@
+---
+id: ADR-0009
+status: accepted
+date: 2026-07-27
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: []
+tags: [architecture, workspaces]
+---
 # ADR-0009: Adopt Pegasus monorepo source workspaces
 
 - Date: 2026-07-27

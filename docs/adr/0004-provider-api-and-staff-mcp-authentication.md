@@ -1,3 +1,13 @@
+---
+id: ADR-0004
+status: accepted
+date: 2026-07-23
+supersedes: []
+superseded_by: []
+related_capabilities: []
+related_frd: [frd-09, frd-10]
+tags: [auth, api, mcp]
+---
 # ADR-0004: Provider API and staff MCP authentication
 
 - Status: Accepted
