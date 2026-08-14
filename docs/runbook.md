@@ -38,7 +38,7 @@ What Linux gives this project that Windows does not:
 | Capability | Why it matters here |
 | --- | --- |
 | Runtime parity with production | Web and Worker deploy to Linux, so a Linux workstation runs the same runtime as the deployed application. |
-| A container runtime without Docker Desktop | The local database, and the AI Centre pgvector profile that has never been exercised, both need containers. |
+| A container runtime without Docker Desktop | The local database needs containers. |
 | `poppler-utils` (`pdftoppm`) | Already required by `workspaces/report-renderer/scripts/visual-regression.ps1`, and packaged on Linux. |
 | `fonts-liberation` and `fonts-dejavu-core` | The exact fonts the renderer's container image installs, so local PDF glyph metrics match the deployed container. |
 | `perf` and `lldb` beside `dotnet-trace`, `dotnet-counters`, `dotnet-dump` and `dotnet-gcdump` | Deeper diagnosis for the `Performance` evidence profile. |
@@ -367,8 +367,6 @@ Source workspaces validate independently and are not part of the application sol
 ```powershell
 Push-Location ./workspaces/document-extraction; dotnet test --solution ./CollisionDocNet.slnx --configuration Release; Pop-Location
 Push-Location ./workspaces/report-renderer; dotnet run --project ./src/CollisionRenderer.Cli -- install-browser; dotnet test ./CollisionRenderer.sln --configuration Release; Pop-Location
-Push-Location ./workspaces/ai-centre/services/collision-brain; dotnet restore ./CollisionBrain.slnx --locked-mode; dotnet build ./CollisionBrain.slnx --configuration Release --no-restore; dotnet test ./CollisionBrain.slnx --configuration Release --no-build; Pop-Location
-Push-Location ./workspaces/ai-centre/skills/tools; python -m unittest test_pack_skill; Pop-Location
 ```
 
 These checks prove only the imported source snapshots. They do not activate an application reference, model, skill, external call, or deployment. Workspace ownership is indexed in [workspaces](../workspaces/README.md).

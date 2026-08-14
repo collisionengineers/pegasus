@@ -468,11 +468,10 @@ The Box adapters use the immutable Case/PO and Audit references for final folder
 
 ### Workspaces
 
-`workspaces/` contains three independently buildable source workspaces imported from four sources:
+`workspaces/` contains independently buildable source workspaces:
 
 - document extraction;
-- report rendering;
-- AI Centre, with the agent-skill source merged under `ai-centre/skills/`.
+- report rendering.
 
 They are not:
 

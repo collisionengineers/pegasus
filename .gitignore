@@ -52,7 +52,6 @@ node_modules/
 /workspaces/**/*.nupkg
 /workspaces/**/*.snupkg
 /workspaces/document-extraction/sample-doc-files/
-/workspaces/ai-centre/ml-ops/data/
 
 # Operating-system files
 .DS_Store
@@ -63,9 +62,3 @@ Thumbs.db
 .obsidian/plugins/realclaudian/main.js
 .obsidian/plugins/realclaudian/manifest.json
 .obsidian/plugins/realclaudian/styles.css
-
-# Generated workspace outputs and imported review bundle
-/workspaces/ai-centre/services/collision-brain/bin/
-/workspaces/ai-centre/services/collision-brain/obj/
-/workspaces/ai-centre/services/collision-brain/publish/
-/workspaces/ai-centre/skills/tools/__pycache__/
