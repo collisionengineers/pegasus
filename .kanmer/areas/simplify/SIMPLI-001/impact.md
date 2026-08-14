@@ -29,3 +29,31 @@ The files and modules this change touches, surveyed BEFORE planning.
 - Changing the contents of any protected package in `workspaces/ai-centre/skills/`.
 - Editing ADR-0009 or rewriting Pegasus history.
 - Creating a remote repository, changing external access, or pushing source before exact external-write approval.
+
+## Repository-wide affected-file inventory
+
+This is the current Pegasus-side scope, derived from tracked references and CI; it is a planning inventory, not permission to remove the workspace.
+
+| Path | Planned disposition |
+|---|---|
+| `workspaces/ai-centre/**` (266 tracked files: 224 under `skills/`) | Copy or filter into the approved standalone repository byte-for-byte. Remove from Pegasus only in the separately approved retirement PR and only with prompt-specific authority for each protected skill package. |
+| `.github/workflows/workspaces.yml` | Move the AI Centre restore/build/test and skill-pack validation into the standalone repository; then remove only those two AI Centre steps from Pegasus, retaining the other workspace jobs. |
+| `workspaces/README.md` | Remove the AI Centre and AI Centre skills integration-register and provenance rows; retain the other workspace records and explain the historic extraction without claiming an active local import. |
+| `workspaces/AGENTS.md` | Replace the AI Centre-specific ownership statement if needed while preserving the generic source-workspace constraints for remaining imports. |
+| `docs/architecture.md` | Remove the current-state statement that AI Centre and its skills are merged beneath the local workspace path; retain the no-caller boundary as historic/standalone context where appropriate. |
+| `docs/runbook.md` | Remove the local AI Centre validation commands and the local pgvector prerequisite reference, after their standalone equivalents are live and verified. |
+| `AGENTS.md` | Retire the local protected-package path rule only as part of the authorised workspace removal; preserve any successor handling/instruction needed for the independent repository. |
+| `.gitignore` | Remove the AI Centre-specific ignored paths only after the source has left Pegasus; do not add corpus, secrets, model, cache, or output files to Git. |
+| `scripts/Test-DocumentationLinks.ps1` | Revisit its AI Centre skill-path exclusion after removal; keep the link checker for Pegasus and add an equivalent checker to the standalone repository. |
+| New `docs/adr/####-*.md` plus `docs/adr/README.md` | Add an accepted superseding decision before extraction; ADR-0009 itself remains immutable. The number/title are assigned only through the repository’s ADR process. |
+| `docs/adr/0009-adopt-pegasus-monorepo-workspaces.md`, `CHANGELOG.md`, and `docs/temp-plans/**` | Historical evidence: do not rewrite merely to erase prior paths. Assess any surviving operationally-active link separately. |
+
+### Confirmed non-code boundary
+
+- No change is planned to `Pegasus.slnx`, `src/**`, or `tests/**`: current searches show no AI Centre project, caller, runtime-load, deployment, or test dependency to migrate.
+- No changes are authorised within `workspaces/ai-centre/skills/**` during planning. Any eventual Pegasus removal is an explicit protected-source operation, not normal cleanup.
+- The target standalone repository's root controls and CI are new files, but their final paths and cross-repository links depend on the approved remote target and migration mode.
+
+### Sequencing dependency
+
+The standalone-repository handover (source manifest, independent CI, documentation repoints, clean validation, independent review) precedes the Pegasus retirement PR. Until that handover is accepted and reachable, this inventory is read-only and no path is removed from Pegasus.

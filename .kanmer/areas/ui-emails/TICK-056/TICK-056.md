@@ -5,6 +5,7 @@ title: UI-10 — Full email-management workspace
 status: in-progress
 area: ui-emails
 priority: medium
+order: 60
 assignee: ''
 labels:
   - capability
@@ -15,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-13T14:50:05.132Z'
+updated: '2026-08-13T19:25:04.998Z'
 ---
 
 ## What
