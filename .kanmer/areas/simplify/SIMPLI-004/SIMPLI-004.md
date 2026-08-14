@@ -2,15 +2,19 @@
 id: SIMPLI-004
 type: ticket
 title: Retire NOW.md and establish Kanmer as the canonical work tracker
-status: todo
+status: done
 area: simplify
 priority: high
-assignee: ''
+order: 100
+assignee: claude-code
 labels: []
-links: []
+links:
+  - SIMPLI-006
+  - SIMPLI-005
+blocks: []
 archived: false
 created: '2026-08-13T12:12:48.781Z'
-updated: '2026-08-13T12:12:48.781Z'
+updated: '2026-08-14T11:11:57.590Z'
 ---
 
 ## What

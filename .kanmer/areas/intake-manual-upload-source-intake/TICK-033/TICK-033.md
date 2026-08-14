@@ -7,6 +7,7 @@ title: >-
 status: in-progress
 area: intake-manual-upload-source-intake
 priority: medium
+order: 50
 assignee: ''
 labels:
   - capability
@@ -14,9 +15,10 @@ labels:
   - now
   - requires-live-approval
 links: []
+blocks: []
 archived: false
 created: '2026-08-12T15:03:53.456Z'
-updated: '2026-08-13T14:47:48.344Z'
+updated: '2026-08-14T11:10:52.620Z'
 ---
 
 ## What

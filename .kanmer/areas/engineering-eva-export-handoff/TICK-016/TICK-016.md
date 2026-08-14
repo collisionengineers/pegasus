@@ -7,15 +7,17 @@ title: >-
 status: in-progress
 area: engineering-eva-export-handoff
 priority: medium
+order: 30
 assignee: ''
 labels:
   - capability
   - CASE-30
   - now
 links: []
+blocks: []
 archived: false
 created: '2026-08-12T15:03:53.085Z'
-updated: '2026-08-13T14:49:32.448Z'
+updated: '2026-08-14T11:10:52.343Z'
 ---
 
 ## What

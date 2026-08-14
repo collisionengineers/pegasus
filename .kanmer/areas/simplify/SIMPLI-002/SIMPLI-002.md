@@ -2,15 +2,17 @@
 id: SIMPLI-002
 type: ticket
 title: Rewrite AGENTS.md
-status: todo
+status: done
 area: simplify
 priority: medium
-assignee: ''
+order: 80
+assignee: claude-code
 labels: []
 links: []
+blocks: []
 archived: false
 created: '2026-08-13T12:00:32.076Z'
-updated: '2026-08-13T12:00:32.076Z'
+updated: '2026-08-14T11:11:57.419Z'
 ---
 
 ## What

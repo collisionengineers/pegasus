@@ -2,15 +2,17 @@
 id: SIMPLI-011
 type: ticket
 title: Decompose the Case Details workspace by capability
-status: todo
+status: in-progress
 area: simplify
 priority: low
+order: 170
 assignee: ''
 labels: []
 links: []
+blocks: []
 archived: false
 created: '2026-08-13T12:12:48.922Z'
-updated: '2026-08-13T12:12:48.922Z'
+updated: '2026-08-14T11:10:54.285Z'
 ---
 
 ## What

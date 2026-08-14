@@ -2,15 +2,17 @@
 id: SIMPLI-009
 type: ticket
 title: Make Worker the sole processor for queued intake
-status: todo
+status: in-progress
 area: simplify
 priority: high
+order: 150
 assignee: ''
 labels: []
 links: []
+blocks: []
 archived: false
 created: '2026-08-13T12:12:48.881Z'
-updated: '2026-08-13T12:12:48.881Z'
+updated: '2026-08-14T11:10:53.985Z'
 ---
 
 ## What

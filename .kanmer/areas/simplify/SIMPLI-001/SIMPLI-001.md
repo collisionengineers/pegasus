@@ -2,15 +2,17 @@
 id: SIMPLI-001
 type: ticket
 title: Make ai-centre standalone repository
-status: todo
+status: done
 area: simplify
 priority: medium
-assignee: codex-mcp-client
+order: 70
+assignee: claude-code
 labels: []
 links: []
+blocks: []
 archived: false
 created: '2026-08-13T10:58:18.698Z'
-updated: '2026-08-13T14:58:23.230Z'
+updated: '2026-08-14T11:11:57.266Z'
 ---
 
 
