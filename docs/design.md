@@ -236,6 +236,7 @@ The upstream source directory may be absent from a clean checkout. The checksum-
  | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
  | --- | --- | --- | --- |
  | Primary logo | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
+ | Primary logo (design-system preview copy) | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `design/system/src/logo.png`<br>`7A6BD1CE2A57EB47BA9C7BA011935596D64ADE655FE02FFF1854497B962A33AA` | Bicubic downscale to 416×232 (27 KB) of the master, inlined as a data URI into the Claude Design bundle's `AppNav` so previews are self-contained. Not a Web runtime asset; the Web keeps the byte-for-byte copy above. |
 
 ### Icons
 
@@ -809,6 +810,7 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Decision rationale | [Decision records](adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
 | External reference qualification | [Reference index](../reference/README.md) | Reference presence never creates authority |
+| Claude Design system (design-tool bindings) | `design/system/` — React bindings that render the classes of `site.css` byte-for-byte (`dist/styles.css` is a build-time copy, never a second token file); `.design-sync/` holds the sync config, per-component previews and conventions | claude.ai/design project “Pegasus Design System”. Design-tool output only: not referenced by `Pegasus.slnx`, the Web runtime, or any deployment; not a caller. Refresh after any `site.css` change (`cd design/system && npm run build`, then `/design-sync`) |
 
 The original `collision-engineers-design-dev` bundle supplied the shared logo, colour, type and icon foundation but explicitly did not define this internal command-centre application. The repository imports only approved shared essentials and renderer assets. Marketing layouts, imagery, fonts, WhatsApp styling, scroll reveals and mobile navigation are excluded. The source bundle is not retained as a second design system.
 
