@@ -10,12 +10,12 @@ priority: medium
 order: 120
 assignee: claude-code
 labels: []
-links: []
-blocks:
+links:
   - SIMPLI-001
+blocks: []
 archived: false
 created: '2026-08-13T12:12:48.821Z'
-updated: '2026-08-14T11:11:57.961Z'
+updated: '2026-08-14T13:19:22.645Z'
 ---
 
 ## What

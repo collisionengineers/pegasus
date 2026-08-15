@@ -12,12 +12,12 @@ labels:
   - INT-25
   - now
   - requires-live-approval
-links: []
-blocks:
+links:
   - TICK-017
+blocks: []
 archived: false
 created: '2026-08-12T15:03:53.008Z'
-updated: '2026-08-14T11:11:57.085Z'
+updated: '2026-08-14T13:18:37.588Z'
 ---
 
 ## What

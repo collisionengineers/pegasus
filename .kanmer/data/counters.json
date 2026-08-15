@@ -19,7 +19,7 @@
   "REPORT": 0,
   "DATAPR": 0,
   "ADMINS": 0,
-  "UIOPER": 0,
+  "UIOPER": 1,
   "INTEGR": 0,
   "INTEG2": 0,
   "AUTOMA": 0,
@@ -34,7 +34,7 @@
   "PERFOR": 0,
   "DELIVE": 1,
   "REPOHY": 0,
-  "SIMPLI": 14,
+  "SIMPLI": 15,
   "BUG": 1,
-  "KANMER": 1
+  "KANMER": 2
 }

@@ -2,16 +2,19 @@
 id: KANMER-001
 type: ticket
 title: Retarget Kanmer tickets that cite the retired NOW.md / requirements.md
-status: todo
+status: in-progress
 area: kanmer-meta
 priority: medium
-assignee: ''
+assignee: claude-code
+taken_at: '2026-08-14T12:33:12.470Z'
+branch: KANMER-002-repo-doc-cleanup
+worktree: .worktrees/KANMER-002
 labels: []
 links:
   - SIMPLI-004
 archived: false
 created: '2026-08-14T11:15:00.271Z'
-updated: '2026-08-14T11:15:00.271Z'
+updated: '2026-08-14T12:33:12.471Z'
 ---
 
 ## What
