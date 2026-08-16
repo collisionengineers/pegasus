@@ -2,10 +2,10 @@
 id: TICK-175
 type: ticket
 title: Hide the Access Review default-date sentinel
-status: todo
+status: backlog
 area: admin-staff-accounts-roles-configuration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   RPT-05 — Addenda render from accepted case data plus a versioned amendment
   without retyping the case
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - RPT-05

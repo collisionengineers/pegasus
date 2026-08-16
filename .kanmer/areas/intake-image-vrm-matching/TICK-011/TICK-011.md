@@ -2,10 +2,10 @@
 id: TICK-011
 type: ticket
 title: INT-17 — Automatic vehicle-registration reading from ordinary vehicle images
-status: todo
+status: backlog
 area: intake-image-vrm-matching
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-17

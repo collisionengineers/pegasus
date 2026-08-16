@@ -2,11 +2,11 @@
 id: SIMPLI-011
 type: ticket
 title: Decompose the Case Details workspace by capability
-status: in-progress
+status: implementing
 area: simplify
-priority: low
 order: 170
 assignee: ''
+profile: feature
 labels: []
 links: []
 blocks: []

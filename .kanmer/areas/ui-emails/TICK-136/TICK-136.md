@@ -2,10 +2,10 @@
 id: TICK-136
 type: ticket
 title: Describe manually associated Inbox correspondence accurately
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

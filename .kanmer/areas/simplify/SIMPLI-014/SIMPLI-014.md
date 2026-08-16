@@ -2,11 +2,11 @@
 id: SIMPLI-014
 type: ticket
 title: Make report renderer standalone
-status: in-progress
+status: implementing
 area: simplify
-priority: medium
 order: 200
 assignee: ''
+profile: feature
 labels: []
 links:
   - TICK-221

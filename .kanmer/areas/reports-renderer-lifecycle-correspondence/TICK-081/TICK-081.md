@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-08 — Activate deterministic report generation from accepted Core-owned
   data through the approved renderer contract
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-08

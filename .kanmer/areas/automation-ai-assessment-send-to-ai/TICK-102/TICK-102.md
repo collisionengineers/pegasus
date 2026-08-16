@@ -4,10 +4,10 @@ type: ticket
 title: >-
   AI-09 — Staff Send to AI creates one durable idempotent capability-scoped work
   request bound to an immutable case/version stamp…
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-09

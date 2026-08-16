@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-17 — Idempotent report/fee-note send on the original Outlook thread or
   provider API using principal CC/delivery/standing-not…
-status: todo
+status: backlog
 area: mail-chasing-outbound-sent-evidence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-17

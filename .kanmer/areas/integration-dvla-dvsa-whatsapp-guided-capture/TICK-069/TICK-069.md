@@ -2,10 +2,10 @@
 id: TICK-069
 type: ticket
 title: EXT-15 — Automated WhatsApp ingestion and coexistence
-status: todo
+status: backlog
 area: integration-dvla-dvsa-whatsapp-guided-capture
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-15

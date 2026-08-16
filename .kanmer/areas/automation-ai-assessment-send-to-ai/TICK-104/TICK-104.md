@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MCP-07 — Administration-configurable Send to AI channel connector setup: base
   URL, token entry/rotation, and timeout configured…
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MCP-07

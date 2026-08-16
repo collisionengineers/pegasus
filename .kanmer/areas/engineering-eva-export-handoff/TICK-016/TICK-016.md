@@ -4,11 +4,11 @@ type: ticket
 title: >-
   CASE-30 — Track the QDOS-alpha inspection/report stage and EVA handoff without
   replacing EVA engineering work
-status: in-progress
+status: implementing
 area: engineering-eva-export-handoff
-priority: medium
 order: 30
 assignee: ''
+profile: feature
 labels:
   - capability
   - CASE-30

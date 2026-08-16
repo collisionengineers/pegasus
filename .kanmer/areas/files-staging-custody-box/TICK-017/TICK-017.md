@@ -4,8 +4,9 @@ type: ticket
 title: DOC-01 — Automatic Box case-folder creation using the Case/PO name
 status: done
 area: files-staging-custody-box
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - DOC-01

@@ -2,10 +2,10 @@
 id: TICK-028
 type: ticket
 title: 'Establish database backup, restore, RPO, and RTO capability'
-status: todo
+status: backlog
 area: operations-backup-restore-recovery
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - OPS-09

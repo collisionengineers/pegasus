@@ -6,8 +6,9 @@ title: >-
   appending the JSONL adjudication log records the human…
 status: done
 area: evaluation-local-email-evaluator
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - EVAL-04

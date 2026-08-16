@@ -2,10 +2,10 @@
 id: TICK-134
 type: ticket
 title: Provide the case-creation route from an OCR-required receipt
-status: todo
+status: backlog
 area: document-extraction
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

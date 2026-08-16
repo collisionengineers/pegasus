@@ -4,10 +4,10 @@ type: ticket
 title: >-
   AI-07 — Staff-selected AI Assessor Engineer option in the post-EVA-replacement
   assignment workflow; it owns no button, queue, m…
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-07

@@ -2,10 +2,10 @@
 id: TICK-073
 type: ticket
 title: AI-04 — AI-assisted document extraction and operator review
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-04

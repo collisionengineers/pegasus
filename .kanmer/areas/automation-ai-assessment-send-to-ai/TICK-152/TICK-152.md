@@ -2,10 +2,10 @@
 id: TICK-152
 type: ticket
 title: Return the original assessment result on replay
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

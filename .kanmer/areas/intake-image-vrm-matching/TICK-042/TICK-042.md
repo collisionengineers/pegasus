@@ -2,10 +2,10 @@
 id: TICK-042
 type: ticket
 title: INT-28 — Automatic matching of image-led and instruction-led records
-status: todo
+status: backlog
 area: intake-image-vrm-matching
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-28

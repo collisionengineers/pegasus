@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-10 — Versioned vehicle-valuation evidence, explicit Engineer
   acceptance/adjustments/rationale, and revaluation history
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-10

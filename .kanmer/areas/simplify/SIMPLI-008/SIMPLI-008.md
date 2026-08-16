@@ -2,11 +2,11 @@
 id: SIMPLI-008
 type: ticket
 title: Show queued receipt processing status to staff
-status: in-progress
+status: implementing
 area: simplify
-priority: high
 order: 140
 assignee: ''
+profile: feature
 labels: []
 links: []
 blocks: []

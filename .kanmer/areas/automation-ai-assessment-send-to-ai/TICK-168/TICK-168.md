@@ -2,10 +2,10 @@
 id: TICK-168
 type: ticket
 title: Gate the Assessment surface outside approved DevelopmentOffline evidence
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

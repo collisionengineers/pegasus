@@ -4,10 +4,10 @@ type: ticket
 title: >-
   AI-05 — Automatic AI-assisted image readiness assessment of the current Case
   image set
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-05

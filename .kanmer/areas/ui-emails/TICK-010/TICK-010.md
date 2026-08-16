@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-22 — User-confirmed detailed Received/Sent categories and subtypes,
   mirrored Reply classifications, Other name/reason behavi…
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-22

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-04 — Explainable classification evidence, policy version, and correction
   history
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-04

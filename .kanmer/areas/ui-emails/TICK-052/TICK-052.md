@@ -2,10 +2,10 @@
 id: TICK-052
 type: ticket
 title: 'MAIL-10 — Manual email/case association, unlink, relink, and correction'
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-10

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-23 — Map the detailed taxonomy to operational queues and designated
   Outlook folders
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-23

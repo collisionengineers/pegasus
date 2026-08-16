@@ -2,10 +2,10 @@
 id: TICK-130
 type: ticket
 title: Preserve mailbox filtering when only one mailbox has retained mail
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -4,8 +4,9 @@ type: ticket
 title: DOC-03 — Retained document versions
 status: done
 area: files-staging-custody-box
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - DOC-03

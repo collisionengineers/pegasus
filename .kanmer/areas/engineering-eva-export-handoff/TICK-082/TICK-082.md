@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-09 — Versioned repair-estimate lines, source versions, approvals,
   original-versus-assessed comparison, and savings
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-09

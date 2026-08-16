@@ -2,10 +2,10 @@
 id: TICK-171
 type: ticket
 title: Preserve focus after Send-to-AI confirmation
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

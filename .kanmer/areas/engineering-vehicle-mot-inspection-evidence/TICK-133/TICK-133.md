@@ -2,10 +2,10 @@
 id: TICK-133
 type: ticket
 title: Reject negative vehicle mileage before persistence
-status: todo
+status: backlog
 area: engineering-vehicle-mot-inspection-evidence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

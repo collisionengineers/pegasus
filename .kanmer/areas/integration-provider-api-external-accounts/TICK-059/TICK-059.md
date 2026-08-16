@@ -2,10 +2,10 @@
 id: TICK-059
 type: ticket
 title: API-02 — Provider API receipt and processing-status lookup
-status: todo
+status: backlog
 area: integration-provider-api-external-accounts
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - API-02

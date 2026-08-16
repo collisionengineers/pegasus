@@ -2,10 +2,10 @@
 id: TICK-068
 type: ticket
 title: CASE-06 — Commercial cases
-status: todo
+status: backlog
 area: case-lifecycle-chasing-edit-leases
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - CASE-06

@@ -2,10 +2,10 @@
 id: TICK-013
 type: ticket
 title: MAIL-14 — Detect an exact Outlook Sent item as report-sent evidence
-status: todo
+status: backlog
 area: mail-chasing-outbound-sent-evidence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-14

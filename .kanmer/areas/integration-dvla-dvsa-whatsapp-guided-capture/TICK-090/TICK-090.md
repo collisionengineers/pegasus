@@ -2,10 +2,10 @@
 id: TICK-090
 type: ticket
 title: EXT-17 — Tractable or Ravin guided-capture integration
-status: todo
+status: backlog
 area: integration-dvla-dvsa-whatsapp-guided-capture
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-17

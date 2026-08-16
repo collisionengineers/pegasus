@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-02 — MOT chronology and mileage evidence with
   supplied-versus-external-versus-estimated classification
-status: todo
+status: backlog
 area: integration-dvla-dvsa-whatsapp-guided-capture
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-02

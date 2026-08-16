@@ -2,10 +2,10 @@
 id: TICK-151
 type: ticket
 title: Project complete AI work-request history in Automation Activity
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

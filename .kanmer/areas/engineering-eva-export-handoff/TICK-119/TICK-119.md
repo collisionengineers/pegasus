@@ -2,10 +2,11 @@
 id: TICK-119
 type: ticket
 title: Prove operator EVA drag-and-drop handoff from a live case
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

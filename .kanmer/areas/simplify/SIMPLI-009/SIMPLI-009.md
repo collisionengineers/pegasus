@@ -2,11 +2,11 @@
 id: SIMPLI-009
 type: ticket
 title: Make Worker the sole processor for queued intake
-status: in-progress
+status: implementing
 area: simplify
-priority: high
 order: 150
 assignee: ''
+profile: feature
 labels: []
 links: []
 blocks: []

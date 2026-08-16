@@ -4,10 +4,10 @@ type: ticket
 title: >-
   RPT-04 — Diminution rendering uses accepted original-case data plus the
   Engineer-entered percentage
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - RPT-04

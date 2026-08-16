@@ -2,10 +2,10 @@
 id: TICK-040
 type: ticket
 title: INT-15 — Automated MSG extraction
-status: todo
+status: backlog
 area: document-extraction
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-15

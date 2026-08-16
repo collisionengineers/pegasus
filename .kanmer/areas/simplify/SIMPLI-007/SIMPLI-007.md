@@ -2,11 +2,11 @@
 id: SIMPLI-007
 type: ticket
 title: Move the QDOS alpha acceptance gate out of application composition
-status: in-progress
+status: implementing
 area: simplify
-priority: medium
 order: 130
 assignee: ''
+profile: feature
 labels: []
 links: []
 blocks: []

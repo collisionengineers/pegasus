@@ -2,10 +2,10 @@
 id: TICK-132
 type: ticket
 title: Label the displayed staff-corrected draft value with its own provenance
-status: todo
+status: backlog
 area: intake-manual-upload-source-intake
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

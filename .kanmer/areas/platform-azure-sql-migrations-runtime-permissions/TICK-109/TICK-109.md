@@ -2,10 +2,10 @@
 id: TICK-109
 type: ticket
 title: Rebuild the runtime-role permission matrix from every migration
-status: todo
+status: backlog
 area: platform-azure-sql-migrations-runtime-permissions
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

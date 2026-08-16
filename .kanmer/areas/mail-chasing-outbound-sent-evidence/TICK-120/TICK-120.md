@@ -2,10 +2,10 @@
 id: TICK-120
 type: ticket
 title: Activate production due-by and seven-day chasing
-status: todo
+status: backlog
 area: mail-chasing-outbound-sent-evidence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

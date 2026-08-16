@@ -4,10 +4,10 @@ type: ticket
 title: >-
   CASE-31 — One accepted structured case/engineering record is the source for
   every deterministic report, fee note, addendum, query…
-status: todo
+status: backlog
 area: ui-engineer-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - CASE-31

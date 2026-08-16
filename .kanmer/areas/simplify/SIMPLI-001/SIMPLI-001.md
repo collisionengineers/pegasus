@@ -4,9 +4,10 @@ type: ticket
 title: Make ai-centre standalone repository
 status: done
 area: simplify
-priority: medium
 order: 70
 assignee: claude-code
+profile: custom
+requires: {}
 labels: []
 links: []
 blocks: []

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MCP-06 — Automation Actor assessment actions: direct writes with logging
   parity (assessment get/update, case-detail update, EVA…
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MCP-06

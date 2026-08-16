@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-12 — Audatex/PDF repair-estimate ingestion with retained source artifact,
   mapped version, and variant proof
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-12

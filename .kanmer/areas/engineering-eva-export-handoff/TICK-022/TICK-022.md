@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-03 — Operator-approved deterministic UTF-8 EVA handoff with the exact
   ordered 13-key JSON, every eligible custody-confirmed…
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-03

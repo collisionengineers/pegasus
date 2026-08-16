@@ -2,10 +2,10 @@
 id: TICK-166
 type: ticket
 title: Expose or remove the Send-to-AI operator instruction mechanism
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

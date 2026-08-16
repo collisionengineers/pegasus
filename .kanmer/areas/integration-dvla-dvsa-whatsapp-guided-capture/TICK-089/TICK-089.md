@@ -2,10 +2,10 @@
 id: TICK-089
 type: ticket
 title: EXT-16 — Collision Engineers guided mobile image capture
-status: todo
+status: backlog
 area: integration-dvla-dvsa-whatsapp-guided-capture
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-16

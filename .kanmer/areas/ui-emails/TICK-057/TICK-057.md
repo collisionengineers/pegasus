@@ -2,10 +2,10 @@
 id: TICK-057
 type: ticket
 title: 'UI-14 — Categorised email queues for Receiving work, Queries, and Other'
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - UI-14

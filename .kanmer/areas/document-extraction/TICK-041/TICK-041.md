@@ -2,10 +2,10 @@
 id: TICK-041
 type: ticket
 title: INT-16 — OCR for scan-like PDF instruction pages
-status: todo
+status: backlog
 area: document-extraction
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-16

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   Harden flaky CI tests (SQL deadlock, QDOS soak, cancellation race,
   pwsh-subprocess)
-status: todo
+status: backlog
 area: delivery-build-ci-documentation-governance
-priority: medium
 assignee: ''
+profile: feature
 labels: []
 links:
   - SIMPLI-006

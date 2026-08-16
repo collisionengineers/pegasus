@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MI-02 — Per-principal report counts, types, and periods feeding invoice
   generation
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MI-02

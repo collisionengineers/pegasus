@@ -2,10 +2,10 @@
 id: TICK-158
 type: ticket
 title: Refuse out-of-range estimate decimals before database persistence
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-153
 type: ticket
 title: Exclude unconfirmed suggestions from accepted assessment reads
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

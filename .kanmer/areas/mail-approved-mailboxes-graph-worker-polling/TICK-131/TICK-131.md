@@ -2,10 +2,10 @@
 id: TICK-131
 type: ticket
 title: Align approved Inbox-folder length validation with the deployed limit
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

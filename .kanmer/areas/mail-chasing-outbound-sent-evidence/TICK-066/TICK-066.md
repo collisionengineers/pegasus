@@ -2,10 +2,10 @@
 id: TICK-066
 type: ticket
 title: MAIL-19 — Automatically send chasers or other outbound messages
-status: todo
+status: backlog
 area: mail-chasing-outbound-sent-evidence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-19

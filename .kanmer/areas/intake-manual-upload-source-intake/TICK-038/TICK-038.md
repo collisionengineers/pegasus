@@ -2,10 +2,10 @@
 id: TICK-038
 type: ticket
 title: INT-07 — Automatic ingestion from info@collisionengineers.co.uk
-status: todo
+status: backlog
 area: intake-manual-upload-source-intake
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-07

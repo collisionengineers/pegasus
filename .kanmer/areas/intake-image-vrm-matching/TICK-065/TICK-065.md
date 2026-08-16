@@ -4,10 +4,10 @@ type: ticket
 title: >-
   INT-32 — Instruction/image halves retain separate age and chase state;
   definitive pairing notifies staff that the job is ready
-status: todo
+status: backlog
 area: intake-image-vrm-matching
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-32

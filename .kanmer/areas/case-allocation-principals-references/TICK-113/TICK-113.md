@@ -2,10 +2,10 @@
 id: TICK-113
 type: ticket
 title: Re-drive allocation for receipts stranded before QDOS Principal setup
-status: todo
+status: backlog
 area: case-allocation-principals-references
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

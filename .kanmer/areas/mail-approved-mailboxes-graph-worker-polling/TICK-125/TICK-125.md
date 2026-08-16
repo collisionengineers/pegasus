@@ -2,10 +2,10 @@
 id: TICK-125
 type: ticket
 title: Allow replacement of an approved mailbox identity without uniqueness conflict
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

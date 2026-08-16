@@ -2,11 +2,11 @@
 id: TICK-056
 type: ticket
 title: UI-10 — Full email-management workspace
-status: in-progress
+status: implementing
 area: ui-emails
-priority: medium
 order: 60
 assignee: ''
+profile: feature
 labels:
   - capability
   - UI-10

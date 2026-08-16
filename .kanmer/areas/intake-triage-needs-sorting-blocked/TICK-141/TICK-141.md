@@ -2,10 +2,10 @@
 id: TICK-141
 type: ticket
 title: Add the Core command and staff caller for manual Triage creation
-status: todo
+status: backlog
 area: intake-triage-needs-sorting-blocked
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

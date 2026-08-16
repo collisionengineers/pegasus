@@ -2,10 +2,11 @@
 id: TICK-031
 type: ticket
 title: OPS-23 — Operator acceptance against the real end-to-end workflow
-status: todo
+status: backlog
 area: platform-azure-production-release-estate
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - OPS-23

@@ -2,10 +2,10 @@
 id: TICK-112
 type: ticket
 title: Establish the QDOS Organisation and Principal in production
-status: todo
+status: backlog
 area: data-provider-principal-repairer-reference
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

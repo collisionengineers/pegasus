@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-11 — Versioned fee/invoice and Engineer cost/payment inputs, accounting
   status, and role-restricted visibility
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-11

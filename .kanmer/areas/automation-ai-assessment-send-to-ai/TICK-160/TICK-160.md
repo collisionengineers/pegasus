@@ -2,10 +2,10 @@
 id: TICK-160
 type: ticket
 title: Bind or explicitly exclude every tool from workRequestId correlation
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

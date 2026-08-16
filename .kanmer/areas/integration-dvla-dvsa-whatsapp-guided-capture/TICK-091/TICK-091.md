@@ -2,10 +2,10 @@
 id: TICK-091
 type: ticket
 title: EXT-19 — Collision Engineers custom application domain
-status: todo
+status: backlog
 area: integration-dvla-dvsa-whatsapp-guided-capture
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-19

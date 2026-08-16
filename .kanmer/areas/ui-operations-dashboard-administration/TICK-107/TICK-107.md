@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MI-03 — Holding-pen age and instruction-to-images, ready-to-sent, and overall
   turnaround measures consuming accepted workflow e…
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MI-03

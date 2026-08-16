@@ -2,10 +2,10 @@
 id: TICK-169
 type: ticket
 title: Correct Assessment panel state transitions and repeat-send behaviour
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

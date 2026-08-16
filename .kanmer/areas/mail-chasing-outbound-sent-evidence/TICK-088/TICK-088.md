@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-12 — Authenticated staff compose, reply, forward, and send email in
   Pegasus
-status: todo
+status: backlog
 area: mail-chasing-outbound-sent-evidence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-12

@@ -2,10 +2,10 @@
 id: TICK-173
 type: ticket
 title: Correct sparkle-glyph clipping
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

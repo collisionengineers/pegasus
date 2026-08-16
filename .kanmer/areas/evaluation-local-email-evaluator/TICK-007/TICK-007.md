@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EVAL-05 — Display the rule-generated category and evidence beside the human
   review once rules exist
-status: todo
+status: backlog
 area: evaluation-local-email-evaluator
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EVAL-05

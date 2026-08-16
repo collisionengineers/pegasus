@@ -2,10 +2,10 @@
 id: TICK-161
 type: ticket
 title: Enforce or remove capability-scope and case-version stamps
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

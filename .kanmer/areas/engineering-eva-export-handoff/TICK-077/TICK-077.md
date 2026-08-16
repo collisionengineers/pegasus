@@ -2,10 +2,10 @@
 id: TICK-077
 type: ticket
 title: EXT-04 — Direct EVA API integration
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-04

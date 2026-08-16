@@ -2,10 +2,11 @@
 id: TICK-032
 type: ticket
 title: OPS-25 — Collision Engineers management approval before production release
-status: todo
+status: backlog
 area: platform-azure-production-release-estate
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - OPS-25

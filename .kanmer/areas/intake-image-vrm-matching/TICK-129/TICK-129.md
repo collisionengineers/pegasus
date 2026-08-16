@@ -2,10 +2,10 @@
 id: TICK-129
 type: ticket
 title: Route registered image-intake uploads to Image Intake
-status: todo
+status: backlog
 area: intake-image-vrm-matching
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

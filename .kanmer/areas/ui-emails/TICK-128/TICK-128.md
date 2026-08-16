@@ -2,10 +2,10 @@
 id: TICK-128
 type: ticket
 title: Scope retained conversation threads by mailbox and folder
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

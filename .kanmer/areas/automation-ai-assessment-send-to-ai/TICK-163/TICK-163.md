@@ -2,10 +2,10 @@
 id: TICK-163
 type: ticket
 title: Surface connector status in the Automation administration view
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

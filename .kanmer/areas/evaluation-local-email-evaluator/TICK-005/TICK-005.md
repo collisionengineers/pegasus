@@ -6,8 +6,9 @@ title: >-
   reasoning
 status: done
 area: evaluation-local-email-evaluator
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - EVAL-03

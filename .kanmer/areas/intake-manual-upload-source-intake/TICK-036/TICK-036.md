@@ -2,10 +2,10 @@
 id: TICK-036
 type: ticket
 title: INT-05 — Automatic ingestion from desk@collisionengineers.co.uk
-status: todo
+status: backlog
 area: intake-manual-upload-source-intake
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-05

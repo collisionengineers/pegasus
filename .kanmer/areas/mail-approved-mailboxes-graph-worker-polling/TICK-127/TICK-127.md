@@ -2,10 +2,10 @@
 id: TICK-127
 type: ticket
 title: Compute retained-mail freshness per approved mailbox
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

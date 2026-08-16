@@ -2,10 +2,10 @@
 id: TICK-142
 type: ticket
 title: 'Resolve the Triage route, folder, and namespace terminology'
-status: todo
+status: backlog
 area: intake-triage-needs-sorting-blocked
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

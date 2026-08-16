@@ -2,10 +2,10 @@
 id: TICK-157
 type: ticket
 title: Validate required field pairings against the merged assessment record
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

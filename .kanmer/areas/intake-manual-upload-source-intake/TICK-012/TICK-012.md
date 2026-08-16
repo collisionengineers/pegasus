@@ -4,9 +4,9 @@ type: ticket
 title: INT-25 — Automatic case creation from definitive authorised intake
 status: review
 area: intake-manual-upload-source-intake
-priority: medium
 order: 10
 assignee: claude-code
+profile: feature
 labels:
   - capability
   - INT-25

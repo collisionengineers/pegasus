@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EVAL-02 — Reviewer selects from the detailed Received/Sent/Reply taxonomy and
   records required reasoning
-status: todo
+status: backlog
 area: evaluation-local-email-evaluator
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EVAL-02

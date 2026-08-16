@@ -2,10 +2,10 @@
 id: TICK-076
 type: ticket
 title: CASE-22 — Replace EVA inspection and report-preparation work inside Pegasus
-status: todo
+status: backlog
 area: ui-engineer-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - CASE-22

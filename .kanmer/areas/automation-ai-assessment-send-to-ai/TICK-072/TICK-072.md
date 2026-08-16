@@ -2,10 +2,10 @@
 id: TICK-072
 type: ticket
 title: AI-03 — AI-assisted suggested email actions
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-03

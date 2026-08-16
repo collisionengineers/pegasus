@@ -4,10 +4,10 @@ type: ticket
 title: >-
   UI-15 — One case-centred progressive Engineer workbench for inspection,
   vehicle/damage, valuation, estimate/repairer, report, m…
-status: todo
+status: backlog
 area: ui-engineer-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - UI-15

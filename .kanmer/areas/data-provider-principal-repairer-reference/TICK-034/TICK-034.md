@@ -4,10 +4,10 @@ type: ticket
 title: >-
   DATA-02 — Prepare inspection-address / repairer reference data from separately
   approved spreadsheets
-status: todo
+status: backlog
 area: data-provider-principal-repairer-reference
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - DATA-02

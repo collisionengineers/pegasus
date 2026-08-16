@@ -4,10 +4,11 @@ type: ticket
 title: >-
   MAIL-20 — Run live provider-specific instruction-email categorisation against
   .eml files in the local folder-based evaluator
-status: todo
+status: backlog
 area: evaluation-local-email-evaluator
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - MAIL-20

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   RPT-02 — Assessment rendering covers four outcome variants and emits the fee
   note plus itemised repair-specification breakdown
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - RPT-02

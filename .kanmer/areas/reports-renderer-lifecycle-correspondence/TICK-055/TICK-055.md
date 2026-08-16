@@ -4,10 +4,10 @@ type: ticket
 title: >-
   CASE-23 — Post-report query and dispute work on the existing case with
   retained report/reply-chain evidence and an explicit lifec…
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - CASE-23

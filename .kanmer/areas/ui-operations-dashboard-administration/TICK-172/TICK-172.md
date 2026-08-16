@@ -2,10 +2,10 @@
 id: TICK-172
 type: ticket
 title: Correct Reason Dialog Escape and focus-trap behaviour
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

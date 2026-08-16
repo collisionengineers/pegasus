@@ -2,10 +2,10 @@
 id: TICK-062
 type: ticket
 title: MCP-05 — Automation Actor actions for the broader classified-email workspace
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MCP-05

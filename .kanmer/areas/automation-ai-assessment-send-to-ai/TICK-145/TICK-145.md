@@ -2,10 +2,10 @@
 id: TICK-145
 type: ticket
 title: Represent an uncertain Send-to-AI hand-off outcome
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

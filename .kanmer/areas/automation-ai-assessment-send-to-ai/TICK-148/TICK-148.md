@@ -2,10 +2,10 @@
 id: TICK-148
 type: ticket
 title: Expire timed-out Send-to-AI requests
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

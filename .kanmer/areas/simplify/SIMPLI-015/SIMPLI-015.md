@@ -4,10 +4,10 @@ type: ticket
 title: >-
   Record renderer + document-extractor integration-into-repo direction; re-scope
   SIMPLI-013/SIMPLI-014
-status: todo
+status: backlog
 area: simplify
-priority: high
 assignee: ''
+profile: feature
 labels: []
 links:
   - SIMPLI-013

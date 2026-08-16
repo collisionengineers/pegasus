@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MCP-03 — Automation Actor intake-queue actions through the same Core use cases
   as the QDOS-alpha staff app
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MCP-03

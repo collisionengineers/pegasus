@@ -2,10 +2,10 @@
 id: TICK-111
 type: ticket
 title: Remove the temporary production verification Administrator before go-live
-status: todo
+status: backlog
 area: admin-staff-accounts-roles-configuration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

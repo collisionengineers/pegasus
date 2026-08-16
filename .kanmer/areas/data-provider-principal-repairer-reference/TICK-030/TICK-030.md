@@ -6,8 +6,9 @@ title: >-
   from approved spreadsheets
 status: done
 area: data-provider-principal-repairer-reference
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - DATA-01

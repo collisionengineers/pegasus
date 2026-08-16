@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-01 — Identify every inbound mailbox item and its mailbox/thread/message
   identity
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-01

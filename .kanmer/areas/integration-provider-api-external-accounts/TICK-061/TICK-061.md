@@ -2,10 +2,10 @@
 id: TICK-061
 type: ticket
 title: 'API-04 — Provider API credential issue, rotation, and revocation'
-status: todo
+status: backlog
 area: integration-provider-api-external-accounts
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - API-04

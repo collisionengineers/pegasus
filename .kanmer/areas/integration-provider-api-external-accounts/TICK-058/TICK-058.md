@@ -2,10 +2,10 @@
 id: TICK-058
 type: ticket
 title: API-01 — Principal-scoped provider submission API
-status: todo
+status: backlog
 area: integration-provider-api-external-accounts
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - API-01

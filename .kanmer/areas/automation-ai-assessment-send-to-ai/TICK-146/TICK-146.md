@@ -2,10 +2,10 @@
 id: TICK-146
 type: ticket
 title: Represent an unavailable or uncertain Send-to-AI event outcome
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

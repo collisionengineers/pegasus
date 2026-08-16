@@ -2,10 +2,10 @@
 id: TICK-149
 type: ticket
 title: Reconcile a late reply before expiring its work request
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

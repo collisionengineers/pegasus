@@ -2,10 +2,10 @@
 id: TICK-137
 type: ticket
 title: Return a styled not-found result when Cases/Create lacks a receipt
-status: todo
+status: backlog
 area: ui-case-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

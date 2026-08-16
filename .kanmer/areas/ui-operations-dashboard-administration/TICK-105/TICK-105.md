@@ -2,10 +2,10 @@
 id: TICK-105
 type: ticket
 title: 'MI-01 — Per-Engineer throughput, query rate/types, and Audit uplift'
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MI-01

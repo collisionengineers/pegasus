@@ -2,10 +2,10 @@
 id: TICK-039
 type: ticket
 title: INT-14 — Automated legacy DOC extraction
-status: todo
+status: backlog
 area: document-extraction
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-14

@@ -2,10 +2,10 @@
 id: TICK-140
 type: ticket
 title: Correct automatic Triage eligibility and allocation ordering
-status: todo
+status: backlog
 area: intake-triage-needs-sorting-blocked
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

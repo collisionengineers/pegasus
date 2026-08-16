@@ -2,10 +2,11 @@
 id: TICK-117
 type: ticket
 title: Prove production Box custody for a real accepted case
-status: todo
+status: backlog
 area: files-staging-custody-box
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

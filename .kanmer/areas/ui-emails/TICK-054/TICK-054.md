@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-13 — Change read state, Outlook categories, flags, or delete messages in
   the app
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-13

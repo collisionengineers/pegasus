@@ -2,10 +2,10 @@
 id: TICK-126
 type: ticket
 title: Show standalone-Audit inputs when case type changes before submission
-status: todo
+status: backlog
 area: case-audit-workflow-recovery
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-21 — Minimum shared Core classification foundation: versioned rules,
   decision evidence, ambiguity outcome, and acceptance co…
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-21

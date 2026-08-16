@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MCP-01 — Management/development-controlled MCP ingress for one named
   vendor-neutral Automation Actor through Pegasus Core use ca…
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MCP-01

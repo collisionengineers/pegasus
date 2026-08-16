@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-02 — Map detailed email classifications to Receiving work, Query, Other,
   Needs sorting, or the separate Triage workflow
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-02

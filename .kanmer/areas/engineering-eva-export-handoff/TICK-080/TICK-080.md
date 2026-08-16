@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-07 — Replace EVA valuation while preserving separate dated/versioned
   source evidence and explicit Engineer selection
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-07

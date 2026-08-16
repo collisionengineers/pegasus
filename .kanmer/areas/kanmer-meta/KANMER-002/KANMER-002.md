@@ -2,10 +2,10 @@
 id: KANMER-002
 type: ticket
 title: Repo Plan doc cleanup and organization into kanmer
-status: in-progress
+status: implementing
 area: kanmer-meta
-priority: medium
 assignee: claude-code
+profile: feature
 taken_at: '2026-08-14T12:33:12.808Z'
 branch: KANMER-002-repo-doc-cleanup
 worktree: .worktrees/KANMER-002

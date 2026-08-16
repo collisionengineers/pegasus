@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-13 — Independently licensed valuation-source adapters that preserve each
   source observation and version
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-13

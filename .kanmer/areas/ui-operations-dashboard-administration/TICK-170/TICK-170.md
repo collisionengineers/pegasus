@@ -2,10 +2,10 @@
 id: TICK-170
 type: ticket
 title: Choose and implement the production CSP strategy for inline scripts
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-045
 type: ticket
 title: MAIL-03 — One shared classification policy across all supported mailboxes
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-03

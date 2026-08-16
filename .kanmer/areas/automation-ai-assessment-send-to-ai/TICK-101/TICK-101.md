@@ -4,10 +4,10 @@ type: ticket
 title: >-
   AI-08 — Intended Microsoft Foundry candidate proposes a case-grounded query
   response in approved house style/letterhead; a name…
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-08

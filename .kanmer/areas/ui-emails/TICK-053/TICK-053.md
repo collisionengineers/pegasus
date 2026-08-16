@@ -4,10 +4,10 @@ type: ticket
 title: >-
   MAIL-11 — Browse, search, and view mailbox messages and conversation threads
   in the app, including read-only search of accepted D…
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-11

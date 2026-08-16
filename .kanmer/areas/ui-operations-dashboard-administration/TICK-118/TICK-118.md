@@ -2,10 +2,10 @@
 id: TICK-118
 type: ticket
 title: 'Activate live completeness and Review, Not ready, and Held queues'
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

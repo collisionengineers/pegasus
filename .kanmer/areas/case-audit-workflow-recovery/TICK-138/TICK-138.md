@@ -2,10 +2,10 @@
 id: TICK-138
 type: ticket
 title: Restore end-to-end standalone-Audit case creation
-status: todo
+status: backlog
 area: case-audit-workflow-recovery
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

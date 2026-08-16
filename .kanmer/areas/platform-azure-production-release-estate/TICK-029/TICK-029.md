@@ -2,10 +2,10 @@
 id: TICK-029
 type: ticket
 title: OPS-14 — Production cutover and previous-artifact rollback procedure
-status: todo
+status: backlog
 area: platform-azure-production-release-estate
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - OPS-14

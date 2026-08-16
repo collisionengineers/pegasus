@@ -4,10 +4,10 @@ type: ticket
 title: >-
   AI-10 — Extensible named AI job catalogue beginning with Case assessment, with
   durable lifecycle and an operator-visible AI Vie…
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-10

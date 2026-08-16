@@ -2,10 +2,10 @@
 id: TICK-144
 type: ticket
 title: Add reasoned cancellation of a Send-to-AI work request
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

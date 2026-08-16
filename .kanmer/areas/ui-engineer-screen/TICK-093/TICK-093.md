@@ -4,10 +4,10 @@ type: ticket
 title: >-
   ENG-01 — One canonical repair specification with route provenance for Glass's,
   Audatex PDF, or an approved AI proposal
-status: todo
+status: backlog
 area: ui-engineer-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - ENG-01

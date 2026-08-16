@@ -2,10 +2,11 @@
 id: TICK-116
 type: ticket
 title: Prove one genuine QDOS mailbox-to-Case/PO production journey
-status: todo
+status: backlog
 area: platform-worker-activation-background-processing
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

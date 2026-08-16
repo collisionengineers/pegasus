@@ -2,11 +2,11 @@
 id: SIMPLI-012
 type: ticket
 title: Decide the post-alpha disposition of AI and MCP
-status: in-progress
+status: implementing
 area: simplify
-priority: low
 order: 180
 assignee: ''
+profile: feature
 labels: []
 links: []
 blocks: []

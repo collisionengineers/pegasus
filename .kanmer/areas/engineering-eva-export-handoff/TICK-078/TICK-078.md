@@ -2,10 +2,10 @@
 id: TICK-078
 type: ticket
 title: EXT-05 — Replace EVA Engineer assignment
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-05

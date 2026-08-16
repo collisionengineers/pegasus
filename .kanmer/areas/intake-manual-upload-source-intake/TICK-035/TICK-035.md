@@ -4,10 +4,10 @@ type: ticket
 title: >-
   INT-04 — Activate additional providers through the shared intake/case workflow
   using separately accepted provider evidence and r…
-status: todo
+status: backlog
 area: intake-manual-upload-source-intake
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - INT-04

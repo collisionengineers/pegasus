@@ -2,11 +2,11 @@
 id: SIMPLI-010
 type: ticket
 title: Consolidate intake state around the receipt-to-case link
-status: in-progress
+status: implementing
 area: simplify
-priority: medium
 order: 160
 assignee: ''
+profile: feature
 labels: []
 links: []
 blocks: []

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-01 — DVLA/DVSA make, model, manufacture year, engine capacity, fuel type,
   MOT chronology, mileage evidence, and operator-con…
-status: todo
+status: backlog
 area: integration-dvla-dvsa-whatsapp-guided-capture
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-01

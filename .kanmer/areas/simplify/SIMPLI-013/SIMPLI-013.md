@@ -2,11 +2,11 @@
 id: SIMPLI-013
 type: ticket
 title: Make document extractor a standalone .NET package
-status: in-progress
+status: implementing
 area: simplify
-priority: medium
 order: 190
 assignee: ''
+profile: feature
 labels: []
 links:
   - TICK-220

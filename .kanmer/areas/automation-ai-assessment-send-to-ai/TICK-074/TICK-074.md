@@ -2,10 +2,10 @@
 id: TICK-074
 type: ticket
 title: AI-06 — AI-assisted inspection-address suggestions
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-06

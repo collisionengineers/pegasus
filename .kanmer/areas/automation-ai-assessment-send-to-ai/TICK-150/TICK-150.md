@@ -2,10 +2,10 @@
 id: TICK-150
 type: ticket
 title: Record the Send-to-AI eligibility decision
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

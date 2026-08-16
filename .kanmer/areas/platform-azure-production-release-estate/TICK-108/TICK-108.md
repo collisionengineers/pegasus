@@ -4,10 +4,11 @@ type: ticket
 title: >-
   Recover the post-release-8 immutable deployment manifest and migration
   transcript
-status: todo
+status: backlog
 area: platform-azure-production-release-estate
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

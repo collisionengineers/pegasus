@@ -4,10 +4,10 @@ type: ticket
 title: >-
   ENG-02 — Engineer-owned final value/deductions, outcome, salvage
   category/value, and roadworthiness/reason drive derived figures…
-status: todo
+status: backlog
 area: ui-engineer-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - ENG-02

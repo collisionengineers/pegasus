@@ -2,10 +2,10 @@
 id: TICK-174
 type: ticket
 title: Correct London freshness-label fallback without IANA data
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

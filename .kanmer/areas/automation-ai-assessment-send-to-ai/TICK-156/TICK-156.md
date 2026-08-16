@@ -2,10 +2,10 @@
 id: TICK-156
 type: ticket
 title: Preserve provenance for omitted fields on partial automation updates
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-014
 type: ticket
 title: MAIL-16 — Automatically match the exact report Sent item to its case
-status: todo
+status: backlog
 area: mail-chasing-outbound-sent-evidence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-16

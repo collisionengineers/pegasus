@@ -4,8 +4,9 @@ type: ticket
 title: OPS-22 — Genuine-corpus local evaluation harness
 status: done
 area: evaluation-local-email-evaluator
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - OPS-22

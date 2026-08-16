@@ -4,10 +4,10 @@ type: ticket
 title: >-
   EXT-06 — Replace EVA estimating without moving repair-specification authority
   out of Pegasus Core
-status: todo
+status: backlog
 area: engineering-eva-export-handoff
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - EXT-06

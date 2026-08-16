@@ -4,9 +4,10 @@ type: ticket
 title: Archive non-actionable Kanmer backlog items and orphaned temporary plans
 status: done
 area: simplify
-priority: high
 order: 110
 assignee: claude-code
+profile: custom
+requires: {}
 labels: []
 links: []
 blocks: []

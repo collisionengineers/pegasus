@@ -2,10 +2,10 @@
 id: TICK-154
 type: ticket
 title: Bind case-detail automation writes to an owned work request
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

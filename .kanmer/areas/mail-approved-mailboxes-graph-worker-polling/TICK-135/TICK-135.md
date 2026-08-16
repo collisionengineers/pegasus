@@ -2,10 +2,10 @@
 id: TICK-135
 type: ticket
 title: Render approved-mailbox poll times in Europe/London time
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

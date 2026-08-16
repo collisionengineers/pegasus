@@ -4,9 +4,10 @@ type: ticket
 title: Rewrite AGENTS.md
 status: done
 area: simplify
-priority: medium
 order: 80
 assignee: claude-code
+profile: custom
+requires: {}
 labels: []
 links: []
 blocks: []

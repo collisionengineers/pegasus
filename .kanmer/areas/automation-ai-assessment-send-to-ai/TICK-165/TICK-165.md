@@ -2,10 +2,10 @@
 id: TICK-165
 type: ticket
 title: Show completed Send-to-AI request IDs to staff
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-164
 type: ticket
 title: Treat connector duplicate acknowledgements as successful replay
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

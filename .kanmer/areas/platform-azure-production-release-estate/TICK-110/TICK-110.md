@@ -2,10 +2,10 @@
 id: TICK-110
 type: ticket
 title: Reconcile local azd state against the observed production estate
-status: todo
+status: backlog
 area: platform-azure-production-release-estate
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

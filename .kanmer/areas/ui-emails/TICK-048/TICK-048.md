@@ -2,10 +2,11 @@
 id: TICK-048
 type: ticket
 title: MAIL-06 — Staff confirmation of a recommended folder move in Pegasus
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - capability
   - MAIL-06

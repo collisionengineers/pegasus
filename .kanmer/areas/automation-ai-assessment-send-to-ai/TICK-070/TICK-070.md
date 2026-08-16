@@ -2,10 +2,10 @@
 id: TICK-070
 type: ticket
 title: AI-01 — In-app staff AI assistant
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-01

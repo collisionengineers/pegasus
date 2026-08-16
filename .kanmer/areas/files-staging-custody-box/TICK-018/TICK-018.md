@@ -4,10 +4,10 @@ type: ticket
 title: >-
   DOC-02 — Store source emails, instruction documents, images, correspondence,
   and reports in Box
-status: todo
+status: backlog
 area: files-staging-custody-box
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - DOC-02

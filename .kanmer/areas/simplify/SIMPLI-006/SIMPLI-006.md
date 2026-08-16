@@ -6,9 +6,10 @@ title: >-
   ADRs
 status: done
 area: simplify
-priority: medium
 order: 120
 assignee: claude-code
+profile: custom
+requires: {}
 labels: []
 links:
   - SIMPLI-001

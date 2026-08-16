@@ -2,10 +2,10 @@
 id: TICK-114
 type: ticket
 title: Measure and reduce intake transaction hold time under concurrent uploads
-status: todo
+status: backlog
 area: performance-intake-concurrency-capacity
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

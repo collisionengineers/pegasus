@@ -2,10 +2,10 @@
 id: TICK-051
 type: ticket
 title: MAIL-09 — Automatic association of related email and attachments with a case
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - MAIL-09

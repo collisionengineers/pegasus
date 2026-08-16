@@ -2,10 +2,10 @@
 id: TICK-071
 type: ticket
 title: AI-02 — AI-assisted email identification/classification
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - capability
   - AI-02

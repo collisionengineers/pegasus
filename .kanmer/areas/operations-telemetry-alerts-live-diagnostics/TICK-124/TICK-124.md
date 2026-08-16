@@ -2,10 +2,10 @@
 id: TICK-124
 type: ticket
 title: Add chaser-sweep alerting
-status: todo
+status: backlog
 area: operations-telemetry-alerts-live-diagnostics
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

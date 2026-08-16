@@ -2,10 +2,10 @@
 id: TICK-139
 type: ticket
 title: Expose fail-closed Blocked intake reasons and staff retry/recovery
-status: todo
+status: backlog
 area: intake-triage-needs-sorting-blocked
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

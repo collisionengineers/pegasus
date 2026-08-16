@@ -2,10 +2,10 @@
 id: KANMER-001
 type: ticket
 title: Retarget Kanmer tickets that cite the retired NOW.md / requirements.md
-status: in-progress
+status: implementing
 area: kanmer-meta
-priority: medium
 assignee: claude-code
+profile: feature
 taken_at: '2026-08-14T12:33:12.470Z'
 branch: KANMER-002-repo-doc-cleanup
 worktree: .worktrees/KANMER-002

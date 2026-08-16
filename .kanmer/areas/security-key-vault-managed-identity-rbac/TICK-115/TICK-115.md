@@ -2,10 +2,11 @@
 id: TICK-115
 type: ticket
 title: Verify scheduled predecessor Key Vault purge by fresh approved inventory
-status: todo
+status: backlog
 area: security-key-vault-managed-identity-rbac
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now
