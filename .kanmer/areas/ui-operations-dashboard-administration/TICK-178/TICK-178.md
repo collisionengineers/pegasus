@@ -2,10 +2,10 @@
 id: TICK-178
 type: ticket
 title: Replace remaining banned intake terminology in staff-visible UI
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

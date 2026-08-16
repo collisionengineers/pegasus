@@ -2,10 +2,11 @@
 id: TICK-210
 type: ticket
 title: Prove the report-renderer MCPB bundle under .NET 10
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

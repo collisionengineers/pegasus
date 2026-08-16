@@ -2,10 +2,10 @@
 id: TICK-194
 type: ticket
 title: Detect direct or non-merge pushes to main in CI
-status: todo
+status: backlog
 area: delivery-build-ci-documentation-governance
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

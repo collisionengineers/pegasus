@@ -2,10 +2,11 @@
 id: TICK-192
 type: ticket
 title: Record tier-5 external-client Automation Actor evidence
-status: todo
+status: backlog
 area: automation-ai-assessment-send-to-ai
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

@@ -2,10 +2,11 @@
 id: TICK-218
 type: ticket
 title: Record operator acceptance of the QDOS production workflow
-status: todo
+status: backlog
 area: assurance-quality-cohorts-acceptance
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

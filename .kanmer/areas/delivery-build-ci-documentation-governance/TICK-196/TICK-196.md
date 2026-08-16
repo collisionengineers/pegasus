@@ -2,10 +2,10 @@
 id: TICK-196
 type: ticket
 title: Validate NOW.md claim format and staleness in CI
-status: todo
+status: backlog
 area: delivery-build-ci-documentation-governance
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

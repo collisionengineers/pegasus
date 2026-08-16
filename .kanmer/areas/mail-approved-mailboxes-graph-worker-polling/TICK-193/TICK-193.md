@@ -2,10 +2,10 @@
 id: TICK-193
 type: ticket
 title: Resolve the approved-mailbox receipt-token length boundary
-status: todo
+status: backlog
 area: mail-approved-mailboxes-graph-worker-polling
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

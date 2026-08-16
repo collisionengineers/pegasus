@@ -2,10 +2,11 @@
 id: TICK-190
 type: ticket
 title: Prove template-database backup and restore against external SQL Server
-status: todo
+status: backlog
 area: platform-azure-sql-migrations-runtime-permissions
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

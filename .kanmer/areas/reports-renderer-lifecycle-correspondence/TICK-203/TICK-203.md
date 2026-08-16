@@ -4,10 +4,10 @@ type: ticket
 title: >-
   Reconcile the renderer MCP design against the merged Automation Actor
   inventory
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

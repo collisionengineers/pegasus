@@ -2,10 +2,10 @@
 id: TICK-184
 type: ticket
 title: Remove or prove the now-unwired Operations lease-view fields
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

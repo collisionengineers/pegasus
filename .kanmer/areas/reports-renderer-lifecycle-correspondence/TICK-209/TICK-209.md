@@ -2,10 +2,11 @@
 id: TICK-209
 type: ticket
 title: Prove the renderer container build and first Noble render baseline
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

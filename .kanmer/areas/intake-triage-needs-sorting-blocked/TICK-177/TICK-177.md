@@ -2,10 +2,10 @@
 id: TICK-177
 type: ticket
 title: Repair Triage pagination and sweep remaining reserved-route pagers
-status: todo
+status: backlog
 area: intake-triage-needs-sorting-blocked
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

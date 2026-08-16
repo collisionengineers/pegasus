@@ -2,10 +2,10 @@
 id: TICK-183
 type: ticket
 title: Decide whether EditLeaseToken may remain plaintext at rest
-status: todo
+status: backlog
 area: case-lifecycle-chasing-edit-leases
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-189
 type: ticket
 title: Decide handling of operator-supplied staff and case data in reference files
-status: todo
+status: backlog
 area: repo-hygiene
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-213
 type: ticket
 title: Decide whether density applies to all rendered document bodies
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

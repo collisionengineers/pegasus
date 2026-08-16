@@ -4,8 +4,9 @@ type: ticket
 title: Remove self referential dashboard link
 status: done
 area: ui-operations-dashboard-administration
-priority: low
 assignee: antigravity-client
+profile: custom
+requires: {}
 labels: []
 links: []
 deployment: not-deployed

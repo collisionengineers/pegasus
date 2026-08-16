@@ -2,10 +2,10 @@
 id: TICK-181
 type: ticket
 title: Replace raw case-page identifiers with business-readable names
-status: todo
+status: backlog
 area: ui-case-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

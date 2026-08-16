@@ -2,10 +2,10 @@
 id: TICK-199
 type: ticket
 title: Retire .infisical.json or document its active owner
-status: todo
+status: backlog
 area: repo-hygiene
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

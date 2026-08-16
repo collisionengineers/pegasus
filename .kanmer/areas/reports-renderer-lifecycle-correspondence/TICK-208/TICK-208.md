@@ -2,10 +2,10 @@
 id: TICK-208
 type: ticket
 title: Preserve final Sent evidence through post-report correction
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-182
 type: ticket
 title: Render Triage timestamps with the Europe/London wall clock
-status: todo
+status: backlog
 area: intake-triage-needs-sorting-blocked
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

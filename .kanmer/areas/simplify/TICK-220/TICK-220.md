@@ -2,10 +2,11 @@
 id: TICK-220
 type: ticket
 title: Make document extractor standalone .net package
-status: todo
+status: backlog
 area: simplify
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels: []
 links:
   - SIMPLI-013

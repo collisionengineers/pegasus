@@ -2,10 +2,10 @@
 id: TICK-187
 type: ticket
 title: Decide the disposition of the failed staged intake artifact
-status: todo
+status: backlog
 area: intake-manual-upload-source-intake
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

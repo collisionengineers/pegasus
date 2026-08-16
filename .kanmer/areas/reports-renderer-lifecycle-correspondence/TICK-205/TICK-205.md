@@ -4,10 +4,10 @@ type: ticket
 title: >-
   Resolve the canonical repair-specification versus dual-Audit-specification
   conflict
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -2,10 +2,10 @@
 id: TICK-197
 type: ticket
 title: Establish an infra validation lane or record its deliberate absence
-status: todo
+status: backlog
 area: delivery-build-ci-documentation-governance
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

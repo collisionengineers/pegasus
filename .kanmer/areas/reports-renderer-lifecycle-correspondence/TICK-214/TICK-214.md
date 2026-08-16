@@ -2,10 +2,10 @@
 id: TICK-214
 type: ticket
 title: Decide the long-term MCPB host and distribution boundary
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

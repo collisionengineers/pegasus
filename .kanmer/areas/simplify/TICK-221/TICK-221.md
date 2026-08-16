@@ -2,10 +2,11 @@
 id: TICK-221
 type: ticket
 title: make report-renderer standalone
-status: todo
+status: backlog
 area: simplify
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels: []
 links:
   - SIMPLI-014

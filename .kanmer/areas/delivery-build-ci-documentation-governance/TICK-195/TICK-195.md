@@ -2,10 +2,10 @@
 id: TICK-195
 type: ticket
 title: Validate new Markdown placement in CI
-status: todo
+status: backlog
 area: delivery-build-ci-documentation-governance
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

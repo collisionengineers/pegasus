@@ -2,10 +2,11 @@
 id: TICK-217
 type: ticket
 title: Accept per-field extraction thresholds with zero false case creation
-status: todo
+status: backlog
 area: assurance-quality-cohorts-acceptance
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

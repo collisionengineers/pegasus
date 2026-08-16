@@ -2,10 +2,10 @@
 id: TICK-179
 type: ticket
 title: Add Inbox-detail accessibility coverage with a retained-message fixture
-status: todo
+status: backlog
 area: ui-emails
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

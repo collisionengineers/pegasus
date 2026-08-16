@@ -2,10 +2,10 @@
 id: TICK-206
 type: ticket
 title: Map renderer templates to capabilities and decide proposed retirements
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

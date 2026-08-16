@@ -2,10 +2,10 @@
 id: TICK-188
 type: ticket
 title: Decide whether corpus-derived pre-scrub Git history requires purge
-status: todo
+status: backlog
 area: repo-hygiene
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

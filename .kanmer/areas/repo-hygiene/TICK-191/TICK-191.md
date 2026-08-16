@@ -2,10 +2,11 @@
 id: TICK-191
 type: ticket
 title: Observe abandoned LocalDB and backup-file reclamation
-status: todo
+status: backlog
 area: repo-hygiene
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

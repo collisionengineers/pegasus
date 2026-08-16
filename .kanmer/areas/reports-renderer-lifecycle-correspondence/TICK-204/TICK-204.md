@@ -2,10 +2,10 @@
 id: TICK-204
 type: ticket
 title: Define the missing assessment-report outcome variants
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

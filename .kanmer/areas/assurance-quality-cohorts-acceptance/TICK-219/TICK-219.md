@@ -2,10 +2,11 @@
 id: TICK-219
 type: ticket
 title: Record management approval before QDOS production release
-status: todo
+status: backlog
 area: assurance-quality-cohorts-acceptance
-priority: medium
 assignee: ''
+profile: custom
+requires: {}
 labels:
   - now
   - source-now

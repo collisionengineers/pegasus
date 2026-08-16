@@ -4,10 +4,10 @@ type: ticket
 title: >-
   Define the tracked build and verification boundary for
   scripts/email-eval-desktop
-status: todo
+status: backlog
 area: evaluation-local-email-evaluator
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

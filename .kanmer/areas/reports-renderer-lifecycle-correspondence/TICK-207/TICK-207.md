@@ -2,10 +2,10 @@
 id: TICK-207
 type: ticket
 title: Define the missing Audit renderer template
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

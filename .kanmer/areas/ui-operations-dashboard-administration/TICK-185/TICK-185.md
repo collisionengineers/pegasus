@@ -2,10 +2,10 @@
 id: TICK-185
 type: ticket
 title: Reconcile shipped UI tokens and states into the design authority
-status: todo
+status: backlog
 area: ui-operations-dashboard-administration
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

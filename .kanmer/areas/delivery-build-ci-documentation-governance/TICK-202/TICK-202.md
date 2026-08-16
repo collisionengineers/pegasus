@@ -2,10 +2,10 @@
 id: TICK-202
 type: ticket
 title: Reconcile or retire orphaned temporary task plans
-status: todo
+status: backlog
 area: delivery-build-ci-documentation-governance
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

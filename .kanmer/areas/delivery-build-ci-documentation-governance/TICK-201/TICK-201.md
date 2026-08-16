@@ -2,10 +2,10 @@
 id: TICK-201
 type: ticket
 title: Correct canonical documentation claims against source evidence
-status: todo
+status: backlog
 area: delivery-build-ci-documentation-governance
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

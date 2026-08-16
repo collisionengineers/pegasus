@@ -2,10 +2,10 @@
 id: TICK-180
 type: ticket
 title: Guard Upload redirects against unresolvable Razor Page targets
-status: todo
+status: backlog
 area: intake-manual-upload-source-intake
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

@@ -4,10 +4,10 @@ type: ticket
 title: >-
   Decide whether unaccepted wording and signature assets may ship behind a
   closed gate
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

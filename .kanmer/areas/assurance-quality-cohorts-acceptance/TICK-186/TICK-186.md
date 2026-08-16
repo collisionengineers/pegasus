@@ -2,10 +2,10 @@
 id: TICK-186
 type: ticket
 title: Assemble the extraction cohort and untouched holdout
-status: todo
+status: backlog
 area: assurance-quality-cohorts-acceptance
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

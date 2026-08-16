@@ -2,10 +2,10 @@
 id: UICASE-001
 type: ticket
 title: UI Improvement - Case Screen
-status: todo
+status: backlog
 area: ui-case-screen
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - requires-live-approval
 links:

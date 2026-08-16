@@ -2,10 +2,10 @@
 id: TICK-211
 type: ticket
 title: Decide report-renderer analyzer strictness
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

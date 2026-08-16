@@ -2,10 +2,10 @@
 id: TICK-212
 type: ticket
 title: Add report-renderer package lock files
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now

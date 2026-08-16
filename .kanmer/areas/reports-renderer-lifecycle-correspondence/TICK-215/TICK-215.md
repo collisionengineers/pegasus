@@ -2,10 +2,10 @@
 id: TICK-215
 type: ticket
 title: Decide where report rendering executes in production
-status: todo
+status: backlog
 area: reports-renderer-lifecycle-correspondence
-priority: medium
 assignee: ''
+profile: feature
 labels:
   - now
   - source-now
