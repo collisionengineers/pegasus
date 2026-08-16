@@ -24,6 +24,19 @@ Repo-specific facts for syncing `@pegasus/design-system` to claude.ai/design.
   (1.62 wants 1234 and fails to launch).
 - Windows/Git Bash gotcha: a heredoc containing an apostrophe breaks the Bash
   tool; write scripts/files with the Write tool and run them.
+- **CRLF checkout churn (fixed 2026-08-16, watch for regressions):**
+  `core.autocrlf=true` silently rewrites `.design-sync/previews/*.tsx` and
+  `design/system/src|docs/**` to CRLF on any fresh checkout/merge, changing
+  their raw bytes and invalidating `sourceKeyFor`'s `hashFile` (no CRLF
+  normalization) — this desyncs the remote anchor for most/all components on
+  every Windows checkout even with zero real edits (confirmed via
+  `renderHashes` identical throughout — pure bookkeeping churn, no visual
+  change). Fixed by pinning `text eol=lf` for these paths in `.gitattributes`.
+  If a resync ever again reports a large `changed` count with unchanged
+  `renderHashes`, suspect this class of issue before mass re-grading: compare
+  `ds-bundle/_ds_sync.json` renderHashes against the fetched remote anchor's
+  — identical hashes mean it's safe to just re-confirm from the existing
+  screenshots rather than treat every cell as freshly at-risk.
 
 ## Groups / docs / previews
 
@@ -53,6 +66,17 @@ Repo-specific facts for syncing `@pegasus/design-system` to claude.ai/design.
   ["Poppins"]`; system fallback is what production renders too.
 - `[DTS_STYLE_SYSTEM]` on every build: React DOM attribute props are filtered
   from `<Name>Props` — expected, the components extend `HTMLAttributes`.
+
+## site.css fixes (2026-08-16)
+
+- `--focus-ring` annotated `/* @kind other */` — Claude Design's self-check
+  needs this to classify it (it's an outline shorthand, not a plain color).
+  The companion "47 properties" finding (the `.queue-card--*`/`.status-chip--*`
+  /`.status-card--*`/`.freshness-banner--*` variant blocks) was audited fully:
+  every declaration is a `var()` reference to an existing `:root` token, none
+  hardcode a literal, so per the self-check's own stated exception these are
+  correct as authored — no code change made. If it keeps flagging them, that
+  is expected (an info-tier note), not a bug to keep chasing.
 
 ## site.css fixes made by the first sync (2026-08-15) — review in the PR
 
