@@ -418,8 +418,8 @@ function Get-AlphaCapabilityIds {
             continue
         }
 
-        # "| ID | Capability | Timing | Target release | Owner | Notes |" splits
-        # into eight fields with empty ends; the version is the fifth.
+        # "| ID | Durable outcome | Horizon | Target release | Canonical owner | Activation/boundary |"
+        # splits into eight fields with empty ends; the version is the fifth.
         $cells = $line.Split('|') | ForEach-Object { $_.Trim() }
         if ($cells.Count -ne 8) {
             throw "OfflineCandidate is blocked: capability register row for '$($Matches[1])' does not have the six expected columns."
@@ -509,7 +509,7 @@ function Assert-AlphaCapabilityCoverage {
     $required = [System.Collections.Generic.HashSet[string]]::new([string[]]$RequiredCapabilityIds, [System.StringComparer]::Ordinal)
 
     # Observations: one per required capability, each with a caller and hashed evidence.
-    $observations = @{}
+    $observations = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
     foreach ($observation in @($CallerManifest.capabilityObservations)) {
         if ($null -eq $observation) {
             Add-Blocker $blockers 'capability:null'
@@ -537,7 +537,7 @@ function Assert-AlphaCapabilityCoverage {
         if ($outcome -cne $passedOutcome -and $outcome -cne $deferredOutcome) {
             Add-Blocker $blockers "capability:${capabilityId}:invalid-outcome"
         }
-        if ($outcome -ceq $deferredOutcome -and $capabilityId -notin $externalGateCapabilityIds) {
+        if ($outcome -ceq $deferredOutcome -and $capabilityId -cnotin $externalGateCapabilityIds) {
             Add-Blocker $blockers "capability:${capabilityId}:cannot-defer"
         }
         if ([string]::IsNullOrWhiteSpace([string]$observation.caller)) {
@@ -549,14 +549,14 @@ function Assert-AlphaCapabilityCoverage {
 
     # External gates: validate each one that is present exactly once, then ask
     # which required gates are absent for the offline and release verdicts.
-    $gateBlockers = @{}
+    $gateBlockers = [System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[string]]]::new([System.StringComparer]::Ordinal)
     foreach ($evidence in @($CallerManifest.externalGateEvidence)) {
         if ($null -eq $evidence) {
             Add-Blocker $blockers 'external-gate:null'
             continue
         }
         $gateId = [string]$evidence.gateId
-        if ($gateId -notin $releaseGateIds) {
+        if ($gateId -cnotin $releaseGateIds) {
             Add-Blocker $blockers "external-gate:${gateId}:unknown"
             continue
         }
