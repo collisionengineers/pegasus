@@ -5,8 +5,11 @@ title: Decompose the Case Details workspace by capability
 status: implementing
 area: case-reference-workflow
 order: 170
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:14.179Z'
+branch: task/simpli-011-case-details
+worktree: ../pegasus-worktrees/simpli-011-case-details
 labels: []
 groups:
   - EPIC-002
@@ -14,7 +17,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.922Z'
-updated: '2026-08-17T06:40:47.767Z'
+updated: '2026-08-17T10:00:14.179Z'
 ---
 
 ## What

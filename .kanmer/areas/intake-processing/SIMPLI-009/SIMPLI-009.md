@@ -5,17 +5,21 @@ title: Make Worker the sole processor for queued intake
 status: implementing
 area: intake-processing
 order: 150
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T09:59:59.695Z'
+branch: task/simpli-009
+worktree: ../pegasus-worktrees/simpli-009
 labels: []
 groups:
   - EPIC-002
   - HZN-003
 links: []
-blocks: []
+blocks:
+  - SIMPLI-010
 archived: false
 created: '2026-08-13T12:12:48.881Z'
-updated: '2026-08-17T06:43:36.536Z'
+updated: '2026-08-17T10:00:36.037Z'
 ---
 
 ## What

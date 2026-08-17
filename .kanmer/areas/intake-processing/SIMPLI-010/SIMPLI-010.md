@@ -5,8 +5,11 @@ title: Consolidate intake state around the receipt-to-case link
 status: implementing
 area: intake-processing
 order: 160
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:11.412Z'
+branch: task/simpli-010-intake-state
+worktree: ../pegasus-worktrees/simpli-010-intake-state
 labels: []
 groups:
   - EPIC-002
@@ -15,7 +18,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.901Z'
-updated: '2026-08-17T06:43:36.745Z'
+updated: '2026-08-17T10:00:11.412Z'
 ---
 
 ## What

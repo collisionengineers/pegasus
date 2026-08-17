@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Record renderer + document-extractor integration-into-repo direction; re-scope
   SIMPLI-013/SIMPLI-014
-status: backlog
+status: preparing
 area: documents-reports
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:27.755Z'
+branch: task/simpli-015-renderer-extractor
+worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
 labels: []
 groups:
   - EPIC-002
@@ -17,10 +20,13 @@ links:
   - SIMPLI-014
   - KANMER-001
   - KANMER-002
+blocks:
+  - SIMPLI-013
+  - SIMPLI-014
 docs_todo: true
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-17T06:43:37.214Z'
+updated: '2026-08-17T10:00:41.538Z'
 ---
 
 ## What

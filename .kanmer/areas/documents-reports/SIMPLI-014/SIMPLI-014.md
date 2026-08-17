@@ -5,8 +5,11 @@ title: Make report renderer standalone
 status: implementing
 area: documents-reports
 order: 200
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:24.291Z'
+branch: task/simpli-015-renderer-extractor
+worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
 labels: []
 groups:
   - EPIC-002
@@ -16,7 +19,7 @@ links:
 blocks: []
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-17T06:43:36.974Z'
+updated: '2026-08-17T10:00:24.291Z'
 ---
 
 ## What

@@ -5,8 +5,11 @@ title: Move the QDOS alpha acceptance gate out of application composition
 status: implementing
 area: platform-operations
 order: 130
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:08.513Z'
+branch: task/simpli-007-acceptance-gate
+worktree: ../pegasus-worktrees/simpli-007-acceptance-gate
 labels: []
 groups:
   - EPIC-002
@@ -15,7 +18,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.841Z'
-updated: '2026-08-17T06:40:47.033Z'
+updated: '2026-08-17T10:00:08.513Z'
 ---
 
 ## What

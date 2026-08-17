@@ -5,8 +5,11 @@ title: Define the alpha journey and freeze non-cutover scope
 status: implementing
 area: platform-operations
 order: 90
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:05.660Z'
+branch: task/simpli-003-alpha-journey
+worktree: ../pegasus-worktrees/simpli-003-alpha-journey
 labels: []
 groups:
   - EPIC-002
@@ -15,7 +18,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.758Z'
-updated: '2026-08-17T06:40:46.262Z'
+updated: '2026-08-17T10:00:05.660Z'
 ---
 
 ## What

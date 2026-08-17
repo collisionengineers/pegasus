@@ -5,8 +5,11 @@ title: Make document extractor a standalone .NET package
 status: implementing
 area: intake-processing
 order: 190
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:21.105Z'
+branch: task/simpli-015-renderer-extractor
+worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
 labels: []
 groups:
   - EPIC-002
@@ -16,7 +19,7 @@ links:
 blocks: []
 archived: false
 created: '2026-08-13T14:38:42.313Z'
-updated: '2026-08-17T06:41:32.963Z'
+updated: '2026-08-17T10:00:21.105Z'
 ---
 
 ## What

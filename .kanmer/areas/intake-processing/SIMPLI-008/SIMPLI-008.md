@@ -5,8 +5,11 @@ title: Show queued receipt processing status to staff
 status: implementing
 area: intake-processing
 order: 140
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-17T10:00:02.519Z'
+branch: task/simpli-009
+worktree: ../pegasus-worktrees/simpli-009
 labels: []
 groups:
   - EPIC-002
@@ -15,7 +18,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.862Z'
-updated: '2026-08-17T06:43:36.282Z'
+updated: '2026-08-17T10:00:02.519Z'
 ---
 
 ## What
