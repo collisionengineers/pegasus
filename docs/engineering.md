@@ -160,10 +160,11 @@ opens — not over the whole repository and not as a later review stage.
 - The catch-all is the shared safety policy
   (`IntakeExceptionPolicy.IsRecoverable`), never a local
   `is not OperationCanceledException`.
-- Unexpected faults are persisted as terminal, so the operator surface is
-  honest, and then rethrown, so the host logs them in full and the redelivery
-  finds the work settled. Do not swallow into a bounded outcome; do not carry
-  an `Exception` in a Core result.
+- Persist a terminal state before rethrowing an unexpected fault, so the host
+  logs it in full and a redelivery finds the work settled; do not swallow it
+  into a bounded outcome or carry an `Exception` in a Core result. The
+  operator-visible behaviour (a failed item reads as failed) is owned by the
+  FRD — for queued intake, [FRD-02](frd/frd-02-intake-and-source-identity.md).
 
 ### Test support
 
