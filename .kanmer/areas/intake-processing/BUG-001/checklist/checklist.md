@@ -25,3 +25,14 @@
 - [ ] Obtain exact-target approval before any deployment, production receipt reevaluation, mailbox/data mutation, or Box write.
 - [ ] After authorised deployment, refresh current-state docs and verify one production allocation/Case/PO/link/custody/Box outcome with no duplicates.
 - [ ] Write `proof.md` on merged `main` and close out only after all resolved gates and authorised evidence pass.
+
+## Closeout — BUG-001
+
+- [ ] PR merge verified (`gh pr view --json state,mergedAt`)
+- [ ] proof.md finalised (PR URL + merge date appended)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove ../pegasus-worktrees/bug-001-qdos-intake`
+- [ ] `git branch -d task/bug-001-qdos-intake` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
