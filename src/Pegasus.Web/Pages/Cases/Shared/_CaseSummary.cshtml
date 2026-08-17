@@ -69,8 +69,21 @@
         </div>
     </section>
 
+    @*
+        Vehicle lookup and the history check are both inactive: neither is in
+        docs/capabilities.md, and each needs an inventory entry, a supplier
+        contract and an accepted ADR before it is wired. The controls stay
+        visible because the work is real and coming; no result is shown,
+        because a lookup nobody ran is not evidence.
+    *@
     <section class="block" aria-labelledby="block-vehicle">
-        <header><h2 id="block-vehicle">Vehicle</h2></header>
+        <header>
+            <h2 id="block-vehicle">Vehicle</h2>
+            <button type="button" class="btn" disabled>
+                <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                Look up vehicle
+            </button>
+        </header>
         <div>
             @{ DataRow("Registration", data?.Vehicle.Registration); }
             @{ DataRow("Make", data?.Vehicle.Make); }
@@ -84,6 +97,12 @@
                         ? $"{value:N0} {mileageUnit}"
                         : value.ToString("N0"));
             }
+            <div class="history-check">
+                <button type="button" class="btn" disabled>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    Check vehicle history
+                </button>
+            </div>
         </div>
     </section>
 
@@ -109,6 +128,22 @@
             </div>
         </section>
     }
+
+    @*
+        Engineer queries. Not allocated in docs/capabilities.md: raising a
+        query, its reply chain and its resolution are their own workflow.
+        Inactive — the block names the surface and the control renders, but
+        nothing is raised, stored or answered here.
+    *@
+    <section class="block" aria-labelledby="block-queries">
+        <header>
+            <h2 id="block-queries">Engineer queries</h2>
+            <button type="button" class="btn" disabled>Raise a query</button>
+        </header>
+        <div>
+            <p class="empty-state">No queries have been raised on this case.</p>
+        </div>
+    </section>
 
     @* Where the case stands: the reason the operator opened it. *@
     <section class="block block--standing" aria-labelledby="block-standing">

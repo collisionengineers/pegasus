@@ -67,7 +67,10 @@
        bordered table draws a second box around the first. *@
     @if (Model.Results.Items.Count == 0)
     {
-        <p class="empty-state">No triage work is open.</p>
+        <div class="mark-empty">
+            <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
+            <p class="empty-state">No triage work is open.</p>
+        </div>
     }
     else
     {
@@ -104,14 +107,17 @@ else
 {
     @if (Model.Cases.Items.Count == 0)
     {
-        <p class="empty-state">
-            @(Model.Queue switch
-            {
-                "review" => "No cases are ready to confirm.",
-                "held" => "No cases are held.",
-                _ => "No cases are waiting."
-            })
-        </p>
+        <div class="mark-empty">
+            <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
+            <p class="empty-state">
+                @(Model.Queue switch
+                {
+                    "review" => "No cases are ready to confirm.",
+                    "held" => "No cases are held.",
+                    _ => "No cases are waiting."
+                })
+            </p>
+        </div>
     }
     else
     {

@@ -88,12 +88,39 @@ confirmation, access denied, the error family and the one screen a third party
 sees are not places in the application and keep their navless or brand-only
 frame.
 
-Icons remain the sixteen checksummed Lucide glyphs registered below. A supplied
-design prototype carried fourteen decorative PNG marks; they are not adopted,
-because this file prohibits decorative or generated replacement icons and the
-design system's own guidance states that icons come only from that glyph set.
-The rail brand is the existing approved `logo_no_margin.png`. No new binary
-asset enters the Web tree, and the register below is unchanged.
+### The Pegasus marks
+
+**Commissioned by the operator; adopted 2026-08-17.** Fourteen purpose-drawn
+raster marks, supplied with the design, live in
+`src/Pegasus.Web/wwwroot/images/marks/`. They are a second, deliberate class of
+imagery, and the earlier blanket statement that no imagery is needed for the
+internal application is narrowed to exclude them: it still holds for marketing
+photography and for generated or substitute glyphs, neither of which these are.
+
+They do not replace the Lucide sprite and do not compete with it. The division
+is by job:
+
+- **A Lucide glyph names a thing inside a row** — an action, a state, a
+  provenance word. It is 16px, inline, and one glyph means one thing everywhere.
+  The sixteen registered below remain the only glyphs used that way.
+- **A mark names a whole surface** — an administration workspace, an empty
+  result, the product itself. It is 30–112px, sits beside a heading or above a
+  sentence, and carries detail no line glyph holds at that size.
+
+Every mark is decorative: `aria-hidden`, empty `alt`, always beside text that
+already says the same thing, so nothing is lost with images off. None is used
+for a semantic action or state, so the one-icon-per-meaning rule is untouched.
+
+Current uses: the eight administration workspace cards (`accounts`, `roles`,
+`access`, `organisations`, `principals`, `configuration`, `mailboxes`,
+`automation`); the Inbox and Queues empty states (`mailboxes`, `checkmark`); and
+the product lockup in the rail and on the forced password-change card
+(`pegasus-lockup`). `activity`, `brand`, `calendar` and `casefolder` are
+supplied and not yet placed.
+
+They are approved assets and belong in the register below once their bytes are
+in the tree, on the same terms as the sprite: recorded name and SHA-256, and no
+silent substitution.
 
 Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
@@ -316,7 +343,7 @@ Every icon rendered today is decorative and paired with a visible text label, so
 
 ### Imagery and evidence
 
-No brand or decorative imagery is needed for the internal Web application. Upstream marketing photography is excluded.
+Upstream marketing photography is excluded, and no generated or substitute glyph is used anywhere. The one class of imagery the internal Web application does carry is the [commissioned Pegasus marks](#the-pegasus-marks), adopted 2026-08-17: fourteen operator-supplied raster marks that name a surface, always decorative and always beside text that says the same thing.
 
 Genuine case images, emails and documents are operational evidence, not decorative assets. Use only authorised repository-provided evidence through its owning workflow. Never generate placeholder cases, damage images, emails, documents or people.
 
@@ -955,7 +982,7 @@ The UI presents the [Core-owned permanent action history](../frd/frd-04-parties-
 
 Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
 
-The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere; decorative or generated replacement icons are prohibited. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere, drawn from the sixteen registered Lucide glyphs; generated or substitute replacement glyphs are prohibited. The [commissioned Pegasus marks](#the-pegasus-marks) are a separate, approved class: they name a surface rather than an action or a state, and never stand in for a glyph. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
 Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
 
