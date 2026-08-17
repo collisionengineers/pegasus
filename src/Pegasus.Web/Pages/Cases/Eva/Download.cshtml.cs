@@ -13,6 +13,7 @@ namespace Pegasus.Web.Pages.Cases.Eva;
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
+[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class DownloadModel(
     IDownloadEvaHandoff downloadEvaHandoff,
     ILogger<DownloadModel> logger) : CaseMutationPageModel(logger)

@@ -122,6 +122,8 @@ public sealed partial class CaseDetailsWebTests
         RecordingCaseDetailsStore store,
         string antiforgeryToken) : IDisposable
     {
+        public HttpClient Client { get; } = client;
+
         public RecordingCaseDetailsStore Store { get; } = store;
 
         public string AntiforgeryToken { get; } = antiforgeryToken;
@@ -129,9 +131,9 @@ public sealed partial class CaseDetailsWebTests
         public ActionActor Claimant => Assert.Single(Store.Claims).Actor;
 
         public Task<HttpResponseMessage> PostAsync(string route, HttpContent content) =>
-            client.PostAsync($"/Cases/{Store.CaseId:D}/{route}", content);
+            Client.PostAsync($"/Cases/{Store.CaseId:D}/{route}", content);
 
-        public Task<string> GetWorkspaceAsync() => GetHtmlAsync(client, $"/Cases/{Store.CaseId:D}");
+        public Task<string> GetWorkspaceAsync() => GetHtmlAsync(Client, $"/Cases/{Store.CaseId:D}");
 
         public FormUrlEncodedContent MutationForm(
             string operationKey,
@@ -141,7 +143,7 @@ public sealed partial class CaseDetailsWebTests
 
         public void Dispose()
         {
-            client.Dispose();
+            Client.Dispose();
             factory.Dispose();
             baseFactory.Dispose();
         }

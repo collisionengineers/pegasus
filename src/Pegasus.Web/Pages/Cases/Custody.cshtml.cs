@@ -13,6 +13,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
+[ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class CustodyModel(
     IRetryCaseCustody retryCaseCustody,
     IAddCaseDocument addCaseDocument,
