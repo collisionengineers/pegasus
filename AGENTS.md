@@ -145,12 +145,14 @@ owned by [engineering](docs/engineering.md#simplicity); these are the rules
 every task carries:
 
 - **Search before you build.** Name the existing port, helper, convention, or
-  test fake you reuse, or say in the plan why none fits. A third copy of
-  anything is a stop condition ([one Core owner](docs/engineering.md#one-core-owner)).
+  test fake you reuse, or say in the plan why none fits. A second business
+  implementation, or a third copy of anything else, is a stop condition
+  ([one Core owner](docs/engineering.md#one-core-owner)).
 - **One list per concept.** An exception taxonomy, a state vocabulary, a label
   table, a precedence order lives in exactly one place. A second copy in
   another layer is duplication even when it is "just strings".
-- **No abstraction without a second concrete caller or an external boundary.**
+- **No abstraction without a second concrete caller, an external boundary, or
+  an accepted ADR** ([abstractions and deferred capabilities](docs/engineering.md#abstractions-and-deferred-capabilities)).
   A wrapper, result record, flag, or optional parameter added so one call site
   can carry something past a design constraint is a smell: fix the constraint
   or use the host's own mechanism.
@@ -161,20 +163,14 @@ every task carries:
   world — production data, a caller's existence, a deployed shape — run the
   read-only check (permitted without approval) and record it, instead of
   reasoning it away in a research document.
-- **Plans are proportional to their diff.** A plan longer than the change it
-  describes, or carrying ritual steps (separate overlap checks, separate
-  diff-review steps, full-suite reruns CI already performs), is itself
-  over-engineered. Six real steps beat thirteen procedural ones.
-- **Simplify without over-correcting.** Clarity beats brevity: an explicit
-  `if`/`switch` beats a nested ternary or a dense one-liner; a helpful
-  abstraction stays; separate concerns stay separate; fewer lines is not the
-  goal. A "simplification" that makes code harder to read, debug, or extend is
-  rejected in the same pass that proposed it.
-- **The simplification pass is quality, not correctness.** Its findings are
-  behaviour-preserving by definition; anything that would change intended
-  behaviour, needs changes well outside the diff, or looks like a bug is
-  *noted*, not applied — bugs go to review, scope goes to a ticket, and a
-  false positive is named as one rather than argued.
+- **Plans are proportional to their diff** — a plan longer than the change it
+  describes, or carrying ritual steps, is itself over-engineered
+  ([plan sizing](docs/engineering.md#plan-sizing)).
+- **Simplify without over-correcting** — clarity beats brevity; a helpful
+  abstraction stays ([balance](docs/engineering.md#balance)).
+- **The simplification pass is quality, not correctness** — findings are
+  behaviour-preserving; bugs go to review, scope to a ticket
+  ([skip rules](docs/engineering.md#skip-rules)).
 
 ## Safety rails
 
@@ -259,13 +255,14 @@ date, and agent and moves it to the working stage — that record *is* the claim
    were verified by a read-only check and which are assumed. `proof.md` is
    required before the ticket reaches the final stage. Do not create transient
    repository task-plan files.
-4. **Work and PR.** Implement and verify in the task worktree. Before opening
-   the PR, run the simplification pass over the branch's own diff — reuse,
-   simplification, efficiency, altitude (`/simplify` plus the
-   `code-simplifier` agent, or equivalent independent lenses) — apply the
-   behaviour-preserving fixes, and record findings and dispositions in the
-   ticket's plan under a dated "Simplification pass" heading. It is part of
-   the work, not a review stage. The PR targets `dev`. Keep the ticket's stage
+4. **Work and PR.** Implement and verify in the task worktree. For a task
+   that changes code, run the simplification pass over the branch's own diff
+   before opening the PR — reuse, simplification, efficiency, altitude
+   (`/simplify` plus the `code-simplifier` agent, or equivalent independent
+   lenses) — apply the behaviour-preserving fixes, and record findings and
+   dispositions in the ticket's plan under a dated "Simplification pass"
+   heading; a docs-only task records "n/a — docs-only". It is part of the
+   work, not a review stage. The PR targets `dev`. Keep the ticket's stage
    and checklist current as you go.
 5. **Review and merge.** Before merge, an agent that did not implement the task
    answers whether the plan missed anything implied by the ticket, whether
