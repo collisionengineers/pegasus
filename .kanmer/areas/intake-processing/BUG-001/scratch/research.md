@@ -1,0 +1,1 @@
+2026-08-17 investigation: current dev source contains the allocation/custody chain. Focused Release --no-restore integration command covering QdosAllocationRecoveryTests plus selected mailbox/custody tests exceeded the 120-second tool timeout with no final output; recorded as inconclusive, not failed. No source, deployment, cloud, mailbox, SQL, or Box mutation performed.
