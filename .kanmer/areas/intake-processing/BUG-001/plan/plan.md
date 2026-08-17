@@ -2,85 +2,60 @@
 
 ## Chosen approach
 
-Repair the narrow QDOS marker-recognition defect exposed by the live 17 August receipt. Preserve the existing safety contract: a principal suggestion still requires one content fragment containing both a trusted QDOS marker and at least two recognised instruction-field definitions. Add only the observed PDF extraction form `OfQDOS` as a recognised QDOS brand token; do not assemble proof across attachments or make route/classification sufficient on their own.
+Decouple QDOS principal identification from instruction-document field extraction.
 
-This approach beats:
+For a QDOS email, establish the principal from the email body within an accepted QDOS mail route. Keep mail classification as its own required decision. Once those gates establish the QDOS instruction context, extract the case fields from the appropriate readable instruction documents without requiring those documents to contain a QDOS marker. Build the draft with principal `QDOS`, then retain the existing completeness, case-match, allocation, replay, and custody gates.
 
-- **Cross-fragment aggregation:** unsafe because unrelated email/attachment fragments could jointly manufacture instruction proof; an existing test deliberately forbids it.
-- **Trusting accepted sender + Audit classification:** conflates transport/classification with definitive instruction evidence and raises false-case risk.
-- **Global PDF whitespace repair:** changes every PDF reader result and is disproportionate to one known stable extraction artifact.
-- **Box/queue changes:** the live later receipt never reached allocation or external custody; those components did not fail.
+Do not add `OfQDOS` recognition. That string is incidental attachment extraction output and was never a product criterion.
 
 ## Governing docs
 
-- `docs/frd/frd-02-intake-and-source-identity.md`: restore automatic allocation for a definitive authorised QDOS instruction while remaining fail closed for ambiguous/non-confirming material. Retain replay-safe allocation and reasoned re-evaluation.
-- `docs/frd/frd-05-documents-extraction-and-custody.md`: make custody reachable only after the corrected instruction allocates its immutable Case/PO. Do not change Box naming, root fencing, source retention, or custody recovery.
-- No governing-document behaviour change is planned; this repairs current code to meet existing FRD-02/FRD-05 behaviour.
+- `docs/frd/frd-02-intake-and-source-identity.md`: authorised definitive intake and fail-closed allocation.
+- `docs/frd/frd-05-documents-extraction-and-custody.md`: extract required instruction data; custody follows allocation.
+- `docs/frd/frd-09-provider-and-intermediary-routes.md`: route, provider/principal identity, classification, and association remain distinct.
+- No new PRD/FRD/ADR is required for this defect correction.
 
-## Ordered steps
+## Ordered implementation steps
 
-1. **Create the ticket worktree at execution time.** Fetch `origin/dev`, create the dedicated BUG-001 branch/worktree, take the ticket into Implementing, and record the exact source head. Do not work from the primary checkout.
-2. **Pin the live regression at Core policy level.**
-   - Add a positive test using the non-personal observed structure: a single fragment containing `Proud Members OfQDOS Accident Assistance Ltd` plus at least two recognised instruction labels.
-   - Assert `Applicable`, suggested principal `QDOS`, extracted fields, and `instruction-structure` evidence.
-   - Retain the existing cross-fragment refusal test.
-   - Add negative cases showing unrelated embedded strings containing `qdos` remain non-applicable.
-3. **Implement bounded marker recognition.**
-   - Centralise the accepted marker predicate used for content and transport evidence.
-   - Recognise standalone `QDOS` and the exact word `OfQDOS` produced by the observed PdfPig extraction.
-   - Do not accept arbitrary prefixes/suffixes, do not relax the two-label threshold, and do not aggregate confirmation across fragments.
-   - Bump the extraction policy version if repository conventions treat recognition changes as a policy-version change; update assertions/persistence fixtures consistently.
-4. **Add orchestration/replay coverage.**
-   - Exercise the corrected Audit instruction shape through processing and automatic allocation.
-   - Prove exactly one Case/PO and custody work item are produced.
-   - Prove replay remains idempotent.
-   - Prove a non-confirming lookalike remains `needs_sorting` with no allocation.
-5. **Run local verification.**
-   - QDOS extraction-policy unit suite.
-   - focused intake processing and QDOS allocation/recovery integration suites.
-   - custody outbox and Worker composition tests.
-   - Release build plus `git diff --check`.
-   - Record exact counts/output in the post-implementation report.
-6. **Independent review and CI.** The reviewer must answer whether the implementation preserved the same-fragment/two-label safety boundary and whether the plan missed any live-evidence implication. Merge to `dev` only after review passes and CI is green.
-7. **Prepare deployment evidence, but do not infer authority.**
-   - Build/release using the repository manifest flow.
-   - Before any Azure write, obtain explicit approval for the exact Web/Worker deployment targets and revision.
-   - After deployment, read back the Web diagnostic SHA, Worker package/revision evidence, trigger settings, migrations, health, and telemetry; refresh `docs/current-architecture.md` and `docs/operations.md` in the same task.
-8. **Recover the retained failed receipt only with separate exact-target approval.**
-   - Target receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`.
-   - Use the existing authenticated, reasoned “Re-evaluate with current policy” command; never insert or edit allocation/Case/Box records directly.
-   - Confirm history retains the prior `needs_sorting` decision and records the new policy evaluation.
-   - Confirm exactly one allocation attempt, Case/PO, Case-intake link, `create_case_custody` work item, Box folder, retained source, and custody confirmation.
-   - Confirm repeat/replay does not duplicate any effect.
-9. **Disposition.**
-   - If the corrected deployment and controlled re-evaluation pass, write `proof.md`, record commits/PR/deployment, and close BUG-001.
-   - If re-evaluation still stops before allocation, preserve all evidence and stop; file a narrow follow-up at the newly identified boundary.
-   - If deployment or live-write approval is absent, leave BUG-001 open as implemented but not production-verified.
+1. Create the dedicated BUG-001 branch/worktree from fresh `origin/dev`, take the ticket into Implementing, and record the source head.
+2. Add a failing Core regression representing the observed structure:
+   - accepted QDOS direct route;
+   - QDOS identified in the email body;
+   - valid QDOS Audit classification;
+   - instruction fields located in separate attachment content;
+   - expected result is an applicable QDOS draft and `CaseCreated`.
+3. Add fail-closed tests:
+   - route accepted but no QDOS body evidence;
+   - QDOS body evidence but rejected/ambiguous route;
+   - QDOS body and route but insufficient/ambiguous classification or mandatory instruction evidence;
+   - QDOS appears only in an attachment;
+   - unrelated content and replay cases.
+4. Refactor the smallest Core boundary so the established mail context is explicit:
+   - do not let `QdosInstructionExtractionPolicy` rediscover principal identity from arbitrary content fragments;
+   - consume email-body identity separately from document field extraction;
+   - require the accepted route and applicable classification before automatic-case eligibility;
+   - populate the draft principal as `QDOS` from the established QDOS context;
+   - keep provider-neutral interfaces where practical and bump any changed policy version.
+5. Preserve extraction rules for actual instruction fields and missing/ambiguous values. Do not require a QDOS token in an attachment and do not add a document-principal fallback.
+6. Add focused processing/allocation integration coverage proving:
+   - the regression allocates exactly one Case/PO and enqueues exactly one custody item;
+   - reevaluation/replay is idempotent;
+   - every negative prerequisite produces no allocation or custody work.
+7. Run the QDOS route/classification/extraction and ProcessIntake unit suites, focused allocation/custody integration suites, Worker composition tests, Release build, and `git diff --check`. Record exact results in the post-implementation report.
+8. Obtain independent review and green CI before merge to `dev`. The reviewer must specifically verify that attachment extraction no longer identifies the QDOS principal and that all prerequisite gates fail closed.
+9. Deployment remains separately approval-gated. With exact-target approval, deploy the immutable reviewed revision, read back Web/Worker identity and health, and update `docs/current-architecture.md` and `docs/operations.md`.
+10. With separate exact-target approval, re-evaluate receipt `9a91fe16-d62f-4477-a11e-830fd96f672a` through the existing reasoned command. Confirm preserved history, one allocation, one Case/PO/link, one custody work item, one Box folder/source retention outcome, and no replay duplicates.
+11. Write `proof.md` and close only after merged-main and authorised live evidence pass. If any prerequisite still fails, preserve the exact evidence and stop at that boundary.
 
-## Proof production
+## Acceptance conditions
 
-`proof.md` must record separately:
-
-- regression test demonstrating the `OfQDOS` extraction shape;
-- negative and cross-fragment safety tests;
-- local build/test evidence and exact source SHA;
-- merged/deployed Web and Worker revision identity;
-- pre/post state for receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`;
-- reevaluation history, allocation, Case/PO, link, external custody work, Box folder/source custody, and replay counts;
-- exact approval record for deployment and production re-evaluation.
-
-## Risks and mitigations
-
-| Risk | Mitigation |
-| --- | --- |
-| Broadened marker matching creates false cases | Accept only standalone `QDOS` or exact `OfQDOS`; retain same-fragment and two-label gates; add negatives |
-| Cross-document evidence is accidentally combined | Keep `confirmingFragments` semantics and its existing refusal test unchanged |
-| Policy change is persisted under a stale version | Follow the repository's policy-version convention and update all version-bound fixtures |
-| Existing failed receipt is manually patched | Use only the reasoned reevaluation use case after deployment |
-| Duplicate Case/PO or Box folder on recovery | Assert zero pre-state, one post-state, and replay idempotency across allocation/link/custody |
-| Deployment is mistaken for live proof | Require actual retained-receipt reevaluation and SQL/telemetry/Box readback |
-| PII leaks into tests or docs | Use only the non-personal structural marker/label shape; never commit the downloaded live EML/PDF |
+- A QDOS email with the principal identified in its email body can use separate instruction-document content for field extraction.
+- Neither `OfQDOS` nor any other attachment-local QDOS text is required.
+- An attachment alone does not identify the QDOS principal.
+- Missing or ambiguous route, body identity, classification, or mandatory extraction evidence fails closed with no Case/PO or Box work.
+- The corrected valid path allocates and enqueues custody exactly once under replay.
+- No Box, queue, schema, OCR, or broad PDF-reader change is introduced.
 
 ## Stop point for this phase
 
-Research and planning end here. Do not create the worktree, edit source, deploy, re-evaluate the production receipt, or mutate Box/Azure/SQL as part of this phase.
+Research and planning end here. Do not create a worktree, edit source, deploy, re-evaluate the live receipt, or perform any external write in this phase.

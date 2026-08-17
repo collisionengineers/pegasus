@@ -2,121 +2,84 @@
 
 ## Question
 
-Is the reported defect — receipt of an authorised QDOS email producing neither a Case/PO nor its Box case folder — still present, or has later work resolved it?
+Why did an earlier authorised QDOS email allocate a Case/PO and create Box custody while the later test stopped after receipt?
 
-## Findings
+## Current source path
 
-### 1. The current source implements the missing business chain
+The code separates three concerns, but the current orchestration reconnects them incorrectly:
 
-- `src/Pegasus.Core/Intake/DurableIntake.cs` contains `ProcessQueuedIntake`; definitive typed intake proceeds into automatic allocation.
-- Commit `9393c983` (“Definitive intake allocates its case without a manual gate (INT-25)”) introduced the automatic Case/PO allocation path.
-- `src/Pegasus.Infrastructure/Persistence/EfQueuedCustodyProcessor.cs` processes `create_case_custody` work, calls `ICaseCustody.CreateCaseRootAsync`, retains the accepted source, and records `custody_confirmed`.
-- `src/Pegasus.Infrastructure/Custody/BoxCaseCustody.cs` is the production Box implementation. Worker composition tests require this adapter in production.
-- Commits `379d7ddd` and `864f46fc` added durable allocation recovery and completed case custody/handoff. Later commits `0743ac32`, `73a3380d`, and `f08e2df6` corrected Audit/forwarded-mail evidence, custody, and replay cases.
+1. `QdosMailRoutePolicy` establishes the accepted QDOS direct-provider route from the effective sender and returns route owner/work provider `QDOS`.
+2. `QdosMailClassificationPolicy` classifies the message (including Audit versus Inspection) from the QDOS message rules.
+3. `QdosInstructionExtractionPolicy` should extract instruction fields, but it independently scans every readable fragment for `\bQDOS\b` and requires the same fragment to contain at least two instruction labels before it returns an `InstructionDraft`.
+4. `ProcessIntake` ignores the already accepted QDOS route when deciding extraction applicability. If extraction does not satisfy that independent same-fragment gate, it returns `needs_sorting` with “The readable content does not provide enough evidence to suggest a principal.”
+5. `IntakeAllocation` then reads the principal from `InstructionDraft.SuggestedPrincipalCode`; no draft means no allocation, no external custody work, and therefore no Box folder.
 
-**Implication:** the original source-level absence is stale on current `dev`; this is no longer a missing implementation.
+This means the extraction policy is currently re-identifying the principal while extracting document fields. That coupling is the defect.
 
-### 2. The governing requirements match the implemented order
+## Operator clarification
 
-- `docs/frd/frd-02-intake-and-source-identity.md` requires definitive authorised intake to allocate a Case/PO automatically and requires Box custody only after allocation.
-- `docs/frd/frd-05-documents-extraction-and-custody.md` requires every allocated Case/PO to use its immutable reference for the Box case folder and retain accepted sources there.
-- `docs/capabilities.md` records INT-25 as replay-safe automatic allocation. DOC-01 states that immutable naming and caller behaviour are proved locally, while live controlled Box proof remains pending.
+The product rule supplied on 2026-08-17 is authoritative for this investigation:
 
-**Implication:** BUG-001 is governed by FRD-02 and FRD-05; both are linked to the ticket. No new product requirement or ADR is needed.
+- QDOS is identified from the email body.
+- QDOS was never required to appear as `Of QDOS`.
+- Principal identification must not ordinarily be inferred by extracting attached documents; document extraction is used only where necessary for the instruction data.
 
-### 3. Local evidence exists, but this investigation did not complete a fresh test run
+Therefore the prior `OfQDOS` diagnosis and proposed token-recognition fix are superseded. `OfQDOS` was merely an incidental PdfPig rendering observed in one attachment. Making it an accepted principal marker would encode an accidental document layout as product policy.
 
-Relevant automated coverage includes:
+## Live comparison
 
-- `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs`: definitive typed instructions allocate one case, replay is bounded, and stranded allocation is re-driven safely.
-- `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs`: an accepted case creates custody and retains its exact source replay-safely.
-- `tests/Pegasus.IntegrationTests/MailboxIntakeIntegrationTests.cs`: an approved mailbox poll enters normal durable intake.
-- `tests/Pegasus.ArchitectureTests/WorkerCompositionTests.cs`: production Worker composition resolves `BoxCaseCustody` and `ProcessQueuedIntake`.
+All estate operations used for this research were read-only.
 
-A focused `dotnet test` command covering the allocation suite plus mailbox and custody tests was run with Release/`--no-restore`, but the command exceeded the 120-second tool limit and emitted no final result. A timeout is neither a pass nor a failure.
+### Earlier successful receipt
 
-**Implication:** implementation work should not begin from this ticket. The next phase must finish the focused local evidence on an appropriate runner before claiming current-head verification.
+Receipt `2c4888d6-4098-4d22-a46a-d976286a27b0`:
 
-### 4. Production resolution is not proved and current documented deployment predates later fixes
+- route: accepted / QDOS / direct provider;
+- classification: Audit / repairable;
+- extraction happened to find QDOS plus multiple labels in one attachment fragment;
+- allocation produced `QDOS26001` and Audit reference `a.QDOS26001`;
+- custody work `3565e349-2535-4f6f-90b3-4e2cc7a5f9b4` completed;
+- Box remote ID `409001353539` was confirmed.
 
-- `docs/operations.md` records production source `dd61ac56840d2cf0c1f0667f995c3941cbb19fc5` and explicitly says no enabled Worker caller, mailbox-to-case journey, or Box-custody journey was live-verified.
-- Git ancestry shows that deployed source contains `9393c983`, `379d7ddd`, `864f46fc`, and `efe17b94`.
-- It does **not** contain later forwarded/Audit fixes `73a3380d` or `f08e2df6`.
-- Archived [[TICK-116]] and [[TICK-117]] were deliberately consolidated into BUG-001; their outstanding checks require one genuine production mailbox-to-Case/PO journey and production Box custody proof.
-- Those actions can mutate Outlook, SQL/case state, and Box. Repository rules require fresh explicit approval for the exact targets before performing them.
+### Later failing receipt
 
-**Implication:** “resolved” is supportable for the missing implementation on current source, but not for the deployed end-to-end behaviour. BUG-001 must not be closed solely from code inspection.
+Receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`:
+
+- route: accepted / QDOS / direct provider;
+- classification: Audit / repairable;
+- evidence already recorded a strong `qdos-content-marker` from `EmailBody`;
+- standalone Audit evidence was recorded;
+- fields/draft were nevertheless empty and the receipt became `needs_sorting`;
+- there were zero allocation attempts, Cases, case links, or external-work records.
+
+The later email therefore contained the required QDOS body evidence. It failed because the policy additionally demanded that one fragment contain both the QDOS marker and two extraction labels. The attachments held extractable instruction fields separately, so the incorrect coupling prevented a draft.
+
+## Root cause
+
+The root cause is not PDF extraction, Worker registration, queue execution, allocation recovery, or Box.
+
+It is the contract and orchestration around `QdosInstructionExtractionPolicy`:
+
+- principal evidence from the email body is detected but is not sufficient to establish the QDOS extraction context;
+- field labels in attachments are incorrectly required to re-prove that principal in the same fragment;
+- `ProcessIntake` bases `CaseCreated` eligibility on this coupled extraction applicability even after QDOS route and classification have succeeded;
+- automatic allocation depends on the draft's suggested principal, so the coupled gate stops the entire downstream chain.
+
+The current unit tests pass because they explicitly encode the wrong coupling, notably `QdosMarkerWithoutTwoInstructionLabelsCannotProduceDraft` and `ProofCannotBeAssembledAcrossSeparateContentFragments`. They prove current behaviour, not the clarified product rule.
+
+## Required behavioural correction
+
+For QDOS email intake:
+
+- use the email-body QDOS evidence to establish the principal context;
+- keep accepted-route and message-classification checks as separate required gates;
+- extract instruction fields from the appropriate readable instruction content without requiring attached documents to identify QDOS;
+- build the QDOS draft/principal from that established context;
+- fail closed when required route, body identity, classification, or mandatory instruction evidence is missing or ambiguous;
+- preserve replay-safe allocation and custody sequencing.
+
+No fallback that identifies QDOS from an attachment is authorised by this clarification. If such a fallback is later required, it needs an explicit product rule and separate tests.
 
 ## Conclusion
 
-Reclassify the work mentally as **verification and disposition**, not a code fix. The best next plan is to (1) complete focused local verification, (2) establish whether the current source containing all relevant fixes has been deployed, and (3) only with exact-target operator approval, exercise one genuine production journey and capture Case/PO plus Box evidence. If all pass, close BUG-001 as resolved by the already-merged commits without changing product code. If a step fails, record the exact failing boundary and create a narrowly scoped follow-up fix rather than reopening this broad historical symptom as an implementation task.
-
-## Live-estate comparison — 2026-08-17
-
-### Scope and identity
-
-All live operations in this research pass were read-only. Azure CLI confirmed tenant `858cf5b3-aa0a-47a6-9b40-4851fd0afa94`, subscription `e6076573-23a5-46a8-acef-7e22d264e5db`, resource group `rg-pegasus-prod`, Worker `pegasus-prod-worker-252ow37gij`, SQL database `pegasus`, Application Insights `pegasus-prod-appi-252ow37gij`, and transient intake container `pegcustody252ow37gij/transient-intake`.
-
-The Worker is Running. All nine functions are registered and all nine `AzureWebJobs.<Function>.Disabled` settings read `false`. The later failure was therefore not caused by the earlier Worker containment state.
-
-The current Web version diagnostic reports source `aecad2479f52dadfedca109413a458c60c85323e` (`0.1.0-alpha.1`). That deployed source contains the forwarded-QDOS/Audit fixes through `f08e2df6`. Current `dev` still contains the extraction predicate described below, so this is not simply an old-deployment mismatch.
-
-### Earlier successful test
-
-The 2026-08-14 test receipt `2c4888d6-4098-4d22-a46a-d976286a27b0`:
-
-- was routed `accepted / QDOS / direct_provider`;
-- was classified `new-instruction-received / audit / repairable`;
-- produced a non-empty field set and an `instruction-structure` evidence item because one Bodyshop report fragment contained both a standalone `QDOS` marker and six recognised instruction labels;
-- became `case_created`;
-- completed allocation attempt `c3846c0f-ae34-42a2-bec3-d5fc55550a5a`;
-- allocated Case/PO `QDOS26001` and Audit reference `a.QDOS26001`;
-- completed `create_case_custody` work `3565e349-2535-4f6f-90b3-4e2cc7a5f9b4` on its first attempt;
-- recorded Box root remote ID `409001353539` and custody confirmation at `2026-08-14T08:53:41.9988688Z`.
-
-Application Insights corroborates the sequence: successful `IntakeWorkFunction` at `08:52:12Z`, followed by the estate's only observed `ExternalWorkFunction` execution at `08:53:12Z`, also successful.
-
-### Later test with no Box folder
-
-The 2026-08-17 test receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`:
-
-- was retained at `08:11:45.8861210Z`;
-- ran successfully through `IntakeWorkFunction` at `08:12:15Z` (5.592 seconds, no exception);
-- was routed `accepted / QDOS / direct_provider`;
-- was classified `new-instruction-received / audit / repairable`;
-- retained the original report and recorded automatic standalone-Audit evidence `23d5877f-dceb-412e-8655-3cc138c0a51e`;
-- nevertheless became `needs_sorting` with the exact reason: “The readable content does not provide enough evidence to suggest a principal.”;
-- persisted `FieldsJson` as an empty list;
-- created zero allocation attempts, zero Cases, and zero Case-intake links;
-- therefore created no external-work item and made no Box custody call.
-
-The absence of a Box folder is downstream and expected once allocation never starts. The failure boundary is principal/instruction extraction, before Case/PO allocation and before Box.
-
-### Root cause in the live evidence and current source
-
-`QdosInstructionExtractionPolicy.Extract` only marks a fragment as confirming when the **same content fragment** contains:
-
-1. a match for `\bQDOS\b`; and
-2. at least two recognised instruction-field definitions.
-
-That same-fragment rule is deliberate and is pinned by `ProofCannotBeAssembledAcrossSeparateContentFragments`; it prevents unrelated fragments from being combined into false instruction proof.
-
-The later retained source exposes a narrower parser/marker defect:
-
-- its QDOS Audit instruction letter contains recognised labels including Vehicle registration and Accident date;
-- PDF text extraction renders the brand line as `Proud Members OfQDOS Accident Assistance Ltd`;
-- because `OfQDOS` has no word boundary between `f` and `Q`, `\bQDOS\b` does not match;
-- its Bodyshop report contains multiple recognised field labels but no QDOS text;
-- its email body contains a standalone QDOS marker but not two instruction labels.
-
-Consequently no individual fragment enters `confirmingFragments`, even though the QDOS instruction letter itself contains the marker (collapsed by PDF extraction) and sufficient labels. The earlier Bodyshop report happened to contain a separately delimited QDOS token plus six labels, so it passed.
-
-This explains why superficially equivalent Audit emails diverged: Box was healthy in the earlier test and was never invoked in the later test. The discriminator was the extracted text shape `OfQDOS`, not Worker activation, queue execution, Audit classification, standalone-report evidence, allocation recovery, or Box configuration.
-
-### Local confirmation and coverage gap
-
-The focused current-source test class passed 8/8 in Release. It explicitly preserves the same-fragment rule, but has no fixture for the observed PDF extraction artifact `OfQDOS`. No test currently proves that a QDOS-branded instruction letter whose text extractor collapses “Of QDOS” can establish the principal while retaining the same-fragment safety boundary.
-
-### Revised conclusion
-
-BUG-001 is a current, reproducible extraction-policy defect. The minimal safe repair is not to weaken the same-fragment rule or treat an accepted sender/classification as sufficient by itself. It is to recognise the exact observed collapsed QDOS brand token within the same instruction fragment, add regression/negative tests, and then re-evaluate the retained later receipt under the corrected deployed policy. Only that re-evaluation (with separately authorised production write scope) should create its Case/PO and custody work.
+BUG-001 is current. The later receipt correctly identified QDOS in the email body but the extraction policy discarded that fact by requiring attachment-local principal proof. The plan must decouple email-body principal identification from document field extraction. Once corrected and deployed, the retained receipt can be re-evaluated only with exact-target approval; successful allocation would then enqueue the existing Box custody path.

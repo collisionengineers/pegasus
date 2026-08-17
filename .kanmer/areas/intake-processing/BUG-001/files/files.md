@@ -1,74 +1,40 @@
 # Files — BUG-001
 
-## Change surface
-
-No source change is currently justified. The implementation phase, if later authorised, is an evidence/disposition task unless verification finds a concrete defect.
-
-| Path/module | Why it matters | Risk |
-| --- | --- | --- |
-| `src/Pegasus.Core/Intake/DurableIntake.cs` | Worker-owned queued intake and automatic allocation orchestration | Replay or caller gaps can strand definitive receipts |
-| `src/Pegasus.Core/Intake/IntakeAllocation.cs` | Definitive intake allocation policy | Incorrect eligibility can create a false case or suppress a valid one |
-| `src/Pegasus.Infrastructure/Persistence/EfIntakeAllocationStore.cs` | Persists replay-safe allocation outcome and custody work | Transaction/replay defects can duplicate or strand work |
-| `src/Pegasus.Infrastructure/Persistence/EfQueuedCustodyProcessor.cs` | Creates case custody, retains sources, records success/failure | External effects must be lease-fenced and fail closed |
-| `src/Pegasus.Infrastructure/Custody/BoxCaseCustody.cs` | Production Box folder/file adapter | Wrong root or naming can affect real custody |
-| `src/Pegasus.Worker/IntakeFunctions.cs` | Production queue/timer caller | Registration alone does not prove execution |
-| `src/Pegasus.Worker/WorkerDependencyInjection.cs` | Worker composition | Must bind the real processing and custody implementations |
-| `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs` | Primary allocation/replay evidence | Long-running integration suite; require a conclusive result |
-| `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs` | Custody/outbox/recovery evidence | Local adapter proof is narrower than controlled live Box proof |
-| `tests/Pegasus.IntegrationTests/MailboxIntakeIntegrationTests.cs` | Mailbox receipt-to-durable-intake evidence | Fake/local mailbox evidence is not live Graph execution |
-| `tests/Pegasus.ArchitectureTests/WorkerCompositionTests.cs` | Ensures production Worker resolves Box and intake owners | Structural evidence, not runtime evidence |
-| `docs/operations.md` | Owns deployed source and live-evidence claims | Must not be advanced beyond observed facts |
-| `docs/current-architecture.md` | Owns as-built architecture | Refresh only if deployment/current state actually changes |
-| BUG-001 `proof.md` | Final evidence record if the ticket proceeds after merge/deployment verification | Must separate local, deployed, and live evidence tiers |
-
-## Ripple effects
-
-- [[TICK-116]] and [[TICK-117]] are archived historical proof tickets consolidated into BUG-001; their approval boundaries remain binding.
-- INT-25, DOC-01, and DOC-02 capability status must remain consistent with the evidence actually obtained.
-- A failed local test should become a narrow defect only after the failing boundary is reproduced and isolated.
-- A failed production journey must not be “fixed” by manual data edits; preserve receipt, allocation, case, custody, and caller evidence.
-
-## Context files
-
-| Path | What an implementer must learn |
-| --- | --- |
-| `AGENTS.md` | Live external writes need explicit exact-target approval; proof tiers must remain distinct |
-| `docs/frd/frd-02-intake-and-source-identity.md` | Receipt is not case creation; definitive intake allocation and failure rules |
-| `docs/frd/frd-05-documents-extraction-and-custody.md` | Box custody follows immutable Case/PO allocation and fails closed |
-| `docs/capabilities.md` | INT-25/DOC-01/DOC-02 current acceptance wording and remaining live-proof gap |
-| `docs/operations.md` | Currently documented deployed SHA and explicit absence of journey proof |
-| `docs/runbook.md` | Approved Box root and exact live-operation procedure |
-
-## Deliberately out of scope
-
-- No product-code changes without a reproduced current defect.
-- No new PRD, FRD, ADR, top-level component, migration, or compatibility path.
-- No Outlook, Azure, SQL, credential, Box, deployment, or other external write without fresh exact-target approval.
-- No claim that a build, registration, deployment, or local test proves the complete production journey.
-
-## Live-discovered implementation surface — 2026-08-17
+## Primary change surface
 
 | Path/module | Required change or evidence | Risk |
 | --- | --- | --- |
-| `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` | Extend QDOS marker recognition to the observed PDF-extracted `OfQDOS` brand token while retaining the same-fragment + two-label requirement | Over-broad matching could permit false principal selection |
-| `tests/Pegasus.Core.Tests/Intake/Qdos/QdosInstructionExtractionPolicyTests.cs` | Add the exact collapsed-marker positive case, preserve cross-fragment refusal, and add embedded-substring negative cases | A weak fixture could hide an unsafe policy expansion |
-| `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` | Context only: PdfPig `ContentOrderTextExtractor` produces the fragment text in which visible “Of QDOS” became `OfQDOS`; no reader-wide rewrite is presently justified | Global whitespace repair would affect every PDF and greatly widen scope |
-| `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs` | Prove the corrected definitive Audit shape enters one replay-safe allocation and queues custody | Must not require live data or duplicate allocation |
-| `src/Pegasus.Core/Intake/DurableIntake.cs` | Context for automatic allocation and reasoned re-evaluation; no orchestration change expected | Re-evaluation must preserve history and idempotency |
-| `src/Pegasus.Web/Pages/Intake/Details.cshtml(.cs)` | Existing authenticated “Re-evaluate with current policy” recovery action for the retained production receipt | Live use changes production case state and requires exact approval |
-| `docs/operations.md` / `docs/current-architecture.md` | Refresh only after an authorised deployment and observed re-evaluation result | Do not convert planned repair into deployed truth |
+| `src/Pegasus.Core/Intake/ProcessIntake.cs` | Pass the established QDOS mail context into the extraction/decision path rather than asking extraction to rediscover the principal | Incorrect gate composition could create cases from unclassified or ambiguous mail |
+| `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` | Separate email-body principal evidence from instruction-field extraction; remove the requirement that an attachment fragment re-identify QDOS | Over-broad applicability if route/body/classification prerequisites are not explicit |
+| `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailRoutePolicy.cs` | Context: establishes accepted QDOS direct route/effective sender; no domain widening planned | Route acceptance alone must not silently become complete instruction proof |
+| `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs` | Context: owns QDOS message type/case classification | Classification must remain distinct from principal and field extraction |
+| `src/Pegasus.Core/Intake/IntakeContracts.cs` | Change only if a small explicit context contract is needed between routing/classification and extraction | Avoid a provider-specific leak into generic contracts |
+| `src/Pegasus.Core/Intake/IntakeAllocation.cs` | Verify allocation receives QDOS from the corrected established context/draft; no policy broadening expected | Empty/wrong principal would allocate incorrectly |
+| `tests/Pegasus.Core.Tests/Intake/Qdos/QdosInstructionExtractionPolicyTests.cs` | Replace legacy same-fragment principal tests with body-principal/document-field separation and fail-closed negatives | Tests must not encode attachment text as principal identity |
+| `tests/Pegasus.Core.Tests/Intake/ProcessIntakeTests.cs` | Prove accepted route + QDOS body + valid classification + separate attachment fields reaches `CaseCreated` | Must also prove each missing/ambiguous prerequisite stops safely |
+| `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs` | Prove the corrected shape allocates once and queues custody replay-safely | Do not use production data in fixtures |
+| `docs/operations.md` / `docs/current-architecture.md` | Refresh only after an authorised deployment and observed result | Planned/source truth must not be reported as deployed truth |
 
-### Live records that define the regression
+## Live regression records
 
-- Passing receipt: `2c4888d6-4098-4d22-a46a-d976286a27b0` → `QDOS26001` → Box remote ID `409001353539`.
-- Failing receipt: `9a91fe16-d62f-4477-a11e-830fd96f672a` → `needs_sorting` → zero allocation/Case/link/external-work records.
-- The failing source is retained immutably in production Blob storage. It may be read for authorised evidence, but it must not be copied into the repository or used to introduce personal data into fixtures.
-- A minimal synthetic-free regression string may quote only the structural, non-personal extraction shape already observed: QDOS brand token collapsed as `OfQDOS` plus recognised field labels.
+- Earlier pass: receipt `2c4888d6-4098-4d22-a46a-d976286a27b0`, Case/PO `QDOS26001`, Box remote ID `409001353539`.
+- Later failure: receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`, strong QDOS evidence from `EmailBody`, then `needs_sorting`, with no allocation or external work.
+- The retained live source is evidence only. Do not commit it or copy personal data into fixtures.
 
-### Revised out of scope
+## Governing/context files
 
-- Do not weaken the same-fragment proof boundary.
-- Do not make accepted QDOS transport or Audit classification alone create a Case.
-- Do not add OCR, cross-document evidence aggregation, generic whitespace repair, Box changes, queue changes, database migration, or compatibility shim.
-- Do not manually insert Case/PO, allocation, link, external-work, or Box records.
-- Production re-evaluation/deployment remains a separate exact-target write requiring explicit approval.
+| Path | Relevance |
+| --- | --- |
+| `docs/frd/frd-02-intake-and-source-identity.md` | Definitive authorised intake, fail-closed handling, allocation |
+| `docs/frd/frd-05-documents-extraction-and-custody.md` | Field extraction and Box custody after immutable allocation |
+| `docs/frd/frd-09-provider-and-intermediary-routes.md` | Keeps route, provider/principal, classification, and association facts distinct |
+| `docs/operator-notes.md` | Binding operator truth; user clarification supplements the ticket research |
+| `AGENTS.md` | External writes require exact-target approval and proof tiers remain separate |
+
+## Deliberately out of scope
+
+- No `OfQDOS` token rule, PDF whitespace repair, OCR feature, or generic parser rewrite.
+- No attachment-based QDOS identification fallback without a separately specified requirement.
+- No Box, queue, database-schema, migration, or manual production-data fix.
+- No production deployment or receipt re-evaluation without explicit exact-target approval.
+- No source implementation during the current research/planning phase.
