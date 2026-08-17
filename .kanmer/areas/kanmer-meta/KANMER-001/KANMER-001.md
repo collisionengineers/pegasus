@@ -2,13 +2,14 @@
 id: KANMER-001
 type: ticket
 title: Retarget Kanmer tickets that cite the retired NOW.md / requirements.md
-status: review
+status: verifying
 area: kanmer-meta
 assignee: codex
 profile: chore
 stageEntered:
   implementing: '2026-08-17T04:08:18.711Z'
   review: '2026-08-17T04:10:50.516Z'
+  verifying: '2026-08-17T04:14:08.436Z'
 taken_at: '2026-08-17T04:06:10.170Z'
 branch: task/kanmer-001-retarget-retired-now-references
 worktree: ../pegasus-worktrees/kanmer-001-retarget-retired-now-references
@@ -19,7 +20,7 @@ links:
   - SIMPLI-004
 archived: false
 created: '2026-08-14T11:15:00.271Z'
-updated: '2026-08-17T04:10:50.516Z'
+updated: '2026-08-17T04:14:08.436Z'
 ---
 
 ## What

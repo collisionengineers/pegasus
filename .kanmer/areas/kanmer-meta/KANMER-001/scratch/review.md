@@ -30,3 +30,11 @@
 ## Verdict
 
 **Needs changes.** The archive boundary, EPIC-001 preservation, FRD mappings/anchors, pipeline-document cleanup, and concurrency safety all pass. The sole blocker is the missing SIMPLI-015 linkage/context on TICK-203–TICK-216, which leaves the preserved renderer work disconnected from the consolidation owner required by the plan and recorded operator decision.
+
+## Re-review — renderer consolidation link fix
+
+- Confirmed TICK-203 through TICK-216 each now carries `SIMPLI-015` in its structured `links[]`; `get_links` resolves every relation to the renderer/document-extractor integration ticket.
+- Confirmed archive states are unchanged: TICK-209 and TICK-210 remain archived; TICK-203–208 and TICK-211–216 remain active Backlog tickets.
+- No remaining issue from the prior blocker.
+
+**Verdict: PASS.** The renderer consolidation owner is now directly discoverable from every preserved renderer ticket, and the original review's other checks remain accepted.
