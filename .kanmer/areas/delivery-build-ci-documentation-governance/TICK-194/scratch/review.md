@@ -1,0 +1,27 @@
+# Independent review — PR #377
+
+Reviewer: independent from implementation.
+
+## Changes
+
+- `.github/workflows/ci.yml`: invokes the guard only for `push` events on `refs/heads/main` after full-history checkout, and classifies guard-script changes as build-relevant.
+- `scripts/Test-MainBranchHistory.ps1`: resolves explicit before/head commits, rejects the zero sentinel, unavailable/non-ancestor/empty ranges, and requires exactly two parents for every new first-parent commit.
+- `tests/Pegasus.ArchitectureTests/MainBranchHistoryGuardTests.cs`: adds six synthetic-history tests for the allowed merge append and direct, mixed, missing, zero, and rewritten rejection cases.
+- `docs/temp-plans/main-branch-history-guard.md`: records ticket scope, owned files, acceptance, and the UI-revamp exclusion.
+
+## Comments and disposition
+
+- Non-blocking — the control is post-push detection, not prevention. Disposition: won't-do-because branch protection/rulesets and recovery are explicitly outside TICK-194; the plan, script output, and report are accurate about this boundary.
+- Non-blocking — local full architecture execution is 92/93 because `WorkerActivationReleaseContractTests.LocalDeploymentPlanRejectsAppendedRogueHardCodedWorkerSetting` fails. Disposition: won't-do-because the failure reproduces independently at the pre-existing `The Web Container App must scale only from zero to one replica` assertion, before the intended rogue-setting census, and PR #377 changes none of the test, script, Bicep, parameter, YAML, or production-smoke fixture inputs.
+- Non-blocking — `actionlint` was unavailable locally. Disposition: GitHub parsed and started the workflow successfully; the repository-check `changes`, `documentation`, and `reference-data` jobs passed. Remaining required jobs are still pending and remain the merge gate.
+- No blocking findings. No follow-up ticket required.
+
+## Plan and implementation completeness
+
+The ticket requirement, EPIC-001 context, research/files documents, plan/checklist, and post-implementation report are mutually consistent. The plan does not miss work implied by the ticket. The implementation does not miss planned work. The report honestly lists every changed file and its rationale. No governing PRD/FRD/ADR applies: this enforces existing repository process in `AGENTS.md` and `docs/engineering.md` without changing product behaviour or application architecture.
+
+The exact reviewed head is `5599899c43086c46586eb60edc7372098f80e374`. The diff is limited to the four planned paths and contains no `src/Pegasus.Web/**`, UI browser/snapshot, `design/**`, or `.stitch/**` path.
+
+## Verdict
+
+PASS on plan completeness, implementation completeness, correctness, focused verification (6/6), report accuracy, governing-doc alignment, and UI non-overlap. Merge is deferred until every required GitHub check is green; TICK-194 remains in Review meanwhile.
