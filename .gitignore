@@ -64,7 +64,7 @@ Thumbs.db
 /workspaces/ai-centre/services/collision-brain/publish/
 /workspaces/ai-centre/skills/tools/__pycache__/
 .kanmer/
-.worktrees/
+/.worktrees/
 
 # design-sync (Claude Design converter): staged scripts, build output, machine state
 .ds-sync/
