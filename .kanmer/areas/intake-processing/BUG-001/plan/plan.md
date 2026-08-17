@@ -95,3 +95,12 @@ This is preferred to:
 ## Proof strategy
 
 The post-implementation report will map every changed file to the governing docs and include the exact focused/full command results. Independent review and green CI provide pre-merge evidence. `kanmer-verify` will repeat the locked build and focused identity/allocation/custody tests on merged code. Production deployment, retained-message reevaluation, and Box proof occur only after explicit exact-target approval and are never inferred from local tests.
+
+## Operator clarifications applied during review — 2026-08-17
+
+These later operator statements supersede narrower planning language above:
+
+- Pegasus is pre-release; there are no legacy live receipts and no migration/recovery compatibility requirement for pre-route data.
+- QDOS identity is established from the exact recorded sender suffixes, or the proved prior/original sender of a Collision Engineers staff forward. An uploaded EML's parsed sender may be evaluated by that same rule; no additional authentication framework is introduced in BUG-001.
+- Once QDOS is identified, BUG-001 does not add a second “instruction versus non-instruction” or scan-completeness identity gate. Defining non-instruction email behaviour is future work.
+- Senderless scanned documents still retain their provider-neutral `OcrRequired` processing outcome; OCR never establishes QDOS.
