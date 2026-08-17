@@ -22,12 +22,13 @@ docs_todo: true
 commits:
   - 4db056bcd0a609bf6900eb913d3ee417ec4feeeb
   - 98cf01f715ab49363caf6ae66724fac76ac6cc9d
+  - fdd2aeba723717fb2391b64d7a810339123abc82
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/384'
 deployment: not-deployed
 archived: false
 created: '2026-08-12T15:08:04.833Z'
-updated: '2026-08-17T06:14:55.107Z'
+updated: '2026-08-17T06:16:02.934Z'
 ---
 
 ## What

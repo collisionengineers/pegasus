@@ -1,1 +1,3 @@
 Opened PR https://github.com/collisionengineers/pegasus/pull/384 targeting dev. Focused regression, real-range validation, documentation links, fail-closed invalid revision, and diff checks passed locally. Hand off to kanmer-review; do not self-review or merge.
+
+PR #384 first documentation run exposed PowerShell preserving LASTEXITCODE=1 after the regression suite intentionally exercised invalid Git revisions. Added an explicit success reset after all assertions in fdd2aeba; verified the script as a separate pwsh process returns zero, then pushed the fix. Await the replacement CI run in review.
