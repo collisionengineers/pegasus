@@ -229,3 +229,18 @@ The change this plan describes is small (delete one compatibility alias in `EfIn
 **Also in scope here (from the PR #385 review, finding T3):** unleased `dispatched` intake work rows have no reconciliation path — `RecoverExpiredLeasesAsync` covers `dispatching|processing`, dispatch candidates are `pending|retry_scheduled` — so a lost queue message, or residue from the retired inline path, stays "Received" forever. Same read-only production check pattern (`IntakeWorkItems WHERE State='dispatched' AND LeaseToken IS NULL AND DueAtUtc < now-1h`), then make stale unleased `dispatched` rows dispatch candidates again in `FindNextDispatchCandidateAsync` (safe: `ClaimProcessingAsync` is idempotent, so a duplicate message no-ops). One test in `RecoveryTests`.
 
 **Resulting step list (6):** (1) read-only production counts for `draft_ready` and stale `dispatched`, recorded; (2) delete the alias/branches/comments; make stale `dispatched` re-dispatchable; (3) fixtures → `case_created`; (4) `docs/design/README.md` + `docs/current-architecture.md` sentences; (5) build, Core tests, focused integration filter, Architecture tests, `rg` zero-match, `git diff --check`; (6) PR to `dev`, independent plan-vs-diff review, merge.
+
+## Simplification pass — 2026-08-17 (one combined-lens `code-simplifier` check, proportional to a 22-file / +33 −62 diff; run before the PR opened)
+
+**Applied**
+- `docs/design/README.md` — the two complete-state contract rows still listed the intake UI state "Draft ready" (`:652`, `:895`) → replaced with the live `CaseCreated` label "Ready for case allocation"; the two paragraphs that had each anchored on the deleted `DraftReady` sentence opened with the same claim → the first opener dropped, the FRD-02-cited one kept; a dangling "`case_created` is the only persisted code for *that* processing outcome" sentence (antecedent removed, claim already made twice above) → deleted.
+- `docs/current-architecture.md` — same dangling antecedent → reduced to "A `case_created` decision is not case-existence authority."
+- `CONTEXT.md:146` — the last repo-wide `DraftReady` mention (twin of the deleted design sentence) → deleted.
+- `src/Pegasus.Web/Pages/Shared/_StatusChip.cshtml:48` — `"draft ready" or "instruction draft"` tone arm had no producer (intake decision labels do not reach the chip; the live label is "Ready for case allocation") → dead vocabulary removed. No live label lost a tone.
+- Search widened to case-insensitive `draft.?ready` — the plan's own `rg` pattern would have missed "Draft ready"; zero matches now in `src`, `tests`, `docs` (excluding imported design sources), `CONTEXT.md`.
+
+**Confirmed clean** — `DecisionCodes` has no remaining reader; `ToCode` is total, so the single-code filter is equivalent; the three test renames match their assertions; both migration fixtures keyed on `DecisionReason`, no column existed only for the alias; `IntakeContracts` replacement paragraph is non-redundant.
+
+**Deferred → [[INTK-002]]** — `EfOperationsStore.MapIntakeState` is a second hand-kept copy of the decision-string table (`EfIntakeReceiptStore.ParseDecision`), and `IntakeMcpTools` a third; this diff had to edit two of them. Collapsing changes fail-closed behaviour on unknown codes (`ParseDecision` throws, `MapIntakeState` returns `Unknown`), so it is its own change.
+
+**Not in scope** — imported design sources under `docs/design/system/`, `.design-sync/`, `design/` still carry the old vocabulary; decision→label duplication in `Intake/Details.cshtml.cs` and `Mail/Message.cshtml.cs`; `MapIntakeState` omitting `blocked_intake`/`image_intake_registered` (pre-existing).
