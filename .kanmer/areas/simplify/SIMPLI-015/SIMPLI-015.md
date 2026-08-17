@@ -9,6 +9,9 @@ area: simplify
 assignee: ''
 profile: feature
 labels: []
+groups:
+  - EPIC-002
+  - EPIC-004
 links:
   - SIMPLI-013
   - SIMPLI-014
@@ -17,7 +20,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-14T13:18:49.985Z'
+updated: '2026-08-17T06:40:00.679Z'
 ---
 
 ## What

@@ -10,11 +10,13 @@ labels:
   - now
   - source-now
   - requires-live-approval
+groups:
+  - HZN-003
 links:
   - TICK-032
 archived: true
 created: '2026-08-12T15:08:02.286Z'
-updated: '2026-08-17T04:09:19.604Z'
+updated: '2026-08-17T06:40:18.401Z'
 ---
 
 ## What

@@ -12,12 +12,15 @@ labels:
   - source-now
   - requires-live-approval
   - blocked
+groups:
+  - HZN-002
+  - HZN-003
 links:
   - TICK-022
   - TICK-116
 archived: true
 created: '2026-08-12T15:08:02.458Z'
-updated: '2026-08-17T04:09:21.760Z'
+updated: '2026-08-17T06:40:19.833Z'
 ---
 
 ## What

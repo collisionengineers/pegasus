@@ -179,6 +179,10 @@ areas:
     name: Case & Reference Workflow
     color: "#c0392b"
     prefix: CASE
+  - id: intake-processing
+    name: Intake & Processing
+    color: "#e67e22"
+    prefix: INTK
 idPrefixes:
   ticket: TICK
   plan: PLAN

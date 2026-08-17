@@ -13,10 +13,13 @@ labels:
   - MCP-02
   - now
   - requires-live-approval
+groups:
+  - EPIC-005
+  - HZN-003
 links: []
 archived: false
 created: '2026-08-12T15:03:53.256Z'
-updated: '2026-08-17T04:09:02.180Z'
+updated: '2026-08-17T06:40:04.900Z'
 ---
 
 ## What

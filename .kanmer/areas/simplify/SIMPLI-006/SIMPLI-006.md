@@ -11,12 +11,14 @@ assignee: claude-code
 profile: custom
 requires: {}
 labels: []
+groups:
+  - EPIC-002
 links:
   - SIMPLI-001
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.821Z'
-updated: '2026-08-14T13:19:22.645Z'
+updated: '2026-08-17T06:39:58.947Z'
 ---
 
 ## What

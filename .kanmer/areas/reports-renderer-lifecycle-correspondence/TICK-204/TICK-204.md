@@ -10,11 +10,13 @@ labels:
   - now
   - source-now
   - decision-required
+groups:
+  - EPIC-004
 links:
   - SIMPLI-015
 archived: false
 created: '2026-08-12T15:08:05.231Z'
-updated: '2026-08-17T04:13:43.962Z'
+updated: '2026-08-17T06:40:28.940Z'
 ---
 
 ## What
