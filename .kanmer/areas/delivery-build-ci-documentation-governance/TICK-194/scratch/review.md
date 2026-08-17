@@ -25,3 +25,7 @@ The exact reviewed head is `5599899c43086c46586eb60edc7372098f80e374`. The diff 
 ## Verdict
 
 PASS on plan completeness, implementation completeness, correctness, focused verification (6/6), report accuracy, governing-doc alignment, and UI non-overlap. Merge is deferred until every required GitHub check is green; TICK-194 remains in Review meanwhile.
+
+## CI gate update
+
+Required GitHub checks are not green, so PR #377 was not merged and TICK-194 was not moved. At the latest review poll: `unit` failed, `qdos-pressure` failed, `browser` and all three `sql-integration` shards remained pending; `changes`, `documentation`, and `reference-data` passed. GitHub withheld failed-job logs while the workflow run remained in progress, so no unsupported attribution is made for those two CI failures.
