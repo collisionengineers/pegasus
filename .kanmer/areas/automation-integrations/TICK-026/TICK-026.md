@@ -24,9 +24,11 @@ groups:
 links: []
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+commits:
+  - 0a15d656de56e54924e3fbff6f120e4360b7ff4e
 archived: false
 created: '2026-08-12T15:03:53.304Z'
-updated: '2026-08-17T13:07:53.709Z'
+updated: '2026-08-17T13:24:00.550Z'
 ---
 
 ## What

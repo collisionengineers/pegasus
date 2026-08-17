@@ -17,9 +17,11 @@ groups:
   - EPIC-005
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:03:53.326Z'
-updated: '2026-08-17T06:41:37.772Z'
+updated: '2026-08-17T13:24:00.576Z'
 ---
 
 ## What
