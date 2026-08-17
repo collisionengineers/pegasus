@@ -699,10 +699,8 @@ its content-safe evidence artifact.
 The runner requires Git metadata and a clean working tree, resolves the
 supplied revision to the exact checked-out `HEAD`, and rejects a mismatch
 before creating the run evidence directory or compiling tests.
-`OfflineCandidate` also requires the caller manifest and any inherited
-`PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION` value to identify that exact
-revision; its Web-host gate compares the environment revision with the source
-SHA exposed by the compiled `/diagnostics/version` endpoint.
+`OfflineCandidate` also requires the caller manifest to identify that exact
+revision and run.
 
 `-Profile OfflineCandidate` is deliberately fail closed. It requires the
 operator-approved immutable 2,000-case dataset and hash, the complete
@@ -714,6 +712,18 @@ must identify the same clean source revision and acceptance run ID, remain
 timestamp order. The runner also re-hashes the exact Web and Worker runtime
 paths recorded at initialization, so missing or altered local binaries fail
 before any acceptance tests execute.
+
+The runner itself owns the caller-manifest coverage check; nothing in the
+running application takes part, and there is no acceptance gate in
+`Pegasus.Core` or in Web composition. The capabilities an offline candidate
+must evidence are the rows of [`docs/capabilities.md`](capabilities.md) whose
+"Target release" column is `0.1.0-alpha.1`, read at run time rather than kept
+as a second list. Each needs exactly one observation with a caller, an outcome
+of `passed` or `deferredToExternalGate`, and an evidence file the runner
+re-hashes; only the external-gate capabilities (OPS-10, OPS-24, OPS-25) may
+defer, and both offline external gates must carry an approval reference and
+hashed evidence. Release acceptance is recorded, not enforced: the evidence
+file lists the remaining release blockers.
 
 ### Stable invariants
 

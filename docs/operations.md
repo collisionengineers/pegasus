@@ -74,7 +74,9 @@ This lane proves bounded in-process Web-caller concurrency, latency, antiforgery
 
 `OfflineCandidate` is the current fail-closed profile and remains unavailable
 without the approved immutable dataset, caller manifest, and run-owned local
-evidence required by the runbook. It never promotes offline evidence to
+evidence required by the runbook. Its capability-coverage check is owned by the
+runner script and reads the alpha roster from `docs/capabilities.md`; the
+application registers no acceptance gate. It never promotes offline evidence to
 deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision
 Engineers management-accepted evidence.
 
