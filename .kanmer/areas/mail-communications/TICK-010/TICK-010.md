@@ -24,9 +24,13 @@ groups:
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - ea25816b
+prs:
+  - '392'
 archived: false
 created: '2026-08-12T15:03:52.968Z'
-updated: '2026-08-17T13:37:03.714Z'
+updated: '2026-08-17T13:40:25.174Z'
 ---
 
 ## What
