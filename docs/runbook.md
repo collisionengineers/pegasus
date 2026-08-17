@@ -685,6 +685,11 @@ directory unconditionally, and writes content-safe evidence beneath
 `artifacts/qdos-alpha-acceptance/<run-id>/`. Supply the exact 40-character
 checked-out source revision:
 
+GitHub runs this profile nightly at 03:00 UTC and on manual dispatch through
+`.github/workflows/qdos-pressure.yml`. Hosted-runner variance makes it a
+recurring diagnostic lane rather than a pull-request gate; every run retains
+its content-safe evidence artifact.
+
 ```powershell
 ./scripts/Invoke-QdosAlphaAcceptance.ps1 `
   -Profile CiPressure `

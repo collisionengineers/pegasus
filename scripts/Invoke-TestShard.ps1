@@ -42,7 +42,10 @@ param(
     [string] $ArtifactRoot = 'artifacts/test-shards',
 
     [Parameter(ParameterSetName = 'Run')]
-    [switch] $ListOnly
+    [switch] $ListOnly,
+
+    [Parameter(ParameterSetName = 'Run')]
+    [string] $TestListPath
 )
 
 Set-StrictMode -Version Latest
@@ -120,23 +123,55 @@ if ($Shard -lt 1 -or $Shard -gt $ShardCount) {
     throw "Shard $Shard is outside 1..$ShardCount."
 }
 
-$output = & dotnet test $Project --configuration $Configuration --no-build --filter $Filter --list-tests
-if ($LASTEXITCODE -ne 0) {
-    $output | Write-Host
-    throw "Enumerating '$Project' failed."
+$output = @()
+if ($TestListPath) {
+    $tests = @(Get-Content $TestListPath | Where-Object { $_ } | Sort-Object -CaseSensitive)
 }
+else {
+    $output = & dotnet test $Project --configuration $Configuration --no-build --filter $Filter --list-tests
+    if ($LASTEXITCODE -ne 0) {
+        $output | Write-Host
+        throw "Enumerating '$Project' failed."
+    }
 
-# `--list-tests` prints each test indented under a heading.
-$tests = @($output | Where-Object { $_ -match '^\s{4}\S' } | ForEach-Object { $_.Trim() } | Sort-Object -CaseSensitive)
+    # `--list-tests` prints each test indented under a heading.
+    $tests = @($output | Where-Object { $_ -match '^\s{4}\S' } | ForEach-Object { $_.Trim() } | Sort-Object -CaseSensitive)
+}
 if ($tests.Count -eq 0) {
     $output | Write-Host
     throw "Filter '$Filter' enumerated no test. Refusing to report an empty shard as green."
 }
 
-$classes = @($tests | ForEach-Object { Get-TestClass $_ } | Sort-Object -Unique -CaseSensitive)
-$mine = @(for ($index = 0; $index -lt $classes.Count; $index++) {
-    if (($index % $ShardCount) + 1 -eq $Shard) { $classes[$index] }
+$classGroups = @($tests |
+    Group-Object { Get-TestClass $_ } |
+    ForEach-Object {
+        [pscustomobject]@{
+            Class = $_.Name
+            Tests = @($_.Group)
+        }
+    } |
+    # Largest test classes are placed first. The class-name tie-break and
+    # lowest-shard tie-break make every runner derive the same partition.
+    Sort-Object @{ Expression = { $_.Tests.Count }; Descending = $true },
+                @{ Expression = { $_.Class }; Ascending = $true })
+
+$assignments = @(for ($index = 1; $index -le $ShardCount; $index++) {
+    [pscustomobject]@{
+        Classes = [System.Collections.Generic.List[string]]::new()
+    }
 })
+
+# Deal each descending-size group across the runners, reversing direction on
+# every row. This keeps adjacent large classes apart without clustering the
+# medium database-heavy classes on whichever shard happens to be lightest.
+for ($index = 0; $index -lt $classGroups.Count; $index++) {
+    $row = [math]::Floor($index / $ShardCount)
+    $slot = $index % $ShardCount
+    $target = if (($row % 2) -eq 0) { $slot } else { $ShardCount - 1 - $slot }
+    $assignments[$target].Classes.Add($classGroups[$index].Class)
+}
+
+$mine = @($assignments[$Shard - 1].Classes)
 
 $assigned = @($tests | Where-Object { $mine -contains (Get-TestClass $_) })
 
@@ -144,7 +179,7 @@ New-Item -ItemType Directory -Force -Path $ArtifactRoot | Out-Null
 Set-Content -Path (Join-Path $ArtifactRoot "listed-$Shard.txt") -Value $tests
 Set-Content -Path (Join-Path $ArtifactRoot "assigned-$Shard.txt") -Value $assigned
 
-Write-Host "Shard $Shard of $ShardCount takes $($mine.Count) of $($classes.Count) classes and $($assigned.Count) of $($tests.Count) tests."
+Write-Host "Shard $Shard of $ShardCount takes $($mine.Count) of $($classGroups.Count) classes and $($assigned.Count) of $($tests.Count) tests."
 
 if ($ListOnly) {
     $assigned | Write-Host
