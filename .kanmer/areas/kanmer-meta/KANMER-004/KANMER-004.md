@@ -2,21 +2,21 @@
 id: KANMER-004
 type: ticket
 title: Consolidate Pegasus board areas around durable ownership
-status: implementing
+status: done
 area: kanmer-meta
 assignee: codex
 profile: chore
 stageEntered:
   implementing: '2026-08-17T06:39:23.675Z'
-taken_at: '2026-08-17T06:38:45.266Z'
-branch: task/kanmer-004-area-consolidation
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/kanmer-004-area-consolidation'
+  review: '2026-08-17T06:45:08.077Z'
+  verifying: '2026-08-17T06:46:49.235Z'
+  done: '2026-08-17T06:47:11.129Z'
 labels: []
 links: []
 deployment: n/a
 archived: false
 created: '2026-08-17T06:38:11.255Z'
-updated: '2026-08-17T06:39:23.675Z'
+updated: '2026-08-17T06:47:39.511Z'
 ---
 
 ## Why
@@ -40,3 +40,5 @@ Consolidate every active and archived ticket into nine durable areas, move cross
 This is repository workflow and board governance owned by `AGENTS.md`; it does not require or justify a product PRD, FRD, or ADR.
 
 ## Outcome
+
+Completed the live board migration from 38 areas to nine durable ownership areas across all 245 pre-existing tickets plus this meta ticket. Added six reviewed cross-domain groups, preserved EPIC-001/HZN-001, retained all 98 archived tickets, and verified zero warnings, zero off-board records, exact rosters and zero idempotency changes. The Intake prefix is INTK because INTAKE collided with a retired prefix. No product source, PR, deployment or follow-up ticket was required.

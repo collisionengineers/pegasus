@@ -1,0 +1,1 @@
+Migration applied and locally reconciled. Windows lock remediation: gracefully closed the Kanmer desktop main window, retried only the 40 EPERM ticket folders, all succeeded, then removed empty old columns. Kanmer must be relaunched after independent review/closeout.
