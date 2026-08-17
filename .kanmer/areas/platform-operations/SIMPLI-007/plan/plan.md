@@ -28,3 +28,20 @@ Governing docs: [ADR-0013](../../../docs/adr/0013-qdos-alpha-implementation-cont
 - Stop if any production code path (page, endpoint, MCP tool, Worker function) turns out to resolve the gate — the survey found none, but the build/grep in step 4 is the proof.
 - Do not touch `CiPressure`, `qdos-pressure.yml`, or PerformanceTests staging.
 - Do not claim any change to the release status of OPS-10/24/25.
+
+## Simplification pass — 2026-08-17 (one combined-lens `code-simplifier` check over the 6-file / +279 −516 diff, before the PR)
+
+**Applied**
+- `Assert-AlphaCapabilityCoverage`: each present external gate is validated **once** into a per-gate blocker list; the offline and release verdicts then only ask which required gates are absent — the earlier shape re-ran approval + evidence hashing for the two offline gates in both loops.
+- Blocker ordering is **ordinal** (`Get-OrdinalSorted` → `[Array]::Sort` with `StringComparer.Ordinal`), restoring the deleted C# gate's contract; the culture-collation sort had put `capability:null` before `capability:OPS-10:…`. Membership/count unchanged.
+- `Get-AlphaCapabilityIds` reads the **"Target release" column by index** (`$cells[4]`, asserting the eight-field split) instead of matching any cell — a Notes cell containing the bare version can no longer false-positive. Same 131 IDs.
+- Dead tolerance removed: numeric outcomes (`'1'`/`'2'`, a relic of the deleted `JsonStringEnumConverter`) are now `invalid-outcome`; outcome tokens compared case-sensitively (`-ceq`) like the script's other contract checks; the two accepted tokens are named in the runbook. This is a deliberate fail-closed tightening — no producer emits numbers.
+- `Test-LowerHex`: dead `$null -ne` guard and `[AllowNull()]` dropped (`[string]` coerces null to empty).
+- Constants: contract constants (`$acceptanceManifestKind`, outcome tokens, gate/capability lists) sit directly above their first reader (`Assert-OfflineCandidatePrerequisites`); register path stays with the path block. `$externallyCompletedCapabilityIds` → `$externalGateCapabilityIds` (the set is right; "completed" read oddly against OPS-24 "Required and accepted").
+- `docs/runbook.md`: the coverage-check text is its own paragraph after the local-manifest paragraph (the insertion had split "…`run-manifest.json`. That local manifest…" by 90 words).
+
+**Confirmed clean** — no `QdosAlpha*` / `PEGASUS_QDOS_ACCEPTANCE_*` residue anywhere; all four newly hashed acceptance-lane test files exist and carry the trait; `CoreAssembly.cs` marker file is correct where it is; `docs/operations.md:81-83` trait list still names `QdosAlphaAcceptance`.
+
+**Considered, left alone** — evidence-file hash cache (≈140 small distinct files per real run; a cache is state for no gain).
+
+Harness (`scratchpad/test-007-coverage.ps1`) re-run after the pass: roster 131 (no DOC-06, has MCP-01); incomplete manifest fails closed with the expected blockers; complete manifest → offline accepted, release not (10 blockers).
