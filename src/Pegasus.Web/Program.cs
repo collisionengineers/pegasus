@@ -544,7 +544,6 @@ if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
 }
-builder.Services.AddSingleton<QdosAlphaAcceptanceGate>();
 builder.Services.AddScoped<EfIdentityAuditStore>();
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
