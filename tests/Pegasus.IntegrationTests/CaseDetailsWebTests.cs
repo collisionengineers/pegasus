@@ -49,9 +49,9 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claim, store.CaseId);
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("handler=RetryCustody", html, StringComparison.Ordinal);
-        Assert.Contains("handler=GenerateEvaHandoff", html, StringComparison.Ordinal);
-        Assert.Contains("handler=EvaDownload", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=RetryCustody", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Vehicle?handler=GenerateEvaHandoff", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Eva/Download", html, StringComparison.Ordinal);
         Assert.Contains("name=\"expectedVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"operationKey\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
@@ -60,18 +60,13 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(new string('a', 64), html, StringComparison.OrdinalIgnoreCase);
 
-        foreach (var handler in new[] { "RetryCustody", "GenerateEvaHandoff", "EvaDownload" })
+        foreach (var route in new[] { "Custody?handler=RetryCustody", "Vehicle?handler=GenerateEvaHandoff", "Eva/Download" })
         {
             using var denied = await client.PostAsync(
-                $"/Cases/{store.CaseId:D}?handler={handler}",
+                $"/Cases/{store.CaseId:D}/{route}",
                 new FormUrlEncodedContent([]));
             Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
         }
-        var constructorPorts = Assert.Single(typeof(Pegasus.Web.Pages.Cases.DetailsModel).GetConstructors())
-            .GetParameters().Select(parameter => parameter.ParameterType).ToArray();
-        Assert.Contains(typeof(IRetryCaseCustody), constructorPorts);
-        Assert.Contains(typeof(IGenerateEvaHandoff), constructorPorts);
-        Assert.Contains(typeof(IDownloadEvaHandoff), constructorPorts);
     }
 
     [Fact]
@@ -139,7 +134,7 @@ public sealed partial class CaseDetailsWebTests
         var operationKey = "manual-chase-replay";
         var attemptedAtUtc = InputValue(leasedHtml, "attemptedAtUtc");
         using var firstResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RecordManualChase",
+            $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
             ManualChaseForm(AntiforgeryValue(leasedHtml), store, operationKey, attemptedAtUtc));
         AssertPrg(firstResponse, store.CaseId);
 
@@ -148,7 +143,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("name=\"editLeaseToken\"", currentHtml, StringComparison.Ordinal);
         Assert.Contains("Awaiting requested photographs", currentHtml, StringComparison.Ordinal);
         using var replayResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RecordManualChase",
+            $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
             ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey, attemptedAtUtc));
         AssertPrg(replayResponse, store.CaseId);
 
@@ -216,13 +211,13 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("Transition to report preparation", leasedHtml, StringComparison.Ordinal);
         var antiforgeryToken = AntiforgeryValue(leasedHtml);
         using var holdResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=Hold",
+            $"/Cases/{store.CaseId:D}/Workflow?handler=Hold",
             LifecycleForm(antiforgeryToken, store, "hold-case", "Awaiting provider"));
         using var releaseResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ReleaseHold",
+            $"/Cases/{store.CaseId:D}/Workflow?handler=ReleaseHold",
             LifecycleForm(antiforgeryToken, store, "release-case", "Provider replied"));
         using var startResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=StartWork",
+            $"/Cases/{store.CaseId:D}/Workflow?handler=StartWork",
             LifecycleForm(antiforgeryToken, store, "start-report-preparation", "Engineer work started"));
 
         AssertPrg(holdResponse, store.CaseId);
@@ -315,17 +310,25 @@ public sealed partial class CaseDetailsWebTests
             ("outcome", "Awaiting requested photographs"),
             ("note", "Asked provider for missing images"));
 
+    /// <summary>
+    /// What every case mutation posts from the leased workspace — the case id, its version, the
+    /// operation key, the lease token, and the reason — plus the fields the action adds.
+    /// </summary>
     private static FormUrlEncodedContent LifecycleForm(
         string antiforgeryToken,
         RecordingCaseDetailsStore store,
         string operationKey,
-        string reason) => Form(
+        string reason,
+        params (string Name, string Value)[] fields) => Form(
             antiforgeryToken,
-            ("id", store.CaseId.ToString("D")),
-            ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-            ("operationKey", operationKey),
-            ("editLeaseToken", store.LeaseToken),
-            ("reason", reason));
+            [
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", operationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", reason),
+                .. fields
+            ]);
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {
@@ -946,7 +949,7 @@ public sealed partial class CaseDetailsWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
-    private sealed class RecordingCaseDetailsStore :
+    private sealed partial class RecordingCaseDetailsStore :
         IGetCase,
         IAcquireCaseEditLease,
         IRecordManualCaseChase,
@@ -1146,6 +1149,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ThrowNextFailure();
             Holds.Add(request);
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Held });
         }
@@ -1155,6 +1159,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ThrowNextFailure();
             Releases.Add(request);
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Review });
         }
@@ -1164,6 +1169,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ThrowNextFailure();
             Transitions.Add(request);
             return Task.FromResult(CreateWorkflow() with
             {
@@ -1190,6 +1196,7 @@ public sealed partial class CaseDetailsWebTests
             ManualChaseRecord request,
             CancellationToken cancellationToken)
         {
+            ThrowNextFailure();
             ManualChases.Add(request);
             _dueWork = _dueWork with
             {

@@ -49,7 +49,7 @@ public sealed partial class CaseDetailsWebTests
         var approvalId = InputValue(leasedHtml, "approvalId");
         const string approvalOperationKey = "report-approval-replay";
         using var firstResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RecordReportApproval",
+            $"/Cases/{store.CaseId:D}/Closure?handler=RecordReportApproval",
             ApprovalForm(
                 AntiforgeryValue(leasedHtml),
                 store,
@@ -59,7 +59,7 @@ public sealed partial class CaseDetailsWebTests
 
         var currentHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         using var replayResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RecordReportApproval",
+            $"/Cases/{store.CaseId:D}/Closure?handler=RecordReportApproval",
             ApprovalForm(
                 AntiforgeryValue(currentHtml),
                 store,
