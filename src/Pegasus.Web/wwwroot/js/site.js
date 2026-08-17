@@ -6,6 +6,10 @@
 // hash allowance, so an inline script is silently discarded in Production. The
 // enhancements below therefore ran only in Development until they moved here.
 (function () {
+    'use strict';
+
+    // Bounded status pages ask to be reloaded while their state is still
+    // moving; the delay is data on the element, so nothing here is inline.
     var autoRefresh = document.querySelector('[data-auto-refresh]');
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
@@ -13,8 +17,6 @@
             window.setTimeout(function () { window.location.reload(); }, delay);
         }
     }
-
-    'use strict';
 
     // Manual refresh feedback. The label change is the signal; the spin is
     // decoration on top of it, so the feedback still reads correctly under

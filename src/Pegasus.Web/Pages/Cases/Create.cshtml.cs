@@ -74,8 +74,6 @@ public sealed partial class CreateModel(
 
     public bool ProviderIsImageBased { get; private set; }
 
-    public string? UploadOutcomeMessage { get; private set; }
-
     /// <summary>
     /// Set when the item cannot become a case at all, so the page states why
     /// instead of offering a button that would fail.
@@ -231,7 +229,6 @@ public sealed partial class CreateModel(
             return RedirectToPage("/Cases/Details", new { id = existingCaseId });
         }
 
-        UploadOutcomeMessage = TempData["UploadOutcomeMessage"] as string;
         RefusalMessage = DescribeRefusal();
         var draft = Receipt.InstructionDraft;
         SuggestedPrincipalCode = draft?.SuggestedPrincipalCode;

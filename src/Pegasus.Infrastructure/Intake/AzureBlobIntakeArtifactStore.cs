@@ -160,9 +160,7 @@ public sealed class AzureBlobIntakeArtifactStore
         }
         catch (RequestFailedException exception)
         {
-            throw new IntakeDependencyUnavailableException(
-                "The intake artifact dependency is unavailable.",
-                exception);
+            throw DependencyUnavailable(exception);
         }
     }
 
@@ -403,33 +401,56 @@ public sealed class AzureBlobIntakeArtifactStore
         try
         {
             await EnsureContainerExistsAsync(cancellationToken);
-            var blob = container.GetBlobClient(storageKey);
-            using var stream = new MemoryStream(content.ToArray(), writable: false);
-            try
-            {
-                await blob.UploadAsync(stream, new BlobUploadOptions
-                {
-                    Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All },
-                    Metadata = metadata,
-                    Tags = tags
-                }, cancellationToken);
-            }
-            catch (RequestFailedException exception) when (exception.Status is 409 or 412)
-            {
-                await VerifyBlobAsync(
-                    blob,
-                    expectedHash,
-                    content.Length,
-                    cancellationToken);
-            }
+            await UploadOrVerifyAsync(
+                container.GetBlobClient(storageKey),
+                expectedHash,
+                content,
+                metadata,
+                tags,
+                cancellationToken);
         }
         catch (RequestFailedException exception)
         {
-            throw new IntakeDependencyUnavailableException(
-                "The intake artifact dependency is unavailable.",
-                exception);
+            throw DependencyUnavailable(exception);
         }
     }
+
+    /// <summary>
+    /// Writes the blob once; a blob already at this key is verified against the
+    /// expected content instead, so a replay of the same bytes is a no-op and a
+    /// different payload under the same key is an integrity failure.
+    /// </summary>
+    private static async Task UploadOrVerifyAsync(
+        BlobClient blob,
+        string expectedHash,
+        ReadOnlyMemory<byte> content,
+        IDictionary<string, string> metadata,
+        IDictionary<string, string>? tags,
+        CancellationToken cancellationToken)
+    {
+        using var stream = new MemoryStream(content.ToArray(), writable: false);
+        try
+        {
+            await blob.UploadAsync(stream, new BlobUploadOptions
+            {
+                Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All },
+                Metadata = metadata,
+                Tags = tags
+            }, cancellationToken);
+        }
+        catch (RequestFailedException exception) when (exception.Status is 409 or 412)
+        {
+            await VerifyBlobAsync(blob, expectedHash, content.Length, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// The named fault Core retries on. Azure's own exception type stays in the
+    /// adapter; Core matches only intake faults.
+    /// </summary>
+    private static IntakeDependencyUnavailableException DependencyUnavailable(
+        RequestFailedException exception) =>
+        new("The intake artifact dependency is unavailable.", exception);
 
     private static async Task VerifyBlobAsync(
         BlobClient blob,

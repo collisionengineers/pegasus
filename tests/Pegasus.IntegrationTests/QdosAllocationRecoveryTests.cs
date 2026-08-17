@@ -422,7 +422,7 @@ public sealed class QdosAllocationRecoveryTests
             "QDOS instruction\r\nClaimant Name: Redelivery Claimant\r\nClaim Number: RED-1\r\nVehicle Registration: AB12 CDE");
         var token = Guid.NewGuid().ToString("N");
 
-        ProcessedSubmission first;
+        Guid first;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             first = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider,
@@ -435,9 +435,9 @@ public sealed class QdosAllocationRecoveryTests
                     new(IntakeSourceChannel.Mailbox, token)),
                 $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        var receiptId = first.ReceiptId;
+        var receiptId = first;
         await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
-        ProcessedSubmission replay;
+        Guid replay;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             replay = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider,
@@ -451,7 +451,7 @@ public sealed class QdosAllocationRecoveryTests
                 $"mailbox-submit:{Guid.NewGuid():N}");
         }
 
-        Assert.Equal(receiptId, replay.ReceiptId);
+        Assert.Equal(receiptId, replay);
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         await using (var diagnosticScope = factory.Services.CreateAsyncScope())
         {
@@ -842,7 +842,7 @@ public sealed class IntakeAllocationConsumerTests
             "QDOS instruction\r\nClaimant Name: Triage Success\r\nClaim Number: TRIAGE-SUCCESS\r\nVehicle Registration: AB12 CDE");
         var token = Guid.NewGuid().ToString("N");
 
-        ProcessedSubmission first;
+        Guid first;
         await using (var scope = triageFactory.Services.CreateAsyncScope())
         {
             var source = new IntakeSource(
@@ -855,7 +855,7 @@ public sealed class IntakeAllocationConsumerTests
             first = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
             _ = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        var receiptId = first.ReceiptId;
+        var receiptId = first;
         await using (var scope = triageFactory.Services.CreateAsyncScope())
         {
             Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
@@ -1106,7 +1106,7 @@ public sealed class IntakeAllocationConsumerTests
             "QDOS instruction\r\nClaimant Name: Triage Claimant\r\nClaim Number: TRIAGE-ALLOC\r\nVehicle Registration: AB12 CDE");
         var token = Guid.NewGuid().ToString("N");
 
-        ProcessedSubmission first;
+        Guid first;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var source = new IntakeSource(
@@ -1118,9 +1118,9 @@ public sealed class IntakeAllocationConsumerTests
                 new(IntakeSourceChannel.Mailbox, token));
             first = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        var receiptId = first.ReceiptId;
+        var receiptId = first;
 
-        ProcessedSubmission failedReplay;
+        Guid failedReplay;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var source = new IntakeSource(
@@ -1132,7 +1132,7 @@ public sealed class IntakeAllocationConsumerTests
                 new(IntakeSourceChannel.Mailbox, token));
             failedReplay = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        Assert.Equal(receiptId, failedReplay.ReceiptId);
+        Assert.Equal(receiptId, failedReplay);
         Assert.Equal(0, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         await using (var scope = factory.Services.CreateAsyncScope())
         {
@@ -1172,7 +1172,7 @@ public sealed class IntakeAllocationConsumerTests
             Assert.Single(await scope.ServiceProvider.GetRequiredService<ITriageQueries>().ListAsync(null, CancellationToken.None));
         }
 
-        ProcessedSubmission replay;
+        Guid replay;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var source = new IntakeSource(
@@ -1184,7 +1184,7 @@ public sealed class IntakeAllocationConsumerTests
                 new(IntakeSourceChannel.Mailbox, token));
             replay = await AllocationTestData.SubmitAndProcessAsync(scope.ServiceProvider, source, $"mailbox-submit:{Guid.NewGuid():N}");
         }
-        Assert.Equal(receiptId, replay.ReceiptId);
+        Assert.Equal(receiptId, replay);
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
         Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
         Assert.Equal(2, await AllocationTestData.CountAsync(factory.Services, "IntakeAllocationAttempts"));
@@ -1232,41 +1232,19 @@ public sealed class IntakeAllocationConsumerTests
 
 internal static class AllocationTestData
 {
-    private sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)
-        : IIntakeWorkEnqueuer
-    {
-        public async Task EnqueueAsync(
-            Guid stagedReceiptId,
-            CancellationToken cancellationToken = default)
-        {
-            _ = await processor.ExecuteAsync(stagedReceiptId, cancellationToken);
-        }
-    }
-
-    public static async Task<ProcessedSubmission> SubmitAndProcessAsync(
+    /// <summary>
+    /// Stages one source and drains it through the Worker path; the processed
+    /// receipt id is what every caller reads next.
+    /// </summary>
+    public static async Task<Guid> SubmitAndProcessAsync(
         IServiceProvider services,
         IntakeSource source,
         string operationKey)
     {
         var received = await services.GetRequiredService<IIntakeSubmission>()
             .ExecuteAsync(source, operationKey);
-        var workStore = services.GetRequiredService<IIntakeWorkStore>();
-        var processor = ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
-        var dispatcher = new DispatchPendingIntakeWork(
-            workStore,
-            new ImmediateIntakeWorkEnqueuer(processor),
-            services.GetRequiredService<TimeProvider>());
-        var evaluation = await workStore
-            .GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None);
-        if (evaluation is null)
-        {
-            Assert.Equal(1, await dispatcher.ExecuteAsync(1));
-            evaluation = await workStore
-                .GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None);
-        }
-        return new(
-            Assert.IsType<IntakeEvaluationRevision>(evaluation).ProcessedReceiptId,
-            received.IsDuplicate);
+        var evaluation = await IntakeWebDriver.DrainStagedAsync(services, received.StagedReceiptId);
+        return evaluation.ProcessedReceiptId;
     }
 
     public static async Task PointCompletedWorkAtReceiptAsync(
@@ -1503,7 +1481,6 @@ internal static class AllocationTestData
     }
 }
 
-internal sealed record ProcessedSubmission(Guid ReceiptId, bool IsDuplicate);
 
 internal sealed class ConsumerTypedClassificationPolicy : IMailClassificationPolicy
 {
