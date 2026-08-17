@@ -32,6 +32,7 @@ $evidenceRoot = Join-Path $repositoryRoot "artifacts/qdos-alpha-acceptance/$RunI
 $evidencePath = Join-Path $evidenceRoot 'evidence.json'
 $evidenceTempPath = Join-Path $evidenceRoot 'evidence.json.tmp'
 $resultsRoot = Join-Path $evidenceRoot 'test-results'
+$capabilitiesRegisterPath = Join-Path $repositoryRoot 'docs/capabilities.md'
 $startedUtc = [DateTimeOffset]::UtcNow
 
 function Resolve-RepositorySourceRevision {
@@ -282,6 +283,31 @@ function Assert-LocalRunEvidence {
 }
 
 
+# --- Offline-candidate acceptance contract -----------------------------------
+# The caller-evidence manifest: schemaVersion 1, this kind, the run's source
+# revision and run id, capabilityObservations[] and externalGateEvidence[].
+$acceptanceManifestKind = 'Pegasus.QdosAlpha.AcceptanceEvidence'
+$alphaTargetVersion = '0.1.0-alpha.1'
+# Observation outcomes: 'passed' (a local caller produced the evidence) or
+# 'deferredToExternalGate' (the evidence is an external gate's).
+$passedOutcome = 'passed'
+$deferredOutcome = 'deferredToExternalGate'
+# Capabilities whose alpha evidence is an external gate rather than a local
+# caller (deployment and live verification): the offline candidate may defer
+# them; release needs them passed.
+$externalGateCapabilityIds = @('OPS-10', 'OPS-24', 'OPS-25')
+$offlineGateIds = @('approved-capacity-dataset', 'accepted-genuine-route-evidence')
+$releaseGateIds = @(
+    'approved-capacity-dataset',
+    'accepted-genuine-route-evidence',
+    'graph-scope-and-contract',
+    'box-scope-and-contract',
+    'dvla-dvsa-contract',
+    'azure-deployment-and-recovery',
+    'exact-head-independent-review',
+    'qdos-operator-acceptance',
+    'collision-engineers-management-approval')
+
 function Assert-OfflineCandidatePrerequisites {
     param([Parameter(Mandatory)][string]$ExpectedSourceRevision)
 
@@ -341,8 +367,8 @@ function Assert-OfflineCandidatePrerequisites {
         throw "OfflineCandidate is blocked: caller evidence manifest '$callerManifestPath' is not valid JSON."
     }
     if ($callerManifest.schemaVersion -ne 1 -or
-        [string]$callerManifest.kind -ne 'Pegasus.QdosAlpha.AcceptanceEvidence') {
-        throw "OfflineCandidate is blocked: caller evidence manifest must use schemaVersion 1 and kind 'Pegasus.QdosAlpha.AcceptanceEvidence'."
+        [string]$callerManifest.kind -cne $acceptanceManifestKind) {
+        throw "OfflineCandidate is blocked: caller evidence manifest must use schemaVersion 1 and kind '$acceptanceManifestKind'."
     }
 
     if ([string]$callerManifest.sourceRevision -cne $ExpectedSourceRevision -or
@@ -371,26 +397,229 @@ function Assert-OfflineCandidatePrerequisites {
         CapacityManifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
         CallerManifestPath = $callerManifestPath
         CallerManifestSha256 = (Get-FileHash -LiteralPath $callerManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        CallerManifest = $callerManifest
         LocalRunManifestPath = $localRunManifestPath
         LocalRunManifestSha256 = (Get-FileHash -LiteralPath $localRunManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
     }
 }
 
-$resolvedSourceRevision = Resolve-RepositorySourceRevision -RequestedRevision $SourceRevision
-$previousProfile = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_PRESSURE_PROFILE', 'Process')
-$previousAcceptanceManifest = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_ACCEPTANCE_MANIFEST', 'Process')
-$previousAcceptanceRevision = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION', 'Process')
-if (-not [string]::IsNullOrWhiteSpace($previousAcceptanceRevision)) {
-    $environmentRevision = $previousAcceptanceRevision.ToLowerInvariant()
-    if ($environmentRevision -notmatch '^[0-9a-f]{40}$' -or
-        $environmentRevision -cne $resolvedSourceRevision) {
-        throw "PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION identifies '$previousAcceptanceRevision', but the executed checkout HEAD is '$resolvedSourceRevision'."
+# The alpha capability roster is read from the capability register, never
+# hard-coded here: a copy drifted (it demanded the retired DOC-06 and missed
+# fifteen later alpha rows). Rows whose "Target release" column equals the
+# target are the capabilities an offline candidate must evidence.
+function Get-AlphaCapabilityIds {
+    if (-not (Test-Path -LiteralPath $capabilitiesRegisterPath -PathType Leaf)) {
+        throw "OfflineCandidate is blocked: capability register '$capabilitiesRegisterPath' does not exist."
+    }
+
+    $ids = [System.Collections.Generic.List[string]]::new()
+    foreach ($line in Get-Content -LiteralPath $capabilitiesRegisterPath) {
+        if ($line -notmatch '^\| ([A-Z]+-\d+) \|') {
+            continue
+        }
+
+        # "| ID | Durable outcome | Horizon | Target release | Canonical owner | Activation/boundary |"
+        # splits into eight fields with empty ends; the version is the fifth.
+        $cells = $line.Split('|') | ForEach-Object { $_.Trim() }
+        if ($cells.Count -ne 8) {
+            throw "OfflineCandidate is blocked: capability register row for '$($Matches[1])' does not have the six expected columns."
+        }
+        if ($cells[4] -ceq $alphaTargetVersion) {
+            $ids.Add($Matches[1])
+        }
+    }
+
+    if ($ids.Count -eq 0) {
+        throw "OfflineCandidate is blocked: no capability in '$capabilitiesRegisterPath' targets version '$alphaTargetVersion'."
+    }
+
+    return $ids
+}
+
+function Test-LowerHex {
+    param([string]$Value, [Parameter(Mandatory)][int]$Length)
+    return $Value -cmatch "^[0-9a-f]{$Length}$"
+}
+
+function Add-Blocker {
+    param(
+        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Blockers,
+        [Parameter(Mandatory)][string]$Blocker)
+    if (-not $Blockers.Contains($Blocker)) {
+        $Blockers.Add($Blocker)
     }
 }
 
+function Get-OrdinalSorted {
+    param([Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Values)
+    $sorted = [string[]]$Values.ToArray()
+    [Array]::Sort($sorted, [System.StringComparer]::Ordinal)
+    return ,$sorted
+}
+
+# Evidence references are assertions until the file behind each one is
+# re-hashed here; a missing or altered file is a blocker, not a warning.
+function Test-EvidenceFile {
+    param(
+        [Parameter(Mandatory)][string]$ManifestDirectory,
+        [string]$Reference,
+        [string]$ExpectedSha256,
+        [Parameter(Mandatory)][string]$Subject,
+        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Blockers)
+
+    if ([string]::IsNullOrWhiteSpace($Reference)) {
+        Add-Blocker $Blockers "${Subject}:evidence-reference-missing"
+        return
+    }
+    if (-not (Test-LowerHex -Value $ExpectedSha256 -Length 64)) {
+        Add-Blocker $Blockers "${Subject}:evidence-hash-invalid"
+        return
+    }
+
+    $path = if ([System.IO.Path]::IsPathRooted($Reference)) {
+        [System.IO.Path]::GetFullPath($Reference)
+    }
+    else {
+        [System.IO.Path]::GetFullPath((Join-Path $ManifestDirectory $Reference))
+    }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        Add-Blocker $Blockers "${Subject}:evidence-file-missing"
+        return
+    }
+    if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant() -cne $ExpectedSha256) {
+        Add-Blocker $Blockers "${Subject}:evidence-hash-mismatch"
+    }
+}
+
+# The offline-candidate coverage check: every alpha capability in the register
+# has exactly one observation with a caller and hashed evidence; a capability
+# may defer to an external gate only where the register's external evidence
+# stands in; the offline external gates carry approval and hashed evidence.
+# Release acceptance additionally needs every external gate and passed evidence
+# for the external-gate capabilities; that verdict is recorded, not enforced,
+# because release is a separate fail-closed decision.
+function Assert-AlphaCapabilityCoverage {
+    param(
+        [Parameter(Mandatory)]$CallerManifest,
+        [Parameter(Mandatory)][string]$CallerManifestPath,
+        [Parameter(Mandatory)][string[]]$RequiredCapabilityIds)
+
+    $manifestDirectory = [System.IO.Path]::GetDirectoryName([System.IO.Path]::GetFullPath($CallerManifestPath))
+    $blockers = [System.Collections.Generic.List[string]]::new()
+    $required = [System.Collections.Generic.HashSet[string]]::new([string[]]$RequiredCapabilityIds, [System.StringComparer]::Ordinal)
+
+    # Observations: one per required capability, each with a caller and hashed evidence.
+    $observations = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::Ordinal)
+    foreach ($observation in @($CallerManifest.capabilityObservations)) {
+        if ($null -eq $observation) {
+            Add-Blocker $blockers 'capability:null'
+            continue
+        }
+        $capabilityId = [string]$observation.capabilityId
+        if (-not $required.Contains($capabilityId)) {
+            Add-Blocker $blockers "capability:${capabilityId}:not-qdos-owned"
+            continue
+        }
+        if ($observations.ContainsKey($capabilityId)) {
+            Add-Blocker $blockers "capability:${capabilityId}:duplicate"
+            continue
+        }
+        $observations[$capabilityId] = $observation
+    }
+
+    foreach ($capabilityId in $RequiredCapabilityIds) {
+        if (-not $observations.ContainsKey($capabilityId)) {
+            Add-Blocker $blockers "capability:${capabilityId}:missing"
+            continue
+        }
+        $observation = $observations[$capabilityId]
+        $outcome = [string]$observation.outcome
+        if ($outcome -cne $passedOutcome -and $outcome -cne $deferredOutcome) {
+            Add-Blocker $blockers "capability:${capabilityId}:invalid-outcome"
+        }
+        if ($outcome -ceq $deferredOutcome -and $capabilityId -cnotin $externalGateCapabilityIds) {
+            Add-Blocker $blockers "capability:${capabilityId}:cannot-defer"
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$observation.caller)) {
+            Add-Blocker $blockers "capability:${capabilityId}:caller-missing"
+        }
+        Test-EvidenceFile -ManifestDirectory $manifestDirectory -Reference ([string]$observation.evidenceReference) `
+            -ExpectedSha256 ([string]$observation.evidenceSha256) -Subject "capability:$capabilityId" -Blockers $blockers
+    }
+
+    # External gates: validate each one that is present exactly once, then ask
+    # which required gates are absent for the offline and release verdicts.
+    $gateBlockers = [System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[string]]]::new([System.StringComparer]::Ordinal)
+    foreach ($evidence in @($CallerManifest.externalGateEvidence)) {
+        if ($null -eq $evidence) {
+            Add-Blocker $blockers 'external-gate:null'
+            continue
+        }
+        $gateId = [string]$evidence.gateId
+        if ($gateId -cnotin $releaseGateIds) {
+            Add-Blocker $blockers "external-gate:${gateId}:unknown"
+            continue
+        }
+        if ($gateBlockers.ContainsKey($gateId)) {
+            Add-Blocker $blockers "external-gate:${gateId}:duplicate"
+            continue
+        }
+        $own = [System.Collections.Generic.List[string]]::new()
+        if ([string]::IsNullOrWhiteSpace([string]$evidence.approvalReference)) {
+            Add-Blocker $own "external-gate:${gateId}:approval-reference-missing"
+        }
+        Test-EvidenceFile -ManifestDirectory $manifestDirectory -Reference ([string]$evidence.evidenceReference) `
+            -ExpectedSha256 ([string]$evidence.evidenceSha256) -Subject "external-gate:$gateId" -Blockers $own
+        $gateBlockers[$gateId] = $own
+    }
+
+    foreach ($gateId in $offlineGateIds) {
+        if ($gateBlockers.ContainsKey($gateId)) {
+            foreach ($blocker in $gateBlockers[$gateId]) { Add-Blocker $blockers $blocker }
+        }
+        else {
+            Add-Blocker $blockers "external-gate:${gateId}:missing"
+        }
+    }
+
+    $releaseBlockers = [System.Collections.Generic.List[string]]::new($blockers)
+    foreach ($capabilityId in $externalGateCapabilityIds) {
+        if ($observations.ContainsKey($capabilityId) -and ([string]$observations[$capabilityId].outcome) -cne $passedOutcome) {
+            Add-Blocker $releaseBlockers "capability:${capabilityId}:external-evidence-required"
+        }
+    }
+    foreach ($gateId in $releaseGateIds) {
+        if ($gateBlockers.ContainsKey($gateId)) {
+            foreach ($blocker in $gateBlockers[$gateId]) { Add-Blocker $releaseBlockers $blocker }
+        }
+        else {
+            Add-Blocker $releaseBlockers "external-gate:${gateId}:missing"
+        }
+    }
+
+    $sortedBlockers = Get-OrdinalSorted $blockers
+    if ($sortedBlockers.Count -gt 0) {
+        throw "OfflineCandidate is blocked by $($sortedBlockers.Count) coverage blocker(s): $($sortedBlockers -join ', ')"
+    }
+
+    return [pscustomobject]@{
+        RequiredCapabilityCount = $RequiredCapabilityIds.Count
+        ReleaseAccepted = $releaseBlockers.Count -eq 0
+        ReleaseBlockers = Get-OrdinalSorted $releaseBlockers
+    }
+}
+
+$resolvedSourceRevision = Resolve-RepositorySourceRevision -RequestedRevision $SourceRevision
+$previousProfile = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_PRESSURE_PROFILE', 'Process')
+
 $offlinePrerequisites = $null
+$acceptanceCoverage = $null
 if ($Profile -eq 'OfflineCandidate') {
     $offlinePrerequisites = Assert-OfflineCandidatePrerequisites -ExpectedSourceRevision $resolvedSourceRevision
+    $acceptanceCoverage = Assert-AlphaCapabilityCoverage `
+        -CallerManifest $offlinePrerequisites.CallerManifest `
+        -CallerManifestPath $offlinePrerequisites.CallerManifestPath `
+        -RequiredCapabilityIds (Get-AlphaCapabilityIds)
 }
 $sourceRevisionProperty = "/p:SourceRevisionId=$resolvedSourceRevision"
 $includeSourceRevisionProperty = '/p:IncludeSourceRevisionInInformationalVersion=true'
@@ -412,16 +641,16 @@ try {
 
     [System.IO.Directory]::CreateDirectory($resultsRoot) | Out-Null
     if ($Profile -eq 'OfflineCandidate') {
-        Set-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_MANIFEST' -Value $offlinePrerequisites.CallerManifestPath
-        Set-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION' -Value $resolvedSourceRevision
+        # The acceptance test lane: the recovery and triage tests that carry
+        # the QdosAlphaAcceptance trait, compiled at this exact revision.
         & dotnet test $integrationProject --configuration Release --filter 'Category=QdosAlphaAcceptance' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-alpha-acceptance.trx' $includeSourceRevisionProperty $sourceRevisionProperty
         if ($LASTEXITCODE -ne 0) {
-            throw "QDOS Core acceptance gate failed with exit code $LASTEXITCODE."
+            throw "QDOS alpha acceptance test lane failed with exit code $LASTEXITCODE."
         }
 
         $acceptanceTrxPath = Join-Path $resultsRoot 'qdos-alpha-acceptance.trx'
         if (-not (Test-Path -LiteralPath $acceptanceTrxPath -PathType Leaf)) {
-            throw 'QDOS Core acceptance gate completed without the required TRX evidence.'
+            throw 'QDOS alpha acceptance test lane completed without the required TRX evidence.'
         }
         $acceptanceResultHash = (Get-FileHash -LiteralPath $acceptanceTrxPath -Algorithm SHA256).Hash.ToLowerInvariant()
     }
@@ -476,19 +705,6 @@ finally {
         Set-Item -Path 'Env:PEGASUS_QDOS_PRESSURE_PROFILE' -Value $previousProfile
     }
 
-    if ($null -eq $previousAcceptanceManifest) {
-        Remove-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_MANIFEST' -ErrorAction SilentlyContinue
-    }
-    else {
-        Set-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_MANIFEST' -Value $previousAcceptanceManifest
-    }
-    if ($null -eq $previousAcceptanceRevision) {
-        Remove-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION' -ErrorAction SilentlyContinue
-    }
-    else {
-        Set-Item -Path 'Env:PEGASUS_QDOS_ACCEPTANCE_SOURCE_REVISION' -Value $previousAcceptanceRevision
-    }
-
     if ($stagingCreated -and (Test-Path -LiteralPath $stagingRoot -PathType Container)) {
         Remove-Item -LiteralPath $stagingRoot -Recurse -Force
     }
@@ -503,10 +719,10 @@ finally {
 
     $offlineMatrixSourceHashes = [ordered]@{}
     foreach ($name in @(
-        'OfflineAcceptanceTests.cs',
-        'LocalServiceSmokeTests.cs',
-        'NegativeMatrixTests.cs',
-        'RecoveryTests.cs')) {
+        'RecoveryTests.cs',
+        'QdosTriageIntegrationTests.cs',
+        'QdosTriageReplayIntegrationTests.cs',
+        'QdosTriageCaseAssociationIntegrationTests.cs')) {
         $path = Join-Path $acceptanceSourceRoot $name
         if (Test-Path -LiteralPath $path -PathType Leaf) {
             $offlineMatrixSourceHashes[$name] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -525,6 +741,19 @@ finally {
         pressureSourceSha256 = $sourceHashes
         offlineMatrixSourceSha256 = $offlineMatrixSourceHashes
         acceptanceTestResultSha256 = $acceptanceResultHash
+        acceptanceCoverage = if ($null -ne $acceptanceCoverage) {
+            [ordered]@{
+                capabilityRegister = 'docs/capabilities.md'
+                targetVersion = $alphaTargetVersion
+                requiredCapabilityCount = $acceptanceCoverage.RequiredCapabilityCount
+                offlineAccepted = $true
+                releaseAccepted = $acceptanceCoverage.ReleaseAccepted
+                releaseBlockers = $acceptanceCoverage.ReleaseBlockers
+            }
+        }
+        else {
+            $null
+        }
         capacityDatasetManifestSha256 = if ($null -ne $offlinePrerequisites) {
             $offlinePrerequisites.CapacityManifestSha256
         }
@@ -548,7 +777,7 @@ finally {
             'Deterministic in-process Web caller pressure only. This is not the approved 30-minute dataset soak, Worker/Azurite pressure, deployment, live verification, or operator/management acceptance.'
         }
         elseif ($result -eq 'offline-candidate-verified') {
-            'The Core gate verified the QDOS-owned offline caller map, local caller/recovery/negative matrix, run-scoped deterministic-offline manifest, and approved immutable capacity evidence. Live adapter scopes, Azure deployment and recovery, exact-head review, QDOS operator acceptance, Collision Engineers management approval, release, and deployment remain separate fail-closed gates.'
+            'This runner verified the QDOS-owned offline caller map against the capability register, the acceptance test lane, the run-scoped deterministic-offline manifest, and approved immutable capacity evidence. Live adapter scopes, Azure deployment and recovery, exact-head review, QDOS operator acceptance, Collision Engineers management approval, release, and deployment remain separate fail-closed gates.'
         }
         else {
             'OfflineCandidate was not verified. Missing or invalid caller, capacity, approval, or evidence input remains fail closed.'
