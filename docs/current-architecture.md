@@ -88,7 +88,10 @@ in force here:
 - `GET /VehicleImages` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /VehicleImages/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
-- The Case documents surface still implements Box File Request create/revoke (`src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml`). That mechanism is superseded by the operator decision in favour of request-scoped upload links (INT-31) and is pending removal; it must gain no new callers.
+- The Case documents surface links confirmed custody directly to the case's real
+  Box folder. The superseded internal Box File Request create/revoke mechanism
+  has no caller or persistence model; request-scoped public upload links remain
+  the separate INT-31 capability.
 - These callers are source-state evidence; deployment state is owned by [operations § Production environment](operations.md#production-environment). Caller evidence alone does not establish browser accessibility acceptance or operator acceptance.
 
 ### Technical entry points
@@ -148,12 +151,15 @@ This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and IN
 
 ```text
 Staff Intake Razor Page
-  -> Core ProcessIntake
+  -> ReceiveIntake stages original bytes and Pending work
+  -> Worker dispatcher publishes the staged receipt id
+  -> intake-work queue
+  -> Worker ProcessQueuedIntake
   -> QDOS IInstructionExtractionPolicy
   -> MimeKit/PdfPig/Open XML source reader
   -> ignored content-addressed artifact storage
   -> EF Core receipt and typed-draft persistence
-  -> dashboard, queue, and review queries
+  -> staged-receipt status, dashboard, queue, and review queries
 ```
 
 ### Accepted local inputs
@@ -228,7 +234,7 @@ Only an **ambiguous** case match is withheld from automatic allocation. An Audit
 - Equal source bytes under a different occurrence identity remain separate evidence.
 - Stable decision, channel, evidence, and asset codes plus versioned JSON envelopes are persisted instead of CLR enum names.
 - Unknown persisted codes and inconsistent policy results fail rather than being silently reinterpreted.
-- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. The `case_created` decision code supersedes `draft_ready`, which stays readable as the same processing outcome; neither code is case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
+- `Needs sorting` and `Blocked intake` counts and filtered queues are persisted and queryable, and both exclude receipts that have produced a case, so they measure what is still waiting for a person rather than everything ever received. A `case_created` decision is not case-existence authority. Operations, retained Mail, Upload, MCP, and retry surfaces join the current allocation state and actual Case link.
 
 ## Business-rule ownership
 
@@ -544,7 +550,7 @@ Development configuration selects:
 
 The `--migrate-development` process validates the local-only profile, applies the committed migration stream, prints completion, and exits. The Web host must then be started separately.
 
-The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are served wherever intake is composed and return `404` everywhere else. Manual upload has its own `/Upload` page and no longer runs through a separately gated handler on a received-item list.
+The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are served wherever intake is composed and return `404` everywhere else. Manual upload has its own `/Upload` page and no longer runs through a separately gated handler on a received-item list; every successful upload redirects to the staff `/Upload/Status/{id}` page, which reads the staged receipt's Received, Processing, Complete or Failed state and returns `404` for unknown identifiers.
 
 ## Implementation map
 
@@ -566,6 +572,7 @@ The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are ser
 | Core retained-mail read model, use cases and freshness policy | `src/Pegasus.Core/Intake/RetainedMail.cs` |
 | EF retained-mail store (poll write path and workspace read path) | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` |
 | Canonical Operations and receipt-detail callers | `src/Pegasus.Web/Pages/Operations/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
+| Manual upload staging and staged-receipt status callers | `src/Pegasus.Web/Pages/Upload.cshtml.cs`, `src/Pegasus.Web/Pages/UploadStatus.cshtml.cs`, `src/Pegasus.Infrastructure/Persistence/EfQueuedIntakeStatusQueries.cs` |
 | Canonical mail-workspace callers (`/Inbox`) | `src/Pegasus.Web/Pages/Mail/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` |
 | Canonical Triage and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
 | Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |
@@ -591,7 +598,7 @@ Relevant architectural decisions include ADR-0003 for PdfPig, ADR-0005 for multi
 | `artifacts/local-development/` and LocalDB databases | Ignored Development state | Produced by explicit migration and real local callers; not production custody. |
 | `reference/` | Preserved supplied evidence | Used for planning and evaluation only after authority reconciliation; see the [reference index](../reference/README.md). |
 | `workspaces/` | Independently validated non-caller source imports | Workspace-specific build and test only until separately accepted integration. |
-| `design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](design.md). |
+| `docs/design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](design/README.md). |
 
 Infrastructure and release definitions under `infra/` describe target infrastructure; they do not prove a live deployment.
 

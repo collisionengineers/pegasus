@@ -220,23 +220,6 @@ public sealed class EmailEvaluationWorkflow
             return;
         }
 
-        try
-        {
-            var bytes = await File.ReadAllBytesAsync(currentPath, cancellationToken);
-            var source = new IntakeSource(
-                Path.GetFileName(currentPath),
-                "message/rfc822",
-                bytes,
-                timeProvider.GetUtcNow(),
-                "Local email evaluation",
-                new(IntakeSourceChannel.ManualUpload, Guid.NewGuid().ToString("N")));
-            var readResult = await sourceReader.ReadAsync(source, cancellationToken);
-            _ = extractionPolicy.Extract(readResult, timeProvider.GetUtcNow());
-        }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
-        {
-            error = $"Classifier unavailable: {exception.Message}";
-        }
     }
 
     private EvaluationSnapshot Clear(string messageText)

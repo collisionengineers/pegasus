@@ -25,13 +25,12 @@ public sealed class OperationsPersistenceTests
         Assert.Contains(result.Items, item => item.Id == ids.ActiveUploadId);
         Assert.Contains(result.Items, item => item.Id == ids.RetryableFailureId);
         Assert.DoesNotContain(result.Items, item => item.Id == ids.ExpiredUploadId);
-        Assert.DoesNotContain(result.Items, item => item.Id == ids.BoxRequestId);
         Assert.DoesNotContain(result.Items, item => item.Id == ids.LeasedFailureId);
         Assert.All(result.Items, item =>
             Assert.Contains(item.Kind, new[] { RequestOperationKind.PegasusUploadLink, RequestOperationKind.ExternalWork }));
     }
 
-    private static async Task<(Guid ActiveUploadId, Guid ExpiredUploadId, Guid BoxRequestId, Guid RetryableFailureId, Guid LeasedFailureId)> SeedRequestOperationsAsync(
+    private static async Task<(Guid ActiveUploadId, Guid ExpiredUploadId, Guid RetryableFailureId, Guid LeasedFailureId)> SeedRequestOperationsAsync(
         LocalDbTestDatabase database)
     {
         await using var context = await database.CreateContextAsync();
@@ -42,7 +41,6 @@ public sealed class OperationsPersistenceTests
         var caseId = Guid.NewGuid();
         var activeUploadId = Guid.NewGuid();
         var expiredUploadId = Guid.NewGuid();
-        var boxRequestId = Guid.NewGuid();
         var retryableFailureId = Guid.NewGuid();
         var leasedFailureId = Guid.NewGuid();
         context.AddRange(
@@ -83,21 +81,10 @@ public sealed class OperationsPersistenceTests
             },
             Upload(activeUploadId, caseId, RequestUploadStatus.Active, FixedUtcNow.AddHours(1)),
             Upload(expiredUploadId, caseId, RequestUploadStatus.Active, FixedUtcNow.AddMinutes(-1)),
-            new BoxFileRequestEntity
-            {
-                Id = boxRequestId,
-                CaseId = caseId,
-                Status = Pegasus.Core.Documents.BoxFileRequestStatus.Active,
-                CreatedAtUtc = FixedUtcNow,
-                ExpiresAtUtc = FixedUtcNow.AddHours(1),
-                Version = 1,
-                CreateOperationKey = "box-request",
-                LinkTokenDigest = new string('b', 64)
-            },
             Work(retryableFailureId, caseId, null),
             Work(leasedFailureId, caseId, FixedUtcNow.AddHours(1)));
         await context.SaveChangesAsync();
-        return (activeUploadId, expiredUploadId, boxRequestId, retryableFailureId, leasedFailureId);
+        return (activeUploadId, expiredUploadId, retryableFailureId, leasedFailureId);
     }
 
     private static IntakeReceiptEntity Receipt(

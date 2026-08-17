@@ -196,10 +196,6 @@ public sealed class EfCaseAcceptanceStore(
         // else - blocked, unreadable, unsupported, an image registration - is
         // refused here, so the fail-closed boundary does not depend on which
         // caller asked.
-        //
-        // `draft_ready` is the legacy code for the definitive outcome, kept
-        // readable so receipts written before the acceptance gate was removed
-        // still resolve.
         if (!IntakeDecisionPolicy.CanBecomeCase(
                 EfIntakeReceiptStore.ParseDecision(receipt.Decision)))
         {

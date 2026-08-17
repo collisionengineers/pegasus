@@ -366,12 +366,6 @@ public static class DependencyInjection
                 provider.GetRequiredService<EfDocumentCustodyStore>());
             services.AddScoped<ICaseDocumentStateQueries>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());
-
-            services.AddScoped<EfBoxFileRequestStore>();
-            services.AddScoped<ICreateBoxFileRequest>(provider =>
-                provider.GetRequiredService<EfBoxFileRequestStore>());
-            services.AddScoped<IRevokeBoxFileRequest>(provider =>
-                provider.GetRequiredService<EfBoxFileRequestStore>());
         }
         if (composesDocumentSurface
             && requestUploadLimitsFactory is not null)

@@ -1,5 +1,5 @@
 # FRD-02: Intake and source identity
-> Owner capabilities: INT · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
+> Owner capabilities: INT · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Intake and source identity
 
@@ -55,6 +55,14 @@ A source occurrence is the channel-scoped receipt identity for one visible recei
 - Equal bytes received under different permitted occurrence identities remain separate evidence with separate provenance.
 
 Pegasus acknowledges receipt only after the original bytes, source receipt, and one durable processing-dispatch record commit. Each dispatch has its own stable idempotency identity tied to the source occurrence; a queue carries only the stable source/work identifier, never the payload. This acknowledgement means “durably received for processing,” not classified, associated, accepted as a case, completed, or closed.
+
+The Web receipt path stages work as pending and never executes queued-intake
+processing. The Worker is the sole processing owner: it dispatches pending work,
+claims queue deliveries idempotently, recovers expired leases, and records a
+completed or failed outcome. Duplicate delivery must not duplicate an evaluation,
+case, reference, or downstream side effect. Staff can inspect Received,
+Processing, Complete, or Failed by the staged receipt identifier; failure wording
+is bounded and does not disclose exception or infrastructure detail.
 
 ### Mandatory pre-case gates
 

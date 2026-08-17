@@ -2,10 +2,12 @@
   "mcpServers": {
     "kanmer": {
       "type": "stdio",
-      "command": "C:\\Users\\Alex\\Documents\\GitHub\\kanmer\\apps\\gui\\release\\win-unpacked\\Kanmer.exe",
+      "command": "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\Kanmer.exe",
       "args": [
-        "C:\\Users\\Alex\\Documents\\GitHub\\kanmer\\apps\\gui\\release\\win-unpacked\\resources\\mcp\\kanmer-mcp.cjs",
+        "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanmer-mcp.cjs",
         "--root",
+        "C:\\Users\\Alex\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer",
+        "--repo-root",
         "C:\\Users\\Alex\\Documents\\GitHub\\pegasus"
       ],
       "env": {

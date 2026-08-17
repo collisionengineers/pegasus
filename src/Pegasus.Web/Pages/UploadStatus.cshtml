@@ -1,0 +1,45 @@
+@page "/Upload/Status/{id:guid}"
+@model Pegasus.Web.Pages.UploadStatusModel
+@using Pegasus.Core.Intake
+@{
+    ViewData["Title"] = "Upload status";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Upload status</p>
+        <h1>@Model.Heading</h1>
+        <p class="lede" aria-live="polite">@Model.Message</p>
+    </div>
+</header>
+
+@* The refresh attribute lives on the panel, not the layout's <main>: the
+   external script reads it from wherever it is, and this page must not
+   nest a second main landmark inside the shared shell. *@
+<section class="panel"
+         aria-labelledby="upload-file-heading"
+         data-auto-refresh="@(Model.RefreshAutomatically ? "2000" : null)">
+    <h2 id="upload-file-heading" class="section-label">@Model.Status.SourceFileName</h2>
+    <dl class="detail-list">
+        <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>
+        <div><dt>Receipt</dt><dd>@Model.Status.StagedReceiptId</dd></div>
+    </dl>
+
+    <div class="button-row">
+        @if (Model.Status.CaseId is { } caseId)
+        {
+            <a class="primary-action" asp-page="/Cases/Details" asp-route-id="@caseId">Open case</a>
+        }
+        else if (Model.Status.Status == QueuedIntakeStatusKind.Complete
+            && Model.Status.ProcessedReceiptId is { } receiptId)
+        {
+            <a class="primary-action" asp-page="/Intake/Details" asp-route-id="@receiptId">Open receipt</a>
+        }
+
+        <a class="secondary-action"
+           asp-page="/UploadStatus"
+           asp-route-id="@Model.Status.StagedReceiptId"
+           asp-route-duplicate="@(Model.IsDuplicate ? "true" : null)">Refresh</a>
+        <a class="secondary-action" asp-page="/Upload">Upload another file</a>
+    </div>
+</section>

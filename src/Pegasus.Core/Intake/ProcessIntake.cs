@@ -342,8 +342,57 @@ public sealed class ProcessIntake(
             readResult,
             mailRouteDecision,
             cancellationToken);
-        var policyResult = extractionPolicy.Extract(readResult, processedAtUtc);
-        EnsureConsistentPolicyResult(policyResult);
+        var principalContext = EstablishPrincipalContext(mailRouteDecision);
+        if (principalContext is null)
+        {
+            if (readResult.RequiresOcr)
+            {
+                return new(
+                    IntakeDecision.OcrRequired,
+                    "Readable content is insufficient to establish a principal and scanned PDF pages require OCR.",
+                    readerEvidence,
+                    [],
+                    null,
+                    [],
+                    "ocr_required",
+                    "The PDF appears to contain scanned pages without enough embedded text for review.",
+                    null,
+                    null,
+                    mailRouteDecision,
+                    mailClassificationDecision,
+                    caseMatchDecision);
+            }
+
+            return new(
+                IntakeDecision.NeedsSorting,
+                "No accepted intake route established the principal for automatic case creation.",
+                readerEvidence,
+                [],
+                null,
+                [],
+                null,
+                null,
+                null,
+                null,
+                mailRouteDecision,
+                mailClassificationDecision,
+                caseMatchDecision);
+        }
+
+        if (!string.Equals(
+                extractionPolicy.PrincipalCode,
+                principalContext.PrincipalCode,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The established principal has no matching instruction extraction policy.");
+        }
+
+        var policyResult = extractionPolicy.Extract(
+            readResult,
+            processedAtUtc,
+            principalContext);
+        EnsureConsistentPolicyResult(policyResult, principalContext);
         var (decision, reason, failureCode, failureReason) = policyResult.Applicability switch
         {
             InstructionPolicyApplicability.Applicable => (
@@ -412,6 +461,16 @@ public sealed class ProcessIntake(
         return result;
     }
 
+    private static EstablishedPrincipalContext? EstablishPrincipalContext(
+        MailRouteEvaluationResult? mailRouteDecision) =>
+        mailRouteDecision is
+        {
+            Disposition: MailRouteDisposition.Accepted,
+            SelectedRoute: { } route
+        }
+            ? new(route.WorkProviderCode, mailRouteDecision.PolicyKey, mailRouteDecision.PolicyVersion)
+            : null;
+
     private static void EnsureConsistentClassificationResult(MailClassificationResult result)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -454,7 +513,10 @@ public sealed class ProcessIntake(
         IntakeSourceReadResult readResult,
         IntakeSourceChannel sourceChannel)
     {
-        if (sourceChannel != IntakeSourceChannel.Mailbox)
+        if (sourceChannel != IntakeSourceChannel.Mailbox
+            && !readResult.TransportEvidence.Any(item =>
+                item.Source == IntakeEvidenceSource.Sender
+                && item.SenderIdentityKind == IntakeSenderIdentityKind.Transport))
         {
             return null;
         }
@@ -550,7 +612,9 @@ public sealed class ProcessIntake(
         }
     }
 
-    private static void EnsureConsistentPolicyResult(InstructionExtractionResult policyResult)
+    private static void EnsureConsistentPolicyResult(
+        InstructionExtractionResult policyResult,
+        EstablishedPrincipalContext principalContext)
     {
         if (policyResult.Applicability == InstructionPolicyApplicability.Applicable
             && policyResult.InstructionDraft is null)
@@ -565,6 +629,16 @@ public sealed class ProcessIntake(
         {
             throw new InvalidOperationException(
                 $"The instruction extraction policy returned {policyResult.Applicability} with an instruction draft.");
+        }
+
+        if (policyResult.InstructionDraft is { } draft
+            && !string.Equals(
+                draft.SuggestedPrincipalCode,
+                principalContext.PrincipalCode,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The instruction draft principal does not match the established principal.");
         }
     }
 

@@ -187,7 +187,7 @@ Assert-Text $platformBicep "resource\s+webContainerApp[\s\S]*?if\s*\(webActivati
 Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must use the exact supplied digest reference.'
 Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
 Assert-Text $platformBicep "targetPort:\s*8080" 'The Container App ingress must target port 8080.'
-Assert-Text $platformBicep "minReplicas:\s*0[\s\S]*?maxReplicas:\s*1" 'The Web Container App must scale only from zero to one replica.'
+Assert-Text $platformBicep "minReplicas:\s*1[\s\S]*?maxReplicas:\s*1" 'The Web Container App must retain exactly one always-warm replica.'
 Assert-Text $platformBicep "cpu:\s*json\('0\.5'\)[\s\S]*?memory:\s*'1Gi'" 'The Web Container App must use 0.5 vCPU and 1 GiB.'
 Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
 Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
@@ -286,6 +286,21 @@ Assert-Text $databaseBootstrapScript 'manifest\.sourceRevision' 'Database bootst
 Assert-Text $databaseBootstrapScript 'status --porcelain' 'Database bootstrap must require a clean source checkout before reading the migration-defined matrix.'
 Assert-Text $databaseBootstrapScript 'sys\.schemas[\s\S]*sys\.objects[\s\S]*owning_principal_id[\s\S]*owner_sid' 'Database bootstrap must reject schema, object, principal, and database ownership authority.'
 Assert-Text $databaseBootstrapScript 'HAS_PERMS_BY_NAME' 'Database bootstrap must compare effective per-table runtime DML with the migration-defined matrix.'
+$grantMigrationFiles = Get-ChildItem `
+    -LiteralPath (Join-Path $repositoryRoot 'src/Pegasus.Infrastructure/Persistence/Migrations') `
+    -Filter '*.cs' |
+    Where-Object {
+        $_.Name -notlike '*.Designer.cs' -and
+        $_.Name -ne '20260729199000_RuntimeRoleReconciliation.cs' -and
+        $_.Name -gt '20260729199000_RuntimeRoleReconciliation.cs' -and
+        (Get-Content -Raw -LiteralPath $_.FullName) -cmatch '\bGRANT\s'
+    }
+foreach ($grantMigration in $grantMigrationFiles) {
+    Assert-Text `
+        $databaseBootstrapScript `
+        ([regex]::Escape([IO.Path]::GetFileNameWithoutExtension($grantMigration.Name))) `
+        "Database bootstrap must account for grant-carrying migration $($grantMigration.Name)."
+}
 
 $smokeWorkerMatches = [regex]::Matches(
     $productionSmoke,

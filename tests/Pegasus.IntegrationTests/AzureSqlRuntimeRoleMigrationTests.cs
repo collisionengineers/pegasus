@@ -325,6 +325,65 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task LatestMigrationDropsDeadBoxRequestsAndGrantsWorkerCaseCreation()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(0, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'BoxFileRequests'"));
+        Assert.Equal(
+            [
+                "CaseDataFields:INSERT", "CaseDataFields:SELECT", "CaseDataFields:UPDATE",
+                "CaseDataSnapshots:INSERT", "CaseDataSnapshots:SELECT",
+                "CaseDueWork:INSERT", "CaseDueWork:SELECT", "CaseDueWork:UPDATE",
+                "CaseHistory:INSERT", "CaseHistory:SELECT",
+                "CaseIntakeLinks:INSERT", "CaseIntakeLinks:SELECT",
+                "CaseMatchIndex:INSERT", "CaseMatchIndex:SELECT", "CaseMatchIndex:UPDATE",
+                "CaseSequences:INSERT", "CaseSequences:SELECT", "CaseSequences:UPDATE",
+                "CaseWorkflows:INSERT", "CaseWorkflows:SELECT", "CaseWorkflows:UPDATE",
+                "Cases:INSERT", "Cases:SELECT", "Cases:UPDATE",
+                "ExternalWorkItems:INSERT", "ExternalWorkItems:SELECT", "ExternalWorkItems:UPDATE",
+                "IntakeMutationHistory:INSERT", "IntakeMutationHistory:SELECT",
+                "OrganizationRoles:SELECT", "Organizations:SELECT",
+                "PrincipalSequenceLineages:INSERT", "PrincipalSequenceLineages:SELECT",
+                "Principals:SELECT", "Principals:UPDATE",
+                "StandaloneAuditEvidence:INSERT", "StandaloneAuditEvidence:SELECT",
+                "VehicleConfirmations:INSERT", "VehicleConfirmations:SELECT",
+                "WorkflowConfigurations:SELECT"
+            ],
+            await ReadValuesAsync(
+                database,
+                $"""
+                SELECT CONCAT(
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    N':',
+                    permission.permission_name COLLATE DATABASE_DEFAULT)
+                FROM sys.database_permissions AS permission
+                INNER JOIN sys.objects AS tableObject
+                    ON tableObject.object_id = permission.major_id
+                INNER JOIN sys.database_principals AS principal
+                    ON principal.principal_id = permission.grantee_principal_id
+                WHERE tableObject.name IN (
+                        N'StandaloneAuditEvidence', N'Cases', N'CaseSequences',
+                        N'CaseMatchIndex', N'CaseIntakeLinks', N'CaseHistory',
+                        N'CaseWorkflows', N'CaseDataSnapshots', N'CaseDataFields',
+                        N'CaseDueWork', N'ExternalWorkItems', N'IntakeMutationHistory',
+                        N'Principals', N'PrincipalSequenceLineages', N'Organizations',
+                        N'OrganizationRoles', N'VehicleConfirmations', N'WorkflowConfigurations')
+                  AND permission.class = 1
+                  AND permission.minor_id = 0
+                  AND permission.[state] = 'G'
+                  AND principal.name = N'{WorkerRole}'
+                ORDER BY
+                    tableObject.name COLLATE DATABASE_DEFAULT,
+                    permission.permission_name COLLATE DATABASE_DEFAULT
+                """));
+    }
+
+    [Fact]
     public async Task LatestMigrationGrantsOnlyWebReadAccessToMigrationHistory()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
