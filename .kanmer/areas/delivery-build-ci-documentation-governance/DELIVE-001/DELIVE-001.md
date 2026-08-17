@@ -19,9 +19,13 @@ groups:
 links:
   - SIMPLI-006
 docs_todo: true
+commits:
+  - 4b1cfed8be9530e367225a3deac4a651ae0da534
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/378'
 archived: false
 created: '2026-08-14T11:15:00.236Z'
-updated: '2026-08-17T04:24:57.576Z'
+updated: '2026-08-17T04:39:46.378Z'
 ---
 
 ## What
