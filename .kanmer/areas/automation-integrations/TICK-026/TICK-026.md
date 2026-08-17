@@ -26,9 +26,12 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 commits:
   - 0a15d656de56e54924e3fbff6f120e4360b7ff4e
+prs:
+  - '393'
+  - 'https://github.com/collisionengineers/pegasus/pull/393'
 archived: false
 created: '2026-08-12T15:03:53.304Z'
-updated: '2026-08-17T13:24:00.550Z'
+updated: '2026-08-17T13:39:02.321Z'
 ---
 
 ## What

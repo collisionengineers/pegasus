@@ -13,3 +13,5 @@
 Worktree created at `../pegasus-worktrees/tick-026-mcp-04-document-evidence` on `task/tick-026-mcp-04-document-evidence`; ticket taken. Adding HTTP caller tests.
 
 Focused Release run: 9 passed, 0 failed (`dotnet test … --filter FullyQualifiedName~AutomationMcpIngressTests`). Export requires a fresh `pegasus_case_edit_begin` after add because `CaseMutationGuard.Complete` clears the lease.
+
+Pushed `task/tick-026-mcp-04-document-evidence` and opened https://github.com/collisionengineers/pegasus/pull/393 targeting `dev`.
