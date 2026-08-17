@@ -1,5 +1,7 @@
 # FRD NNNN: <feature>
 
+*The FRD. Not a PRD or ADR — this is **what** the system does, with acceptance criteria, not why or how decided.*
+
 **Implements:** PRD NNNN.
 
 ## Behaviour
