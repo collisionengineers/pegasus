@@ -14,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.047Z'
-updated: '2026-08-12T15:03:53.047Z'
+updated: '2026-08-17T04:09:00.854Z'
 ---
 
 ## What
@@ -38,5 +38,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — MAIL-16.
-- Canonical owner: [Outbound correspondence evidence](requirements.md#outbound-correspondence-evidence)
+- Canonical owner: [Outbound correspondence evidence](docs/frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence)
 - Activation/boundary: Allocated but non-blocking for `0.1.0-alpha.1` acceptance; post-report tracking starts manual via MAIL-15.

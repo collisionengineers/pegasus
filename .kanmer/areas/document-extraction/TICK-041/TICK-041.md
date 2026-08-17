@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-08-12T15:03:53.610Z'
+updated: '2026-08-17T04:09:05.083Z'
 ---
 
 ## What
@@ -39,5 +39,5 @@ The capability inventory allocates this outcome to **Next / 0.2.0**. This capabi
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-16.
-- Canonical owner: [Requirements](requirements.md#intake-and-source-identity)
+- Canonical owner: [Owning FRD](docs/frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)
 - Activation/boundary: Allocation only; owning evidence still required.

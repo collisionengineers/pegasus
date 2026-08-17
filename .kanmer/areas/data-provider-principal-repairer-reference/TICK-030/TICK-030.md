@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.389Z'
-updated: '2026-08-13T14:38:59.397Z'
+updated: '2026-08-17T04:09:03.271Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — DATA-01.
-- Canonical owner: [Provider API principal and contract boundary](requirements.md#provider-api-principal-and-contract-boundary)
+- Canonical owner: [Provider API principal and contract boundary](docs/frd/frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary)
 - Activation/boundary: Evidence only; a domain snapshot is not principal or tenant identity, route activation, or an API contract.

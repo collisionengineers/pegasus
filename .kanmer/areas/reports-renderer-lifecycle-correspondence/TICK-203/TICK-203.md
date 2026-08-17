@@ -15,7 +15,7 @@ links:
   - TICK-027
 archived: false
 created: '2026-08-12T15:08:05.112Z'
-updated: '2026-08-12T15:08:05.112Z'
+updated: '2026-08-17T04:09:43.663Z'
 ---
 
 ## What
@@ -24,7 +24,7 @@ Reconcile the renderer MCP design against the merged Automation Actor inventory.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -38,5 +38,10 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — renderer MCP plan.
+- Source: the retired pre-Kanmer tracker — Next — renderer MCP plan.
 - Related capability: MCP-06 ([[TICK-027]]).
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

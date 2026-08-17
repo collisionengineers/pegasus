@@ -11,9 +11,9 @@ labels:
   - source-now
   - requires-live-approval
 links: []
-archived: false
+archived: true
 created: '2026-08-12T15:08:02.243Z'
-updated: '2026-08-12T15:08:02.243Z'
+updated: '2026-08-17T04:09:19.165Z'
 ---
 
 ## What
@@ -22,7 +22,7 @@ Rebuild the runtime-role permission matrix from every migration.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -36,5 +36,5 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — Azure database bootstrap.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.
 - Live-system work requires fresh exact-target approval before any external operation.

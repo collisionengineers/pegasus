@@ -17,7 +17,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-12T15:03:53.085Z'
-updated: '2026-08-14T11:10:52.343Z'
+updated: '2026-08-17T04:08:56.972Z'
 ---
 
 ## What
@@ -41,5 +41,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — CASE-30.
-- Canonical owner: [Focused EVA manual handoff](requirements.md#focused-eva-manual-handoff)
+- Canonical owner: [Focused EVA manual handoff](docs/frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff)
 - Activation/boundary: Review-stage generation, revision, download and proxy history are caller-proved locally; no EVA network call or replacement authority exists.

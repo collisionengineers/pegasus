@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.142Z'
-updated: '2026-08-13T14:38:59.547Z'
+updated: '2026-08-17T04:09:01.370Z'
 ---
 
 ## What
@@ -39,5 +39,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — DOC-03.
-- Canonical owner: [Requirements](requirements.md#documents-extraction-and-custody)
+- Canonical owner: [Owning FRD](docs/frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)
 - Activation/boundary: Stable business-readable occurrence/version custody and replay verification are caller-proved locally; live Box proof remains pending.

@@ -11,9 +11,9 @@ labels:
   - source-now
   - decision-required
 links: []
-archived: false
+archived: true
 created: '2026-08-12T15:08:04.748Z'
-updated: '2026-08-12T15:08:04.748Z'
+updated: '2026-08-17T04:09:41.637Z'
 ---
 
 ## What
@@ -22,7 +22,7 @@ Resolve the approved-mailbox receipt-token length boundary.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -36,4 +36,4 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — receipt-token limit.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.

@@ -13,7 +13,7 @@ links:
   - TICK-055
 archived: false
 created: '2026-08-12T15:08:05.482Z'
-updated: '2026-08-12T15:08:05.482Z'
+updated: '2026-08-17T04:09:44.807Z'
 ---
 
 ## What
@@ -22,7 +22,7 @@ Preserve final Sent evidence through post-report correction.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -36,5 +36,10 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — renderer lifecycle defect.
+- Source: the retired pre-Kanmer tracker — Next — renderer lifecycle defect.
 - Related capability: CASE-23 ([[TICK-055]]).
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

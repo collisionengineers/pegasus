@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.205Z'
-updated: '2026-08-12T15:03:53.205Z'
+updated: '2026-08-17T04:09:01.869Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — EXT-03.
-- Canonical owner: [Focused EVA manual handoff](requirements.md#focused-eva-manual-handoff)
+- Canonical owner: [Focused EVA manual handoff](docs/frd/frd-07-eva-and-external-engineering-handoff.md#focused-eva-manual-handoff)
 - Activation/boundary: Core policy plus authenticated Case and composition-gated Automation callers are proved locally. ZIP/drag-drop container acceptance, deployment and operator acceptance remain pending; a future EVA API remains a separate contract.

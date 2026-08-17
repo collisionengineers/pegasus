@@ -17,7 +17,7 @@ links:
   - TICK-116
 archived: true
 created: '2026-08-12T15:08:02.458Z'
-updated: '2026-08-13T14:39:29.830Z'
+updated: '2026-08-17T04:09:21.760Z'
 ---
 
 ## What
@@ -26,7 +26,7 @@ Prove operator EVA drag-and-drop handoff from a live case.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -40,7 +40,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Path 5 — EVA bundle handoff.
+- Source: the retired pre-Kanmer tracker — Path 5 — EVA bundle handoff.
 - Related capability: EXT-03 ([[TICK-022]]).
 - Live-system work requires fresh exact-target approval before any external operation.
 - Blocked by: [[TICK-116]] — EVA handoff needs an accepted live Case/PO.
@@ -48,3 +48,8 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 ## Migrated validation
 
 This standalone proof/validation ticket was consolidated into [[TICK-022]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

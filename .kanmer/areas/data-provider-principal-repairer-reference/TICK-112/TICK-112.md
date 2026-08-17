@@ -13,9 +13,9 @@ labels:
   - decision-required
 links:
   - TICK-012
-archived: false
+archived: true
 created: '2026-08-12T15:08:02.310Z'
-updated: '2026-08-12T15:08:02.310Z'
+updated: '2026-08-17T04:09:19.815Z'
 ---
 
 ## What
@@ -24,7 +24,7 @@ Establish the QDOS Organisation and Principal in production.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -38,6 +38,6 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — QDOS principal absence.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.
 - Related capability: INT-25 ([[TICK-012]]).
 - Live-system work requires fresh exact-target approval before any external operation.

@@ -17,7 +17,7 @@ links:
   - TICK-035
 archived: false
 created: '2026-08-12T15:03:53.513Z'
-updated: '2026-08-12T15:09:19.793Z'
+updated: '2026-08-17T04:09:04.191Z'
 ---
 
 ## What
@@ -41,6 +41,6 @@ The capability inventory allocates this outcome to **Next / 0.3.0**. This capabi
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-05.
-- Canonical owner: [Requirements](requirements.md#intake-and-source-identity)
+- Canonical owner: [Owning FRD](docs/frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)
 - Activation/boundary: Allocation only; owning evidence still required.
 - Blocked by: [[TICK-035]] — Additional-provider activation must precede this mailbox activation.

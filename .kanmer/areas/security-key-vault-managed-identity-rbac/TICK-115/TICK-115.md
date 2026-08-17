@@ -15,7 +15,7 @@ links:
   - TICK-110
 archived: true
 created: '2026-08-12T15:08:02.376Z'
-updated: '2026-08-13T14:39:29.773Z'
+updated: '2026-08-17T04:09:20.939Z'
 ---
 
 ## What
@@ -24,7 +24,7 @@ Verify scheduled predecessor Key Vault purge by fresh approved inventory.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -38,9 +38,14 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Waiting — predecessor vault purge.
+- Source: the retired pre-Kanmer tracker — Waiting — predecessor vault purge.
 - Live-system work requires fresh exact-target approval before any external operation.
 
 ## Migrated validation
 
 This standalone proof/validation ticket was consolidated into [[TICK-110]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

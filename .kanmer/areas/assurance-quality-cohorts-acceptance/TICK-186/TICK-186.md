@@ -13,7 +13,7 @@ links:
   - TICK-009
 archived: false
 created: '2026-08-12T15:08:04.505Z'
-updated: '2026-08-12T15:08:04.505Z'
+updated: '2026-08-17T04:09:40.258Z'
 ---
 
 ## What
@@ -22,7 +22,7 @@ Assemble the extraction cohort and untouched holdout.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -36,5 +36,10 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — extraction cohort.
+- Source: the retired pre-Kanmer tracker — Next — extraction cohort.
 - Related capability: MAIL-21 ([[TICK-009]]).
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

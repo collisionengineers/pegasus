@@ -11,9 +11,9 @@ labels:
   - source-now
 links:
   - TICK-102
-archived: false
+archived: true
 created: '2026-08-12T15:08:03.353Z'
-updated: '2026-08-12T15:08:03.353Z'
+updated: '2026-08-17T04:09:31.422Z'
 ---
 
 ## What
@@ -22,7 +22,7 @@ Add reasoned cancellation of a Send-to-AI work request.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -36,5 +36,5 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — Send-to-AI integrity.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.
 - Related capability: AI-09 ([[TICK-102]]).

@@ -13,7 +13,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:08:05.829Z'
-updated: '2026-08-12T15:08:05.829Z'
+updated: '2026-08-17T04:09:46.033Z'
 ---
 
 ## What
@@ -22,7 +22,7 @@ Decide whether density applies to all rendered document bodies.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -36,4 +36,9 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — renderer density.
+- Source: the retired pre-Kanmer tracker — Next — renderer density.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

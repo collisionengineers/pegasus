@@ -10,9 +10,9 @@ labels:
   - now
   - source-now
 links: []
-archived: false
+archived: true
 created: '2026-08-12T15:08:04.257Z'
-updated: '2026-08-12T15:08:04.257Z'
+updated: '2026-08-17T04:09:37.971Z'
 ---
 
 ## What
@@ -21,7 +21,7 @@ Repair Automation Activity pagination.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -35,4 +35,4 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — Automation Activity pager.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.

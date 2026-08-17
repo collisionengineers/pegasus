@@ -14,7 +14,7 @@ links:
   - TICK-098
 archived: false
 created: '2026-08-12T15:08:05.409Z'
-updated: '2026-08-12T15:08:05.409Z'
+updated: '2026-08-17T04:09:44.488Z'
 ---
 
 ## What
@@ -23,7 +23,7 @@ Define the missing Audit renderer template.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -37,5 +37,10 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — renderer capability questions.
+- Source: the retired pre-Kanmer tracker — Next — renderer capability questions.
 - Related capability: RPT-03 ([[TICK-098]]).
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

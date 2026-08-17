@@ -18,7 +18,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-08-12T15:03:53.493Z'
+updated: '2026-08-17T04:09:04.009Z'
 ---
 
 ## What
@@ -42,5 +42,5 @@ The capability inventory allocates this outcome to **Next / 0.2.0**. This capabi
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-04.
-- Canonical owner: [Requirements](requirements.md#intake-and-source-identity)
+- Canonical owner: [Owning FRD](docs/frd/frd-02-intake-and-source-identity.md#intake-and-source-identity)
 - Activation/boundary: Adding reference evidence is not workflow activation; activation precedes INT-05–INT-07 within the `Next` horizon.

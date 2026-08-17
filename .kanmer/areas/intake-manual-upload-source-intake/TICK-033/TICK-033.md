@@ -18,7 +18,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-12T15:03:53.456Z'
-updated: '2026-08-14T11:10:52.620Z'
+updated: '2026-08-17T04:08:57.338Z'
 ---
 
 ## What
@@ -42,5 +42,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-31.
-- Canonical owner: [Request-scoped upload links](requirements.md#request-scoped-upload-links)
+- Canonical owner: [Request-scoped upload links](docs/frd/frd-02-intake-and-source-identity.md#request-scoped-upload-links)
 - Activation/boundary: Allocated but non-blocking for `0.1.0-alpha.1` acceptance. Token, limit, custody, retry, revocation, abuse, and cross-request isolation contracts are acceptance gates for the capability itself; supersedes Box File Request (UI removal pending).

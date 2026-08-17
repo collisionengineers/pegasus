@@ -13,7 +13,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.630Z'
-updated: '2026-08-13T14:46:29.105Z'
+updated: '2026-08-17T04:09:05.261Z'
 ---
 
 ## What
@@ -37,5 +37,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-28.
-- Canonical owner: [Matching conflicts and reversible association](requirements.md#matching-conflicts-and-reversible-association)
+- Canonical owner: [Matching conflicts and reversible association](docs/frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)
 - Activation/boundary: Operator-directed and threshold-accepted 2026-08-03 at the 0.80 bar with the accepted match rules ([ADR-0019](adr/0019-in-process-onnx-vrm-recognition.md) index entry owns the numbers). Pairing runs in both directions — a confident scan matches waiting eligible cases, and an accepted case matches waiting Image intakes on exact registration equality only (a registered identity is immutable, so the completion rules apply only at scan time). Automatic association requires exactly one eligible pre-report case consistent with the confirmed registration and no contradictory identity evidence; anything else stays a reasoned staff decision.

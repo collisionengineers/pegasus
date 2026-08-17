@@ -17,7 +17,7 @@ links:
 blocks: []
 archived: false
 created: '2026-08-12T15:03:53.008Z'
-updated: '2026-08-14T13:18:37.588Z'
+updated: '2026-08-17T04:08:56.586Z'
 ---
 
 ## What
@@ -41,5 +41,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-25.
-- Canonical owner: [Matching conflicts and reversible association](requirements.md#matching-conflicts-and-reversible-association)
+- Canonical owner: [Matching conflicts and reversible association](docs/frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association)
 - Activation/boundary: The durable processing path consumes every persisted typed QDOS case type and attempts one replay-safe allocation. An Audit is definitive only when its instruction and a separate original report are retained and the report carries exactly one literal outcome: `repairable` or `total loss`. It then creates its Case/PO and `a.` or `ap.` reference automatically, without staff confirmation. Unique existing-case matches bypass allocation. Failures retain a bounded allocation outcome separately from the processing decision and completed-work replay cannot retry; authenticated staff may retry the frozen command with a reason after correction.

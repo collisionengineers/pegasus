@@ -14,9 +14,9 @@ labels:
 links:
   - TICK-012
   - TICK-112
-archived: false
+archived: true
 created: '2026-08-12T15:08:02.331Z'
-updated: '2026-08-12T15:09:20.321Z'
+updated: '2026-08-17T04:09:20.382Z'
 ---
 
 ## What
@@ -25,7 +25,7 @@ Re-drive allocation for receipts stranded before QDOS Principal setup.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -39,7 +39,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — QDOS principal absence.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.
 - Related capability: INT-25 ([[TICK-012]]).
 - Blocked by: Establish the QDOS Organisation and Principal in production.
 - Live-system work requires fresh exact-target approval before any external operation.

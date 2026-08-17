@@ -15,7 +15,7 @@ links:
   - TICK-116
 archived: false
 created: '2026-08-12T15:08:02.478Z'
-updated: '2026-08-13T14:40:07.661Z'
+updated: '2026-08-17T04:09:22.112Z'
 ---
 
 ## What
@@ -42,5 +42,10 @@ Local policy tests do not establish that deployed intake, persisted case state, 
 
 ## Notes
 
-- Source: `NOW.md` QDOS production path step 6.
+- Source: the retired pre-Kanmer tracker QDOS production path step 6.
 - Live mailbox, Azure, credential, deployment, or external operations require fresh approval for exact targets.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

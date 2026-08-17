@@ -14,7 +14,7 @@ links:
   - TICK-028
 archived: true
 created: '2026-08-12T15:08:04.661Z'
-updated: '2026-08-13T14:39:29.880Z'
+updated: '2026-08-17T04:09:41.242Z'
 ---
 
 ## What
@@ -23,7 +23,7 @@ Observe abandoned LocalDB and backup-file reclamation.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -37,8 +37,13 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — abandoned database sweep.
+- Source: the retired pre-Kanmer tracker — Next — abandoned database sweep.
 
 ## Migrated validation
 
 This standalone proof/validation ticket was consolidated into [[TICK-028]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

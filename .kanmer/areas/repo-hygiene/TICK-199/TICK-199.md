@@ -12,7 +12,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:08:04.949Z'
-updated: '2026-08-13T14:40:07.676Z'
+updated: '2026-08-17T04:09:42.854Z'
 ---
 
 ## What
@@ -38,4 +38,9 @@ An unexplained credential-tool configuration file can become stale authority or 
 
 ## Notes
 
-- Source: `NOW.md` repository-hygiene item.
+- Source: the retired pre-Kanmer tracker repository-hygiene item.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

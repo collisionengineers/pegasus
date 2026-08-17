@@ -10,9 +10,9 @@ labels:
   - now
   - source-now
 links: []
-archived: false
+archived: true
 created: '2026-08-12T15:08:04.401Z'
-updated: '2026-08-12T15:08:04.401Z'
+updated: '2026-08-17T04:09:39.097Z'
 ---
 
 ## What
@@ -21,7 +21,7 @@ Replace raw case-page identifiers with business-readable names.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -35,4 +35,4 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — identifier and clock debt.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.

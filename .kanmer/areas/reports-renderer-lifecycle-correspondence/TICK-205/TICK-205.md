@@ -16,7 +16,7 @@ links:
   - TICK-093
 archived: false
 created: '2026-08-12T15:08:05.306Z'
-updated: '2026-08-12T15:08:05.306Z'
+updated: '2026-08-17T04:09:44.104Z'
 ---
 
 ## What
@@ -25,7 +25,7 @@ Resolve the canonical repair-specification versus dual-Audit-specification confl
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -39,5 +39,10 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — renderer capability questions.
+- Source: the retired pre-Kanmer tracker — Next — renderer capability questions.
 - Related capability: ENG-01 ([[TICK-093]]).
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

@@ -18,7 +18,7 @@ links:
   - BUG-001
 archived: true
 created: '2026-08-12T15:08:02.400Z'
-updated: '2026-08-13T14:39:29.789Z'
+updated: '2026-08-17T04:09:21.132Z'
 ---
 
 ## What
@@ -27,7 +27,7 @@ Prove one genuine QDOS mailbox-to-Case/PO production journey.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -41,7 +41,7 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Path 2 — first production journey.
+- Source: the retired pre-Kanmer tracker — Path 2 — first production journey.
 - Related capability: INT-25 ([[TICK-012]]).
 - Blocked by: Establish the QDOS Organisation and Principal in production.
 - Live-system work requires fresh exact-target approval before any external operation.
@@ -50,3 +50,8 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 ## Migrated validation
 
 This standalone proof/validation ticket was consolidated into [[BUG-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

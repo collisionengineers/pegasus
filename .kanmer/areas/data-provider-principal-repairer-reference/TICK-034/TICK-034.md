@@ -17,7 +17,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.474Z'
-updated: '2026-08-12T15:03:53.474Z'
+updated: '2026-08-17T04:09:03.826Z'
 ---
 
 ## What
@@ -41,5 +41,5 @@ The capability inventory allocates this outcome to **Next / 0.2.0**. This capabi
 ## Notes
 
 - Source: `docs/capabilities.md` — DATA-02.
-- Canonical owner: [Inspection address](requirements.md#inspection-address)
+- Canonical owner: [Inspection address](docs/frd/frd-06-vehicle-and-engineering-evidence.md#inspection-address)
 - Activation/boundary: Deferred pending accepted provider-location evidence, schema/package, migration, and caller proof; no domain-based address inference. The Principal inspection-mode setting (ADR-0018) selects a mode, never an address, and does not activate this pipeline.

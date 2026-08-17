@@ -11,9 +11,9 @@ labels:
   - source-now
 links:
   - TICK-027
-archived: false
+archived: true
 created: '2026-08-12T15:08:03.560Z'
-updated: '2026-08-12T15:08:03.560Z'
+updated: '2026-08-17T04:09:33.360Z'
 ---
 
 ## What
@@ -22,7 +22,7 @@ Bind case-detail automation writes to an owned work request.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -36,5 +36,5 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — assessment toolset correctness.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.
 - Related capability: MCP-06 ([[TICK-027]]).

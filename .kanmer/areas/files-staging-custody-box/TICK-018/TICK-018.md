@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.124Z'
-updated: '2026-08-12T15:03:53.124Z'
+updated: '2026-08-17T04:09:01.198Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — DOC-02.
-- Canonical owner: [Requirements](requirements.md#documents-extraction-and-custody)
+- Canonical owner: [Owning FRD](docs/frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)
 - Activation/boundary: Day-one accepted Case custody requirement. Blob is temporary hot staging only; preserve the approved test-target scope for local and non-production deployment evidence.

@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.230Z'
-updated: '2026-08-12T15:03:53.230Z'
+updated: '2026-08-17T04:09:02.022Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — MCP-01.
-- Canonical owner: [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary)
+- Canonical owner: [MCP automation and actor boundary](docs/frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)
 - Activation/boundary: Implemented behind a composition gate that is off by default (DevelopmentOffline evidence runs only); ordinary staff have no MCP access, a compatible client may provide initial evidence without owning the actor identity, no external product caller is proven yet, live activation stays separately approved, and no AI proposal transport is activated.

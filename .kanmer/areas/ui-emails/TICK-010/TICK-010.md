@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.968Z'
-updated: '2026-08-12T15:03:52.968Z'
+updated: '2026-08-17T04:09:00.154Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — MAIL-22.
-- Canonical owner: [Settled mailbox taxonomy and correction](requirements.md#settled-mailbox-taxonomy-and-correction)
+- Canonical owner: [Settled mailbox taxonomy and correction](docs/frd/frd-08-email-mailbox-and-background-processing.md#settled-mailbox-taxonomy-and-correction)
 - Activation/boundary: This row owns allocation only; the linked requirements clause owns behavior and routes to accepted provenance.

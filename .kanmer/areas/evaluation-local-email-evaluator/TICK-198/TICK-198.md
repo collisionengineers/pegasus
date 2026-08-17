@@ -13,9 +13,9 @@ labels:
   - source-now
   - decision-required
 links: []
-archived: false
+archived: true
 created: '2026-08-12T15:08:04.922Z'
-updated: '2026-08-12T15:08:04.922Z'
+updated: '2026-08-17T04:09:42.634Z'
 ---
 
 ## What
@@ -24,7 +24,7 @@ Define the tracked build and verification boundary for scripts/email-eval-deskto
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This item was mechanically imported from the retired pre-Kanmer queue and contains no independently actionable scope. It is archived pending a new evidence-backed ticket if the need re-emerges.
 
 ## Approach
 
@@ -38,4 +38,4 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — repository hygiene.
+- Migration: archived by [[KANMER-001]] after the retired queue was reconciled.

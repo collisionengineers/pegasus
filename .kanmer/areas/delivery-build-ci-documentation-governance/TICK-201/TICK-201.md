@@ -12,7 +12,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:08:05.001Z'
-updated: '2026-08-13T14:40:07.690Z'
+updated: '2026-08-17T04:09:43.272Z'
 ---
 
 ## What
@@ -39,5 +39,10 @@ Repository documentation distinguishes allocation, implementation, caller proof,
 
 ## Notes
 
-- Source: `NOW.md` canonical-documentation accuracy audit.
+- Source: the retired pre-Kanmer tracker canonical-documentation accuracy audit.
 - Documentation correctness does not itself prove application callers or live behavior.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

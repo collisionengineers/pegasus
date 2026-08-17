@@ -15,7 +15,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.105Z'
-updated: '2026-08-14T09:54:57.121Z'
+updated: '2026-08-17T04:09:01.031Z'
 ---
 
 ## What
@@ -39,5 +39,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — DOC-01.
-- Canonical owner: [Requirements](requirements.md#documents-extraction-and-custody)
+- Canonical owner: [Owning FRD](docs/frd/frd-05-documents-extraction-and-custody.md#documents-extraction-and-custody)
 - Activation/boundary: Immutable Case/PO naming, response-loss-safe binding, fail-closed conflict handling and human reasoned recovery are caller-proved locally. Live controlled Box target proof, migration, deployment and operator acceptance remain pending.

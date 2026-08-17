@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.163Z'
-updated: '2026-08-12T15:03:53.163Z'
+updated: '2026-08-17T04:09:01.542Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — EXT-01.
-- Canonical owner: [Vehicle data and MOT enrichment](requirements.md#vehicle-data-and-mot-enrichment)
+- Canonical owner: [Vehicle data and MOT enrichment](docs/frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)
 - Activation/boundary: Live adapter/provider contract remains unresolved; approved local replay returns explicit unavailable when evidence is absent.

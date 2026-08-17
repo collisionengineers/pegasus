@@ -16,7 +16,7 @@ links:
   - TICK-001
 archived: true
 created: '2026-08-12T15:03:53.434Z'
-updated: '2026-08-13T14:39:29.712Z'
+updated: '2026-08-17T04:09:03.655Z'
 ---
 
 ## What
@@ -40,7 +40,7 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — OPS-25.
-- Canonical owner: [Requirements](requirements.md#operator-experience)
+- Canonical owner: [Owning FRD](docs/frd/frd-12-operator-experience.md#operator-experience)
 - Activation/boundary: Required before 0.1.0-alpha.1 acceptance.
 
 ## Migrated validation

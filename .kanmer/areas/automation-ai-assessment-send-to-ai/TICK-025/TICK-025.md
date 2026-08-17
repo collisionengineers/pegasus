@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.286Z'
-updated: '2026-08-13T14:47:29.502Z'
+updated: '2026-08-17T04:09:02.342Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — MCP-03.
-- Canonical owner: [MCP automation and actor boundary](requirements.md#mcp-automation-and-actor-boundary)
+- Canonical owner: [MCP automation and actor boundary](docs/frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary)
 - Activation/boundary: Implemented (queue list, durable intake submission on the automation channel) behind the shared composition gate; non-blocking for `0.1.0-alpha.1` acceptance and gated off outside local evidence runs.

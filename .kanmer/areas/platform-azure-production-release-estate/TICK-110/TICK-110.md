@@ -14,7 +14,7 @@ links:
   - TICK-001
 archived: false
 created: '2026-08-12T15:08:02.263Z'
-updated: '2026-08-12T15:08:02.263Z'
+updated: '2026-08-17T04:09:19.363Z'
 ---
 
 ## What
@@ -23,7 +23,7 @@ Reconcile local azd state against the observed production estate.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -37,6 +37,11 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — local azd reconciliation.
+- Source: the retired pre-Kanmer tracker — Next — local azd reconciliation.
 - Related capability: OPS-10 ([[TICK-001]]).
 - Live-system work requires fresh exact-target approval before any external operation.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

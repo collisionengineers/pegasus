@@ -15,7 +15,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:08:04.974Z'
-updated: '2026-08-17T04:04:47.292Z'
+updated: '2026-08-17T04:09:43.074Z'
 ---
 
 ## What
@@ -24,7 +24,7 @@ Reduce remaining GitHub Actions wall-clock time.
 
 ## Why
 
-This remains an unresolved current-work item in the authoritative `NOW.md`; it is a planning/research unit until taken.
+This remains an unresolved current-work item in the canonical Kanmer board; it is a planning/research unit until taken.
 
 ## Approach
 
@@ -38,4 +38,9 @@ This remains an unresolved current-work item in the authoritative `NOW.md`; it i
 
 ## Notes
 
-- Source: `NOW.md` — Next — CI wall-clock.
+- Source: the retired pre-Kanmer tracker — Next — CI wall-clock.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

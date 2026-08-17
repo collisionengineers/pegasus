@@ -13,7 +13,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:08:02.439Z'
-updated: '2026-08-13T14:40:07.645Z'
+updated: '2026-08-17T04:09:21.514Z'
 ---
 
 ## What
@@ -40,5 +40,10 @@ Local registrations and tests do not establish that staff can use the deployed q
 
 ## Notes
 
-- Source: `NOW.md` QDOS production path step 4.
+- Source: the retired pre-Kanmer tracker QDOS production path step 4.
 - Live Azure, credential, deployment, or external operations require fresh approval for exact targets.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

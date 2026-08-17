@@ -14,7 +14,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.764Z'
-updated: '2026-08-13T14:40:07.615Z'
+updated: '2026-08-17T04:08:58.046Z'
 ---
 
 ## What
@@ -42,5 +42,10 @@ Deployment alone is not release completion. The repository separates implementat
 ## Notes
 
 - Source capability: OPS-10.
-- Source: `NOW.md` production state and QDOS production path.
+- Source: the retired pre-Kanmer tracker production state and QDOS production path.
 - Live Azure, credential, mailbox, Box, deployment, destructive, or other external operations require fresh approval for exact targets.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

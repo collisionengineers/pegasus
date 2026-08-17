@@ -16,7 +16,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.326Z'
-updated: '2026-08-12T15:03:53.326Z'
+updated: '2026-08-17T04:09:02.759Z'
 ---
 
 ## What
@@ -40,5 +40,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — MCP-06.
-- Canonical owner: [Targeted sending and reviewed AI proposals](requirements.md#targeted-sending-and-reviewed-ai-proposals)
+- Canonical owner: [Targeted sending and reviewed AI proposals](docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals)
 - Activation/boundary: Implemented behind the shared composition gate (ADR-0021): automation values land unconfirmed for review at manual engineer assignment, finding confirmation stays staff-Engineer-only, estimate derivation waits for EXT-09 formula authority, and no confirmation, report-approval, or outward-dispatch tool exists.

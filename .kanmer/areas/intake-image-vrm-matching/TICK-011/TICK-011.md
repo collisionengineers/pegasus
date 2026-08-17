@@ -13,7 +13,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.988Z'
-updated: '2026-08-13T14:46:24.073Z'
+updated: '2026-08-17T04:09:00.502Z'
 ---
 
 ## What
@@ -37,5 +37,5 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-17.
-- Canonical owner: [Ordinary-image VRM and image analysis](requirements.md#ordinary-image-vrm-and-image-analysis)
+- Canonical owner: [Ordinary-image VRM and image analysis](docs/frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)
 - Activation/boundary: Allocated but non-blocking for `0.1.0-alpha.1` acceptance; the engine is the in-process ONNX stack of [ADR-0019](adr/0019-in-process-onnx-vrm-recognition.md), scanning image-only material automatically in the intake pipeline. The operator accepted the threshold 2026-08-03 at the **0.80** bar with the accepted match rules (full-cohort run `20260803-092906`; the ADR-0019 index entry owns the numbers). Source-image-bound with recorded abstention/failure outcomes; no instruction invention or external upload, and the only autonomous actions are the `INT-28`/`INT-32` register+associate at the accepted bar.

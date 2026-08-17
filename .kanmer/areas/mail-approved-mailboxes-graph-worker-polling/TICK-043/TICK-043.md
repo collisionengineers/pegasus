@@ -18,7 +18,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.649Z'
-updated: '2026-08-12T15:03:53.649Z'
+updated: '2026-08-17T04:09:05.431Z'
 ---
 
 ## What
@@ -42,5 +42,5 @@ The capability inventory allocates this outcome to **Next / 0.3.0**. This capabi
 ## Notes
 
 - Source: `docs/capabilities.md` — MAIL-01.
-- Canonical owner: [Requirements](requirements.md#email-mailbox-and-background-processing)
+- Canonical owner: [Owning FRD](docs/frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing)
 - Activation/boundary: Allocation only; owning evidence still required.
