@@ -14,3 +14,12 @@ Branch `task/simpli-007-acceptance-gate` @ `c9e657c3` (on `dev` `5e59f933`). PR 
 
 - 2026-08-17 — research/files/open-questions/plan written; both open questions decided by the planner (delete; derive roster from the register) — reviewer to confirm.
 - 2026-08-17 12:3x UTC — implemented, simplified, PR #388 open; ticket → review.
+
+- [x] 6. Independent review PASS (two nits fixed `88fcde2a`); CI green; merged `d677a39d`; verified on merged `dev` (full suite 526/15/0); proof written; Done.
+
+## Closeout — SIMPLI-007 (2026-08-17 13:09 UTC)
+
+- [x] PR merge verified (MERGED 2026-08-17T12:49:40Z)
+- [x] proof.md finalised · Done · Outcome recorded (deployment `not-deployed`)
+- [x] worktree `../pegasus-worktrees/simpli-007-acceptance-gate` removed; `task/simpli-007-acceptance-gate` deleted locally and on origin; pruned
+- [x] ticket released
