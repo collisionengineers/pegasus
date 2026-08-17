@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/384 targeting dev. Focused regression, real-range validation, documentation links, fail-closed invalid revision, and diff checks passed locally. Hand off to kanmer-review; do not self-review or merge.
