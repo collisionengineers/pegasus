@@ -22,3 +22,5 @@
 - [ ] `git branch -d task/simpli-009`; `git push origin --delete task/simpli-009`
 - [ ] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: "release"`
+
+Closeout completed 2026-08-17 11:56 UTC: Outcome recorded (deployment `not-deployed`); worktree `../pegasus-worktrees/simpli-009` removed; `task/simpli-009` deleted locally and on origin; pruned; ticket released. SIMPLI-010 unblocked (edge removed).

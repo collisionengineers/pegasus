@@ -16,8 +16,7 @@ groups:
   - EPIC-002
   - HZN-003
 links: []
-blocks:
-  - SIMPLI-010
+blocks: []
 commits:
   - 195154f9
   - e9f27fe7
@@ -29,7 +28,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-13T12:12:48.881Z'
-updated: '2026-08-17T11:55:59.132Z'
+updated: '2026-08-17T11:56:09.969Z'
 ---
 
 ## What
