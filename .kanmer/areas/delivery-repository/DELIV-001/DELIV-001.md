@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-17T12:56:45.634Z'
   verifying: '2026-08-17T13:13:58.358Z'
   done: '2026-08-17T13:14:42.461Z'
-taken_at: '2026-08-17T12:55:00.605Z'
-branch: task/deliv-001-simplicity-rails
-worktree: ../pegasus-worktrees/deliv-001-simplicity-rails
 labels: []
 groups:
   - EPIC-002
@@ -29,7 +26,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-17T11:05:47.371Z'
-updated: '2026-08-17T13:14:55.652Z'
+updated: '2026-08-17T13:15:14.772Z'
 ---
 
 ## What
