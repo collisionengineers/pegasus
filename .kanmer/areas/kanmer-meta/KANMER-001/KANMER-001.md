@@ -2,7 +2,7 @@
 id: KANMER-001
 type: ticket
 title: Retarget Kanmer tickets that cite the retired NOW.md / requirements.md
-status: verifying
+status: done
 area: kanmer-meta
 assignee: codex
 profile: chore
@@ -10,17 +10,18 @@ stageEntered:
   implementing: '2026-08-17T04:08:18.711Z'
   review: '2026-08-17T04:10:50.516Z'
   verifying: '2026-08-17T04:14:08.436Z'
-taken_at: '2026-08-17T04:06:10.170Z'
-branch: task/kanmer-001-retarget-retired-now-references
-worktree: ../pegasus-worktrees/kanmer-001-retarget-retired-now-references
+  done: '2026-08-17T04:16:09.166Z'
 labels: []
 groups:
   - HZN-001
 links:
   - SIMPLI-004
+commits:
+  - 0f793a28285b90ab072bf095990a1561c48ba4e6
+deployment: n/a
 archived: false
 created: '2026-08-14T11:15:00.271Z'
-updated: '2026-08-17T04:14:08.436Z'
+updated: '2026-08-17T04:16:30.003Z'
 ---
 
 ## What
@@ -46,3 +47,7 @@ before then.
 - Archive tickets that only restated NOW.md queue lines and are no longer actionable.
 
 Coordinates with [[SIMPLI-004]] (NOW.md retirement) and [[SIMPLI-005]] (board triage).
+
+## Outcome
+
+Completed 2026-08-17 under [[HZN-001]]. Retargeted all 157 affected ordinary ticket bodies, archived 77 non-actionable mechanical imports, preserved substantive CI and renderer work, and linked TICK-203–TICK-216 to [[SIMPLI-015]]. Independent re-review passed. Verified committed board state is recorded in proof.md. No application deployment or PR applied.
