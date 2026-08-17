@@ -1,41 +1,41 @@
-# Proof
+# Proof — SIMPLI-009 (verified on merged `dev`)
 
-## Implementation
+Supersedes the pre-merge proof written on 2026-08-13 against `195154f9`; this is the verification of what actually landed.
 
-- Web now validates and stages every accepted source as a durable Pending work item through ReceiveIntake; it cannot resolve ProcessQueuedIntake.
-- Worker dispatch and queue-trigger composition are the only production path into ProcessQueuedIntake.
-- Inline submission/result APIs, inline persistence transitions, request-local SQL polling, Web processor registration, and the unused Web queue-sender role are removed.
-- Processing persists bounded outcomes. Integrity/invalid data fail terminally; explicit I/O, timeout, Azure dependency, retention, database, and named concurrency faults retry; unexpected faults persist terminal unexpected_intake_processing_failure and emit sanitized Worker logging.
-- Authenticated /Upload/Status/{id} renders Received, Processing, Complete, or Failed, refreshes only nonterminal states, returns 404 for unknown IDs, and links completed work to its case or retained receipt.
-- Duplicate status feedback is one-time server-owned TempData; no caller-controlled query value can assert duplicate truth.
-- No legacy-row migration or repair was added because the repository contains disposable test data, not live records.
+## What landed
 
-## Documentation
+PR #385, merged into `dev` as **`fc144848`** on 2026-08-17 (merge commit; the merged tree is byte-identical to the CI-tested PR head `8bf0a3e6` — `git diff 8bf0a3e6 fc144848` is empty). Commits `195154f9` (implementation), `e9f27fe7` (merge of `origin/dev`), `caad05e8` (temp-plan removal), `8bf0a3e6` (review blockers + simplification pass). Net diff vs the previous `dev` (`e6422250`): 31 files, +873/−817. Independent review: NEEDS-CHANGES → fixed → re-verified **PASS** (`scratch-review`).
 
-Updated FRD-02, design, current architecture, and source-level operations wording. The task makes no deployment or live-runtime claim.
+## Verification on `fc144848` (ticket worktree, detached at the merge commit; 2026-08-17 12:41–12:54 BST)
 
-## Verification
+| Command | Result |
+| --- | --- |
+| `dotnet restore ./Pegasus.slnx --locked-mode` | restored |
+| `dotnet build ./Pegasus.slnx --configuration Release --no-restore` | Build succeeded — 0 warnings, 0 errors (1m15s) |
+| `dotnet test tests/Pegasus.Core.Tests --configuration Release --no-build` | **572 passed**, 0 failed |
+| `dotnet test tests/Pegasus.ArchitectureTests --configuration Release --no-build` | **94 passed**, 0 failed |
+| `dotnet test tests/Pegasus.IntegrationTests --configuration Release --no-build` (full) | **530 passed, 16 skipped (corpus/profile-gated), 0 failed** — 546 total, 11m30s |
+| CI on PR head `8bf0a3e6` (same tree) | 10/10 checks pass: unit, browser, sql-integration (1)(2)(3), sql-integration-coverage, documentation (incl. markdown placement), infrastructure, reference-data, changes |
 
-- dotnet restore: passed.
-- dotnet build Pegasus.slnx --configuration Release --no-restore: passed, 0 warnings, 0 errors.
-- Pegasus.Core.Tests: 572 passed.
-- Final focused intake/recovery/status runs: passed, including all four states, receipt/case destinations, auth/404, duplicate delivery, dispatch lease recovery, enqueue-before-ack race, poison replay, retry exhaustion, transient dependency translation, and unexpected terminal failure.
-- Pegasus.IntegrationTests full exact-diff run: 529 passed, 16 corpus/profile tests skipped, 0 failed (545 total), 8m42s.
-- Pegasus.ArchitectureTests excluding the unrelated local validator test: 86 passed, 0 failed.
-- Azure Blob adapter dependency-translation test: passed.
-- Negative symbol searches found no ProcessIntakeSubmission, ExecuteInlineAsync, ReceiveForProcessingAsync, old submission result/disposition, Web queue sender role, or Upload dead outcome path in task scope.
-- git diff --check: no whitespace errors.
-- Independent read-only plan-versus-diff review: PASS; no remaining plan miss, unsafe scope, unwanted legacy preservation, or documentation contradiction.
+Logs: `verify-fc144848.log` and `verify-fc144848-integration-full.log` in the session scratchpad.
 
-## Known repository-local verification issue
+## Behaviour proven by the suite (mapping to the ticket's Verification line)
 
-WorkerActivationReleaseContractTests.LocalDeploymentPlanRejectsAppendedRogueHardCodedWorkerSetting fails before its intended assertion because scripts/Test-AzureDeploymentPlan.ps1 currently stops with “The Web Container App must scale only from zero to one replica.” Running that script directly reproduces the same untouched Web-scale validation failure. The other 86 Architecture tests pass; this task does not modify the Web scale block or validator.
+- **Duplicate delivery** — `RecoveryTests.DurableIntakeReplayAndExpiredDispatchLeaseRecoverIdempotently`, `QdosAllocationRecoveryTests` replay cases: one receipt, one evaluation, one case.
+- **Crash after stage / Web stages only** — `QdosIntakeWebTests.ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage`: Web leaves a `Pending` work item, no evaluation, and **cannot resolve `ProcessQueuedIntake`** from its DI container; work is later drained by the Worker path.
+- **Lease expiry** — `RecoveryTests.QueuedStatusProjectsAnActiveProcessingLease` and the expired-dispatch-lease recovery test.
+- **Poison / retry exhaustion** — `RecoveryTests.TransientProcessingFailureExhaustsTheBoundedRetrySchedule` (5 attempts → Failed); poison replay tests unchanged and green.
+- **Fault taxonomy** — `RecoveryTests.TransientProcessingFailureSchedulesARetry` (`io`, `dependency`, `wrapped-database` → `RetryScheduled`, code `intake_processing_failure`); `RecoveryTests.UnexpectedProcessingFailureIsPersistedThenRethrown` (row Failed with `unexpected_intake_processing_failure` → exception reaches the host → redelivery `NoOp` → status page shows Failed without leaking the code).
+- **Web/Worker permission boundary** — `AzureSqlRuntimeRoleMigrationTests` (unchanged, green: Web role lacks `IntakeReceipts:INSERT`); bicep removes Web's queue-sender role (source only).
 
-## Review result
+## Read-only production check (2026-08-17, SELECT only, Entra admin identity)
 
-Independent reviewer: PASS.
+`IntakeWorkItems`: 10 rows — completed 9, failed 1; unleased `dispatched` = **0**. The ticket's "repair stranded dispatched work" line therefore has nothing to repair; the lost-message resilience gap is filed as [[INTK-003]].
 
-## Local commit
+## Not claimed
 
-- `195154f9 Make Worker own queued intake processing`
-- Task worktree is clean after commit.
+No deployment, no live Worker execution, no cloud write. `docs/operations.md` and `docs/current-architecture.md` describe source/as-built shape only.
+
+## Follow-ups filed
+
+[[INTK-001]] (retry-scheduled honesty + auto-associated case link), [[INTK-002]] (adapter-wide fault naming, Web-composition architecture fact, `IIntakeSubmission` leftover), [[INTK-003]] (stale `dispatched` recovery), [[DELIV-001]] (simplicity rails in AGENTS.md).
