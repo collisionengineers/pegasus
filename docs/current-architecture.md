@@ -591,7 +591,7 @@ Relevant architectural decisions include ADR-0003 for PdfPig, ADR-0005 for multi
 | `artifacts/local-development/` and LocalDB databases | Ignored Development state | Produced by explicit migration and real local callers; not production custody. |
 | `reference/` | Preserved supplied evidence | Used for planning and evaluation only after authority reconciliation; see the [reference index](../reference/README.md). |
 | `workspaces/` | Independently validated non-caller source imports | Workspace-specific build and test only until separately accepted integration. |
-| `design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](design.md). |
+| `docs/design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](design/README.md). |
 
 Infrastructure and release definitions under `infra/` describe target infrastructure; they do not prove a live deployment.
 

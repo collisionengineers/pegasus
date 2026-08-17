@@ -1,5 +1,5 @@
 # FRD-12: Operator experience
-> Owner capabilities: UI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
+> Owner capabilities: UI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Operator experience
 
@@ -50,4 +50,4 @@ unlabeled controls, and never presents draft, queued, attempted, allocated, or
 configured work as completed, delivered, deployed, or accepted.
 
 The durable interaction, visual, component, and source/runtime rules are owned
-by [design](../design.md).
+by [design](../design/README.md).
