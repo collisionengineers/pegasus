@@ -50,3 +50,73 @@ A focused `dotnet test` command covering the allocation suite plus mailbox and c
 ## Conclusion
 
 Reclassify the work mentally as **verification and disposition**, not a code fix. The best next plan is to (1) complete focused local verification, (2) establish whether the current source containing all relevant fixes has been deployed, and (3) only with exact-target operator approval, exercise one genuine production journey and capture Case/PO plus Box evidence. If all pass, close BUG-001 as resolved by the already-merged commits without changing product code. If a step fails, record the exact failing boundary and create a narrowly scoped follow-up fix rather than reopening this broad historical symptom as an implementation task.
+
+## Live-estate comparison — 2026-08-17
+
+### Scope and identity
+
+All live operations in this research pass were read-only. Azure CLI confirmed tenant `858cf5b3-aa0a-47a6-9b40-4851fd0afa94`, subscription `e6076573-23a5-46a8-acef-7e22d264e5db`, resource group `rg-pegasus-prod`, Worker `pegasus-prod-worker-252ow37gij`, SQL database `pegasus`, Application Insights `pegasus-prod-appi-252ow37gij`, and transient intake container `pegcustody252ow37gij/transient-intake`.
+
+The Worker is Running. All nine functions are registered and all nine `AzureWebJobs.<Function>.Disabled` settings read `false`. The later failure was therefore not caused by the earlier Worker containment state.
+
+The current Web version diagnostic reports source `aecad2479f52dadfedca109413a458c60c85323e` (`0.1.0-alpha.1`). That deployed source contains the forwarded-QDOS/Audit fixes through `f08e2df6`. Current `dev` still contains the extraction predicate described below, so this is not simply an old-deployment mismatch.
+
+### Earlier successful test
+
+The 2026-08-14 test receipt `2c4888d6-4098-4d22-a46a-d976286a27b0`:
+
+- was routed `accepted / QDOS / direct_provider`;
+- was classified `new-instruction-received / audit / repairable`;
+- produced a non-empty field set and an `instruction-structure` evidence item because one Bodyshop report fragment contained both a standalone `QDOS` marker and six recognised instruction labels;
+- became `case_created`;
+- completed allocation attempt `c3846c0f-ae34-42a2-bec3-d5fc55550a5a`;
+- allocated Case/PO `QDOS26001` and Audit reference `a.QDOS26001`;
+- completed `create_case_custody` work `3565e349-2535-4f6f-90b3-4e2cc7a5f9b4` on its first attempt;
+- recorded Box root remote ID `409001353539` and custody confirmation at `2026-08-14T08:53:41.9988688Z`.
+
+Application Insights corroborates the sequence: successful `IntakeWorkFunction` at `08:52:12Z`, followed by the estate's only observed `ExternalWorkFunction` execution at `08:53:12Z`, also successful.
+
+### Later test with no Box folder
+
+The 2026-08-17 test receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`:
+
+- was retained at `08:11:45.8861210Z`;
+- ran successfully through `IntakeWorkFunction` at `08:12:15Z` (5.592 seconds, no exception);
+- was routed `accepted / QDOS / direct_provider`;
+- was classified `new-instruction-received / audit / repairable`;
+- retained the original report and recorded automatic standalone-Audit evidence `23d5877f-dceb-412e-8655-3cc138c0a51e`;
+- nevertheless became `needs_sorting` with the exact reason: “The readable content does not provide enough evidence to suggest a principal.”;
+- persisted `FieldsJson` as an empty list;
+- created zero allocation attempts, zero Cases, and zero Case-intake links;
+- therefore created no external-work item and made no Box custody call.
+
+The absence of a Box folder is downstream and expected once allocation never starts. The failure boundary is principal/instruction extraction, before Case/PO allocation and before Box.
+
+### Root cause in the live evidence and current source
+
+`QdosInstructionExtractionPolicy.Extract` only marks a fragment as confirming when the **same content fragment** contains:
+
+1. a match for `\bQDOS\b`; and
+2. at least two recognised instruction-field definitions.
+
+That same-fragment rule is deliberate and is pinned by `ProofCannotBeAssembledAcrossSeparateContentFragments`; it prevents unrelated fragments from being combined into false instruction proof.
+
+The later retained source exposes a narrower parser/marker defect:
+
+- its QDOS Audit instruction letter contains recognised labels including Vehicle registration and Accident date;
+- PDF text extraction renders the brand line as `Proud Members OfQDOS Accident Assistance Ltd`;
+- because `OfQDOS` has no word boundary between `f` and `Q`, `\bQDOS\b` does not match;
+- its Bodyshop report contains multiple recognised field labels but no QDOS text;
+- its email body contains a standalone QDOS marker but not two instruction labels.
+
+Consequently no individual fragment enters `confirmingFragments`, even though the QDOS instruction letter itself contains the marker (collapsed by PDF extraction) and sufficient labels. The earlier Bodyshop report happened to contain a separately delimited QDOS token plus six labels, so it passed.
+
+This explains why superficially equivalent Audit emails diverged: Box was healthy in the earlier test and was never invoked in the later test. The discriminator was the extracted text shape `OfQDOS`, not Worker activation, queue execution, Audit classification, standalone-report evidence, allocation recovery, or Box configuration.
+
+### Local confirmation and coverage gap
+
+The focused current-source test class passed 8/8 in Release. It explicitly preserves the same-fragment rule, but has no fixture for the observed PDF extraction artifact `OfQDOS`. No test currently proves that a QDOS-branded instruction letter whose text extractor collapses “Of QDOS” can establish the principal while retaining the same-fragment safety boundary.
+
+### Revised conclusion
+
+BUG-001 is a current, reproducible extraction-policy defect. The minimal safe repair is not to weaken the same-fragment rule or treat an accepted sender/classification as sufficient by itself. It is to recognise the exact observed collapsed QDOS brand token within the same instruction fragment, add regression/negative tests, and then re-evaluate the retained later receipt under the corrected deployed policy. Only that re-evaluation (with separately authorised production write scope) should create its Case/PO and custody work.

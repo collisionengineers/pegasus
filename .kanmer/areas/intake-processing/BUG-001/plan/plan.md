@@ -2,51 +2,85 @@
 
 ## Chosen approach
 
-Treat BUG-001 as an evidence-and-disposition ticket. Current `dev` already contains the Case/PO allocation and Box custody implementation, so changing code pre-emptively would duplicate or destabilise settled owners. Verification will proceed in increasing evidence tiers and will stop at the first concrete failure.
+Repair the narrow QDOS marker-recognition defect exposed by the live 17 August receipt. Preserve the existing safety contract: a principal suggestion still requires one content fragment containing both a trusted QDOS marker and at least two recognised instruction-field definitions. Add only the observed PDF extraction form `OfQDOS` as a recognised QDOS brand token; do not assemble proof across attachments or make route/classification sufficient on their own.
+
+This approach beats:
+
+- **Cross-fragment aggregation:** unsafe because unrelated email/attachment fragments could jointly manufacture instruction proof; an existing test deliberately forbids it.
+- **Trusting accepted sender + Audit classification:** conflates transport/classification with definitive instruction evidence and raises false-case risk.
+- **Global PDF whitespace repair:** changes every PDF reader result and is disproportionate to one known stable extraction artifact.
+- **Box/queue changes:** the live later receipt never reached allocation or external custody; those components did not fail.
 
 ## Governing docs
 
-- `docs/frd/frd-02-intake-and-source-identity.md`: verify that one definitive authorised QDOS receipt reaches replay-safe automatic Case/PO allocation; do not equate receipt or staging with case creation.
-- `docs/frd/frd-05-documents-extraction-and-custody.md`: verify that the allocated immutable reference owns the Box case folder, the accepted source is retained, and custody failure remains visible and recoverable.
-- No governing document change is planned. The ticket tests existing accepted behaviour.
+- `docs/frd/frd-02-intake-and-source-identity.md`: restore automatic allocation for a definitive authorised QDOS instruction while remaining fail closed for ambiguous/non-confirming material. Retain replay-safe allocation and reasoned re-evaluation.
+- `docs/frd/frd-05-documents-extraction-and-custody.md`: make custody reachable only after the corrected instruction allocates its immutable Case/PO. Do not change Box naming, root fencing, source retention, or custody recovery.
+- No governing-document behaviour change is planned; this repairs current code to meet existing FRD-02/FRD-05 behaviour.
 
 ## Ordered steps
 
-1. **Create the task worktree only when implementation/verification is authorised.** Use a dedicated BUG-001 branch/worktree from fresh `origin/dev`; record the exact head. Do not alter source merely to make the ticket produce a diff.
-2. **Complete conclusive local evidence.** Run the focused allocation, mailbox-intake, custody-outbox, and Worker-composition tests with a sufficient timeout. Capture exact pass/fail counts and logs.
-3. **Classify any failure before changing code.** If current-head tests fail, isolate the smallest failing boundary. File/link a narrow defect or revise this ticket only when the failure is reproducible; do not fold unrelated repair into the broad historical symptom.
-4. **Confirm deployment ancestry read-only.** Identify the currently deployed Web and Worker source/package revisions and prove whether they contain `9393c983`, `379d7ddd`, `864f46fc`, `0743ac32`, `73a3380d`, and `f08e2df6`. If later fixes are absent, deployment is a prerequisite; deployment itself requires exact-target approval.
-5. **Prepare an exact live-proof manifest.** Name the approved QDOS mailbox/message, production resources, expected Principal, expected single Case/PO result, approved Box root/subfolder, readback queries, timestamps, and rollback/containment boundary. Obtain explicit approval before any external write.
-6. **Exercise one genuine production journey only after approval.** Capture the mailbox caller, retained receipt, processing/allocation outcome, exactly one Case/PO/reference, custody work, correctly named Box folder, retained source versions, and absence of duplicate effects on replay.
-7. **Disposition.**
-   - If local, deployment, and controlled live evidence pass, write `proof.md`, record the already-merged resolving commits and deployment evidence, and close BUG-001 without product-code changes.
-   - If live execution fails, preserve the evidence, stop further mutation, and create a narrowly scoped fix ticket for the exact failed boundary.
-   - If live approval is withheld, leave BUG-001 open and label/report it as locally resolved but production-unverified; do not call it fully resolved.
+1. **Create the ticket worktree at execution time.** Fetch `origin/dev`, create the dedicated BUG-001 branch/worktree, take the ticket into Implementing, and record the exact source head. Do not work from the primary checkout.
+2. **Pin the live regression at Core policy level.**
+   - Add a positive test using the non-personal observed structure: a single fragment containing `Proud Members OfQDOS Accident Assistance Ltd` plus at least two recognised instruction labels.
+   - Assert `Applicable`, suggested principal `QDOS`, extracted fields, and `instruction-structure` evidence.
+   - Retain the existing cross-fragment refusal test.
+   - Add negative cases showing unrelated embedded strings containing `qdos` remain non-applicable.
+3. **Implement bounded marker recognition.**
+   - Centralise the accepted marker predicate used for content and transport evidence.
+   - Recognise standalone `QDOS` and the exact word `OfQDOS` produced by the observed PdfPig extraction.
+   - Do not accept arbitrary prefixes/suffixes, do not relax the two-label threshold, and do not aggregate confirmation across fragments.
+   - Bump the extraction policy version if repository conventions treat recognition changes as a policy-version change; update assertions/persistence fixtures consistently.
+4. **Add orchestration/replay coverage.**
+   - Exercise the corrected Audit instruction shape through processing and automatic allocation.
+   - Prove exactly one Case/PO and custody work item are produced.
+   - Prove replay remains idempotent.
+   - Prove a non-confirming lookalike remains `needs_sorting` with no allocation.
+5. **Run local verification.**
+   - QDOS extraction-policy unit suite.
+   - focused intake processing and QDOS allocation/recovery integration suites.
+   - custody outbox and Worker composition tests.
+   - Release build plus `git diff --check`.
+   - Record exact counts/output in the post-implementation report.
+6. **Independent review and CI.** The reviewer must answer whether the implementation preserved the same-fragment/two-label safety boundary and whether the plan missed any live-evidence implication. Merge to `dev` only after review passes and CI is green.
+7. **Prepare deployment evidence, but do not infer authority.**
+   - Build/release using the repository manifest flow.
+   - Before any Azure write, obtain explicit approval for the exact Web/Worker deployment targets and revision.
+   - After deployment, read back the Web diagnostic SHA, Worker package/revision evidence, trigger settings, migrations, health, and telemetry; refresh `docs/current-architecture.md` and `docs/operations.md` in the same task.
+8. **Recover the retained failed receipt only with separate exact-target approval.**
+   - Target receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`.
+   - Use the existing authenticated, reasoned “Re-evaluate with current policy” command; never insert or edit allocation/Case/Box records directly.
+   - Confirm history retains the prior `needs_sorting` decision and records the new policy evaluation.
+   - Confirm exactly one allocation attempt, Case/PO, Case-intake link, `create_case_custody` work item, Box folder, retained source, and custody confirmation.
+   - Confirm repeat/replay does not duplicate any effect.
+9. **Disposition.**
+   - If the corrected deployment and controlled re-evaluation pass, write `proof.md`, record commits/PR/deployment, and close BUG-001.
+   - If re-evaluation still stops before allocation, preserve all evidence and stop; file a narrow follow-up at the newly identified boundary.
+   - If deployment or live-write approval is absent, leave BUG-001 open as implemented but not production-verified.
 
 ## Proof production
 
-`proof.md` must separate:
+`proof.md` must record separately:
 
-- current-source inspection and commit ancestry;
-- focused local test output;
-- deployed Web/Worker source identity;
-- actual Worker/mailbox caller evidence;
-- production Case/PO and allocation readback;
-- production Box folder/source custody readback;
-- replay/duplicate-effect evidence;
-- approval record for every external write.
+- regression test demonstrating the `OfQDOS` extraction shape;
+- negative and cross-fragment safety tests;
+- local build/test evidence and exact source SHA;
+- merged/deployed Web and Worker revision identity;
+- pre/post state for receipt `9a91fe16-d62f-4477-a11e-830fd96f672a`;
+- reevaluation history, allocation, Case/PO, link, external custody work, Box folder/source custody, and replay counts;
+- exact approval record for deployment and production re-evaluation.
 
 ## Risks and mitigations
 
 | Risk | Mitigation |
 | --- | --- |
-| Closing from source inspection while production remains unproved | Require deployed identity plus a genuine controlled journey |
-| Treating a timeout as a failure or pass | Re-run with adequate timeout and retain final test output |
-| Creating a duplicate production case | Use one approved definitive message and verify replay-safe single allocation before any retry |
-| Writing to the wrong mailbox, SQL estate, or Box root | Exact-target manifest and fresh explicit approval immediately before writes |
-| Broadening into speculative refactoring | No source change unless a specific current failure is reproduced |
-| Overstating deployment as runtime evidence | Record registration, deployment, caller execution, and business outcome as separate tiers |
+| Broadened marker matching creates false cases | Accept only standalone `QDOS` or exact `OfQDOS`; retain same-fragment and two-label gates; add negatives |
+| Cross-document evidence is accidentally combined | Keep `confirmingFragments` semantics and its existing refusal test unchanged |
+| Policy change is persisted under a stale version | Follow the repository's policy-version convention and update all version-bound fixtures |
+| Existing failed receipt is manually patched | Use only the reasoned reevaluation use case after deployment |
+| Duplicate Case/PO or Box folder on recovery | Assert zero pre-state, one post-state, and replay idempotency across allocation/link/custody |
+| Deployment is mistaken for live proof | Require actual retained-receipt reevaluation and SQL/telemetry/Box readback |
+| PII leaks into tests or docs | Use only the non-personal structural marker/label shape; never commit the downloaded live EML/PDF |
 
-## Stop point for this planning task
+## Stop point for this phase
 
-This document and the checklist make BUG-001 ready for a later execution decision. Do not create a worktree, take the ticket into Implementing, run a production journey, deploy, edit source, or close the ticket as part of this planning phase.
+Research and planning end here. Do not create the worktree, edit source, deploy, re-evaluate the production receipt, or mutate Box/Azure/SQL as part of this phase.

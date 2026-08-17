@@ -45,3 +45,30 @@ No source change is currently justified. The implementation phase, if later auth
 - No new PRD, FRD, ADR, top-level component, migration, or compatibility path.
 - No Outlook, Azure, SQL, credential, Box, deployment, or other external write without fresh exact-target approval.
 - No claim that a build, registration, deployment, or local test proves the complete production journey.
+
+## Live-discovered implementation surface — 2026-08-17
+
+| Path/module | Required change or evidence | Risk |
+| --- | --- | --- |
+| `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosInstructionExtractionPolicy.cs` | Extend QDOS marker recognition to the observed PDF-extracted `OfQDOS` brand token while retaining the same-fragment + two-label requirement | Over-broad matching could permit false principal selection |
+| `tests/Pegasus.Core.Tests/Intake/Qdos/QdosInstructionExtractionPolicyTests.cs` | Add the exact collapsed-marker positive case, preserve cross-fragment refusal, and add embedded-substring negative cases | A weak fixture could hide an unsafe policy expansion |
+| `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` | Context only: PdfPig `ContentOrderTextExtractor` produces the fragment text in which visible “Of QDOS” became `OfQDOS`; no reader-wide rewrite is presently justified | Global whitespace repair would affect every PDF and greatly widen scope |
+| `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs` | Prove the corrected definitive Audit shape enters one replay-safe allocation and queues custody | Must not require live data or duplicate allocation |
+| `src/Pegasus.Core/Intake/DurableIntake.cs` | Context for automatic allocation and reasoned re-evaluation; no orchestration change expected | Re-evaluation must preserve history and idempotency |
+| `src/Pegasus.Web/Pages/Intake/Details.cshtml(.cs)` | Existing authenticated “Re-evaluate with current policy” recovery action for the retained production receipt | Live use changes production case state and requires exact approval |
+| `docs/operations.md` / `docs/current-architecture.md` | Refresh only after an authorised deployment and observed re-evaluation result | Do not convert planned repair into deployed truth |
+
+### Live records that define the regression
+
+- Passing receipt: `2c4888d6-4098-4d22-a46a-d976286a27b0` → `QDOS26001` → Box remote ID `409001353539`.
+- Failing receipt: `9a91fe16-d62f-4477-a11e-830fd96f672a` → `needs_sorting` → zero allocation/Case/link/external-work records.
+- The failing source is retained immutably in production Blob storage. It may be read for authorised evidence, but it must not be copied into the repository or used to introduce personal data into fixtures.
+- A minimal synthetic-free regression string may quote only the structural, non-personal extraction shape already observed: QDOS brand token collapsed as `OfQDOS` plus recognised field labels.
+
+### Revised out of scope
+
+- Do not weaken the same-fragment proof boundary.
+- Do not make accepted QDOS transport or Audit classification alone create a Case.
+- Do not add OCR, cross-document evidence aggregation, generic whitespace repair, Box changes, queue changes, database migration, or compatibility shim.
+- Do not manually insert Case/PO, allocation, link, external-work, or Box records.
+- Production re-evaluation/deployment remains a separate exact-target write requiring explicit approval.
