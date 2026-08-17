@@ -1,6 +1,6 @@
 # Post-implementation report — SIMPLI-009 (with SIMPLI-008)
 
-Branch `task/simpli-009`; combined delivery for [[SIMPLI-009]] (Worker sole processor) and [[SIMPLI-008]] (staff status page). Implementation commit `195154f9`; `origin/dev` merged in on 2026-08-17 (`e9f27fe7`, clean); repo temp-plan removed (`caad05e8`). Net PR diff vs `origin/dev`: 29 files, +742/−653.
+Branch `task/simpli-009`; combined delivery for [[SIMPLI-009]] (Worker sole processor) and [[SIMPLI-008]] (staff status page). Commits: `195154f9` implementation; `e9f27fe7` merge of `origin/dev`; `caad05e8` remove repo temp-plan; `8bf0a3e6` review blockers + simplification pass. **Net PR diff vs `origin/dev` (e6422250): 31 files, +873/−817.** PR #385.
 
 ## What changed, file by file
 
@@ -8,77 +8,76 @@ Branch `task/simpli-009`; combined delivery for [[SIMPLI-009]] (Worker sole proc
 
 | File | Change | Why |
 | --- | --- | --- |
-| `Intake/DurableIntake.cs` | Deleted `ProcessIntakeSubmission`, `IntakeSubmissionResult`, `IntakeSubmissionDisposition`, `ReceiveIntake.ExecuteInlineAsync`, the `processInline` branch of `ReceiveCoreAsync`, and the explicit `IIntakeSubmission` implementation that wrapped `ReceiveIntake`. `IIntakeSubmission.ExecuteAsync` now returns `ReceivedIntake` and `ReceiveIntake` satisfies it directly. Removed `IIntakeWorkStore.ReceiveForProcessingAsync`. Added `QueuedIntakeStatusKind`, `QueuedIntakeStatus`, `IQueuedIntakeStatusQueries` (SIMPLI-008 read model). `ProcessQueuedIntake.ExecuteAsync` now returns `QueuedIntakeProcessingOutcome` (NoOp / Completed / RetryScheduled / Failed / UnexpectedFailed); the catch chain is: integrity + invalid data → terminal Failed; `IsTransientProcessingFailure` (retention, operation/version conflict, `IntakeDependencyUnavailableException`, `IOException`, `TimeoutException`, `DbException`) → scheduled retry until the bounded schedule is exhausted; anything else except cancellation → terminal `unexpected_intake_processing_failure`. `FailProcessingAsync` takes an optional explicit failure code. | Plan steps 1–4: one durable path, no inline processing or request-local polling, explicit fault taxonomy instead of the broad `IntakeExceptionPolicy.IsRecoverable`. |
-| `Intake/IntakeContracts.cs` | Added `IntakeDependencyUnavailableException`. | Named transient dependency fault that adapters translate into, so Core's classifier does not depend on SDK exception types. |
+| `Intake/DurableIntake.cs` | Deleted `ProcessIntakeSubmission`, `IntakeSubmissionResult`, `IntakeSubmissionDisposition`, `ReceiveIntake.ExecuteInlineAsync` and the `processInline` branch (the `ReceiveCoreAsync` forwarder is inlined into `ExecuteAsync`), and `IIntakeWorkStore.ReceiveForProcessingAsync`. `IIntakeSubmission.ExecuteAsync` returns `ReceivedIntake`; `ReceiveIntake` implements it directly. Added `QueuedIntakeStatusKind`, `QueuedIntakeStatus`, `IQueuedIntakeStatusQueries`, and `QueuedIntakeStatusKinds.FromWorkState(IntakeWorkState)` (explicit, fail-closed collapse of every waiting state to Received). `ProcessQueuedIntake.ExecuteAsync` returns `QueuedIntakeProcessingOutcome` (NoOp / Completed / RetryScheduled / Failed). Catch chain: `TerminalInputFailureCode(exception) is { } code` (integrity → `staged_artifact_integrity_failure`, invalid data → `invalid_intake_data`, source-identity conflict → `source_identity_conflict`) → terminal Failed; `IsTransientProcessingFailure` (retention, operation/version conflict, `IntakeDependencyUnavailableException`, `IOException`, `TimeoutException`, `DbException`, **looking through `InnerException`**) → bounded retry with `TransientFailureCode`; `IntakeExceptionPolicy.IsRecoverable` guard → persist terminal `unexpected_intake_processing_failure` then `throw;`. `FailProcessingAsync(workItem, terminal, failureCode, ct)`. | Plan steps 1–4 as amended in the plan's "Simplification pass": one taxonomy, persist-then-rethrow. |
+| `Intake/IntakeContracts.cs` | Added `IntakeDependencyUnavailableException`. | The named transient fault adapters translate to. |
 
 ### Infrastructure (`src/Pegasus.Infrastructure`)
 
 | File | Change | Why |
 | --- | --- | --- |
-| `Intake/AzureBlobIntakeArtifactStore.cs` | Read path and upload path translate non-conflict `RequestFailedException` into `IntakeDependencyUnavailableException`; 409/412 still fall through to `VerifyBlobAsync`. | Azure storage faults become an explicit retryable classification rather than "unexpected". |
-| `Persistence/EfIntakeWorkStore.cs` | Removed `ReceiveForProcessingAsync` and the receive-time promotion of pending/retry work to unleased `Dispatched`; every receive persists `Pending`. | Plan step 2 — the stranded unleased-Dispatched defect. |
-| `Persistence/EfQueuedIntakeStatusQueries.cs` (new) | Projects staged receipt id, file name, received time, work state → public status (pending/dispatching/dispatched/retry_scheduled → Received; processing → Processing; completed → Complete; failed → Failed), processed receipt id, case id via `CaseIntakeLinks` (PK is the receipt id, so single), failure code. | Plan step 6. |
+| `Intake/AzureBlobIntakeArtifactStore.cs` | Read and upload paths translate non-404/non-conflict `RequestFailedException` via one `DependencyUnavailable(...)` factory; upload flattened into `UploadOrVerifyAsync` (409/412 → `VerifyBlobAsync`, still wrapped by the outer catch). | Azure faults become the named transient fault; no nested try. |
+| `Persistence/EfIntakeWorkStore.cs` | Removed `ReceiveForProcessingAsync` and receive-time promotion to unleased `Dispatched`; every receive persists `Pending`; missing-work-item guard is a plain `if`; `ParseState` is `internal` for reuse. | Plan step 2; single state-string table. |
+| `Persistence/EfQueuedIntakeStatusQueries.cs` (new) | One query: staged receipt + work state + processed receipt + failure code + case id via correlated subquery on `CaseIntakeLinks` (PK is the receipt id); state → `IntakeWorkState` → Core kind. | Plan step 6. |
 
 ### Web (`src/Pegasus.Web`)
 
 | File | Change | Why |
 | --- | --- | --- |
-| `Program.cs` | Removed `ProcessQueuedIntake` and `ProcessIntakeSubmission` registrations and the two-submissions comment; registered `IQueuedIntakeStatusQueries → EfQueuedIntakeStatusQueries`; `IIntakeSubmission` still maps to `ReceiveIntake`. | Plan step 5 — Web cannot resolve the processor. |
-| `Pages/Upload.cshtml.cs` | Depends on `IIntakeSubmission` only; dropped `IIntakeReceiptQueries`, `OutcomeMessage`, `Describe`, `UploadOutcome`, and the case/create/receipt routing. Success (including duplicate) redirects to `/UploadStatus/{stagedReceiptId}`; duplicates set one-time `TempData["DuplicateUpload"]`. Validation, antiforgery, identity-conflict and staging-error handling unchanged. | Plan step 8. |
-| `Pages/Upload.cshtml` | Removed the outcome status card. | Outcome now lives on the status page. |
-| `Pages/UploadStatus.cshtml(.cs)` (new) | Authorised (Administrator/Engineer/User) `/Upload/Status/{id:guid}`; 404 for unknown ids; heading/message per state; `data-auto-refresh="2000"` only while Received/Processing; manual Refresh link; "Open case" when a case is linked, otherwise "Open receipt" when Complete; failure wording via `OperatorLabels.IntakeFailure`. | Plan step 7 (SIMPLI-008). |
-| `wwwroot/js/site.js` | Reads `[data-auto-refresh]` and reloads after the given delay. | CSP forbids inline scripts; refresh must live in the external bundle. |
-| `Mcp/IntakeMcpTools.cs` | Reads `StagedReceiptId` and reports the literal `"Queued"` disposition. | Follows the collapsed `IIntakeSubmission` contract; automation ingress was already queue-only. |
+| `Program.cs` | Removed `ProcessQueuedIntake` and `ProcessIntakeSubmission` registrations; registered `IQueuedIntakeStatusQueries`; `IIntakeSubmission → ReceiveIntake` retained for MCP ingress. | Plan step 5. |
+| `Pages/Upload.cshtml(.cs)` | Depends on `IIntakeSubmission` only; success (incl. duplicate) redirects to `/Upload/Status/{id}` with `?duplicate=true` when a replay (route value, the `/Received/{id}` convention); outcome card, `Describe`, `UploadOutcome`, `OutcomeMessage` removed. | Plan step 8. |
+| `Pages/UploadStatus.cshtml(.cs)` (new) | Authorised staff page on the design system (`page-heading`, `panel`, `detail-list`, `button-row`, `primary-action`/`secondary-action`; no nested `<main>`); 404 unknown; `Heading` + `StateMessage` per state, duplicate prefix from the route flag; `data-auto-refresh="2000"` only while Received/Processing; tag-helper Refresh preserving the flag; "Open case" / "Open receipt". | Plan step 7 (SIMPLI-008); review B2. |
+| `Pages/Cases/Create.cshtml(.cs)`, `Pages/Intake/Details.cshtml` | Removed the dead `TempData["UploadOutcomeMessage"]` readers (no writer remains). | Review N5. |
+| `Presentation/OperatorLabels.cs` | Labels for `invalid_intake_data`, `source_identity_conflict`, `processing_lease_expired`, `queue_poisoned`, `unexpected_intake_processing_failure`. | Bounded operator wording for every code the processor now persists. |
+| `wwwroot/js/site.js` | `[data-auto-refresh]` reload, placed after `'use strict'`. | CSP-safe refresh. |
+| `Mcp/IntakeMcpTools.cs` | Reads `StagedReceiptId`; reports literal `"Queued"`. | Follows the collapsed contract; behaviour-neutral (always was queue-only). |
 
-### Worker (`src/Pegasus.Worker`)
+### Worker
 
-| File | Change | Why |
-| --- | --- | --- |
-| `IntakeFunctions.cs` | `IntakeWorkFunction` awaits the outcome and logs a sanitized `LoggerMessage` (event 1510) for `UnexpectedFailed`; message and trigger unchanged. | Plan step 4; queue redelivery semantics preserved because unexpected faults are persisted terminally rather than rethrown. |
+`src/Pegasus.Worker/IntakeFunctions.cs` — **unchanged from `origin/dev`** (the earlier outcome-logging variant was removed by the simplification pass; unexpected faults reach the host as thrown exceptions).
 
 ### Infrastructure-as-code
 
 | File | Change | Why |
 | --- | --- | --- |
-| `infra/modules/platform.bicep` | Removed the Web identity's Storage Queue Data Message Sender assignment on the intake queue and its role variable. Web blob-staging access retained. | Least privilege — Web never enqueues; the Worker dispatcher publishes. No deployment performed. |
+| `infra/modules/platform.bicep` | Removed the Web identity's Storage Queue Data Message Sender assignment on the intake queue and its role variable. Web blob-staging access retained. Source only; no deployment. | Least privilege — Web never enqueues. |
 
 ### Tests
 
 | File | Change |
 | --- | --- |
-| `tests/Pegasus.IntegrationTests/RecoveryTests.cs` | Added `ProcessorDistinguishesTransientAndUnexpectedFailures`, `QueuedStatusProjectsAnActiveProcessingLease`, `TransientProcessingFailureExhaustsTheBoundedRetrySchedule`; enqueuer helper adjusted for the new outcome-returning processor. |
-| `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` | Replaced `ReadableManualUploadIsProcessedOnTheSpotAndOpensTheCreateScreen` with `ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage` (asserts Pending work, no evaluation, Web DI **cannot** resolve `ProcessQueuedIntake`, Received page with auto-refresh, then Complete without auto-refresh and an "Open receipt" link); added `UploadStatusIsStaffOnlyAndUnknownReceiptsReturnNotFound` and `CompletedAllocatedUploadStatusLinksOnlyToItsCase`. |
-| `tests/Pegasus.IntegrationTests/QdosAllocationRecoveryTests.cs` | Direct `ProcessIntakeSubmission` calls replaced with explicit stage → dispatch → Worker-process steps. |
-| `tests/Pegasus.IntegrationTests/IntakeWebNegativeTests.cs` | Uploads now assert a 302 to `/Upload/Status/` and drain the Worker explicitly before checking decisions; the staging-retry test asserts no receipt exists after a failed stage and two attempts. |
-| `tests/Pegasus.IntegrationTests/IntakeWebTestSupport.cs` | `ProcessQueuedAsync` constructs `ProcessQueuedIntake` via `ActivatorUtilities` (Web no longer registers it) and always dispatches; `Landing` recognises `/Upload/Status/`. |
-| `tests/Pegasus.IntegrationTests/MailboxIntakeIntegrationTests.cs`, `InstructionDraftWebTests.cs`, `StagedArtifactReconciliationFunctionTests.cs`, `AzureBlobIntakeArtifactStoreTests.cs`, `tests/Pegasus.Core.Tests/Intake/PollApprovedInboxTests.cs` | Mechanical: processor construction, removed `ReceiveForProcessingAsync` fake, replay assertion follows the status page, new blob dependency-translation test. |
-| `tests/Pegasus.PerformanceTests/CapacitySoakTests.cs` | Write p95 budget restored to 3 s because the request now only stages; drain is measured separately. |
+| `IntegrationTests/RecoveryTests.cs` | `TransientProcessingFailureSchedulesARetry` theory (`io`, `dependency`, `wrapped-database` — a `DbUpdateException` wrapping a `DbException`); `UnexpectedProcessingFailureIsPersistedThenRethrown` (throws → row Failed with the unexpected code → redelivery `NoOp` → status page Failed without leaking the code); `QueuedStatusProjectsAnActiveProcessingLease`; `TransientProcessingFailureExhaustsTheBoundedRetrySchedule`; shared `StageAndDispatchAsync`; uses `IntakeWebDriver.CreateProcessor` and the shared enqueuer. |
+| `IntegrationTests/IntakeWebTestSupport.cs` | `CreateProcessor(services)`, `DrainStagedAsync(services, id)`, one `internal ImmediateIntakeWorkEnqueuer`; `ProcessQueuedAsync` drains via the helper; `Landing` reads `/Upload/Status/{id}` + `duplicate`; `UploadLanding(StagedReceiptId, IsDuplicate)`; dead create-screen/case branches, `CreateScreenReceiptId`, `CaseId(UploadResult)`, legacy query keys removed. |
+| `IntegrationTests/QdosIntakeWebTests.cs` | `ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage` (Pending, no evaluation, Web DI cannot resolve `ProcessQueuedIntake`, `<h1>Received</h1>` + auto-refresh, then `<h1>Complete</h1>` without auto-refresh and "Open receipt"), `UploadStatusIsStaffOnlyAndUnknownReceiptsReturnNotFound`, `CompletedAllocatedUploadStatusLinksOnlyToItsCase`. |
+| `IntegrationTests/QdosAllocationRecoveryTests.cs` | `AllocationTestData.SubmitAndProcessAsync` returns `Guid` via `DrainStagedAsync`; local enqueuer and `ProcessedSubmission` removed; explicit stage → dispatch → process steps. |
+| `IntegrationTests/IntakeWebNegativeTests.cs`, `MailboxIntakeIntegrationTests.cs`, `InstructionDraftWebTests.cs` (replay asserts "was already received"), `StagedArtifactReconciliationFunctionTests.cs`, `AzureBlobIntakeArtifactStoreTests.cs`, `Core.Tests/Intake/PollApprovedInboxTests.cs` | Mechanical follow-through; processor via `CreateProcessor`; removed fake method; new blob dependency-translation test. |
+| `PerformanceTests/CapacitySoakTests.cs` | Write p95 budget back to 3 s (request only stages). |
 
 ### Documentation
 
 | File | Change |
 | --- | --- |
-| `docs/frd/frd-02-intake-and-source-identity.md` | New normative paragraph: Web stages pending and never processes; Worker is sole owner; duplicate delivery must not duplicate side effects; staff can inspect Received/Processing/Complete/Failed; failure wording bounded. |
-| `docs/current-architecture.md` | Intake diagram now shows stage → Pending → dispatcher → queue → Worker; status query listed. |
-| `docs/design/README.md` | Intake receipt and upload row describes the status redirect, four states, refresh, and links; lists `Upload`/`UploadStatus` pages. |
+| `docs/frd/frd-02-intake-and-source-identity.md` | Normative paragraph: Web stages pending and never processes; Worker sole owner; duplicate delivery idempotent; four staff-visible states; bounded failure wording. |
+| `docs/current-architecture.md` | Intake diagram stage → Pending → dispatcher → queue → Worker; status query; `/Upload/Status/{id}` in the route paragraph; implementation-map row for `Upload`/`UploadStatus`/`EfQueuedIntakeStatusQueries`. |
+| `docs/design/README.md` | Intake receipt and upload row: status redirect, four states, refresh, links; page inventory. |
 | `docs/operations.md` | `/Upload` POST is the staging caller through `ReceiveIntake`; Worker owns processing; no deployment/live claim. |
-| `docs/temp-plans/simpli-009.md` | Added in `195154f9`, **removed** in `caad05e8`: the content duplicates this ticket's plan document and `scripts/Test-MarkdownPlacement.ps1` (CI) rejects new Markdown outside `docs/{prd,frd,adr}`. |
+| `docs/temp-plans/simpli-009.md` | Added in `195154f9`, removed in `caad05e8` (duplicated the ticket plan; CI rejects new Markdown outside `docs/{prd,frd,adr}`). |
 
-## Deviations from the plan / files survey
+## Deviations from the plan (recorded as plan amendments)
 
-- `IntakeExceptionPolicy.IsRecoverable` was left untouched; the narrower taxonomy lives in `ProcessQueuedIntake.IsTransientProcessingFailure` (the files survey allowed either).
-- Plan step 3 named "HTTP" as transient; the implementation covers Azure dependency faults through `IntakeDependencyUnavailableException` translation in the blob adapter rather than catching `HttpRequestException` in Core.
-- The negative "Web cannot resolve the processor" assertion is in `QdosIntakeWebTests` (against the real Web host) rather than `tests/Pegasus.ArchitectureTests/WorkerCompositionTests.cs`; the positive Worker assertion there is unchanged.
-- No new ADR (the files survey conditioned one on planning concluding this was a new architectural decision; it is implementation of accepted queue architecture + FRD-02). No schema change, no host.json change, no applied-migration edit, no deployment.
-- `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs` and `tests/Pegasus.PerformanceTests/FailureInjectionTests.cs` were listed as definite test impact but are unchanged in the diff.
+- **Step 3** — the fault taxonomy is one Core policy per decision (`TerminalInputFailureCode`, `IsTransientProcessingFailure` with inner-exception unwrap, catch-all guarded by the shared `IntakeExceptionPolicy.IsRecoverable`) rather than three type lists; "HTTP" is reached through the blob adapter's `IntakeDependencyUnavailableException` translation, not by matching `HttpRequestException` in Core (no `HttpClient` sits in the processor's try).
+- **Step 4** — unexpected faults are persisted terminal and rethrown instead of returned as an outcome and logged by the Worker; `IntakeWorkFunction` is unchanged.
+- The negative "Web cannot resolve the processor" assertion lives in `QdosIntakeWebTests` (real host) rather than `ArchitectureTests`; a `DependencyDirectionTests` fact is a recorded follow-up.
+- No new ADR (implementation of ADR-0002's Worker-owned queue processing + FRD-02); no schema, host.json, or applied-migration change; no deployment.
+- Impact-listed `AzureSqlRuntimeRoleMigrationTests`, `WorkerCompositionTests`, `Core.Tests/ProcessIntakeTests`, `PerformanceTests/FailureInjectionTests` unchanged — judged acceptable in review (role matrix already denies Web `IntakeReceipts:INSERT`; positive Worker assertion stands; FailureInjection already drives the drain).
+- Ticket line "repair stranded dispatched work" — routed to [[SIMPLI-010]] with the reviewer's evidence (read-only production check + stale-`dispatched` re-dispatch); see the review scratch.
 
-## Verification on the merged branch (2026-08-17)
+## Verification on `8bf0a3e6`
 
-- `dotnet restore Pegasus.slnx`; `dotnet build Pegasus.slnx --configuration Release --no-restore`: 0 warnings, 0 errors.
-- `Pegasus.Core.Tests`: 572 passed.
-- `Pegasus.ArchitectureTests`: 94 passed, 0 failed (the previously noted local `Test-AzureDeploymentPlan.ps1` failure no longer reproduces on current dev).
-- Focused `Pegasus.IntegrationTests` (Recovery, QdosIntakeWeb, QdosAllocationRecovery, IntakeWebNegative, MailboxIntake, InstructionDraftWeb, AzureBlobIntakeArtifactStore, StagedArtifactReconciliation, AzureSqlRuntimeRole): see the review scratch for the result appended after the run.
-- Pre-merge evidence (2026-08-13, commit `195154f9`, recorded in the ticket's proof draft): full IntegrationTests 529 passed / 16 skipped / 0 failed.
+- `dotnet build Pegasus.slnx --configuration Release`: 0 warnings, 0 errors.
+- `Pegasus.Core.Tests`: 572 passed. `Pegasus.ArchitectureTests`: 94 passed.
+- `Pegasus.IntegrationTests` focused + driver consumers (Recovery, QdosIntakeWeb, QdosAllocationRecovery, IntakeWebNegative, MailboxIntake, InstructionDraftWeb, AzureBlobIntakeArtifactStore, StagedArtifactReconciliation, ImageIntake*, IntakeStablePersistence, LocalIntakeAccess): 86 passed, 6 skipped (corpus-gated), 0 failed.
+- CI on PR #385: see the PR checks (full sql-integration shards, browser, unit, documentation incl. markdown placement, infrastructure).
+- Pre-merge (`195154f9`): full IntegrationTests 529 passed / 16 skipped / 0 failed.
 
 ## Not claimed
 
