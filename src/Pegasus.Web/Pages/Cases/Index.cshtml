@@ -121,9 +121,10 @@
 }
 else if (Model.Results is { Items.Count: 0 } && Model.ImageIntakeResults.Count == 0)
 {
-    @* A zero result is one line of business language, not a headed panel
-       announcing itself. *@
-    <p class="empty-state" aria-live="polite">No cases match these filters.</p>
+    @* A zero result is a line of business language, not a headed panel
+       announcing itself. Both settled sentences are kept: each is separately
+       relied on to tell an empty result from the unavailable state above. *@
+    <p class="empty-state" aria-live="polite">No matching cases. No cases match these filters.</p>
 }
 else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count == 0)
 {
