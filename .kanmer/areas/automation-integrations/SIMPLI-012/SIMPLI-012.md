@@ -7,9 +7,6 @@ area: automation-integrations
 order: 180
 assignee: claude-code
 profile: feature
-taken_at: '2026-08-17T10:00:17.005Z'
-branch: task/simpli-012-ai-mcp-disposition
-worktree: ../pegasus-worktrees/simpli-012-ai-mcp-disposition
 labels: []
 groups:
   - EPIC-002
@@ -18,7 +15,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.943Z'
-updated: '2026-08-17T10:00:17.005Z'
+updated: '2026-08-17T12:54:06.235Z'
 ---
 
 ## What
