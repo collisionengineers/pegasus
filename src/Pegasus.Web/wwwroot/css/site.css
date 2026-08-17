@@ -1935,3 +1935,15 @@ details > summary.btn::-webkit-details-marker { display: none; }
   margin-top: var(--sp-6);
   justify-content: center;
 }
+
+/* A table cell that carries two facts stacks them rather than running them
+   together: a sender and its address, a subject and its attachment count, a
+   received date and its time. */
+.stack { display: grid; gap: 1px; min-width: 0; }
+.stack small { color: var(--muted); }
+.stack > a { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Unread is carried by weight and by the word "Unread" in the row, never by
+   weight alone. */
+tbody tr[data-state="unread"] .stack > a,
+tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
