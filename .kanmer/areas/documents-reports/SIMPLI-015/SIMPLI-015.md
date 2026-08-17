@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Record renderer + document-extractor integration-into-repo direction; re-scope
   SIMPLI-013/SIMPLI-014
-status: verifying
+status: done
 area: documents-reports
 assignee: claude-code
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-17T12:32:50.975Z'
   review: '2026-08-17T12:35:04.019Z'
   verifying: '2026-08-17T12:49:11.790Z'
+  done: '2026-08-17T12:52:27.020Z'
 taken_at: '2026-08-17T10:00:27.755Z'
 branch: task/simpli-015-renderer-extractor
 worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
@@ -33,9 +34,10 @@ commits:
   - 40ee3103
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/389'
+deployment: n/a
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-17T12:49:11.790Z'
+updated: '2026-08-17T12:52:40.417Z'
 ---
 
 ## What
@@ -44,19 +46,20 @@ Operator decision (2026-08-14): the report renderer and the document extractor a
 
 ## Why
 
-[[SIMPLI-013]] (extractor → standalone .NET package) and [[SIMPLI-014]] (renderer → standalone) are in-progress in the opposite direction. Meanwhile the `docs/temp-plans/report-renderer-integration*.md` plan set — which matches the confirmed direction — is due for deletion under [[KANMER-002]], and the renderer decision tickets TICK-203–TICK-216 are archival candidates under [[KANMER-001]]. Without a durable record, the direction decision exists only in session history and the aligned planning content could be lost twice over.
+[[SIMPLI-013]] (extractor → standalone .NET package) and [[SIMPLI-014]] (renderer → standalone) were in progress in the opposite direction. The `docs/temp-plans/report-renderer-integration*.md` plan set — which matched the confirmed direction — was deleted under [[KANMER-002]] after being carried into this ticket's research, and the renderer decision tickets TICK-203–TICK-216 were archival candidates under [[KANMER-001]]. Without a durable record the direction existed only in session history.
 
 ## Approach
 
-- Author the governing ADR: integrating a workspace into the application requires an accepted ADR plus an integration contract and caller-backed proof (repo invariant — a workspace never joins `Pegasus.slnx` without one). One decision per ADR; the behavioural consequences go to the owning FRD.
-- Re-scope or archive [[SIMPLI-013]] and [[SIMPLI-014]] to match the integration direction, with migration notes.
-- Before [[KANMER-002]] deletes the temp-plans renderer set, carry forward still-needed planning content (seam options, MCP consolidation, docs migration, the 2026-08-03 open-question resolutions) into this ticket's research or the ADR.
-- Coordinate with [[KANMER-001]] so the renderer cluster TICK-203–TICK-216 is consolidated/retargeted here rather than blindly archived.
+- Author the governing ADR (one decision; mechanics to the owning FRDs and implementation tickets).
+- Re-scope [[SIMPLI-013]] and [[SIMPLI-014]] with migration notes.
+- Carry the still-needed planning content into this ticket's research; link TICK-203–208, 211–216 from SIMPLI-014.
 
 ## Verification
 
-- [ ] Accepted ADR records the integration direction and contract for both workspaces.
-- [ ] SIMPLI-013 / SIMPLI-014 re-scoped or archived with migration notes.
-- [ ] Disposition of the temp-plans renderer content and TICK-203–TICK-216 recorded here; nothing needed was lost.
+- [x] Accepted ADR records the integration direction and contract for both workspaces — ADR-0025, merged `40ee3103`.
+- [x] SIMPLI-013 / SIMPLI-014 re-scoped with migration notes — retitled/rebodied; released to Backlog as `Later` with `refs` → ADR-0025.
+- [x] Disposition of the temp-plans renderer content and TICK-203–216 recorded here — research carries the content; TICK links on SIMPLI-014; 209/210 were proof tickets already consolidated.
 
 ## Outcome
+
+Shipped in PR #389 (https://github.com/collisionengineers/pegasus/pull/389), merged to `dev` as `40ee3103` on 2026-08-17; docs-only (deployment n/a). ADR-0025 records: integrate when a caller exists, never extract; activation stays gated by ADR-0009. The 2026-08-17 assessment (renderer: strong case, design-tree coupling; extractor: only via the `.doc`/`.msg` caller, resolving ADR-0001/0003 overlap; no package feed exists) is on `research`. Follow-ups: [[SIMPLI-013]], [[SIMPLI-014]] (both `Later`), and the renderer sub-decisions TICK-203–208, 211–216 remain open until activation.
