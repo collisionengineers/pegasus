@@ -8,6 +8,16 @@
 (function () {
     'use strict';
 
+    // Bounded status pages ask to be reloaded while their state is still
+    // moving; the delay is data on the element, so nothing here is inline.
+    var autoRefresh = document.querySelector('[data-auto-refresh]');
+    if (autoRefresh) {
+        var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
+        if (Number.isFinite(delay) && delay > 0) {
+            window.setTimeout(function () { window.location.reload(); }, delay);
+        }
+    }
+
     // Manual refresh feedback. The label change is the signal; the spin is
     // decoration on top of it, so the feedback still reads correctly under
     // reduced motion or with no CSS at all.

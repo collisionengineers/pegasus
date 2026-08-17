@@ -30,16 +30,6 @@ public enum DocumentCustodyStatus
     Failed
 }
 
-public enum BoxFileRequestStatus
-{
-    Pending,
-    Active,
-    Unavailable,
-    Deactivated,
-    Failed,
-    Unknown
-}
-
 public sealed record DocumentVersion(
     Guid Id,
     Guid DocumentId,
@@ -171,51 +161,6 @@ public sealed record ConfirmThirdPartyVehicleEvidenceCommand(
     long ExpectedCaseVersion,
     string EditLeaseToken);
 
-public sealed record CreateBoxFileRequestCommand(
-    Guid CaseId,
-    ActionActor Actor,
-    string OperationKey,
-    DateTimeOffset? ExpiresAtUtc,
-    long ExpectedCaseVersion,
-    string EditLeaseToken);
-
-public sealed record BoxFileRequest(
-    Guid Id,
-    Guid CaseId,
-    BoxFileRequestStatus Status,
-    DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? ExpiresAtUtc,
-    DateTimeOffset? DeactivatedAtUtc,
-    long Version);
-
-public sealed class BoxFileRequestSecret
-{
-    public BoxFileRequestSecret(string url)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(url);
-        Url = url;
-    }
-
-    public string Url { get; }
-
-    public override string ToString() => "[REDACTED]";
-}
-
-public sealed record CreateBoxFileRequestResult(
-    BoxFileRequest FileRequest,
-    BoxFileRequestSecret? Secret,
-    bool IsReplay);
-
-public sealed record RevokeBoxFileRequestCommand(
-    Guid CaseId,
-    Guid FileRequestId,
-    ActionActor Actor,
-    string Reason,
-    string OperationKey,
-    long ExpectedFileRequestVersion,
-    long ExpectedCaseVersion,
-    string EditLeaseToken);
-
 public interface ICaseDocumentStateQueries
 {
     Task<CaseDocumentState?> GetAsync(
@@ -269,20 +214,6 @@ public interface IConfirmThirdPartyVehicleEvidence
 {
     Task ExecuteAsync(
         ConfirmThirdPartyVehicleEvidenceCommand command,
-        CancellationToken cancellationToken = default);
-}
-
-public interface ICreateBoxFileRequest
-{
-    Task<CreateBoxFileRequestResult> ExecuteAsync(
-        CreateBoxFileRequestCommand command,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IRevokeBoxFileRequest
-{
-    Task<BoxFileRequest> ExecuteAsync(
-        RevokeBoxFileRequestCommand command,
         CancellationToken cancellationToken = default);
 }
 

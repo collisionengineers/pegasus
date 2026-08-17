@@ -14,9 +14,9 @@ Use these evidence states literally and independently:
 
 Compilation, registration, mocks, local execution, deployment, live-service
 observation, and operator acceptance are different conclusions. The
-authenticated `/Upload` POST through `ProcessIntakeSubmission` is the manual
-HTTP intake caller; `/Received` and `/Inbox` are read-only views. Worker
-trigger registration is not proof of deployed or live traffic.
+authenticated `/Upload` POST through `ReceiveIntake` is the manual HTTP staging
+caller; Worker owns queued processing; `/Received` and `/Inbox` are read-only
+views. Source registration is not proof of deployed or live traffic.
 
 <a id="approved-box-integration-test-target"></a>
 
@@ -67,12 +67,16 @@ Do not add Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, A
 `CiPressure` is the current narrow Checkpoint 12 pressure profile. The
 [QDOS pressure procedure](runbook.md#qdos-pressure-profiles) owns its invocation,
 source-revision checks, prerequisites, staging, cleanup, and evidence path.
+GitHub registers it as a nightly 03:00 UTC and manually dispatched diagnostic
+workflow, outside the pull-request gate, with retained evidence on every run.
 
 This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
 
 `OfflineCandidate` is the current fail-closed profile and remains unavailable
 without the approved immutable dataset, caller manifest, and run-owned local
-evidence required by the runbook. It never promotes offline evidence to
+evidence required by the runbook. Its capability-coverage check is owned by the
+runner script and reads the alpha roster from `docs/capabilities.md`; the
+application registers no acceptance gate. It never promotes offline evidence to
 deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision
 Engineers management-accepted evidence.
 
@@ -169,9 +173,10 @@ separately approved work.
 The retained evidence observations are qualified as follows:
 
 - A 2026-07-23 corpus inventory describes only the observed local scope and safety boundary; it does not prove current contents, extraction accuracy, workflow behavior, deployment, or acceptance.
-- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current route is the authenticated `/Upload` POST through `ProcessIntakeSubmission`. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
+- A 2026-07-23 multi-format evaluation used controlled protocol fixtures and pinned genuine samples through the historical Development-only `POST /Intake/Qdos`. The current source route is the authenticated `/Upload` POST through `ReceiveIntake`, followed separately by Worker-owned queued processing. The historical result records sampled QDOS-policy behavior and failure boundaries, not current-caller execution, complete workflow, field-level accuracy, Worker/Graph/Box/Azure behavior, or production acceptance.
 - A 2026-07-23 embedded-PDF benchmark used 74 unique PDFs and 567 reported pages from an immutable local QDOS cohort through a disposable benchmark harness. It records comparative embedded-text decoding and marker coverage only; it does not prove literal field accuracy, OCR, future layouts, production runtime behavior, or operator acceptance.
 - A 2026-08-03 VRM recognition evaluation accepted the automatic image-registration reading threshold (`INT-17`) at the **0.80** confidence bar with the `INT-28`/`INT-32` match rules, closing former open decision 1; the engine selection is [ADR-0019](adr/0019-in-process-onnx-vrm-recognition.md). The full-cohort run `20260803-092906` covered 2,818 cohort images at the 0.80 bar — 315 suggestions, 3.2% genuine near-misses, 13.7% correctly read third-party registrations, zero technical failures. The one-time holdout confirmation run `20260803-102921` covered 705 untouched images at the accepted 0.80 bar — 88 suggestions at 12.5%, 2 genuine near-misses at 2.3%, 14 correctly read third-party registrations, zero technical failures, consistent with the cohort. This records operator acceptance of the threshold against these cohorts; it does not prove current-caller production execution or future-layout accuracy.
+- A 2026-08-17 MAIL-21 volume-cohort run (`QdosEmailCohortTests.VolumeCohortRecordsExactOutcomeCounts`) read a local immutable flat `corpus/*.eml` dump (256 files). Route dispositions: 75 accepted, 167 no-match, 13 needs-sorting, 1 unreadable. Of the 75 accepted-route messages, `qdos_mail_classification` v3 recorded 14 classified (8 `pre-instruction-emails`, 3 `new-instruction-received/audit`, 3 `new-instruction-received/inspection`), 61 unclassified, and 0 ambiguous. Labelled `extraction-corpus/QDOS/{audits,inspections,...}` folders were absent on that machine, so the accuracy/holdout facts skipped. This is local volume evidence only: it does not invent ground-truth labels, prove a labelled holdout, deploy, live-verify, or record operator acceptance.
 
 ## Planned EML evaluator
 
@@ -258,7 +263,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
       secret versions were unchanged and only the vault host moved to
       `pegasusprodkv252ow37g`. Read the deployed resource, not the local
       environment, when a provision disagrees with a working estate.
-    - **`Invoke-AzureDatabaseBootstrap.ps1` cannot pass after release 6.** Its
+    - **Historical release-8 bootstrap limitation (now corrected in source).** Its
       expected matrix is read from `20260729199000_RuntimeRoleReconciliation`
       alone, so every grant added by a later migration reads as unapproved
       drift. All 24 differences were `=>` — extra in the database, none
@@ -269,8 +274,16 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
       `20260805223036_RetainedMailboxMessages:136-145`. The principal creation
       and effective-permission guards ran before the assertion; the matrix
       comparison is what failed. **The runtime-role effective-permission check
-      was therefore not completed for this release**, and the script needs its
-      matrix built from the full migration set before the next one.
+      was therefore not completed for that release.** The current script now
+      includes every later grant-carrying migration and terminal table removal.
+    - **Worker case-creation hotfix (2026-08-14):** the production Worker role
+      received the 40 exact grants later captured by
+      `20260814092852_AddWorkerCaseCreationGrants`; live readback confirms all
+      40 are present, while the migration itself is not yet recorded in
+      `__EFMigrationsHistory`. The first resulting automatic case was
+      `QDOS26001`, with Box folder `a.QDOS26001` under custody root
+      `405543781910`. This is live data-plane evidence, not proof that the
+      corresponding application commits or migrations have deployed.
 
   - **Release 7** carried the six defects that live verification of release 6
     found, and is the first release whose Worker redeploy and revision

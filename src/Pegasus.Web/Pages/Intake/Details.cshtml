@@ -47,14 +47,7 @@
     <a class="secondary-action" asp-page="/Operations">Back to Operations</a>
 </header>
 
-@if (TempData["UploadOutcomeMessage"] is string uploadOutcome)
-{
-    @* What the file the operator just uploaded became, shown on the thing it
-       became. The upload used to confirm success on a page where the item was
-       nowhere to be seen. *@
-    <div class="status-card status-card--done" role="status">@uploadOutcome</div>
-}
-else if (Model.IsDuplicate)
+@if (Model.IsDuplicate)
 {
     <div class="status-card" role="status">This file was already received. The existing record is shown.</div>
 }

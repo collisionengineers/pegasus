@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Assessment QDOS26014 · Pegasus</title>
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.css">
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/styles.css">
+<style>a{color:var(--navy-fg)}a:hover{color:var(--ce-red-dark)}
+.typechip{display:inline-block;border:var(--border);border-radius:999px;padding:0 8px;font-size:var(--t-xs);font-weight:700;line-height:18px;color:var(--muted);background:var(--paper);white-space:nowrap}
+.check-row{display:flex;align-items:center;gap:8px;min-height:30px;border-bottom:var(--border);font-size:var(--t-sm)}
+.check-row:last-child{border-bottom:0}
+label.choice{display:inline-flex;align-items:center;gap:8px;font-size:var(--t-body)}
+label.choice input{accent-color:var(--ce-red)}
+input[type=range]{accent-color:var(--ce-red)}
+.compact th,.compact td{padding:3px 8px !important;font-size:var(--t-sm) !important}
+.compact th{white-space:nowrap}
+.compact td{white-space:nowrap}
+.compact td:nth-child(3){white-space:normal}
+.wraptable td{white-space:normal !important}
+.overlay{position:fixed;inset:0;background:rgba(20,22,26,.45);display:grid;place-items:start center;overflow:auto;padding:32px 16px;z-index:50}
+.overlay>section{background:#fff;border-radius:var(--radius);box-shadow:var(--shadow-modal);width:min(760px,100%);padding:18px 20px}
+.imgrow{display:flex;align-items:center;gap:10px;border:var(--border);border-radius:var(--radius);padding:6px 10px;background:#fff}
+.imgrow.excluded{opacity:.45}
+.thumb{width:44px;height:34px;border:var(--border);border-radius:var(--radius-sm);background:repeating-linear-gradient(45deg,var(--panel),var(--panel) 8px,#fff 8px,#fff 16px);flex:0 0 auto}
+.est-tabs{display:flex;align-items:flex-end;gap:3px;padding:8px 10px 0;background:var(--paper);border:var(--border);border-bottom:0;border-radius:var(--radius) var(--radius) 0 0}
+.est-tab{appearance:none;font:inherit;font-size:var(--t-sm);font-weight:600;color:var(--muted);background:var(--panel);border:var(--border);border-radius:6px 6px 0 0;padding:7px 16px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+.est-tab[aria-selected=true]{background:#fff;color:var(--ink);font-weight:700;margin-bottom:-1px;border-bottom:1px solid #fff}
+.est-tab:hover{color:var(--ink)}
+.est-add{appearance:none;font:inherit;font-size:16px;font-weight:700;line-height:1;color:var(--muted);background:transparent;border:0;border-radius:4px;padding:6px 9px;margin:0 0 4px 2px;cursor:pointer}
+.est-add:hover{background:var(--panel);color:var(--ink)}
+.est-body{border:var(--border);background:#fff;border-radius:0 0 var(--radius) var(--radius);padding:14px 16px}
+.record__bar{flex-wrap:wrap;row-gap:6px}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.js"></script>
+</head><body>
+<div id="root"></div>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel">
+const {BackLink, Record, RecordHead, RecordBar, RecordBody, StatusChip, Tabs, Subtabs, WorkbenchGrid, Panel, SectionLabel, Blockhead, SendToClaudeButton, FormGrid, Field, Input, Select, Textarea, PrimaryAction, SecondaryAction, Button, ButtonRow, StatusCard, EvidenceFigure, DataTable, FieldCard, Icon, EmptyState} = DS;
+const REPAIR = 8411.93, PAV = 11150;
+const LINES = [
+  {q:1, type:"New", desc:"Right front wing", hrs:1.7, price:369.00},
+  {q:1, type:"New", desc:"Right front wing liner", hrs:0.1, price:140.00},
+  {q:1, type:"New", desc:"Right front upper suspension arm", hrs:0.8, price:197.20},
+  {q:1, type:"New", desc:"Right front steering knuckle", hrs:1.7, price:482.00},
+  {q:1, type:"New", desc:"Right front wheel (aluminium)", hrs:0.3, price:764.00},
+  {q:1, type:"New", desc:"Right steering tie rod", hrs:0.5, price:64.50},
+  {q:1, type:"R & R", desc:"Front bumper grille", hrs:1.0, price:null},
+  {q:1, type:"R & R", desc:"Right front door strip & set-up for paint", hrs:1.0, price:null},
+  {q:1, type:"Paint", desc:"Front bumper", hrs:0.9, price:212.20},
+  {q:1, type:"Paint", desc:"Right front wing, complete", hrs:1.0, price:160.60},
+  {q:1, type:"Paint", desc:"Bonnet", hrs:1.3, price:359.30},
+  {q:1, type:"Specialist", desc:"ADAS calibration", hrs:null, price:312.30},
+  {q:1, type:"Specialist", desc:"OSF tyre", hrs:null, price:175.00},
+  {q:1, type:"Specialist", desc:"Wheel alignment check / toe-adjust", hrs:null, price:174.88},
+];
+const PHOTOS = ["licence-plate-photo-1.jpg","damage-photo-1.jpg","damage-photo-2.jpg","damage-photo-3.jpg","corner-photo-1.jpg","corner-photo-2.jpg","corner-photo-3.jpg","corner-photo-4.jpg","dashboard-odometer.jpg"];
+function ClaudeDialog({open, onCancel, onConfirm}){
+  const [pct, setPct] = React.useState(70);
+  if(!open) return null;
+  return <div className="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="cd-title" style={{display:"grid"}}>
+    <div className="reason-dialog">
+      <h2 id="cd-title">Send this case to Claude?</h2>
+      <p>Records a new estimate tab, <b>claude-estimate</b>, for your review.</p>
+      <div style={{display:"grid",gap:"var(--sp-4)"}}>
+        <label htmlFor="cd-prompt" style={{fontSize:"var(--t-sm)",fontWeight:600}}>Instructions for Claude</label>
+        <Textarea id="cd-prompt" rows={3} placeholder="e.g. Pay attention to the suspension damage — check whether the knuckle is repairable."/>
+        <label htmlFor="cd-target" style={{fontSize:"var(--t-sm)",fontWeight:600}}>Repair estimate target</label>
+        <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) auto",gap:"12px",alignItems:"center"}}>
+          <input id="cd-target" type="range" min={40} max={100} step={1} value={pct} onChange={e=>setPct(+e.target.value)}/>
+          <span className="tabular" style={{fontSize:"var(--t-sm)",whiteSpace:"nowrap"}} aria-live="polite"><b>{pct}%</b> of PAV · {gbp(PAV*pct/100,0)}</span>
+        </div>
+      </div>
+      <div className="button-row" style={{marginTop:"var(--sp-6)"}}>
+        <SecondaryAction onClick={onCancel}>Cancel</SecondaryAction>
+        <SendToClaudeButton onClick={()=>onConfirm(pct)}>Send to Claude</SendToClaudeButton>
+      </div>
+    </div>
+  </div>;
+}
+function DamageBox(){
+  const [marks, setMarks] = React.useState([{x:78,y:30}]);
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px"}}>
+      <SectionLabel>Damage locations</SectionLabel>
+      <Button onClick={()=>setMarks([])} icon="refresh-cw">Reset</Button>
+    </div>
+    <p style={{margin:"0 0 8px",fontSize:"var(--t-sm)",color:"var(--muted)"}}>Click the vehicle to mark damage.</p>
+    <div style={{position:"relative",border:"var(--border)",borderRadius:"var(--radius)",background:"var(--paper)",cursor:"crosshair"}}
+      onClick={e=>{const r=e.currentTarget.getBoundingClientRect(); setMarks(m=>[...m,{x:(e.clientX-r.left)/r.width*100,y:(e.clientY-r.top)/r.height*100}]);}}>
+      <svg viewBox="0 0 400 200" style={{display:"block",width:"100%"}} aria-label="Vehicle top view">
+        <g fill="none" stroke="var(--charcoal)" strokeWidth="2">
+          <rect x="60" y="40" width="280" height="120" rx="40"/>
+          <rect x="130" y="55" width="130" height="90" rx="18"/>
+          <line x1="150" y1="55" x2="140" y2="40"/><line x1="150" y1="145" x2="140" y2="160"/>
+          <line x1="245" y1="55" x2="255" y2="40"/><line x1="245" y1="145" x2="255" y2="160"/>
+          <rect x="88" y="28" width="44" height="12" rx="6"/><rect x="88" y="160" width="44" height="12" rx="6"/>
+          <rect x="268" y="28" width="44" height="12" rx="6"/><rect x="268" y="160" width="44" height="12" rx="6"/>
+        </g>
+        <text x="70" y="105" fontSize="11" fill="var(--muted)">Front</text>
+        <text x="305" y="105" fontSize="11" fill="var(--muted)">Rear</text>
+      </svg>
+      {marks.map((m,i)=><svg key={i} viewBox="0 0 24 24" style={{position:"absolute",left:"calc("+m.x+"% - 9px)",top:"calc("+m.y+"% - 9px)",width:"18px",height:"18px",pointerEvents:"none"}}>
+        <path d="M12 1l2 6 5-3-3 5 6 3-6 2 3 6-5-3-2 6-2-6-5 3 3-6-6-2 6-3-3-5 5 3z" fill="var(--ce-red)" stroke="#fff" strokeWidth="1"/>
+      </svg>)}
+    </div>
+    <p style={{margin:"6px 0 0",fontSize:"var(--t-xs)",color:"var(--muted)"}} aria-live="polite">{marks.length===0?"No damage marked.":marks.length+" point"+(marks.length>1?"s":"")+" marked."}</p>
+  </div>;
+}
+function ReportImages(){
+  const [imgs, setImgs] = React.useState(PHOTOS.map((n,i)=>({n, role: n==="corner-photo-1.jpg"?"Overview":(n==="damage-photo-1.jpg"?"Close-up":(n==="licence-plate-photo-1.jpg"||n==="dashboard-odometer.jpg"?"Excluded":"Included"))})));
+  const setRole=(n,role)=>setImgs(list=>list.map(im=>{
+    if(im.n===n) return {...im, role};
+    if((role==="Overview"||role==="Close-up") && im.role===role) return {...im, role:"Included"};
+    return im;
+  }));
+  const move=(i,d)=>setImgs(list=>{const c=[...list]; const j=i+d; if(j<0||j>=c.length) return list; [c[i],c[j]]=[c[j],c[i]]; return c;});
+  const included = imgs.filter(im=>im.role!=="Excluded").length;
+  return <div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:"12px"}}>
+      <SectionLabel>Report images</SectionLabel>
+      <small style={{color:"var(--muted)"}}>{included} of {imgs.length} in the report, in this order</small>
+    </div>
+    <div style={{display:"grid",gap:"6px"}}>
+      {imgs.map((im,i)=><div className={"imgrow"+(im.role==="Excluded"?" excluded":"")} key={im.n}>
+        <span className="thumb" aria-hidden="true"></span>
+        <span style={{flex:"1 1 auto",minWidth:0,fontSize:"var(--t-sm)",fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{im.n}</span>
+        {(im.role==="Overview"||im.role==="Close-up") && <StatusChip state={im.role} tone="navy" icon="info"/>}
+        <label style={{fontSize:"var(--t-sm)"}}><span className="sr-only">Role for {im.n}</span>
+          <Select value={im.role} onChange={e=>setRole(im.n, e.target.value)} style={{minHeight:"28px",height:"28px",padding:"0 6px"}}>
+            <option>Overview</option><option>Close-up</option><option>Included</option><option>Excluded</option>
+          </Select></label>
+        <Button aria-label={"Move "+im.n+" up"} onClick={()=>move(i,-1)} style={{padding:"0 8px"}}>↑</Button>
+        <Button aria-label={"Move "+im.n+" down"} onClick={()=>move(i,1)} style={{padding:"0 8px"}}>↓</Button>
+      </div>)}
+    </div>
+  </div>;
+}
+function ReportDialog({est, onClose}){
+  const [done, setDone] = React.useState(false);
+  return <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="rd-title">
+    <section>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",marginBottom:"var(--sp-4)"}}>
+        <h2 id="rd-title" style={{margin:0,fontSize:"var(--t-h2)"}}>Generate report — from {est.name}</h2>
+        <Button onClick={onClose}>Close</Button>
+      </div>
+      <DamageBox/>
+      <div style={{marginTop:"var(--sp-6)"}}><ReportImages/></div>
+      <div className="button-row" style={{marginTop:"var(--sp-8)"}}>
+        {!done ? <PrimaryAction onClick={()=>setDone(true)}>Generate report</PrimaryAction>
+          : <StatusCard variant="done" style={{flex:"1 1 auto"}}>Report generated and filed to the case's Evidence.</StatusCard>}
+        <SecondaryAction onClick={onClose}>{done?"Close":"Cancel"}</SecondaryAction>
+      </div>
+    </section>
+  </div>;
+}
+function EstimateBody({est, confirmed, onConfirm, onReport}){
+  if(est.empty) return <div style={{padding:"var(--sp-6) 0"}}>
+    <EmptyState>This estimate is empty. Open the case in an estimating service, import their assessment, or ask Claude.</EmptyState>
+  </div>;
+  const shownHrs = LINES.reduce((a,l)=>a+(l.hrs||0),0);
+  const shownPrice = LINES.reduce((a,l)=>a+(l.price||0),0);
+  return <React.Fragment>
+    <DataTable className="compact" caption={"Estimate lines — "+est.name} rows={LINES} columns={[
+      {header:"Qty", cell:r=>r.q.toFixed(0), tabular:true},
+      {header:"Type", cell:r=><span className="typechip">{r.type}</span>},
+      {header:"Description", cell:r=>r.desc},
+      {header:"Hours", cell:r=>r.hrs==null?"":r.hrs.toFixed(2), tabular:true},
+      {header:"Price", cell:r=>r.price==null?"":gbp(r.price), tabular:true},
+    ]} footer={[<b>44 lines</b>, "", <b>Totals</b>, <b className="tabular">21.80</b>, <b className="tabular">{gbp(3830.83)}</b>]}/>
+    <div style={{display:"grid",gridTemplateColumns:"minmax(0,1.4fr) minmax(230px,1fr)",gap:"var(--sp-8)",alignItems:"start",marginTop:"var(--sp-6)"}}>
+      <DataTable className="compact wraptable" caption="Repair cost breakdown" rows={[
+        {item:"Labour", working:"21.8 hours at £95.77", amount:2087.79},
+        {item:"Paint materials", working:"From "+est.source.split(" · ")[0], amount:1091.32},
+        {item:"Parts", working:"From "+est.source.split(" · ")[0], amount:2930.05},
+        {item:"Specialist and extras", working:"From "+est.source.split(" · ")[0], amount:900.78},
+      ]} columns={[
+        {header:"Item", cell:r=>r.item},
+        {header:"Working", cell:r=><span style={{color:"var(--muted)"}}>{r.working}</span>},
+        {header:"Amount", cell:r=><span className="tabular">{gbp(r.amount)}</span>, tabular:true},
+      ]} footer={[<b>Repair cost</b>, <span style={{color:"var(--muted)"}}>inc VAT {gbp(1401.99)}</span>, <b className="tabular">{gbp(REPAIR)}</b>]}/>
+      <div style={{display:"grid",gap:"var(--sp-4)"}}>
+        <FieldCard title="Hours" detail="New 5.9 · R&R 2.5 · Paint 6.9 · Specialist 6.5">21.80 total</FieldCard>
+        {!confirmed ? <PrimaryAction onClick={onConfirm}>Confirm estimate figures</PrimaryAction>
+          : <StatusCard variant="done">Figures confirmed by alex.</StatusCard>}
+        <Button icon="file-text" onClick={onReport}>Generate report</Button>
+      </div>
+    </div>
+  </React.Fragment>;
+}
+function Page(){
+  const [tab, setTab] = React.useState("assessment");
+  const [ests, setEsts] = React.useState([{id:1, name:"glass's import", source:"Glass's repair estimate · imported 15 Aug 11:20"}]);
+  const [active, setActive] = React.useState(1);
+  const [renaming, setRenaming] = React.useState(false);
+  const [confirmedIds, setConfirmedIds] = React.useState([]);
+  const [claudeOpen, setClaudeOpen] = React.useState(false);
+  const [sent, setSent] = React.useState(false);
+  const [reportFor, setReportFor] = React.useState(null);
+  const est = ests.find(e=>e.id===active) || ests[0];
+  const confirmed = confirmedIds.includes(est.id);
+  const addEst = (name, source, empty) => setEsts(list=>{
+    const id = Math.max(...list.map(e=>e.id))+1;
+    setActive(id);
+    return [...list, {id, name: name || "estimate-"+id, source, empty}];
+  });
+  const sendToClaude = () => { setSent(true); setClaudeOpen(false); if(!ests.some(e=>e.name==="claude-estimate")) addEst("claude-estimate", "Claude estimate · recorded just now"); };
+  return <Shell nav="Cases">
+    <BackLink href="Case.html">Back to the case</BackLink>
+    <Record state="review" style={{marginTop:"var(--sp-4)"}}>
+      <RecordHead reference="QDOS26014"
+        identity={[<Head key="p" term="Principal" val="QDOS"/>,<Head key="r" term="Registration" val="LM18XEV"/>,<Head key="c" term="Claimant" val="Mr Adam Nazm"/>,<Head key="d" term="Report due" val="16 Aug 2026"/>]}/>
+      <RecordBar end={<SendToClaudeButton onClick={()=>setClaudeOpen(true)}>Send to Claude</SendToClaudeButton>}>
+        <Button icon="arrow-right">Open in Glass's</Button>
+        <Button icon="arrow-right">Open in Audatex</Button>
+        <Button icon="upload">Import assessment PDF</Button>
+      </RecordBar>
+      <Tabs label="Assessment sections" tabs={[
+        {label:"Details", current:tab==="details", onClick:()=>setTab("details")},
+        {label:"Assessment", current:tab==="assessment", onClick:()=>setTab("assessment")},
+        {label:"Evidence", count:12, current:tab==="evidence", onClick:()=>setTab("evidence")},
+      ]}/>
+      <RecordBody>
+      {tab==="details" && <React.Fragment>
+        <Panel>
+          <Blockhead title="Vehicle and valuation"/>
+          <FormGrid>
+            <Field label="Registration" htmlFor="v-reg"><Input id="v-reg" defaultValue="LM18XEV"/></Field>
+            <Field label="Make and model" htmlFor="v-make"><Input id="v-make" defaultValue="Mercedes-Benz C 220 AMG Line Premium+ D 4Matic"/></Field>
+            <Field label="Year" htmlFor="v-year"><Input id="v-year" className="tabular" defaultValue="2018"/></Field>
+            <Field label="VIN" htmlFor="v-vin"><Input id="v-vin" defaultValue="WDD2053052F733160"/></Field>
+            <Field label="Odometer (miles)" htmlFor="v-odo"><Input id="v-odo" className="tabular" defaultValue="98,828"/></Field>
+            <Field label="Mileage source" htmlFor="v-mileage"><Select id="v-mileage" defaultValue="Repairer"><option>Online data</option><option>Owner</option><option>Repairer</option><option>Principal</option><option>Average</option><option>To be confirmed</option></Select></Field>
+            <Field label="Pre-incident condition" htmlFor="v-cond"><Select id="v-cond" defaultValue="Good"><option>Poor</option><option>Below average</option><option>Average</option><option>Good</option><option>Excellent</option></Select></Field>
+          </FormGrid>
+          <div style={{marginTop:"var(--sp-6)",border:"1px solid var(--amber-line)",borderLeft:"3px solid var(--amber-line)",background:"var(--amber-bg)",borderRadius:"var(--radius)",padding:"10px 12px",display:"flex",justifyContent:"space-between",gap:"12px",flexWrap:"wrap"}}>
+            <span style={{fontSize:"var(--t-sm)"}}><b style={{color:"var(--amber-fg)"}}>Experian:</b> previous total loss (Cat N, Jun 2023) · plate change 23 Jun 2026 · MOT to 14 Feb 2027 · no finance</span>
+            <Button icon="refresh-cw">Check again</Button>
+          </div>
+          <SectionLabel>Valuation</SectionLabel>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:"var(--sp-4)"}}>
+            <EvidenceFigure label="Glass's" value={gbp(12774,0)+" / "+gbp(9858,0)} source="Retail / trade · Jun 2026"/>
+            <EvidenceFigure label="CAP HPI" value={gbp(13068,0)+" / "+gbp(10500,0)} source="Retail / trade · Jun 2026"/>
+            <EvidenceFigure label="Cazana" value={gbp(13938,0)+" / "+gbp(11290,0)} source="At 98,828 miles · Jun 2026"/>
+          </div>
+          <FormGrid sectionGap>
+            <Field label="Retail value (£)" htmlFor="cv-retail"><Input id="cv-retail" className="tabular" defaultValue="13,938.00"/></Field>
+            <Field label="Trade value (£)" htmlFor="cv-trade"><Input id="cv-trade" className="tabular" defaultValue="11,290.00"/></Field>
+            <Field label="Engineer's value (£)" htmlFor="cv-eng" hint="20% deducted for the previous total loss."><Input id="cv-eng" className="tabular" defaultValue="11,150.00"/></Field>
+          </FormGrid>
+        </Panel>
+        <Panel style={{marginTop:"var(--sp-6)"}}>
+          <Blockhead title="Incident and inspection"/>
+          <FormGrid>
+            <Field label="Incident date" htmlFor="i-date"><Input id="i-date" type="date" defaultValue="2026-07-23" className="tabular"/></Field>
+            <Field label="Instructions received" htmlFor="i-instr"><Input id="i-instr" type="date" defaultValue="2026-07-28" className="tabular"/></Field>
+            <Field label="Assessed" htmlFor="i-assessed"><Input id="i-assessed" type="date" defaultValue="2026-08-15" className="tabular"/></Field>
+            <Field label="Impact severity" htmlFor="i-sev"><Select id="i-sev" defaultValue="Moderate"><option>Light</option><option>Light to moderate</option><option>Moderate</option><option>Moderate to heavy</option><option>Heavy</option></Select></Field>
+            <Field label="Impact location" htmlFor="i-loc"><Select id="i-loc" defaultValue="Right front"><option>Front</option><option>Left front</option><option>Right front</option><option>Right side</option><option>Rear</option><option>Multiple</option></Select></Field>
+            <Field label="Assessment method" htmlFor="i-method"><Input id="i-method" readOnly defaultValue="Image Based Assessment — set by QDOS"/></Field>
+            <Field wide label="Accident circumstances" htmlFor="i-circ"><Textarea id="i-circ" rows={2} defaultValue="Third party pulled out of a junction into the right front of the insured vehicle."/></Field>
+          </FormGrid>
+          <ButtonRow style={{marginTop:"var(--sp-6)"}}><PrimaryAction>Save details</PrimaryAction></ButtonRow>
+        </Panel>
+      </React.Fragment>}
+      {tab==="assessment" && <React.Fragment>
+        <div>
+          <div className="est-tabs" role="tablist" aria-label="Estimates on this case">
+            {ests.map(e=><button key={e.id} type="button" role="tab" className="est-tab" aria-selected={e.id===active} onClick={()=>{setActive(e.id); setRenaming(false);}}>{e.name}</button>)}
+            <button type="button" className="est-add" aria-label="New estimate" title="New estimate" onClick={()=>addEst(null, "Empty — choose a source", true)}>+</button>
+            <span style={{marginLeft:"auto",paddingBottom:"6px"}}>{confirmed?<StatusChip state="Figures confirmed" tone="green" icon="check-circle"/>:<StatusChip state="Unconfirmed" tone="amber" icon="clock"/>}</span>
+          </div>
+          <div className="est-body">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:"12px",flexWrap:"wrap",margin:"0 0 var(--sp-4)"}}>
+            {!renaming ? <span style={{fontSize:"var(--t-sm)"}}><b>{est.name}</b> · {est.source}<Button style={{marginLeft:"10px"}} onClick={()=>setRenaming(true)}>Rename</Button></span>
+              : <span style={{display:"inline-flex",gap:"8px",alignItems:"center"}}>
+                  <Input defaultValue={est.name} id="est-name" aria-label="Estimate name" style={{width:"220px"}}/>
+                  <Button variant="dark" onClick={()=>{const v=document.getElementById("est-name").value.trim(); if(v) setEsts(list=>list.map(e=>e.id===est.id?{...e,name:v}:e)); setRenaming(false);}}>Save</Button>
+                  <Button onClick={()=>setRenaming(false)}>Cancel</Button>
+                </span>}
+          </div>
+          <EstimateBody est={est} confirmed={confirmed} onConfirm={()=>setConfirmedIds(ids=>[...ids, est.id])} onReport={()=>setReportFor(est)}/>
+          </div>
+        </div>
+        <Panel style={{marginTop:"var(--sp-6)"}}>
+          <Blockhead title="Findings"/>
+          <StatusCard variant="attention" title="The numbers point to a total loss">
+            Repair cost {gbp(REPAIR)} is <b>75.4%</b> of the pre-accident value ({gbp(PAV,0)}) — above the 70% threshold — and <b>94%</b> of the settlement net of salvage.
+          </StatusCard>
+          <FormGrid sectionGap>
+            <Field label="Assessment outcome" htmlFor="f-outcome"><Select id="f-outcome" defaultValue="Total loss"><option>Total loss</option><option>Repairable</option><option>Cash in lieu</option><option>Contract repair</option></Select></Field>
+            <Field label="Roadworthiness" htmlFor="f-road"><Select id="f-road" defaultValue="Unroadworthy"><option>Roadworthy</option><option>Unroadworthy</option></Select></Field>
+            <Field label="Salvage category" htmlFor="f-cat"><Select id="f-cat" defaultValue="Category N — non-structural"><option>Category A</option><option>Category B</option><option>Category S — structural</option><option>Category N — non-structural</option><option>Not applicable</option></Select></Field>
+            <Field label="Salvage value (£)" htmlFor="f-salvage"><Input id="f-salvage" className="tabular" defaultValue="2,230.00"/></Field>
+            <Field label="Salvage agent" htmlFor="f-agent"><Select id="f-agent"><option>Not instructed yet</option><option>Copart — Sandwich</option><option>SYNETIQ — Doncaster</option></Select></Field>
+            <Field label="Owner wishes to retain" htmlFor="f-retain"><Select id="f-retain"><option>Not stated</option><option>Yes — retain agreed</option><option>Yes — awaiting agreement</option><option>No</option></Select></Field>
+            <Field wide label="Engineer's comments" htmlFor="r-comments"><Textarea id="r-comments" rows={3} defaultValue="20% has been deducted from the pre-accident valuation due to the vehicle being a previous total loss.&#10;The vehicle is unroadworthy due to the impacted wheel, suspension and tyre damage."/></Field>
+            <Field label="Signature" htmlFor="r-sig"><Select id="r-sig"><option value="">Choose a signatory</option><option>P. Doyle</option><option>E. Mawdsley</option></Select></Field>
+            <Field label="Agreed fee (£)" htmlFor="r-fee"><Input id="r-fee" className="tabular" placeholder="0.00"/></Field>
+          </FormGrid>
+          <ButtonRow style={{marginTop:"var(--sp-6)"}}><PrimaryAction>Save assessment</PrimaryAction><SecondaryAction href="Case.html">Back</SecondaryAction></ButtonRow>
+        </Panel>
+      </React.Fragment>}
+      {tab==="evidence" && <Panel>
+        <Blockhead title="Evidence on this case" end={<Button href="Case.html">Open case</Button>}/>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))",gap:"12px"}}>
+          {PHOTOS.map(n=><Photo key={n} label={n} h={96}/>)}
+        </div>
+        <SectionLabel>Documents</SectionLabel>
+        <DataTable className="compact" caption="Case documents" rows={[
+          {name:"Original Request.pdf", kind:"Instruction", added:"30 Jul 11:18"},
+          {name:"repairer-estimate-LM18XEV.pdf", kind:"Repairer estimate", added:"15 Aug 11:20"},
+          {name:"experian-autocheck-LM18XEV.pdf", kind:"Vehicle history", added:"16 Aug 17:05"},
+        ]} columns={[
+          {header:"Document", cell:r=><a href="#">{r.name}</a>},
+          {header:"Kind", cell:r=>r.kind},
+          {header:"Added", cell:r=>r.added, tabular:true},
+        ]}/>
+      </Panel>}
+      </RecordBody>
+    </Record>
+    <ClaudeDialog open={claudeOpen} onCancel={()=>setClaudeOpen(false)} onConfirm={sendToClaude}/>
+    {reportFor && <ReportDialog est={reportFor} onClose={()=>setReportFor(null)}/>}
+  </Shell>;
+}
+mount(<Page/>);
+</script>
+</body></html>

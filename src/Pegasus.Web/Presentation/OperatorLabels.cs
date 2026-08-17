@@ -102,25 +102,25 @@ public static class OperatorLabels
         _ => Humanise(status.ToString())
     };
 
-    public static string UploadLinkState(BoxFileRequestStatus status) => status switch
+    /// <summary>
+    /// The case's Box folder state, in the operator's words, for the cases
+    /// where there is no live folder to open. A confirmed folder with a remote
+    /// identity is a link the page renders directly; every other state resolves
+    /// to plain text here so a dead or empty link is never shown.
+    /// </summary>
+    public static string CustodyFolderState(CaseCustodyState state) => state switch
     {
-        BoxFileRequestStatus.Pending => "Being created",
-        BoxFileRequestStatus.Active => "Active",
-        BoxFileRequestStatus.Unavailable => "Unavailable",
-        BoxFileRequestStatus.Deactivated => "Withdrawn",
-        BoxFileRequestStatus.Failed => "Failed",
-        BoxFileRequestStatus.Unknown => "Unknown",
-        _ => Humanise(status.ToString())
+        CaseCustodyState.Pending => "Box case folder: preparing",
+        _ => "Box case folder: unavailable"
     };
 
     /// <summary>
     /// The state of an in-house upload request, as the operator reads it.
     /// </summary>
     /// <remarks>
-    /// Distinct from <see cref="UploadLinkState"/>: that one describes a Box
-    /// file request, this one the request Pegasus issues itself. The two
-    /// enums share several member names and no members, so one label method
-    /// cannot serve both.
+    /// This describes the request Pegasus issues itself, distinct from the
+    /// document custody states above; the enums share member names but no
+    /// members, so one label method cannot serve both.
     /// </remarks>
     public static string UploadRequestState(RequestUploadStatus status) => status switch
     {
@@ -167,7 +167,13 @@ public static class OperatorLabels
             or "integrity_failure" =>
             "The retained file did not match what was received",
         "persistence_failure" => "The result could not be saved",
-        "intake_processing_failure" or "technical_failure" =>
+        "invalid_intake_data" => "The file's contents were not valid",
+        "source_identity_conflict" =>
+            "The same receipt token was already used for a different file",
+        "processing_lease_expired" => "Processing timed out and was not completed",
+        "queue_poisoned" => "Processing was attempted repeatedly without completing",
+        "intake_processing_failure" or "technical_failure"
+            or "unexpected_intake_processing_failure" =>
             "Processing failed for a technical reason",
         null or "" => "Processing failed",
         _ => Humanise(failureCode)

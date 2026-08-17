@@ -164,7 +164,8 @@ public sealed partial class CaseDetailsWebTests
                     ? null
                     : new(leaseHolder, now.AddMinutes(5), leaseOperationKey!),
                 [],
-                [],
+                null,
+                CaseCustodyState.Pending,
                 [],
                 [],
                 []);

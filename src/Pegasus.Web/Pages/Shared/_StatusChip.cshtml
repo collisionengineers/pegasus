@@ -10,7 +10,7 @@
     ViewData["StatusTone"]  — optional explicit tone override
                               (navy | amber | red | green | neutral).
 
-    Tone rules follow docs/design.md: amber is incomplete or pending, navy is
+    Tone rules follow docs/design/README.md: amber is incomplete or pending, navy is
     Review and other in-flight states, red is blocked/failed/denied, green is
     confirmed completion only, and neutral covers absent, loading, current and
     settled-terminal states. Every chip carries its text label, so no state is
@@ -45,7 +45,6 @@
         // Intake and Triage
         "needs sorting" => ("amber", "icon-alert-triangle"),
         "blocked intake" or "blocked" => ("red", "icon-alert-circle"),
-        "draft ready" or "instruction draft" => ("navy", "icon-file-text"),
         "document text required" or "unsupported" => ("amber", "icon-file-text"),
         "awaiting information" => ("amber", "icon-clock"),
         "finding recorded" => ("navy", "icon-check-circle"),

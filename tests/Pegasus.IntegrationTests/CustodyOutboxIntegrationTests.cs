@@ -498,96 +498,6 @@ public sealed class CustodyOutboxIntegrationTests
             .ExecuteAsync("invalid", CancellationToken.None));
     }
 
-    [Fact]
-    public async Task BoxCreateAndRevokeRecordExactAttributableActionHistory()
-    {
-        using var factory = new IntakeWebApplicationFactory();
-        await using var scope = factory.Services.CreateAsyncScope();
-        var accepted = await AcceptDirectSourceAsync(scope.ServiceProvider);
-        var caseId = accepted.CaseId;
-        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
-        var queries = scope.ServiceProvider.GetRequiredService<ICaseWorkflowQueries>();
-        var leases = scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>();
-        var workflow = Assert.IsType<CaseWorkflowRecord>(
-            await queries.GetAsync(caseId, CancellationToken.None));
-        var createLease = await leases.ClaimAsync(
-            new(
-                caseId,
-                workflow.Version,
-                actor,
-                $"box-create-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var createOperationKey = $"box-create:{Guid.NewGuid():N}";
-        var createCommand = new CreateBoxFileRequestCommand(
-            caseId,
-            actor,
-            createOperationKey,
-            null,
-            createLease.Version,
-            createLease.Token);
-        var create = scope.ServiceProvider.GetRequiredService<ICreateBoxFileRequest>();
-        var created = await create.ExecuteAsync(createCommand, CancellationToken.None);
-        Assert.False(created.IsReplay);
-        Assert.True((await create.ExecuteAsync(
-            createCommand,
-            CancellationToken.None)).IsReplay);
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            create.ExecuteAsync(
-                createCommand with
-                {
-                    Actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])
-                },
-                CancellationToken.None));
-
-        workflow = Assert.IsType<CaseWorkflowRecord>(
-            await queries.GetAsync(caseId, CancellationToken.None));
-        var revokeLease = await leases.ClaimAsync(
-            new(
-                caseId,
-                workflow.Version,
-                actor,
-                $"box-revoke-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var revokeOperationKey = $"box-revoke:{Guid.NewGuid():N}";
-        var revokeCommand = new RevokeBoxFileRequestCommand(
-            caseId,
-            created.FileRequest.Id,
-            actor,
-            "The requested files are no longer required.",
-            revokeOperationKey,
-            created.FileRequest.Version,
-            revokeLease.Version,
-            revokeLease.Token);
-        var revoke = scope.ServiceProvider.GetRequiredService<IRevokeBoxFileRequest>();
-        var revoked = await revoke.ExecuteAsync(revokeCommand, CancellationToken.None);
-        Assert.Equal(BoxFileRequestStatus.Deactivated, revoked.Status);
-        Assert.Equal(
-            revoked,
-            await revoke.ExecuteAsync(revokeCommand, CancellationToken.None));
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            revoke.ExecuteAsync(
-                revokeCommand with { Reason = "Different reason." },
-                CancellationToken.None));
-
-        var contextFactory = scope.ServiceProvider
-            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
-        await using var context = await contextFactory.CreateDbContextAsync();
-        var history = await context.ActionHistory
-            .Where(value => value.AggregateType == "box_file_request"
-                && (value.CorrelationId == createOperationKey
-                    || value.CorrelationId == revokeOperationKey))
-            .ToArrayAsync();
-        Assert.Equal(2, history.Length);
-        Assert.All(history, entry =>
-        {
-            Assert.Equal(ActorKind.Staff.ToString(), entry.ActorKind);
-            Assert.Equal(actor.SubjectId, entry.ActorSubjectId);
-            Assert.Equal("[\"Engineer\"]", entry.ActorRolesJson);
-            Assert.Equal("Succeeded", entry.Outcome);
-            Assert.False(string.IsNullOrWhiteSpace(entry.AfterJson));
-        });
-    }
-
     [Theory]
     [InlineData(CaseLifecycleState.PostReportComplete)]
     [InlineData(CaseLifecycleState.ProviderCancelled)]
@@ -623,28 +533,6 @@ public sealed class CustodyOutboxIntegrationTests
             scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>();
         var requestLink = await createUploadLink.ExecuteAsync(
             createRequest,
-            CancellationToken.None);
-
-        workflow = Assert.IsType<CaseWorkflowRecord>(
-            await queries.GetAsync(caseId, CancellationToken.None));
-        var boxLease = await leases.ClaimAsync(
-            new(
-                caseId,
-                workflow.Version,
-                actor,
-                $"terminal-box-lease:{Guid.NewGuid():N}"),
-            CancellationToken.None);
-        var createBoxRequest = new CreateBoxFileRequestCommand(
-            caseId,
-            actor,
-            $"terminal-box-create:{Guid.NewGuid():N}",
-            null,
-            boxLease.Version,
-            boxLease.Token);
-        var createBox =
-            scope.ServiceProvider.GetRequiredService<ICreateBoxFileRequest>();
-        var boxRequest = await createBox.ExecuteAsync(
-            createBoxRequest,
             CancellationToken.None);
 
         workflow = Assert.IsType<CaseWorkflowRecord>(
@@ -709,9 +597,6 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.True(requestReplay.IsReplay);
         Assert.Null(requestReplay.Secret);
         Assert.Equal(requestLink.Link, requestReplay.Link);
-        Assert.True((await createBox.ExecuteAsync(
-            createBoxRequest,
-            CancellationToken.None)).IsReplay);
         Assert.True((await addDocument.ExecuteAsync(
             addCommand,
             CancellationToken.None)).IsReplay);
@@ -760,28 +645,6 @@ public sealed class CustodyOutboxIntegrationTests
                         "Terminal cases are read-only.",
                         $"terminal-request-revoke:{Guid.NewGuid():N}",
                         requestLink.Link.Version,
-                        terminalLease.Version,
-                        terminalLease.Token),
-                    CancellationToken.None));
-        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
-            createBox.ExecuteAsync(
-                createBoxRequest with
-                {
-                    OperationKey = $"terminal-box-new:{Guid.NewGuid():N}",
-                    ExpectedCaseVersion = terminalLease.Version,
-                    EditLeaseToken = terminalLease.Token
-                },
-                CancellationToken.None));
-        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
-            scope.ServiceProvider.GetRequiredService<IRevokeBoxFileRequest>()
-                .ExecuteAsync(
-                    new(
-                        caseId,
-                        boxRequest.FileRequest.Id,
-                        actor,
-                        "Terminal cases are read-only.",
-                        $"terminal-box-revoke:{Guid.NewGuid():N}",
-                        boxRequest.FileRequest.Version,
                         terminalLease.Version,
                         terminalLease.Token),
                     CancellationToken.None));
@@ -1172,7 +1035,9 @@ public sealed class CustodyOutboxIntegrationTests
         var source = CreateSource();
         var receipt = await services.GetRequiredService<ProcessIntake>()
             .ExecuteAsync(source.Source, CancellationToken.None);
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.True(
+            receipt.Decision == IntakeDecision.CaseCreated,
+            $"decision={receipt.Decision}; reason={receipt.DecisionReason}; route={receipt.MailRouteDecision?.Disposition}/{receipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode}; sender={receipt.MailRouteDecision?.EffectiveSender?.Address}");
         var outcome = await AcceptAsync(services, receipt.Id);
         return new(
             outcome.Identity.CaseId,
@@ -1253,9 +1118,10 @@ public sealed class CustodyOutboxIntegrationTests
 
     private static SourceFixture CreateSource()
     {
+        var fixtureId = Guid.NewGuid().ToString("N");
         var email = IntakeTestEvidence.CreateEmail(
-            $"custody-{Guid.NewGuid():N}.eml",
-            "QDOS instruction\r\nClaimant Name: Custody Test\r\nClaim Number: CUS-001\r\nVehicle Registration: AB12 CDE");
+            $"custody-{fixtureId}.eml",
+            $"QDOS instruction\r\nClaimant Name: Custody Test {fixtureId}\r\nClaim Number: CUS-{fixtureId}");
         var identity = new IntakeSourceIdentity(
             IntakeSourceChannel.ManualUpload,
             $"custody-source:{Guid.NewGuid():N}");

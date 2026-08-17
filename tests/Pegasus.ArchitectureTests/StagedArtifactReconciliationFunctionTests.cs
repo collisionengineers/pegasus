@@ -73,12 +73,6 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
-        public Task<ReceivedIntake> ReceiveForProcessingAsync(
-            IntakeStagedReceipt receipt,
-            string operationKey,
-            CancellationToken cancellationToken) =>
-            throw UnexpectedCall();
-
         public Task<IntakeWorkItem?> ClaimDispatchAsync(
             DateTimeOffset nowUtc,
             TimeSpan leaseDuration,

@@ -129,13 +129,13 @@ public sealed class CaseWorkflowMigrationTests
             ('50000000-0000-0000-0000-000000000001', 'review.eml', 'message/rfc822', 1,
              'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'manual_upload',
              'workflow-migration-review', '2031-05-06T10:30:00+00:00', '2031-05-06T10:30:00+00:00',
-             'migration_test_reader', '1', 'migration_test_policy', 1, 'draft_ready', 'Ready for review',
+             'migration_test_reader', '1', 'migration_test_policy', 1, 'case_created', 'Ready for review',
              '{"version":1,"data":[]}', '{"version":1,"data":[]}', NULL, NULL,
              '{"version":1,"data":[]}'),
             ('50000000-0000-0000-0000-000000000002', 'not-ready.eml', 'message/rfc822', 1,
              'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'manual_upload',
              'workflow-migration-not-ready', '2031-05-06T10:31:00+00:00', '2031-05-06T10:31:00+00:00',
-             'migration_test_reader', '1', 'migration_test_policy', 1, 'draft_ready', 'Missing images',
+             'migration_test_reader', '1', 'migration_test_policy', 1, 'case_created', 'Missing images',
              '{"version":1,"data":[]}', '{"version":1,"data":[]}', NULL, NULL,
              '{"version":1,"data":[]}');
 
