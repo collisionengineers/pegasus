@@ -285,6 +285,133 @@ h3 { font-size: var(--t-h3); font-weight: 600; }
 .footer { background: var(--panel); border-top: var(--border); color: var(--muted); font-size: var(--t-xs); }
 .footer-inner { min-height: 40px; justify-content: flex-start; }
 
+/* ---------------------------------------------------------------------------
+   The operator rail.
+
+   The authenticated shell is a 236px left rail, not a top bar. The routes stay
+   in the settled order and the rail carries their outstanding counts, so the
+   operator sees where the work is without opening anything. The top bar above
+   is retained for the external upload screen, which is not a place in the
+   application and shows the company rather than the product.
+
+   The current route is a red left border AND a weight change, either of which
+   identifies it without hue, alongside aria-current="page". Red here is the
+   sanctioned active-navigation use, not decoration.
+   --------------------------------------------------------------------------- */
+
+.app-rail-shell {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.app-rail {
+  display: flex;
+  position: sticky;
+  top: 0;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: var(--border);
+  background: var(--panel);
+}
+
+.app-rail__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: var(--border);
+  color: var(--ink);
+  font-weight: 800;
+  letter-spacing: -.01em;
+  text-decoration: none;
+}
+
+.app-rail__brand img {
+  display: block;
+  width: 104px;
+  height: 30px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.app-rail__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-2);
+}
+
+.rail-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 36px;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid transparent;
+  color: var(--ink);
+  font-size: var(--t-body);
+  text-decoration: none;
+}
+
+.rail-link:hover { background: var(--paper); color: var(--ink); }
+
+.rail-link[aria-current="page"] {
+  border-left-color: var(--ce-red);
+  background: var(--ce-red-tint);
+  color: var(--ce-red);
+  font-weight: 700;
+}
+
+/* A count is a fact, not a badge: it never becomes the only way to read the
+   row, and the warm tone is reserved for a queue that is actually waiting. */
+.rail-link__count { color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.rail-link__count--waiting { color: var(--amber-fg); font-weight: 700; }
+
+.app-rail__user {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding: var(--sp-4) var(--sp-5);
+  border-top: var(--border);
+}
+
+.app-rail__user form { margin: 0; }
+
+.app-rail__name {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--t-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-rail__action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.app-rail__action--quiet { color: var(--muted); font-weight: 400; }
+
+.app-rail-main {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1280px;
+  padding: var(--sp-8) var(--sp-10) var(--sp-16);
+}
+
 .skip-link {
   position: fixed;
   z-index: 100;
@@ -903,6 +1030,17 @@ textarea:focus-visible,
   .user-menu { width: 100%; padding: var(--sp-3) 0 0; border-top: var(--border); border-left: 0; }
   .app-shell { padding: var(--sp-6) var(--sp-4) var(--sp-8); }
   .page-heading { align-items: flex-start; flex-direction: column; }
+
+  /* The rail lies down rather than hiding. Every route, count and control stays
+     reachable; the current-route rule moves to the bottom edge so the non-colour
+     signal survives the reflow. */
+  .app-rail-shell { grid-template-columns: minmax(0, 1fr); }
+  .app-rail { position: static; height: auto; border-right: 0; border-bottom: var(--border); }
+  .app-rail__nav { flex-direction: row; flex-wrap: wrap; }
+  .rail-link { border-bottom: 2px solid transparent; border-left: 0; }
+  .rail-link[aria-current="page"] { border-bottom-color: var(--ce-red); border-left-color: transparent; }
+  .app-rail__user { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--sp-4); margin-top: 0; }
+  .app-rail-main { padding: var(--sp-6) var(--sp-4) var(--sp-8); }
 }
 
 @media (max-width: 720px) {
