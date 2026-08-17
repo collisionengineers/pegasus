@@ -179,6 +179,35 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task SenderlessScannedDocumentRetainsOcrRequiredWithoutEstablishingQdos()
+    {
+        var readResult = Readable(
+            requiresOcr: true,
+            transportEvidence: [],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "uploaded scan, page 1",
+                    string.Empty)
+            ]);
+        var store = new RecordingStore();
+        var sut = CreateSut(new StubReader(readResult), store);
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(IntakeSourceChannel.ManualUpload, "senderless-scan")
+        };
+
+        var result = await sut.ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.OcrRequired, result.Decision);
+        Assert.Equal("ocr_required", result.FailureCode);
+        Assert.Null(result.MailRouteDecision);
+        Assert.Null(result.InstructionDraft);
+        Assert.Empty(result.Fields);
+    }
+
+    [Fact]
     public async Task IncompleteReaderResultRetainsCustodyWithoutConsultingExtractionPolicy()
     {
         var derivedAsset = new IntakeAssetCandidate(

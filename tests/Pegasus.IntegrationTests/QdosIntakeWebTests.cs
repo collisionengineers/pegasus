@@ -25,7 +25,8 @@ public sealed class QdosIntakeWebTests
         const string receiptToken = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
         var email = IntakeTestEvidence.CreateEmail(
             "ordinary-correspondence.eml",
-            "Please review this ordinary correspondence.");
+            "Please review this ordinary correspondence.",
+            "sender@example.test");
 
         var upload = await IntakeWebDriver.UploadAsync(
             client,

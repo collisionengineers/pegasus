@@ -345,6 +345,24 @@ public sealed class ProcessIntake(
         var principalContext = EstablishPrincipalContext(mailRouteDecision);
         if (principalContext is null)
         {
+            if (readResult.RequiresOcr)
+            {
+                return new(
+                    IntakeDecision.OcrRequired,
+                    "Readable content is insufficient to establish a principal and scanned PDF pages require OCR.",
+                    readerEvidence,
+                    [],
+                    null,
+                    [],
+                    "ocr_required",
+                    "The PDF appears to contain scanned pages without enough embedded text for review.",
+                    null,
+                    null,
+                    mailRouteDecision,
+                    mailClassificationDecision,
+                    caseMatchDecision);
+            }
+
             return new(
                 IntakeDecision.NeedsSorting,
                 "No accepted intake route established the principal for automatic case creation.",
