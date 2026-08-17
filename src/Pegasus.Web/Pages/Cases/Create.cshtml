@@ -4,6 +4,22 @@
 @using Pegasus.Core.Intake
 @{
     ViewData["Title"] = "New case";
+
+    var draft = Model.DraftFields.Draft;
+
+}
+
+@* Where a value came from, in one word, using the approved glyph for that word.
+   The row still reads without it: provenance is supplementary. *@
+@{
+    void Prov(string fieldName)
+    {
+        var word = Model.DraftFields.ProvenanceWord(fieldName);
+        var icon = word == "Extracted" ? "icon-file-text" : "icon-user";
+        <span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word">
+            <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
+        </span>
+    }
 }
 @*
     The second half of one operator action: a file was dropped on Upload, it
@@ -12,13 +28,17 @@
     in the interface — and no identifier, hash or version is printed as text.
 *@
 
+@* The heading names the file this case is being made from. "New case" was the
+   eyebrow, the H1 and the start of the lede — three lines saying it once. *@
+<div class="form-column form-column--wide">
 <header class="page-heading">
     <div>
         <p class="eyebrow">New case</p>
-        <h1>New case</h1>
-        <p class="lede">From @Model.Receipt.SourceFileName</p>
+        <h1>From @Model.Receipt.SourceFileName</h1>
     </div>
-    <a class="secondary-action" asp-page="/Upload">Upload another</a>
+    <div class="page-heading-actions">
+        <a class="secondary-action" asp-page="/Upload">Upload another</a>
+    </div>
 </header>
 
 @if (Model.RefusalMessage is { } refusal)
@@ -31,6 +51,11 @@
 }
 else
 {
+    <p class="status-card status-card--done" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+        <span>File read — confirm the extracted values below.</span>
+    </p>
+
     <form method="post" asp-page-handler="Create">
         <input asp-for="ReceiptId" type="hidden" />
         <input asp-for="OperationId" type="hidden" />
@@ -38,22 +63,113 @@ else
         <input asp-for="AddressSuggestionFingerprint" type="hidden" />
         <div asp-validation-summary="All" class="validation-summary"></div>
 
-        <section class="panel form-panel section-gap" aria-labelledby="details-title">
+        @* Read first, edit on demand. Eleven boxes asked the operator to check
+           every one; the rows state what was read, and the fields open only
+           when something is wrong. The inputs still post either way, so
+           nothing depends on the disclosure being open. *@
+        <section class="panel section-gap" aria-labelledby="details-title">
             <h2 id="details-title" class="section-label">Details</h2>
-            <p>What was read from the file, for you to confirm or change. Every value is retained with who put it there.</p>
-            <partial name="_InstructionDraftFields" model="Model.DraftFields" />
+            <div>
+                <div class="datarow">
+                    <span class="datarow__field">Claimant</span>
+                    @if (draft?.ClaimantName is { Length: > 0 } claimantName)
+                    {
+                        <span class="datarow__value">@claimantName</span>
+                    }
+                    else
+                    {
+                        <span class="datarow__value quiet">Not recorded</span>
+                    }
+                    <span class="datarow__end">@{ Prov("Claimant name"); }</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Claim number</span>
+                    @if (draft?.ClaimNumber is { Length: > 0 } claimNumber)
+                    {
+                        <span class="datarow__value">@claimNumber</span>
+                    }
+                    else
+                    {
+                        <span class="datarow__value quiet">Not recorded</span>
+                    }
+                    <span class="datarow__end">@{ Prov("Claim number"); }</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Registration</span>
+                    @if (draft?.VehicleRegistration is { Length: > 0 } registration)
+                    {
+                        <span class="datarow__value">@registration</span>
+                    }
+                    else
+                    {
+                        <span class="datarow__value quiet">Not recorded</span>
+                    }
+                    <span class="datarow__end">@{ Prov("Vehicle registration"); }</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Vehicle</span>
+                    @{
+                        var vehicle = string.Join(
+                            " ",
+                            new[] { draft?.VehicleMake, draft?.VehicleModel }
+                                .Where(part => !string.IsNullOrWhiteSpace(part)));
+                    }
+                    @if (vehicle.Length > 0)
+                    {
+                        <span class="datarow__value">@vehicle</span>
+                    }
+                    else
+                    {
+                        <span class="datarow__value quiet">Not recorded</span>
+                    }
+                    <span class="datarow__end">@{ Prov("Vehicle make"); }</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Incident date</span>
+                    @if (draft?.DateOfIncident is { } incidentDate)
+                    {
+                        <span class="datarow__value">@incidentDate.ToString("d MMM yyyy")</span>
+                    }
+                    else
+                    {
+                        <span class="datarow__value quiet">Not recorded</span>
+                    }
+                    <span class="datarow__end">@{ Prov("Date of incident"); }</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Instruction date</span>
+                    @if (draft?.InstructionDate is { } instructionDate)
+                    {
+                        <span class="datarow__value">@instructionDate.ToString("d MMM yyyy")</span>
+                    }
+                    else
+                    {
+                        <span class="datarow__value quiet">Not recorded</span>
+                    }
+                    <span class="datarow__end">@{ Prov("Instruction date"); }</span>
+                </div>
+            </div>
+            <details class="draft-edit">
+                <summary class="btn">Change a value</summary>
+                <p>Every value is retained with who put it there.</p>
+                <partial name="_InstructionDraftFields" model="Model.DraftFields" />
+            </details>
         </section>
 
-        <section class="panel form-panel section-gap" aria-labelledby="address-title">
+        <section class="panel section-gap" aria-labelledby="address-title">
             <h2 id="address-title" class="section-label">Inspection address</h2>
             @if (Model.ProviderIsImageBased)
             {
-                <p>
-                    This work provider uses Image Based Assessment. The inspection address is recorded
-                    as &ldquo;Image Based Assessment&rdquo; when the case is created, even if the
-                    instruction mentions a physical location. A physical address can still be recorded
-                    on the case afterwards with a reason.
-                </p>
+                @* A rule that will override whatever the instruction says, so
+                   it is a notice rather than a paragraph. *@
+                <aside class="notice">
+                    <p>
+                        This work provider uses Image Based Assessment: the inspection address is
+                        recorded as &ldquo;Image Based Assessment&rdquo; even if the instruction
+                        mentions a physical location. A physical address can be recorded on the
+                        case afterwards, with a reason.
+                    </p>
+                </aside>
             }
             else if (Model.AddressAlreadySettled)
             {
@@ -118,46 +234,63 @@ else
             }
         </section>
 
-        <section class="panel form-panel section-gap" aria-labelledby="case-title">
+        @* Completeness was its own panel, which read as a separate decision. It
+           is part of describing the case being created, so it sits with it. *@
+        <section class="panel section-gap" aria-labelledby="case-title">
             <h2 id="case-title" class="section-label">Case</h2>
-            <label asp-for="PrincipalCode">Confirmed principal code</label>
-            <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" />
-            <span asp-validation-for="PrincipalCode" class="field-validation"></span>
+            <div class="form-grid">
+                <div>
+                    <label asp-for="PrincipalCode">Confirmed principal code</label>
+                    <input asp-for="PrincipalCode" maxlength="20" autocomplete="off" aria-describedby="principal-code-hint" />
+                    <small id="principal-code-hint" class="field-hint">The organisation this instruction is for.</small>
+                    <span asp-validation-for="PrincipalCode" class="field-validation"></span>
+                </div>
+                <div>
+                    <label asp-for="CaseType">Case type</label>
+                    <select asp-for="CaseType" data-case-type-selector>
+                        <option value="@CaseType.Inspection">Inspection</option>
+                        <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
+                    </select>
+                    <span asp-validation-for="CaseType" class="field-validation"></span>
+                </div>
+            </div>
 
-            <label asp-for="CaseType">Case type</label>
-            <select asp-for="CaseType" data-case-type-selector>
-                <option value="@CaseType.Inspection">Inspection</option>
-                <option value="@CaseType.InspectionAndAudit">Inspection and Audit</option>
-            </select>
-            <span asp-validation-for="CaseType" class="field-validation"></span>
+            <fieldset class="role-choices role-choices--stacked section-gap">
+                <legend>Evidence completeness</legend>
+                <label class="choice">
+                    <input asp-for="InstructionComplete" />
+                    <span>Instruction evidence is complete</span>
+                </label>
+                <label class="choice">
+                    <input asp-for="InstructionConfirmedByStaff" />
+                    <span>I have confirmed the instruction evidence</span>
+                </label>
+                <label class="choice">
+                    <input asp-for="ImagesComplete" />
+                    <span>Image evidence is complete</span>
+                </label>
+                <label class="choice">
+                    <input asp-for="ImagesConfirmedByStaff" />
+                    <span>I have confirmed the image evidence</span>
+                </label>
+            </fieldset>
         </section>
 
-        <section class="panel form-panel section-gap" aria-labelledby="completeness-title">
-            <h2 id="completeness-title" class="section-label">Evidence completeness</h2>
-            <label>
-                <input asp-for="InstructionComplete" />
-                Instruction evidence is complete
-            </label>
-            <label>
-                <input asp-for="InstructionConfirmedByStaff" />
-                I have confirmed the instruction evidence
-            </label>
-            <label>
-                <input asp-for="ImagesComplete" />
-                Image evidence is complete
-            </label>
-            <label>
-                <input asp-for="ImagesConfirmedByStaff" />
-                I have confirmed the image evidence
-            </label>
-        </section>
-
-        <section class="panel form-panel section-gap" aria-labelledby="reason-title">
+        <section class="panel section-gap" aria-labelledby="reason-title">
             <h2 id="reason-title" class="section-label">Reason</h2>
-            <label asp-for="Reason">Why this case is being created</label>
-            <textarea asp-for="Reason" maxlength="500" rows="3" required></textarea>
-            <span asp-validation-for="Reason" class="field-validation"></span>
-            <button type="submit" class="primary-action">Create case</button>
+            <div class="form-grid">
+                <div class="field-wide">
+                    <label asp-for="Reason">Why this case is being created</label>
+                    <textarea asp-for="Reason" maxlength="500" rows="3" required></textarea>
+                    <span asp-validation-for="Reason" class="field-validation"></span>
+                </div>
+            </div>
+            @* One committed action, and the way out beside it. *@
+            <div class="button-row section-gap">
+                <button type="submit" class="primary-action">Create case</button>
+                <a class="secondary-action" asp-page="/Upload">Cancel</a>
+            </div>
         </section>
     </form>
 }
+</div>
