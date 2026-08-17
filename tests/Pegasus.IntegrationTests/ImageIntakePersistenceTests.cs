@@ -132,7 +132,8 @@ public sealed class ImageIntakePersistenceTests
         using var client = IntakeWebDriver.CreateClient(factory);
         var email = IntakeTestEvidence.CreateEmail(
             "loose-notes.eml",
-            "Please review this ordinary correspondence; no instruction, no image.");
+            "Please review this ordinary correspondence; no instruction, no image.",
+            "sender@example.test");
         var upload = await IntakeWebDriver.UploadAndProcessAsync(
             factory,
             client,

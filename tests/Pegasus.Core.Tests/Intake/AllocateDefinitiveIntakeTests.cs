@@ -99,6 +99,44 @@ public sealed class AllocateDefinitiveIntakeTests
         Assert.Null(store.Current);
     }
 
+    [Fact]
+    public async Task AutomaticAllocationRejectsMissingAcceptedRoute()
+    {
+        var receipt = Receipt(CaseType.Inspection, "QDOS") with
+        {
+            MailRouteDecision = null
+        };
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            new RecordingAllocationStore(),
+            new RecordingAcceptance(),
+            TimeProvider.System);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid()));
+
+        Assert.Contains("accepted principal route", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AutomaticAllocationRejectsRouteDraftPrincipalMismatch()
+    {
+        var receipt = Receipt(CaseType.Inspection, "QDOS") with
+        {
+            InstructionDraft = new("OTHER", null, null, null, null, null, null, null, null, null, null)
+        };
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt),
+            new RecordingAllocationStore(),
+            new RecordingAcceptance(),
+            TimeProvider.System);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid()));
+
+        Assert.Contains("does not match", error.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static IntakeReceipt Receipt(CaseType caseType, string principalCode) => new(
         Guid.NewGuid(),
         "retained-instruction.pdf",
@@ -121,6 +159,16 @@ public sealed class AllocateDefinitiveIntakeTests
         "1",
         "test-policy",
         1,
+        MailRouteDecision: new(
+            MailRouteDisposition.Accepted,
+            new(principalCode, MailRouteKind.DirectProvider, principalCode),
+            [],
+            "Accepted test route.",
+            "test-route",
+            1,
+            [new($"instructions@{principalCode.ToLowerInvariant()}.example", "outer message")],
+            [],
+            new($"instructions@{principalCode.ToLowerInvariant()}.example", "outer message")),
         MailClassificationDecision: MailClassificationResult.Classified(
             MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
             [],

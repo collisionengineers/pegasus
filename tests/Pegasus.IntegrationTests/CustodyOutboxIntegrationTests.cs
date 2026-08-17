@@ -1035,7 +1035,9 @@ public sealed class CustodyOutboxIntegrationTests
         var source = CreateSource();
         var receipt = await services.GetRequiredService<ProcessIntake>()
             .ExecuteAsync(source.Source, CancellationToken.None);
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.True(
+            receipt.Decision == IntakeDecision.CaseCreated,
+            $"decision={receipt.Decision}; reason={receipt.DecisionReason}; route={receipt.MailRouteDecision?.Disposition}/{receipt.MailRouteDecision?.SelectedRoute?.WorkProviderCode}; sender={receipt.MailRouteDecision?.EffectiveSender?.Address}");
         var outcome = await AcceptAsync(services, receipt.Id);
         return new(
             outcome.Identity.CaseId,
@@ -1116,9 +1118,10 @@ public sealed class CustodyOutboxIntegrationTests
 
     private static SourceFixture CreateSource()
     {
+        var fixtureId = Guid.NewGuid().ToString("N");
         var email = IntakeTestEvidence.CreateEmail(
-            $"custody-{Guid.NewGuid():N}.eml",
-            "QDOS instruction\r\nClaimant Name: Custody Test\r\nClaim Number: CUS-001\r\nVehicle Registration: AB12 CDE");
+            $"custody-{fixtureId}.eml",
+            $"QDOS instruction\r\nClaimant Name: Custody Test {fixtureId}\r\nClaim Number: CUS-{fixtureId}");
         var identity = new IntakeSourceIdentity(
             IntakeSourceChannel.ManualUpload,
             $"custody-source:{Guid.NewGuid():N}");

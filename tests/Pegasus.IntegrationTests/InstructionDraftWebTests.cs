@@ -239,7 +239,7 @@ public sealed class InstructionDraftWebTests
             Date = new DateTimeOffset(2031, 3, 5, 10, 30, 0, TimeSpan.Zero),
             Body = new TextPart("plain") { Text = body }
         };
-        message.From.Add(new MailboxAddress("Protocol sender", "protocol-sender@example.invalid"));
+        message.From.Add(new MailboxAddress("QDOS protocol sender", "instructions@qdosassist.co.uk"));
         message.To.Add(new MailboxAddress("Intake", "intake@example.invalid"));
         using var stream = new MemoryStream();
         message.WriteTo(stream);
