@@ -1,5 +1,5 @@
-using System.Diagnostics;
 using System.Data.Common;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -92,6 +92,26 @@ public sealed record QueuedIntakeStatus(
     Guid? CaseId,
     string? FailureCode);
 
+public static class QueuedIntakeStatusKinds
+{
+    /// <summary>
+    /// The staff-facing state of a work item. Everything before a lease is
+    /// held reads as Received: staff are told the file is safe and waiting,
+    /// not which internal queue step it is on.
+    /// </summary>
+    public static QueuedIntakeStatusKind FromWorkState(IntakeWorkState state) => state switch
+    {
+        IntakeWorkState.Pending
+            or IntakeWorkState.Dispatching
+            or IntakeWorkState.Dispatched
+            or IntakeWorkState.RetryScheduled => QueuedIntakeStatusKind.Received,
+        IntakeWorkState.Processing => QueuedIntakeStatusKind.Processing,
+        IntakeWorkState.Completed => QueuedIntakeStatusKind.Complete,
+        IntakeWorkState.Failed => QueuedIntakeStatusKind.Failed,
+        _ => throw new InvalidOperationException($"Unknown IntakeWorkState value '{(int)state}'.")
+    };
+}
+
 public interface IQueuedIntakeStatusQueries
 {
     Task<QueuedIntakeStatus?> GetAsync(
@@ -99,13 +119,16 @@ public interface IQueuedIntakeStatusQueries
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// What one queued delivery did. An unexpected fault is not an outcome: it is
+/// persisted as a terminal failure and then rethrown to the host.
+/// </summary>
 public enum QueuedIntakeProcessingOutcome
 {
     NoOp = 0,
     Completed = 1,
     RetryScheduled = 2,
-    Failed = 3,
-    UnexpectedFailed = 4
+    Failed = 3
 }
 
 public sealed record IntakeEvaluationRevision(
@@ -216,16 +239,10 @@ public sealed class ReceiveIntake(
     private const int MaximumExternalReceiptTokenLength = 200;
     private const int MaximumOperationKeyLength = 100;
 
-    public Task<ReceivedIntake> ExecuteAsync(
+    public async Task<ReceivedIntake> ExecuteAsync(
         IntakeSource source,
         string operationKey,
-        CancellationToken cancellationToken = default) =>
-        ReceiveCoreAsync(source, operationKey, cancellationToken);
-
-    private async Task<ReceivedIntake> ReceiveCoreAsync(
-        IntakeSource source,
-        string operationKey,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(source.SourceIdentity);
@@ -493,14 +510,9 @@ public sealed class ProcessQueuedIntake(
                 timeProvider.GetUtcNow(),
                 cancellationToken);
         }
-        catch (IntakeArtifactIntegrityException exception)
+        catch (Exception exception) when (TerminalInputFailureCode(exception) is { } failureCode)
         {
-            await FailProcessingAsync(workItem, exception, terminal: true, cancellationToken);
-            return QueuedIntakeProcessingOutcome.Failed;
-        }
-        catch (InvalidDataException exception)
-        {
-            await FailProcessingAsync(workItem, exception, terminal: true, cancellationToken);
+            await FailProcessingAsync(workItem, terminal: true, failureCode, cancellationToken);
             return QueuedIntakeProcessingOutcome.Failed;
         }
         catch (Exception exception) when (IsTransientProcessingFailure(exception))
@@ -508,22 +520,25 @@ public sealed class ProcessQueuedIntake(
             var terminal = workItem.AttemptCount >= RetryDelays.Length;
             await FailProcessingAsync(
                 workItem,
-                exception,
                 terminal,
+                TransientFailureCode(exception),
                 cancellationToken);
             return terminal
                 ? QueuedIntakeProcessingOutcome.Failed
                 : QueuedIntakeProcessingOutcome.RetryScheduled;
         }
-        catch (Exception exception) when (exception is not OperationCanceledException)
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            // Anything else is a defect, not a condition to retry. The item is
+            // failed durably so staff see it, then the fault goes to the host
+            // unchanged: it is logged there in full, and the redelivery that
+            // follows finds the work failed and does nothing.
             await FailProcessingAsync(
                 workItem,
-                exception,
                 terminal: true,
-                cancellationToken,
-                "unexpected_intake_processing_failure");
-            return QueuedIntakeProcessingOutcome.UnexpectedFailed;
+                "unexpected_intake_processing_failure",
+                cancellationToken);
+            throw;
         }
 
         await TryDeleteCompletedStagingAsync(
@@ -670,10 +685,9 @@ public sealed class ProcessQueuedIntake(
 
     private async Task FailProcessingAsync(
         IntakeWorkItem workItem,
-        Exception exception,
         bool terminal,
-        CancellationToken cancellationToken,
-        string? failureCode = null)
+        string failureCode,
+        CancellationToken cancellationToken)
     {
         var nowUtc = timeProvider.GetUtcNow();
         var dueAtUtc = terminal
@@ -684,22 +698,44 @@ public sealed class ProcessQueuedIntake(
             workItem.LeaseToken
                 ?? throw new InvalidOperationException("A claimed intake work item must have a lease token."),
             dueAtUtc,
-            failureCode ?? FailureCode(exception),
+            failureCode,
             terminal,
             cancellationToken);
     }
 
-    private static bool IsTransientProcessingFailure(Exception exception) => exception switch
+    /// <summary>
+    /// The failure code for a fault that says the input itself is wrong, or
+    /// null when the fault is not one of those. Retrying cannot change these,
+    /// so they fail on the first attempt under their own code.
+    /// </summary>
+    private static string? TerminalInputFailureCode(Exception exception) => exception switch
     {
-        IntakeArtifactRetentionException => true,
-        IntakeOperationConflictException => true,
-        IntakeVersionConflictException => true,
-        IntakeDependencyUnavailableException => true,
-        IOException => true,
-        TimeoutException => true,
-        DbException => true,
-        _ => false
+        IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
+        InvalidDataException => "invalid_intake_data",
+        IntakeSourceIdentityConflictException => "source_identity_conflict",
+        _ => null
     };
+
+    /// <summary>
+    /// Faults worth the bounded retry schedule: the named intake conflicts, the
+    /// dependency-unavailable fault adapters translate to, and raw I/O, timeout
+    /// and database faults, including any of those wrapped by another
+    /// exception, which is how EF surfaces a deadlock or dropped connection.
+    /// </summary>
+    private static bool IsTransientProcessingFailure(Exception exception) =>
+        exception is IntakeArtifactRetentionException
+            or IntakeOperationConflictException
+            or IntakeVersionConflictException
+            or IntakeDependencyUnavailableException
+            or IOException
+            or TimeoutException
+            or DbException
+        || (exception.InnerException is { } inner && IsTransientProcessingFailure(inner));
+
+    private static string TransientFailureCode(Exception exception) =>
+        exception is IntakeArtifactRetentionException
+            ? "artifact_retention_failure"
+            : "intake_processing_failure";
 
     private async Task CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
@@ -733,15 +769,6 @@ public sealed class ProcessQueuedIntake(
                 $"triage-from-intake-evaluation:{evaluation.Id:N}"),
             cancellationToken);
     }
-
-    private static string FailureCode(Exception exception) => exception switch
-    {
-        IntakeArtifactIntegrityException => "staged_artifact_integrity_failure",
-        InvalidDataException => "invalid_intake_data",
-        IntakeArtifactRetentionException => "artifact_retention_failure",
-        IntakeSourceIdentityConflictException => "source_identity_conflict",
-        _ => "intake_processing_failure"
-    };
 }
 
 public sealed class ReconcilePoisonedIntakeWork(

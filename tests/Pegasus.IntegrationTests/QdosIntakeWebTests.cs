@@ -51,7 +51,7 @@ public sealed class QdosIntakeWebTests
         using var statusPage = await client.GetAsync(upload.Location);
         statusPage.EnsureSuccessStatusCode();
         var html = await statusPage.Content.ReadAsStringAsync();
-        Assert.Contains("Received", html, StringComparison.Ordinal);
+        Assert.Contains("<h1>Received</h1>", html, StringComparison.Ordinal);
         Assert.Contains("ordinary-correspondence.eml", html, StringComparison.Ordinal);
         Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
 

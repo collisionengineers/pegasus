@@ -155,9 +155,11 @@ public sealed class EfIntakeWorkStore(
                     receipt.SourceHash);
             }
 
-            _ = existing.WorkItem
-                ?? throw new InvalidDataException(
+            if (existing.WorkItem is null)
+            {
+                throw new InvalidDataException(
                     "The staged intake receipt does not have a durable work item.");
+            }
 
             return new(existing.Id, true);
         }
@@ -710,7 +712,7 @@ public sealed class EfIntakeWorkStore(
         _ => throw new InvalidOperationException($"Unknown IntakeWorkState value '{(int)value}'.")
     };
 
-    private static IntakeWorkState ParseState(string value) => value switch
+    internal static IntakeWorkState ParseState(string value) => value switch
     {
         "pending" => IntakeWorkState.Pending,
         "dispatching" => IntakeWorkState.Dispatching,

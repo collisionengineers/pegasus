@@ -21,11 +21,6 @@
     <a class="secondary-action" asp-page="/Upload">Upload another</a>
 </header>
 
-@if (Model.UploadOutcomeMessage is { } uploadOutcome)
-{
-    <div class="status-card status-card--done" role="status">@uploadOutcome</div>
-}
-
 @if (Model.RefusalMessage is { } refusal)
 {
     <section class="panel section-gap" aria-labelledby="refusal-title">

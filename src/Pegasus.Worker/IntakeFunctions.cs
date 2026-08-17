@@ -27,12 +27,10 @@ public sealed partial class PendingWorkDispatchFunction(
         int externalWorkCount);
 }
 
-public sealed partial class IntakeWorkFunction(
-    ProcessQueuedIntake processQueuedIntake,
-    ILogger<IntakeWorkFunction> logger)
+public sealed class IntakeWorkFunction(ProcessQueuedIntake processQueuedIntake)
 {
     [Function(nameof(IntakeWorkFunction))]
-    public async Task RunAsync(
+    public Task RunAsync(
         [QueueTrigger("intake-work", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
@@ -42,18 +40,8 @@ public sealed partial class IntakeWorkFunction(
                 "The intake work message does not contain one canonical staged receipt identifier.");
         }
 
-        var outcome = await processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
-        if (outcome == QueuedIntakeProcessingOutcome.UnexpectedFailed)
-        {
-            LogUnexpectedFailure(logger, stagedReceiptId);
-        }
+        return processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
     }
-
-    [LoggerMessage(
-        EventId = 1510,
-        Level = LogLevel.Error,
-        Message = "Queued intake {StagedReceiptId} failed because of an unexpected processing fault.")]
-    private static partial void LogUnexpectedFailure(ILogger logger, Guid stagedReceiptId);
 }
 
 public sealed class IntakePoisonFunction(ReconcilePoisonedQueueWork reconcilePoisonedQueueWork)

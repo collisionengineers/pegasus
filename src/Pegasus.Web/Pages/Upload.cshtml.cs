@@ -111,13 +111,13 @@ public sealed partial class UploadModel(
                 $"manual-upload:{ExternalReceiptToken}",
                 cancellationToken);
 
-            if (result.IsDuplicate)
-            {
-                TempData["DuplicateUpload"] = true;
-            }
             return RedirectToPage(
                 "/UploadStatus",
-                new { id = result.StagedReceiptId });
+                new
+                {
+                    id = result.StagedReceiptId,
+                    duplicate = result.IsDuplicate ? "true" : null
+                });
         }
         catch (IntakeSourceIdentityConflictException)
         {
