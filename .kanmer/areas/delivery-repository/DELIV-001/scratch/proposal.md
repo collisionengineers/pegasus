@@ -127,3 +127,64 @@ run, not defended.
 - `kanmer-review`: check the plan's "Simplification pass" heading exists and its dispositions are honest.
 
 These are Kanmer-owned files (`.claude/skills/kanmer-*`, managed by `kanmer-setup`); the repository cannot edit them durably, so AGENTS.md carries the requirement and the skills are expected to honour it.
+
+---
+
+## Addendum (2026-08-17) — guidance carried over from the `/simplify` skill and the `code-simplifier` agent that the first draft omitted
+
+Provenance so the reader can see what came from where: **[skill]** = `/simplify` instructions; **[agent]** = `code-simplifier` prompt/frontmatter.
+
+### A′. Two more bullets for the AGENTS.md "Simplicity rails" section
+
+```markdown
+- **Simplify without over-correcting.** [agent] Clarity beats brevity: an
+  explicit `if`/`switch` beats a nested ternary or a dense one-liner; a helpful
+  abstraction stays; separate concerns stay separate; fewer lines is not the
+  goal. A "simplification" that makes code harder to read, debug, or extend is
+  rejected in the same pass that proposed it.
+- **The pass is quality, not correctness.** [skill] Reuse, simplification,
+  efficiency and altitude findings are behaviour-preserving by definition;
+  anything that would change intended behaviour, needs changes well outside
+  the diff, or looks like a bug is *noted*, not applied — bugs go to review
+  (`/code-review`), scope goes to a ticket, and a false positive is named as
+  one rather than argued.
+```
+
+### E′. Additions to `docs/engineering.md#simplicity`
+
+```markdown
+### Skip rules [skill]
+
+A finding is skipped, and the skip recorded, when its fix would (a) change
+intended behaviour, (b) require changes well outside the reviewed diff, or
+(c) is a false positive on inspection. Skips are dispositions like any other:
+"skipped — behaviour change, see INTK-00x" beats silence.
+
+### Balance [agent]
+
+Never trade clarity for compactness. Prefer explicit code; avoid nested
+ternaries and clever one-liners; keep abstractions that improve organisation;
+do not combine unrelated concerns into one function or component; do not
+remove a name, a type, or a step that a reader relies on. Comments that narrate
+what the code visibly does are removed; comments that carry a reason stay.
+Only significant refinements — ones that change how a reader understands the
+code — are called out in the report; the rest is just the diff.
+
+### Efficiency smells worth naming [skill]
+
+Repeated I/O or computation the diff introduces; independent operations run
+sequentially that could be one query or one round-trip; blocking work added to
+startup or a hot path; long-lived objects built from closures or captured
+environments, which keep the whole enclosing scope alive — prefer a class or
+record that copies only the fields it needs.
+
+### Scope and timing [agent]
+
+The pass runs over the code the branch changed and its immediate surroundings,
+proactively — right after the code is written and before the PR opens — not
+over the whole repository and not as a later review stage.
+```
+
+### F′. Skill-side note
+
+`kanmer-execute` should invoke `/simplify` (which already spawns the four lenses) plus the `code-simplifier` agent in **report-only mode**, dedupe, then apply — the two overlap on simplification but the agent's balance guardrails and comment discipline are what stop the four lenses from over-correcting.
