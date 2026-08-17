@@ -2,6 +2,7 @@
 @model Pegasus.Web.Pages.Cases.Assessment.IndexModel
 @using Pegasus.Core.AiWork
 @using Pegasus.Core.Assessment
+@using Pegasus.Web.Presentation
 @*
     Engineers assessment screen.
 
@@ -17,8 +18,6 @@
 *@
 @{
     ViewData["Title"] = "Assessment";
-    ViewData["Eyebrow"] = "Case";
-    ViewData["Lede"] = "Record the engineering assessment and the content the report is written from.";
 
     var caseId = ViewContext.RouteData.Values["id"]?.ToString() ?? string.Empty;
     var assessmentUrl = $"/Cases/{caseId}/Assessment";
@@ -50,7 +49,77 @@
     <span>Back to the case</span>
 </a>
 
-<partial name="Shared/_PageHeader" />
+@*
+    A screen about one record is one record container: the dark identity band,
+    then the actions valid now, then the sections. The identity used to be a
+    definition list in a panel, which read as one more block of content rather
+    than as the case being worked.
+*@
+@{
+    var caseStage = OperatorLabels.CaseStage(Model.Case!.Summary.State);
+}
+<article class="record" data-state="review">
+    <header class="record__head">
+        <h1>@Model.Case.Summary.Reference</h1>
+        <span class="record__identity">
+            <span><b>@Model.Case.Summary.Principal</b></span>
+            <span>@(Model.Case.Summary.Registration ?? "No registration")</span>
+            <span>@OperatorLabels.CaseTypeName(Model.Case.Summary.CaseType)</span>
+            @if (Model.Case.Workflow.DueWork?.DueBy is { } dueBy)
+            {
+                <span>Report due @dueBy.ToString("d MMM yyyy")</span>
+            }
+        </span>
+        <span class="record__head-end">
+            <partial name="Shared/_StatusChip" model="@caseStage" />
+        </span>
+    </header>
+    <div class="record__accent"></div>
+
+    @*
+        The estimating-service links and assessment import stay visible and
+        state their condition rather than vanishing: the work is real and will
+        become available, so removing the control would say something false.
+        EXT-12 (Audatex/PDF ingestion) and EXT-13 (independently licensed
+        valuation-source adapters) are both allocated Later / 1.0.0 in
+        docs/capabilities.md and each needs its own accepted contract, so
+        nothing here is wired to a handler.
+    *@
+    <div class="record__bar">
+        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Open in Glass's
+            </a>
+        </span>
+        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Open in Audatex
+            </a>
+        </span>
+        <span class="gated" data-condition="Available once assessment import is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                Import assessment
+            </a>
+        </span>
+        <span class="record__bar-end">
+            <span class="record__bar-rule" aria-hidden="true"></span>
+            <a class="btn btn--dark" href="/Cases/@caseId">Back to the case</a>
+        </span>
+    </div>
+
+    <nav class="section-tabs" aria-label="Assessment sections">
+        @* `tab`, not `section`: `@section` is the Razor section directive. *@
+        @foreach (var tab in sections)
+        {
+            <a href="@assessmentUrl?section=@tab.Key"
+               aria-current="@(tab.Key == current ? "page" : null)">@tab.Label</a>
+        }
+    </nav>
+
+    <div class="record__body">
 
 @if (TempData["AssessmentStatus"] is string assessmentStatus)
 {
@@ -60,63 +129,6 @@
 {
     <div role="status" class="status-card status-card--error">@assessmentError</div>
 }
-
-<section class="panel" aria-labelledby="case-identity-title">
-    <h2 id="case-identity-title" class="section-label">Case identity</h2>
-    <dl class="detail-list">
-        <div>
-            <dt>Case/PO</dt>
-            <dd>@Model.Case!.Summary.Reference</dd>
-        </div>
-        <div>
-            <dt>Principal</dt>
-            <dd>@Model.Case.Summary.Principal</dd>
-        </div>
-        <div>
-            <dt>Registration</dt>
-            <dd>
-                @if (Model.Case.Summary.Registration is { } registration)
-                {
-                    @registration
-                }
-                else
-                {
-                    <span aria-hidden="true">&#8212;</span><span class="vh">No value</span>
-                }
-            </dd>
-        </div>
-        <div>
-            <dt>Case type</dt>
-            <dd>@Model.Case.Summary.CaseType</dd>
-        </div>
-        <div>
-            <dt>Workflow state</dt>
-            <dd>@Model.Case.Summary.State</dd>
-        </div>
-        <div>
-            <dt>Due by</dt>
-            <dd>
-                @if (Model.Case.Workflow.DueWork?.DueBy is { } dueBy)
-                {
-                    <span class="tabular">@dueBy.ToString("yyyy-MM-dd")</span>
-                }
-                else
-                {
-                    <span aria-hidden="true">&#8212;</span><span class="vh">No value</span>
-                }
-            </dd>
-        </div>
-    </dl>
-</section>
-
-<nav class="section-tabs section-gap" aria-label="Assessment sections">
-    @* `tab`, not `section`: `@section` is the Razor section directive. *@
-    @foreach (var tab in sections)
-    {
-        <a href="@assessmentUrl?section=@tab.Key"
-           aria-current="@(tab.Key == current ? "page" : null)">@tab.Label</a>
-    }
-</nav>
 
 <div class="workbench-grid">
     <aside aria-label="Assessment readiness">
@@ -923,6 +935,9 @@
         }
     </div>
 </div>
+
+    </div>
+</article>
 
 <div id="send-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-body" hidden>
     <div class="reason-dialog">
