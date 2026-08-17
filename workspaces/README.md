@@ -8,8 +8,8 @@ units, or owners of Pegasus business policy.
 
 | Workspace | Role | Integration status | Activation conditions | Owner |
 | --- | --- | --- | --- | --- |
-| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI | **Potential integration — significant development, testing, and evaluation required** | Accepted Core adapter contract; migration/coexistence plan; representative parity, security, and licence evidence; real caller; rollback/recovery; operator acceptance | [Workspace owner](document-extraction/README.md) |
-| `report-renderer/` | Deterministic CollisionRenderer report-rendering source | **Planned integration — no Pegasus caller, deployment, or acceptance** | Accepted Core render contract; migration/coexistence plan; representative parity, security, and licence evidence; real caller; rollback/recovery; operator acceptance | [Workspace owner](report-renderer/README.md) |
+| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI | **Integration when a caller exists ([ADR-0025](../docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md)) — not a standalone package; significant development, testing, and evaluation required** | Accepted Core adapter contract; migration/coexistence plan; representative parity, security, and licence evidence; real caller; rollback/recovery; operator acceptance | [Workspace owner](document-extraction/README.md) |
+| `report-renderer/` | Deterministic CollisionRenderer report-rendering source | **Integration when a caller exists ([ADR-0025](../docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md)) — not a standalone package; no Pegasus caller, deployment, or acceptance yet** | Accepted Core render contract; migration/coexistence plan; representative parity, security, and licence evidence; real caller; rollback/recovery; operator acceptance | [Workspace owner](report-renderer/README.md) |
 
 ## Source provenance
 
