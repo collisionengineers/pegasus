@@ -2,12 +2,13 @@
 id: TICK-200
 type: ticket
 title: Reduce remaining GitHub Actions wall-clock time
-status: implementing
+status: review
 area: delivery-build-ci-documentation-governance
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-17T05:19:09.158Z'
+  review: '2026-08-17T05:25:08.863Z'
 taken_at: '2026-08-17T05:21:02.383Z'
 branch: task/reduce-actions-wall-clock
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/reduce-actions-wall-clock'
@@ -18,9 +19,14 @@ groups:
   - EPIC-001
 links: []
 docs_todo: true
+commits:
+  - 0ea9c0af
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/381'
+deployment: not-deployed
 archived: false
 created: '2026-08-12T15:08:04.974Z'
-updated: '2026-08-17T05:21:02.383Z'
+updated: '2026-08-17T05:25:08.863Z'
 ---
 
 ## What
