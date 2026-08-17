@@ -1,5 +1,7 @@
 # PRD NNNN: <product area>
 
+*The PRD. Not an FRD or ADR — this is **why** the product needs this, not what it does or how it was decided.*
+
 ## Problem
 Who has what problem, and why it matters now.
 

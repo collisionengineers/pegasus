@@ -1,35 +1,140 @@
 ---
 name: kanmer-setup
-description: Set up or upgrade Kanmer in a project — propose areas and stages, seed a starter backlog, migrate old boards, and install the Kanmer operating instructions into AGENTS.md. Use when the user asks to "set up kanmer", "onboard this project", "start using the board here", "upgrade kanmer", or when a project has no .kanmer folder yet and the user wants work tracked.
+description: Set up or reconcile Kanmer in a project — apply version steps, migrate an older board, refresh the AGENTS.md operating instructions, and ingest whatever the repo already records as work (GitHub issues, plan documents, or commit history). Re-run it after every Kanmer update. Use when the user asks to "set up kanmer", "onboard this project", "start using the board here", "upgrade kanmer", or when a project has no .kanmer folder yet and the user wants work tracked.
 ---
 
 # Setting up Kanmer in a project
 
-One skill, three modes — detect which one applies before touching anything.
+**Setup is reconciliation, not a first-time action** (ADR-0010). Every run brings
+reality into Kanmer and is safe to repeat — which is why "run setup after
+updating Kanmer" is the standing instruction, not a one-off.
 
-## Detect the mode
+There are no modes to detect. There is one loop, and each step is a no-op when
+there is nothing to do.
 
-Call `get_status` first (it never creates `.kanmer/`). When setup is performed
-through the GUI in a Git repository, its canonical board worktree is
-`.worktrees/kanmer` on the configured `kanmer-board` branch; MCP is already
-rooted there. Do not create, switch, or push that board branch from an agent.
+## 1. Orient
 
-- **greenfield** — `exists: false`, and `list_items include_archived: true`
-  returns nothing: a fresh project. Propose structure, seed a backlog.
-- **brownfield** — `exists: false` but the repo has real code/history: mine
-  the project for structure and a starter backlog, then proceed like
-  greenfield with better-informed proposals.
-- **upgrade** — `exists: true` with `format: 1`: the board predates the
-  current layout. Run the migration; don't seed anything.
+`get_status` (it never creates `.kanmer/`). Report what you found before
+changing anything: whether a board exists, its format, and its counts.
+`rootSource` on that answer says *how* the server found its root — `flag`, `env`,
+`cwd`, `cwd-worktree`, `ancestor`, `ancestor-worktree` or `init`. Read it: a
+board found by discovery is not necessarily the one the user meant.
 
-If `exists: true`, `format: 2` and items exist, this project is already set
-up — switch to the `kanmer-tickets` skill instead of seeding on top of real
-history. An archived-only board is a finished project, not a fresh one.
+In a Git repo set up through the GUI the board lives in its own worktree,
+`.worktrees/kanmer`, and MCP is already rooted there. Never create, switch or
+push that board branch yourself.
 
-## Greenfield (brief → docs → board)
+### If the server would not start at all
 
-A real product brief can imply a hundred tickets — so this flow is
-**docs-first**, and nothing is created until the user confirms a preview.
+A server started without `--root` in a repo that has **no board anywhere** now
+**fails to boot** rather than starting against an empty one (ADR-0012). You will
+see, on stderr or in the host's server log:
+
+```
+Error: no Kanmer board found. Tried:
+  …\proj\.kanmer
+  …\proj\.worktrees\*\.kanmer
+ Pass --root <board>, set KANMER_ROOT,
+ or pass --init to create one here.
+```
+
+That is the one thing setup cannot work around from inside a tool call — there
+is no session to call a tool in. **Onboarding a board-less repo therefore means
+re-registering the server with the `--init` opt-in** (or `KANMER_INIT=1`, or an
+explicit `--root <repo>`), then re-running setup. `--init` does not create
+anything by itself; it re-permits the lazy creation on the **first write**, which
+is what step 6's greenfield path relies on. Tell the user what to change and
+why — do not hand-create a `.kanmer/` folder to route around it, because a board
+built by hand is exactly the drift this skill exists to reconcile.
+
+A board found by discovery, or a root given by `--root`/`KANMER_ROOT`, needs no
+flag: the opt-in matters only when nothing was found.
+
+## 2. Apply version steps
+
+If the installed Kanmer is newer than the board was last reconciled against,
+apply whatever that version requires. This is the step that makes the run
+repeatable; without it, "setup" would be something you did once and then drifted
+away from.
+
+## 3. Migrate if the board predates the current format
+
+`migrate_board dry_run: true` first, always — show the preview (stage mapping,
+tickets with no matching stage, documents relocating, fields being dropped) and
+let the user decide. Then apply.
+
+Safe to call unconditionally: an already-current board reports nothing to do.
+
+## 4. Refresh the AGENTS.md operating instructions
+
+Run the script that owns the managed block (see below). It only ever rewrites
+between the markers, so this is idempotent and safe on a repo with its own
+`AGENTS.md` content.
+
+## 5. Ingest what the repo already records
+
+Something in the repo is already the record of intended work. Find it and put
+it on the board — **one source, in this order**, not all three. Mining commits
+on a repo that has issues just produces two tickets for the same work.
+
+### 5a. GitHub issues, if the repo uses them
+
+Each open issue becomes a ticket in the right area, its body carrying a
+`Source: <issue url>` line.
+
+Then GitHub stops being a source of truth, which means closing the issues. **That
+is a destructive action outside this repo, affecting other people.** Follow this
+exactly:
+
+1. **List** every issue that will be closed — number and title, all of them.
+2. **Wait** for explicit confirmation. Not an assumption, not "proceeding unless
+   you object".
+3. **Close** each with a comment: `migrated to Kanmer (<ID>)`.
+4. **Report** what was closed.
+
+There is no shortcut for a small number of issues.
+
+### 5b. Plan documents, if there are no issues
+
+Mine **per item, not per document**. A plan with twelve numbered items becomes
+twelve tickets, because the items are what reveal the board's areas and become
+the template for how future work is written.
+
+Work already finished becomes a ticket created **directly in Done** with
+`profile: "custom"` and an empty `requires` map. Creation is ungated, so this
+needs no exemption — and `custom` with no requirements is the only honest
+profile for work that finished before the board existed. Any other profile would
+leave it permanently owing documents nobody will ever write.
+
+Plan prose lands in the ticket's `plan/`; anything that reads as verification
+seeds `proof/`.
+
+**Preview before creating anything**: "N documents → M items → K tickets, in
+areas A/B/C". A plan directory can imply a hundred tickets, and the user should
+see that number before it exists.
+
+### 5c. Commit history, if there is neither
+
+Cluster by scope or tag and propose the clusters. Coarser and less reliable than
+the other two — say so, and expect to throw some away.
+
+### Idempotency is mandatory
+
+Before creating anything from any source, search for its marker
+(`search_items` for the `Source:` line, or the plan item's title). Already
+present → skip it and say you did.
+
+This is what makes the loop re-runnable. A setup that duplicates its own output
+on the second run is not reconciliation.
+
+## 6. A board with nothing to ingest: the greenfield interview
+
+A genuinely fresh project has no issues, no plans and no history to mine. Then,
+and only then, build the board from a brief.
+
+This is the path that needs the `--init` opt-in when the server was started
+without a root (see step 1): the board is created lazily by the first write, and
+without the opt-in the server will not have started.
 
 0. **Require a brief.** If the user hasn't given one, ask for a paragraph or two:
    what they're building and for whom. Don't invent a product; a fresh repo with
@@ -37,66 +142,36 @@ A real product brief can imply a hundred tickets — so this flow is
 1. **Annotate the brief → `docs/product/vision.md`** — the durable statement of
    what and why.
 2. **Split into governing docs** via `kanmer-docs`: each product span becomes a
-   **PRD** (`docs/prd/`), each PRD's behaviour a **FRD** (`docs/frd/`, with
-   acceptance criteria), each cross-cutting decision an **ADR** (`docs/adr/`).
-   Unresolved questions go to `docs/product/open-questions.md` — surfaced, not
-   guessed.
-3. **Materialise the `/docs/` tree** + `docs/contributing/doc-structure.md` (from
-   `kanmer-docs`'s `doc-structure` template).
-4. **Board setup — preview first.** Propose, in one message the user confirms:
-   - **Areas** (3–6) from the FRDs/ADRs, plus the 4 built-in areas (Bugs, PR
-     Review, UI, Documentation) with their default doc-sets; hex colours + 2–6
-     letter prefixes.
-   - **Stages** only if the 7 defaults (backlog → researching → planning →
-     implementing → review → verifying → done) don't fit — bias to keeping them
-     (the gates and stage contract assume them).
-   - **The backlog with counts** — "N PRDs → M FRDs → K tickets" — because a real
-     brief can yield 100+ tickets. Only after the user confirms: `add_column`
-     each area, then one `create_items` call — **one ticket per FRD acceptance-
-     criterion / ADR consequence**, each created with **`refs`** to the doc it
-     implements (so it satisfies the leave-Backlog gate; use `docs_todo` only
-     where a doc is still owed). Leave `status` unset (first stage).
-5. **Wire it up**: ensure `.worktrees/` is in `.gitignore`; install the operating
-   instructions (below); ask whether to keep the **PRD/FRD/ADR gate on** (the
-   default) or disable it for a repo that declines a `/docs/` tree. Finish with
-   `get_status` + report the doc → ticket link map.
+   **PRD**, each PRD's behaviour an **FRD** (with acceptance criteria), each
+   cross-cutting decision an **ADR**. Unresolved questions go to
+   `docs/product/open-questions.md` — surfaced, not guessed.
+3. **Materialise the `/docs/` tree** + `docs/contributing/doc-structure.md`.
+4. **Propose, then create.** In one message the user confirms:
+   - **Areas** (3–6) from the FRDs/ADRs, with hex colours and 2–6 letter
+     prefixes. Watch for prefix collisions.
+   - **Default profiles** per area — which documents that area's tickets will
+     owe. Stages are **fixed** in format 3 and are not up for discussion; the
+     profile is the thing that varies.
+   - **The backlog with counts** — "N PRDs → M FRDs → K tickets".
 
-## Brownfield
+   Only then: `add_column` each area, then one `create_items` call — one ticket
+   per FRD acceptance criterion / ADR consequence, each with `refs` to the doc it
+   implements (or `docs_todo` where a doc is still owed). Leave `status` unset.
 
-Same as greenfield, plus: mine the code for the starter backlog — TODO/FIXME
-comments, failing or skipped tests, README "known issues", half-finished
-directories. Propose the backlog to the user before bulk-creating; their
-repo, their priorities. Link related tickets as you create them
-(`links` at create time, `rel: "blocks"` where order genuinely matters).
+## 7. Report
 
-If the repo tracks work in GitHub issues, don't re-derive those from the
-code — that's the `kanmer-import` skill's job (it's idempotent and records
-source URLs); run it as part of seeding instead of duplicating its logic.
+What changed, what was skipped and why, and what is still owed — tickets with
+`docs_todo`, historical tickets that may want a real profile later, issues left
+open. Finish with `get_status`.
 
-## Upgrade
+If the board already existed and had real history, most steps will have been
+no-ops. Say that rather than nothing: "already current" is a useful answer.
 
-1. `get_status` confirms `format: 1`.
-2. Tell the user what migration does: tickets move into
-   `areas/<area>/<id>/` folders, legacy plans/research fold into the tickets
-   they relate to (as plan.md / research.md) or become tickets labelled
-   `legacy-plan`/`legacy-research` if nothing links them, areas get pinned id
-   prefixes, ids never change.
-3. The migration runs from the Kanmer app (it prompts on opening a v1 board) —
-   ask the user to click **Migrate to v2**. As an agent you can also drive it
-   with the **`migrate_board`** tool (`dry_run: true` first to preview — it also
-   backfills the 7-stage default). Either way it's additive and idempotent.
-4. **Don't let the new gates strand old tickets.** Set `docs_todo: true` on
-   existing tickets that have no governing-doc `refs` yet, so the leave-Backlog
-   gate doesn't retroactively block work already in flight. `kanmer-groom`
-   surfaces this doc-gate debt later. (Or, per §Greenfield step 5, the user can
-   disable the PRD/FRD/ADR gate entirely for a repo that declines `/docs/`.)
-5. Verify with `get_status` (`format: 2`, counts intact) and summarize what
-   moved. Then refresh the AGENTS.md block (below) — upgrade mode only ever
-   rewrites between the markers.
+Day-to-day ticket work is `kanmer-tickets` and the phase skills, not this one.
 
-## The AGENTS.md operating instructions (all three modes)
+## The AGENTS.md operating instructions (step 4)
 
-Every mode ends by making sure the target repo's `AGENTS.md` **begins** with
+Step 4 makes sure the target repo's `AGENTS.md` **begins** with
 this managed block — it's how any agent that opens the repo learns the board
 exists and how to behave on it:
 
@@ -104,17 +179,24 @@ exists and how to behave on it:
 <!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
 # Kanmer operating instructions
 
-This repo's work is tracked on a Kanmer board in `.kanmer/`.
+This repo's work is tracked on a Kanmer board in `.kanmer/`. In a Git repo set up
+through the GUI the board lives in its own worktree, `.worktrees/kanmer`, on the
+board branch, and MCP is already rooted there — never create, switch or push that
+branch yourself. Your own ticket worktree is a separate thing, recorded by
+`take_ticket`.
 
-- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket. `get_doc_gates` shows which documents each stage transition needs.
+- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
+- **Which documents a ticket needs depends on its profile, not on a fixed pipeline.** Call `get_doc_gates <id>` before every move. Not `board.yml` — requirements are injected at resolve time, so its `profiles:` block is not the effective set.
+- Stages: backlog → preparing → implementing → review → verifying → done. **A move crosses at most one gated boundary**, so walk the stages one at a time; a jump is refused even when every document exists.
+- **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
+- An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
+- Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
 - Work each ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage.
-- Stages: backlog → researching → planning → implementing → review → verifying → done — hard document gates guard the transitions.
-- Before a ticket leaves Backlog, link a governing doc (`link_doc` → a PRD/FRD/ADR in `/docs/`) or set `docs_todo`.
-- Doc pipeline: research.md + impact.md → plan.md → checklist.md → post-implementation-report.md; write proof.md on merged main before Done.
-- Add running notes with `append_scratch` (not `set_ticket_doc`) — scratch is the notepad and is never gated.
-- Review passes → the PR is merged → the ticket enters Verifying; write proof.md on merged main, move to Done, then close out (record commits/PRs/deployment).
+- Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
+- Proof is written on merged `main`, after review and the merge, not before.
 - Archive, don't delete. Reference other items with [[ID]] wiki-links.
-- Skills, one per phase: kanmer-tickets (manage), -docs, -research, -plan, -execute, -review, -verify, -closeout, -auto, -report, -groom, -import, -setup.
+- Skills run in this order: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. How far a ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
+- Each skill ends by naming what comes next — read that line before improvising a hand-off.
 <!-- kanmer:instructions:end -->
 ```
 
@@ -146,3 +228,10 @@ repo checked out), in which case the rules are:
   pointer to it.
 - If the markers are malformed (end before start, or only one present), stop
   and tell the user — never guess at a half-marked file.
+
+---
+
+**Hand off to `kanmer-tickets`** — the board now exists and the day-to-day work
+of filing and moving tickets is its job, with the phase skills driving each
+ticket from there. This skill is re-entrant, not one-time: run it again after
+every Kanmer update, and most steps will correctly do nothing.

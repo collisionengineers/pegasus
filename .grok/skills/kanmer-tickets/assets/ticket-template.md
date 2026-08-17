@@ -1,8 +1,15 @@
 # Ticket body template
 
+*The ticket body. Not a plan — this states the **problem and its shape**; how it will be solved belongs in the plan document.*
+
 Use this structure for `create_item` bodies with `type: "ticket"`. Keep
-sections that apply; drop ones that don't. Frontmatter fields (title, status,
-area, priority, labels, links) are tool parameters, not body content.
+sections that apply; drop ones that don'''t. Frontmatter fields (title, status,
+area, profile, groups, labels, links, refs) are tool parameters, not body
+content.
+
+Pick the `profile` deliberately — it is what decides how much evidence this
+ticket will owe. A two-line fix filed as a `feature` owes six documents nobody
+needs.
 
 ---
 

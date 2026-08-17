@@ -1,5 +1,7 @@
 # Research — <ticket id>: <topic>
 
+*The research. Not the files document — this is what you **learned**, not what you will **touch**.*
+
 ## Question
 
 What this research set out to answer, in one or two sentences.

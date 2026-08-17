@@ -23,5 +23,6 @@ docs/
   (default `docs/prd/**`, `docs/frd/**`, `docs/adr/**`).
 
 ## Per-ticket pipeline docs (not here)
-research / impact / open-questions / plan / checklist / post-implementation-report
+research / files / open-questions / plan / checklist / post-implementation-report
 / proof live *inside* each ticket's folder under `.kanmer/`, not in `/docs/`.
+Which of them a ticket owes depends on its profile — ask `get_doc_gates`.

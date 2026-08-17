@@ -1,5 +1,10 @@
 # Proof — <ticket id>
 
+*The proof. Not the report — this is **evidence from merged `main`**, not a description of what was built.*
+
+When the requirement names a flavour (`proof:visual`, `proof:test`), use the
+matching template instead: `proof-visual-template.md`, `proof-test-template.md`.
+
 Verification evidence gathered on **merged `main`** (not the feature branch) by
 `kanmer-verify` — the **Verifying → Done** gate. Real output only: paste what
 actually ran, not what should have.
