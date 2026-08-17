@@ -368,8 +368,7 @@ public sealed class MailboxIntakeIntegrationTests
                     Assert.IsType<string>(work.LeaseToken),
                     nowUtc,
                     CancellationToken.None);
-                await scope.ServiceProvider
-                    .GetRequiredService<ProcessQueuedIntake>()
+                await IntakeWebDriver.CreateProcessor(scope.ServiceProvider)
                     .ExecuteAsync(stagedReceiptId, CancellationToken.None);
             }
 
@@ -521,8 +520,7 @@ public sealed class MailboxIntakeIntegrationTests
                     Assert.IsType<string>(work.LeaseToken),
                     clock.GetUtcNow(),
                     CancellationToken.None);
-                await restartedScope.ServiceProvider
-                    .GetRequiredService<ProcessQueuedIntake>()
+                await IntakeWebDriver.CreateProcessor(restartedScope.ServiceProvider)
                     .ExecuteAsync(work.StagedReceiptId, CancellationToken.None);
             }
 

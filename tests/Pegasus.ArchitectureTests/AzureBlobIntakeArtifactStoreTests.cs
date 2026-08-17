@@ -134,6 +134,28 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         Assert.Equal(0, completed.DownloadCount);
     }
 
+    [Fact]
+    public async Task ReadTranslatesAzureDependencyFailureToTheCorePortException()
+    {
+        var blob = new StubBlobClient(
+            StorageKey,
+            Hash,
+            17,
+            FirstSeenAtUtc,
+            StagedArtifactDisposition.Pending,
+            new ETag("\"etag-1\""))
+        {
+            DownloadFailure = new RequestFailedException(503, "Controlled unavailable dependency.")
+        };
+        var store = CreateStore(new StubBlobContainerClient(blob));
+
+        var exception = await Assert.ThrowsAsync<IntakeDependencyUnavailableException>(
+            () => store.ReadAsync(StorageKey, CancellationToken.None));
+
+        Assert.IsType<RequestFailedException>(exception.InnerException);
+        Assert.Equal(1, blob.DownloadCount);
+    }
+
     private static AzureBlobIntakeArtifactStore CreateStore(
         BlobContainerClient container) =>
         new(
@@ -203,6 +225,7 @@ public sealed class AzureBlobIntakeArtifactStoreTests
         internal Dictionary<string, string> Metadata { get; private set; }
         internal Dictionary<string, string> Tags { get; private set; }
         internal ETag NextMetadataETag { get; init; } = new("\"etag-next\"");
+        internal RequestFailedException? DownloadFailure { get; init; }
         internal int DownloadCount { get; private set; }
         internal int DeleteCount { get; private set; }
         internal BlobRequestConditions? LastConditionalGetPropertiesConditions { get; private set; }
@@ -273,6 +296,10 @@ public sealed class AzureBlobIntakeArtifactStoreTests
             CancellationToken cancellationToken)
         {
             DownloadCount++;
+            if (DownloadFailure is not null)
+            {
+                throw DownloadFailure;
+            }
             throw new InvalidOperationException(
                 "Inventory and disposition operations must not download blob bodies.");
         }

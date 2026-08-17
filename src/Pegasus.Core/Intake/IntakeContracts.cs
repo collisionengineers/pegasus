@@ -786,6 +786,9 @@ public sealed class IntakeOperationConflictException()
 public sealed class IntakeVersionConflictException()
     : Exception("The intake or case changed after it was loaded.");
 
+public sealed class IntakeDependencyUnavailableException(string message, Exception? innerException = null)
+    : Exception(message, innerException);
+
 public sealed class IntakeAssociationConflictException(string message) : Exception(message);
 
 public interface IResolveIntake

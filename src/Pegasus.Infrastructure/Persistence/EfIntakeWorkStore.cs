@@ -102,18 +102,11 @@ public sealed class EfIntakeWorkStore(
         IntakeStagedReceipt receipt,
         string operationKey,
         CancellationToken cancellationToken) =>
-        ReceiveWithRetryAsync(receipt, operationKey, IntakeWorkState.Pending, cancellationToken);
-
-    public Task<ReceivedIntake> ReceiveForProcessingAsync(
-        IntakeStagedReceipt receipt,
-        string operationKey,
-        CancellationToken cancellationToken) =>
-        ReceiveWithRetryAsync(receipt, operationKey, IntakeWorkState.Dispatched, cancellationToken);
+        ReceiveWithRetryAsync(receipt, operationKey, cancellationToken);
 
     private async Task<ReceivedIntake> ReceiveWithRetryAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
-        IntakeWorkState initialState,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= 3; attempt++)
@@ -123,7 +116,6 @@ public sealed class EfIntakeWorkStore(
                 return await ReceiveCoreAsync(
                     receipt,
                     operationKey,
-                    initialState,
                     cancellationToken);
             }
             catch (Exception exception)
@@ -140,7 +132,6 @@ public sealed class EfIntakeWorkStore(
     private async Task<ReceivedIntake> ReceiveCoreAsync(
         IntakeStagedReceipt receipt,
         string operationKey,
-        IntakeWorkState initialState,
         CancellationToken cancellationToken)
     {
         var channel = ToCode(receipt.SourceIdentity.Channel);
@@ -164,19 +155,10 @@ public sealed class EfIntakeWorkStore(
                     receipt.SourceHash);
             }
 
-            var existingWork = existing.WorkItem
-                ?? throw new InvalidDataException(
-                    "The staged intake receipt does not have a durable work item.");
-            if (initialState == IntakeWorkState.Dispatched
-                && existingWork.State is "pending" or "retry_scheduled")
+            if (existing.WorkItem is null)
             {
-                existingWork.State = ToCode(IntakeWorkState.Dispatched);
-                existingWork.DueAtUtc = receipt.StagedAtUtc;
-                existingWork.LeaseToken = null;
-                existingWork.LeaseExpiresAtUtc = null;
-                existingWork.FailureCode = null;
-                await context.SaveChangesAsync(cancellationToken);
-                await transaction.CommitAsync(cancellationToken);
+                throw new InvalidDataException(
+                    "The staged intake receipt does not have a durable work item.");
             }
 
             return new(existing.Id, true);
@@ -203,7 +185,7 @@ public sealed class EfIntakeWorkStore(
             StagedReceipt = entity,
             StagedReceiptId = entity.Id,
             OperationKey = operationKey,
-            State = ToCode(initialState),
+            State = ToCode(IntakeWorkState.Pending),
             AttemptCount = 0,
             DueAtUtc = receipt.StagedAtUtc
         });
@@ -730,7 +712,7 @@ public sealed class EfIntakeWorkStore(
         _ => throw new InvalidOperationException($"Unknown IntakeWorkState value '{(int)value}'.")
     };
 
-    private static IntakeWorkState ParseState(string value) => value switch
+    internal static IntakeWorkState ParseState(string value) => value switch
     {
         "pending" => IntakeWorkState.Pending,
         "dispatching" => IntakeWorkState.Dispatching,

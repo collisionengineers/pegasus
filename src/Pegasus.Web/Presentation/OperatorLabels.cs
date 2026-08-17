@@ -167,7 +167,13 @@ public static class OperatorLabels
             or "integrity_failure" =>
             "The retained file did not match what was received",
         "persistence_failure" => "The result could not be saved",
-        "intake_processing_failure" or "technical_failure" =>
+        "invalid_intake_data" => "The file's contents were not valid",
+        "source_identity_conflict" =>
+            "The same receipt token was already used for a different file",
+        "processing_lease_expired" => "Processing timed out and was not completed",
+        "queue_poisoned" => "Processing was attempted repeatedly without completing",
+        "intake_processing_failure" or "technical_failure"
+            or "unexpected_intake_processing_failure" =>
             "Processing failed for a technical reason",
         null or "" => "Processing failed",
         _ => Humanise(failureCode)
