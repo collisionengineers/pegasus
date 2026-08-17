@@ -24,6 +24,7 @@ Assert-Flags -Case 'Bicep module' -ChangedPath 'infra/modules/platform.bicep' -B
 Assert-Flags -Case 'azd configuration' -ChangedPath 'azure.yaml' -Build $false -Infrastructure $true
 Assert-Flags -Case 'local validator dependency' -ChangedPath 'scripts/Invoke-ProductionSmoke.ps1' -Build $false -Infrastructure $true
 Assert-Flags -Case 'classification code' -ChangedPath 'scripts/Get-CiChangeFlags.ps1' -Build $true -Infrastructure $true
+Assert-Flags -Case 'shard assignment tests' -ChangedPath 'scripts/Test-TestShard.ps1' -Build $true -Infrastructure $false
 Assert-Flags -Case 'workflow definition' -ChangedPath '.github/workflows/ci.yml' -Build $true -Infrastructure $true
 Assert-Flags -Case 'UI-only source' -ChangedPath 'src/Pegasus.Web/Pages/Index.cshtml' -Build $true -Infrastructure $false
 Assert-Flags -Case 'documentation only' -ChangedPath 'docs/index.md' -Build $false -Infrastructure $false
