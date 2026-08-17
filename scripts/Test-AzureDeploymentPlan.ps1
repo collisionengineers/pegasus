@@ -286,6 +286,21 @@ Assert-Text $databaseBootstrapScript 'manifest\.sourceRevision' 'Database bootst
 Assert-Text $databaseBootstrapScript 'status --porcelain' 'Database bootstrap must require a clean source checkout before reading the migration-defined matrix.'
 Assert-Text $databaseBootstrapScript 'sys\.schemas[\s\S]*sys\.objects[\s\S]*owning_principal_id[\s\S]*owner_sid' 'Database bootstrap must reject schema, object, principal, and database ownership authority.'
 Assert-Text $databaseBootstrapScript 'HAS_PERMS_BY_NAME' 'Database bootstrap must compare effective per-table runtime DML with the migration-defined matrix.'
+$grantMigrationFiles = Get-ChildItem `
+    -LiteralPath (Join-Path $repositoryRoot 'src/Pegasus.Infrastructure/Persistence/Migrations') `
+    -Filter '*.cs' |
+    Where-Object {
+        $_.Name -notlike '*.Designer.cs' -and
+        $_.Name -ne '20260729199000_RuntimeRoleReconciliation.cs' -and
+        $_.Name -gt '20260729199000_RuntimeRoleReconciliation.cs' -and
+        (Get-Content -Raw -LiteralPath $_.FullName) -cmatch '\bGRANT\s'
+    }
+foreach ($grantMigration in $grantMigrationFiles) {
+    Assert-Text `
+        $databaseBootstrapScript `
+        ([regex]::Escape([IO.Path]::GetFileNameWithoutExtension($grantMigration.Name))) `
+        "Database bootstrap must account for grant-carrying migration $($grantMigration.Name)."
+}
 
 $smokeWorkerMatches = [regex]::Matches(
     $productionSmoke,
