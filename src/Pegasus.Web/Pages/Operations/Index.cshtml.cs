@@ -21,7 +21,8 @@ public sealed class IndexModel(
     RetryExternalWork retryExternalWork,
     IAcquireCaseEditLease acquireCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
-    IRevokeRequestUploadLink revokeRequestUploadLink) : PageModel
+    IRevokeRequestUploadLink revokeRequestUploadLink,
+    TimeProvider timeProvider) : PageModel
 {
     private const string PreservedReasonKey = "OperationsRequestReason";
     private const string PreservedRequestIdKey = "OperationsRequestReasonId";
@@ -36,6 +37,14 @@ public sealed class IndexModel(
         releaseCaseEditLease ?? throw new ArgumentNullException(nameof(releaseCaseEditLease));
     private readonly IRevokeRequestUploadLink revokeRequestUploadLink =
         revokeRequestUploadLink ?? throw new ArgumentNullException(nameof(revokeRequestUploadLink));
+    private readonly TimeProvider timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+
+    /// <summary>
+    /// When this list was last read. Set only after the query returns, so a
+    /// failed load never claims to be fresh (FRD-12).
+    /// </summary>
+    public DateTimeOffset? LoadedAtUtc { get; private set; }
 
     public RequestOperationsProjection Operations { get; private set; } = new(
         ImmutableArray<RequestOperationProjection>.Empty,
@@ -57,6 +66,7 @@ public sealed class IndexModel(
         Operations = await getRequestOperations.ExecuteAsync(actor, cancellationToken);
         PreservedRequestId = ReadGuidTempData(PreservedRequestIdKey);
         PreservedReason = TempData[PreservedReasonKey] as string;
+        LoadedAtUtc = timeProvider.GetUtcNow();
         return Page();
     }
 
