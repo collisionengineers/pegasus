@@ -47,12 +47,9 @@ public static class IntakeEnvelopeLimits
 /// allocated, ambiguity is <see cref="NeedsSorting"/>, and a reasoned refusal
 /// is <see cref="BlockedIntake"/>.
 ///
-/// The former <c>DraftReady</c> named the wait for a staff member to press
-/// "Accept and allocate case reference". It had no operator label, no owning
-/// requirement, and no business meaning; it is removed rather than renamed.
-/// Receipts persisted under its <c>draft_ready</c> code read compatibly as
-/// <see cref="CaseCreated"/> eligibility. The allocation/link projection, not
-/// that legacy processing code, determines whether a Case actually exists.
+/// <see cref="CaseCreated"/> is a processing decision — the instruction is
+/// definitive enough to allocate on — not proof that a Case exists. The
+/// allocation/link projection alone says whether one does.
 /// </remarks>
 public enum IntakeDecision
 {

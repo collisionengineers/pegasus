@@ -69,7 +69,7 @@ public sealed partial class QdosTriageIntegrationTests
 
     [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
-    public async Task DraftReadyWithoutAcceptedTriageMatchEvidenceDoesNotCreateTriage()
+    public async Task CaseCreatedWithoutAcceptedTriageMatchEvidenceDoesNotCreateTriage()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);

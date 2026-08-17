@@ -2081,7 +2081,7 @@ public sealed class CaseWorkflowPersistenceTests
             Guid receiptId,
             int sequence) =>
             context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {$"workflow-{sequence}.eml"}, {"message/rfc822"}, {1L}, {sequence.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {"manual_upload"}, {$"workflow-{sequence}"}, {StartUtc}, {StartUtc}, {"workflow-test-reader"}, {"1"}, {0L}, {"draft_ready"}, {"Workflow persistence fixture"}, {"""{"version":1,"data":[]}"""}, {"""{"version":1,"data":[]}"""}, {"""{"version":1,"data":[]}"""})");
+                $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({receiptId}, {$"workflow-{sequence}.eml"}, {"message/rfc822"}, {1L}, {sequence.ToString("X64", System.Globalization.CultureInfo.InvariantCulture)}, {"manual_upload"}, {$"workflow-{sequence}"}, {StartUtc}, {StartUtc}, {"workflow-test-reader"}, {"1"}, {0L}, {"case_created"}, {"Workflow persistence fixture"}, {"""{"version":1,"data":[]}"""}, {"""{"version":1,"data":[]}"""}, {"""{"version":1,"data":[]}"""})");
 
         public async Task<bool> HasLeaseReplayMaterialAsync(Guid caseId)
         {
