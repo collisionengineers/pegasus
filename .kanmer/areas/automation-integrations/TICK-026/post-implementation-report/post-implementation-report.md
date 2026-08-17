@@ -30,3 +30,12 @@ dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --fil
 ```
 
 Expect 9 passed. Rewrite `proof.md` from that command output. Do not treat the previous “Operator confirmed” stub as evidence. Not proved: deployed `/mcp`, `Features:AutomationMcp` outside DevelopmentOffline, or a real Claude Desktop/Code caller.
+
+## Review follow-up
+
+Review asked not to grow `AutomationMcpIngressTests` toward 1k lines or copy the assessment seed/HTTP helpers again.
+
+- Shared harness: `AutomationMcpTestSupport.cs` (token, HTTP, seed, lease, `EnsureInReviewAsync` via `IReturnCaseToReview`).
+- MCP-04 facts: `AutomationDocumentIngressTests.cs` (add/download, export refused when Not ready, export after Core return-to-Review, validation, scope).
+- Ingress file back to gate/token/inventory/kill-switch/guard tests (~496 lines). Assessment tests use the same harness.
+- No `UPDATE CaseWorkflows`. Focused Release run after the split: 15 passed (ingress + document + assessment).
