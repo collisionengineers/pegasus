@@ -1947,3 +1947,15 @@ details > summary.btn::-webkit-details-marker { display: none; }
    weight alone. */
 tbody tr[data-state="unread"] .stack > a,
 tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
+
+/* Evidence figures sit in a row that reflows rather than a fixed column count:
+   the number of findings on a record varies, and an empty cell reads as a
+   missing fact. The design system applies the figure's own stacking inline;
+   stating it here keeps the markup free of style attributes. */
+.evidence-figure { display: grid; gap: 2px; }
+
+.evidence-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-6);
+}

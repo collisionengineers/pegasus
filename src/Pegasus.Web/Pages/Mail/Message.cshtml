@@ -6,20 +6,26 @@
     ViewData["Title"] = Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary);
 }
 
-@* One record, one container: actions in a bar at the top, sections as tabs. *@
+@* One record, one container: the way back is a return link above the heading,
+   the heading is the subject alone, and the action beside it is the one thing
+   worth doing from here. The sender and time were a lede repeating facts the
+   Message section states properly. *@
+<a class="back-link" asp-page="/Mail/Index"
+   asp-route-mailbox="@Model.MailboxFilter"
+   asp-route-folder="@Model.FolderRouteValue"
+   asp-route-pageNumber="@Model.PageRouteValue">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Inbox
+</a>
+
 <header class="page-heading">
-    <div>
-        <h1>@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h1>
-        <p class="lede">
-            @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(summary)
-            ·
-            <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time>
-        </p>
-    </div>
-    <a class="secondary-action" asp-page="/Mail/Index"
-       asp-route-mailbox="@Model.MailboxFilter"
-       asp-route-folder="@Model.FolderRouteValue"
-       asp-route-pageNumber="@Model.PageRouteValue">Back to Inbox</a>
+    <h1>@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h1>
+    @if (summary.CaseId is { } headingCaseId)
+    {
+        <div class="page-heading-actions">
+            <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@headingCaseId">Open case @summary.CaseReference</a>
+        </div>
+    }
 </header>
 
 @if (Model.OutsideListScope)
@@ -30,32 +36,35 @@
     </div>
 }
 
-@* The state before any action: what processing decided, and what it became. *@
+@* The state before any action: what processing decided, and what it became.
+   These are read-only findings with a source, not counts, so they are evidence
+   figures rather than metric tiles. *@
 <section class="panel" aria-label="Current state">
-    <div class="metric-strip metric-strip--3">
-        <span class="metric">
-            <span class="metric__label">Classification</span>
-            <strong class="metric__value">@Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome)</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">Queue</span>
-            <strong class="metric__value">@Pegasus.Web.Pages.Mail.MessageModel.QueueLabel(Model.Detail.RouteDisposition)</strong>
-        </span>
-        <span class="metric">
-            <span class="metric__label">Processing outcome</span>
-            <strong class="metric__value">@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary)</strong>
-        </span>
+    <div class="evidence-row">
+        <div class="evidence-figure">
+            <span class="evidence-figure__label">Classification</span>
+            <span class="evidence-figure__value">@Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome)</span>
+            <span class="evidence-figure__source">Read from the message and its attachments</span>
+        </div>
+        <div class="evidence-figure">
+            <span class="evidence-figure__label">Queue</span>
+            <span class="evidence-figure__value">@Pegasus.Web.Pages.Mail.MessageModel.QueueLabel(Model.Detail.RouteDisposition)</span>
+        </div>
+        <div class="evidence-figure">
+            <span class="evidence-figure__label">Filed to</span>
+            <span class="evidence-figure__value">
+                @if (summary.CaseId is { } caseId)
+                {
+                    <a asp-page="/Cases/Details" asp-route-id="@caseId">@summary.CaseReference</a>
+                }
+                else
+                {
+                    <text>Not associated with a case</text>
+                }
+            </span>
+            <span class="evidence-figure__source">@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary) · <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></span>
+        </div>
     </div>
-    <p>
-        @if (summary.CaseId is { } caseId)
-        {
-            <a asp-page="/Cases/Details" asp-route-id="@caseId">Open case @summary.CaseReference</a>
-        }
-        else
-        {
-            <span class="empty-state">Not associated with a case.</span>
-        }
-    </p>
 </section>
 
 <nav class="tabs section-gap" aria-label="Sections">
@@ -135,6 +144,7 @@ else if (Model.ActiveSection == "attachments")
                             <th scope="col">File</th>
                             <th scope="col">Type</th>
                             <th scope="col">Size</th>
+                            <th scope="col">Custody</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -143,7 +153,10 @@ else if (Model.ActiveSection == "attachments")
                         <tr>
                             <td>@attachment.FileName</td>
                             <td>@attachment.MediaType</td>
-                            <td>@OperatorLabels.FileSize(attachment.ContentLength)</td>
+                            <td class="tabular">@OperatorLabels.FileSize(attachment.ContentLength)</td>
+                            @* The row exists because the attachment was kept, so
+                               custody is a fact of the row rather than a lookup. *@
+                            <td><partial name="Shared/_StatusChip" model="@("Retained")" /></td>
                         </tr>
                     }
                     </tbody>
