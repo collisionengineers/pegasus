@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Record renderer + document-extractor integration-into-repo direction; re-scope
   SIMPLI-013/SIMPLI-014
-status: implementing
+status: review
 area: documents-reports
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-17T12:32:50.975Z'
+  review: '2026-08-17T12:35:04.019Z'
 taken_at: '2026-08-17T10:00:27.755Z'
 branch: task/simpli-015-renderer-extractor
 worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
@@ -25,10 +26,13 @@ links:
 blocks:
   - SIMPLI-013
   - SIMPLI-014
-docs_todo: true
+commits:
+  - f0057da4
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/389'
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-17T12:32:50.975Z'
+updated: '2026-08-17T12:35:04.019Z'
 ---
 
 ## What
