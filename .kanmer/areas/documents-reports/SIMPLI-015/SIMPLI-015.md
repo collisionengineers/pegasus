@@ -29,11 +29,12 @@ blocks:
 commits:
   - f0057da4
   - 01f300f9
+  - 40ee3103
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/389'
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-17T12:38:44.031Z'
+updated: '2026-08-17T12:49:07.413Z'
 ---
 
 ## What
