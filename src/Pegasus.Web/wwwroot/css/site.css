@@ -1894,3 +1894,44 @@ details > summary.btn::-webkit-details-marker { display: none; }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* ---------------------------------------------------------------------------
+   Upload dropzone.
+
+   The one place a file leaves someone's desk and enters a case, so it is a
+   destination rather than a control tucked under a label. The native file input
+   stays visible inside it: a styled stand-in that merely opens the real picker
+   would be a second control claiming to be the first.
+   --------------------------------------------------------------------------- */
+
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-16) var(--sp-10);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  text-align: center;
+}
+
+.dropzone--compact { padding: var(--sp-8) var(--sp-6); }
+
+.dropzone > label { margin: 0; font-size: var(--t-h3); font-weight: 700; }
+.dropzone .field-hint { margin: 0; }
+.dropzone input[type="file"] { margin-top: var(--sp-2); max-width: 100%; }
+
+/* A single-purpose screen is centred and narrow; a wide column would put the
+   dropzone's edges further apart than the file it accepts. */
+.form-column { width: 100%; max-width: 680px; margin: var(--sp-10) auto 0; }
+.form-column--narrow { max-width: 640px; margin-top: 0; }
+.form-column--wide { max-width: 860px; margin-top: 0; }
+
+/* On a single-purpose screen the submit spans the column: there is nothing else
+   to weigh it against, so a button sized to its own text reads as optional. */
+.primary-action--block {
+  display: flex;
+  width: 100%;
+  margin-top: var(--sp-6);
+  justify-content: center;
+}
