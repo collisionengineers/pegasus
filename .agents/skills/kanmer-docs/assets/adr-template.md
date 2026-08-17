@@ -1,5 +1,7 @@
 # ADR NNNN: <title>
 
+*The ADR. Not a PRD or FRD — this records **a decision and its alternatives**, not the product need or the behaviour.*
+
 - **Status:** proposed | accepted | superseded by ADR-NNNN
 - **Date:** YYYY-MM-DD
 

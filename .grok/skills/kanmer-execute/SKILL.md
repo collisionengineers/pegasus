@@ -1,6 +1,6 @@
 ---
 name: kanmer-execute
-description: Implement a Kanmer ticket — take it in its own git worktree and branch, work through its checklist with live progress notes, write proof.md, and open the PR. Use when the user says "work on", "implement", "take" or "build" a ticket, or when a planned ticket is ready for implementation. DO NOT USE FOR planning (kanmer-plan — required first), reviewing the result (kanmer-review), or post-merge cleanup (kanmer-closeout).
+description: Implement a Kanmer ticket — take it in its own git worktree and branch, work through its checklist with live progress notes, write the post-implementation report, and open the PR. Use when the user says "work on", "implement", "take" or "build" a ticket, or when a planned ticket is ready for implementation. DO NOT USE FOR planning (kanmer-plan — required first), reviewing the result (kanmer-review), or post-merge cleanup (kanmer-closeout).
 ---
 
 # Executing a Kanmer ticket
@@ -9,6 +9,20 @@ Execution happens in isolation: every ticket gets its own branch and its own
 git worktree, so the main checkout stays clean and parallel work never
 collides. `take_ticket` records both on the ticket — the human's board shows
 the ⛏ badge with the branch, which is how they know the work is live.
+
+## Workflow
+
+1. **Check the preconditions** — the plan and checklist exist, and nobody else
+   holds the ticket.
+2. **Create the worktree and branch**, then `take_ticket` with exactly what you
+   created. That moves the ticket into **implementing**.
+3. **Work the checklist**, ticking boxes and appending progress notes as you go.
+4. **Write the post-implementation report** — the reviewer's brief.
+5. **Record traceability**, push, and open the PR.
+6. **Move the ticket to review.**
+
+The ticket stays taken through review, verify and closeout — this skill takes
+it, and `kanmer-closeout` is what releases it.
 
 ## Preconditions
 
@@ -29,6 +43,11 @@ git fetch origin
 git worktree add .worktrees/<id> -b <id>-<slug> origin/main
 cd .worktrees/<id>
 ```
+
+**One directory in there is not yours.** In a repo set up through the GUI the
+board lives in `.worktrees/kanmer`, on the board branch, with MCP rooted in it —
+never create, switch, push or remove that one. Yours is `.worktrees/<id>`, and
+`take_ticket` records it on the ticket so board and git agree on which is which.
 
 (If the default branch isn't `main`, `git symbolic-ref --short
 refs/remotes/origin/HEAD` names it.) Make sure `.worktrees/` is listed in
@@ -77,7 +96,9 @@ take_ticket id: <ID>, branch: "<id>-<slug>", worktree: ".worktrees/<id>"
    ```
 
 4. **Move the ticket to the review stage** (`move_item`, resolve the id against
-   `list_board`) — the post-implementation-report gate must pass first. Record
+   `list_board`) — the post-implementation-report gate must pass first. One
+   stage: a move crosses at most one gated boundary, so aiming past review is
+   refused even when every document exists. Record
    the PR URL with `append_scratch <id> execute "opened PR <url>"`. The ticket
    stays taken until the PR is merged, verified (`kanmer-verify`), and closed
    out (`kanmer-closeout`).
@@ -90,3 +111,9 @@ first append the resume point to the progress notes ("paused; resume in
 `branch`/`worktree` fields — then `take_ticket action: "release"`. Keep the
 worktree and branch; they are the resume point. A ticket left taken looks
 in-progress to everyone.
+
+---
+
+**Hand off to `kanmer-review`** once the PR is open and the ticket is in Review.
+Do not merge your own work on the way past: review owns the merge point, and
+this skill's last act is opening the PR, not landing it.
