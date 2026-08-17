@@ -2,10 +2,12 @@
 id: TICK-042
 type: ticket
 title: INT-28 — Automatic matching of image-led and instruction-led records
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T13:21:33.442Z'
 labels:
   - capability
   - INT-28
@@ -13,9 +15,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.630Z'
-updated: '2026-08-17T06:43:41.265Z'
+updated: '2026-08-17T13:21:33.442Z'
 ---
 
 ## What

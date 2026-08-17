@@ -2,10 +2,12 @@
 id: TICK-011
 type: ticket
 title: INT-17 — Automatic vehicle-registration reading from ordinary vehicle images
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T13:21:33.416Z'
 labels:
   - capability
   - INT-17
@@ -13,9 +15,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:03:52.988Z'
-updated: '2026-08-17T06:43:38.721Z'
+updated: '2026-08-17T13:21:33.416Z'
 ---
 
 ## What
