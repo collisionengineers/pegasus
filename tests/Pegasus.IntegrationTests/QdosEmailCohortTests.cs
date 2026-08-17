@@ -8,10 +8,13 @@ namespace Pegasus.IntegrationTests;
 
 /// <summary>
 /// Acceptance cohorts over the local genuine corpus (git-ignored, immutable,
-/// per-machine). The labelled extraction-corpus folders are human-filed ground truth by
-/// work type; the emailevals trees provide volume. Counts are reported exactly - the
-/// ambiguous and unclassified totals are stated, never rounded away - and outputs land
-/// under artifacts/evaluation/qdos-classification/. The corpus is read-only.
+/// per-machine). Labelled `extraction-corpus/QDOS/{audits,inspections,...}`
+/// folders are human-filed ground truth by work type when that tree exists.
+/// Volume comes from `emailevals/{general,received,sent,to-sort}` when present,
+/// otherwise from a flat `corpus/*.eml` dump. Counts are reported exactly — the
+/// ambiguous and unclassified totals are stated, never rounded away — and
+/// outputs land under artifacts/evaluation/qdos-classification/. The corpus is
+/// read-only. A machine without labelled folders still runs the volume cohort.
 /// </summary>
 [Trait("Category", "Corpus")]
 public sealed class QdosEmailCohortTests(ITestOutputHelper output)
@@ -33,7 +36,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
         ("triage", ReceivedMailFamily.PreInstructionEmails, null)
     ];
 
-    [QdosCorpusFact]
+    [QdosLabelledCorpusFact]
     public async Task LabelledWorkTypeEmailsNeverMisclassifyAcrossFamilies()
     {
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
@@ -113,8 +116,8 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
             "file,route,classification,family,subtype,claim_token,vrm,surname,incident_date\n");
 
         foreach (var path in QdosCorpus.VolumeRoots
-                     .Where(Directory.Exists)
-                     .SelectMany(EnumerateEmails))
+                     .SelectMany(EnumerateEmails)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             var readResult = await reader.ReadAsync(Source(path, processed), CancellationToken.None);
             processed++;
@@ -164,7 +167,7 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
         Assert.True(processed > 0, "The volume corpus yielded no emails.");
     }
 
-    [QdosCorpusFact]
+    [QdosLabelledCorpusFact]
     public async Task LabelledClaimTokensNeverCollideAcrossCaseFolders()
     {
         var reader = new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System);
@@ -238,23 +241,43 @@ public sealed class QdosEmailCohortTests(ITestOutputHelper output)
 
 internal static class QdosCorpus
 {
+    private static readonly string[] LabelledFolderNames =
+        ["audits", "inspections", "inspection-and-audit", "triage"];
+
     public static string Root =>
         Environment.GetEnvironmentVariable("PEGASUS_CORPUS_ROOT")
-        ?? Path.Combine(FindRepositoryRoot(), "corpus");
+        ?? DiscoverCorpusRoot();
 
     public static string ExtractionRoot => Path.Combine(Root, "extraction-corpus", "QDOS");
 
-    public static string[] VolumeRoots =>
-    [
-        Path.Combine(Root, "emailevals", "general"),
-        Path.Combine(Root, "emailevals", "received"),
-        Path.Combine(Root, "emailevals", "sent"),
-        Path.Combine(Root, "emailevals", "to-sort"),
-        ExtractionRoot
-    ];
+    public static string[] VolumeRoots
+    {
+        get
+        {
+            string[] specific =
+            [
+                Path.Combine(Root, "emailevals", "general"),
+                Path.Combine(Root, "emailevals", "received"),
+                Path.Combine(Root, "emailevals", "sent"),
+                Path.Combine(Root, "emailevals", "to-sort"),
+                ExtractionRoot
+            ];
+            var present = specific.Where(Directory.Exists).ToArray();
+            if (present.Length > 0)
+            {
+                return present;
+            }
 
-    public static bool IsPresent =>
-        Directory.Exists(ExtractionRoot) || VolumeRoots.Any(Directory.Exists);
+            return ContainsEml(Root) ? [Root] : [];
+        }
+    }
+
+    public static bool HasLabelledFolders =>
+        Directory.Exists(ExtractionRoot)
+        && LabelledFolderNames.Any(folder =>
+            Directory.Exists(Path.Combine(ExtractionRoot, folder)));
+
+    public static bool IsPresent => VolumeRoots.Any(ContainsEml) || HasLabelledFolders;
 
     public static void WriteArtifact(string fileName, string content)
     {
@@ -265,6 +288,60 @@ internal static class QdosCorpus
             "qdos-classification");
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, fileName), content);
+    }
+
+    private static bool ContainsEml(string directory) =>
+        Directory.Exists(directory)
+        && Directory.EnumerateFiles(directory, "*.eml", SearchOption.AllDirectories).Any();
+
+    /// <summary>
+    /// Worktrees do not receive the ignored <c>corpus/</c> tree. Prefer the
+    /// worktree's own corpus when it has mail, otherwise the primary checkout
+    /// reached through the common git directory. The corpus is never written.
+    /// </summary>
+    private static string DiscoverCorpusRoot()
+    {
+        var repoRoot = FindRepositoryRoot();
+        var local = Path.Combine(repoRoot, "corpus");
+        if (ContainsEml(local))
+        {
+            return local;
+        }
+
+        var gitFile = Path.Combine(repoRoot, ".git");
+        if (File.Exists(gitFile))
+        {
+            foreach (var line in File.ReadLines(gitFile))
+            {
+                const string prefix = "gitdir:";
+                if (!line.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var gitDir = line[prefix.Length..].Trim();
+                var commonGit = Path.GetFullPath(Path.Combine(gitDir, "..", ".."));
+                if (!Path.GetFileName(commonGit)
+                        .Equals(".git", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var primary = Directory.GetParent(commonGit)?.FullName;
+                if (primary is null)
+                {
+                    continue;
+                }
+
+                var primaryCorpus = Path.Combine(primary, "corpus");
+                if (ContainsEml(primaryCorpus))
+                {
+                    return primaryCorpus;
+                }
+            }
+        }
+
+        return local;
     }
 
     private static string FindRepositoryRoot()
@@ -286,6 +363,17 @@ internal sealed class QdosCorpusFactAttribute : FactAttribute
         if (!QdosCorpus.IsPresent)
         {
             Skip = "This machine's ignored local corpus has no QDOS email trees; corpora differ per system.";
+        }
+    }
+}
+
+internal sealed class QdosLabelledCorpusFactAttribute : FactAttribute
+{
+    public QdosLabelledCorpusFactAttribute()
+    {
+        if (!QdosCorpus.HasLabelledFolders)
+        {
+            Skip = "This machine's ignored local corpus has no labelled QDOS extraction-corpus folders; corpora differ per system.";
         }
     }
 }
