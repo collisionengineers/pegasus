@@ -4,10 +4,13 @@ type: ticket
 title: >-
   MAIL-21 — Minimum shared Core classification foundation: versioned rules,
   decision evidence, ambiguity outcome, and acceptance co…
-status: backlog
+status: preparing
 area: mail-communications
-assignee: ''
+assignee: grok-shell-kanmer
 profile: feature
+taken_at: '2026-08-17T13:14:48.012Z'
+branch: task/tick-009-mail-21-classification-foundation
+worktree: ../pegasus-worktrees/tick-009-mail-21-classification-foundation
 labels:
   - capability
   - MAIL-21
@@ -16,10 +19,13 @@ labels:
 groups:
   - EPIC-003
   - HZN-003
-links: []
+links:
+  - TICK-010
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:52.949Z'
-updated: '2026-08-17T06:41:34.793Z'
+updated: '2026-08-17T13:14:48.012Z'
 ---
 
 ## What
