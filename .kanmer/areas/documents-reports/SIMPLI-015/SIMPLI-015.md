@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-17T12:35:04.019Z'
   verifying: '2026-08-17T12:49:11.790Z'
   done: '2026-08-17T12:52:27.020Z'
-taken_at: '2026-08-17T10:00:27.755Z'
-branch: task/simpli-015-renderer-extractor
-worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
 labels: []
 groups:
   - EPIC-002
@@ -25,9 +22,7 @@ links:
   - SIMPLI-014
   - KANMER-001
   - KANMER-002
-blocks:
-  - SIMPLI-013
-  - SIMPLI-014
+blocks: []
 commits:
   - f0057da4
   - 01f300f9
@@ -37,7 +32,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-17T12:52:40.417Z'
+updated: '2026-08-17T12:53:21.510Z'
 ---
 
 ## What

@@ -2,14 +2,13 @@
 id: SIMPLI-014
 type: ticket
 title: Integrate CollisionRenderer behind a Core-owned render contract
-status: implementing
+status: backlog
 area: documents-reports
 order: 200
-assignee: claude-code
+assignee: ''
 profile: feature
-taken_at: '2026-08-17T10:00:24.291Z'
-branch: task/simpli-015-renderer-extractor
-worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
+stageEntered:
+  backlog: '2026-08-17T12:53:36.226Z'
 labels: []
 groups:
   - EPIC-002
@@ -17,9 +16,11 @@ groups:
 links:
   - TICK-221
 blocks: []
+refs:
+  - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-17T12:34:20.105Z'
+updated: '2026-08-17T12:53:36.226Z'
 ---
 
 ## What

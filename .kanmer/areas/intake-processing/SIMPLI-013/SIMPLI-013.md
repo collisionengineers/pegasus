@@ -2,14 +2,13 @@
 id: SIMPLI-013
 type: ticket
 title: Integrate CollisionDocNet behind IIntakeSourceReader for .doc and .msg intake
-status: implementing
+status: backlog
 area: intake-processing
 order: 190
-assignee: claude-code
+assignee: ''
 profile: feature
-taken_at: '2026-08-17T10:00:21.105Z'
-branch: task/simpli-015-renderer-extractor
-worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
+stageEntered:
+  backlog: '2026-08-17T12:53:28.687Z'
 labels: []
 groups:
   - EPIC-002
@@ -17,9 +16,11 @@ groups:
 links:
   - TICK-220
 blocks: []
+refs:
+  - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-13T14:38:42.313Z'
-updated: '2026-08-17T12:34:05.118Z'
+updated: '2026-08-17T12:53:28.687Z'
 ---
 
 ## What
