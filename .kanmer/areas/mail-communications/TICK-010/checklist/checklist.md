@@ -4,11 +4,12 @@
 
 Derived from plan.md, one box per step. Tick with `set_ticket_doc` as you complete them (the GUI renders these as live checkboxes); append progress notes below rather than rewriting.
 
-- [ ] Persist/reload Received `Other` (name + reasoning) through the intake receipt store
-- [ ] Persist/reload Sent `Other` through the intake receipt store
-- [ ] Persist/reload a settled Sent family with and without reply context
-- [ ] Focused tests: `MailboxIntakeIntegrationTests`, `MailTaxonomyTests`
+- [x] Persist/reload Received `Other` (name + reasoning) through the intake receipt store
+- [x] Persist/reload Sent `Other` through the intake receipt store
+- [x] Persist/reload a settled Sent family with and without reply context
+- [x] Focused tests: `MailboxIntakeIntegrationTests`, `MailTaxonomyTests`
 
 ## Progress notes
 
-(append with `set_ticket_doc(doc: "checklist", append: true)`)
+- Added three LocalDB round-trips in `MailboxIntakeIntegrationTests`. No schema or policy change.
+- Focused results: 3 persist/reload passed; `MailTaxonomyTests` 15 passed.
