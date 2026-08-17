@@ -23,9 +23,11 @@ links:
   - TICK-010
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - b8ed3110
 archived: false
 created: '2026-08-12T15:03:52.949Z'
-updated: '2026-08-17T13:24:17.755Z'
+updated: '2026-08-17T13:32:02.639Z'
 ---
 
 ## What
