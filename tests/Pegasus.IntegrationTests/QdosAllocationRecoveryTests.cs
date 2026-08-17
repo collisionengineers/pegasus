@@ -1215,11 +1215,14 @@ public sealed class IntakeAllocationConsumerTests
     {
         private readonly QdosInstructionExtractionPolicy inner = new();
 
+        public string PrincipalCode => inner.PrincipalCode;
+
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc)
+            DateTimeOffset processedAtUtc,
+            EstablishedPrincipalContext principalContext)
         {
-            var result = inner.Extract(readResult, processedAtUtc);
+            var result = inner.Extract(readResult, processedAtUtc, principalContext);
             if (result.Applicability != InstructionPolicyApplicability.Applicable)
             {
                 return result;
@@ -1287,7 +1290,16 @@ internal static class AllocationTestData
                 "1",
                 "qdos-test-policy",
                 1,
-                MailRouteDecision: routeDecision,
+                MailRouteDecision: routeDecision ?? new(
+                    MailRouteDisposition.Accepted,
+                    new(principalCode, MailRouteKind.DirectProvider, principalCode),
+                    [],
+                    "Accepted allocation test route.",
+                    "allocation-test-route",
+                    1,
+                    [new($"instructions@{principalCode.ToLowerInvariant()}.example", "outer message")],
+                    [],
+                    new($"instructions@{principalCode.ToLowerInvariant()}.example", "outer message")),
                 MailClassificationDecision: classificationDecision ?? MailClassificationResult.Classified(
                     MailCategory.Received(
                         ReceivedMailFamily.NewInstructionReceived,

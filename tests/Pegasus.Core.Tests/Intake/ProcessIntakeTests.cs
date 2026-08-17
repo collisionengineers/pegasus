@@ -265,11 +265,12 @@ public sealed class ProcessIntakeTests
         var result = await sut.ExecuteAsync(CreateSource());
 
         var draft = Assert.Single(store.Drafts);
-        Assert.Equal(IntakeDecision.OcrRequired, draft.Decision);
-        Assert.Equal("ocr_required", draft.FailureCode);
-        Assert.Empty(draft.Fields);
-        Assert.Empty(draft.MissingFields);
-        Assert.Equal(IntakeDecision.OcrRequired, result.Decision);
+        Assert.Equal(IntakeDecision.CaseCreated, draft.Decision);
+        Assert.Null(draft.FailureCode);
+        Assert.NotEmpty(draft.Fields);
+        Assert.NotEmpty(draft.MissingFields);
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.Contains(result.Evidence, item => item.Signal == "additional-scanned-content");
     }
 
     [Fact]
@@ -333,6 +334,134 @@ public sealed class ProcessIntakeTests
         Assert.Equal("instructions@qdosassist.co.uk", route.EffectiveSender?.Address);
         Assert.NotEmpty(route.Predicates);
         Assert.Same(route, Assert.Single(store.Drafts).MailRouteDecision);
+    }
+
+    [Theory]
+    [InlineData("qdosassist.co.uk")]
+    [InlineData("qdosassists.co.uk")]
+    [InlineData("qdoslaw.co.uk")]
+    public async Task AcceptedDirectSenderEstablishesQdosWithoutContentMarker(string domain)
+    {
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    $"instructions@{domain}",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(IntakeEvidenceSource.EmailBody, "message body", "Please process the attachment."),
+                new(IntakeEvidenceSource.DocumentContent, "attachment", "Claimant Name: Direct Claimant"),
+                new(IntakeEvidenceSource.DocumentContent, "attachment", "Claim Number: DIRECT-1")
+            ]);
+
+        var result = await CreateSut(new StubReader(readResult), new RecordingStore())
+            .ExecuteAsync(CreateSource());
+
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.Equal("QDOS", Assert.IsType<InstructionDraft>(result.InstructionDraft).SuggestedPrincipalCode);
+        Assert.DoesNotContain(result.Evidence, item =>
+            item.Signal is "qdos-content-marker" or "qdos-transport-marker" or "instruction-structure");
+    }
+
+    [Fact]
+    public async Task StaffForwardPriorSenderEstablishesQdosWithoutContentMarker()
+    {
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(IntakeEvidenceSource.Sender, "staff@collisionengineers.co.uk", IntakeSenderIdentityKind.Transport, "outer message"),
+                new(IntakeEvidenceSource.Sender, "prior@qdoslaw.co.uk", IntakeSenderIdentityKind.InlineForwardedOriginal, "prior message")
+            ],
+            content:
+            [
+                new(IntakeEvidenceSource.EmailBody, "forward body", "Please process the attached instruction."),
+                new(IntakeEvidenceSource.DocumentContent, "attachment one", "Claimant Name: Forwarded Claimant"),
+                new(IntakeEvidenceSource.DocumentContent, "attachment two", "Claim Number: FORWARD-1")
+            ]);
+
+        var result = await CreateSut(new StubReader(readResult), new RecordingStore())
+            .ExecuteAsync(CreateSource());
+
+        Assert.Equal(IntakeDecision.CaseCreated, result.Decision);
+        Assert.Equal("prior@qdoslaw.co.uk", result.MailRouteDecision?.EffectiveSender?.Address);
+        Assert.Equal("QDOS", Assert.IsType<InstructionDraft>(result.InstructionDraft).SuggestedPrincipalCode);
+    }
+
+    [Theory]
+    [InlineData(IntakeSourceChannel.ManualUpload)]
+    [InlineData(IntakeSourceChannel.Automation)]
+    public async Task ContentOnlyQdosCannotEstablishPrincipalOnNonMailboxChannel(
+        IntakeSourceChannel channel)
+    {
+        var readResult = Readable(
+            transportEvidence: [],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "untrusted content",
+                    "QDOS instruction\nClaimant Name: Content Claimant\nClaim Number: CONTENT-1")
+            ]);
+        var source = CreateSource() with
+        {
+            SourceIdentity = new(channel, $"content-only-{channel}")
+        };
+
+        var result = await CreateSut(new StubReader(readResult), new RecordingStore())
+            .ExecuteAsync(source);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Null(result.InstructionDraft);
+        Assert.Null(result.MailRouteDecision);
+    }
+
+    [Fact]
+    public async Task ContentOnlyQdosCannotOverrideNonMatchingMailboxSender()
+    {
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(IntakeEvidenceSource.Sender, "sender@example.invalid", IntakeSenderIdentityKind.Transport, "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "QDOS instruction\nClaimant Name: Content Claimant\nClaim Number: CONTENT-2")
+            ]);
+
+        var result = await CreateSut(new StubReader(readResult), new RecordingStore())
+            .ExecuteAsync(CreateSource());
+
+        Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
+        Assert.Null(result.InstructionDraft);
+        Assert.Equal(MailRouteDisposition.NoMatch, result.MailRouteDecision?.Disposition);
+    }
+
+    [Fact]
+    public async Task ExtractionDraftPrincipalMustMatchAcceptedRoute()
+    {
+        var store = new RecordingStore();
+        var policy = new StubPolicy(new(
+            InstructionPolicyApplicability.Applicable,
+            [],
+            [],
+            new("OTHER", null, null, null, null, null, null, null, null, null, null),
+            [],
+            "adversarial_policy",
+            1));
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            CreateSut(new StubReader(Readable()), store, extractionPolicy: policy)
+                .ExecuteAsync(CreateSource()));
+
+        Assert.Contains("does not match", error.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(store.Drafts);
     }
 
     [Fact]
@@ -665,10 +794,7 @@ public sealed class ProcessIntakeTests
 
         var draft = Assert.Single(store.Drafts);
         Assert.Equal(IntakeDecision.NeedsSorting, draft.Decision);
-        var evidence = Assert.Single(draft.Evidence);
-        Assert.Equal(IntakeEvidenceStrength.Weak, evidence.Strength);
-        Assert.Equal(IntakeEvidenceFinding.SupportsPrincipal, evidence.Finding);
-        Assert.Equal("qdos-transport-marker", evidence.Signal);
+        Assert.Empty(draft.Evidence);
         Assert.Equal(IntakeDecision.NeedsSorting, result.Decision);
     }
 
@@ -928,7 +1054,7 @@ public sealed class ProcessIntakeTests
             new byte[] { 0x01 },
             ReceivedAtUtc,
             "operator",
-            new(IntakeSourceChannel.ManualUpload, "22222222222222222222222222222222"));
+            new(IntakeSourceChannel.Mailbox, "22222222222222222222222222222222"));
 
     private static IntakeSourceReadResult Readable(
         bool requiresOcr = false,
@@ -937,7 +1063,14 @@ public sealed class ProcessIntakeTests
         new(
             IntakeSourceReadStatus.Readable,
             content ?? [],
-            transportEvidence ?? [],
+            transportEvidence ??
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
             [],
             requiresOcr);
 
@@ -973,16 +1106,22 @@ public sealed class ProcessIntakeTests
 
     private sealed class StubPolicy(InstructionExtractionResult result) : IInstructionExtractionPolicy
     {
+        public string PrincipalCode => "QDOS";
+
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc) => result;
+            DateTimeOffset processedAtUtc,
+            EstablishedPrincipalContext principalContext) => result;
     }
 
     private sealed class ThrowingPolicy : IInstructionExtractionPolicy
     {
+        public string PrincipalCode => "QDOS";
+
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc) =>
+            DateTimeOffset processedAtUtc,
+            EstablishedPrincipalContext principalContext) =>
             throw new InvalidOperationException(
                 "The extraction policy must not run for an incomplete reader result.");
     }
