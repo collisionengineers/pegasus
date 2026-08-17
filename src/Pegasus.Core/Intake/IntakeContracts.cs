@@ -459,11 +459,19 @@ public sealed record InstructionExtractionResult(
     string PolicyKey,
     int PolicyVersion);
 
+public sealed record EstablishedPrincipalContext(
+    string PrincipalCode,
+    string PolicyKey,
+    int PolicyVersion);
+
 public interface IInstructionExtractionPolicy
 {
+    string PrincipalCode { get; }
+
     InstructionExtractionResult Extract(
         IntakeSourceReadResult readResult,
-        DateTimeOffset processedAtUtc);
+        DateTimeOffset processedAtUtc,
+        EstablishedPrincipalContext principalContext);
 }
 public sealed record IntakeTriageMatch(
     IntakeEvidenceSource Source,
