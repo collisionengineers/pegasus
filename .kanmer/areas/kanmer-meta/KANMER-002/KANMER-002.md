@@ -2,10 +2,13 @@
 id: KANMER-002
 type: ticket
 title: Repo Plan doc cleanup and organization into kanmer
-status: implementing
+status: preparing
 area: kanmer-meta
+order: 20
 assignee: claude-code
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T04:44:28.890Z'
 taken_at: '2026-08-14T12:33:12.808Z'
 branch: KANMER-002-repo-doc-cleanup
 worktree: .worktrees/KANMER-002
@@ -13,7 +16,7 @@ labels: []
 links: []
 archived: false
 created: '2026-08-14T12:30:37.742Z'
-updated: '2026-08-14T12:33:12.808Z'
+updated: '2026-08-17T04:44:28.890Z'
 ---
 
 Cleanup on:

@@ -4,6 +4,7 @@ type: ticket
 title: Establish an infra validation lane or record its deliberate absence
 status: preparing
 area: delivery-build-ci-documentation-governance
+order: 10
 assignee: ''
 profile: feature
 stageEntered:
@@ -18,7 +19,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:08:04.898Z'
-updated: '2026-08-17T04:09:42.400Z'
+updated: '2026-08-17T04:44:28.219Z'
 ---
 
 ## What
