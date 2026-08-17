@@ -113,6 +113,7 @@ try {
     Assert-Fails -Case 'Unavailable base' -Base 'not-a-commit' -Head $copyHead -ExpectedText @('not an available commit')
 
     Write-Output 'Markdown placement regression tests passed.'
+    $global:LASTEXITCODE = 0
 }
 finally {
     if (Test-Path -LiteralPath $testRoot) {
