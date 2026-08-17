@@ -119,3 +119,31 @@ Approved fixes were applied in the existing PR:
 - the accepted desktop evaluator builds after removal of an obsolete extraction call whose result was discarded.
 
 Local affected checks are green as recorded in the post-implementation report. Verdict remains pending until the amended commit is pushed and GitHub CI completes; this agent's review remains a self-review and cannot satisfy the independent-review requirement.
+
+# Final review disposition — 2026-08-17
+
+## Independent review
+
+The GitHub Codex reviewer independently reviewed amended commit `b17cd78e` (it did not implement the change). Its two latest comments were dispositioned:
+
+- scan-only accepted-QDOS mail: won't-do because the operator explicitly settled “once identified, that's it”; a second instruction/non-instruction or scan gate is future product work. Senderless scans still preserve OcrRequired.
+- synthetic unit-test values: no change because the cited Review Claimant/Q-423 convention already existed on `origin/dev`; no retained/corpus/production evidence was introduced or committed.
+
+Earlier feedback was also dispositioned: desktop caller fixed, legacy migration not applicable to the pre-release app, uploaded EML authentication framework rejected by the operator, and non-instruction-email policy deferred.
+
+## Evidence
+
+GitHub Actions run 32034500979 is green:
+
+- changes, documentation, reference-data: pass;
+- unit: pass;
+- browser: pass;
+- SQL integration shards 1, 2, and 3: pass;
+- SQL integration coverage/partition: pass;
+- infrastructure: correctly skipped because no infrastructure files changed.
+
+The PR is CLEAN and `git diff origin/dev...HEAD --check` passes.
+
+## Final verdict
+
+**Pass.** The diff implements sender-only QDOS identity for the three exact recorded domains and proved staff-forward prior sender; content does not establish QDOS; accepted route remains allocation authority; senderless OCR status is preserved; no Box/deployment/live-data scope entered. All review comments have explicit dispositions, independent automated review covered the amended commit, and CI is green. Merge to `dev` is authorised by the operator's “proceed” instruction under the repository workflow.
