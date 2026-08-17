@@ -136,13 +136,13 @@ else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count ==
     @* A queue list is already a panel; nesting it in another drew two boxes. *@
     <h2 class="section-label section-gap">Vehicle images</h2>
     <div class="panel queue-list">
-            @foreach (var item in Model.ImageIntakeResults)
-            {
-                <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
-                    <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
-                    <span><strong>@Pegasus.Web.Pages.Cases.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
-                </a>
-            }
+        @foreach (var item in Model.ImageIntakeResults)
+        {
+            <a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">
+                <span><strong>@item.ImageIntakeReference</strong><small>@item.NormalizedVehicleRegistration</small></span>
+                <span><strong>@Pegasus.Web.Pages.Cases.IndexModel.ImageIntakeOutcomeLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.RegisteredAtUtc) @OperatorLabels.OfficeClock(item.RegisteredAtUtc)</small></span>
+            </a>
+        }
     </div>
 }
 
@@ -152,37 +152,37 @@ else if (Model.RecordKindFilter == "images" && Model.ImageIntakeResults.Count ==
     <h2 class="section-label section-gap">Results</h2>
     <div class="table-wrap">
         <table>
-                <caption class="vh">Case search results</caption>
-                <thead>
+            <caption class="vh">Case search results</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Case/PO</th>
+                    <th scope="col">Registration</th>
+                    <th scope="col">Claimant</th>
+                    <th scope="col">Claim number</th>
+                    <th scope="col">Principal</th>
+                    <th scope="col">State</th>
+                    <th scope="col">Engineer</th>
+                    <th scope="col">Received</th>
+                    <th scope="col">Instruction</th>
+                    <th scope="col">Origin</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in results.Items)
+                {
                     <tr>
-                        <th scope="col">Case/PO</th>
-                        <th scope="col">Registration</th>
-                        <th scope="col">Claimant</th>
-                        <th scope="col">Claim number</th>
-                        <th scope="col">Principal</th>
-                        <th scope="col">State</th>
-                        <th scope="col">Engineer</th>
-                        <th scope="col">Received</th>
-                        <th scope="col">Instruction</th>
-                        <th scope="col">Origin</th>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
+                        <td>@(item.Registration ?? "Not recorded")</td>
+                        <td>@(item.Claimant ?? "Not recorded")</td>
+                        <td>@(item.ClaimNumber ?? "Not recorded")</td>
+                        <td>@item.Principal</td>
+                        <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(item.State)" /></td>
+                        <td>@(item.EngineerId is null ? "Unassigned" : "Assigned")</td>
+                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
+                        <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
+                        <td>@item.Origin</td>
                     </tr>
-                </thead>
-                <tbody>
-                    @foreach (var item in results.Items)
-                    {
-                        <tr>
-                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
-                            <td>@(item.Registration ?? "Not recorded")</td>
-                            <td>@(item.Claimant ?? "Not recorded")</td>
-                            <td>@(item.ClaimNumber ?? "Not recorded")</td>
-                            <td>@item.Principal</td>
-                            <td><partial name="Shared/_StatusChip" model="@OperatorLabels.CaseStage(item.State)" /></td>
-                            <td>@(item.EngineerId is null ? "Unassigned" : "Assigned")</td>
-                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
-                            <td>@(item.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</td>
-                            <td>@item.Origin</td>
-                        </tr>
-                    }
+                }
             </tbody>
         </table>
     </div>

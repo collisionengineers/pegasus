@@ -38,7 +38,11 @@
     <partial name="Shared/_LucideSprite" />
     <a class="skip-link" href="#main-content">Skip to main content</a>
     <div class="app-rail-shell">
-        <aside class="app-rail">
+        @* A header, exactly as the top bar was: the rail is the page banner
+           turned on its side, carrying the brand, the primary navigation and
+           the signed-in controls. A div left that content outside every
+           landmark; an aside made it a second unnamed complementary one. *@
+        <header class="app-rail">
             <a class="app-rail__brand" asp-page="/Index" aria-label="Pegasus dashboard">
                 <img src="~/images/logo_no_margin.png" asp-append-version="true" alt="Collision Engineers" />
             </a>
@@ -88,7 +92,10 @@
                     </a>
                 }
             </nav>
-            <div class="app-rail__user">
+            @* The signed-in identity and its controls stay one named group, as
+               they were in the top bar: who you are and how to stop being them
+               belong together however the shell is laid out. *@
+            <div class="app-rail__user" role="group" aria-label="User">
                 @if (User.Identity?.IsAuthenticated == true)
                 {
                     <span class="app-rail__name">@User.Identity.Name</span>
@@ -102,7 +109,7 @@
                     <a class="app-rail__action" asp-page="/Account/SignIn">Sign in</a>
                 }
             </div>
-        </aside>
+        </header>
         <main id="main-content" class="app-rail-main" tabindex="-1">
             @if (TempData["Confirmation"] is string confirmation)
             {

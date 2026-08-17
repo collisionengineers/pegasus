@@ -73,31 +73,31 @@
     {
         <div class="table-wrap">
             <table>
-                    <caption class="vh">Triage work, most recently opened first</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Registration</th>
-                            <th scope="col">Opened</th>
-                            <th scope="col">State</th>
-                            <th scope="col">Assigned to</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var item in Model.Results.Items)
-                    {
-                        <tr>
-                            @* A triage record is pre-case, so the row leads
-                               with the registration rather than a case
-                               reference most rows will not have. *@
-                            <td><a asp-page="/Triage/Details" asp-route-id="@item.Id">@item.NormalizedVehicleRegistration</a></td>
-                            <td><time datetime="@item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.CreatedAtUtc)</time></td>
-                            <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(item.State)" /></td>
-                            <td>@(item.AssigneeId is null ? "Unassigned" : "Assigned")</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
+                <caption class="vh">Triage work, most recently opened first</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Opened</th>
+                        <th scope="col">State</th>
+                        <th scope="col">Assigned to</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model.Results.Items)
+                {
+                    <tr>
+                        @* A triage record is pre-case, so the row leads
+                           with the registration rather than a case
+                           reference most rows will not have. *@
+                        <td><a asp-page="/Triage/Details" asp-route-id="@item.Id">@item.NormalizedVehicleRegistration</a></td>
+                        <td><time datetime="@item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.CreatedAtUtc)</time></td>
+                        <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(item.State)" /></td>
+                        <td>@(item.AssigneeId is null ? "Unassigned" : "Assigned")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     }
 }
 else
@@ -117,30 +117,30 @@ else
     {
         <div class="table-wrap">
             <table>
-                    <caption class="vh">Cases in this queue</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Case</th>
-                            <th scope="col">Registration</th>
-                            <th scope="col">Claimant</th>
-                            <th scope="col">Principal</th>
-                            <th scope="col">Received</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var item in Model.Cases.Items)
-                    {
-                        <tr>
-                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
-                            <td>@(item.Registration ?? "—")</td>
-                            <td>@(item.Claimant ?? "—")</td>
-                            <td>@item.Principal</td>
-                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
+                <caption class="vh">Cases in this queue</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Case</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Claimant</th>
+                        <th scope="col">Principal</th>
+                        <th scope="col">Received</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model.Cases.Items)
+                {
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
+                        <td>@(item.Registration ?? "—")</td>
+                        <td>@(item.Claimant ?? "—")</td>
+                        <td>@item.Principal</td>
+                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
     }
 }
 
