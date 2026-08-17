@@ -2,12 +2,13 @@
 id: PLAT-001
 type: ticket
 title: Claude Design UI implementation
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-17T12:57:54.027Z'
+  review: '2026-08-17T14:33:41.674Z'
 taken_at: '2026-08-17T12:43:36.380Z'
 branch: task/claude-design-ui
 worktree: ../pegasus-worktrees/claude-design-ui
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-17T12:29:59.429Z'
-updated: '2026-08-17T12:57:54.027Z'
+updated: '2026-08-17T14:33:41.674Z'
 ---
 
 ## What
