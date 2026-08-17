@@ -245,6 +245,132 @@ public sealed class MailboxIntakeIntegrationTests
     }
 
     [Fact]
+    public async Task OtherMailClassificationDecisionReloadsNameAndReasoning()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+
+        var classified = MailClassificationResult.Classified(
+            MailCategory.Other(
+                MailDirection.Received,
+                "vendor-newsletter",
+                "No settled Received family fits this mailing."),
+            [new("staff.other", true, "Staff recorded an Other category with a name and reason.")],
+            "An Other classification was recorded with a name and reason.",
+            "staff_mail_classification",
+            1);
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var stored = await store.StoreAsync(
+            ClassificationDraft(
+                "classification-other-received.eml",
+                new string('D', 64),
+                "classification-other-received-token",
+                classified),
+            CancellationToken.None);
+
+        var reloaded = await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(stored.Id, CancellationToken.None);
+        var decision = Assert.IsType<MailClassificationResult>(reloaded?.MailClassificationDecision);
+        Assert.Equal(MailClassificationOutcome.Classified, decision.Outcome);
+        var category = Assert.IsType<MailCategory>(decision.Category);
+        Assert.True(category.IsOther);
+        Assert.Equal(MailDirection.Received, category.Direction);
+        Assert.Equal("vendor-newsletter", category.OtherName);
+        Assert.Equal("No settled Received family fits this mailing.", category.OtherReasoning);
+        Assert.Equal("vendor-newsletter", category.Name);
+        Assert.Null(category.ReceivedFamily);
+        Assert.Null(category.SentFamily);
+    }
+
+    [Fact]
+    public async Task SentOtherMailClassificationDecisionReloads()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+
+        var classified = MailClassificationResult.Classified(
+            MailCategory.Other(
+                MailDirection.Sent,
+                "fee-note-sent",
+                "The settled Sent families have no fee-note category."),
+            [new("staff.other", true, "Staff recorded an Other Sent category.")],
+            "An Other Sent classification was recorded with a name and reason.",
+            "staff_mail_classification",
+            1);
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var stored = await store.StoreAsync(
+            ClassificationDraft(
+                "classification-other-sent.eml",
+                new string('F', 64),
+                "classification-other-sent-token",
+                classified),
+            CancellationToken.None);
+
+        var reloaded = await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(stored.Id, CancellationToken.None);
+        var category = Assert.IsType<MailCategory>(
+            Assert.IsType<MailClassificationResult>(reloaded?.MailClassificationDecision).Category);
+        Assert.True(category.IsOther);
+        Assert.Equal(MailDirection.Sent, category.Direction);
+        Assert.Equal("fee-note-sent", category.OtherName);
+        Assert.Equal("The settled Sent families have no fee-note category.", category.OtherReasoning);
+    }
+
+    [Fact]
+    public async Task SentFamilyClassificationReloadsWithAndWithoutReplyContext()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+
+        await using var scope = database.CreateAsyncScope();
+        var store = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var queries = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+
+        var withoutReply = await store.StoreAsync(
+            ClassificationDraft(
+                "classification-sent.eml",
+                new string('1', 64),
+                "classification-sent-token",
+                MailClassificationResult.Classified(
+                    MailCategory.Sent(SentMailFamily.QuerySent),
+                    [new("staff.sent", true, "Staff recorded a query-sent category.")],
+                    "A settled Sent family was recorded.",
+                    "staff_mail_classification",
+                    1)),
+            CancellationToken.None);
+        var withReply = await store.StoreAsync(
+            ClassificationDraft(
+                "classification-sent-reply.eml",
+                new string('2', 64),
+                "classification-sent-reply-token",
+                MailClassificationResult.Classified(
+                    MailCategory.Sent(SentMailFamily.QuerySent, isReplyContext: true),
+                    [new("staff.sent", true, "Staff recorded a query-sent reply.")],
+                    "A settled Sent family was recorded with reply context.",
+                    "staff_mail_classification",
+                    1)),
+            CancellationToken.None);
+
+        var sent = Assert.IsType<MailCategory>(
+            (await queries.GetAsync(withoutReply.Id, CancellationToken.None))
+                ?.MailClassificationDecision?.Category);
+        Assert.Equal(SentMailFamily.QuerySent, sent.SentFamily);
+        Assert.False(sent.IsReplyContext);
+        Assert.Equal("query-sent", sent.Name);
+        Assert.Null(sent.ReceivedFamily);
+
+        var reply = Assert.IsType<MailCategory>(
+            (await queries.GetAsync(withReply.Id, CancellationToken.None))
+                ?.MailClassificationDecision?.Category);
+        Assert.Equal(SentMailFamily.QuerySent, reply.SentFamily);
+        Assert.True(reply.IsReplyContext);
+        Assert.Equal("query-sent", reply.Name);
+    }
+
+    [Fact]
     public async Task FullVersionedMailRouteDecisionReloadsWithoutLosingAuditEvidence()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -379,7 +505,7 @@ public sealed class MailboxIntakeIntegrationTests
                 var receipt = Assert.IsType<IntakeReceipt>(
                     await queries.GetAsync(summary.Id, CancellationToken.None));
                 Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);
-                Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+                Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
                 var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);
                 Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
                 Assert.Equal(
@@ -1132,4 +1258,32 @@ public sealed class MailboxIntakeIntegrationTests
         outer.WriteTo(stream);
         return stream.ToArray();
     }
+
+    private static IntakeReceiptDraft ClassificationDraft(
+        string fileName,
+        string sourceHash,
+        string sourceToken,
+        MailClassificationResult classification) =>
+        new(
+            SourceFileName: fileName,
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: sourceHash,
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, sourceToken),
+            ReceivedAtUtc: RecordedAtUtc,
+            ProcessedAtUtc: RecordedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            MailClassificationDecision: classification);
 }

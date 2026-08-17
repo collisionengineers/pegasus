@@ -375,11 +375,14 @@ public sealed class SentEvidencePollPersistenceTests
     {
         private readonly QdosInstructionExtractionPolicy inner = new();
 
+        public string PrincipalCode => inner.PrincipalCode;
+
         public InstructionExtractionResult Extract(
             IntakeSourceReadResult readResult,
-            DateTimeOffset processedAtUtc)
+            DateTimeOffset processedAtUtc,
+            EstablishedPrincipalContext principalContext)
         {
-            var result = inner.Extract(readResult, processedAtUtc);
+            var result = inner.Extract(readResult, processedAtUtc, principalContext);
             if (result.Applicability != InstructionPolicyApplicability.Applicable)
             {
                 return result;
