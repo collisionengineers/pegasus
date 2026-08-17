@@ -4,7 +4,6 @@
 @{
     ViewData["Title"] = "Approved mailboxes";
     ViewData["Eyebrow"] = "Administration";
-    ViewData["Lede"] = "This allowlist approves an address for one or both fixed read-only routes: inbound Intake from Inbox, or exact Sent evidence. It does not grant Exchange access and provides no mailbox browsing, message sending, credentials, rules, or folder controls.";
 }
 
 <a class="back-link" asp-page="/Administration/Index">
@@ -18,6 +17,12 @@
 {
     <div class="status-card" role="status">@status</div>
 }
+
+@* Every material limit of this allowlist, kept from the lede it replaces:
+   approving an address here grants nothing in Exchange. *@
+<aside class="notice">
+    <p>Approves an address for the read-only Inbox and Sent-evidence routes only — no Exchange access. It provides no mailbox browsing, message sending, credentials, rules or folder controls.</p>
+</aside>
 
 @* A rejected save is most often a stale version: the policy moved since this
    page loaded. The summary carries the exact outcome; recovery is to reload
