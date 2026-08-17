@@ -11,3 +11,14 @@
 - [x] Update canonical documentation
 - [x] Restore, build, run focused/full tests and negative searches
 - [x] Write proof and obtain independent review
+
+## Closeout — SIMPLI-009 (2026-08-17)
+
+- [x] PR merge verified (`gh pr view 385 --json state,mergedAt` → MERGED 2026-08-17T11:16:12Z)
+- [x] proof.md finalised (PR #385, merged `fc144848`, full-suite evidence on merged dev)
+- [x] Moved to final stage (Done 2026-08-17T11:54:59Z)
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove ../pegasus-worktrees/simpli-009` (shared with SIMPLI-008 — removed once, after both kanmer halves)
+- [ ] `git branch -d task/simpli-009`; `git push origin --delete task/simpli-009`
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`

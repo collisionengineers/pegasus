@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-17T10:19:40.488Z'
   verifying: '2026-08-17T11:16:20.475Z'
   done: '2026-08-17T11:54:59.805Z'
-taken_at: '2026-08-17T09:59:59.695Z'
-branch: task/simpli-009
-worktree: ../pegasus-worktrees/simpli-009
 labels: []
 groups:
   - EPIC-002
@@ -29,9 +26,10 @@ commits:
   - fc144848
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/385'
+deployment: not-deployed
 archived: false
 created: '2026-08-13T12:12:48.881Z'
-updated: '2026-08-17T11:54:59.805Z'
+updated: '2026-08-17T11:55:59.132Z'
 ---
 
 ## What
@@ -50,4 +48,12 @@ The current Web and Worker paths compete for ownership, creating permission, dur
 
 ## Verification
 
-- [ ] Duplicate delivery, crash-after-stage, lease expiry, poison handling, and Web/Worker permission-boundary tests pass.
+- [x] Duplicate delivery, crash-after-stage, lease expiry, poison handling, and Web/Worker permission-boundary tests pass — see `proof`.
+
+## Outcome
+
+Shipped in PR #385 (https://github.com/collisionengineers/pegasus/pull/385), merged to `dev` as `fc144848` on 2026-08-17; not deployed. Delivered together with [[SIMPLI-008]] on `task/simpli-009`.
+
+Shipped differently than planned (recorded as plan amendments after review + simplification pass): one fault taxonomy in `ProcessQueuedIntake` (terminal-input codes / transient with `InnerException` unwrap / shared `IsRecoverable` catch-all) instead of three lists; unexpected faults are persisted terminal **then rethrown** to the host rather than returned as an outcome and logged by the Worker; `IntakeWorkFunction` unchanged. "Repair stranded dispatched work" — a read-only production count found 0 unleased `dispatched` rows, so nothing to repair; the lost-message resilience gap is [[INTK-003]].
+
+Follow-ups: [[INTK-001]] (retry-scheduled honesty + auto-associated case link on the status page), [[INTK-002]] (adapter-wide fault naming, Web-composition architecture fact, `IIntakeSubmission` leftover), [[INTK-003]] (stale `dispatched` recovery), [[DELIV-001]] (simplicity rails for AGENTS.md).
