@@ -74,7 +74,7 @@ integration), plus a 0-error Release build.
 
 - **Live/deployed Worker-caller journey (tier 5)** — no enabled Worker caller
   has created a case against the deployed estate here. This is
-  `requires-live-approval` and is consistent with NOW.md's own warning ("No
+  `requires-live-approval` and is consistent with the retired pre-Kanmer tracker (historical evidence)'s own warning ("No
   browser journey has exercised … an enabled Worker caller against the deployed
   estate"). Deferred pending explicit operator approval; the ticket therefore
   holds at `review`, not `done`, until that activation decision is made.

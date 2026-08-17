@@ -18,7 +18,7 @@ links:
   - TICK-001
 archived: true
 created: '2026-08-12T15:10:50.349Z'
-updated: '2026-08-13T14:39:29.756Z'
+updated: '2026-08-17T04:09:47.193Z'
 ---
 
 ## What
@@ -27,7 +27,7 @@ Record Collision Engineers management approval before the QDOS production releas
 
 ## Why
 
-`NOW.md` identifies management approval as distinct from operator acceptance and deployment. It remains a final 0.1.0-alpha.1 acceptance obligation.
+the retired pre-Kanmer tracker identifies management approval as distinct from operator acceptance and deployment. It remains a final 0.1.0-alpha.1 acceptance obligation.
 
 ## Approach
 
@@ -41,10 +41,15 @@ Record Collision Engineers management approval before the QDOS production releas
 
 ## Notes
 
-- Source: `NOW.md` — Path 8.
+- Source: the retired pre-Kanmer tracker — Path 8.
 - Related capability: OPS-25 ([[TICK-032]]) .
 - Blocked by: [[TICK-218]] — designated-operator acceptance of the demonstrated workflow.
 
 ## Migrated validation
 
 This standalone proof/validation ticket was consolidated into [[TICK-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

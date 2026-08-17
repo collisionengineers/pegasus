@@ -39,7 +39,7 @@
 - GitHub branch-protection/ruleset changes, repository settings, credentials,
   automatic rollback, force-push recovery, deployment, and other external
   writes.
-- Retargeting the ticket's retired `NOW.md` citation, owned by `KANMER-001`.
+- Retargeting the ticket's retired the retired pre-Kanmer tracker (historical evidence) citation, owned by `KANMER-001`.
 - Broad documentation cleanup owned by `KANMER-002`.
 - Changes to `.github/workflows/workspaces.yml`; repository-wide enforcement
   belongs in `repository-check`.

@@ -17,7 +17,7 @@ links:
   - TICK-001
 archived: true
 created: '2026-08-12T15:10:50.326Z'
-updated: '2026-08-13T14:39:29.744Z'
+updated: '2026-08-17T04:09:47.022Z'
 ---
 
 ## What
@@ -26,7 +26,7 @@ Record designated-operator acceptance of the real end-to-end QDOS production wor
 
 ## Why
 
-`NOW.md` identifies this as a final 0.1.0-alpha.1 acceptance step. Deployment, smoke checks, and individual live proofs do not themselves establish operator acceptance.
+the retired pre-Kanmer tracker identifies this as a final 0.1.0-alpha.1 acceptance step. Deployment, smoke checks, and individual live proofs do not themselves establish operator acceptance.
 
 ## Approach
 
@@ -40,10 +40,15 @@ Record designated-operator acceptance of the real end-to-end QDOS production wor
 
 ## Notes
 
-- Source: `NOW.md` — Path 8.
+- Source: the retired pre-Kanmer tracker — Path 8.
 - Related capability: OPS-23 ([[TICK-031]]) .
 - Blocked by: completion of the live QDOS workflow-path evidence.
 
 ## Migrated validation
 
 This standalone proof/validation ticket was consolidated into [[TICK-001]]. Its pending checks and approval boundaries now live in that work ticket's `checklist.md`; actual results belong in the owner's `proof.md`. Archived rather than deleted to preserve history.
+
+
+## Tracker migration
+
+Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.

@@ -83,7 +83,7 @@ migration, deployment and operator acceptance remain pending."
   call. `docs/operations.md:96` records the evidence tier: "Box | Fake SDK/HTTP
   contract … | Real custody, permissions, versions, recovery, production
   target, and caller evidence [pending]".
-- **Requirement text (verbatim).** `docs/requirements.md` "Staging and custody"
+- **Requirement text (verbatim).** `docs/frd/frd-05-documents-extraction-and-custody.md` "Staging and custody"
   (:405-409): Box is the required accepted case-file custody system for day-one
   alpha; every allocated Case/PO uses its immutable reference for its Box case
   folder; a Box failure after allocation retains the Case as `Not ready` with

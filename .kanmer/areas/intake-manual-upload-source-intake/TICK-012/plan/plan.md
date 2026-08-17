@@ -16,7 +16,7 @@ caller-proof activation tier** as evidence by running the focused intake test
 suites, and **explicitly defer the live/deployment (tier-5) acceptance** as
 `requires-live-approval` rather than attempting any live/deployed journey. This
 beats the alternatives — "re-implement/refactor" risks the replay guarantees for
-no gain; "claim fully done incl. live" would over-claim against NOW.md's own
+no gain; "claim fully done incl. live" would over-claim against the retired pre-Kanmer tracker (historical evidence)'s own
 warning that no enabled Worker caller has run against the deployed estate.
 
 ## Steps

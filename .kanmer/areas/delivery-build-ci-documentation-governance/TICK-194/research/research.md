@@ -43,7 +43,7 @@ repository's merge-only release rule without touching the active UI revamp?
   `task/simpli-010` do not touch the proposed workflow/script/test paths.
   The active UI revamp has uncommitted `design/**` and `.stitch/**` paths,
   also with no overlap.
-- `KANMER-001` owns retargeting tickets that cite retired `NOW.md`, so it
+- `KANMER-001` owns retargeting tickets that cite retired the retired pre-Kanmer tracker (historical evidence), so it
   may rewrite this ticket's stale source note; implementation must not treat
   that note as authority. `KANMER-002` is a broad documentation-cleanup claim,
   so an edit to `docs/engineering.md` requires coordination or should be

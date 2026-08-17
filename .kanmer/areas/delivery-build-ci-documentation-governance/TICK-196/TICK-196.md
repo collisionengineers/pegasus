@@ -1,7 +1,7 @@
 ---
 id: TICK-196
 type: ticket
-title: Validate NOW.md claim format and staleness in CI
+title: Retired — legacy tracker claim-format CI validation
 status: backlog
 area: delivery-build-ci-documentation-governance
 assignee: ''
@@ -12,12 +12,12 @@ labels:
 links: []
 archived: true
 created: '2026-08-12T15:08:04.872Z'
-updated: '2026-08-17T04:09:42.213Z'
+updated: '2026-08-17T04:10:10.269Z'
 ---
 
 ## What
 
-Validate NOW.md claim format and staleness in CI.
+Validate the retired pre-Kanmer tracker claim format and staleness in CI.
 
 ## Why
 

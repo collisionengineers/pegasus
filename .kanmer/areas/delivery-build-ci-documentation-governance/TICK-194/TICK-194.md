@@ -2,10 +2,15 @@
 id: TICK-194
 type: ticket
 title: Detect direct or non-merge pushes to main in CI
-status: backlog
+status: implementing
 area: delivery-build-ci-documentation-governance
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T04:09:58.401Z'
+taken_at: '2026-08-17T04:10:19.599Z'
+branch: task/main-branch-history-guard
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/main-branch-history-guard'
 labels:
   - now
   - source-now
@@ -15,7 +20,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:08:04.783Z'
-updated: '2026-08-17T04:09:41.818Z'
+updated: '2026-08-17T04:10:19.599Z'
 ---
 
 ## What

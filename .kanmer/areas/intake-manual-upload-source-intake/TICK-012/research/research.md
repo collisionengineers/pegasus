@@ -111,7 +111,7 @@ authenticated staff may retry the frozen command with a reason after correction.
   in `IntakeAllocationConsumerTests` :909, and more), `CaseAcceptanceReplayTests.cs`,
   `QdosIntakeWebTests.cs`, browser `QdosAllocationRecoveryBrowserTests.cs`.
   Wiring: `WorkerCompositionTests.cs:56,59,137`.
-- **Requirement text (verbatim).** `docs/requirements.md` "Matching conflicts
+- **Requirement text (verbatim).** `docs/frd/frd-02-intake-and-source-identity.md` "Matching conflicts
   and reversible association" (:199): "Definitive authorised intake creates
   exactly one instructed Case idempotently. A definitive match to an existing
   instructed Case allocates no duplicate. A new instructed Case enters `Not
@@ -143,7 +143,7 @@ authenticated staff may retry the frozen command with a reason after correction.
   (`IntakeFunctions.cs:14`) — operational, not a code gap.
 - The tier-5 live/deployment acceptance (an enabled Worker caller actually
   creating a case against the deployed estate) is `requires-live-approval` and
-  is NOT provable now — consistent with NOW.md's "No browser journey has
+  is NOT provable now — consistent with the retired pre-Kanmer tracker (historical evidence)'s "No browser journey has
   exercised … an enabled Worker caller against the deployed estate."
 - INT-25 blocks DOC-01 (TICK-017): the immutable Case/PO reference DOC-01 names
   its Box folder from is exactly what `EfCaseAcceptanceStore.cs:252` mints; the
