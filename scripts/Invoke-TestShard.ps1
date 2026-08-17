@@ -157,16 +157,18 @@ $classGroups = @($tests |
 
 $assignments = @(for ($index = 1; $index -le $ShardCount; $index++) {
     [pscustomobject]@{
-        Shard = $index
-        TestCount = 0
         Classes = [System.Collections.Generic.List[string]]::new()
     }
 })
 
-foreach ($classGroup in $classGroups) {
-    $lightest = $assignments | Sort-Object TestCount, Shard | Select-Object -First 1
-    $lightest.Classes.Add($classGroup.Class)
-    $lightest.TestCount += $classGroup.Tests.Count
+# Deal each descending-size group across the runners, reversing direction on
+# every row. This keeps adjacent large classes apart without clustering the
+# medium database-heavy classes on whichever shard happens to be lightest.
+for ($index = 0; $index -lt $classGroups.Count; $index++) {
+    $row = [math]::Floor($index / $ShardCount)
+    $slot = $index % $ShardCount
+    $target = if (($row % 2) -eq 0) { $slot } else { $ShardCount - 1 - $slot }
+    $assignments[$target].Classes.Add($classGroups[$index].Class)
 }
 
 $mine = @($assignments[$Shard - 1].Classes)
