@@ -16,6 +16,7 @@ jobs:
     timeout-minutes: 5
     outputs:
       build: ${{ steps.detect.outputs.build }}
+      infrastructure: ${{ steps.detect.outputs.infrastructure }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -38,21 +39,17 @@ jobs:
             $base = '${{ github.event.before }}'
             $head = '${{ github.sha }}'
           }
-          # Build/test lanes run only for changes that can affect the built
-          # application or how those lanes run: source, tests, the solution,
-          # project/lock/config files, the acceptance or shard script, this
-          # workflow, or the action it shares. Test-DocumentationLinks.ps1 is
-          # deliberately excluded because the documentation job always runs
-          # (docs/engineering.md "Branches and delivery").
-          $buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/(Invoke-(QdosAlphaAcceptance|TestShard)|Test-MainBranchHistory)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
-          $build = 'true'
+          $forceAll = $true
+          $files = @()
           if ($base -and $base -notmatch '^0+$') {
             $files = @(git diff --name-only "$base...$head")
             if ($LASTEXITCODE -eq 0) {
-              $build = if ($files | Where-Object { $_ -match $buildPattern }) { 'true' } else { 'false' }
+              $forceAll = $false
             }
           }
-          "build=$build" >> $env:GITHUB_OUTPUT
+          $flags = ./scripts/Get-CiChangeFlags.ps1 -ChangedPath $files -ForceAll:$forceAll
+          "build=$($flags.Build.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+          "infrastructure=$($flags.Infrastructure.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
   documentation:
     # The one lane every change set runs, including change sets that touch no
@@ -81,6 +78,22 @@ jobs:
       - name: Provider-reference generator tests
         shell: pwsh
         run: python -m unittest discover -s scripts/reference_data/tests -p 'test_*.py'
+
+  infrastructure:
+    # Local mode checks committed fail-closed invariants and compiles Bicep.
+    # It does not authenticate, read Azure state, run azd or deploy anything.
+    needs: changes
+    if: needs.changes.outputs.infrastructure == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Change-classification regression tests
+        shell: pwsh
+        run: ./scripts/Test-CiChangeFlags.ps1
+      - name: Validate infrastructure plan locally
+        shell: pwsh
+        run: ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
 
   unit:
     # Both projects run whole and unfiltered: neither declares a single test
