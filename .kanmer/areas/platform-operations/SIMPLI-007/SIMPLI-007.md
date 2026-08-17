@@ -16,9 +16,11 @@ groups:
   - HZN-003
 links: []
 blocks: []
+refs:
+  - docs/adr/0013-qdos-alpha-implementation-contract.md
 archived: false
 created: '2026-08-13T12:12:48.841Z'
-updated: '2026-08-17T10:00:08.513Z'
+updated: '2026-08-17T12:13:56.697Z'
 ---
 
 ## What
