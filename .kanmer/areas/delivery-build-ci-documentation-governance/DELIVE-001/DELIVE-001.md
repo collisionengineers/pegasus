@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Harden flaky CI tests (SQL deadlock, QDOS soak, cancellation race,
   pwsh-subprocess)
-status: backlog
+status: preparing
 area: delivery-build-ci-documentation-governance
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T04:23:51.013Z'
 labels: []
 groups:
   - EPIC-001
@@ -16,7 +18,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-14T11:15:00.236Z'
-updated: '2026-08-17T04:04:47.169Z'
+updated: '2026-08-17T04:23:51.013Z'
 ---
 
 ## What
