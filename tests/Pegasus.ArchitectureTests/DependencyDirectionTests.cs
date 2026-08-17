@@ -315,22 +315,23 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void WebCustodialPagesHaveNoDormantTransportPath()
     {
-        var casePageDependencies = Assert.Single(typeof(DetailsModel).GetConstructors())
-            .GetParameters()
-            .Select(parameter => parameter.ParameterType)
-            .ToArray();
-        var requestPageDependencies = Assert.Single(typeof(RequestModel).GetConstructors())
-            .GetParameters()
-            .Select(parameter => parameter.ParameterType)
-            .ToArray();
+        var casePageDependencies = ConstructorDependencies(typeof(DetailsModel));
+        var custodyPageDependencies = ConstructorDependencies(typeof(CustodyModel));
+        var requestPageDependencies = ConstructorDependencies(typeof(RequestModel));
 
-        Assert.Contains(typeof(IAddCaseDocument), casePageDependencies);
         Assert.Contains(typeof(IGetCase), casePageDependencies);
-        Assert.Contains(typeof(ICreateRequestUploadLink), casePageDependencies);
-        Assert.Contains(typeof(IRevokeRequestUploadLink), casePageDependencies);
+        Assert.Contains(typeof(IAddCaseDocument), custodyPageDependencies);
+        Assert.Contains(typeof(ICreateRequestUploadLink), custodyPageDependencies);
+        Assert.Contains(typeof(IRevokeRequestUploadLink), custodyPageDependencies);
         Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
         Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
     }
+
+    private static Type[] ConstructorDependencies(Type pageModel) =>
+        Assert.Single(pageModel.GetConstructors())
+            .GetParameters()
+            .Select(parameter => parameter.ParameterType)
+            .ToArray();
 
     [Fact]
     public void CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()

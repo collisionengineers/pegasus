@@ -948,7 +948,7 @@ public sealed partial class CaseDetailsWebTests
     [GeneratedRegex("value=\"(?<value>[^\"]+)\"", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ValueRegex();
 
-    private sealed class RecordingCaseDetailsStore :
+    private sealed partial class RecordingCaseDetailsStore :
         IGetCase,
         IAcquireCaseEditLease,
         IRecordManualCaseChase,
@@ -1148,6 +1148,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ThrowNextFailure();
             Holds.Add(request);
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Held });
         }
@@ -1157,6 +1158,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ThrowNextFailure();
             Releases.Add(request);
             return Task.FromResult(CreateWorkflow() with { State = CaseLifecycleState.Review });
         }
@@ -1166,6 +1168,7 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            ThrowNextFailure();
             Transitions.Add(request);
             return Task.FromResult(CreateWorkflow() with
             {
