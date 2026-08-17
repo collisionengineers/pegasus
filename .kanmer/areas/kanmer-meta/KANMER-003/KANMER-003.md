@@ -2,19 +2,25 @@
 id: KANMER-003
 type: ticket
 title: Reconcile Pegasus setup with packaged Kanmer 0.3.3
-status: implementing
+status: review
 area: kanmer-meta
 assignee: codex
 profile: custom
 requires: {}
+stageEntered:
+  review: '2026-08-17T05:45:24.646Z'
 taken_at: '2026-08-17T05:41:33.106Z'
 branch: task/kanmer-003-setup-reconcile
 worktree: ../pegasus-worktrees/kanmer-003-setup-reconcile
 labels: []
 links: []
+commits:
+  - ed5370da
+prs:
+  - '#382'
 archived: false
 created: '2026-08-17T05:41:23.840Z'
-updated: '2026-08-17T05:41:33.106Z'
+updated: '2026-08-17T05:45:24.646Z'
 ---
 
 ## What
