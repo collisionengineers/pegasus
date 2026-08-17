@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Inbox · Pegasus</title>
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.css">
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/styles.css">
+<style>a{color:var(--navy-fg)}a:hover{color:var(--ce-red-dark)}</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.js"></script>
+</head><body>
+<div id="root"></div>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel">
+const {PageHeading, Refresh, Subtabs, DataTable, StatusChip, Pager, Select, EmptyState} = DS;
+const MAIL = [
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF17) RTA on 22/07/2026 : Mr Muneeb Sarwar (Our Ref: REB/ND/47023/2)", cat:"Instructions received", out:"Case created", ref:"QDOS26001", when:"14 Aug 2026", time:"09:51", att:4, unread:true},
+  {from:"hobrien", addr:"hobrien@qdosassist.co.uk", subject:"Fw: (EREF6) RTA on 10/08/2026 : Ms Sadie Miller (Our Ref: /47624/1, Vehicle: GP72AUV)", cat:"Images received", out:"Needs sorting", ref:null, when:"14 Aug 2026", time:"08:52", att:9, unread:true},
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF17) Images : Mr Muneeb Sarwar (Our Ref: REB/ND/47023/2)", cat:"Images received", out:"Images attached", ref:"QDOS26001", when:"14 Aug 2026", time:"08:17", att:4},
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF13) RTA on 02/08/2026 : Mr Daniel Barnett (Our Ref: REB/ND/47385/1)", cat:"Instructions received", out:"Needs sorting", ref:null, when:"14 Aug 2026", time:"08:03", att:4},
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF6) RTA on 11/08/2026 : Mr Adewale Abass (Our Ref: REB/ND/47632/1)", cat:"Instructions received", out:"Case created", ref:"QDOS26011", when:"14 Aug 2026", time:"08:00", att:4},
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF12) RTA on 08/08/2026 : Mr Reece Young (Our Ref: AKH/ND/47574/1)", cat:"Instructions received", out:"Case created", ref:"QDOS26010", when:"14 Aug 2026", time:"07:13", att:4},
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF9) RTA on 11/08/2026 : Mr Tomasz Mydlowski (Our Ref: AKH/ND/47630/1)", cat:"Instructions received", out:"Case created", ref:"QDOS26009", when:"13 Aug 2026", time:"12:02", att:3},
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF18) Cancellation : Ms Lucie Barnfield (Our Ref: LEB/ND/46776/1)", cat:"Cancellation", out:"Case placed on hold", ref:"QDOS26004", when:"13 Aug 2026", time:"01:19", att:0},
+  {from:"nduncombe", addr:"nduncombe@qdosassist.co.uk", subject:"Fw: (EREF7) Query : Mrs Billie-Jo Till (Our Ref: LEB/ND/47554/1, Vehicle: PN09AAE)", cat:"Query", out:"Query filed", ref:"QDOS26018", when:"12 Aug 2026", time:"15:26", att:1},
+];
+function Outcome({m}){
+  if(m.out==="Needs sorting") return <StatusChip state="Needs sorting"/>;
+  const words = {"Case created":"Case created","Images attached":"Images attached to","Case placed on hold":"On hold","Query filed":"Query filed to"};
+  return <span style={{display:"grid",gap:"2px",justifyItems:"start"}}>
+    <StatusChip state={m.out} tone={m.out==="Case placed on hold"?"amber":"green"} icon={m.out==="Case placed on hold"?"clock":"check-circle"}/>
+    {m.ref && <a href="Case.html" style={{paddingLeft:"4px"}}>{m.ref}</a>}
+  </span>;
+}
+function Page(){
+  const [folder, setFolder] = React.useState("Inbox");
+  return <Shell nav="Inbox">
+    <PageHeading title="Inbox" refresh={<Refresh updatedAt="16 Aug 17:02" onRefresh={()=>{}}/>}/>
+    <Subtabs label="Folders" tabs={[
+      {label:"Inbox", count:41, current:folder==="Inbox", onClick:()=>setFolder("Inbox")},
+      {label:"Sent", current:folder==="Sent", onClick:()=>setFolder("Sent")},
+      {label:"Deleted items", current:folder==="Deleted", onClick:()=>setFolder("Deleted")},
+    ]} end={<label style={{display:"inline-flex",alignItems:"center",gap:"8px",fontSize:"var(--t-sm)",color:"var(--muted)"}}>Mailbox
+      <Select style={{minWidth:"260px"}}><option>instructions@collisionengineers.co.uk</option><option>All approved mailboxes</option></Select></label>}/>
+    <div style={{marginTop:"var(--sp-6)"}}>
+    {folder==="Inbox" ? <React.Fragment>
+      <DataTable caption="Inbox messages, most recent first" rows={MAIL} columns={[
+        {header:"From", cell:m=><span style={{display:"grid"}}><b>{m.from}</b><small style={{color:"var(--muted)"}}>{m.addr}</small></span>},
+        {header:"Subject", cell:m=><span style={{display:"grid",maxWidth:"460px"}}><a href="InboxMessage.html" style={{fontWeight:m.unread?800:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}} title={m.subject}>{m.subject}</a><small style={{color:"var(--muted)"}}>Forwarded by Desk{m.att>0?" · "+m.att+" attachments":""}</small></span>},
+        {header:"Category", cell:m=>m.cat},
+        {header:"Outcome", cell:m=><Outcome m={m}/>},
+        {header:"Received", cell:m=><span style={{whiteSpace:"nowrap"}}>{m.when} {m.time}</span>, tabular:true},
+      ]}/>
+      <Pager context="Page 1 of 5" nextHref="#" label="Inbox pages"/>
+    </React.Fragment>
+    : <EmptyState>{folder==="Sent"?"Nothing has been sent from this mailbox this week.":"Deleted items are kept for 30 days. There are none."}</EmptyState>}
+    </div>
+  </Shell>;
+}
+mount(<Page/>);
+</script>
+</body></html>

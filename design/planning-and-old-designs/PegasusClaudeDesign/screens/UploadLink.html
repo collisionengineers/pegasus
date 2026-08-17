@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Upload requested documents · Pegasus</title>
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.css">
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/styles.css">
+<style>a{color:var(--navy-fg)}a:hover{color:var(--ce-red-dark)}
+.drop{border:2px dashed var(--line);border-radius:var(--radius);padding:28px 16px;text-align:center;background:var(--paper)}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.js"></script>
+</head><body>
+<div id="root"></div>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel">
+const {AppShell, AppNav, PageHeading, Eyebrow, Panel, SectionLabel, PrimaryAction, Button, Icon, DataTable, StatusChip} = DS;
+function Page(){
+  return <AppShell nav={<AppNav brandOnly productName="Pegasus"/>}>
+    <div style={{maxWidth:"640px"}}>
+      <Eyebrow>Secure document request</Eyebrow>
+      <PageHeading title="Upload requested documents"/>
+      <p style={{margin:"var(--sp-6) 0 0",fontSize:"var(--t-body)",color:"var(--ink)"}}>Documents submitted here go directly to Collision Engineers against the request you received. Do not upload material unrelated to that request.</p>
+      <Panel style={{marginTop:"var(--sp-6)"}}>
+        <SectionLabel>Choose a document</SectionLabel>
+        <div className="drop">
+          <Icon name="upload"/>
+          <p style={{margin:"8px 0 2px",fontWeight:700}}>Drag a file here, or browse</p>
+          <p style={{margin:"0 0 12px",fontSize:"var(--t-sm)",color:"var(--muted)"}}>PDF, Word document or image — up to 25.0 MB each.</p>
+          <Button>Choose file</Button>
+        </div>
+        <PrimaryAction style={{width:"100%",marginTop:"var(--sp-6)"}}>Upload document</PrimaryAction>
+      </Panel>
+      <Panel style={{marginTop:"var(--sp-6)"}}>
+        <SectionLabel>Accepted so far</SectionLabel>
+        <DataTable caption="Documents accepted on this request" rows={[
+          {name:"damage-photo-1.jpg", when:"15 Aug 14:02", size:"2.4 MB"},
+          {name:"damage-photo-2.jpg", when:"15 Aug 14:02", size:"0.7 MB"},
+        ]} columns={[
+          {header:"File", cell:r=>r.name},
+          {header:"Accepted", cell:r=>r.when, tabular:true},
+          {header:"Size", cell:r=>r.size, tabular:true},
+          {header:"", cell:r=><StatusChip state="Retained" tone="neutral" icon="lock"/>},
+        ]}/>
+        <p style={{margin:"10px 0 0",fontSize:"var(--t-sm)",color:"var(--muted)"}}>2 of 20 files · 3.1 MB of 50 MB · this link expires 21 Aug 2026.</p>
+      </Panel>
+    </div>
+  </AppShell>;
+}
+mount(<Page/>);
+</script>
+</body></html>
