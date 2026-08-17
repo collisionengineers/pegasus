@@ -105,6 +105,82 @@ or is deleted; a dangerous superseded capability is deleted immediately.
 - Metrics count successful effects, not attempts; a zero-error signal is
   meaningful only beside a heartbeat proving work occurred.
 
+## Simplicity
+
+The [simplicity rails](../AGENTS.md#simplicity-rails) in `AGENTS.md` are the
+rules; these are the mechanics.
+
+### The four lenses
+
+Run each over the branch's own diff before the PR opens; each answers one
+question and returns `file:line`, the concrete cost, and the concrete
+alternative:
+
+| Lens | Question | Typical find |
+| --- | --- | --- |
+| Reuse | Does the codebase already have this? | a second inner-exception unwrapper; a hand-rolled page header beside `_PageHeader`; a third copy of a test fake |
+| Simplification | What does the diff add that nothing reads, or could be plainer? | enum values with no reader; a forwarder whose only reason left; a `?? default` hiding which path names a value; nested ternaries |
+| Efficiency | What work is repeated or blocking? | two round-trips one correlated subquery would do; sequential independent I/O; a fixed 2 s reload against a 60 s dispatcher; blocking work on startup or a hot path; a long-lived closure capturing a large scope (prefer a class or record copying only the fields it needs) |
+| Altitude | Is this a special case bolted onto a shared mechanism? | a result record carrying an `Exception` to a composition root; Core matching BCL exception types instead of adapters naming faults |
+
+Findings are recorded in the ticket plan with a disposition each — applied,
+skipped (see below), or deferred to a named ticket. Nothing evaporates.
+
+### Skip rules
+
+A finding is skipped, and the skip recorded, when its fix would (a) change
+intended behaviour, (b) require changes well outside the reviewed diff, or
+(c) is a false positive on inspection. "Skipped — behaviour change, see
+INTK-00x" beats silence. The pass hunts quality, not bugs; a suspected bug goes
+to review.
+
+### Balance
+
+Never trade clarity for compactness. Prefer explicit code; avoid nested
+ternaries and clever one-liners; keep abstractions that improve organisation;
+do not combine unrelated concerns into one function or component; do not
+remove a name, a type, or a step a reader relies on. Comments that narrate
+what the code visibly does are removed; comments that carry a reason stay.
+Only refinements that change how a reader understands the code are called out
+in the report; the rest is just the diff.
+
+### Scope and timing
+
+The pass runs over the code the branch changed and its immediate
+surroundings, proactively — right after the code is written and before the PR
+opens — not over the whole repository and not as a later review stage.
+
+### Fault handling shape
+
+- Adapters name faults (`IntakeDependencyUnavailableException`); Core matches
+  intake types, plus BCL types only where no adapter sits in between.
+- One classifier per decision, looking through `InnerException` — EF wraps a
+  SQL deadlock in `DbUpdateException`, and a store's retry helper rethrows the
+  last attempt.
+- The catch-all is the shared safety policy
+  (`IntakeExceptionPolicy.IsRecoverable`), never a local
+  `is not OperationCanceledException`.
+- Persist a terminal state before rethrowing an unexpected fault, so the host
+  logs it in full and a redelivery finds the work settled; do not swallow it
+  into a bounded outcome or carry an `Exception` in a Core result. The
+  operator-visible behaviour (a failed item reads as failed) is owned by the
+  FRD — for queued intake, [FRD-02](frd/frd-02-intake-and-source-identity.md).
+
+### Test support
+
+One fake per concept, in the shared driver, `internal`; one helper for each
+composition fact tests must repeat ("Web does not register the processor" →
+`IntakeWebDriver.CreateProcessor`); one drain loop. A fake or helper copied
+into a second test file is the third-copy rule applied to tests.
+
+### Plan sizing
+
+A plan states its diff estimate first. Six real steps beat thirteen procedural
+ones; a step that only re-runs what CI runs, or re-checks what `git diff`
+shows, is deleted. Research separates verified facts (read-only checks, with
+the command) from assumptions; an assumption a five-minute query would settle
+is run, not defended.
+
 ## Destructive operations
 
 Before any wipe, drop, purge, rebuild, migrate, replay, or bulk update:
