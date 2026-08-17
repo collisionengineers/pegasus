@@ -2,13 +2,14 @@
 id: TICK-197
 type: ticket
 title: Establish an infra validation lane or record its deliberate absence
-status: implementing
+status: review
 area: delivery-build-ci-documentation-governance
 order: 10
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-17T04:08:10.442Z'
+  review: '2026-08-17T05:08:02.437Z'
 taken_at: '2026-08-17T05:05:35.827Z'
 branch: task/infra-validation-lane
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/infra-validation-lane'
@@ -20,9 +21,14 @@ groups:
   - EPIC-001
 links: []
 docs_todo: true
+commits:
+  - be46d8ea870bec31a86eadadc28901b55da467e8
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/380'
+deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.898Z'
-updated: '2026-08-17T05:05:35.827Z'
+updated: '2026-08-17T05:08:02.437Z'
 ---
 
 ## What

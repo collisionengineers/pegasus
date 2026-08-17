@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/380 from `task/infra-validation-lane` at commit `be46d8ea870bec31a86eadadc28901b55da467e8`. Local classifier, infrastructure validator, documentation links, YAML parse, and diff-scope checks passed. No cloud read/write or UI path was involved.
