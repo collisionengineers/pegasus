@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>New case · Pegasus</title>
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.css">
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/styles.css">
+<style>a{color:var(--navy-fg)}a:hover{color:var(--ce-red-dark)}</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.js"></script>
+</head><body>
+<div id="root"></div>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel">
+const {PageHeading, Eyebrow, Panel, SectionLabel, FormGrid, Field, Input, Select, Textarea, Choice, ChoiceGroup, PrimaryAction, SecondaryAction, Button, StatusCard, DataRow, Provenance, ButtonRow, Notice} = DS;
+function prov(word){ return <Provenance word={word}/>; }
+function Page(){
+  return <Shell nav="Upload">
+    <div style={{maxWidth:"860px"}}>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:"16px"}}>
+        <div><Eyebrow>New case</Eyebrow><PageHeading title="From EREF19-instruction.eml"/></div>
+        <SecondaryAction href="Upload.html" style={{flex:"0 0 auto"}}>Upload another</SecondaryAction>
+      </div>
+      <StatusCard variant="done" style={{marginTop:"var(--sp-6)"}}>File read — confirm the extracted values below.</StatusCard>
+      <Panel style={{marginTop:"var(--sp-6)"}}>
+        <SectionLabel>Details</SectionLabel>
+        <div>
+          <DataRow field="Claimant" value="Ms Karen Whitfield" end={prov("Extracted")}/>
+          <DataRow field="Claim number" value="REB/ND/47701/1" end={prov("Extracted")}/>
+          <DataRow field="Registration" value="KV19 ORT" end={prov("Extracted")}/>
+          <DataRow field="Incident date" value="12 Aug 2026" end={prov("Extracted")}/>
+          <DataRow field="Instruction date" value="15 Aug 2026" end={prov("Extracted")}/>
+          <DataRow field="Third party" suggested="None named in the instruction"/>
+        </div>
+        <ButtonRow style={{marginTop:"var(--sp-4)"}}><Button>Change a value</Button></ButtonRow>
+      </Panel>
+      <Panel style={{marginTop:"var(--sp-6)"}}>
+        <SectionLabel>Inspection address</SectionLabel>
+        <Notice>This work provider uses Image Based Assessment: the inspection address is recorded as &ldquo;Image Based Assessment&rdquo; even if the instruction mentions a physical location. A physical address can be recorded on the case afterwards, with a reason.</Notice>
+      </Panel>
+      <Panel style={{marginTop:"var(--sp-6)"}}>
+        <SectionLabel>Case</SectionLabel>
+        <FormGrid>
+          <Field label="Confirmed principal code" htmlFor="nc-principal" hint="The organisation this instruction is for."><Input id="nc-principal" defaultValue="QDOS"/></Field>
+          <Field label="Case type" htmlFor="nc-type"><Select id="nc-type"><option>Inspection</option><option>Inspection and Audit</option></Select></Field>
+        </FormGrid>
+        <ChoiceGroup legend="Evidence completeness" stacked style={{marginTop:"var(--sp-6)"}}>
+          <label className="choice"><input type="checkbox" defaultChecked/> <span>Instruction evidence is complete</span></label>
+          <label className="choice"><input type="checkbox" defaultChecked/> <span>I have confirmed the instruction evidence</span></label>
+          <label className="choice"><input type="checkbox"/> <span>Image evidence is complete</span></label>
+          <label className="choice"><input type="checkbox"/> <span>I have confirmed the image evidence</span></label>
+        </ChoiceGroup>
+      </Panel>
+      <Panel style={{marginTop:"var(--sp-6)"}}>
+        <SectionLabel>Reason</SectionLabel>
+        <FormGrid>
+          <Field wide label="Why this case is being created" htmlFor="nc-reason"><Textarea id="nc-reason" rows={3}/></Field>
+        </FormGrid>
+        <ButtonRow style={{marginTop:"var(--sp-6)"}}>
+          <PrimaryAction>Create case</PrimaryAction>
+          <SecondaryAction href="Upload.html">Cancel</SecondaryAction>
+        </ButtonRow>
+      </Panel>
+    </div>
+  </Shell>;
+}
+mount(<Page/>);
+</script>
+</body></html>

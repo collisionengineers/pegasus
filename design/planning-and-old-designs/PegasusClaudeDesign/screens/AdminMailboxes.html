@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Approved mailboxes · Pegasus</title>
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.css">
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/styles.css">
+<style>a{color:var(--navy-fg)}a:hover{color:var(--ce-red-dark)}</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.js"></script>
+</head><body>
+<div id="root"></div>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel">
+const {BackLink, Eyebrow, PageHeading, SplitMain, SectionLabel, Notice, DataTable, StatusChip, Button, FormPanel, Field, Input, Select, Choice, ChoiceGroup, PrimaryAction, StatusCard} = DS;
+const BOXES = [
+  {addr:"instructions@collisionengineers.co.uk", scope:"Inbox", state:"Approved", tone:"green", last:"16 Aug 17:00", next:"16 Aug 17:05", version:3},
+  {addr:"engineers@collisionengineers.co.uk", scope:"Sent evidence", state:"Disabled", tone:"neutral", last:"Never polled", next:"—", version:1},
+];
+function UpdateRow({box}){
+  const [open, setOpen] = React.useState(false);
+  if(!open) return <Button onClick={()=>setOpen(true)}>Update</Button>;
+  return <div style={{display:"grid",gap:"10px",padding:"8px 0",maxWidth:"420px"}}>
+    <ChoiceGroup legend="Read-only route scope" stacked>
+      <label className="choice"><input type="checkbox" defaultChecked={box.scope==="Inbox"}/> <span>Inbox</span></label>
+      <label className="choice"><input type="checkbox" defaultChecked={box.scope==="Sent evidence"}/> <span>Exact report and Sent evidence (Sent Items)</span></label>
+    </ChoiceGroup>
+    <label style={{display:"grid",gap:"4px",fontSize:"var(--t-sm)",fontWeight:600}}>State
+      <Select defaultValue={box.state}><option>Approved</option><option>Disabled</option></Select></label>
+    <label style={{display:"grid",gap:"4px",fontSize:"var(--t-sm)",fontWeight:600}}>Reason<Input/></label>
+    <div style={{display:"flex",gap:"10px"}}><Button variant="dark">Save mailbox policy</Button><Button onClick={()=>setOpen(false)}>Cancel</Button></div>
+  </div>;
+}
+function Page(){
+  return <Shell nav="Administration">
+    <BackLink href="Administration.html">Back to Administration</BackLink>
+    <Eyebrow>Administration</Eyebrow>
+    <PageHeading title="Approved mailboxes"/>
+    <div style={{marginTop:"var(--sp-6)"}}>
+      <Notice>Approves an address for the read-only Inbox and Sent-evidence routes only — no Exchange access.</Notice>
+      <SectionLabel>Current policies</SectionLabel>
+      <DataTable caption="Approved mailbox policies" rows={BOXES} columns={[
+        {header:"Address", cell:r=><b>{r.addr}</b>},
+        {header:"Route scope", cell:r=>r.scope},
+        {header:"State", cell:r=><StatusChip state={r.state} tone={r.tone} icon={r.state==="Approved"?"check-circle":"lock"}/>},
+        {header:"Last completed poll", cell:r=>r.last, tabular:true},
+        {header:"Next due", cell:r=>r.next, tabular:true},
+        {header:"Version", cell:r=>r.version, tabular:true},
+        {header:"Update", cell:r=><UpdateRow box={r}/>},
+      ]}/>
+      <div style={{marginTop:"var(--sp-8)"}}>
+      <SplitMain>
+        <div style={{display:"grid",gap:"var(--sp-4)",alignContent:"start"}}>
+          <StatusCard variant="attention" title="Approval here does not grant Exchange access">The Microsoft 365 tenant must already permit Pegasus to read the mailbox; until then, polling fails with <code>mailbox_access_denied</code>.</StatusCard>
+          <StatusCard variant="info" title="Identities are fixed once saved">To move a mailbox, disable its row and add a new one.</StatusCard>
+        </div>
+        <FormPanel title="Add an approved address" form={{onSubmit:e=>e.preventDefault()}}>
+          <Field label="Approved address" htmlFor="mb-addr"><Input id="mb-addr" type="email"/></Field>
+          <Field label="Mailbox identity" htmlFor="mb-id"><Input id="mb-id" autoComplete="off"/></Field>
+          <Field label="Inbox folder identity" htmlFor="mb-inbox" hint="For the Inbox route."><Input id="mb-inbox" autoComplete="off"/></Field>
+          <Field label="Sent folder identity" htmlFor="mb-sent" hint="For Sent evidence."><Input id="mb-sent" autoComplete="off"/></Field>
+          <ChoiceGroup legend="Read-only route scope" stacked>
+            <label className="choice"><input type="checkbox"/> <span>Inbox</span></label>
+            <label className="choice"><input type="checkbox"/> <span>Exact report and Sent evidence (Sent Items)</span></label>
+          </ChoiceGroup>
+          <Field label="State" htmlFor="mb-state"><Select id="mb-state"><option>Disabled</option><option>Approved</option></Select></Field>
+          <Field label="Reason" htmlFor="mb-reason"><Input id="mb-reason"/></Field>
+          <div><PrimaryAction type="submit">Add mailbox policy</PrimaryAction></div>
+        </FormPanel>
+      </SplitMain>
+      </div>
+    </div>
+  </Shell>;
+}
+mount(<Page/>);
+</script>
+</body></html>
