@@ -11,8 +11,9 @@ tags: [architecture, workspaces, renderer, extraction]
 # ADR-0025: Integrate the report renderer and document extractor into the application, not into standalone packages
 
 - Date: 2026-08-17
-- Status: accepted — records the operator's direction of 2026-08-14; the
-  supporting assessment is on Kanmer ticket SIMPLI-015
+- Status: accepted 2026-08-14 by Collision Engineers product owner (operator
+  direction recorded on Kanmer ticket SIMPLI-015); assessment reconfirmed
+  2026-08-17
 - Owners: Collision Engineers product owner and Pegasus development team
 - Relation: refines [ADR-0009](0009-adopt-pegasus-monorepo-workspaces.md),
   which admitted the two source workspaces and anticipated their later
@@ -84,11 +85,14 @@ and operator acceptance. Until then both remain non-caller source under
 - Packaging is not foreclosed: a package can be produced *from* this repository
   later if a second consumer appears. Extraction now would only add friction.
 - Once a workspace is integrated it leaves `workspaces/` (which by definition
-  holds non-caller imports); its home under `src/` and any new top-level
-  directory follow the ADR-0009 rule for new production projects, and
-  `.github/workflows/workspaces.yml`, `workspaces/README.md`, and
-  `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` are updated in
-  the activating change.
+  holds non-caller imports). Its home is decided by the activating change under
+  the AGENTS.md product invariant — a new top-level directory or production
+  project requires an accepted ADR proving the existing boundary cannot carry
+  it — which means that change either folds the source into an existing
+  production project or reconciles ADR-0002/ADR-0009's four-project boundary
+  in its own ADR; `.github/workflows/workspaces.yml`, `workspaces/README.md`,
+  and `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` are updated
+  in the same change.
 
 ## Options considered
 
