@@ -4,10 +4,12 @@ type: ticket
 title: >-
   MCP-04 — Automation Actor document actions through the same Core use cases as
   the staff app
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T13:05:50.615Z'
 labels:
   - capability
   - MCP-04
@@ -17,9 +19,11 @@ groups:
   - EPIC-005
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:03:53.304Z'
-updated: '2026-08-17T06:43:40.745Z'
+updated: '2026-08-17T13:05:50.615Z'
 ---
 
 ## What
