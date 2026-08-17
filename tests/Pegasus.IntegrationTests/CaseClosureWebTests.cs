@@ -46,19 +46,12 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(archived, store.CaseId);
 
         var closure = Assert.Single(store.Closures);
-        AssertClaimant(workspace, closure.Actor);
-        Assert.Equal(store.CaseVersion, closure.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, closure.EditLeaseToken);
-        Assert.Equal("close-case", closure.OperationKey);
-        Assert.Equal("Provider withdrew the instruction", closure.Reason);
+        AssertLeasedMutation(workspace, closure, "close-case", "Provider withdrew the instruction");
         Assert.Equal(CaseClosureOutcome.ProviderCancelled, closure.Outcome);
 
         Assert.Equal(2, store.Reopenings.Count);
         var toReview = store.Reopenings[0];
-        AssertClaimant(workspace, toReview.Actor);
-        Assert.Equal(store.CaseVersion, toReview.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, toReview.EditLeaseToken);
-        Assert.Equal("reopen-review", toReview.OperationKey);
+        AssertLeasedMutation(workspace, toReview, "reopen-review", "Provider reinstated the instruction");
         Assert.Equal(CaseReopenDestination.Review, toReview.Destination);
         Assert.Equal(new CaseReadinessEvidence(true, false, true, false, "reopen-evidence-1"), toReview.Readiness);
         var toNotReady = store.Reopenings[1];
@@ -67,11 +60,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Null(toNotReady.Readiness);
 
         var archive = Assert.Single(store.Archives);
-        AssertClaimant(workspace, archive.Actor);
-        Assert.Equal(store.CaseVersion, archive.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, archive.EditLeaseToken);
-        Assert.Equal("archive-case", archive.OperationKey);
-        Assert.Equal("Retention period reached", archive.Reason);
+        AssertLeasedMutation(workspace, archive, "archive-case", "Retention period reached");
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("The terminal case was archived and is now read-only.", html, StringComparison.Ordinal);
 

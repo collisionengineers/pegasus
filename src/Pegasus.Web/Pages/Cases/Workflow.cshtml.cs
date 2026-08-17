@@ -13,7 +13,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public sealed partial class WorkflowModel(
+public sealed class WorkflowModel(
     IHoldCase holdCase,
     IReleaseCase releaseCase,
     ITransitionCase transitionCase,

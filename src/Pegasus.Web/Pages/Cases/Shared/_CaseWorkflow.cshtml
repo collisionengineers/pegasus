@@ -189,7 +189,7 @@ else if (Model.ProposedValues.Count > 0)
             <form method="post" asp-page-handler="Save" class="form-grid">
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Claimant<input name="claimantName" maxlength="300" value="@data.Claimant.Name.Confirmed?.Value" /></label>
                 <label>Claim number<input name="claimNumber" maxlength="200" value="@data.Claim.Number.Confirmed?.Value" /></label>
@@ -244,7 +244,7 @@ else if (Model.ProposedValues.Count > 0)
             <form method="post" asp-page-handler="ConfirmCompleteness" class="form-grid">
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                 <input type="hidden" name="editLeaseToken" value="@leaseToken" />
 @* Each checkbox carries a trailing hidden false so an unchecked box still submits its value: the
    binder takes the first entry, and a refused save can show what the editor actually proposed. *@
@@ -269,47 +269,47 @@ else if (Model.ProposedValues.Count > 0)
     {
         <div class="form-grid">
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="Hold">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Hold case</button>
             </form>
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="ReleaseHold">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Release hold</button>
             </form>
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="StartWork">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Transition to report preparation</button>
             </form>
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="ReturnToReview">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label><input type="checkbox" name="instructionsComplete" value="true" checked="@data?.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionsComplete" value="false" /><label><input type="checkbox" name="imagesComplete" value="true" checked="@data?.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" /><label><input type="checkbox" name="instructionsReviewedByStaff" value="true" checked="@data?.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionsReviewedByStaff" value="false" /><label><input type="checkbox" name="imagesReviewedByStaff" value="true" checked="@data?.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesReviewedByStaff" value="false" /><label>Evidence reference<input name="evidenceReference" required maxlength="500" value="case-completeness-projection" /></label>
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Transition to Review</button>
             </form>
             <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Close">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Outcome<select name="outcome"><option value="PostReportComplete">Post-report complete</option><option value="ProviderCancelled">Provider cancelled</option><option value="CollisionEngineersRejected">Collision Engineers rejected</option></select></label>
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Close case</button>
             </form>
             <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Reopen">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label><input type="checkbox" name="instructionsComplete" value="true" checked="@data?.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionsComplete" value="false" /><label><input type="checkbox" name="imagesComplete" value="true" checked="@data?.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" /><label><input type="checkbox" name="instructionsReviewedByStaff" value="true" checked="@data?.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionsReviewedByStaff" value="false" /><label><input type="checkbox" name="imagesReviewedByStaff" value="true" checked="@data?.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesReviewedByStaff" value="false" /><label>Evidence reference<input name="evidenceReference" maxlength="500" value="case-completeness-projection" /></label>
                 <label>Destination<select name="destination"><option value="NotReady">Not ready</option><option value="Review">Review</option><option value="ReportPreparation">Report preparation</option><option value="PostReport">Post report</option></select></label>
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Reopen case</button>
             </form>
             <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Archive">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Archive terminal case</button>
             </form>
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="CreateLinkedReplacement">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Replacement principal code<input name="replacementPrincipalCode" required maxlength="100" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Create linked replacement</button>
             </form>
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="AssignEngineer">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Engineer ID<input type="text" name="engineerId" required /></label><label><input type="checkbox" name="instructionsComplete" value="true" checked="@data?.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionsComplete" value="false" /><label><input type="checkbox" name="imagesComplete" value="true" checked="@data?.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" /><label><input type="checkbox" name="instructionsReviewedByStaff" value="true" checked="@data?.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionsReviewedByStaff" value="false" /><label><input type="checkbox" name="imagesReviewedByStaff" value="true" checked="@data?.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesReviewedByStaff" value="false" /><label>Evidence reference<input name="evidenceReference" required maxlength="500" value="case-completeness-projection" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Assign Engineer</button>
             </form>
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="RecordEngineerFinding">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Assessment<select name="assessment"><option value="Repairable">Repairable</option><option value="TotalLoss">Total loss</option></select></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Record Engineer finding</button>
             </form>
         </div>
@@ -327,7 +327,7 @@ else if (Model.ProposedValues.Count > 0)
         <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="RecordReportApproval" class="form-grid">
             <input type="hidden" name="id" value="@workflow.CaseId" />
             <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <input type="hidden" name="approvalId" value="@Model.ReportApprovalId" />
             <label>Immutable artifact identity<input name="artifactIdentity" required maxlength="200" /></label>
@@ -358,7 +358,7 @@ else if (Model.ProposedValues.Count > 0)
                 @if (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation)
                 {
                     <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="LinkReportEvidence">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="evidenceId" value="@evidence.EvidenceId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="evidenceId" value="@evidence.EvidenceId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                         <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Link exact evidence</button>
                     </form>
                 }
@@ -369,7 +369,7 @@ else if (Model.ProposedValues.Count > 0)
     @if (workflow.ReportSentEvidence is { } linkedEvidence && mayEdit && workflow.State is not CaseLifecycleState.Held && !CaseLifecycleRules.IsTerminal(workflow.State))
     {
         <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="UnlinkReportEvidence">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="evidenceId" value="@linkedEvidence.EvidenceId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="evidenceId" value="@linkedEvidence.EvidenceId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Unlink current evidence</button>
         </form>
     }
@@ -391,15 +391,15 @@ else if (Model.ProposedValues.Count > 0)
                 @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null && task.State == CaseTaskState.Open)
                 {
                     <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="AssignTask">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                         <label>Assignee ID<input type="text" name="assigneeId" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Assign task</button>
                     </form>
                     <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="CompleteTask">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                         <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Complete task</button>
                     </form>
                     <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="CancelTask">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                         <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Cancel task</button>
                     </form>
                 }
@@ -410,7 +410,7 @@ else if (Model.ProposedValues.Count > 0)
     @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null)
     {
         <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="CreateTask" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@Guid.NewGuid()" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@Guid.NewGuid()" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <label>Description<input name="description" required maxlength="1000" /></label><label>Assignee ID<input type="text" name="assigneeId" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="primary-action">Create task</button>
         </form>
     }
@@ -434,7 +434,7 @@ else if (Model.ProposedValues.Count > 0)
         <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="RecordManualChase" class="form-grid">
             <input type="hidden" name="id" value="@workflow.CaseId" />
             <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="attemptedAtUtc" value="@Model.ManualChaseAttemptedAtUtc.ToString("O")" />
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <label>Channel<input name="channel" required maxlength="100" /></label>
@@ -475,11 +475,11 @@ else if (Model.ProposedValues.Count > 0)
             @if (mayEdit)
             {
                 <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
-                    <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Accept" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Accept" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                     <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="primary-action">Accept vehicle suggestion</button>
                 </form>
                 <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
-                    <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Correct" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Correct" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                     <label>Registration<input name="registration" required maxlength="20" value="@observation.Registration" /></label><label>Make<input name="make" maxlength="100" value="@observation.Vehicle?.Make" /></label><label>Model<input name="model" maxlength="100" value="@observation.Vehicle?.Model" /></label><label>Mileage<input type="number" min="0" name="mileage" value="@observation.Mileage?.Value" /></label><label>Mileage unit<input name="mileageUnit" maxlength="20" value="@observation.Mileage?.Unit" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Confirm corrected vehicle values</button>
                 </form>
             }
@@ -492,7 +492,7 @@ else if (Model.ProposedValues.Count > 0)
     @if (mayEdit)
     {
         <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="RequestVehicleLookup" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <label>Registration<input name="registration" required maxlength="20" value="@(details.VehicleEvidence?.Confirmed?.Registration.Value ?? data?.Vehicle.Registration.Fact?.Value)" /></label><button type="submit" class="primary-action">Request vehicle lookup</button>
         </form>
     }
@@ -522,7 +522,7 @@ else if (Model.ProposedValues.Count > 0)
                         <input type="hidden" name="id" value="@workflow.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                         <input type="hidden" name="targetKind" value="@custody.TargetKind" />
-                        <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                         <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                         <label>Reason<input name="reason" required maxlength="500" /></label>
                         <button type="submit" class="secondary-action">Retry custody</button>
@@ -562,7 +562,7 @@ else if (Model.ProposedValues.Count > 0)
                             <input type="hidden" name="id" value="@workflow.CaseId" />
                             <input type="hidden" name="revision" value="@revision.Revision" />
                             <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                            <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+                            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
                             <label>Reason<input name="reason" required maxlength="500" /></label>
                             <button type="submit" class="secondary-action">Download handoff</button>
@@ -579,7 +579,7 @@ else if (Model.ProposedValues.Count > 0)
         @if (mayEdit && eva.CanGenerate)
         {
             <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="GenerateEvaHandoff" class="form-grid">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <p class="field-wide">The focused handoff includes every eligible custody-confirmed vehicle image in deterministic order. EVA owns downstream selection and ordering.</p>
                 <label class="field-wide">Reason<input name="reason" required maxlength="300" /></label><button type="submit" class="primary-action">Generate deterministic EVA handoff</button>
             </form>

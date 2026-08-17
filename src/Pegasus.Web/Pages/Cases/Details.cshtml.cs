@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -608,16 +607,10 @@ public sealed partial class DetailsModel(
         return text.ToString();
     }
 
-    /// <summary>
-    /// The workspace shows the lease it carries, so forgetting the authority also
-    /// clears what is shown for it.
-    /// </summary>
-    protected override void ClearLeaseAuthority()
-    {
-        base.ClearLeaseAuthority();
-        LeaseToken = null;
-        CanRecoverLease = false;
-    }
+    private static string RequireOperationKey(string value) =>
+        Guid.TryParseExact(value, "N", out var operationId)
+            ? operationId.ToString("N")
+            : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
     [LoggerMessage(
         Level = LogLevel.Error,

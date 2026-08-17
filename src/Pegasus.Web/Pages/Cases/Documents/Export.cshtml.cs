@@ -1,11 +1,7 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases.Documents;
 
@@ -14,21 +10,10 @@ namespace Pegasus.Web.Pages.Cases.Documents;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class ExportModel(
     IExportCaseDocuments exportCaseDocuments,
-    ILogger<ExportModel> logger) : PageModel
+    ILogger<ExportModel> logger) : CaseMutationPageModel(logger)
 {
     private const int MaximumSelections = 100;
     private const long MaximumArchiveBytes = 100L * 1024 * 1024;
-    private const string LeaseTokenKey = "CaseLeaseToken";
-    private const string LeaseCaseIdKey = "CaseLeaseCaseId";
-    private static readonly string[] LeaseStateKeys =
-    [
-        LeaseTokenKey,
-        LeaseCaseIdKey,
-        "CaseClaimLeaseOperationKey",
-        "CaseClaimLeaseCaseId",
-        "CaseRenewLeaseOperationKey",
-        "CaseReleaseLeaseOperationKey"
-    ];
 
     public async Task<IActionResult> OnPostAsync(
         Guid caseId,
@@ -50,8 +35,8 @@ public sealed partial class ExportModel(
             || !TryParseSelections(selection, out var selections))
         {
             TempData["CaseError"] = "Select one or more valid document versions to export.";
-            StoreLeaseAuthority(caseId, editLeaseToken);
-            return RedirectToPage("/Cases/Details", new { id = caseId });
+            PreserveLeaseState(caseId, editLeaseToken);
+            return RedirectToDetails(caseId);
         }
 
         try
@@ -81,7 +66,7 @@ public sealed partial class ExportModel(
                 LogUnsafeDocumentExport(logger, caseId);
                 ClearLeaseState();
                 TempData["CaseError"] = "The selected documents could not be exported safely.";
-                return RedirectToPage("/Cases/Details", new { id = caseId });
+                return RedirectToDetails(caseId);
             }
 
             ClearLeaseState();
@@ -96,17 +81,18 @@ public sealed partial class ExportModel(
             or UnauthorizedAccessException)
         {
             LogDocumentExportFailed(logger, caseId, exception);
-            if (exception is CaseEditLeaseExpiredException or CaseEditLeaseConflictException)
+            // A stale version keeps the lease here: the editor re-selects rather than reacquires.
+            if (IsLeaseLoss(exception))
             {
                 ClearLeaseState();
             }
             else
             {
-                StoreLeaseAuthority(caseId, editLeaseToken);
+                PreserveLeaseState(caseId, editLeaseToken);
             }
             TempData["CaseError"] =
                 "The selected document versions are unavailable or the export could not be completed.";
-            return RedirectToPage("/Cases/Details", new { id = caseId });
+            return RedirectToDetails(caseId);
         }
     }
 
@@ -119,38 +105,6 @@ public sealed partial class ExportModel(
         && !fileName.Contains('/', StringComparison.Ordinal)
         && !fileName.Contains('\\', StringComparison.Ordinal)
         && !fileName.Any(char.IsControl);
-
-    private void StoreLeaseAuthority(Guid caseId, string leaseToken)
-    {
-        if (!string.IsNullOrWhiteSpace(leaseToken))
-        {
-            TempData[LeaseCaseIdKey] = caseId.ToString("D");
-            TempData[LeaseTokenKey] = leaseToken;
-        }
-    }
-
-    private void ClearLeaseState()
-    {
-        foreach (var key in LeaseStateKeys)
-        {
-            TempData.Remove(key);
-        }
-    }
-
-    private bool TryGetActor(out ActionActor actor)
-    {
-        if (StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var resolved))
-        {
-            actor = resolved;
-            return true;
-        }
-
-        actor = null!;
-        return false;
-    }
 
     private static bool TryParseSelections(
         string[]? values,

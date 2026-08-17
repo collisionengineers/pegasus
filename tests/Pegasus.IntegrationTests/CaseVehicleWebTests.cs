@@ -225,19 +225,22 @@ public sealed partial class CaseDetailsWebTests
             CancellationToken cancellationToken)
         {
             EvaDownloads.Add(request);
-            return Task.FromResult(RefuseEvaDownload
-                ? new DownloadEvaHandoffResult(
+            if (RefuseEvaDownload)
+            {
+                return Task.FromResult(new DownloadEvaHandoffResult(
                     DownloadEvaHandoffOutcome.Refused,
                     null,
-                    "The handoff revision is not available.")
-                : new DownloadEvaHandoffResult(
-                    DownloadEvaHandoffOutcome.Prepared,
-                    new(
-                        request.Revision,
-                        $"EVA-QDOS3100042-Revision-{request.Revision.ToString("000", CultureInfo.InvariantCulture)}.zip",
-                        EvaBundleBytes,
-                        new string('b', 64)),
-                    "Prepared."));
+                    "The handoff revision is not available."));
+            }
+
+            return Task.FromResult(new DownloadEvaHandoffResult(
+                DownloadEvaHandoffOutcome.Prepared,
+                new(
+                    request.Revision,
+                    $"EVA-QDOS3100042-Revision-{request.Revision.ToString("000", CultureInfo.InvariantCulture)}.zip",
+                    EvaBundleBytes,
+                    new string('b', 64)),
+                "Prepared."));
         }
     }
 }

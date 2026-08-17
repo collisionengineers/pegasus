@@ -4,23 +4,23 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// What every page that mutates a case shares: the staff actor, the command
-/// wrapper that turns a use-case call into a post-redirect-get with a status or
-/// error, and the CASE-27 edit-mode state that travels through TempData — the
-/// lease token, the operation keys, and the refused editor's proposed values.
+/// What every page that mutates a case shares: the staff actor, the two command
+/// wrappers that turn a use-case call into a post-redirect-get with a status or
+/// error (one naming the case as the reason for a refusal, one naming the item
+/// it carries), and the CASE-27 edit-mode state that travels through TempData —
+/// the lease token, the operation keys, and the refused editor's proposed values.
 /// The workspace page (<see cref="DetailsModel"/>) reads that state back;
 /// the capability pages only write it.
 /// </summary>
 public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
 {
-    protected const string LeaseTokenKey = "CaseLeaseToken";
+    private const string LeaseTokenKey = "CaseLeaseToken";
     protected const string LeaseCaseIdKey = "CaseLeaseCaseId";
     protected const string ClaimLeaseOperationKeyName = "CaseClaimLeaseOperationKey";
     protected const string ClaimLeaseCaseIdKey = "CaseClaimLeaseCaseId";
@@ -38,15 +38,15 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
     /// total holds an ordinary case-data save with circumstances, address, and reason together.
     /// Nothing is trimmed or discarded quietly — both outcomes are stated in the panel.
     /// </summary>
-    protected const int MaximumRetainedProposedCharacters = 8000;
-    protected const int MaximumRetainedProposedValueCharacters = 2000;
+    private const int MaximumRetainedProposedCharacters = 8000;
+    private const int MaximumRetainedProposedValueCharacters = 2000;
 
     /// <summary>
     /// The values an operator types or chooses as case content. Identifiers, versions, keys,
     /// tokens, and the fields that only route a command are never retained, so the comparison
     /// shows editorial work and never an identifier.
     /// </summary>
-    protected static readonly FrozenSet<string> RetainableFormFields = new[]
+    private static readonly FrozenSet<string> RetainableFormFields = new[]
     {
         "claimantName",
         "claimNumber",
@@ -110,47 +110,46 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
 
     public static string NewOperationKey() => Guid.NewGuid().ToString("N");
 
-    protected async Task<IActionResult> ExecuteCaseCommandAsync<T>(
-        Guid id,
-        string editLeaseToken,
-        string commandName,
-        Func<ActionActor, Task<T>> execute,
-        string successMessage)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            await execute(actor);
-            ClearLeaseState();
-            TempData["CaseStatus"] = successMessage;
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, commandName, exception);
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            RetainProposedValues(id);
-            TempData["CaseError"] =
-                "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.";
-        }
-
-        return RedirectToDetails(id);
-    }
-
-    protected async Task<IActionResult> ExecuteTransportCommandAsync(
+    /// <summary>A command on the case itself; a refusal names the case as the reason.</summary>
+    protected Task<IActionResult> ExecuteCaseCommandAsync(
         Guid id,
         string editLeaseToken,
         string commandName,
         Func<ActionActor, Task> execute,
-        string successMessage)
+        string successMessage) =>
+        ExecuteCommandAsync(
+            id,
+            editLeaseToken,
+            commandName,
+            execute,
+            successMessage,
+            "The case action was not applied because the case changed, edit mode was lost, or the action is not permitted.");
+
+    /// <summary>
+    /// A command on one item the case carries (a document, an upload request); a refusal names
+    /// the item as the reason.
+    /// </summary>
+    protected Task<IActionResult> ExecuteTransportCommandAsync(
+        Guid id,
+        string editLeaseToken,
+        string commandName,
+        Func<ActionActor, Task> execute,
+        string successMessage) =>
+        ExecuteCommandAsync(
+            id,
+            editLeaseToken,
+            commandName,
+            execute,
+            successMessage,
+            "The case action was not applied because the item is unavailable, changed, or not part of this case.");
+
+    private async Task<IActionResult> ExecuteCommandAsync(
+        Guid id,
+        string editLeaseToken,
+        string commandName,
+        Func<ActionActor, Task> execute,
+        string successMessage,
+        string failureMessage)
     {
         if (!TryGetActor(out var actor))
         {
@@ -173,8 +172,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
             LogCaseCommandFailed(logger, id, commandName, exception);
             HandleLeaseFailure(id, editLeaseToken, exception);
             RetainProposedValues(id);
-            TempData["CaseError"] =
-                "The case action was not applied because the item is unavailable, changed, or not part of this case.";
+            TempData["CaseError"] = failureMessage;
         }
 
         return RedirectToDetails(id);
@@ -290,11 +288,8 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
             _ => null
         };
 
-    /// <summary>
-    /// Forgets the lease authority this browser carries. The workspace page also
-    /// clears what it shows for it.
-    /// </summary>
-    protected virtual void ClearLeaseAuthority()
+    /// <summary>Forgets the lease authority this browser carries.</summary>
+    protected void ClearLeaseAuthority()
     {
         TempData.Remove(LeaseTokenKey);
         TempData.Remove(LeaseCaseIdKey);
@@ -320,7 +315,7 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
     /// does not release the server-owned authority, so a holder who did nothing wrong keeps it and
     /// simply re-enters edit mode deliberately rather than saving over newer work.
     /// </summary>
-    protected static bool RequiresReacquisition(Exception exception) =>
+    private static bool RequiresReacquisition(Exception exception) =>
         IsLeaseLoss(exception) || exception is CaseVersionConflictException;
 
     protected bool TryGetActor(out ActionActor actor)
@@ -350,11 +345,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
             instructionsReviewedByStaff,
             imagesReviewedByStaff,
             evidenceReference);
-
-    protected static string RequireOperationKey(string value) =>
-        Guid.TryParseExact(value, "N", out var operationId)
-            ? operationId.ToString("N")
-            : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
     [LoggerMessage(
         Level = LogLevel.Warning,

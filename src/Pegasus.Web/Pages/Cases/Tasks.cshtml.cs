@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -13,7 +12,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public sealed partial class TasksModel(
+public sealed class TasksModel(
     ICreateCaseTask createCaseTask,
     IAssignCaseTask assignCaseTask,
     ICompleteCaseTask completeCaseTask,

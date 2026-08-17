@@ -29,7 +29,7 @@
     {
         <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@workflow.CaseId">
             <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" />
+            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <div class="table-wrap">
                 <table>
@@ -100,12 +100,12 @@
                 @foreach (var occurrence in document.Occurrences.Where(item => document.Versions.Any(version => version.IsCurrent && !version.IsLogicallyRemoved)))
                 {
                     <form id="remove-@occurrence.Id" method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="RemoveDocument">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                     </form>
                     @if (occurrence.SemanticRole == DocumentSemanticRole.Image && occurrence.ThirdPartyVehicleConfirmedAtUtc is null)
                     {
                         <form id="confirm-third-party-@occurrence.Id" method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="ConfirmThirdPartyVehicleEvidence">
-                            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                         </form>
                     }
                 }
@@ -116,7 +116,7 @@
     @if (mayEdit)
     {
         <form method="post" enctype="multipart/form-data" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="UploadDocument" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <label>Document<input type="file" name="upload" required /></label>
             <label>Semantic role<select name="semanticRole">@foreach (var role in Model.DocumentSemanticRoles){<option value="@role">@role</option>}</select></label>
             <button type="submit" class="primary-action">Retain document</button>
@@ -140,7 +140,7 @@
                 @if (mayEdit && request.RevokedAtUtc is null)
                 {
                     <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="RevokeRequestUploadLink">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="requestId" value="@request.Id" /><input type="hidden" name="expectedRequestVersion" value="@request.Version" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="requestId" value="@request.Id" /><input type="hidden" name="expectedRequestVersion" value="@request.Version" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                         <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Revoke upload request</button>
                     </form>
                 }
@@ -151,7 +151,7 @@
     @if (mayEdit)
     {
         <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="CreateRequestUploadLink">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@DetailsModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <button type="submit" class="primary-action">Create public upload request</button>
         </form>
     }

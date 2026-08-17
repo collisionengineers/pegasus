@@ -93,17 +93,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("No longer needed", cancellation.Reason);
 
         var link = Assert.Single(store.EvidenceLinks);
-        AssertClaimant(workspace, link.Actor);
-        Assert.Equal(store.CaseVersion, link.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, link.EditLeaseToken);
-        Assert.Equal("link-evidence", link.OperationKey);
+        AssertLeasedMutation(workspace, link, "link-evidence", "Report sent");
         Assert.Equal(evidenceId, link.EvidenceId);
 
         var unlink = Assert.Single(store.EvidenceUnlinks);
-        AssertClaimant(workspace, unlink.Actor);
-        Assert.Equal(store.CaseVersion, unlink.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, unlink.EditLeaseToken);
-        Assert.Equal("unlink-evidence", unlink.OperationKey);
+        AssertLeasedMutation(workspace, unlink, "unlink-evidence", "Wrong message");
         Assert.Equal(evidenceId, unlink.EvidenceId);
 
         await AssertRefusalKeepsEditModeAsync(
