@@ -22,11 +22,12 @@ refs:
   - docs/adr/0013-qdos-alpha-implementation-contract.md
 commits:
   - c9e657c3
+  - 88fcde2a
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/388'
 archived: false
 created: '2026-08-13T12:12:48.841Z'
-updated: '2026-08-17T12:30:24.172Z'
+updated: '2026-08-17T12:36:14.833Z'
 ---
 
 ## What
