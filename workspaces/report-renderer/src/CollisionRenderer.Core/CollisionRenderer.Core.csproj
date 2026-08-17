@@ -17,15 +17,15 @@
   <!-- The top-level design system owns templates, stylesheet, logo and signatures.
        Link and embed them so Core remains self-contained at runtime. -->
   <ItemGroup>
-    <EmbeddedResource Include="..\..\..\..\design\assets\report-renderer\templates\**\*">
+    <EmbeddedResource Include="..\..\..\..\docs\design\assets\report-renderer\templates\**\*">
       <Link>Assets\templates\%(Filename)%(Extension)</Link>
       <LogicalName>CollisionRenderer.Core.Assets.templates.%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="..\..\..\..\design\brand\logos\logo_no_margin.png">
+    <EmbeddedResource Include="..\..\..\..\docs\design\brand\logos\logo_no_margin.png">
       <Link>Assets\brand\logo.png</Link>
       <LogicalName>CollisionRenderer.Core.Assets.brand.logo.png</LogicalName>
     </EmbeddedResource>
-    <EmbeddedResource Include="..\..\..\..\design\brand\signatures\**\*">
+    <EmbeddedResource Include="..\..\..\..\docs\design\brand\signatures\**\*">
       <Link>Assets\brand\signatures\%(Filename)%(Extension)</Link>
       <LogicalName>CollisionRenderer.Core.Assets.brand.signatures.%(Filename)%(Extension)</LogicalName>
     </EmbeddedResource>

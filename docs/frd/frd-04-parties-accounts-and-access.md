@@ -1,5 +1,5 @@
 # FRD-04: Parties, accounts, and access
-> Owner capabilities: ACC (staff roles/access, permanent action history) · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
+> Owner capabilities: ACC (staff roles/access, permanent action history) · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Parties, principals, organisations, accounts, and access
 
