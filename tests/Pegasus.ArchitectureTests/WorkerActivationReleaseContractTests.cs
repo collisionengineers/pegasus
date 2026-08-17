@@ -160,14 +160,19 @@ public sealed class WorkerActivationReleaseContractTests
                 throw new TimeoutException(
                     "Isolated Local deployment-plan validation did not finish within 30 seconds.");
             }
-            var output = await standardOutputTask + await standardErrorTask;
+            var standardOutput = await standardOutputTask;
+            var standardError = await standardErrorTask;
+            var diagnostic = $"Exit code: {process.ExitCode}{Environment.NewLine}" +
+                $"Standard output:{Environment.NewLine}{standardOutput}{Environment.NewLine}" +
+                $"Standard error:{Environment.NewLine}{standardError}";
 
             Assert.NotEqual(0, process.ExitCode);
-            Assert.Contains(
-                "exact nine-function disabled-setting name census",
-                output,
-                StringComparison.Ordinal);
-            Assert.DoesNotContain("Rogue-Function", output, StringComparison.Ordinal);
+            Assert.True(
+                diagnostic.Contains(
+                    "exact nine-function disabled-setting name census",
+                    StringComparison.Ordinal),
+                diagnostic);
+            Assert.DoesNotContain("Rogue-Function", diagnostic, StringComparison.Ordinal);
         }
         finally
         {
