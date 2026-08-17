@@ -2,19 +2,21 @@
 id: KANMER-001
 type: ticket
 title: Retarget Kanmer tickets that cite the retired NOW.md / requirements.md
-status: implementing
+status: preparing
 area: kanmer-meta
-assignee: claude-code
+assignee: codex
 profile: feature
-taken_at: '2026-08-14T12:33:12.470Z'
-branch: KANMER-002-repo-doc-cleanup
-worktree: .worktrees/KANMER-002
+taken_at: '2026-08-17T04:06:10.170Z'
+branch: task/kanmer-001-retarget-retired-now-references
+worktree: ../pegasus-worktrees/kanmer-001-retarget-retired-now-references
 labels: []
+groups:
+  - HZN-001
 links:
   - SIMPLI-004
 archived: false
 created: '2026-08-14T11:15:00.271Z'
-updated: '2026-08-14T12:33:12.471Z'
+updated: '2026-08-17T04:06:10.170Z'
 ---
 
 ## What
