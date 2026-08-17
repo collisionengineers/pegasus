@@ -85,3 +85,19 @@ integration), plus a 0-error Release build.
   `repairable`/`total loss` text; scanned/OCR-needed reports fail closed to
   `NeedsSorting` (correct behaviour, bounds auto-create rate). Candidate
   follow-up.
+
+---
+
+## LIVE PRODUCTION PROOF — 2026-08-14 (tier 5: enabled Worker caller against the deployed estate)
+
+A forwarded QDOS **Audit** email was auto-processed by the deployed Worker end-to-end and created a case + real Box folder — the first live automatic case creation on the production estate.
+
+**Evidence (read-only prod SQL + Box CLI):**
+- Case minted automatically by the Worker: `QDOS26001` · Type `audit` · AuditReference `a.QDOS26001` · `IntakeAllocationAttempts` succeeded.
+- Real Box custody folder created via the Box API under the production root `405543781910`:
+  `box folders:items 405543781910` → `{ id: 409001353539, name: "a.QDOS26001", type: folder }`.
+- `Cases`: `CustodyState=confirmed`, `CustodyRootRemoteId=409001353539`, `AuditCustodyRemoteId=409001353539`, `CustodyConfirmedAtUtc=2026-08-14T08:53:41Z`.
+
+**What it took (root cause):** deploying dev fix #2 (`73a3380d`) to prod was necessary but NOT sufficient. The true blocker was that the Worker's least-privilege SQL role `pegasus_worker_runtime_role` was never granted the case-creation permissions (it predated auto-allocation moving to the Worker; the WorkerGrants matrix in `20260729199000_RuntimeRoleReconciliation.cs` is stale). The acceptance transaction (`EfCaseAcceptanceStore.AcceptOnceAsync`) INSERTs ~20 tables in one batch; a full worker grant reconciliation (incl. the EF cascade child `CaseDataFields`) was applied as a prod hotfix. Local tests never caught this because LocalDB runs full-privilege.
+
+**Still owed:** codify the worker grants as a migration (they are currently manual drift); clear the stuck pre-fix backlog via staff Retry allocation; the DOC-01 UI link + dead-code removal (TICK-017); docs refresh.
