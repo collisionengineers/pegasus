@@ -20,11 +20,12 @@ groups:
 links: []
 commits:
   - fde7cebe
+  - dbbf3214
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/390'
 archived: false
 created: '2026-08-17T11:05:47.371Z'
-updated: '2026-08-17T12:56:45.634Z'
+updated: '2026-08-17T13:10:06.340Z'
 ---
 
 ## What

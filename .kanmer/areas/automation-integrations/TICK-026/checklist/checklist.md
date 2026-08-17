@@ -9,3 +9,5 @@
 - [ ] Write post-implementation-report, push, open PR to `dev`, move ticket to Review
 
 ## Progress notes
+
+Worktree created at `../pegasus-worktrees/tick-026-mcp-04-document-evidence` on `task/tick-026-mcp-04-document-evidence`; ticket taken. Adding HTTP caller tests.
