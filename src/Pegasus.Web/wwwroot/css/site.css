@@ -1959,3 +1959,9 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--sp-6);
 }
+
+/* Correcting an extracted value is the exception, so the eleven fields sit
+   behind a disclosure. They post whether it is open or shut. */
+.draft-edit { margin-top: var(--sp-4); }
+.draft-edit > summary { display: inline-flex; width: auto; }
+.draft-edit[open] > summary { margin-bottom: var(--sp-4); }
