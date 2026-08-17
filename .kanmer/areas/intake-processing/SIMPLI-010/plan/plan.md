@@ -212,3 +212,20 @@ Proof must include:
 - Stop if removal appears to require a migration, production-data query, Case mutation, or allocation/replay change; those contradict the corrected research and approved scope.
 - Stop if a test relies on `draft_ready` for behavior rather than incidental setup; re-check the authoritative current requirement before changing that test.
 - Do not preserve pre-release compatibility merely because git history or an unrelated migration test once used the old literal.
+
+## Simplification pass — 2026-08-17 (claude-code, `/simplify` route applied to this plan)
+
+The change this plan describes is small (delete one compatibility alias in `EfIntakeReceiptStore.ParseDecision`/`DecisionCodes`, one branch in `EfOperationsStore`, two comments, eleven fixture strings, two doc sentences). The plan above is thirteen steps and ~2,500 words for it. Apply these amendments when the ticket is executed; they replace the corresponding steps rather than adding to them.
+
+**Drop**
+- Step 1's `docs/temp-plans/simpli-010.md` — repository temp-plans are no longer permitted (`AGENTS.md` "New Markdown placement") and `scripts/Test-MarkdownPlacement.ps1` fails CI on them. The plan lives here.
+- Step 1's "correct the ticket body so it no longer requires production-data inspection" — do not edit the ticket to remove a check that costs five minutes (see below).
+- Step 2's overlap ritual — [[SIMPLI-009]] is now PR #385 in review; merge `origin/dev` after it lands and move on.
+- Step 8's separate "bounded diff review before tests" — `git diff --check` + `rg` are one line inside verification.
+- Step 10's full-solution `Category!=Corpus` run — CI runs it; locally run Core + the focused integration filter + Architecture.
+
+**Replace the premise, not the goal.** The "Correction" in `research.md` argues no production check is needed because Pegasus is clean-room *relative to the predecessor*. That says nothing about rows Pegasus's own pre-release builds wrote into the production database (releases 5–8 are recorded in `docs/operations.md`). Removing the alias makes any such row fail visibly on read. The simplest correct move is not to argue it away but to look: one **read-only** query (permitted without approval) — `SELECT COUNT(*) FROM IntakeReceipts WHERE Decision = 'draft_ready'` against the deployed database — recorded in proof. Zero → delete the alias directly. Non-zero → they are pre-alpha rows; record the count and decide (delete alias and accept fail-visible, or request a one-line cleanup with explicit approval). Either way the ticket's own "consolidate only after production-data inspection" line is met literally.
+
+**Also in scope here (from the PR #385 review, finding T3):** unleased `dispatched` intake work rows have no reconciliation path — `RecoverExpiredLeasesAsync` covers `dispatching|processing`, dispatch candidates are `pending|retry_scheduled` — so a lost queue message, or residue from the retired inline path, stays "Received" forever. Same read-only production check pattern (`IntakeWorkItems WHERE State='dispatched' AND LeaseToken IS NULL AND DueAtUtc < now-1h`), then make stale unleased `dispatched` rows dispatch candidates again in `FindNextDispatchCandidateAsync` (safe: `ClaimProcessingAsync` is idempotent, so a duplicate message no-ops). One test in `RecoveryTests`.
+
+**Resulting step list (6):** (1) read-only production counts for `draft_ready` and stale `dispatched`, recorded; (2) delete the alias/branches/comments; make stale `dispatched` re-dispatchable; (3) fixtures → `case_created`; (4) `docs/design/README.md` + `docs/current-architecture.md` sentences; (5) build, Core tests, focused integration filter, Architecture tests, `rg` zero-match, `git diff --check`; (6) PR to `dev`, independent plan-vs-diff review, merge.
