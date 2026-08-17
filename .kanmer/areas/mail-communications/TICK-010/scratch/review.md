@@ -21,3 +21,5 @@
 **Pass** (self-review), pending green `repository-check` on PR 392.
 
 Checked: PIR file list vs `gh pr diff 392` (match); plan Governing docs vs FRD-08 taxonomy clause (Other name+reason, reply-as-context, no destination fields; no MAIL-04/05/UI-10 scope); files.md ripple (no schema/policy/UI); open-questions ticked above Parked; no unplanned extras.
+
+Merged PR 392 into `dev` after green repository-check (unit, sql-integration 1–3, coverage, browser, documentation, changes, reference-data). Moved TICK-010 to verifying. Next: kanmer-verify.

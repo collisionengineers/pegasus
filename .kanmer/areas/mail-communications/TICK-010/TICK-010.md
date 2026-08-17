@@ -4,12 +4,13 @@ type: ticket
 title: >-
   MAIL-22 — User-confirmed detailed Received/Sent categories and subtypes,
   mirrored Reply classifications, Other name/reason behavi…
-status: review
+status: verifying
 area: mail-communications
 assignee: grok-shell-kanmer
 profile: feature
 stageEntered:
   review: '2026-08-17T13:37:03.714Z'
+  verifying: '2026-08-17T13:51:20.226Z'
 taken_at: '2026-08-17T13:32:55.563Z'
 branch: task/tick-010-mail-22-taxonomy
 worktree: ../pegasus-worktrees/tick-010-mail-22-taxonomy
@@ -30,7 +31,7 @@ prs:
   - '392'
 archived: false
 created: '2026-08-12T15:03:52.968Z'
-updated: '2026-08-17T13:40:25.174Z'
+updated: '2026-08-17T13:51:20.226Z'
 ---
 
 ## What
