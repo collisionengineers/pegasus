@@ -13,9 +13,10 @@ labels:
   - source-now
 links:
   - TICK-027
+  - SIMPLI-015
 archived: false
 created: '2026-08-12T15:08:05.112Z'
-updated: '2026-08-17T04:09:43.663Z'
+updated: '2026-08-17T04:13:43.893Z'
 ---
 
 ## What

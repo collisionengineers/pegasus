@@ -10,10 +10,11 @@ labels:
   - now
   - source-now
   - decision-required
-links: []
+links:
+  - SIMPLI-015
 archived: false
 created: '2026-08-12T15:08:05.231Z'
-updated: '2026-08-17T04:09:43.890Z'
+updated: '2026-08-17T04:13:43.962Z'
 ---
 
 ## What

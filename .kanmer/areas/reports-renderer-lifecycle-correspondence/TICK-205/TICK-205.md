@@ -14,9 +14,10 @@ labels:
   - decision-required
 links:
   - TICK-093
+  - SIMPLI-015
 archived: false
 created: '2026-08-12T15:08:05.306Z'
-updated: '2026-08-17T04:09:44.104Z'
+updated: '2026-08-17T04:13:44.029Z'
 ---
 
 ## What
