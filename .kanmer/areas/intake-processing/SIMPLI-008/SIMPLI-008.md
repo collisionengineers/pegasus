@@ -2,11 +2,13 @@
 id: SIMPLI-008
 type: ticket
 title: Show queued receipt processing status to staff
-status: implementing
+status: review
 area: intake-processing
 order: 140
 assignee: claude-code
 profile: feature
+stageEntered:
+  review: '2026-08-17T10:19:44.061Z'
 taken_at: '2026-08-17T10:00:02.519Z'
 branch: task/simpli-009
 worktree: ../pegasus-worktrees/simpli-009
@@ -16,9 +18,15 @@ groups:
   - HZN-003
 links: []
 blocks: []
+commits:
+  - 195154f9
+  - e9f27fe7
+  - caad05e8
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/385'
 archived: false
 created: '2026-08-13T12:12:48.862Z'
-updated: '2026-08-17T10:00:02.519Z'
+updated: '2026-08-17T10:19:44.061Z'
 ---
 
 ## What
