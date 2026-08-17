@@ -35,7 +35,6 @@ var workerActivationApproved = workerActivation == 'approved-live-worker'
 var blobDataOwnerRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
 var blobDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 var queueDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
-var queueMessageSenderRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '69a216fc-b8fb-44d8-bc22-1f3c2cd27a39')
 var tableDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
 var acrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var monitoringMetricsPublisherRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
@@ -348,12 +347,6 @@ resource webBoxLinkContributor 'Microsoft.Authorization/roleAssignments@2022-04-
   name: guid(boxLinkContainer.id, webIdentity.id, blobDataContributorRole)
   scope: boxLinkContainer
   properties: { roleDefinitionId: blobDataContributorRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
-}
-
-resource webIntakeQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(intakeQueue.id, webIdentity.id, queueMessageSenderRole)
-  scope: intakeQueue
-  properties: { roleDefinitionId: queueMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
 resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActivationApproved) {

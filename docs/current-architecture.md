@@ -151,12 +151,15 @@ This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and IN
 
 ```text
 Staff Intake Razor Page
-  -> Core ProcessIntake
+  -> ReceiveIntake stages original bytes and Pending work
+  -> Worker dispatcher publishes the staged receipt id
+  -> intake-work queue
+  -> Worker ProcessQueuedIntake
   -> QDOS IInstructionExtractionPolicy
   -> MimeKit/PdfPig/Open XML source reader
   -> ignored content-addressed artifact storage
   -> EF Core receipt and typed-draft persistence
-  -> dashboard, queue, and review queries
+  -> staged-receipt status, dashboard, queue, and review queries
 ```
 
 ### Accepted local inputs
@@ -547,7 +550,7 @@ Development configuration selects:
 
 The `--migrate-development` process validates the local-only profile, applies the committed migration stream, prints completion, and exits. The Web host must then be started separately.
 
-The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are served wherever intake is composed and return `404` everywhere else. Manual upload has its own `/Upload` page and no longer runs through a separately gated handler on a received-item list.
+The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are served wherever intake is composed and return `404` everywhere else. Manual upload has its own `/Upload` page and no longer runs through a separately gated handler on a received-item list; every successful upload redirects to the staff `/Upload/Status/{id}` page, which reads the staged receipt's Received, Processing, Complete or Failed state and returns `404` for unknown identifiers.
 
 ## Implementation map
 
@@ -569,6 +572,7 @@ The staff `/Received/{id}`, `/Received/{id}/Source`, and `/Inbox` routes are ser
 | Core retained-mail read model, use cases and freshness policy | `src/Pegasus.Core/Intake/RetainedMail.cs` |
 | EF retained-mail store (poll write path and workspace read path) | `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` |
 | Canonical Operations and receipt-detail callers | `src/Pegasus.Web/Pages/Operations/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Details.cshtml.cs`, `src/Pegasus.Web/Pages/Intake/Source.cshtml.cs` |
+| Manual upload staging and staged-receipt status callers | `src/Pegasus.Web/Pages/Upload.cshtml.cs`, `src/Pegasus.Web/Pages/UploadStatus.cshtml.cs`, `src/Pegasus.Infrastructure/Persistence/EfQueuedIntakeStatusQueries.cs` |
 | Canonical mail-workspace callers (`/Inbox`) | `src/Pegasus.Web/Pages/Mail/Index.cshtml.cs`, `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` |
 | Canonical Triage and public-upload callers | `src/Pegasus.Web/Pages/Triage/`, `src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs` |
 | Genuine-input Web evidence | `tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs` |

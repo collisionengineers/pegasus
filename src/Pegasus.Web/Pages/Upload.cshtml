@@ -13,14 +13,6 @@
     <h1>Upload</h1>
 </header>
 
-@if (Model.OutcomeMessage is { } outcomeMessage)
-{
-    <div class="status-card status-card--done" role="status">
-        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
-        <span>@outcomeMessage</span>
-    </div>
-}
-
 <section class="panel form-panel" aria-labelledby="upload-title">
     <h2 id="upload-title" class="section-label">Upload a document</h2>
     <form method="post" enctype="multipart/form-data">

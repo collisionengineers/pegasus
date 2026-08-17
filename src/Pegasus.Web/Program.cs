@@ -562,18 +562,8 @@ builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
 builder.Services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
+builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
 builder.Services.AddScoped<ReceiveIntake>();
-builder.Services.AddScoped<ProcessQueuedIntake>();
-// Two submissions, because the two callers want different things.
-//
-// A person uploading a file is standing in front of the answer: the page has
-// to say what the file became and send them to the case, or to the screen
-// that creates one. Only inline processing can answer that, so the Upload
-// page takes ProcessIntakeSubmission directly.
-//
-// The automation ingress has nobody waiting. It keeps the queue-only
-// ReceiveIntake, which stages the bytes and returns.
-builder.Services.AddScoped<ProcessIntakeSubmission>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
 // The consolidated Automation activity read model backs the Administration
