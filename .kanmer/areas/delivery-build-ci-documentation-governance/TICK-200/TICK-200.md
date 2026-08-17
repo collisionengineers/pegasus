@@ -2,10 +2,12 @@
 id: TICK-200
 type: ticket
 title: Reduce remaining GitHub Actions wall-clock time
-status: backlog
+status: preparing
 area: delivery-build-ci-documentation-governance
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T05:19:09.158Z'
 labels:
   - now
   - source-now
@@ -15,7 +17,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:08:04.974Z'
-updated: '2026-08-17T04:09:43.074Z'
+updated: '2026-08-17T05:19:09.158Z'
 ---
 
 ## What
