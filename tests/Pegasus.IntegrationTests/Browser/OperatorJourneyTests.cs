@@ -246,7 +246,8 @@ public sealed class OperatorJourneyTests
         var now = scopedServices.GetRequiredService<TimeProvider>().GetUtcNow();
         var email = IntakeTestEvidence.CreateEmail(
             "AX_SP58WVO.eml",
-            fixture.SourceJson);
+            fixture.SourceJson,
+            "sender@example.test");
         var source = new IntakeSource(
             email.FileName,
             email.MediaType,

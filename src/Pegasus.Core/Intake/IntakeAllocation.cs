@@ -223,8 +223,22 @@ public sealed class AllocateIntake(
         }
 
         var caseType = receipt.MailClassificationDecision?.CaseType;
-        var principalCode = receipt.InstructionDraft?.SuggestedPrincipalCode?.Trim().ToUpperInvariant()
-            ?? string.Empty;
+        var principalCode = receipt.MailRouteDecision is
+        {
+            Disposition: MailRouteDisposition.Accepted,
+            SelectedRoute: { } selectedRoute
+        }
+            ? selectedRoute.WorkProviderCode.Trim().ToUpperInvariant()
+            : throw new InvalidOperationException(
+                "Automatic mailbox allocation requires an accepted principal route.");
+        if (!string.Equals(
+                receipt.InstructionDraft?.SuggestedPrincipalCode,
+                principalCode,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The instruction draft principal does not match the accepted principal route.");
+        }
         var standaloneAuditEvidenceId = caseType == CaseType.Audit
             ? (standaloneAuditEvidenceQueries is null
                 ? null

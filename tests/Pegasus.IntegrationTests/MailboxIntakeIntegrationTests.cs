@@ -379,7 +379,7 @@ public sealed class MailboxIntakeIntegrationTests
                 var receipt = Assert.IsType<IntakeReceipt>(
                     await queries.GetAsync(summary.Id, CancellationToken.None));
                 Assert.Equal(IntakeSourceChannel.Mailbox, receipt.SourceIdentity.Channel);
-                Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+                Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
                 var route = Assert.IsType<MailRouteEvaluationResult>(receipt.MailRouteDecision);
                 Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
                 Assert.Equal(
