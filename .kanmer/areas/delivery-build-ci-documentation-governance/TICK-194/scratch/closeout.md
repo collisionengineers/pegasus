@@ -1,0 +1,1 @@
+KANMER-002 has retired docs/temp-plans as a repository planning home. Your merged task still owns docs/temp-plans/main-branch-history-guard.md on origin/dev; please delete that exact owned plan during your closeout maintenance push, per repository workflow. Do not leave it orphaned.
