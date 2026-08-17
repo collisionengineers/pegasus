@@ -1,0 +1,1 @@
+2026-08-17 — PR #395 opened to `dev`: https://github.com/collisionengineers/pegasus/pull/395 (head `a30e3a13`, merge-forwarded to dev `376bef3f`). Commits `919faed1` split · `8d90490a` tests+docs · `9feca869` merge dev · `a30e3a13` simplification pass. Final-commit build/Core/Browser re-run in progress (`verify-011-final.log`); result appended below.
