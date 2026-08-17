@@ -13,3 +13,12 @@ Branch `task/simpli-010-intake-state` @ `1e5372ce` (on `dev` `fc144848`). PR #38
 ## Progress notes
 
 - 2026-08-17 12:0x UTC — implementation, pass, PR opened; ticket → review.
+
+- [x] 6b. Independent review PASS; CI green; merged `5e59f933`; verified on merged `dev` (full suite 530/16/0); proof written; Done.
+
+## Closeout — SIMPLI-010 (2026-08-17 12:25 UTC)
+
+- [x] PR merge verified (MERGED 2026-08-17T12:10:30Z)
+- [x] proof.md finalised · moved to Done · Outcome recorded (deployment `not-deployed`)
+- [x] worktree `../pegasus-worktrees/simpli-010-intake-state` removed; `task/simpli-010-intake-state` deleted locally and on origin; pruned
+- [x] ticket released
