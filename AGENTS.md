@@ -37,7 +37,7 @@ is the navigation index and owns the authority chain.
   the acceptance model. A PRD states no mechanics.
 - **FRD — `docs/frd/`** — *how a capability must behave*: inputs/outputs,
   states, rules, edge cases, fail-closed behaviour, and acceptance evidence. An
-  FRD implements a PRD outcome and cites `docs/design.md` for UI behaviour. It
+  FRD implements a PRD outcome and cites `docs/design/README.md` for UI behaviour. It
   never invents product scope or records a technical decision.
 - **ADR — `docs/adr/`** — a durable *technical/architectural* product decision
   only. Not documentation rules, not process, not feature behaviour. If a
@@ -51,7 +51,7 @@ is the navigation index and owns the authority chain.
 - **`docs/current-architecture.md` / `docs/operations.md`** — the as-built
   snapshot (what exists and how it is wired now) and the deployed/runtime state.
   Both are living snapshots and must be refreshed after every deploy (see
-  Safety rails). **`docs/runbook.md` / `docs/engineering.md` / `docs/design.md`**
+  Safety rails). **`docs/runbook.md` / `docs/engineering.md` / `docs/design/README.md`**
   — working rules within their scopes. These are downstream of PRD/FRD/ADR and
   never override them.
 
@@ -106,9 +106,10 @@ ADRs are an append-only decision log of durable technical/architectural choices.
 
 ### New Markdown placement
 
-A new Markdown file is one of: a **PRD** under `docs/prd/`, an **FRD** under
-`docs/frd/`, a **technical ADR** under `docs/adr/`, or a **transient task plan**
-under `docs/temp-plans/`. Everything else edits an existing canonical file. No
+A new repository Markdown file is one of: a **PRD** under `docs/prd/`, an
+**FRD** under `docs/frd/`, or a **technical ADR** under `docs/adr/`. Transient
+task research, plans, checklists, reviews, and proof live in the owning Kanmer
+ticket documents, not in the repository tree. Everything else edits an existing canonical file. No
 ADR is required to authorise a PRD or FRD; a new PRD or FRD records its canonical
 owner in `docs/capabilities.md` and is linked from `docs/index.md`.
 Workspace-local documentation stays governed by its accepted integration
@@ -203,16 +204,13 @@ date, and agent and moves it to the working stage — that record *is* the claim
    taken, coordinate rather than passing `force`.
 2. **Worktree.** Create `../pegasus-worktrees/<slug>` on `task/<slug>` from
    `origin/dev`.
-3. **Plan.** A non-docs-only task creates a root plan at
-   `docs/temp-plans/<slug>.md`. Create as many supporting plans, research notes,
-   or review artifacts under `docs/temp-plans/` as the task needs. The root plan
-   inventories its supporting files and owns whole-task scope, sequencing,
-   dependencies, acceptance conditions, commands, and verification. Supporting
-   files share the ticket and need no separate branch or ticket. A task is
-   docs-only only when every changed path is a Markdown file outside `src/`,
-   `tests/`, `infra/`, and `scripts/`; such a task may skip the root plan. Work
-   the ticket's document pipeline (research + impact → plan → checklist →
-   proof); `proof.md` is required before the ticket reaches the final stage.
+3. **Plan.** Work the owning Kanmer ticket's document pipeline: research and
+   file mapping, impact where needed, then plan and checklist before
+   implementation. The ticket plan owns whole-task scope, sequencing,
+   dependencies, acceptance conditions, commands, and verification; supporting
+   research belongs in named documents inside that ticket. `proof.md` is
+   required before the ticket reaches the final stage. Do not create transient
+   repository task-plan files.
 4. **Work and PR.** Implement and verify in the task worktree. The PR targets
    `dev`. Keep the ticket's stage and checklist current as you go.
 5. **Review and merge.** Before merge, an agent that did not implement the task

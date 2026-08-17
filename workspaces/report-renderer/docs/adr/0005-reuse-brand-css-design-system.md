@@ -19,7 +19,7 @@ layout API or to use the design system's own CSS directly.
 
 **Reuse the brand's CSS design system as-is** rather than re-implementing the look in a
 layout API. The canonical stylesheet is the Pegasus-root
-`design/assets/report-renderer/templates/report.css`, linked and embedded in Core,
+`docs/design/assets/report-renderer/templates/report.css`, linked and embedded in Core,
 with a data register at 8.8 pt for the valuation/evidence/fee documents and a letter
 register at 10 pt for expert reports. Because Chromium is the renderer (ADR 0001),
 the design system's CSS is consumed directly with no translation step.

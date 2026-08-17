@@ -72,5 +72,5 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules/
-design/system/node_modules/
-design/system/dist/
+docs/design/system/node_modules/
+docs/design/system/dist/
