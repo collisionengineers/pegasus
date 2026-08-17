@@ -28,11 +28,12 @@ blocks:
   - SIMPLI-014
 commits:
   - f0057da4
+  - 01f300f9
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/389'
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-17T12:35:04.019Z'
+updated: '2026-08-17T12:38:44.031Z'
 ---
 
 ## What
