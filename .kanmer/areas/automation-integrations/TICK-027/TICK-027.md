@@ -4,10 +4,12 @@ type: ticket
 title: >-
   MCP-06 — Automation Actor assessment actions: direct writes with logging
   parity (assessment get/update, case-detail update, EVA…
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-17T13:24:20.304Z'
 labels:
   - capability
   - MCP-06
@@ -21,7 +23,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:03:53.326Z'
-updated: '2026-08-17T13:24:00.576Z'
+updated: '2026-08-17T13:24:20.304Z'
 ---
 
 ## What

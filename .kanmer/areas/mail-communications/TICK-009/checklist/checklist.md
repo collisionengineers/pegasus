@@ -16,3 +16,5 @@ Derived from plan.md, one box per step. Tick with `set_ticket_doc` as you comple
 ## Progress notes
 
 (append with `set_ticket_doc(doc: "checklist", append: true)`)
+
+- Harness updated: volume roots fall back to a flat `corpus/*.eml` dump; labelled facts use `QdosLabelledCorpusFact`. Running focused tests next.
