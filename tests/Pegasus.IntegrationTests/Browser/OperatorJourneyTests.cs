@@ -124,7 +124,7 @@ public sealed class OperatorJourneyTests
             .FillAsync("Download the reviewed handoff for manual EVA drag-and-drop.");
         var responseTask = support.Page.WaitForResponseAsync(value =>
             value.Request.Method == "POST"
-            && value.Url.Contains("handler=EvaDownload", StringComparison.OrdinalIgnoreCase));
+            && value.Url.Contains("/Eva/Download", StringComparison.OrdinalIgnoreCase));
         var downloadTask = support.Page.WaitForDownloadAsync();
         await downloadButton.FocusAsync();
         await downloadButton.PressAsync("Enter");
