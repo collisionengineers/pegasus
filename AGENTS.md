@@ -1,17 +1,24 @@
 <!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
 # Kanmer operating instructions
 
-This repo's work is tracked on a Kanmer board in `.kanmer/`.
+This repo's work is tracked on a Kanmer board in `.kanmer/`. In a Git repo set up
+through the GUI the board lives in its own worktree, `.worktrees/kanmer`, on the
+board branch, and MCP is already rooted there — never create, switch or push that
+branch yourself. Your own ticket worktree is a separate thing, recorded by
+`take_ticket`.
 
-- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket. `get_doc_gates` shows which documents each stage transition needs.
+- Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
+- **Which documents a ticket needs depends on its profile, not on a fixed pipeline.** Call `get_doc_gates <id>` before every move. Not `board.yml` — requirements are injected at resolve time, so its `profiles:` block is not the effective set.
+- Stages: backlog → preparing → implementing → review → verifying → done. **A move crosses at most one gated boundary**, so walk the stages one at a time; a jump is refused even when every document exists.
+- **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
+- An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
+- Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
 - Work each ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage.
-- Stages: backlog → researching → planning → implementing → review → verifying → done — hard document gates guard the transitions.
-- Before a ticket leaves Backlog, link a governing doc (`link_doc` → a PRD/FRD/ADR in `/docs/`) or set `docs_todo`.
-- Doc pipeline: research.md + impact.md → plan.md → checklist.md → post-implementation-report.md; write proof.md on merged main before Done.
-- Add running notes with `append_scratch` (not `set_ticket_doc`) — scratch is the notepad and is never gated.
-- Review passes → the PR is merged → the ticket enters Verifying; write proof.md on merged main, move to Done, then close out (record commits/PRs/deployment).
+- Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
+- Proof is written on merged `main`, after review and the merge, not before.
 - Archive, don't delete. Reference other items with [[ID]] wiki-links.
-- Skills, one per phase: kanmer-tickets (manage), -docs, -research, -plan, -execute, -review, -verify, -closeout, -auto, -report, -groom, -import, -setup.
+- Skills run in this order: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. How far a ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
+- Each skill ends by naming what comes next — read that line before improvising a hand-off.
 <!-- kanmer:instructions:end -->
 
 # Pegasus repository instructions
