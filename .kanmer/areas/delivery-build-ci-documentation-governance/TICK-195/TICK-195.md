@@ -2,12 +2,15 @@
 id: TICK-195
 type: ticket
 title: Validate new Markdown placement in CI
-status: preparing
+status: implementing
 area: delivery-build-ci-documentation-governance
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-17T06:11:24.850Z'
+taken_at: '2026-08-17T06:12:16.504Z'
+branch: task/markdown-placement-validator
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/markdown-placement-validator'
 labels:
   - now
   - source-now
@@ -17,7 +20,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:08:04.833Z'
-updated: '2026-08-17T06:11:24.850Z'
+updated: '2026-08-17T06:12:16.504Z'
 ---
 
 ## What
