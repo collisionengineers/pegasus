@@ -69,7 +69,9 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260811063940_QdosAllocationRecovery",
                 "20260811122654_CaseCustodyEvaRecovery",
                 "20260812010335_ManualInspectionAuditCustody",
-                "20260813025241_StandaloneAuditReportDecision"
+                "20260813025241_StandaloneAuditReportDecision",
+                "20260814092852_AddWorkerCaseCreationGrants",
+                "20260814094632_DropBoxFileRequests"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());

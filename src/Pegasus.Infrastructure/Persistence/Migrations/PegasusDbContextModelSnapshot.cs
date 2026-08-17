@@ -872,65 +872,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("ApprovedSentPollStates", (string)null);
                 });
 
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.BoxFileRequestEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CreateOperationKey")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<DateTimeOffset>("CreatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("DeactivatedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("ExpiresAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("LinkTokenDigest")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nchar(64)")
-                        .IsFixedLength();
-
-                    b.Property<string>("RevokeOperationKey")
-                        .HasMaxLength(256)
-                        .HasColumnType("nvarchar(256)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(32)
-                        .HasColumnType("nvarchar(32)");
-
-                    b.Property<long>("Version")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LinkTokenDigest")
-                        .IsUnique();
-
-                    b.HasIndex("CaseId", "CreateOperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("CreatedAtUtc", "Id")
-                        .IsDescending(true, false);
-
-                    b.HasIndex("DeactivatedAtUtc", "Id")
-                        .IsDescending(true, false);
-
-                    b.ToTable("BoxFileRequests", (string)null);
-                });
-
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseAssessmentFieldEntity", b =>
                 {
                     b.Property<Guid>("CaseId")
@@ -5324,15 +5265,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedSentPollStateEntity", null)
                         .WithMany()
                         .HasForeignKey("MailboxId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.BoxFileRequestEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", null)
-                        .WithMany()
-                        .HasForeignKey("CaseId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
