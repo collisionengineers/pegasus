@@ -20,3 +20,14 @@ Branch `task/simpli-011-case-details`; worktree `../pegasus-worktrees/simpli-011
 - 2026-08-17 — commit `919faed1`: base class, six new pages (handlers moved verbatim by script from `git show HEAD:…Details.cshtml.cs`), 29 partial forms gained `asp-page`, existing tests retargeted. Retargeted suite green: 63/63 (`CaseDetailsWebTests|CaseReportApprovalWebTests|CaseCreateWebTests|Browser`). Architecture test `WebCustodialPagesHaveNoDormantTransportPath` retargeted to `CustodyModel` for the custody ports.
 - 2026-08-17 — new tests: `CaseCapabilityPagesTestSupport.cs` (shared `EnterEditModeAsync` harness, `Substitute<T>`, the two base refusal checks, `NextFailure` arm on the one recording store), `CaseWorkflowWebTests`, `CaseTasksWebTests`, `CaseCustodyWebTests` (+ empty-upload refusal), `CaseVehicleWebTests` (+ EVA download page: file, headers, refused, not-found), `CaseClosureWebTests`. One test per page walks every handler; the store is one `partial` fake extended per file (no second copy). Handler-form count 35 → 34: the EVA download form now posts to `/Cases/{id}/Eva/Download` without a handler.
 - 2026-08-17 — `9feca869` merge of `origin/dev` (MAIL-22 landed meanwhile; `OperatorJourneyTests.cs` auto-merged). `a30e3a13` simplification pass (−100 lines; `Documents/Export` adopted the base; details in `plan`). PR #395 opened; ticket → Review; independent reviewer launched. Follow-ups filed: [[PLAT-002]] (one staff-actor root), [[CASE-001]] (unread `CaseDetailsStatus`).
+
+- [x] 10. Independent review PASS (scratch-review); CI green (attempt 3 of run 32041587054); merged `b763157a`; verified on merged `dev` (proof); ticket Done.
+
+## Closeout
+
+- [x] PR #395 state MERGED (`b763157a`, 2026-08-17 15:48 UTC).
+- [x] `proof` final; `commits`/`prs`/`deployment` recorded; Outcome written; follow-ups [[PLAT-002]], [[CASE-001]] linked.
+- [ ] Worktree `../pegasus-worktrees/simpli-011-case-details` removed; branch `task/simpli-011-case-details` deleted locally and on origin.
+- [ ] Ticket released.
+
+- 2026-08-17 — closeout complete: worktree removed, `task/simpli-011-case-details` deleted locally and on origin, ticket released.
