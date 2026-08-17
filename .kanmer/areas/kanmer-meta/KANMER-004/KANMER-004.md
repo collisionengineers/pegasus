@@ -2,10 +2,12 @@
 id: KANMER-004
 type: ticket
 title: Consolidate Pegasus board areas around durable ownership
-status: preparing
+status: implementing
 area: kanmer-meta
 assignee: codex
 profile: chore
+stageEntered:
+  implementing: '2026-08-17T06:39:23.675Z'
 taken_at: '2026-08-17T06:38:45.266Z'
 branch: task/kanmer-004-area-consolidation
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/kanmer-004-area-consolidation'
@@ -14,7 +16,7 @@ links: []
 deployment: n/a
 archived: false
 created: '2026-08-17T06:38:11.255Z'
-updated: '2026-08-17T06:38:45.266Z'
+updated: '2026-08-17T06:39:23.675Z'
 ---
 
 ## Why

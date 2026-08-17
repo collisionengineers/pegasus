@@ -136,8 +136,9 @@ areas:
     color: "#5b8cff"
     prefix: REPOHY
   - id: kanmer-meta
-    name: kanmer-meta
+    name: Kanmer Meta
     color: "#5b8cff"
+    prefix: KANMER
   - id: simplify
     name: simplify
     color: "#5b8cff"
@@ -150,6 +151,34 @@ areas:
     name: Bugs
     color: "#ef4444"
     prefix: BUG
+  - id: mail-communications
+    name: Mail & Communications
+    color: "#16a085"
+    prefix: MAIL
+  - id: automation-integrations
+    name: Automation & Integrations
+    color: "#6c5ce7"
+    prefix: AUTO
+  - id: documents-reports
+    name: Documents & Reports
+    color: "#2980b9"
+    prefix: DOCS
+  - id: engineering-assessment
+    name: Engineering & Assessment
+    color: "#27ae60"
+    prefix: ENG
+  - id: platform-operations
+    name: Platform & Operations
+    color: "#0984e3"
+    prefix: PLAT
+  - id: delivery-repository
+    name: Delivery & Repository
+    color: "#6366f1"
+    prefix: DELIV
+  - id: case-reference-workflow
+    name: Case & Reference Workflow
+    color: "#c0392b"
+    prefix: CASE
 idPrefixes:
   ticket: TICK
   plan: PLAN
