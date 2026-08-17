@@ -21,7 +21,7 @@
 - [x] Run locked restore, Release build, focused QDOS/ProcessIntake/allocation/custody/Worker/architecture tests, full tests where practical, and `git diff --check`.
 - [x] Write the post-implementation report with governing-doc mapping, changed-file rationale, risks, and exact verification output.
 - [ ] Obtain independent review confirming sender-only QDOS identity, route-authoritative allocation, fail-closed negatives, and no unrelated scope.
-- [ ] Push and open a PR targeting `dev`; merge only after independent review passes and CI is green.
+- [x] Push and open a PR targeting `dev`; merge only after independent review passes and CI is green.
 - [ ] Obtain exact-target approval before any deployment, production receipt reevaluation, mailbox/data mutation, or Box write.
 - [ ] After authorised deployment, refresh current-state docs and verify one production allocation/Case/PO/link/custody/Box outcome with no duplicates.
 - [ ] Write `proof.md` on merged `main` and close out only after all resolved gates and authorised evidence pass.
