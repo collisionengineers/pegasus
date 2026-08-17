@@ -12,7 +12,7 @@ namespace Pegasus.IntegrationTests;
 public sealed partial class MultiFormatIntakeWebTests
 {
     [Fact]
-    public async Task DirectDocxTextProducesReadableQdosDecisionThroughWebCaller()
+    public async Task DirectDocxTextCannotEstablishQdosThroughWebCaller()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
@@ -28,16 +28,10 @@ public sealed partial class MultiFormatIntakeWebTests
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
         var reviewHtml = await GetReviewHtmlAsync(client, result);
 
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        Assert.Equal(
-            "SYN-DOCX-001",
-            Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
-        Assert.Equal(
-            "AB12 CDE",
-            Assert.Single(receipt.Fields, field => field.Name == "Vehicle registration").SuggestedValue);
-        Assert.Equal("AB12CDE", Assert.IsType<InstructionDraft>(receipt.InstructionDraft).VehicleRegistration);
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Empty(receipt.Fields);
         Assert.Contains("synthetic-instruction.docx", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Case not created", reviewHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -129,7 +123,7 @@ public sealed partial class MultiFormatIntakeWebTests
             "Nested evidence",
             "Nested message body",
             ("nested-photo.jpg", "image/jpeg", image));
-        var message = CreateMessage(
+        var message = CreateQdosMessage(
             "Synthetic mixed intake",
             "Please review the attached instruction and evidence.",
             ("instruction.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx),
@@ -160,7 +154,7 @@ public sealed partial class MultiFormatIntakeWebTests
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
         var image = Convert.FromBase64String(TinyJpegBase64);
-        var message = CreateMessage(
+        var message = CreateQdosMessage(
             "Synthetic duplicate evidence",
             "QDOS instruction\r\nClaim Number: SYN-DUP-001\r\nVehicle Registration: AB12 CDE",
             ("vehicle-front-original.jpg", "image/jpeg", image),
@@ -329,13 +323,11 @@ public sealed partial class MultiFormatIntakeWebTests
         var result = await UploadAsync(factory, client, "thirty-page-instruction.pdf", "application/pdf", pdf);
         var receipt = await GetReceiptAsync(factory, ReceiptId(result));
 
-        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
-        Assert.Equal(
-            "SYN-GUARD-001",
-            Assert.Single(receipt.Fields, field => field.Name == "Claim number").SuggestedValue);
-        Assert.Contains(receipt.Evidence, evidence =>
-            evidence.Signal == "instruction-structure"
-            && evidence.Detail.Contains("page 30", StringComparison.Ordinal));
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.InstructionDraft);
+        Assert.Empty(receipt.Fields);
+        Assert.DoesNotContain(receipt.Evidence, evidence =>
+            evidence.Finding == IntakeEvidenceFinding.SupportsPrincipal);
         Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "intake_limit_exceeded");
     }
 
@@ -675,7 +667,7 @@ public sealed partial class MultiFormatIntakeWebTests
         var docx = CreateDocxWithImagePlacements(
             [13L * 1024 * 1024],
             [0, 0]);
-        var message = CreateMessage(
+        var message = CreateQdosMessage(
             "Synthetic repeated DOCX image placement",
             ConfirmingQdosBody,
             ("repeated-image.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx));
@@ -708,7 +700,7 @@ public sealed partial class MultiFormatIntakeWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
-        var message = CreateMessage(
+        var message = CreateQdosMessage(
             "Synthetic corrupt attachments",
             ConfirmingQdosBody,
             ("corrupt.pdf", "application/pdf", "not a PDF"u8.ToArray()),
@@ -1067,6 +1059,17 @@ public sealed partial class MultiFormatIntakeWebTests
         }
 
         message.Body = multipart;
+        return message;
+    }
+
+    private static MimeMessage CreateQdosMessage(
+        string subject,
+        string body,
+        params (string FileName, string MediaType, byte[] Bytes)[] attachments)
+    {
+        var message = CreateMessage(subject, body, attachments);
+        message.From.Clear();
+        message.From.Add(new MailboxAddress("Synthetic QDOS sender", "instructions@qdosassist.co.uk"));
         return message;
     }
 
