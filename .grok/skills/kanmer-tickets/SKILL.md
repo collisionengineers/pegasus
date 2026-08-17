@@ -6,7 +6,7 @@ description: Manage tickets on Kanmer, the file-based kanban shared live with a 
 # Managing Kanmer tickets
 
 Kanmer stores tickets as folders in the project's `.kanmer/` tree — each
-ticket owns its markdown file plus a pipeline of documents (research, impact,
+ticket owns its markdown file plus a pipeline of documents (research, files,
 plan, checklist, proof) that live beside it. The human sees the same data on a
 live kanban board (the Kanmer desktop app), so every item you create or move
 is instantly visible to them — treat the board as your shared workspace, not
@@ -18,11 +18,24 @@ directly; the tools keep ids, timestamps, folders and frontmatter consistent.
 This skill covers the tickets themselves. The work *inside* a ticket is
 driven by the phase skills — see the router at the end.
 
+## Workflow
+
+1. **Orient** — `get_status`, then `list_board`, then `list_items`.
+2. **Search before creating** — `search_items` for anything close.
+3. **Do the one thing asked**: create, update, link, order, or archive.
+4. **Pick the profile** deliberately when creating — it decides how much
+   evidence the ticket will owe, and it is the field most often got wrong.
+5. **Hand off, or stop.** Filing a ticket is not starting it: if that was the
+   whole request, say what you filed and stop there.
+
+The ticket enters at **Backlog**, and this skill leaves it there. Everything
+after Backlog belongs to a phase skill — the router at the end says which.
+
 ## Orient first: `get_status`, once per session
 
 It tells you whether `.kanmer/` exists, the format version, whether the board
 is real or the synthesized default, per-stage counts and any file warnings —
-before you write anything. Then `list_board` for the stage/area/priority ids
+before you write anything. Then `list_board` for the stage/area ids
 (they vary per project; writes with unknown ids are rejected, and the error
 lists the valid ones) and `list_items` for current state. `search_items`
 before creating: if something close already exists, update or link it rather
@@ -77,8 +90,12 @@ permanently; reserve it for items the user explicitly wants gone.
   user asks for ordering — "top of the todo column" is meaningful now.
 - Move tickets through stages by what the stages *mean* (designing,
   implementing, awaiting eyes, verifying, finished), resolved against
-  `list_board` — never hardcoded ids. Moving to the **final** stage requires
-  the ticket's proof.md to exist.
+  `list_board` — never hardcoded ids. A move crosses **at most one gated
+  boundary**, so walk the stages one at a time; a jump is refused even when
+  every document exists, and `update_item status` runs the same check. Gates
+  constrain those two calls and nothing else — *creating* a ticket in any stage,
+  including the last, is ungated, which is what makes historical backfill
+  possible.
 - Board changes are shared state: `add_column`/`update_column`/
   `reorder_columns` change what everyone sees, and `remove_column` needs
   `migrate_to` when items still use the column. Ask before restructuring.
@@ -87,19 +104,33 @@ permanently; reserve it for items the user explicitly wants gone.
 
 A ticket's life is driven phase by phase; hand off rather than improvising:
 
+    kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout
+
+That is the order. How far a given ticket actually walks it depends on its
+profile, and some profiles stop well short of the end — so ask `get_doc_gates`
+rather than assuming every ticket takes every step. Its `reachable` list is the
+per-ticket answer.
+
 | You are about to… | Use |
 |---|---|
-| Investigate a ticket, write research.md / impact.md | `kanmer-research` |
-| Write plan.md / checklist.md | `kanmer-plan` |
-| Implement — worktree, branch, checklist, proof, PR | `kanmer-execute` |
+| Investigate a ticket, write its research / files documents | `kanmer-research` |
+| Write the plan and checklist | `kanmer-plan` |
+| Implement — worktree, branch, checklist, report, PR | `kanmer-execute` |
 | Review finished work or handle PR feedback | `kanmer-review` |
+| Verify a merged ticket on main → proof | `kanmer-verify` |
 | Clean up after the PR merged | `kanmer-closeout` |
-| Clear a whole area's tickets autonomously | `kanmer-auto` |
+| Drive a whole area or group autonomously | `kanmer-auto` |
 | Report current state / history | `kanmer-report` |
 | Link/create a governing PRD/FRD/ADR | `kanmer-docs` |
-| Verify a merged ticket → proof.md | `kanmer-verify` |
 | Tidy the backlog itself | `kanmer-groom` |
-| Pull GitHub issues or PR comments onto the board | `kanmer-import` |
+| Set up or reconcile Kanmer in the repo | `kanmer-setup` |
 
 For exact tool parameters and what each field means, read
 `references/tool-reference.md`.
+
+---
+
+**Hand off to `kanmer-research`** when the ticket you just filed is one you were
+also asked to work — it is the first phase skill, and it takes the ticket out of
+Backlog. If the request was only to manage the board, control returns to the
+user here: filing is not starting.

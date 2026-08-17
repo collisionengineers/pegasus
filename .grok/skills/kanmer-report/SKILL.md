@@ -1,6 +1,6 @@
 ---
 name: kanmer-report
-description: Report a Kanmer board's state or history — a standup ("now": in flight/blocked/up next) or a retro ("since <period>": what shipped, throughput). Use for a status update, standup, board summary, "where are we", "what's left", or a look-back like "what shipped last month". DO NOT USE for fixing what it flags (kanmer-groom).
+description: Report a Kanmer board's state or history — a standup (now — in flight/blocked/up next) or a retro (since <period> — what shipped, throughput). Use for a status update, standup, board summary, "where are we", "what's left", or a look-back like "what shipped last month". DO NOT USE for fixing what it flags (kanmer-groom).
 ---
 
 # Kanmer report
@@ -9,6 +9,15 @@ One read-only reporting skill, two modes over the same four read tools — they
 differ only by time window. Report **facts, not inferences**: the activity log
 records what happened; summaries carry taken/blocked/checklist state directly.
 Never report from memory of the conversation — the board may have changed since.
+
+## Workflow
+
+1. **Pick the mode** from what was asked — "now" (standup) or "since \<period\>"
+   (retro). Everything after this differs only by time window.
+2. **Gather** the four reads below, in that order.
+3. **Write the sections** for that mode, omitting empty ones.
+4. **Stop.** This skill changes nothing — no stage moves, no tickets, no
+   documents. It operates across every stage and belongs to none.
 
 ## Gather (both modes)
 1. `get_status` — is the board real (`boardSource: "file"`) or a synthesized
@@ -41,3 +50,11 @@ an off-board stage. Sections (omit empty ones):
 still open from that period, and recurring Flags. A look-back, not a to-do list.
 
 Keep it scannable — one line per item, no quoting bodies unless asked.
+
+---
+
+**No hand-off — control returns to whoever asked.** A report is read-only by
+design, so it ends where it started. What it *flags* has owners: board problems
+go to `kanmer-groom` (which fixes what this skill only names), doc-gate debt to
+`kanmer-docs`, and a specific ticket to its phase skill. Naming a fix is this
+skill's job; applying one is not.

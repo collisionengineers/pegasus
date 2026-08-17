@@ -2,7 +2,7 @@
 
 One file per question. `docs/` contains prose only; supplied evidence is
 indexed under the top-level [`reference/`](../reference/README.md) tree and
-design assets remain under [`design/`](../design/).
+design assets remain under [`docs/design/`](design/).
 
 | Question | File |
 | --- | --- |
@@ -20,7 +20,7 @@ design assets remain under [`design/`](../design/).
 | What procedure governs task claims, plans, reviews, and Git safety? | [Repository task workflow](../AGENTS.md#repository-task-workflow) |
 | What durable technical decisions apply? | [Decision index](adr/README.md) (ADR bodies are immutable) |
 | What raw supplied evidence exists? | [Reference evidence](../reference/README.md) |
-| What are the UI rules? | [Design](design.md) |
+| What are the UI rules? | [Design](design/README.md) |
 | What is the Azure production state? | [Operations § Production environment](operations.md#production-environment) — the sole current-state owner; `.azure/deployment-plan.md` is the immutable 2026-08-02 execution record |
 | What do the imported source workspaces own? | [Workspaces](../workspaces/README.md) |
 | What do domain terms mean? | [`CONTEXT.md`](../CONTEXT.md) (repo root) |
@@ -31,18 +31,18 @@ operator-notes.md (business fact) > PRD (`prd/`, product intent — what and why
 FRD (`frd/`, functional specification — required behaviour) > capabilities.md
 (schedule and capability-ID registry) > ADRs (durable technical decisions) >
 current-architecture.md and operations.md (current state) > runbook.md, engineering.md,
-and design.md (working rules within their scopes). Code plus passing tests beat any document about
+and design/README.md (working rules within their scopes). Code plus passing tests beat any document about
 current state. On conflict: fix the losing document in the same commit you
 notice it; if the conflict is material and you cannot resolve it, put one line
 in [open decisions](open-decisions.md) and stop the affected work.
 
 ## New Markdown files
 
-A new Markdown file is one of: a product requirements document under
+A new repository Markdown file is one of: a product requirements document under
 [`docs/prd/`](prd/README.md); a functional requirements document under
 [`docs/frd/`](frd/README.md); a durable technical decision under
-[`docs/adr/`](adr/README.md); or a transient task plan under
-[`docs/temp-plans/`](temp-plans/README.md). A new PRD or FRD records its
+[`docs/adr/`](adr/README.md). Transient task research, plans, checklists,
+reviews, and proof live in the owning Kanmer ticket documents. A new PRD or FRD records its
 canonical owner in [capabilities.md](capabilities.md) and is linked from this
 index. Everything else edits an existing canonical file. Documentation rules and
 conventions themselves live in [`AGENTS.md`](../AGENTS.md), not in an ADR.

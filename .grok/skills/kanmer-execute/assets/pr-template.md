@@ -1,5 +1,7 @@
 # PR description template
 
+*The PR description. Not the post-implementation report — this is for the **reader of the diff**; the report is for the board.*
+
 The **PR description** (the `gh pr create --body`), distinct from the 4 review
 docs `kanmer-review` writes into the ticket. Assemble it from the ticket's own
 documents — an assembly job, not authorship. Sources: `get_item` for the body,

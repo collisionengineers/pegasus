@@ -1,15 +1,15 @@
 # Preserve supplied and generated binary assets byte-for-byte.
 reference/**/*.xlsm binary
 src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json binary
-design/assets/report-renderer/**/*.css text eol=lf
-design/assets/report-renderer/**/*.scriban text eol=lf
+docs/design/assets/report-renderer/**/*.css text eol=lf
+docs/design/assets/report-renderer/**/*.scriban text eol=lf
 # design-sync hashes these files as raw bytes for its render/source-key anchor;
 # force LF so a Windows checkout does not silently perturb every component hash.
 .design-sync/previews/*.tsx text eol=lf
 .design-sync/*.md text eol=lf
-design/system/src/**/*.ts text eol=lf
-design/system/src/**/*.tsx text eol=lf
-design/system/docs/*.md text eol=lf
+docs/design/system/src/**/*.ts text eol=lf
+docs/design/system/src/**/*.tsx text eol=lf
+docs/design/system/docs/*.md text eol=lf
 *.doc binary
 *.docx binary
 *.ico binary

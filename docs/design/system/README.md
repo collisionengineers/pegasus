@@ -7,13 +7,13 @@ parts. Every component renders the exact markup and class names that
 byte-for-byte to `dist/styles.css` at build time and is never authored here.
 
 This package is **design-tool output only**: it is not part of `Pegasus.slnx`,
-is not referenced by the Web runtime, and is not deployed. `docs/design.md`
+is not referenced by the Web runtime, and is not deployed. `docs/design/README.md`
 remains the design authority; this package follows it.
 
 ## Build
 
 ```sh
-cd design/system
+cd docs/design/system
 npm ci
 npm run build      # dist/index.js (ESM), dist/*.d.ts, dist/styles.css
 ```
@@ -31,6 +31,6 @@ component group) in `docs/`.
 - `src/components/*.tsx` — grouped components (Shell, Actions, Status,
   Metrics, Record, Tables, Forms, Overlay, Auth, Layout, Icon, StatusChip).
 - `src/logo.png` — downscaled brand logo (checksum recorded in
-  `docs/design.md`), inlined as a data URI.
+  `docs/design/README.md`), inlined as a data URI.
 - `docs/<Name>.md` — usage doc per component; `category:` frontmatter = group.
 - `scripts/build.mjs` — esbuild + stylesheet copy.
