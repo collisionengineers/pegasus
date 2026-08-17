@@ -28,3 +28,5 @@ No Core policy, Worker, Graph, schema, or Inbox change.
 Checked: PIR file list vs `gh pr diff 391` (match); plan Governing docs vs FRD-08 (no behaviour change; no unauthorised FRD/ADR edit); files.md ripple (no policy/UI/CI-corpus requirement added); open-questions all ticked above Parked; no unplanned extras.
 
 **CI note:** `repository-check` sql-integration (2) failed on `QdosAllocationRecoveryTests.DistinctParallelRetriesResolveToOneCaseAggregate` (SQL deadlock). That class is not in this diff; the MAIL-21 change is Corpus-category and is filtered out of sql-integration (`Category!=Corpus`). This is the known flaky deadlock lane tracked by DELIVE-001. Re-running the failed jobs rather than treating it as a MAIL-21 defect.
+
+sql-integration (2) rerun passed (the deadlock did not reproduce). Merged PR 391 into `dev`. Moved TICK-009 to verifying. Next: kanmer-verify.
