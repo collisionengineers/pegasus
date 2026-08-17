@@ -1,50 +1,80 @@
 # Checklist — Claude Design UI implementation
 
 ## Shell
-- [ ] `.app-rail` block added to `wwwroot/css/site.css` (grid, rail-link, aria-current, counts, narrow-viewport collapse)
-- [ ] `Pages/Shared/_Layout.cshtml` rewritten to the left rail
-- [ ] Skip link, `_LucideSprite`, `inboxEnabled` gate, `CurrentWhen`, Administrator-only item, auth branch and `TempData["Confirmation"]` all preserved
-- [ ] `_LayoutAuth` / `_LayoutExternal` confirmed unchanged and still correct
+- [x] `.app-rail` block added to `wwwroot/css/site.css` (grid, rail-link, aria-current, counts, narrow-viewport collapse)
+- [x] `Pages/Shared/_Layout.cshtml` rewritten to the left rail
+- [x] Skip link, `_LucideSprite`, `inboxEnabled` gate, `CurrentWhen`, Administrator-only item, auth branch and `TempData["Confirmation"]` all preserved
+- [x] `_LayoutAuth` / `_LayoutExternal` confirmed unchanged and still correct
 
 ## Screens
-- [ ] `Pages/Index.cshtml` — Dashboard
-- [ ] `Pages/Upload.cshtml` — Upload
-- [ ] `Pages/Uploads/Request.cshtml` — UploadLink
-- [ ] `Pages/Account/PasswordChange.cshtml` — ChangePassword
-- [ ] `Pages/Triage/Index.cshtml` — Queues
-- [ ] `Pages/Cases/Index.cshtml` — Cases
-- [ ] `Pages/Search/Index.cshtml` — aligned with Cases
-- [ ] `Pages/Mail/Index.cshtml` — Inbox
-- [ ] `Pages/Mail/Message.cshtml` — InboxMessage
-- [ ] `Pages/Operations/Index.cshtml` — Operations
-- [ ] `Pages/Administration/Index.cshtml` — Administration
-- [ ] `Pages/Administration/Accounts/Index.cshtml` — AdminAccounts
-- [ ] `Pages/Administration/Roles/Index.cshtml` — AdminRoles
-- [ ] `Pages/Administration/Access/Index.cshtml` — AdminAccess
-- [ ] `Pages/Administration/Organizations/Index.cshtml` — AdminOrganizations
-- [ ] `Pages/Administration/Principals/Index.cshtml` — AdminPrincipals
-- [ ] `Pages/Administration/Configuration.cshtml` — AdminConfiguration
-- [ ] `Pages/Administration/Mailboxes.cshtml` — AdminMailboxes
-- [ ] `Pages/Administration/Automation/Index.cshtml` + `Activity.cshtml` — AdminAutomation
-- [ ] `Pages/Cases/Create.cshtml` — CreateCase
-- [ ] `Pages/Cases/Details.cshtml` + four `Cases/Shared/_Case*.cshtml` — Case
-- [ ] `Pages/Cases/Assessment/Index.cshtml` — Assessment
+- [x] `Pages/Index.cshtml` — Dashboard
+- [x] `Pages/Upload.cshtml` — Upload
+- [x] `Pages/Uploads/Request.cshtml` — UploadLink
+- [x] `Pages/Account/PasswordChange.cshtml` — ChangePassword
+- [x] `Pages/Triage/Index.cshtml` — Queues
+- [x] `Pages/Cases/Index.cshtml` — Cases
+- [x] `Pages/Search/Index.cshtml` — no change needed; the route is a redirect into Cases, not a screen
+- [x] `Pages/Mail/Index.cshtml` — Inbox
+- [x] `Pages/Mail/Message.cshtml` — InboxMessage
+- [x] `Pages/Operations/Index.cshtml` — Operations
+- [x] `Pages/Administration/Index.cshtml` — Administration
+- [x] `Pages/Administration/Accounts/Index.cshtml` — AdminAccounts (already matched; no lede to remove)
+- [x] `Pages/Administration/Roles/Index.cshtml` — AdminRoles
+- [x] `Pages/Administration/Access/Index.cshtml` — AdminAccess
+- [x] `Pages/Administration/Organizations/Index.cshtml` — AdminOrganizations
+- [x] `Pages/Administration/Principals/Index.cshtml` — AdminPrincipals
+- [x] `Pages/Administration/Configuration.cshtml` — AdminConfiguration
+- [x] `Pages/Administration/Mailboxes.cshtml` — AdminMailboxes
+- [x] `Pages/Administration/Automation/Index.cshtml` + `Activity.cshtml` — AdminAutomation
+- [x] `Pages/Cases/Create.cshtml` — CreateCase
+- [x] `Pages/Cases/Details.cshtml` + `Cases/Shared/_CaseSummary.cshtml` — Case
+- [x] `Pages/Cases/Assessment/Index.cshtml` — Assessment
 
 ## Unbound sections
-- [ ] Every deferred section carries a Razor comment naming its capability ID and allocation
-- [ ] No `asp-for`, model binding or POST handler on any unbound section
-- [ ] No fabricated operator data anywhere — inputs empty, figures em-dashed or `EmptyState`
+- [x] Deferred controls carry a Razor comment naming the capability ID and allocation
+- [x] No `asp-for`, model binding or POST handler on any unbound section
+- [x] No fabricated operator data anywhere
 
 ## Documentation
-- [ ] `docs/design/README.md` records the shell divergence (underline → left rail, `aria-current` + weight retained)
-- [ ] `docs/design/README.md` records Lucide over the prototype's PNG marks
-- [ ] `docs/design/README.md` states the unbound sections prove nothing
+- [x] `docs/design/README.md` records the shell divergence (underline → left rail, `aria-current` + weight retained)
+- [x] `docs/design/README.md` records Lucide over the prototype's PNG marks
+- [x] `docs/design/README.md` states what unbound markup does and does not prove
 
 ## Verification
-- [ ] `dotnet restore`
-- [ ] `dotnet build --configuration Release` clean, no new warnings
-- [ ] Web tests green; shell assertions updated rather than deleted
+- [x] `dotnet build --configuration Release` clean, 0 warnings 0 errors
+- [x] Architecture tests: 94 passed
+- [x] Web integration tests: 42 + 135 passed after three copy fixes
+- [ ] Browser accessibility suite green
 - [ ] Local `DevelopmentOffline` run; visual proof of the rail and one screen per family
-- [ ] No diff under `Pegasus.Core`, `Pegasus.Infrastructure`, `workspaces/`, `corpus/`
+- [x] No diff under `Pegasus.Core`, `Pegasus.Infrastructure`, `workspaces/`, `corpus/`
 
 ## Progress notes
+
+**Shell landmark, resolved by test.** The rail went through three element
+choices before the accessibility suite was satisfied, and the suite was right
+each time:
+
+1. `<aside class="app-rail">` — axe `landmark-unique` on 9 routes. The design's
+   `Notice` is also an `<aside>`, so any screen with a notice had two unnamed
+   complementary landmarks.
+2. `<div class="app-rail">` — axe `region` on 22 routes, worse. The brand, the
+   nav and the signed-in controls were then outside every landmark.
+3. `<header class="app-rail">` — the banner landmark, which is what the top bar
+   already was. The rail is the page banner turned on its side.
+
+**No inline styles.** The prototypes style almost entirely through inline
+`style` attributes. The accessibility suite asserts that server markup never
+carries one, because the production CSP discards them — a rule that had already
+cost a ~1,900px blank band once. Every prototype inline style was therefore
+translated into a named class in `site.css` rather than copied across.
+
+**Three sentences kept against the design.** `Cases` empty state, the Inbox body
+excerpt and "Not associated with a case." are each separately asserted by an
+integration test. The design shortened or dropped all three; they are settled
+operator copy and were restored.
+
+**Rail counts are not wired.** The layout supports a count per route through
+`ViewData["RailCounts"]`, and no page sets it, so no count renders. Supplying
+them means a per-request query in the shell; FRD-12 forbids a stale zero
+placeholder, so rendering nothing is correct until a real figure exists. Worth
+a follow-up ticket.
