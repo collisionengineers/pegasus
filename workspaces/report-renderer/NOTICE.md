@@ -30,7 +30,7 @@ The Playwright runtime image and operating-system packages contain additional co
 
 ## Brand assets
 
-The master gear-“C” logo at `design/brand/logos/logo_no_margin.png` and engineer signatures under `design/brand/signatures/` are Collision Engineers Ltd property. They are governed brand assets, not third-party open-source components.
+The master gear-“C” logo at `docs/design/brand/logos/logo_no_margin.png` and engineer signatures under `docs/design/brand/signatures/` are Collision Engineers Ltd property. They are governed brand assets, not third-party open-source components.
 
 - Do not redraw, reconstruct or substitute the gear logo without brand authority.
 - Bundled signatures must be used only for authorised document production.
@@ -41,7 +41,7 @@ Tw Cen MT Std, Futura and the unused white reverse logo do not ship as renderer 
 
 ## Design and source provenance
 
-The root design authority is the repository `docs/design.md`. Renderer templates, stylesheet, logo and signatures are linked or embedded from governed design sources at build time rather than maintained as divergent workspace copies.
+The root design authority is the repository `docs/design/README.md`. Renderer templates, stylesheet, logo and signatures are linked or embedded from governed design sources at build time rather than maintained as divergent workspace copies.
 
 The visual and behavioural design was informed by:
 

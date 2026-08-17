@@ -55,22 +55,6 @@ internal static class CustodyModelConfiguration
             entity.HasOne<DocumentVersionEntity>().WithMany().HasForeignKey(value => value.VersionId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        modelBuilder.Entity<BoxFileRequestEntity>(entity =>
-        {
-            entity.ToTable("BoxFileRequests");
-            entity.HasKey(value => value.Id);
-            entity.Property(value => value.Status).HasConversion<string>().HasMaxLength(32).IsRequired();
-            entity.Property(value => value.CreateOperationKey).HasMaxLength(256).IsRequired();
-            entity.Property(value => value.RevokeOperationKey).HasMaxLength(256);
-            entity.Property(value => value.LinkTokenDigest).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(value => value.Version).IsConcurrencyToken();
-            entity.HasIndex(value => new { value.CaseId, value.CreateOperationKey }).IsUnique();
-            entity.HasIndex(value => value.LinkTokenDigest).IsUnique();
-            entity.HasIndex(value => new { value.CreatedAtUtc, value.Id }).IsDescending(true, false);
-            entity.HasIndex(value => new { value.DeactivatedAtUtc, value.Id }).IsDescending(true, false);
-            entity.HasOne<CaseEntity>().WithMany().HasForeignKey(value => value.CaseId).OnDelete(DeleteBehavior.Restrict);
-        });
-
         modelBuilder.Entity<RequestUploadLinkEntity>(entity =>
         {
             entity.ToTable("RequestUploadLinks", table =>

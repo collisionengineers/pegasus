@@ -88,7 +88,10 @@ in force here:
 - `GET /VehicleImages` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /VehicleImages/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
 - `/Triage` and `/Triage/{id}` are the physical list/detail owners for Core triage queries and commands. The former Development web evaluator is not an application caller; the separately owned desktop evaluator remains outside the Web runtime.
 - Anonymous request submission exists only at `/Uploads/{token}`. The PageModel calls `GetRequestUpload` and one `UploadToRequest` command, uses antiforgery and an idempotent operation key, and presents generic non-disclosing outcomes through PRG.
-- The Case documents surface still implements Box File Request create/revoke (`src/Pegasus.Web/Pages/Cases/Shared/_CaseDocuments.cshtml`). That mechanism is superseded by the operator decision in favour of request-scoped upload links (INT-31) and is pending removal; it must gain no new callers.
+- The Case documents surface links confirmed custody directly to the case's real
+  Box folder. The superseded internal Box File Request create/revoke mechanism
+  has no caller or persistence model; request-scoped public upload links remain
+  the separate INT-31 capability.
 - These callers are source-state evidence; deployment state is owned by [operations § Production environment](operations.md#production-environment). Caller evidence alone does not establish browser accessibility acceptance or operator acceptance.
 
 ### Technical entry points
@@ -594,7 +597,7 @@ Relevant architectural decisions include ADR-0003 for PdfPig, ADR-0005 for multi
 | `artifacts/local-development/` and LocalDB databases | Ignored Development state | Produced by explicit migration and real local callers; not production custody. |
 | `reference/` | Preserved supplied evidence | Used for planning and evaluation only after authority reconciliation; see the [reference index](../reference/README.md). |
 | `workspaces/` | Independently validated non-caller source imports | Workspace-specific build and test only until separately accepted integration. |
-| `design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](design.md). |
+| `docs/design/references/mockups/` | Approved comparison rasters | Direction-selection evidence, not runtime behavior or requirements; see the [design index](design/README.md). |
 
 Infrastructure and release definitions under `infra/` describe target infrastructure; they do not prove a live deployment.
 

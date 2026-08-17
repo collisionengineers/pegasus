@@ -67,6 +67,8 @@ Do not add Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, A
 `CiPressure` is the current narrow Checkpoint 12 pressure profile. The
 [QDOS pressure procedure](runbook.md#qdos-pressure-profiles) owns its invocation,
 source-revision checks, prerequisites, staging, cleanup, and evidence path.
+GitHub registers it as a nightly 03:00 UTC and manually dispatched diagnostic
+workflow, outside the pull-request gate, with retained evidence on every run.
 
 This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
 
@@ -258,7 +260,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
       secret versions were unchanged and only the vault host moved to
       `pegasusprodkv252ow37g`. Read the deployed resource, not the local
       environment, when a provision disagrees with a working estate.
-    - **`Invoke-AzureDatabaseBootstrap.ps1` cannot pass after release 6.** Its
+    - **Historical release-8 bootstrap limitation (now corrected in source).** Its
       expected matrix is read from `20260729199000_RuntimeRoleReconciliation`
       alone, so every grant added by a later migration reads as unapproved
       drift. All 24 differences were `=>` — extra in the database, none
@@ -269,8 +271,16 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
       `20260805223036_RetainedMailboxMessages:136-145`. The principal creation
       and effective-permission guards ran before the assertion; the matrix
       comparison is what failed. **The runtime-role effective-permission check
-      was therefore not completed for this release**, and the script needs its
-      matrix built from the full migration set before the next one.
+      was therefore not completed for that release.** The current script now
+      includes every later grant-carrying migration and terminal table removal.
+    - **Worker case-creation hotfix (2026-08-14):** the production Worker role
+      received the 40 exact grants later captured by
+      `20260814092852_AddWorkerCaseCreationGrants`; live readback confirms all
+      40 are present, while the migration itself is not yet recorded in
+      `__EFMigrationsHistory`. The first resulting automatic case was
+      `QDOS26001`, with Box folder `a.QDOS26001` under custody root
+      `405543781910`. This is live data-plane evidence, not proof that the
+      corresponding application commits or migrations have deployed.
 
   - **Release 7** carried the six defects that live verification of release 6
     found, and is the first release whose Worker redeploy and revision

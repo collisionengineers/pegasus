@@ -1,0 +1,931 @@
+{
+  "plugins": [
+    "react",
+    "import"
+  ],
+  "rules": {
+    "react/forbid-elements": [
+      "warn",
+      {
+        "forbid": [
+          {
+            "element": "button",
+            "message": "Use <Button> from the design system instead of <button>."
+          },
+          {
+            "element": "table",
+            "message": "Use <DataTable> from the design system instead of <table>."
+          },
+          {
+            "element": "input",
+            "message": "Use <Input> from the design system instead of <input>."
+          },
+          {
+            "element": "select",
+            "message": "Use <Select> from the design system instead of <select>."
+          },
+          {
+            "element": "textarea",
+            "message": "Use <Textarea> from the design system instead of <textarea>."
+          }
+        ]
+      }
+    ],
+    "no-restricted-imports": [
+      "warn",
+      {
+        "patterns": [
+          {
+            "group": [
+              "components/actions/Button/**",
+              "components/actions/ButtonRow/**",
+              "components/actions/Gated/**",
+              "components/actions/PrimaryAction/**",
+              "components/actions/SecondaryAction/**",
+              "components/actions/SendToClaudeButton/**",
+              "components/auth/AuthCard/**",
+              "components/auth/AuthCardActions/**",
+              "components/auth/AuthShell/**",
+              "components/auth/SupportReference/**",
+              "components/data/ActionList/**",
+              "components/data/DataTable/**",
+              "components/data/FilterBar/**",
+              "components/data/Pager/**",
+              "components/data/PlainList/**",
+              "components/data/TableWrap/**",
+              "components/forms/Choice/**",
+              "components/forms/ChoiceGroup/**",
+              "components/forms/Field/**",
+              "components/forms/FormGrid/**",
+              "components/forms/FormPanel/**",
+              "components/forms/Input/**",
+              "components/forms/RoleForm/**",
+              "components/forms/RowConfirm/**",
+              "components/forms/Select/**",
+              "components/forms/Textarea/**",
+              "components/layout/DashboardGrid/**",
+              "components/layout/Eyebrow/**",
+              "components/layout/Icon/**",
+              "components/layout/Lede/**",
+              "components/layout/Panel/**",
+              "components/layout/ReviewGrid/**",
+              "components/layout/SectionLabel/**",
+              "components/layout/SplitMain/**",
+              "components/layout/SrOnly/**",
+              "components/layout/WorkbenchGrid/**",
+              "components/metrics/AdminCard/**",
+              "components/metrics/AdminWorkspaces/**",
+              "components/metrics/Metric/**",
+              "components/metrics/MetricStrip/**",
+              "components/metrics/MetricTile/**",
+              "components/metrics/QueueCard/**",
+              "components/metrics/QueueFilters/**",
+              "components/metrics/QueueGrid/**",
+              "components/metrics/QueueList/**",
+              "components/metrics/QueueListRow/**",
+              "components/metrics/TileGrid/**",
+              "components/overlay/ReasonDialog/**",
+              "components/record/Blockhead/**",
+              "components/record/DataRow/**",
+              "components/record/DetailList/**",
+              "components/record/EvidenceFigure/**",
+              "components/record/EvidenceList/**",
+              "components/record/Facts/**",
+              "components/record/FieldCard/**",
+              "components/record/FieldGrid/**",
+              "components/record/ProposalDiff/**",
+              "components/record/Record/**",
+              "components/record/RecordBar/**",
+              "components/record/RecordBody/**",
+              "components/record/RecordHead/**",
+              "components/record/Subtabs/**",
+              "components/record/Tabs/**",
+              "components/shell/AppNav/**",
+              "components/shell/AppShell/**",
+              "components/shell/BackLink/**",
+              "components/shell/Crumb/**",
+              "components/shell/FreshnessBanner/**",
+              "components/shell/PageHeading/**",
+              "components/shell/Refresh/**",
+              "components/shell/SectionTabs/**",
+              "components/status/AcceptanceBoundary/**",
+              "components/status/Blocker/**",
+              "components/status/BlockerList/**",
+              "components/status/EmptyState/**",
+              "components/status/FailureDetail/**",
+              "components/status/Notice/**",
+              "components/status/Provenance/**",
+              "components/status/StatusCard/**",
+              "components/status/StatusChip/**",
+              "components/status/ValidationSummary/**"
+            ],
+            "message": "Import design-system components from 'index.js', not component internals."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "warn",
+      {
+        "selector": "Literal[value=/#[0-9a-fA-F]{3,8}\\b/]",
+        "message": "Raw hex color — use a design-system color token via var()."
+      },
+      {
+        "selector": "Literal[value=/\\b\\d+px\\b/]",
+        "message": "Raw px value — use a design-system spacing token via var()."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AcceptanceBoundary'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<AcceptanceBoundary> doesn't accept that prop. Declared props: title, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ActionList'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<ActionList> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AdminCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:icon|title|href|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<AdminCard> doesn't accept that prop. Declared props: icon, title, href, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AdminCard'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<AdminCard> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AdminWorkspaces'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<AdminWorkspaces> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AppNav'] > JSXAttribute > JSXIdentifier[name!=/^(?:items|userName|onSignOut|homeHref|productName|brandOnly|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<AppNav> doesn't accept that prop. Declared props: items, userName, onSignOut, homeHref, productName, brandOnly, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AppShell'] > JSXAttribute > JSXIdentifier[name!=/^(?:nav|footer|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<AppShell> doesn't accept that prop. Declared props: nav, footer, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AuthCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|done|mark|wide|fault|children|foot|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<AuthCard> doesn't accept that prop. Declared props: title, done, mark, wide, fault, children, foot, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AuthCardActions'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<AuthCardActions> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='AuthShell'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<AuthShell> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='BackLink'] > JSXAttribute > JSXIdentifier[name!=/^(?:href|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<BackLink> doesn't accept that prop. Declared props: href, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Blocker'] > JSXAttribute > JSXIdentifier[name!=/^(?:state|title|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Blocker> doesn't accept that prop. Declared props: state, title, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='BlockerList'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<BlockerList> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Blockhead'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|end|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Blockhead> doesn't accept that prop. Declared props: title, end, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|iconOnly|disabled|condition|type|icon|href|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Button> doesn't accept that prop. Declared props: variant, iconOnly, disabled, condition, type, icon, href, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:default|dark|primary|light)$/]",
+        "message": "<Button> variant must be one of 'default' | 'dark' | 'primary' | 'light'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='type'] > Literal[value!=/^(?:submit|reset|button)$/]",
+        "message": "<Button> type must be one of 'submit' | 'reset' | 'button'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Button'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<Button> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ButtonRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:end|sectionGap|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<ButtonRow> doesn't accept that prop. Declared props: end, sectionGap, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Choice'] > JSXAttribute > JSXIdentifier[name!=/^(?:type|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Choice> doesn't accept that prop. Declared props: type, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Choice'] > JSXAttribute[name.name='type'] > Literal[value!=/^(?:checkbox|radio)$/]",
+        "message": "<Choice> type must be one of 'checkbox' | 'radio'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ChoiceGroup'] > JSXAttribute > JSXIdentifier[name!=/^(?:legend|stacked|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<ChoiceGroup> doesn't accept that prop. Declared props: legend, stacked, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Crumb'] > JSXAttribute > JSXIdentifier[name!=/^(?:parents|current|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Crumb> doesn't accept that prop. Declared props: parents, current, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='DashboardGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<DashboardGrid> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='DataRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:field|value|suggested|end|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<DataRow> doesn't accept that prop. Declared props: field, value, suggested, end, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='DataTable'] > JSXAttribute > JSXIdentifier[name!=/^(?:columns|rows|caption|captionVisible|footer|lineGrid|empty|rowKey|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<DataTable> doesn't accept that prop. Declared props: columns, rows, caption, captionVisible, footer, lineGrid, empty, rowKey, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='DetailList'] > JSXAttribute > JSXIdentifier[name!=/^(?:items|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<DetailList> doesn't accept that prop. Declared props: items, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='EmptyState'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<EmptyState> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='EvidenceFigure'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|value|source|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<EvidenceFigure> doesn't accept that prop. Declared props: label, value, source, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='EvidenceList'] > JSXAttribute > JSXIdentifier[name!=/^(?:items|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<EvidenceList> doesn't accept that prop. Declared props: items, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Eyebrow'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Eyebrow> doesn't accept that prop. Declared props: children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Facts'] > JSXAttribute > JSXIdentifier[name!=/^(?:groups|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Facts> doesn't accept that prop. Declared props: groups, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FailureDetail'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<FailureDetail> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Field'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|htmlFor|hint|error|wide|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Field> doesn't accept that prop. Declared props: label, htmlFor, hint, error, wide, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FieldCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|children|detail|conflict|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<FieldCard> doesn't accept that prop. Declared props: title, children, detail, conflict, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FieldGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<FieldGrid> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FilterBar'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|children|more|moreLabel|moreOpen|onSubmit|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<FilterBar> doesn't accept that prop. Declared props: title, children, more, moreLabel, moreOpen, onSubmit, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FormGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:sectionGap|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<FormGrid> doesn't accept that prop. Declared props: sectionGap, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FormPanel'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|wide|form|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<FormPanel> doesn't accept that prop. Declared props: title, wide, form, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FreshnessBanner'] > JSXAttribute > JSXIdentifier[name!=/^(?:status|children|action|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<FreshnessBanner> doesn't accept that prop. Declared props: status, children, action, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='FreshnessBanner'] > JSXAttribute[name.name='status'] > Literal[value!=/^(?:stale|failed|loading|current)$/]",
+        "message": "<FreshnessBanner> status must be one of 'stale' | 'failed' | 'loading' | 'current'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Gated'] > JSXAttribute > JSXIdentifier[name!=/^(?:condition|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Gated> doesn't accept that prop. Declared props: condition, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Icon'] > JSXAttribute > JSXIdentifier[name!=/^(?:name|size|spin|label|className|id|style|children|ref|key|ref|className|style|children)$/]",
+        "message": "<Icon> doesn't accept that prop. Declared props: name, size, spin, label, className, id, style, children, ref."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Icon'] > JSXAttribute[name.name='name'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<Icon> name must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Icon'] > JSXAttribute[name.name='size'] > Literal[value!=/^(?:sm|md|lg)$/]",
+        "message": "<Icon> size must be one of 'sm' | 'md' | 'lg'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Input'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Input> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Lede'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Lede> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Metric'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|icon|value|absent|state|href|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Metric> doesn't accept that prop. Declared props: label, icon, value, absent, state, href, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Metric'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<Metric> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='MetricStrip'] > JSXAttribute > JSXIdentifier[name!=/^(?:columns|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<MetricStrip> doesn't accept that prop. Declared props: columns, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='MetricTile'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|value|icon|attention|span|href|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<MetricTile> doesn't accept that prop. Declared props: label, value, icon, attention, span, href, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='MetricTile'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<MetricTile> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Notice'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Notice> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PageHeading'] > JSXAttribute > JSXIdentifier[name!=/^(?:title|eyebrow|actions|refresh|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<PageHeading> doesn't accept that prop. Declared props: title, eyebrow, actions, refresh, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Pager'] > JSXAttribute > JSXIdentifier[name!=/^(?:previousHref|nextHref|context|label|onPrevious|onNext|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Pager> doesn't accept that prop. Declared props: previousHref, nextHref, context, label, onPrevious, onNext, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Panel'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Panel> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PlainList'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<PlainList> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PrimaryAction'] > JSXAttribute > JSXIdentifier[name!=/^(?:type|disabled|icon|href|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<PrimaryAction> doesn't accept that prop. Declared props: type, disabled, icon, href, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PrimaryAction'] > JSXAttribute[name.name='type'] > Literal[value!=/^(?:submit|reset|button)$/]",
+        "message": "<PrimaryAction> type must be one of 'submit' | 'reset' | 'button'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='PrimaryAction'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<PrimaryAction> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ProposalDiff'] > JSXAttribute > JSXIdentifier[name!=/^(?:recorded|proposed|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<ProposalDiff> doesn't accept that prop. Declared props: recorded, proposed, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Provenance'] > JSXAttribute > JSXIdentifier[name!=/^(?:word|icon|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Provenance> doesn't accept that prop. Declared props: word, icon, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Provenance'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<Provenance> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QueueCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:label|value|unavailable|detail|icon|theme|state|href|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<QueueCard> doesn't accept that prop. Declared props: label, value, unavailable, detail, icon, theme, state, href, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QueueCard'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<QueueCard> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QueueCard'] > JSXAttribute[name.name='theme'] > Literal[value!=/^(?:blue|amber|red|green)$/]",
+        "message": "<QueueCard> theme must be one of 'blue' | 'amber' | 'red' | 'green'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QueueFilters'] > JSXAttribute > JSXIdentifier[name!=/^(?:filters|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<QueueFilters> doesn't accept that prop. Declared props: filters, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QueueGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<QueueGrid> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QueueList'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<QueueList> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='QueueListRow'] > JSXAttribute > JSXIdentifier[name!=/^(?:href|title|subtitle|middle|end|state|srState|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<QueueListRow> doesn't accept that prop. Declared props: href, title, subtitle, middle, end, state, srState, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ReasonDialog'] > JSXAttribute > JSXIdentifier[name!=/^(?:open|title|consequence|id|confirmLabel|cancelLabel|onCancel|onConfirm|children|inline|className|style|key|ref|className|style|children)$/]",
+        "message": "<ReasonDialog> doesn't accept that prop. Declared props: open, title, consequence, id, confirmLabel, cancelLabel, onCancel, onConfirm, children, inline, className, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Record'] > JSXAttribute > JSXIdentifier[name!=/^(?:state|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<Record> doesn't accept that prop. Declared props: state, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RecordBar'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|end|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<RecordBar> doesn't accept that prop. Declared props: children, end, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RecordBody'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<RecordBody> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RecordHead'] > JSXAttribute > JSXIdentifier[name!=/^(?:reference|identity|end|note|accent|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<RecordHead> doesn't accept that prop. Declared props: reference, identity, end, note, accent, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Refresh'] > JSXAttribute > JSXIdentifier[name!=/^(?:updatedAt|zone|status|onRefresh|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Refresh> doesn't accept that prop. Declared props: updatedAt, zone, status, onRefresh, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Refresh'] > JSXAttribute[name.name='status'] > Literal[value!=/^(?:stale|partial|failed|unavailable|loading|current)$/]",
+        "message": "<Refresh> status must be one of 'stale' | 'partial' | 'failed' | 'unavailable' | 'loading' | 'current'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ReviewGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<ReviewGrid> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RoleForm'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<RoleForm> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='RowConfirm'] > JSXAttribute > JSXIdentifier[name!=/^(?:summary|reasonLabel|reasonId|confirm|open|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<RowConfirm> doesn't accept that prop. Declared props: summary, reasonLabel, reasonId, confirm, open, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SecondaryAction'] > JSXAttribute > JSXIdentifier[name!=/^(?:type|disabled|icon|href|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<SecondaryAction> doesn't accept that prop. Declared props: type, disabled, icon, href, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SecondaryAction'] > JSXAttribute[name.name='type'] > Literal[value!=/^(?:submit|reset|button)$/]",
+        "message": "<SecondaryAction> type must be one of 'submit' | 'reset' | 'button'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SecondaryAction'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<SecondaryAction> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SectionLabel'] > JSXAttribute > JSXIdentifier[name!=/^(?:icon|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<SectionLabel> doesn't accept that prop. Declared props: icon, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SectionLabel'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<SectionLabel> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SectionTabs'] > JSXAttribute > JSXIdentifier[name!=/^(?:tabs|label|sectionGap|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<SectionTabs> doesn't accept that prop. Declared props: tabs, label, sectionGap, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Select'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Select> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SendToClaudeButton'] > JSXAttribute > JSXIdentifier[name!=/^(?:children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<SendToClaudeButton> doesn't accept that prop. Declared props: children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SplitMain'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<SplitMain> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SrOnly'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<SrOnly> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StatusCard'] > JSXAttribute > JSXIdentifier[name!=/^(?:variant|title|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<StatusCard> doesn't accept that prop. Declared props: variant, title, children, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StatusCard'] > JSXAttribute[name.name='variant'] > Literal[value!=/^(?:info|done|attention|error)$/]",
+        "message": "<StatusCard> variant must be one of 'info' | 'done' | 'attention' | 'error'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StatusChip'] > JSXAttribute > JSXIdentifier[name!=/^(?:state|tone|icon|count|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<StatusChip> doesn't accept that prop. Declared props: state, tone, icon, count, className, id, style."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StatusChip'] > JSXAttribute[name.name='tone'] > Literal[value!=/^(?:amber|red|green|navy|neutral)$/]",
+        "message": "<StatusChip> tone must be one of 'amber' | 'red' | 'green' | 'navy' | 'neutral'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='StatusChip'] > JSXAttribute[name.name='icon'] > Literal[value!=/^(?:search|user|refresh-cw|clock|calendar|check-circle|alert-triangle|alert-circle|info|file-text|filter|shield|chevron-right|arrow-right|upload|lock)$/]",
+        "message": "<StatusChip> icon must be one of 'search' | 'user' | 'refresh-cw' | 'clock' | 'calendar' | 'check-circle' | 'alert-triangle' | 'alert-circle' | 'info' | 'file-text' | 'filter' | 'shield' | 'chevron-right' | 'arrow-right' | 'upload' | 'lock'."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Subtabs'] > JSXAttribute > JSXIdentifier[name!=/^(?:tabs|label|end|sectionGap|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Subtabs> doesn't accept that prop. Declared props: tabs, label, end, sectionGap, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='SupportReference'] > JSXAttribute > JSXIdentifier[name!=/^(?:reference|onCopy|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<SupportReference> doesn't accept that prop. Declared props: reference, onCopy, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='TableWrap'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<TableWrap> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Tabs'] > JSXAttribute > JSXIdentifier[name!=/^(?:tabs|label|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Tabs> doesn't accept that prop. Declared props: tabs, label, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='Textarea'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<Textarea> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='TileGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<TileGrid> doesn't accept that prop. Declared props: className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='ValidationSummary'] > JSXAttribute > JSXIdentifier[name!=/^(?:heading|errors|className|id|style|children|key|ref|className|style|children)$/]",
+        "message": "<ValidationSummary> doesn't accept that prop. Declared props: heading, errors, className, id, style, children."
+      },
+      {
+        "selector": "JSXOpeningElement[name.name='WorkbenchGrid'] > JSXAttribute > JSXIdentifier[name!=/^(?:aside|children|className|id|style|key|ref|className|style|children)$/]",
+        "message": "<WorkbenchGrid> doesn't accept that prop. Declared props: aside, children, className, id, style."
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/index.js"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "x-omelette": {
+    "components": {
+      "AcceptanceBoundary": {
+        "replaces": []
+      },
+      "ActionList": {
+        "replaces": []
+      },
+      "AdminCard": {
+        "replaces": []
+      },
+      "AdminWorkspaces": {
+        "replaces": []
+      },
+      "AppNav": {
+        "replaces": []
+      },
+      "AppShell": {
+        "replaces": []
+      },
+      "AuthCard": {
+        "replaces": []
+      },
+      "AuthCardActions": {
+        "replaces": []
+      },
+      "AuthShell": {
+        "replaces": []
+      },
+      "BackLink": {
+        "replaces": []
+      },
+      "Blocker": {
+        "replaces": []
+      },
+      "BlockerList": {
+        "replaces": []
+      },
+      "Blockhead": {
+        "replaces": []
+      },
+      "Button": {
+        "replaces": [
+          "button"
+        ]
+      },
+      "ButtonRow": {
+        "replaces": []
+      },
+      "Choice": {
+        "replaces": []
+      },
+      "ChoiceGroup": {
+        "replaces": []
+      },
+      "Crumb": {
+        "replaces": []
+      },
+      "DashboardGrid": {
+        "replaces": []
+      },
+      "DataRow": {
+        "replaces": []
+      },
+      "DataTable": {
+        "replaces": [
+          "table"
+        ]
+      },
+      "DetailList": {
+        "replaces": []
+      },
+      "EmptyState": {
+        "replaces": []
+      },
+      "EvidenceFigure": {
+        "replaces": []
+      },
+      "EvidenceList": {
+        "replaces": []
+      },
+      "Eyebrow": {
+        "replaces": []
+      },
+      "Facts": {
+        "replaces": []
+      },
+      "FailureDetail": {
+        "replaces": []
+      },
+      "Field": {
+        "replaces": []
+      },
+      "FieldCard": {
+        "replaces": []
+      },
+      "FieldGrid": {
+        "replaces": []
+      },
+      "FilterBar": {
+        "replaces": []
+      },
+      "FormGrid": {
+        "replaces": []
+      },
+      "FormPanel": {
+        "replaces": []
+      },
+      "FreshnessBanner": {
+        "replaces": []
+      },
+      "Gated": {
+        "replaces": []
+      },
+      "Icon": {
+        "replaces": []
+      },
+      "Input": {
+        "replaces": [
+          "input"
+        ]
+      },
+      "Lede": {
+        "replaces": []
+      },
+      "Metric": {
+        "replaces": []
+      },
+      "MetricStrip": {
+        "replaces": []
+      },
+      "MetricTile": {
+        "replaces": []
+      },
+      "Notice": {
+        "replaces": []
+      },
+      "PageHeading": {
+        "replaces": []
+      },
+      "Pager": {
+        "replaces": []
+      },
+      "Panel": {
+        "replaces": []
+      },
+      "PlainList": {
+        "replaces": []
+      },
+      "PrimaryAction": {
+        "replaces": []
+      },
+      "ProposalDiff": {
+        "replaces": []
+      },
+      "Provenance": {
+        "replaces": []
+      },
+      "QueueCard": {
+        "replaces": []
+      },
+      "QueueFilters": {
+        "replaces": []
+      },
+      "QueueGrid": {
+        "replaces": []
+      },
+      "QueueList": {
+        "replaces": []
+      },
+      "QueueListRow": {
+        "replaces": []
+      },
+      "ReasonDialog": {
+        "replaces": []
+      },
+      "Record": {
+        "replaces": []
+      },
+      "RecordBar": {
+        "replaces": []
+      },
+      "RecordBody": {
+        "replaces": []
+      },
+      "RecordHead": {
+        "replaces": []
+      },
+      "Refresh": {
+        "replaces": []
+      },
+      "ReviewGrid": {
+        "replaces": []
+      },
+      "RoleForm": {
+        "replaces": []
+      },
+      "RowConfirm": {
+        "replaces": []
+      },
+      "SecondaryAction": {
+        "replaces": []
+      },
+      "SectionLabel": {
+        "replaces": []
+      },
+      "SectionTabs": {
+        "replaces": []
+      },
+      "Select": {
+        "replaces": [
+          "select"
+        ]
+      },
+      "SendToClaudeButton": {
+        "replaces": []
+      },
+      "SplitMain": {
+        "replaces": []
+      },
+      "SrOnly": {
+        "replaces": []
+      },
+      "StatusCard": {
+        "replaces": []
+      },
+      "StatusChip": {
+        "replaces": []
+      },
+      "Subtabs": {
+        "replaces": []
+      },
+      "SupportReference": {
+        "replaces": []
+      },
+      "TableWrap": {
+        "replaces": []
+      },
+      "Tabs": {
+        "replaces": []
+      },
+      "Textarea": {
+        "replaces": [
+          "textarea"
+        ]
+      },
+      "TileGrid": {
+        "replaces": []
+      },
+      "ValidationSummary": {
+        "replaces": []
+      },
+      "WorkbenchGrid": {
+        "replaces": []
+      }
+    },
+    "tokens": [
+      "--amber-bg",
+      "--amber-fg",
+      "--amber-line",
+      "--amber-tint",
+      "--band",
+      "--band-bright",
+      "--band-mute",
+      "--border",
+      "--ce-red",
+      "--ce-red-dark",
+      "--ce-red-tint",
+      "--charcoal",
+      "--claude-focus",
+      "--claude-light",
+      "--claude-orange",
+      "--claude-orange-deep",
+      "--claude-orange-hi",
+      "--focus-ring",
+      "--ink",
+      "--line",
+      "--line-strong",
+      "--muted",
+      "--navy-bg",
+      "--navy-fg",
+      "--navy-line",
+      "--panel",
+      "--paper",
+      "--radius",
+      "--radius-sm",
+      "--scrim",
+      "--shadow-modal",
+      "--shadow-soft",
+      "--sp-1",
+      "--sp-10",
+      "--sp-16",
+      "--sp-2",
+      "--sp-3",
+      "--sp-4",
+      "--sp-5",
+      "--sp-6",
+      "--sp-8",
+      "--state-bg",
+      "--state-fg",
+      "--state-line",
+      "--success",
+      "--success-tint",
+      "--t-body",
+      "--t-eyebrow",
+      "--t-h1",
+      "--t-h2",
+      "--t-h3",
+      "--t-metric",
+      "--t-sm",
+      "--t-xs"
+    ],
+    "tokenKinds": {
+      "--ce-red": "color",
+      "--ce-red-dark": "color",
+      "--ce-red-tint": "color",
+      "--charcoal": "color",
+      "--ink": "color",
+      "--paper": "color",
+      "--panel": "color",
+      "--line": "color",
+      "--line-strong": "color",
+      "--muted": "color",
+      "--band": "color",
+      "--band-mute": "color",
+      "--band-bright": "color",
+      "--amber-fg": "color",
+      "--amber-bg": "color",
+      "--amber-tint": "color",
+      "--amber-line": "color",
+      "--navy-fg": "color",
+      "--navy-bg": "color",
+      "--navy-line": "color",
+      "--success": "color",
+      "--success-tint": "color",
+      "--sp-1": "spacing",
+      "--sp-2": "spacing",
+      "--sp-3": "spacing",
+      "--sp-4": "spacing",
+      "--sp-5": "spacing",
+      "--sp-6": "spacing",
+      "--sp-8": "spacing",
+      "--sp-10": "spacing",
+      "--sp-16": "spacing",
+      "--t-metric": "spacing",
+      "--t-h1": "spacing",
+      "--t-h2": "spacing",
+      "--t-h3": "spacing",
+      "--t-body": "spacing",
+      "--t-sm": "spacing",
+      "--t-xs": "spacing",
+      "--t-eyebrow": "spacing",
+      "--radius": "radius",
+      "--radius-sm": "radius",
+      "--border": "color",
+      "--focus-ring": "other",
+      "--shadow-soft": "shadow",
+      "--scrim": "color",
+      "--shadow-modal": "shadow",
+      "--state-line": "color",
+      "--state-bg": "color",
+      "--state-fg": "color",
+      "--claude-orange-hi": "color",
+      "--claude-orange": "color",
+      "--claude-orange-deep": "color",
+      "--claude-light": "color",
+      "--claude-focus": "color"
+    },
+    "fontFamilies": []
+  }
+}
