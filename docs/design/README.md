@@ -62,6 +62,39 @@ The common hierarchy is:
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
+### Authenticated shell: the operator rail
+
+**Adopted 2026-08-17.** The authenticated shell is a 236px left rail, not a top
+bar. The routes keep the settled order and the rail carries their outstanding
+counts, so an operator sees where the work is without opening anything. The
+route list, the conditional Inbox item and the Administrator-only Administration
+item are unchanged; only their placement is.
+
+Two consequences are recorded rather than assumed:
+
+- **The current route's non-colour signal is a left border, not an underline.**
+  `aria-current="page"` and the weight change are unchanged, so the route is
+  still identifiable without hue; the underline moved to the rail's leading
+  edge. Under 1024px the rail lies down into a horizontal bar and the border
+  moves to the bottom edge, so the signal survives the reflow. Nothing is
+  hidden at any width.
+- **A rail count is a figure a page already queried**, never one the shell
+  invents. An absent count renders nothing at all — a shell-level `0` would be
+  exactly the stale zero placeholder the operator-experience requirements
+  forbid.
+
+`_LayoutAuth` and `_LayoutExternal` are unaffected: sign-in, the signed-out
+confirmation, access denied, the error family and the one screen a third party
+sees are not places in the application and keep their navless or brand-only
+frame.
+
+Icons remain the sixteen checksummed Lucide glyphs registered below. A supplied
+design prototype carried fourteen decorative PNG marks; they are not adopted,
+because this file prohibits decorative or generated replacement icons and the
+design system's own guidance states that icons come only from that glyph set.
+The rail brand is the existing approved `logo_no_margin.png`. No new binary
+asset enters the Web tree, and the register below is unchanged.
+
 Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
 ## Design principles
@@ -467,7 +500,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Purpose and states | Runtime owner |
 | --- | --- | --- |
-| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight change **and a 2px Collision-red left border** so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Navless shells | The screens that are not a place in the application. `_LayoutAuth` carries sign in, the signed-out confirmation, access denied and the error/not-found family; `_LayoutExternal` carries the one screen a third party sees and states the company, never the product | `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml`, `_LayoutExternal.cshtml` |
 | Status-code page | The designed answer to a status code with no exception behind it: unknown record, dead external upload link, oversized upload, rate-limited sign-in. Scoped away from the health, version and automation surfaces, whose callers want a parsable body | `src/Pegasus.Web/Pages/StatusCode.cshtml(.cs)` |
 | Operator label map | The single place a persisted code becomes words: stage, case type, document role and origin, custody, upload-link state, history event, file size. Raw `enum.ToString()`, snake_case event codes and PascalCase compounds never reach markup | `src/Pegasus.Web/Presentation/OperatorLabels.cs` |
@@ -742,6 +775,28 @@ readiness rail, the `Send to Claude` panel, and the PAV sensitivity
 slider. Every section form stays empty and unbound; the staff save paths
 and the review presentation of unconfirmed automation values remain
 forbidden until the full UI-15 re-entry approval.
+
+**Unbound markup proves nothing (recorded 2026-08-17).** Where a supplied
+design shows a capability the inventory allocates beyond this release, the
+markup may exist on this surface but is *implemented* only in the weakest sense
+of the evidence tiers above: no caller, no deployment, no acceptance. Three
+rules keep it from reading as more than that.
+
+- It carries **no model binding and no handler**. An unbound section that
+  posted somewhere would be the capability, not a picture of it.
+- It shows **no fabricated operator data**. Inputs render empty and read-only
+  figures render as an em dash or a named empty state — never a plausible
+  number. A convincing valuation nobody calculated is worse than no valuation.
+- Where the control is one that will genuinely arrive, it **stays visible and
+  states its condition** rather than vanishing, using the disabled-with-
+  condition idiom. The assessment's estimating-service links and assessment
+  import are the current instances: EXT-12 and EXT-13, both `Later / 1.0.0`,
+  each requiring its own accepted contract. A control that disappeared would
+  say the work is not coming; one that looked live would say it had arrived.
+
+This is a presentation allowance inside an already-recorded exception. It
+allocates nothing, and every deferred capability still re-enters the complete
+design route before it is wired.
 
 The `Send to Claude` panel states are server-rendered: `available` (the
 confirm dialog then a real POST), `sent` — "Sent. Changes will appear on

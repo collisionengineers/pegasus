@@ -118,6 +118,13 @@
                                         new[] { forwarder is null ? null : $"Forwarded by {forwarder}", attachments }
                                             .Where(part => !string.IsNullOrWhiteSpace(part)));
                                 }
+                                @* The excerpt sits beneath the subject: it is
+                                   what lets an operator sort the morning's post
+                                   without opening every message. *@
+                                @if (!string.IsNullOrWhiteSpace(item.BodyExcerpt))
+                                {
+                                    <small>@item.BodyExcerpt</small>
+                                }
                                 @if (subline.Length > 0)
                                 {
                                     <small>@subline</small>
