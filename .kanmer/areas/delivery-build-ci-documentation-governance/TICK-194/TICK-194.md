@@ -2,13 +2,14 @@
 id: TICK-194
 type: ticket
 title: Detect direct or non-merge pushes to main in CI
-status: review
+status: verifying
 area: delivery-build-ci-documentation-governance
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-17T04:09:58.401Z'
   review: '2026-08-17T04:16:49.729Z'
+  verifying: '2026-08-17T05:04:32.212Z'
 taken_at: '2026-08-17T04:10:19.599Z'
 branch: task/main-branch-history-guard
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/main-branch-history-guard'
@@ -26,7 +27,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/377'
 archived: false
 created: '2026-08-12T15:08:04.783Z'
-updated: '2026-08-17T04:53:14.960Z'
+updated: '2026-08-17T05:04:32.212Z'
 ---
 
 ## What

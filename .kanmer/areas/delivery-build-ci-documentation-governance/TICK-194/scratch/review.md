@@ -29,3 +29,31 @@ PASS on plan completeness, implementation completeness, correctness, focused ver
 ## CI gate update
 
 Required GitHub checks are not green, so PR #377 was not merged and TICK-194 was not moved. At the latest review poll: `unit` failed, `qdos-pressure` failed, `browser` and all three `sql-integration` shards remained pending; `changes`, `documentation`, and `reference-data` passed. GitHub withheld failed-job logs while the workflow run remained in progress, so no unsupported attribution is made for those two CI failures.
+
+# Independent re-review — refreshed PR #377
+
+Reviewer: independent from implementation.
+
+## Changes
+
+- Exact head `740425144f73197371c7532034f951602898cbef` is a clean two-parent merge of original reviewed head `5599899c43086c46586eb60edc7372098f80e374` and refreshed `origin/dev` at `14ce3843ddb63610a19de406bfaa153721b2d313`.
+- Relative to current `origin/dev`, the PR still changes only `.github/workflows/ci.yml`, `scripts/Test-MainBranchHistory.ps1`, `tests/Pegasus.ArchitectureTests/MainBranchHistoryGuardTests.cs`, and `docs/temp-plans/main-branch-history-guard.md`.
+- The implementation behavior and six synthetic history scenarios are unchanged from the prior passing review.
+
+## Comments and disposition
+
+- Non-blocking — the refreshed branch incorporates DELIVE-001's CI hardening. Disposition: fixed-in-PR through a normal merge from `origin/dev`; no unrelated DELIVE-001 content remains in the PR-relative diff.
+- Non-blocking — GitHub reports a Node.js 20 deprecation annotation for `actions/cache@v4` in the browser job. Disposition: won't-do-because it is existing workflow dependency maintenance outside TICK-194 and did not fail the check.
+- No blocking findings. No follow-up ticket required.
+
+## Completeness and UI boundary
+
+The plan remains complete for the ticket, and the refreshed implementation still completes the plan. The post-implementation report accurately records the DELIVE-001 refresh and all four PR-relative file changes. The existing governing-doc conclusion remains valid. The diff contains no `src/Pegasus.Web/**`, UI browser/snapshot, `design/**`, or `.stitch/**` path.
+
+## CI evidence
+
+GitHub Actions run `31995971485` completed successfully at the exact reviewed head. Green jobs: `changes`, `documentation`, `reference-data`, `unit`, `browser`, all three `sql-integration` shards, and `sql-integration-coverage`.
+
+## Verdict
+
+PASS at exact head `740425144f73197371c7532034f951602898cbef`. Plan completeness, implementation completeness, report accuracy, governing-doc alignment, UI non-overlap, clean base refresh, and all required GitHub checks are confirmed.
