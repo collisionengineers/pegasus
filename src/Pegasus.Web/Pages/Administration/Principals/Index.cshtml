@@ -3,7 +3,6 @@
 @{
     ViewData["Title"] = "Principals";
     ViewData["Eyebrow"] = "Administration";
-    ViewData["Lede"] = "Principal codes and existing case/reference ownership are immutable. Replacement disables the predecessor and creates a linked successor on the same sequence lineage.";
 }
 
 <a class="back-link" asp-page="/Administration/Index">
@@ -13,6 +12,7 @@
 
 <div class="page-heading">
     <div>
+        <p class="eyebrow">Administration</p>
         <h1>Principals</h1>
     </div>
     <div class="page-heading-actions">
@@ -28,9 +28,15 @@
     <div class="status-card" role="status">@status</div>
 }
 
+@* Immutability is the rule an administrator is most likely to expect to be
+   able to break, so it is stated where the attempt would start. *@
+<aside class="notice">
+    <p>A principal identity is immutable once created. To change one, create a replacement: the predecessor–successor chain is preserved and open cases stay with the identity they were instructed under.</p>
+</aside>
+
 @if (Model.Organizations.Organizations.Count == 0)
 {
-    <div class="panel empty-state">No organizations or principals are available on this page.</div>
+    <p class="empty-state">No organisations or principals are available on this page.</p>
 }
 else
 {
