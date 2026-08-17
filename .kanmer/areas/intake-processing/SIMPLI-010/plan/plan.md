@@ -244,3 +244,5 @@ The change this plan describes is small (delete one compatibility alias in `EfIn
 **Deferred → [[INTK-002]]** — `EfOperationsStore.MapIntakeState` is a second hand-kept copy of the decision-string table (`EfIntakeReceiptStore.ParseDecision`), and `IntakeMcpTools` a third; this diff had to edit two of them. Collapsing changes fail-closed behaviour on unknown codes (`ParseDecision` throws, `MapIntakeState` returns `Unknown`), so it is its own change.
 
 **Not in scope** — imported design sources under `docs/design/system/`, `.design-sync/`, `design/` still carry the old vocabulary; decision→label duplication in `Intake/Details.cshtml.cs` and `Mail/Message.cshtml.cs`; `MapIntakeState` omitting `blocked_intake`/`image_intake_registered` (pre-existing).
+
+**Step-list correction (2026-08-17, after execution):** step 2's "make stale unleased `dispatched` rows dispatch candidates again" was **not** done here — the read-only production count found 0 such rows, so it is resilience against a lost queue message rather than repair of competing state, and it is filed as [[INTK-003]]. The checklist and post-implementation report say the same.
