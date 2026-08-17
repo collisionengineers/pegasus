@@ -50,6 +50,9 @@ jobs:
           $flags = ./scripts/Get-CiChangeFlags.ps1 -ChangedPath $files -ForceAll:$forceAll
           "build=$($flags.Build.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
           "infrastructure=$($flags.Infrastructure.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+      - name: Test SQL shard assignment
+        shell: pwsh
+        run: ./scripts/Test-TestShard.ps1
 
   documentation:
     # The one lane every change set runs, including change sets that touch no
