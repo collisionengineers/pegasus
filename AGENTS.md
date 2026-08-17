@@ -1,5 +1,3 @@
-Follow the repository-wide agent instructions in [`AGENTS.md`](AGENTS.md).
-
 <!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
 # Kanmer operating instructions
 
