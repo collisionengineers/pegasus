@@ -187,7 +187,7 @@ Assert-Text $platformBicep "resource\s+webContainerApp[\s\S]*?if\s*\(webActivati
 Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must use the exact supplied digest reference.'
 Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
 Assert-Text $platformBicep "targetPort:\s*8080" 'The Container App ingress must target port 8080.'
-Assert-Text $platformBicep "minReplicas:\s*0[\s\S]*?maxReplicas:\s*1" 'The Web Container App must scale only from zero to one replica.'
+Assert-Text $platformBicep "minReplicas:\s*1[\s\S]*?maxReplicas:\s*1" 'The Web Container App must retain exactly one always-warm replica.'
 Assert-Text $platformBicep "cpu:\s*json\('0\.5'\)[\s\S]*?memory:\s*'1Gi'" 'The Web Container App must use 0.5 vCPU and 1 GiB.'
 Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
 Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
