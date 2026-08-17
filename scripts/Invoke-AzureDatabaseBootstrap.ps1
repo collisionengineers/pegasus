@@ -55,7 +55,8 @@ function Get-MigrationPermissionMatrix {
 
     $removedTables = @(
         '20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap.cs',
-        '20260730203833_RemoveDormantOpenIddict.cs'
+        '20260730203833_RemoveDormantOpenIddict.cs',
+        '20260814094632_DropBoxFileRequests.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -135,6 +136,25 @@ function Get-MigrationPermissionMatrix {
         }
     }
     $expected.Add('pegasus_web_runtime_role|G|SELECT|OpenIddictScopes')
+    # 20260814092852_AddWorkerCaseCreationGrants moves automatic case
+    # acceptance to the least-privilege Worker role. Read the migration's
+    # canonical grant block so release verification cannot drift from it.
+    $workerCaseCreationMigration = Get-Content -Raw -LiteralPath (
+        Join-Path (Split-Path -Parent $migrationPath) '20260814092852_AddWorkerCaseCreationGrants.cs')
+    $workerGrantBlock = [regex]::Match(
+        $workerCaseCreationMigration,
+        'WorkerGrants\s*=\s*\[(?<body>.*?)\];',
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $workerGrantBlock.Success) {
+        throw 'Unable to read WorkerGrants from the Worker case-creation migration.'
+    }
+    foreach ($grant in [regex]::Matches(
+        $workerGrantBlock.Groups['body'].Value,
+        '\("(?<table>[A-Za-z0-9]+)", "(?<permissions>[A-Z, ]+)"\)')) {
+        foreach ($permission in $grant.Groups['permissions'].Value.Split(',').Trim()) {
+            $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
+        }
+    }
     return @($expected | Sort-Object -Unique)
 }
 
