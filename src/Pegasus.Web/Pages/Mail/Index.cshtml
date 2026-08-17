@@ -37,128 +37,126 @@
     }
 </nav>
 
-@{
-    // The mail list is a table: an operator scanning a morning's post compares
-    // sender, subject, outcome and time down columns, which a stack of rows
-    // cannot line up.
-}
+@* The mail list is a table: an operator scanning a morning's post compares
+   sender, subject, outcome and time down columns, which a stack of rows
+   cannot line up. *@
 @if (Model.Results.Items.Count == 0)
+{
+    @* An empty scope says which of the three reasons it is empty for. A blank
+       list that could equally mean "nothing arrived", "nothing is kept here"
+       or "everything here predates retention" tells the operator nothing. *@
+    @if (Model.Folder != MailFolderScope.Inbox)
     {
-        @* An empty scope says which of the three reasons it is empty for. A blank
-           list that could equally mean "nothing arrived", "nothing is kept here"
-           or "everything here predates retention" tells the operator nothing. *@
-        @if (Model.Folder != MailFolderScope.Inbox)
-        {
-            <p class="empty-state">
-                @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
-                Only received mail is retained.
-            </p>
-        }
-        else if (Model.Results.HasUnretainedHistory)
-        {
-            <p class="empty-state">
-                Nothing here yet. Messages are kept from the point this screen started
-                keeping them; anything received before that was processed but is not
-                shown here.
-            </p>
-        }
-        else
-        {
-            <p class="empty-state">No mail has been received.</p>
-        }
+        <p class="empty-state">
+            @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
+            Only received mail is retained.
+        </p>
+    }
+    else if (Model.Results.HasUnretainedHistory)
+    {
+        <p class="empty-state">
+            Nothing here yet. Messages are kept from the point this screen started
+            keeping them; anything received before that was processed but is not
+            shown here.
+        </p>
     }
     else
     {
-        <div class="table-wrap">
-            <table>
-                <caption class="vh">Retained messages, most recent first</caption>
-                <thead>
-                    <tr>
-                        <th scope="col">From</th>
-                        <th scope="col">Subject</th>
-                        <th scope="col">Outcome</th>
-                        <th scope="col">Received</th>
-                    </tr>
-                </thead>
-                <tbody>
-                @foreach (var item in Model.Results.Items)
-                {
-                    <tr data-state="@(item.IsRead ? "read" : "unread")">
-                        <td>
-                            <span class="stack">
-                                <strong>
-                                    @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item)
-                                    @if (!item.IsRead)
-                                    {
-                                        @* Weight alone is not a state. The word is. *@
-                                        <span class="vh">Unread</span>
-                                    }
-                                </strong>
-                                @if (item.SenderAddress is { Length: > 0 } address
-                                     && !string.Equals(address, Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item), StringComparison.Ordinal))
-                                {
-                                    <small>@address</small>
-                                }
-                            </span>
-                        </td>
-                        <td>
-                            <span class="stack">
-                                <a asp-page="/Mail/Message" asp-route-id="@item.Id"
-                                   asp-route-mailbox="@Model.MailboxFilter"
-                                   asp-route-folder="@Model.FolderRouteValue"
-                                   asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
-                                   title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
-                                @{
-                                    var forwarder = Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item);
-                                    var attachments = item.AttachmentCount > 0
-                                        ? $"{item.AttachmentCount} attachment{(item.AttachmentCount == 1 ? string.Empty : "s")}"
-                                        : null;
-                                    var subline = string.Join(
-                                        " · ",
-                                        new[] { forwarder is null ? null : $"Forwarded by {forwarder}", attachments }
-                                            .Where(part => !string.IsNullOrWhiteSpace(part)));
-                                }
-                                @* The excerpt sits beneath the subject: it is
-                                   what lets an operator sort the morning's post
-                                   without opening every message. *@
-                                @if (!string.IsNullOrWhiteSpace(item.BodyExcerpt))
-                                {
-                                    <small>@item.BodyExcerpt</small>
-                                }
-                                @if (subline.Length > 0)
-                                {
-                                    <small>@subline</small>
-                                }
-                            </span>
-                        </td>
-                        <td>
-                            <span class="stack">
-                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
-                                @if (item.CaseId is { } caseId && item.CaseReference is { Length: > 0 } caseReference)
-                                {
-                                    <a asp-page="/Cases/Details" asp-route-id="@caseId">@caseReference</a>
-                                }
-                                @if (!item.MailboxIsPolled)
-                                {
-                                    <partial name="Shared/_StatusChip" model="@("No longer polled")" />
-                                }
-                            </span>
-                        </td>
-                        @* Date above time: FRD-12 requires the two on separate
-                           lines so a long reference cannot push the timestamp
-                           into it at constrained width. *@
-                        <td class="tabular">
-                            <span class="stack">
-                                <time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time>
-                                <small>@OperatorLabels.OfficeClock(item.ReceivedAtUtc)</small>
-                            </span>
-                        </td>
-                    </tr>
-                }
-                </tbody>
-            </table>
-        </div>
+        <p class="empty-state">No mail has been received.</p>
     }
+}
+else
+{
+    <div class="table-wrap">
+        <table>
+            <caption class="vh">Retained messages, most recent first</caption>
+            <thead>
+                <tr>
+                    <th scope="col">From</th>
+                    <th scope="col">Subject</th>
+                    <th scope="col">Outcome</th>
+                    <th scope="col">Received</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var item in Model.Results.Items)
+            {
+                <tr data-state="@(item.IsRead ? "read" : "unread")">
+                    <td>
+                        <span class="stack">
+                            <strong>
+                                @Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item)
+                                @if (!item.IsRead)
+                                {
+                                    @* Weight alone is not a state. The word is. *@
+                                    <span class="vh">Unread</span>
+                                }
+                            </strong>
+                            @if (item.SenderAddress is { Length: > 0 } address
+                                 && !string.Equals(address, Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item), StringComparison.Ordinal))
+                            {
+                                <small>@address</small>
+                            }
+                        </span>
+                    </td>
+                    <td>
+                        <span class="stack">
+                            <a asp-page="/Mail/Message" asp-route-id="@item.Id"
+                               asp-route-mailbox="@Model.MailboxFilter"
+                               asp-route-folder="@Model.FolderRouteValue"
+                               asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
+                               title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
+                            @{
+                                var forwarder = Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item);
+                                var attachments = item.AttachmentCount > 0
+                                    ? $"{item.AttachmentCount} attachment{(item.AttachmentCount == 1 ? string.Empty : "s")}"
+                                    : null;
+                                var subline = string.Join(
+                                    " · ",
+                                    new[] { forwarder is null ? null : $"Forwarded by {forwarder}", attachments }
+                                        .Where(part => !string.IsNullOrWhiteSpace(part)));
+                            }
+                            @* The excerpt sits beneath the subject: it is
+                               what lets an operator sort the morning's post
+                               without opening every message. *@
+                            @if (!string.IsNullOrWhiteSpace(item.BodyExcerpt))
+                            {
+                                <small>@item.BodyExcerpt</small>
+                            }
+                            @if (subline.Length > 0)
+                            {
+                                <small>@subline</small>
+                            }
+                        </span>
+                    </td>
+                    <td>
+                        <span class="stack">
+                            <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
+                            @if (item.CaseId is { } caseId && item.CaseReference is { Length: > 0 } caseReference)
+                            {
+                                <a asp-page="/Cases/Details" asp-route-id="@caseId">@caseReference</a>
+                            }
+                            @if (!item.MailboxIsPolled)
+                            {
+                                <partial name="Shared/_StatusChip" model="@("No longer polled")" />
+                            }
+                        </span>
+                    </td>
+                    @* Date above time: FRD-12 requires the two on separate
+                       lines so a long reference cannot push the timestamp
+                       into it at constrained width. *@
+                    <td class="tabular">
+                        <span class="stack">
+                            <time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time>
+                            <small>@OperatorLabels.OfficeClock(item.ReceivedAtUtc)</small>
+                        </span>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+}
 
 @if (Model.Results.TotalPages > 1)
 {
