@@ -23,3 +23,26 @@
 
 ### Verdict
 **NEEDS CHANGES.** Do not merge PR #382 until [[PR-002]] is resolved and the corrected head is re-reviewed.
+
+## Independent re-review — 2026-08-17
+
+### Remediation
+- Commit `7af202c7` removes the stray self-referential line. `AGENTS.md` now begins at byte zero with the Kanmer managed-start marker.
+- [[PR-002]] is fixed in the PR, unlinked as a blocker, and archived resolved.
+- `CLAUDE.md` is a tracked symlink to `AGENTS.md`; that symlink is already the provider pointer. Adding pointer prose through it would necessarily modify `AGENTS.md`, which caused the original defect.
+
+### Re-check evidence
+- Managed block extracted from `AGENTS.md` exactly equals the literal Markdown block in packaged Kanmer 0.3.3 `kanmer-setup/SKILL.md` after newline normalization.
+- Pegasus repository-specific content after the closing marker exactly matches `origin/dev`.
+- All 33 bundled files are present and SHA-256-identical in each of `.agents/skills` and `.grok/skills`; zero missing and zero different.
+- Retired `kanmer-import/SKILL.md` and `kanmer-research/assets/impact-template.md` are absent from both provider trees.
+- Pre-existing non-Kanmer `.agents/skills/grill-me/**` and provider version stamps remain preserved.
+- `git diff --check origin/dev...HEAD` passes; the worktree is clean.
+- PR #382 head is `7af202c7`, mergeable, and its refreshed `changes`, `documentation`, and `reference-data` checks pass; code-test jobs are skipped for the docs/skills-only change.
+
+### Requirements coverage
+- Ticket/setup requirements missed anything? **No remaining gap in the PR scope.** Migration/ingestion/final live status are setup-run reporting concerns rather than omitted committed files.
+- Implementation missed anything? **No.** The managed block, repo-specific preservation, provider bundle synchronization, retired-file removal, and symlink behavior now match the packaged setup contract.
+
+### Verdict
+**PASS.** PR #382 is ready for the owning agent's merge decision. This reviewer did not merge it, per delegation.
