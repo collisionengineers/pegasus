@@ -49,9 +49,9 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claim, store.CaseId);
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("handler=RetryCustody", html, StringComparison.Ordinal);
-        Assert.Contains("handler=GenerateEvaHandoff", html, StringComparison.Ordinal);
-        Assert.Contains("handler=EvaDownload", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=RetryCustody", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Vehicle?handler=GenerateEvaHandoff", html, StringComparison.Ordinal);
+        Assert.Contains($"/Cases/{store.CaseId:D}/Eva/Download", html, StringComparison.Ordinal);
         Assert.Contains("name=\"expectedVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"operationKey\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
@@ -60,18 +60,16 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(new string('a', 64), html, StringComparison.OrdinalIgnoreCase);
 
-        foreach (var handler in new[] { "RetryCustody", "GenerateEvaHandoff", "EvaDownload" })
+        foreach (var route in new[] { "Custody?handler=RetryCustody", "Vehicle?handler=GenerateEvaHandoff", "Eva/Download" })
         {
             using var denied = await client.PostAsync(
-                $"/Cases/{store.CaseId:D}?handler={handler}",
+                $"/Cases/{store.CaseId:D}/{route}",
                 new FormUrlEncodedContent([]));
             Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
         }
-        var constructorPorts = Assert.Single(typeof(Pegasus.Web.Pages.Cases.DetailsModel).GetConstructors())
-            .GetParameters().Select(parameter => parameter.ParameterType).ToArray();
-        Assert.Contains(typeof(IRetryCaseCustody), constructorPorts);
-        Assert.Contains(typeof(IGenerateEvaHandoff), constructorPorts);
-        Assert.Contains(typeof(IDownloadEvaHandoff), constructorPorts);
+        Assert.Contains(typeof(IRetryCaseCustody), ConstructorPorts(typeof(Pegasus.Web.Pages.Cases.CustodyModel)));
+        Assert.Contains(typeof(IGenerateEvaHandoff), ConstructorPorts(typeof(Pegasus.Web.Pages.Cases.VehicleModel)));
+        Assert.Contains(typeof(IDownloadEvaHandoff), ConstructorPorts(typeof(Pegasus.Web.Pages.Cases.Eva.DownloadModel)));
     }
 
     [Fact]
@@ -139,7 +137,7 @@ public sealed partial class CaseDetailsWebTests
         var operationKey = "manual-chase-replay";
         var attemptedAtUtc = InputValue(leasedHtml, "attemptedAtUtc");
         using var firstResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RecordManualChase",
+            $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
             ManualChaseForm(AntiforgeryValue(leasedHtml), store, operationKey, attemptedAtUtc));
         AssertPrg(firstResponse, store.CaseId);
 
@@ -148,7 +146,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("name=\"editLeaseToken\"", currentHtml, StringComparison.Ordinal);
         Assert.Contains("Awaiting requested photographs", currentHtml, StringComparison.Ordinal);
         using var replayResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=RecordManualChase",
+            $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
             ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey, attemptedAtUtc));
         AssertPrg(replayResponse, store.CaseId);
 
@@ -216,13 +214,13 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("Transition to report preparation", leasedHtml, StringComparison.Ordinal);
         var antiforgeryToken = AntiforgeryValue(leasedHtml);
         using var holdResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=Hold",
+            $"/Cases/{store.CaseId:D}/Workflow?handler=Hold",
             LifecycleForm(antiforgeryToken, store, "hold-case", "Awaiting provider"));
         using var releaseResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=ReleaseHold",
+            $"/Cases/{store.CaseId:D}/Workflow?handler=ReleaseHold",
             LifecycleForm(antiforgeryToken, store, "release-case", "Provider replied"));
         using var startResponse = await client.PostAsync(
-            $"/Cases/{store.CaseId:D}?handler=StartWork",
+            $"/Cases/{store.CaseId:D}/Workflow?handler=StartWork",
             LifecycleForm(antiforgeryToken, store, "start-report-preparation", "Engineer work started"));
 
         AssertPrg(holdResponse, store.CaseId);
@@ -939,6 +937,10 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal($"/Cases/{caseId:D}", response.Headers.Location?.OriginalString);
     }
+
+    private static Type[] ConstructorPorts(Type pageModel) =>
+        Assert.Single(pageModel.GetConstructors())
+            .GetParameters().Select(parameter => parameter.ParameterType).ToArray();
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AntiforgeryTagRegex();
