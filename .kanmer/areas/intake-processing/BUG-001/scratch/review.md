@@ -107,3 +107,15 @@ The intended sender-only QDOS change conforms to FRD-02, FRD-05, and FRD-09. No 
 **Needs changes; do not merge.** PR #386 remains in Review. CI is red, OCR behaviour regressed outside ticket scope, an accepted standalone caller does not compile, and the current review is not independent.
 
 The Kanmer workflow calls for blocking items in a `PR Review` area, but this board still has no such area. No substitute area or board restructuring was invented.
+
+## Review-fix implementation — 2026-08-17
+
+Approved fixes were applied in the existing PR:
+
+- stale content-derived QDOS fixtures now either carry an exact accepted sender or assert no QDOS draft;
+- ordinary correspondence fixtures that need Needs sorting use a neutral non-QDOS sender, without defining future non-instruction policy;
+- senderless scanned PDFs retain OcrRequired independently of principal identity;
+- the custody failure was proved to be case-match ambiguity from reused synthetic keys; unique claimant/claim keys make the focused test pass;
+- the accepted desktop evaluator builds after removal of an obsolete extraction call whose result was discarded.
+
+Local affected checks are green as recorded in the post-implementation report. Verdict remains pending until the amended commit is pushed and GitHub CI completes; this agent's review remains a self-review and cannot satisfy the independent-review requirement.

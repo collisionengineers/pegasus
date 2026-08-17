@@ -38,3 +38,26 @@ The complete integration project was attempted twice but did not finish within t
 - Manual staff creation authority and replay/idempotency paths were not changed.
 - No mailbox, Box, cloud, deployment, or production data was mutated. Deployment and production evidence remain approval-gated.
 - Independent review and CI remain required before merge.
+
+## Review-fix verification — 2026-08-17
+
+Following CI investigation:
+
+- migrated remaining content-only/manual/multi-format fixtures so definitive QDOS paths name an accepted sender and content-only documents remain Needs sorting;
+- preserved `OcrRequired` for senderless scanned documents without establishing QDOS;
+- isolated the custody fixture from parallel case-match collisions with unique synthetic match keys;
+- removed the desktop evaluator's obsolete discarded extraction call, restoring its Release build;
+- retained neutral senders for ordinary-correspondence tests rather than inventing a non-instruction QDOS policy.
+
+Passed locally:
+
+- Release solution build: 0 warnings, 0 errors;
+- standalone desktop evaluator Release build: 0 warnings, 0 errors;
+- focused `ProcessIntakeTests`: 40/40;
+- complete Core suite: 580/580;
+- architecture suite: 93/93;
+- affected non-browser integration classes: 59 passed before three focused corrections; all three corrected tests then passed individually;
+- affected browser journey: 1/1;
+- `git diff --check`.
+
+The standalone desktop test project builds, but seven fixture-based tests cannot locate the repository root from a Git worktree because their helper requires a physical `.git` directory; one non-fixture test passed. This is a pre-existing test-harness limitation and not the extraction caller compile regression. GitHub CI remains the authoritative broad regression gate after push.
