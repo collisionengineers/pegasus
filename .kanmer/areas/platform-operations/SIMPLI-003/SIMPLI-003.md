@@ -16,9 +16,11 @@ groups:
   - HZN-003
 links: []
 blocks: []
+refs:
+  - docs/prd/pegasus-product.md
 archived: true
 created: '2026-08-13T12:12:48.758Z'
-updated: '2026-08-17T12:51:41.381Z'
+updated: '2026-08-17T13:12:19.405Z'
 ---
 
 ## What
