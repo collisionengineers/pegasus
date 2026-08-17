@@ -1,10 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases;
 
@@ -15,7 +13,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public sealed partial class CustodyModel(
+public sealed class CustodyModel(
     IRetryCaseCustody retryCaseCustody,
     IAddCaseDocument addCaseDocument,
     ILogicallyRemoveDocument logicallyRemoveDocument,

@@ -315,9 +315,9 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void WebCustodialPagesHaveNoDormantTransportPath()
     {
-        var casePageDependencies = ConstructorDependencies(typeof(DetailsModel));
-        var custodyPageDependencies = ConstructorDependencies(typeof(CustodyModel));
-        var requestPageDependencies = ConstructorDependencies(typeof(RequestModel));
+        var casePageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(DetailsModel));
+        var custodyPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(CustodyModel));
+        var requestPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(RequestModel));
 
         Assert.Contains(typeof(IGetCase), casePageDependencies);
         Assert.Contains(typeof(IAddCaseDocument), custodyPageDependencies);
@@ -326,12 +326,6 @@ public sealed class DependencyDirectionTests
         Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
         Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
     }
-
-    private static Type[] ConstructorDependencies(Type pageModel) =>
-        Assert.Single(pageModel.GetConstructors())
-            .GetParameters()
-            .Select(parameter => parameter.ParameterType)
-            .ToArray();
 
     [Fact]
     public void CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()

@@ -11,7 +11,7 @@ namespace Pegasus.IntegrationTests;
 /// </summary>
 public sealed partial class CaseDetailsWebTests
 {
-    private static readonly byte[] UploadBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
+    private static readonly byte[] CustodyUploadBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
 
     [Fact]
     public async Task CustodyPageBindsRetryUploadRemovalThirdPartyEvidenceAndRequestLinks()
@@ -35,7 +35,7 @@ public sealed partial class CaseDetailsWebTests
             workspace.MutationForm("retry-custody", "Provider storage is back", ("targetKind", "CaseSource")));
         using var uploaded = await workspace.PostAsync(
             "Custody?handler=UploadDocument",
-            UploadForm(workspace, uploadOperationId, "damage.jpg", "image/jpeg", UploadBytes));
+            UploadForm(workspace, uploadOperationId, "damage.jpg", "image/jpeg", CustodyUploadBytes));
         using var removed = await workspace.PostAsync(
             "Custody?handler=RemoveDocument",
             workspace.MutationForm("remove-document", "Duplicate scan", ("occurrenceId", occurrenceId.ToString("D"))));
@@ -76,7 +76,7 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("image/jpeg", upload.MediaType);
         Assert.Equal(DocumentSemanticRole.Image, upload.SemanticRole);
         Assert.Equal(DocumentSource.StaffUpload, upload.Source);
-        Assert.Equal(UploadBytes, upload.Content.ToArray());
+        Assert.Equal(CustodyUploadBytes, upload.Content.ToArray());
 
         var removal = Assert.Single(store.DocumentRemovals);
         AssertClaimant(workspace, removal.Actor);
@@ -109,14 +109,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("revoke-request-link", revocation.OperationKey);
         Assert.Equal("Sent to the wrong address", revocation.Reason);
 
-        // The one-time secret is shown once, as the absolute link the claimant will open.
-        using var secretShown = await workspace.PostAsync(
-            "Custody?handler=CreateRequestUploadLink",
-            workspace.MutationForm("create-request-link-2", "Second request"));
-        AssertPrg(secretShown, store.CaseId);
+        // The one-time secret is shown once, as the absolute link the claimant will open; it
+        // survives the revoke post because only the workspace reads it.
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains(
-            $"https://localhost/Uploads/{store.RequestLinkSecrets[^1].Token}",
+            $"https://localhost/Uploads/{Assert.Single(store.RequestLinkSecrets).Token}",
             html,
             StringComparison.Ordinal);
         Assert.Contains("Copy this secret now", html, StringComparison.Ordinal);
@@ -125,23 +122,16 @@ public sealed partial class CaseDetailsWebTests
             workspace,
             "Custody?handler=RemoveDocument",
             workspace.MutationForm("remove-document-2", "Not this one", ("occurrenceId", occurrenceId.ToString("D"))));
-    }
 
-    [Fact]
-    public async Task CustodyPageRefusesAnEmptyOrOversizedStaffUploadWithoutLeavingEditMode()
-    {
-        var store = new RecordingCaseDetailsStore();
-        using var workspace = await EnterEditModeAsync(store, services =>
-            Substitute<IAddCaseDocument>(services, store));
-
-        using var refused = await workspace.PostAsync(
+        // An empty upload is refused before any port is reached, without leaving edit mode.
+        using var emptyUpload = await workspace.PostAsync(
             "Custody?handler=UploadDocument",
             UploadForm(workspace, Guid.NewGuid(), "empty.jpg", "image/jpeg", []));
-        AssertPrg(refused, store.CaseId);
-        Assert.Empty(store.DocumentUploads);
-        var html = await workspace.GetWorkspaceAsync();
-        Assert.Contains("Choose a non-empty document of 10 MB or less", html, StringComparison.Ordinal);
-        Assert.Equal(store.LeaseToken, InputValue(html, "editLeaseToken"));
+        AssertPrg(emptyUpload, store.CaseId);
+        Assert.Single(store.DocumentUploads);
+        var refusedHtml = await workspace.GetWorkspaceAsync();
+        Assert.Contains("Choose a non-empty document of 10 MB or less", refusedHtml, StringComparison.Ordinal);
+        Assert.Equal(store.LeaseToken, InputValue(refusedHtml, "editLeaseToken"));
     }
 
     private static MultipartFormDataContent UploadForm(

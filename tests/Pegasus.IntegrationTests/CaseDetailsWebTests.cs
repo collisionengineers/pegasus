@@ -67,9 +67,6 @@ public sealed partial class CaseDetailsWebTests
                 new FormUrlEncodedContent([]));
             Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
         }
-        Assert.Contains(typeof(IRetryCaseCustody), ConstructorPorts(typeof(Pegasus.Web.Pages.Cases.CustodyModel)));
-        Assert.Contains(typeof(IGenerateEvaHandoff), ConstructorPorts(typeof(Pegasus.Web.Pages.Cases.VehicleModel)));
-        Assert.Contains(typeof(IDownloadEvaHandoff), ConstructorPorts(typeof(Pegasus.Web.Pages.Cases.Eva.DownloadModel)));
     }
 
     [Fact]
@@ -313,17 +310,25 @@ public sealed partial class CaseDetailsWebTests
             ("outcome", "Awaiting requested photographs"),
             ("note", "Asked provider for missing images"));
 
+    /// <summary>
+    /// What every case mutation posts from the leased workspace — the case id, its version, the
+    /// operation key, the lease token, and the reason — plus the fields the action adds.
+    /// </summary>
     private static FormUrlEncodedContent LifecycleForm(
         string antiforgeryToken,
         RecordingCaseDetailsStore store,
         string operationKey,
-        string reason) => Form(
+        string reason,
+        params (string Name, string Value)[] fields) => Form(
             antiforgeryToken,
-            ("id", store.CaseId.ToString("D")),
-            ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-            ("operationKey", operationKey),
-            ("editLeaseToken", store.LeaseToken),
-            ("reason", reason));
+            [
+                ("id", store.CaseId.ToString("D")),
+                ("expectedVersion", store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
+                ("operationKey", operationKey),
+                ("editLeaseToken", store.LeaseToken),
+                ("reason", reason),
+                .. fields
+            ]);
 
     private static async Task<string> GetHtmlAsync(HttpClient client, string path)
     {
@@ -938,10 +943,6 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal($"/Cases/{caseId:D}", response.Headers.Location?.OriginalString);
     }
 
-    private static Type[] ConstructorPorts(Type pageModel) =>
-        Assert.Single(pageModel.GetConstructors())
-            .GetParameters().Select(parameter => parameter.ParameterType).ToArray();
-
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AntiforgeryTagRegex();
 
@@ -1195,6 +1196,7 @@ public sealed partial class CaseDetailsWebTests
             ManualChaseRecord request,
             CancellationToken cancellationToken)
         {
+            ThrowNextFailure();
             ManualChases.Add(request);
             _dueWork = _dueWork with
             {

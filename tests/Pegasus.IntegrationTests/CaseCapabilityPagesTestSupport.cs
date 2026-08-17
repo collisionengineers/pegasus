@@ -88,12 +88,31 @@ public sealed partial class CaseDetailsWebTests
         Assert.DoesNotContain("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
     }
 
-    private static void AssertClaimant(LeasedWorkspace workspace, ActionActor actor)
+    /// <summary>
+    /// The port received the leased workspace's envelope: the claimant, the case and its version,
+    /// the lease token, and the operation key and reason the form carried.
+    /// </summary>
+    private static void AssertLeasedMutation(
+        LeasedWorkspace workspace,
+        CaseMutationRequest request,
+        string operationKey,
+        string reason)
+    {
+        AssertClaimant(workspace, request.Actor);
+        Assert.Equal(workspace.Store.CaseId, request.CaseId);
+        Assert.Equal(workspace.Store.CaseVersion, request.ExpectedVersion);
+        Assert.Equal(workspace.Store.LeaseToken, request.EditLeaseToken);
+        Assert.Equal(operationKey, request.OperationKey);
+        Assert.Equal(reason, request.Reason);
+    }
+
+    /// <summary>The actor a port recorded is the staff member who entered edit mode.</summary>
+    private static void AssertClaimant(LeasedWorkspace workspace, ActionActor recordedActor)
     {
         var claimant = workspace.Claimant;
-        Assert.Equal(claimant.Kind, actor.Kind);
-        Assert.Equal(claimant.SubjectId, actor.SubjectId);
-        Assert.Equal(claimant.Roles.OrderBy(role => role), actor.Roles.OrderBy(role => role));
+        Assert.Equal(claimant.Kind, recordedActor.Kind);
+        Assert.Equal(claimant.SubjectId, recordedActor.SubjectId);
+        Assert.Equal(claimant.Roles.OrderBy(role => role), recordedActor.Roles.OrderBy(role => role));
     }
 
     private sealed class LeasedWorkspace(
@@ -103,8 +122,6 @@ public sealed partial class CaseDetailsWebTests
         RecordingCaseDetailsStore store,
         string antiforgeryToken) : IDisposable
     {
-        public HttpClient Client { get; } = client;
-
         public RecordingCaseDetailsStore Store { get; } = store;
 
         public string AntiforgeryToken { get; } = antiforgeryToken;
@@ -112,33 +129,19 @@ public sealed partial class CaseDetailsWebTests
         public ActionActor Claimant => Assert.Single(Store.Claims).Actor;
 
         public Task<HttpResponseMessage> PostAsync(string route, HttpContent content) =>
-            Client.PostAsync($"/Cases/{Store.CaseId:D}/{route}", content);
+            client.PostAsync($"/Cases/{Store.CaseId:D}/{route}", content);
 
-        public Task<string> GetWorkspaceAsync() => GetHtmlAsync(Client, $"/Cases/{Store.CaseId:D}");
+        public Task<string> GetWorkspaceAsync() => GetHtmlAsync(client, $"/Cases/{Store.CaseId:D}");
 
-        /// <summary>
-        /// A form carrying what every case mutation posts from the leased workspace — the case id,
-        /// its version, the operation key, the lease token, and the reason — plus the fields the
-        /// action adds.
-        /// </summary>
         public FormUrlEncodedContent MutationForm(
             string operationKey,
             string reason,
             params (string Name, string Value)[] fields) =>
-            Form(
-                AntiforgeryToken,
-                [
-                    ("id", Store.CaseId.ToString("D")),
-                    ("expectedVersion", Store.CaseVersion.ToString(CultureInfo.InvariantCulture)),
-                    ("operationKey", operationKey),
-                    ("editLeaseToken", Store.LeaseToken),
-                    ("reason", reason),
-                    .. fields
-                ]);
+            LifecycleForm(AntiforgeryToken, Store, operationKey, reason, fields);
 
         public void Dispose()
         {
-            Client.Dispose();
+            client.Dispose();
             factory.Dispose();
             baseFactory.Dispose();
         }

@@ -50,35 +50,21 @@ public sealed partial class CaseDetailsWebTests
         var expectedReadiness = new CaseReadinessEvidence(true, true, true, false, "review-evidence-1");
 
         var transition = Assert.Single(store.Transitions);
-        AssertClaimant(workspace, transition.Actor);
-        Assert.Equal(store.CaseVersion, transition.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, transition.EditLeaseToken);
-        Assert.Equal("return-to-review", transition.OperationKey);
-        Assert.Equal("Images arrived", transition.Reason);
+        AssertLeasedMutation(workspace, transition, "return-to-review", "Images arrived");
         Assert.Equal(CaseTransitionDestination.Review, transition.Destination);
         Assert.Equal(expectedReadiness, transition.Readiness);
 
         var assignment = Assert.Single(store.EngineerAssignments);
-        AssertClaimant(workspace, assignment.Actor);
-        Assert.Equal(store.CaseVersion, assignment.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, assignment.EditLeaseToken);
-        Assert.Equal("assign-engineer", assignment.OperationKey);
+        AssertLeasedMutation(workspace, assignment, "assign-engineer", "Engineer available");
         Assert.Equal(engineerId, assignment.EngineerId);
         Assert.Equal(expectedReadiness, assignment.Readiness);
 
         var finding = Assert.Single(store.EngineerFindings);
-        AssertClaimant(workspace, finding.Actor);
-        Assert.Equal(store.CaseVersion, finding.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, finding.EditLeaseToken);
-        Assert.Equal("record-finding", finding.OperationKey);
+        AssertLeasedMutation(workspace, finding, "record-finding", "Inspection complete");
         Assert.Equal(AuditAssessment.TotalLoss, finding.Assessment);
 
         var replacement = Assert.Single(store.LinkedReplacements);
-        AssertClaimant(workspace, replacement.Actor);
-        Assert.Equal(store.CaseVersion, replacement.ExpectedVersion);
-        Assert.Equal(store.LeaseToken, replacement.EditLeaseToken);
-        Assert.Equal("create-replacement", replacement.OperationKey);
-        Assert.Equal("Wrong principal", replacement.Reason);
+        AssertLeasedMutation(workspace, replacement, "create-replacement", "Wrong principal");
         Assert.Equal("ACME", replacement.ReplacementPrincipalCode);
         var html = await workspace.GetWorkspaceAsync();
         Assert.Contains("Replacement case ACME3100001 was allocated and linked.", html, StringComparison.Ordinal);

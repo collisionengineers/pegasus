@@ -245,20 +245,14 @@ public sealed class WorkerAzureClientCompositionTests
     {
         Assert.Equal(
             [typeof(WorkerQueueClients), typeof(WorkerStorageProvisioning)],
-            GetOnlyConstructorParameterTypes(typeof(AzureQueueIntakeWorkQueue)));
+            TypeInspection.OnlyConstructorParameterTypes(typeof(AzureQueueIntakeWorkQueue)));
         Assert.Equal(
             [typeof(WorkerQueueClients), typeof(WorkerStorageProvisioning)],
-            GetOnlyConstructorParameterTypes(typeof(AzureQueueExternalWorkQueue)));
+            TypeInspection.OnlyConstructorParameterTypes(typeof(AzureQueueExternalWorkQueue)));
         Assert.Equal(
             [typeof(BlobContainerClient), typeof(bool)],
-            GetOnlyConstructorParameterTypes(typeof(AzureBlobIntakeArtifactStore)));
+            TypeInspection.OnlyConstructorParameterTypes(typeof(AzureBlobIntakeArtifactStore)));
     }
-
-    private static Type[] GetOnlyConstructorParameterTypes(Type type) =>
-        Assert.Single(type.GetConstructors())
-            .GetParameters()
-            .Select(parameter => parameter.ParameterType)
-            .ToArray();
 
     private static ServiceProvider CreateProvider(Dictionary<string, string?> values)
     {
