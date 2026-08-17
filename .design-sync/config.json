@@ -1,0 +1,215 @@
+{
+  "projectId": "d795cfe7-300d-4c42-a837-9a1714dd1a36",
+  "shape": "package",
+  "pkg": "@pegasus/design-system",
+  "globalName": "PegasusDS",
+  "buildCmd": "cd docs/design/system && npm run build",
+  "cssEntry": "dist/styles.css",
+  "runtimeFontPrefixes": [
+    "Poppins"
+  ],
+  "overrides": {
+    "Record": {
+      "cardMode": "column"
+    },
+    "ReviewGrid": {
+      "cardMode": "column",
+      "viewport": "1360x800"
+    },
+    "WorkbenchGrid": {
+      "cardMode": "column",
+      "viewport": "1360x800"
+    },
+    "FieldGrid": {
+      "cardMode": "column"
+    },
+    "RecordHead": {
+      "cardMode": "column"
+    },
+    "RecordBar": {
+      "cardMode": "column"
+    },
+    "RecordBody": {
+      "cardMode": "column"
+    },
+    "ProposalDiff": {
+      "viewport": "1000x700"
+    },
+    "DataTable": {
+      "cardMode": "column"
+    },
+    "TableWrap": {
+      "cardMode": "column"
+    },
+    "FilterBar": {
+      "cardMode": "column"
+    },
+    "AuthShell": {
+      "cardMode": "single",
+      "viewport": "900x700"
+    },
+    "ReasonDialog": {
+      "cardMode": "single",
+      "viewport": "800x600"
+    },
+    "AppNav": {
+      "cardMode": "column",
+      "viewport": "1440x900"
+    },
+    "AppShell": {
+      "cardMode": "single",
+      "primaryStory": "AuthenticatedScreen",
+      "viewport": "1440x900"
+    },
+    "PageHeading": {
+      "cardMode": "column",
+      "viewport": "1440x900"
+    },
+    "DashboardGrid": {
+      "cardMode": "column",
+      "viewport": "1440x900"
+    },
+    "SplitMain": {
+      "cardMode": "column",
+      "viewport": "1440x900"
+    },
+    "SectionTabs": {
+      "cardMode": "column"
+    },
+    "Tabs": {
+      "cardMode": "column"
+    },
+    "MetricStrip": {
+      "cardMode": "column",
+      "viewport": "1400x700"
+    },
+    "QueueList": {
+      "cardMode": "column"
+    },
+    "QueueListRow": {
+      "cardMode": "column"
+    },
+    "Button": {
+      "cardMode": "column"
+    },
+    "RowConfirm": {
+      "cardMode": "column"
+    },
+    "Blockhead": {
+      "cardMode": "column"
+    },
+    "DataRow": {
+      "cardMode": "column"
+    },
+    "DetailList": {
+      "cardMode": "column"
+    },
+    "Provenance": {
+      "cardMode": "column"
+    },
+    "AdminWorkspaces": {
+      "cardMode": "column"
+    },
+    "FormPanel": {
+      "cardMode": "column"
+    },
+    "FormGrid": {
+      "cardMode": "column"
+    },
+    "Metric": {
+      "cardMode": "column"
+    },
+    "MetricTile": {
+      "cardMode": "column"
+    },
+    "FreshnessBanner": {
+      "cardMode": "column"
+    },
+    "PrimaryAction": {
+      "cardMode": "column"
+    },
+    "SecondaryAction": {
+      "cardMode": "column"
+    },
+    "Field": {
+      "cardMode": "column"
+    },
+    "QueueCard": {
+      "cardMode": "column"
+    },
+    "QueueGrid": {
+      "cardMode": "column"
+    },
+    "EvidenceFigure": {
+      "cardMode": "column"
+    },
+    "StatusCard": {
+      "cardMode": "column"
+    },
+    "ValidationSummary": {
+      "cardMode": "column"
+    },
+    "Crumb": {
+      "cardMode": "column"
+    },
+    "Refresh": {
+      "cardMode": "column"
+    },
+    "TileGrid": {
+      "cardMode": "column"
+    },
+    "AdminCard": {
+      "cardMode": "column"
+    },
+    "Facts": {
+      "cardMode": "column"
+    },
+    "EvidenceList": {
+      "cardMode": "column"
+    },
+    "FieldCard": {
+      "cardMode": "column"
+    },
+    "ChoiceGroup": {
+      "cardMode": "column"
+    },
+    "RoleForm": {
+      "cardMode": "column"
+    },
+    "Select": {
+      "cardMode": "column"
+    },
+    "Input": {
+      "cardMode": "column"
+    },
+    "Textarea": {
+      "cardMode": "column"
+    },
+    "Pager": {
+      "cardMode": "column"
+    },
+    "SectionLabel": {
+      "cardMode": "column"
+    },
+    "Panel": {
+      "cardMode": "column"
+    },
+    "StatusChip": {
+      "cardMode": "column"
+    },
+    "Notice": {
+      "cardMode": "column"
+    },
+    "FailureDetail": {
+      "cardMode": "column"
+    },
+    "Blocker": {
+      "cardMode": "column"
+    }
+  },
+  "docsDir": "docs",
+  "guidelinesGlob": [
+    "../README.md"
+  ],
+  "readmeHeader": ".design-sync/conventions.md"
+}

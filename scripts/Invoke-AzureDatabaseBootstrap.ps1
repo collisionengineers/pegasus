@@ -55,7 +55,8 @@ function Get-MigrationPermissionMatrix {
 
     $removedTables = @(
         '20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap.cs',
-        '20260730203833_RemoveDormantOpenIddict.cs'
+        '20260730203833_RemoveDormantOpenIddict.cs',
+        '20260814094632_DropBoxFileRequests.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -75,6 +76,7 @@ function Get-MigrationPermissionMatrix {
             }
         }
     }
+    # 20260801220500_GrantWebMigrationHistoryRead.
     $expected.Add('pegasus_web_runtime_role|G|SELECT|__EFMigrationsHistory')
     $webDeleteTables = @('AspNetUserRoles', 'CaseDataFields', 'OrganizationRoles', 'TriageResponseEvidenceLinks')
     foreach ($table in $tables) {
@@ -135,6 +137,53 @@ function Get-MigrationPermissionMatrix {
         }
     }
     $expected.Add('pegasus_web_runtime_role|G|SELECT|OpenIddictScopes')
+    # 20260803205759_SendToAiAssessmentToolset: Web owns assessment edits and
+    # request/control writes; both roles remain unable to delete queue state.
+    foreach ($table in @('CaseAssessmentFields', 'CaseEstimateLines')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+    }
+    foreach ($table in @('AiWorkRequests', 'SendToAiControl')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+        $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    }
+    # 20260805223036_RetainedMailboxMessages: retained evidence is immutable;
+    # Web reads it and Worker can only append it.
+    foreach ($table in @('RetainedMailboxMessages', 'RetainedMailboxAttachments')) {
+        $expected.Add("pegasus_web_runtime_role|G|SELECT|$table")
+        $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
+        $expected.Add("pegasus_worker_runtime_role|G|INSERT|$table")
+    }
+    # 20260811063940_QdosAllocationRecovery: both runtimes execute the
+    # begin/complete/cancel allocation-attempt transaction.
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+            $expected.Add("$role|G|$permission|IntakeAllocationAttempts")
+        }
+    }
+    # 20260814092852_AddWorkerCaseCreationGrants moves automatic case
+    # acceptance to the least-privilege Worker role. Read the migration's
+    # canonical grant block so release verification cannot drift from it.
+    $workerCaseCreationMigration = Get-Content -Raw -LiteralPath (
+        Join-Path (Split-Path -Parent $migrationPath) '20260814092852_AddWorkerCaseCreationGrants.cs')
+    $workerGrantBlock = [regex]::Match(
+        $workerCaseCreationMigration,
+        'WorkerGrants\s*=\s*\[(?<body>.*?)\];',
+        [Text.RegularExpressions.RegexOptions]::Singleline)
+    if (-not $workerGrantBlock.Success) {
+        throw 'Unable to read WorkerGrants from the Worker case-creation migration.'
+    }
+    foreach ($grant in [regex]::Matches(
+        $workerGrantBlock.Groups['body'].Value,
+        '\("(?<table>[A-Za-z0-9]+)", "(?<permissions>[A-Z, ]+)"\)')) {
+        foreach ($permission in $grant.Groups['permissions'].Value.Split(',').Trim()) {
+            $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
+        }
+    }
     return @($expected | Sort-Object -Unique)
 }
 

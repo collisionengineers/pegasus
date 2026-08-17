@@ -68,7 +68,7 @@ A feature is accepted only when its owning requirement and capability are linked
 - the actual Web, Worker, API, or MCP caller;
 - infrastructure/persistence behavior where applicable;
 - observable success, boundary, authorization, conflict, and recovery tests;
-- current design/operations documentation;
+- current docs/design/operations documentation;
 - exact-head review;
 - separately authorised live proof and operator/management acceptance where the feature depends on an external system or deployment.
 

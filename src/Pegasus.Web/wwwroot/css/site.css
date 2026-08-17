@@ -1,7 +1,7 @@
 /* Pegasus operator interface.
 
    The colour roles, the 4px rhythm, the 1px hairline and the focus ring are the
-   approved set in docs/design.md. The declared divergences — a lifted paper,
+   approved set in docs/design/README.md. The declared divergences — a lifted paper,
    a 6px radius with a very low shadow, a real type scale with tabular numerals,
    tinted chips, and the dark record-container band — are the refreshed system
    recorded in the UI standards. No marketing scale, brand face, or motion token
@@ -69,7 +69,7 @@
   --radius: 6px;
   --radius-sm: 5px;
   --border: 1px solid var(--line);
-  --focus-ring: 3px solid rgba(219, 8, 22, .38);
+  --focus-ring: 3px solid rgba(219, 8, 22, .38); /* @kind other */
   --shadow-soft: 0 1px 2px rgba(22, 25, 29, .06);
   /* Both derived from the approved near-black ink; no new hue. */
   --scrim: rgba(22, 25, 29, .62);
@@ -306,7 +306,7 @@ h3 { font-size: var(--t-h3); font-weight: 600; }
 
 .page-heading {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
   gap: var(--sp-6);
   margin-bottom: var(--sp-6);
@@ -467,7 +467,9 @@ a.queue-card:hover { border-color: var(--state-line); background: var(--state-bg
    nested link buried in a cell. */
 .queue-list > a, .queue-list > article {
   display: grid;
-  grid-template-columns: 1fr 1fr auto;
+  /* Two identity columns, then a compact time/state column and the chevron.
+     A two-column row leaves the third track empty (auto = 0). */
+  grid-template-columns: 1fr 1fr auto auto;
   align-items: center;
   gap: var(--sp-4);
   padding: var(--sp-3) var(--sp-2);
@@ -480,7 +482,8 @@ a.queue-card:hover { border-color: var(--state-line); background: var(--state-bg
 .queue-list > a:last-child, .queue-list > article:last-child { border-bottom: 0; }
 .queue-list > a::after { color: var(--muted); content: "\203A"; font-size: 1.25rem; line-height: 1; }
 .queue-list > a:hover { border-left-color: var(--ce-red); background: var(--paper); }
-.queue-list span { display: grid; gap: var(--sp-1); min-width: 0; }
+/* Direct columns only: a status chip inside a row keeps its inline-flex shape. */
+.queue-list > a > span, .queue-list > article > span { display: grid; justify-items: start; gap: var(--sp-1); min-width: 0; }
 .queue-list strong { font-size: var(--t-sm); }
 
 .action-list { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
@@ -960,7 +963,7 @@ textarea:focus-visible,
 .workbench-grid .button-row.section-gap { margin-top: var(--sp-6); }
 
 /* ---------------------------------------------------------------------------
-   Send to Claude — a deliberate, recorded divergence from docs/design.md,
+   Send to Claude — a deliberate, recorded divergence from docs/design/README.md,
    authorised by the repo owner and scoped to this one control.
 
    The button carries the provider's own identity so it reads as Claude on
@@ -1430,8 +1433,12 @@ table tfoot th {
 .record__note { padding: 0 var(--sp-6) var(--sp-2); background: var(--band); color: var(--band-mute); font-size: var(--t-sm); }
 
 /* Chips sitting on the dark band take a solid light tint so they stay legible
-   against it; the colour roles are unchanged. */
-.record__head .status-chip { border-color: transparent; background: var(--state-bg); color: var(--state-fg); }
+   against it; the colour roles are unchanged. The amber, red, green and
+   neutral tones use alpha tints on the paper ground, which vanish on the band,
+   so the band gives them the solid state ground (or the light band tint). */
+.record__head .status-chip { border-color: transparent; background: var(--band-bright); color: var(--state-fg); }
+.record__head .status-chip--navy, .record__head .status-chip--review { background: var(--navy-bg); }
+.record__head .status-chip--amber, .record__head .status-chip--not-ready { background: var(--amber-bg); }
 
 /* ---------------------------------------------------------------------------
    Buttons. `.btn` is the compact action-bar button; `.primary-action` and
@@ -1646,6 +1653,7 @@ table tfoot th {
 .auth-card h1 { margin-bottom: var(--sp-4); }
 .auth-card p { margin: 0 0 var(--sp-6); color: var(--charcoal); }
 .auth-card form { display: grid; gap: var(--sp-5); }
+.auth-card label { display: grid; gap: var(--sp-1); font-size: var(--t-sm); font-weight: 700; }
 .auth-card .primary-action, .auth-card .secondary-action { width: 100%; }
 .auth-card__done { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--success); }
 .auth-card__foot { margin: var(--sp-6) 0 0; padding-top: var(--sp-4); border-top: var(--border); color: var(--muted); font-size: var(--t-sm); }
@@ -1698,23 +1706,10 @@ table tfoot th {
    exist is not shipped, so there is no placeholder treatment to style. */
 .metric-strip--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-.page-heading { align-items: center; }
+/* `align-items: center` lives on the base rule above so the ≤1023px reflow
+   (flex-direction: column; align-items: flex-start) is not clobbered here. */
 .page-heading .refresh { margin-left: auto; }
 
-/* A link with no metric behind it is a link, not a card pretending to be one. */
-.drilldowns { display: flex; flex-wrap: wrap; gap: var(--sp-6); margin-top: var(--sp-6); }
-
-.drilldowns a {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--sp-1);
-  color: var(--charcoal);
-  font-size: var(--t-sm);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.drilldowns a:hover { color: var(--ce-red); text-decoration: underline; }
 
 /* An action that needs a reason confirms in the row it belongs to, rather than
    making the operator manage a mode before they can take it. */

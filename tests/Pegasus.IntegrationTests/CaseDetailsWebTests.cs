@@ -1023,7 +1023,8 @@ public sealed partial class CaseDetailsWebTests
                 workflow,
                 _leaseHolder is null ? null : new(_leaseHolder, _now.AddMinutes(5), _leaseOperationKey!),
                 [],
-                [],
+                null,
+                CaseCustodyState.Pending,
                 [],
                 [],
                 [])

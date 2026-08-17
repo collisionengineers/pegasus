@@ -57,8 +57,6 @@ public sealed partial class DetailsModel(
     IAddCaseDocument addCaseDocument,
     ILogicallyRemoveDocument logicallyRemoveDocument,
     IConfirmThirdPartyVehicleEvidence confirmThirdPartyVehicleEvidence,
-    ICreateBoxFileRequest createBoxFileRequest,
-    IRevokeBoxFileRequest revokeBoxFileRequest,
     ICreateRequestUploadLink createRequestUploadLink,
     IRevokeRequestUploadLink revokeRequestUploadLink,
     IImageIntakeQueries imageIntakeQueries,
@@ -1311,76 +1309,6 @@ public sealed partial class DetailsModel(
                     editLeaseToken),
                 cancellationToken),
             "The custody-confirmed image was recorded as third-party vehicle evidence and is excluded from EVA export.");
-
-    public async Task<IActionResult> OnPostCreateBoxFileRequestAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string editLeaseToken,
-        DateTimeOffset? expiresAtUtc,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var result = await createBoxFileRequest.ExecuteAsync(
-                new(id, actor, operationKey, expiresAtUtc, expectedVersion, editLeaseToken),
-                cancellationToken);
-            ClearLeaseState();
-            TempData["CaseStatus"] = result.IsReplay
-                ? "This Box file request was already created. Its secret cannot be displayed again."
-                : "The Box file request was created. Copy its secret now; it will not be shown again.";
-            if (result.Secret is not null)
-            {
-                TempData["CaseRequestSecret"] = result.Secret.Url;
-            }
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "create_box_file_request", exception);
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            RetainProposedValues(id);
-            TempData["CaseError"] =
-                "The Box file request could not be created because the case changed, edit mode was lost, or the service is unavailable.";
-        }
-
-        return RedirectToDetails(id);
-    }
-
-    public Task<IActionResult> OnPostRevokeBoxFileRequestAsync(
-        Guid id,
-        Guid fileRequestId,
-        long expectedFileRequestVersion,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        CancellationToken cancellationToken) =>
-        ExecuteTransportCommandAsync(
-            id,
-            editLeaseToken,
-            "revoke_box_file_request",
-            actor => revokeBoxFileRequest.ExecuteAsync(
-                new(
-                    id,
-                    fileRequestId,
-                    actor,
-                    reason,
-                    operationKey,
-                    expectedFileRequestVersion,
-                    expectedVersion,
-                    editLeaseToken),
-                cancellationToken),
-            "The Box file request was revoked.");
 
     public async Task<IActionResult> OnPostCreateRequestUploadLinkAsync(
         Guid id,

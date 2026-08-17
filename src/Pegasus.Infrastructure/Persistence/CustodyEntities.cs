@@ -45,20 +45,6 @@ internal sealed class DocumentOccurrenceEntity
     public string? ThirdPartyVehicleConfirmationOperationKey { get; set; }
 }
 
-internal sealed class BoxFileRequestEntity
-{
-    public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public BoxFileRequestStatus Status { get; set; }
-    public DateTimeOffset CreatedAtUtc { get; set; }
-    public DateTimeOffset? ExpiresAtUtc { get; set; }
-    public DateTimeOffset? DeactivatedAtUtc { get; set; }
-    public long Version { get; set; }
-    public string CreateOperationKey { get; set; } = string.Empty;
-    public string? RevokeOperationKey { get; set; }
-    public string LinkTokenDigest { get; set; } = string.Empty;
-}
-
 internal sealed class RequestUploadLinkEntity
 {
     public Guid Id { get; set; }

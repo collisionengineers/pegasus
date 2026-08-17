@@ -1,14 +1,24 @@
 <!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
 # Kanmer operating instructions
 
-This repo's work is tracked on a Kanmer board in `.kanmer/`.
+This repo's work is tracked on a Kanmer board in `.kanmer/`. In a Git repo set up
+through the GUI the board lives in its own worktree, `.worktrees/kanmer`, on the
+board branch, and MCP is already rooted there — never create, switch or push that
+branch yourself. Your own ticket worktree is a separate thing, recorded by
+`take_ticket`.
 
 - Start every session with `get_status`, then `list_board` / `list_items` to find your ticket.
-- Take a ticket before working: `take_ticket` records the time, branch and worktree, and moves the stage.
-- Follow the doc pipeline in the ticket's folder: research.md + impact.md → plan.md → checklist.md → proof.md.
-- proof.md is required before a ticket can reach the final stage.
-- Add progress notes with `set_ticket_doc` (append: true) — don't rewrite whole documents to add a line.
+- **Which documents a ticket needs depends on its profile, not on a fixed pipeline.** Call `get_doc_gates <id>` before every move. Not `board.yml` — requirements are injected at resolve time, so its `profiles:` block is not the effective set.
+- Stages: backlog → preparing → implementing → review → verifying → done. **A move crosses at most one gated boundary**, so walk the stages one at a time; a jump is refused even when every document exists.
+- **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
+- An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
+- Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
+- Work each ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage.
+- Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
+- Proof is written on merged `main`, after review and the merge, not before.
 - Archive, don't delete. Reference other items with [[ID]] wiki-links.
+- Skills run in this order: kanmer-tickets → -research → -plan → -execute → -review → -verify → -closeout. How far a ticket walks it depends on its profile, so ask `get_doc_gates` rather than assuming every step. Off to the side: -auto (drives that order over many tickets), -docs (governing docs), -groom (fix the board), -report (read-only), -setup (reconcile after a Kanmer update).
+- Each skill ends by naming what comes next — read that line before improvising a hand-off.
 <!-- kanmer:instructions:end -->
 
 # Pegasus repository instructions
@@ -34,7 +44,7 @@ is the navigation index and owns the authority chain.
   the acceptance model. A PRD states no mechanics.
 - **FRD — `docs/frd/`** — *how a capability must behave*: inputs/outputs,
   states, rules, edge cases, fail-closed behaviour, and acceptance evidence. An
-  FRD implements a PRD outcome and cites `docs/design.md` for UI behaviour. It
+  FRD implements a PRD outcome and cites `docs/design/README.md` for UI behaviour. It
   never invents product scope or records a technical decision.
 - **ADR — `docs/adr/`** — a durable *technical/architectural* product decision
   only. Not documentation rules, not process, not feature behaviour. If a
@@ -48,7 +58,7 @@ is the navigation index and owns the authority chain.
 - **`docs/current-architecture.md` / `docs/operations.md`** — the as-built
   snapshot (what exists and how it is wired now) and the deployed/runtime state.
   Both are living snapshots and must be refreshed after every deploy (see
-  Safety rails). **`docs/runbook.md` / `docs/engineering.md` / `docs/design.md`**
+  Safety rails). **`docs/runbook.md` / `docs/engineering.md` / `docs/design/README.md`**
   — working rules within their scopes. These are downstream of PRD/FRD/ADR and
   never override them.
 
@@ -103,9 +113,10 @@ ADRs are an append-only decision log of durable technical/architectural choices.
 
 ### New Markdown placement
 
-A new Markdown file is one of: a **PRD** under `docs/prd/`, an **FRD** under
-`docs/frd/`, a **technical ADR** under `docs/adr/`, or a **transient task plan**
-under `docs/temp-plans/`. Everything else edits an existing canonical file. No
+A new repository Markdown file is one of: a **PRD** under `docs/prd/`, an
+**FRD** under `docs/frd/`, or a **technical ADR** under `docs/adr/`. Transient
+task research, plans, checklists, reviews, and proof live in the owning Kanmer
+ticket documents, not in the repository tree. Everything else edits an existing canonical file. No
 ADR is required to authorise a PRD or FRD; a new PRD or FRD records its canonical
 owner in `docs/capabilities.md` and is linked from `docs/index.md`.
 Workspace-local documentation stays governed by its accepted integration
@@ -200,16 +211,13 @@ date, and agent and moves it to the working stage — that record *is* the claim
    taken, coordinate rather than passing `force`.
 2. **Worktree.** Create `../pegasus-worktrees/<slug>` on `task/<slug>` from
    `origin/dev`.
-3. **Plan.** A non-docs-only task creates a root plan at
-   `docs/temp-plans/<slug>.md`. Create as many supporting plans, research notes,
-   or review artifacts under `docs/temp-plans/` as the task needs. The root plan
-   inventories its supporting files and owns whole-task scope, sequencing,
-   dependencies, acceptance conditions, commands, and verification. Supporting
-   files share the ticket and need no separate branch or ticket. A task is
-   docs-only only when every changed path is a Markdown file outside `src/`,
-   `tests/`, `infra/`, and `scripts/`; such a task may skip the root plan. Work
-   the ticket's document pipeline (research + impact → plan → checklist →
-   proof); `proof.md` is required before the ticket reaches the final stage.
+3. **Plan.** Work the owning Kanmer ticket's document pipeline: research and
+   file mapping, impact where needed, then plan and checklist before
+   implementation. The ticket plan owns whole-task scope, sequencing,
+   dependencies, acceptance conditions, commands, and verification; supporting
+   research belongs in named documents inside that ticket. `proof.md` is
+   required before the ticket reaches the final stage. Do not create transient
+   repository task-plan files.
 4. **Work and PR.** Implement and verify in the task worktree. The PR targets
    `dev`. Keep the ticket's stage and checklist current as you go.
 5. **Review and merge.** Before merge, an agent that did not implement the task

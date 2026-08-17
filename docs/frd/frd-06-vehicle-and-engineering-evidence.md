@@ -1,5 +1,5 @@
 # FRD-06: Vehicle and engineering evidence
-> Owner capabilities: INT (image/VRM), ENG · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
+> Owner capabilities: INT (image/VRM), ENG · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Vehicle and engineering evidence
 

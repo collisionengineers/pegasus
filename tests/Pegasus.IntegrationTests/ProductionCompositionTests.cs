@@ -62,8 +62,6 @@ public sealed class ProductionCompositionTests
         Assert.NotNull(services.GetRequiredService<ICaseDocumentStateQueries>());
         Assert.NotNull(services.GetRequiredService<IGenerateEvaHandoff>());
         Assert.NotNull(services.GetRequiredService<IEvaHandoffQueries>());
-        Assert.NotNull(services.GetRequiredService<ICreateBoxFileRequest>());
-        Assert.NotNull(services.GetRequiredService<IRevokeBoxFileRequest>());
         Assert.NotNull(services.GetRequiredService<IProcessQueuedCustody>());
     }
 

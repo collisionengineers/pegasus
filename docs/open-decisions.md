@@ -296,7 +296,7 @@ Operations-first is selected for the QDOS-alpha shell. Worklist-first and Case-f
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| Completion of the full design route for each later UI capability, using the canonical [design process](design.md) rather than inheriting raster details. | Treating comparison material or raster details as requirements could constrain later capabilities to an unaccepted interaction model. | Keep the operations-first alpha shell. Require later UI capabilities to re-enter complete design before activation. | Has the later UI capability completed the full design route without treating comparison evidence or raster details as accepted requirements? |
+| Completion of the full design route for each later UI capability, using the canonical [design process](design/README.md) rather than inheriting raster details. | Treating comparison material or raster details as requirements could constrain later capabilities to an unaccepted interaction model. | Keep the operations-first alpha shell. Require later UI capabilities to re-enter complete design before activation. | Has the later UI capability completed the full design route without treating comparison evidence or raster details as accepted requirements? |
 
 ## Mail workspace freshness threshold and retention start
 
