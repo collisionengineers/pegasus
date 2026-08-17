@@ -6,7 +6,6 @@ namespace Pegasus.Core.Operations;
 
 public enum RequestOperationKind
 {
-    BoxFileRequest,
     PegasusUploadLink,
     ExternalWork
 }

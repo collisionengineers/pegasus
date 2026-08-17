@@ -81,7 +81,8 @@ public sealed record CaseDetails(
     CaseWorkflowRecord Workflow,
     CaseEditLeaseSnapshot? ActiveEditLease,
     IReadOnlyList<CaseDocument> Documents,
-    IReadOnlyList<BoxFileRequest> BoxFileRequests,
+    string? CustodyFolderRemoteId,
+    CaseCustodyState CustodyState,
     IReadOnlyList<CaseRequestUploadSummary> RequestUploadLinks,
     IReadOnlyList<RetainedApprovedMailboxReportSentEvidence> AvailableReportSentEvidence,
     IReadOnlyList<CaseHistoryEntry> History)
