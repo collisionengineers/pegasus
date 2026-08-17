@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Add simplicity rails to AGENTS.md and a simplification pass to the task
   workflow
-status: review
+status: verifying
 area: delivery-repository
 assignee: claude-code
 profile: chore
 stageEntered:
   implementing: '2026-08-17T12:55:15.719Z'
   review: '2026-08-17T12:56:45.634Z'
+  verifying: '2026-08-17T13:13:58.358Z'
 taken_at: '2026-08-17T12:55:00.605Z'
 branch: task/deliv-001-simplicity-rails
 worktree: ../pegasus-worktrees/deliv-001-simplicity-rails
@@ -21,11 +22,12 @@ links: []
 commits:
   - fde7cebe
   - dbbf3214
+  - 7bb184cb
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/390'
 archived: false
 created: '2026-08-17T11:05:47.371Z'
-updated: '2026-08-17T13:10:06.340Z'
+updated: '2026-08-17T13:13:58.358Z'
 ---
 
 ## What
