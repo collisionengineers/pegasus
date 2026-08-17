@@ -209,7 +209,7 @@
   },
   "docsDir": "docs",
   "guidelinesGlob": [
-    "../../docs/design/README.md"
+    "../README.md"
   ],
   "readmeHeader": ".design-sync/conventions.md"
 }

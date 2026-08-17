@@ -44,7 +44,7 @@ Repo-specific facts for syncing `@pegasus/design-system` to claude.ai/design.
   `category:` sets the DS pane group (Shell, Actions, Status, Metrics, Record,
   Data, Forms, Overlay, Auth, Layout). Body = usage guidance + examples (the
   `.prompt.md` the design agent reads); Props are appended automatically.
-- `guidelinesGlob` points at `../../docs/design/README.md` (the design authority)
+- `guidelinesGlob` points at `../README.md` from the package root (the design authority)
   so it ships as `guidelines/design.md`.
 - All 81 previews are authored in `.design-sync/previews/` (no floor cards).
   Content is invented example data (case refs, registrations, insurer names).
