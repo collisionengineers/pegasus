@@ -43,8 +43,13 @@
            the signed-in controls. A div left that content outside every
            landmark; an aside made it a second unnamed complementary one. *@
         <header class="app-rail">
+            @* The commissioned lockup, cropped to its head; the wordmark beside
+               it carries the name. *@
             <a class="app-rail__brand" asp-page="/Index" aria-label="Pegasus dashboard">
-                <img src="~/images/logo_no_margin.png" asp-append-version="true" alt="Collision Engineers" />
+                <span>
+                    <img class="mark" src="~/images/marks/pegasus-lockup.png" asp-append-version="true" alt="" aria-hidden="true" />
+                </span>
+                <b>Pegasus</b>
             </a>
             @* The settled route order (design authority, 2026-08-04): Dashboard,
                Inbox, Upload, Queues, Cases, Operations, Administration. *@

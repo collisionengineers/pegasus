@@ -2016,3 +2016,114 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
 /* The block that says where the case stands earns the one accent on the
    overview: it is the answer the operator opened the case for. */
 .block--standing { border-left: 3px solid var(--navy-line); }
+
+/* ---------------------------------------------------------------------------
+   Marks.
+
+   The commissioned Pegasus icon set: purpose-drawn raster marks for the
+   administration workspaces, the empty states that name what is missing, and
+   the product lockup. They are not a second icon system — the Lucide sprite
+   still carries every semantic action and state inline in a row. A mark names
+   a whole surface, at a size a line glyph cannot hold.
+
+   Always decorative: each is aria-hidden and sits beside text that already
+   says the same thing, so nothing is lost when images are off.
+   --------------------------------------------------------------------------- */
+
+.mark { display: block; flex: 0 0 auto; object-fit: contain; }
+
+.mark--sm { width: 30px; height: 30px; }
+.mark--md { width: 44px; height: 44px; }
+.mark--lg { width: 56px; height: 56px; }
+
+/* The rail lockup is cropped to its head: the wordmark beside it already says
+   Pegasus, and repeating it in the image would say it twice. */
+.app-rail__brand .mark { width: 30px; height: 41px; object-position: top center; }
+.app-rail__brand span { display: block; width: 30px; height: 30px; overflow: hidden; }
+
+/* An admin card's mark replaces the tinted icon square rather than sitting in
+   one: the drawing carries its own ground. */
+.admin-card__icon--mark { width: 56px; height: 56px; align-self: start; background: transparent; }
+
+/* A named empty state: the mark, then the sentence that says what is absent. */
+.mark-empty { display: grid; justify-items: center; gap: var(--sp-4); padding: var(--sp-8) 0; }
+.mark-empty .mark { opacity: .85; }
+
+.auth-card__lockup { width: 112px; height: 112px; margin: 0 auto var(--sp-4); }
+
+/* ---------------------------------------------------------------------------
+   Estimate tabs (EXT-09, Later / 1.0.0 — inactive).
+
+   Several estimates can sit on one case: an import from an estimating service,
+   the engineer's own, one recorded by automation. The strip is folder tabs
+   rather than pills, because the panel below is the inside of the selected
+   one, not a filtered view of a list.
+   --------------------------------------------------------------------------- */
+
+.est-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: var(--sp-2) var(--sp-3) 0;
+  border: var(--border);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper);
+}
+
+.est-tab {
+  max-width: 220px;
+  padding: 7px var(--sp-6);
+  overflow: hidden;
+  border: var(--border);
+  border-radius: 6px 6px 0 0;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.est-tab[aria-selected="true"] {
+  margin-bottom: -1px;
+  border-bottom: 1px solid var(--panel);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.est-add {
+  margin: 0 0 var(--sp-1) 2px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.est-tabs__state { margin-left: auto; padding-bottom: 6px; }
+
+.est-body { border-radius: 0 0 var(--radius) var(--radius); }
+
+/* A vehicle plan the engineer marks damage on (UI-15, Later / 1.0.0 —
+   inactive). Line art on the recessed ground, so it reads as a diagram to work
+   on rather than a photograph. */
+.damage-plan {
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.damage-plan svg { display: block; width: 100%; }
+
+/* A check that has not been run states that, rather than showing a blank
+   result panel that could be mistaken for a clean report. */
+.history-check { display: grid; justify-items: start; gap: var(--sp-3); }

@@ -44,7 +44,10 @@
 {
     @* An empty scope says which of the three reasons it is empty for. A blank
        list that could equally mean "nothing arrived", "nothing is kept here"
-       or "everything here predates retention" tells the operator nothing. *@
+       or "everything here predates retention" tells the operator nothing. The
+       mark names the surface; the sentence carries the meaning. *@
+    <div class="mark-empty">
+    <img class="mark mark--md" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" aria-hidden="true" />
     @if (Model.Folder != MailFolderScope.Inbox)
     {
         <p class="empty-state">
@@ -64,6 +67,7 @@
     {
         <p class="empty-state">No mail has been received.</p>
     }
+    </div>
 }
 else
 {
