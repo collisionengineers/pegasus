@@ -6,7 +6,7 @@ status: preparing
 area: kanmer-meta
 order: 20
 assignee: codex
-profile: feature
+profile: chore
 stageEntered:
   preparing: '2026-08-17T04:44:28.890Z'
 taken_at: '2026-08-17T04:45:15.072Z'
@@ -16,7 +16,7 @@ labels: []
 links: []
 archived: false
 created: '2026-08-14T12:30:37.742Z'
-updated: '2026-08-17T04:45:15.072Z'
+updated: '2026-08-17T04:48:19.954Z'
 ---
 
 Cleanup on:

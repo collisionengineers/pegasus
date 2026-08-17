@@ -96,3 +96,15 @@ Inventory: 12 tracked files, 3.9 MB — Scriban report templates + report.css, b
 ## Board cross-check
 
 The board tree has no ticket `refs[]` or body citing `design/`, `docs/design.md`, `reference/`, or `artifacts/` as a path dependency — this ticket's moves create no board-retargeting work (unlike [[KANMER-001]]). Coverage-relevant tickets found: TICK-201 (operator-notes preservation constraint), SIMPLI-014 (renderer direction conflict, §1), SIMPLI-001 research/impact (generic mentions only).
+
+## Refresh — 2026-08-17 against origin/dev ff99c487
+
+The earlier 2026-08-14 inventory predates the merged Claude Design package. The top-level `design/` tree now has 119 tracked files: governed renderer/brand assets, comparison rasters, and `design/system/` (a buildable React package). Moving it to `docs/design/` therefore requires an atomic retarget of `.design-sync/config.json`, `.design-sync/NOTES.md`, `.gitattributes`, renderer project/Docker references, documentation links and code comments. The canonical `docs/design.md` becomes `docs/design/README.md`.
+
+The 21 files under `docs/temp-plans/` remain historical task plans. Delivered work is traceable in Git/Kanmer. The renderer integration set contains still-useful direction for [[SIMPLI-015]], so that content must be summarized into SIMPLI-015 research before deletion. Repository workflow and documentation routing currently create new task plans in this directory; those rules must be rewritten to use Kanmer ticket documents, and the documentation-link test carve-out must be removed.
+
+The `reference/` tree remains evidence and is not generally retirable. The only proven byte-identical redundant file remains `reference/workproviders-and-repairers/contacts/providers.xlsx`, duplicated by the sibling canonical `reference/workproviders-and-repairers/providers.xlsx`; no tracked inbound reference targets the contacts copy.
+
+The tracked task worktree has no `artifacts/` tree because it is ignored. Local artifact cleanup is limited to exact, freshly rechecked obsolete planning/audit directories; active intake, evaluation, local-development, staging and release evidence are preserved. No tracked empty directories exist because Git does not store them.
+
+Scope correction: the earlier proposed retirement/demotion of `docs/operator-notes.md` is not in KANMER-002's body and is excluded.
