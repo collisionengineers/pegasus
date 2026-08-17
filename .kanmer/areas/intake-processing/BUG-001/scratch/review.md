@@ -35,3 +35,11 @@ The post-implementation report describes these categories honestly, but not ever
 **Needs changes. Do not merge.** The PR is `UNSTABLE`, with browser and two SQL integration jobs failing; a standalone repository tool does not compile; legacy completed receipts without route persistence have no safe replay outcome; and this is not an independent review. BUG-001 remains in Review.
 
 The required PR Review blocking tickets could not be created because the board has no `PR Review` area/prefix. Board restructuring requires operator direction.
+
+## Operator correction — 2026-08-17
+
+The operator confirmed Pegasus is still pre-release and there are no legacy live receipts requiring compatibility or migration. The earlier “legacy receipt replay” item was based on an inapplicable deployment assumption.
+
+**Revised disposition:** won't-do / not applicable. No migration, legacy recovery path, production-data ticket, or live remediation is required for BUG-001. This point is removed as a review blocker.
+
+The needs-changes verdict remains only for the observed red CI/test-fixture ripple, the standalone desktop evaluator compile regression, and the lack of an independent reviewer.
