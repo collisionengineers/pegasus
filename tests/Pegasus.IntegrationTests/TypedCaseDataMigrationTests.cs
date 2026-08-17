@@ -84,12 +84,12 @@ public sealed class TypedCaseDataMigrationTests
             ('85000000-0000-0000-0000-000000000020', 'confirmed.eml', 'message/rfc822', 1,
              'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA', 'manual_upload',
              'typed-migration-confirmed', '2031-05-06T10:30:00+00:00', '2031-05-06T10:30:00+00:00',
-             'migration-reader', '1', 0, 'draft_ready', 'accepted',
+             'migration-reader', '1', 0, 'case_created', 'accepted',
              '{"version":1,"data":[]}', '{"version":1,"data":[]}', '{"version":1,"data":[]}'),
             ('85000000-0000-0000-0000-000000000021', 'unconfirmed.eml', 'message/rfc822', 1,
              'BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB', 'manual_upload',
              'typed-migration-unconfirmed', '2031-05-06T10:31:00+00:00', '2031-05-06T10:31:00+00:00',
-             'migration-reader', '1', 0, 'draft_ready', 'accepted',
+             'migration-reader', '1', 0, 'case_created', 'accepted',
              '{"version":1,"data":[]}', '{"version":1,"data":[]}', '{"version":1,"data":[]}');
 
         INSERT INTO InstructionDrafts

@@ -193,14 +193,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         // every receipt with its mail-route decision, sort in memory and take the
         // first hundred, and the caller then paged inside that hundred and reported
         // it as the total — so the list had exactly four reachable pages at
-        // twenty-five a page, and the page count it printed was false. Note also
-        // that a legacy `draft_ready` row reads as `CaseCreated`, so the decision
-        // filter matches both codes rather than only the current one.
+        // twenty-five a page, and the page count it printed was false.
         var matches = context.IntakeReceipts.AsNoTracking();
         if (decision is { } requested)
         {
-            var codes = DecisionCodes(requested);
-            matches = matches.Where(item => codes.Contains(item.Decision));
+            var code = ToCode(requested);
+            matches = matches.Where(item => item.Decision == code);
         }
 
         var totalCount = await matches.CountAsync(cancellationToken);
@@ -269,14 +267,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             .ToArray();
         return new(summaries, page, pageSize, totalCount);
     }
-
-    /// <summary>
-    /// Every persisted code that reads back as one decision.
-    /// </summary>
-    private static string[] DecisionCodes(IntakeDecision decision) =>
-        decision == IntakeDecision.CaseCreated
-            ? [ToCode(decision), "draft_ready"]
-            : [ToCode(decision)];
 
     public async Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken)
     {
@@ -1185,11 +1175,6 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     internal static IntakeDecision ParseDecision(string value) => value switch
     {
         "case_created" => IntakeDecision.CaseCreated,
-        // The legacy code for the same processing outcome, written while the
-        // decision still had to wait for a staff member to press "Accept and
-        // allocate case reference". The outcome it records is unchanged; only
-        // the wait is gone, so it reads as the same decision.
-        "draft_ready" => IntakeDecision.CaseCreated,
         "needs_sorting" => IntakeDecision.NeedsSorting,
         "blocked_intake" => IntakeDecision.BlockedIntake,
         "unsupported" => IntakeDecision.Unsupported,

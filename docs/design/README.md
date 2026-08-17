@@ -423,18 +423,15 @@ authority on its own.
 | `Unsupported` | Unsupported | Yes | No |
 | `ImageIntakeRegistered` | Vehicle images registered | Yes | No Case/PO; allocates the pre-Case image reference |
 
-`DraftReady` is deliberately absent and gets no operator label: the decision
-was removed rather than renamed. `CaseCreated` is the retained processing
-eligibility code; typed allocation records the separate attempt and the Case
-intake link is the only proof that a reference exists. Ambiguous or
-unidentified material is `Needs sorting`.
+`CaseCreated` is the processing eligibility code; typed allocation records the
+separate attempt and the Case intake link is the only proof that a reference
+exists. Ambiguous or unidentified material is `Needs sorting`.
 
 `Needs text extraction` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
 
 Validation or refusal before an accepted intake receipt must not be described as case creation. An `ImageIntakeRegistered` receipt allocates only the pre-Case Image Intake Reference.
 
-There is no decision meaning "a human has not pressed the button yet". The former `DraftReady`
-named exactly that wait, and was removed rather than renamed:
+There is no decision meaning "a human has not pressed the button yet":
 [FRD-02](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) is explicit that definitive authorised intake creates
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
 manual acceptance gate", and the [operator notes](../operator-notes.md) send only ambiguous
@@ -444,8 +441,7 @@ only when its separate original report supplies one literal outcome: `repairable
 An Audit instruction with no separate report, a conflicting report, or an unclear outcome is
 `Needs sorting`; it allocates neither a Case/PO nor an Audit reference.
 Incomplete ordinary detail is never a bar to allocation. A failure is retained separately and requires a reasoned staff
-retry after correction. The persisted `draft_ready` code stays read-compatible and resolves to
-`CaseCreated`, the same processing outcome, without proving that allocation succeeded.
+retry after correction.
 `Review` and `Ready to review` denote the Case stage before the report is with an Engineer and
 must never name an intake state.
 
@@ -651,7 +647,7 @@ The History panel is a read-only presentation of the [Core-owned permanent actio
 | --- | --- |
 | Queries | Loading; empty; current success; stale with last-good time; partial; unavailable; failed/retry; unauthenticated; disabled; stale-role; denied |
 | Mutations | Validation; confirmation; success; denied; stale version; lease lost; dependency unavailable; idempotent/replayed result; conflict and recovery |
-| Intake | Empty/oversize; replay; retention/custody failure; Draft ready; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; reasoned Blocked intake/resolve/retry; every acceptance path; refusal with no case/reference; upload token expired/revoked/cross-request/limit/abuse result |
+| Intake | Empty/oversize; replay; retention/custody failure; Ready for case allocation; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; reasoned Blocked intake/resolve/retry; every acceptance path; refusal with no case/reference; upload token expired/revoked/cross-request/limit/abuse result |
 | Triage | Registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
 | Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; chaser last-outcome/next-action; gate refusal; physical address/Image Based Assessment; VRM and vehicle/MOT suggestion/no-result/stale/unavailable/failure; independent finding correction; documents locked; Box/external-effect states; EVA proxy/revision limitation; report generated/custodied/sent/externally received distinction; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
 
@@ -894,7 +890,7 @@ An intake row always presents received date above received time and its precise 
 | --- | --- |
 | Queries | loading; empty; success; stale/partial with last-good time; transient error/retry; unauthenticated/disabled/stale-role/denied |
 | Mutations | validation; confirmation; success; denied; stale version; lease lost; dependency unavailable; idempotent/replayed result; conflict and recovery |
-| Intake | empty/oversize; replay; retention/custody failure; Draft ready; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; Blocked intake reason/resolve/retry; every acceptance path; refusal with no case/reference |
+| Intake | empty/oversize; replay; retention/custody failure; Ready for case allocation; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; Blocked intake reason/resolve/retry; every acceptance path; refusal with no case/reference |
 | Triage | registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
 | Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA proxy limitation; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
 

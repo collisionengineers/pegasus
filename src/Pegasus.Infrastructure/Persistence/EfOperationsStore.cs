@@ -562,7 +562,7 @@ internal sealed class EfOperationsStore(
 
     private static EmailOperationState MapIntakeState(string decision) => decision switch
     {
-        "case_created" or "draft_ready" or "needs_sorting" or "unsupported" or "ocr_required" =>
+        "case_created" or "needs_sorting" or "unsupported" or "ocr_required" =>
             EmailOperationState.Succeeded,
         "technical_failure" => EmailOperationState.Failed,
         _ => EmailOperationState.Unknown

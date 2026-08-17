@@ -143,6 +143,4 @@ operator sees, not on how the code is named.
 | State (case filter) | Case stage |
 
 The word “intake” never appears in operator-facing text (operator decision
-2026-08-04). `DraftReady` is deliberately absent from this table: it was not
-a business state and was removed rather than mapped. `Review` and `Ready to
-review` denote the Case stage only.
+2026-08-04). `Review` and `Ready to review` denote the Case stage only.

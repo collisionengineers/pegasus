@@ -384,7 +384,7 @@ public sealed class DocumentCustodyDurabilityTests
                 SourceReaderKey = "durability-test",
                 SourceReaderVersion = "1",
                 Version = 0,
-                Decision = "DraftReady",
+                Decision = "case_created",
                 DecisionReason = "Durability test fixture.",
                 EvidenceJson = "[]",
                 FieldsJson = "[]",
