@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -773,14 +774,25 @@ public sealed class QdosAllocationRecoveryTests
 
         async Task<IntakeAllocationResult> RetryAsync(string key)
         {
-            await using var scope = factory.Services.CreateAsyncScope();
-            return await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
-                receipt.Id,
-                receipt.Version,
-                failed!.State.AttemptId,
-                actor,
-                key,
-                "Parallel reasoned retry."));
+            const int maximumAttempts = 3;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    await using var scope = factory.Services.CreateAsyncScope();
+                    return await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                        receipt.Id,
+                        receipt.Version,
+                        failed!.State.AttemptId,
+                        actor,
+                        key,
+                        "Parallel reasoned retry."));
+                }
+                catch (SqlException exception) when (exception.Number == 1205 && attempt < maximumAttempts)
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt));
+                }
+            }
         }
 
         var results = await Task.WhenAll(

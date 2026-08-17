@@ -67,6 +67,8 @@ Do not add Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, A
 `CiPressure` is the current narrow Checkpoint 12 pressure profile. The
 [QDOS pressure procedure](runbook.md#qdos-pressure-profiles) owns its invocation,
 source-revision checks, prerequisites, staging, cleanup, and evidence path.
+GitHub registers it as a nightly 03:00 UTC and manually dispatched diagnostic
+workflow, outside the pull-request gate, with retained evidence on every run.
 
 This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
 
