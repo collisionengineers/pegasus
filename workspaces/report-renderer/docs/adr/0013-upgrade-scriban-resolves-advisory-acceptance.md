@@ -89,7 +89,7 @@ there is no suppression.
   `Template.Parse`, `Template.HasErrors`, `Template.Messages` and
   `Template.Render(ScriptObject)`, all unchanged across the two major versions.
 - No `.scriban` body changed. The four template bodies are governed design
-  assets under `design/assets/report-renderer/templates/` and were not touched.
+  assets under `docs/design/assets/report-renderer/templates/` and were not touched.
 - `TreatWarningsAsErrors` remains `false` in this workspace, so a future
   advisory surfaces as a warning rather than a build failure. A clean build is
   therefore **not** evidence of a clean audit; the evidence is

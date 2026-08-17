@@ -13,10 +13,15 @@ other phase skills.
 A ticket reaches Verifying after its PR has been reviewed and **merged** (the
 merge point owned by kanmer-review). You validate what actually landed.
 
-## Steps
+## Workflow
 1. `get_item <id>` and `get_doc_gates <id>` — confirm the ticket is in Verifying
    and see the remaining gate (`proof.md` before Done).
-2. Check out merged `main` (not the feature branch) and pull.
+2. Check out merged `main` (not the feature branch) and pull. **Do this in the
+   main checkout or the ticket's own worktree — never in `.worktrees/kanmer`.**
+   In a repo set up through the GUI the board lives there on the board branch
+   and MCP is rooted in it; checking main out over it takes the board offline
+   mid-verification. This is the one step in the roster that switches branches,
+   so it is the one that has to say which checkout it means.
 3. Run the real evidence: the build, the test suites named in `plan.md` /
    `checklist.md`, and any manual/GUI checks. Record the exact commands and
    their output.

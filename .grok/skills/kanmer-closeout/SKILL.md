@@ -42,6 +42,13 @@ and wrote `proof.md` on merged main. Closeout is record-keeping, not a stage mov
 
 ## 2. Git half
 
+**The board's own worktree is not yours to remove.** In a repo set up through
+the GUI the board lives in `.worktrees/kanmer` on the board branch, and MCP is
+rooted there — every command in this section takes the **ticket's** worktree and
+branch, the ones `take_ticket` recorded on the ticket. Read them off `get_item`
+rather than globbing `.worktrees/*`; removing `.worktrees/kanmer` destroys the
+checkout the board is being served from.
+
 ```sh
 # never remove the directory you're standing in — return to the main checkout
 cd "$(git worktree list --porcelain | head -1 | cut -c 10-)"
@@ -72,4 +79,14 @@ flight. Done: board shows the ticket finished, git shows nothing left.
 | **You're standing inside the worktree** | You can't delete the directory you're in (Windows holds the cwd handle). The `cd` to the main checkout is step one of the git half precisely for this. |
 | **Pausing, not closing** (work will resume) | Append the resume point (branch + worktree path) to checklist progress notes, release the ticket, and **keep** the worktree and branch — see `kanmer-execute`'s pausing section. |
 | **Worktree recorded on the ticket but gone on disk** | `git worktree list`: registered but missing → `git worktree prune`; directory lingering but unregistered → plain `rm -rf` of the leftover dir. Either way continue normally — a missing worktree is just less to clean. |
+| **`.worktrees/kanmer` shows up in `git worktree list`** | Not a leftover — that is the **board's** worktree, on the board branch, and MCP is rooted in it. Never `remove`, `prune` away, `rm -rf`, or `push --delete` it, and never `-D` the board branch. It is the one entry in that directory this skill does not own. |
 | **Several tickets share one branch** | Do the kanmer half per ticket as each finishes; do the git half only when the **last** of them closes — `list_items` and check no other ticket's `taken.branch` matches first. |
+
+---
+
+**No successor — this is the end of the pipeline.** The ticket is Done, the
+worktree and branch are gone, and the ticket is released. If closeout produced
+follow-up work, that is a **new ticket** via `kanmer-tickets`, starting again at
+Backlog; it is not a continuation of this one. Control returns to whoever was
+driving — often `kanmer-auto`, which counts this ticket as finished and moves to
+the next in its roster.

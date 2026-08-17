@@ -4,7 +4,7 @@
 
 This document is the canonical owner for the document-extraction test programme, fixture controls and dated evidence. Product intent and support boundaries are owned by [requirements](../../../docs/prd/README.md), [capabilities](../../../docs/capabilities.md), [architecture](architecture.md) and [open decisions](../../../docs/open-decisions.md). Build and contribution policy is owned by [engineering](../../../docs/engineering.md); runbooks and operational handling are owned by the [runbook](../../../docs/runbook.md), with current operational evidence in [operations](../../../docs/operations.md) and business truth in [operator notes](../../../docs/operator-notes.md).
 
-Related canonical indexes are the [documentation map](../../../docs/index.md), [decision records](../../../docs/adr/README.md), [design index](../../../docs/design.md), [reference index](../../../reference/README.md), [workspace index](../README.md).
+Related canonical indexes are the [documentation map](../../../docs/index.md), [decision records](../../../docs/adr/README.md), [design index](../../../docs/design/README.md), [reference index](../../../reference/README.md), [workspace index](../README.md).
 
 Evidence terms are deliberately distinct:
 

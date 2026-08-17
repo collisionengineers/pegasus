@@ -1,5 +1,7 @@
 # Post-implementation report — <ID>
 
+*The report. Not the proof — this is the author's **claim**, written before merge; proof is **evidence**, gathered after.*
+
 The reviewers' brief: every change and why. Gates **Implementing → Review**.
 
 ## Summary
