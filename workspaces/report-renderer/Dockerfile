@@ -7,7 +7,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 COPY workspaces/report-renderer/ workspaces/report-renderer/
-COPY design/ design/
+COPY docs/design/ docs/design/
 WORKDIR /src/workspaces/report-renderer
 RUN dotnet restore src/CollisionRenderer.Api/CollisionRenderer.Api.csproj \
  && dotnet publish src/CollisionRenderer.Api/CollisionRenderer.Api.csproj -c Release -o /app /p:UseAppHost=false

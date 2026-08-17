@@ -1,6 +1,6 @@
 # Design authority
 
-This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](prd/README.md) and [capabilities](capabilities.md); architecture and deployed state remain with [architecture](current-architecture.md) and [operations](operations.md), procedures with the [runbook](runbook.md), operator truth with [operator notes](operator-notes.md), and repository workflow with [engineering](engineering.md).
+This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../prd/README.md) and [capabilities](../capabilities.md); architecture and deployed state remain with [architecture](../current-architecture.md) and [operations](../operations.md), procedures with the [runbook](../runbook.md), operator truth with [operator notes](../operator-notes.md), and repository workflow with [engineering](../engineering.md).
 
 ## Evidence discipline
 
@@ -13,13 +13,13 @@ Intended, planned, implemented, caller-proved, deployed and accepted are distinc
 - **Accepted** requires the specified accessibility and operator review evidence.
 - The three retained comparison rasters record the shell-selection comparison. Operations-first is the selected strategy; raster pixels and details are not design approval or runtime evidence.
 
-The implemented offline QDOS-alpha surface assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`; the desktop evaluator is separately owned ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)). Implementation is not deployment, accessibility acceptance, or operator acceptance evidence.
+The implemented offline QDOS-alpha surface assigns authenticated manual receipt/list/detail/source work to `/Intake`, `/Intake/{id}`, and `/Intake/{id}/Source`, and exposes token-bound public request submission only at `/Uploads/{token}`; the desktop evaluator is separately owned ([ADR-0016](../adr/0016-standalone-desktop-email-evaluator.md)). Implementation is not deployment, accessibility acceptance, or operator acceptance evidence.
 
 Detailed durable product-design owners are the
-[operator-experience requirements](design.md#operator-experience-requirements) and
-[UI specification](design.md#ui-specification). Per-capability ownership and
+[operator-experience requirements](README.md#operator-experience-requirements) and
+[UI specification](README.md#ui-specification). Per-capability ownership and
 activation boundaries are owned by the
-[capability inventory](capabilities.md#capabilities) alone.
+[capability inventory](../capabilities.md#capabilities) alone.
 
 
 ## Product direction
@@ -62,7 +62,7 @@ The common hierarchy is:
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
-Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
+Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
 ## Design principles
 
@@ -206,7 +206,7 @@ Marketing scroll reveals, staggered entrances, hover scaling and CTA lift are ex
 The approved master is:
 
 ```text
-design/brand/logos/logo_no_margin.png
+docs/design/brand/logos/logo_no_margin.png
 ```
 
 It is the red gear-C Collision Engineers lockup, copied exactly from `assets/logo_no_margin.png` in the provided `collision-engineers-design-dev` source bundle.
@@ -235,8 +235,8 @@ The upstream source directory may be absent from a clean checkout. The checksum-
 
  | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
  | --- | --- | --- | --- |
- | Primary logo | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
- | Primary logo (design-system preview copy) | `design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `design/system/src/logo.png`<br>`7A6BD1CE2A57EB47BA9C7BA011935596D64ADE655FE02FFF1854497B962A33AA` | Bicubic downscale to 416×232 (27 KB) of the master, inlined as a data URI into the Claude Design bundle's `AppNav` so previews are self-contained. Not a Web runtime asset; the Web keeps the byte-for-byte copy above. |
+ | Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
+ | Primary logo (design-system preview copy) | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `docs/design/system/src/logo.png`<br>`7A6BD1CE2A57EB47BA9C7BA011935596D64ADE655FE02FFF1854497B962A33AA` | Bicubic downscale to 416×232 (27 KB) of the master, inlined as a data URI into the Claude Design bundle's `AppNav` so previews are self-contained. Not a Web runtime asset; the Web keeps the byte-for-byte copy above. |
 
 ### Icons
 
@@ -298,7 +298,7 @@ The retained comparison rasters are selection evidence only. The Operations-firs
 | Supplied engineer signatures | Embedded renderer evidence only; never Web decorative imagery |
 | Imported renderer, prompt, model, skill and AI material | Source evidence only unless a separate accepted contract provides a real Pegasus caller |
 
-The imported renderer can exercise its own assets without proving the planned Pegasus report capability. Imported workspace material does not become UI, report or design authority by existing in the repository. See the [workspace boundary](../workspaces/README.md).
+The imported renderer can exercise its own assets without proving the planned Pegasus report capability. Imported workspace material does not become UI, report or design authority by existing in the repository. See the [workspace boundary](../../workspaces/README.md).
 
 ## Voice, labels and necessary copy
 
@@ -326,14 +326,14 @@ what an operator reads.
 
 ## Access and permissions
 
-Staff accounts, authentication, and authorisation are implemented and enforced through authenticated Web callers ([architecture](current-architecture.md)). Accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
+Staff accounts, authentication, and authorisation are implemented and enforced through authenticated Web callers ([architecture](../current-architecture.md)). Accounts use Pegasus-managed usernames and passwords. Core owns the exact [staff role access matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this section owns only how those decisions appear in the planned UI.
 
 | Actor | Planned UI boundary |
 | --- | --- |
 | Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
 | Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
 | Automated processing | No UI account or interactive control. |
-| Provider API client ([API-01–API-04, `Next / 0.4.0`](capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
+| Provider API client ([API-01–API-04, `Next / 0.4.0`](../capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
 | External/customer | No application account; the only external surface is the isolated request-scoped `/Uploads/{token}` upload page (INT-31), which exposes no case or request state. |
 
 Every protected route and action must handle unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Hiding a route or control never replaces server authorisation. Administration has no generic rules editor, credential/cloud/release operation, bulk predecessor import, or bulk Case-edit tool. No surface permits permanent deletion or direct external/customer Case editing.
@@ -377,7 +377,7 @@ Rules:
 - Day boundaries use Europe/London midnight.
 - Week boundaries begin Monday.
 - At constrained desktop width or 200% zoom, the selected summary becomes an ordered, labelled section after the results without losing identity, state or action context.
-- Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
+- Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 - There are no `0.1.0-alpha.1` saved views, bulk actions, inline mutation, calendar, personal assignments or general email queues.
 
 The selection rationale is strongest shared-office awareness and truthful day/week visibility. Its risk is density and dependence on independent, accurate queries.
@@ -389,7 +389,7 @@ The selection rationale is strongest shared-office awareness and truthful day/we
 | Worklist-first | Highest repeated case-queue throughput, initially focused on `Not ready`, with a selector limited to `Not ready`, `Review` and `Held`. It weakens whole-office day/week visibility. It must not become a generic cross-feature list; Intake and Triage remain dedicated, the summary is read-only, and consequential actions open focused flows. No bulk actions, saved personal queues, inline lifecycle mutation or speculative email work. |
 | Case-first | Clearest auditability and deep case context, with Cases/search as the landing and Operations retained as a full named route. It makes shared queue scanning less immediate and cannot be the earliest implementation. No generic Close, notes substitute, percentage completeness, named Engineer assignment, inline external editing, estimator, valuation, finance, AI or mobile controls. |
 
-The comparison rasters remain selection evidence: [Operations-first](../design/references/mockups/candidate-a-operations-first.png), [Worklist-first](../design/references/mockups/candidate-b-worklist-first.png), and [Case-first](../design/references/mockups/candidate-c-case-first.png). Their styling and details are not automatically approved.
+The comparison rasters remain selection evidence: [Operations-first](references/mockups/candidate-a-operations-first.png), [Worklist-first](references/mockups/candidate-b-worklist-first.png), and [Case-first](references/mockups/candidate-c-case-first.png). Their styling and details are not automatically approved.
 
 ## Current Development caller
 
@@ -435,9 +435,9 @@ Validation or refusal before an accepted intake receipt must not be described as
 
 There is no decision meaning "a human has not pressed the button yet". The former `DraftReady`
 named exactly that wait, and was removed rather than renamed:
-[FRD-02](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) is explicit that definitive authorised intake creates
+[FRD-02](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) is explicit that definitive authorised intake creates
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
-manual acceptance gate", and the [operator notes](operator-notes.md) send only ambiguous
+manual acceptance gate", and the [operator notes](../operator-notes.md) send only ambiguous
 provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
 Every definitive typed instruction attempts allocation at processing time. An Audit is definitive
 only when its separate original report supplies one literal outcome: `repairable` or `total loss`.
@@ -489,7 +489,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Required contract |
 | --- | --- |
-| Shell/access | Sign-in; disabled, stale-role and denied outcomes; visibility derived from the [Core-owned role matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) plus server authorisation |
+| Shell/access | Sign-in; disabled, stale-role and denied outcomes; visibility derived from the [Core-owned role matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix) plus server authorisation |
 | Metric/queue | Label, value or unavailable state, last-good time, current refresh state and exact destination filter; `0`, loading, current, stale, partial, unavailable and failed remain distinct; each Case row has a read-only latest attributable activity/evidence summary with its timestamp, using operator language and never implying an external delivery or rewriting permanent history; bounded pagination has accessible current-page context and keyboard-operable next/previous controls, with page size determined during surface design |
 | Intake workbench | Immutable source occurrence and evidence beside the distinct editable candidate/accepted Case projection; source/dispatch identity; `All`/`Instructions`/`Images` filter; fact versus suggestion versus confirmed value; provenance, ambiguity/conflict, association history, acceptance path and no-case consequence |
 | Request-scoped upload | Bound upload fields and immediate request-local result only; expired, revoked, limit, custody, replay and cross-request failures disclose no case/reference, request history or other material |
@@ -500,7 +500,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions, reasoned correction, reopen requirement and no inferred fee/invoice mutation |
 | Evidence/document panel | Original/source/version, logical removal and closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
 | Lease/conflict | One current Case; holder, expiry, renew/release/reacquire state and read-only alternative; current conflict and preserved proposed values; no forced Administrator takeover |
-| History | Read-only presentation of the Core-owned [permanent action history](frd/frd-04-parties-accounts-and-access.md#permanent-action-history), including actor/caller/time and one-Case scope without message bodies or telemetry noise |
+| History | Read-only presentation of the Core-owned [permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history), including actor/caller/time and one-Case scope without message bodies or telemetry noise |
 | Reason dialog | Named requirement and consequence; labelled reason; confirmation/cancel; initial focus, focus containment, Escape where safe and focus return to the invoking control |
 
 Opening source evidence or other supporting detail preserves the current list/detail position and every unsaved edit; returning never silently discards or replaces the operator’s proposed values.
@@ -509,7 +509,7 @@ Opening source evidence or other supporting detail preserves the current list/de
 
 ### Intake
 
-The Intake workbench presents the immutable [source occurrence and durable dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity), provenance, original custody, attachments/images, facts, and derivations separately from an editable candidate or accepted Case projection. A source never becomes the Case record merely because a candidate is accepted.
+The Intake workbench presents the immutable [source occurrence and durable dispatch identity](../frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity), provenance, original custody, attachments/images, facts, and derivations separately from an editable candidate or accepted Case projection. A source never becomes the Case record merely because a candidate is accepted.
 
 The planned alpha surface includes:
 
@@ -529,7 +529,7 @@ The planned alpha surface includes:
 - `Needs sorting` and reasoned `Blocked intake`;
 - definitive and staff-resolved acceptance through the same business rules;
 - registration-based provisional identity for image-led work;
-- ambiguous/conflicting association review and reasoned manual link, unlink, reversal, or reassociation while preserving every prior relationship and original origin under the [Core association contract](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association);
+- ambiguous/conflicting association review and reasoned manual link, unlink, reversal, or reassociation while preserving every prior relationship and original origin under the [Core association contract](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association);
 - missing, integrity, replay, retention, custody and persistence failures.
 
 A staff-created in-house upload request is permitted only through a temporary
@@ -547,7 +547,7 @@ Policy-specific email predicates and acceptance evidence remain open gates for o
 
 ### Triage
 
-Triage is a distinct inbox classification/label and separate pre-case record, never a case state. The UI implements the [Core-owned normal workflow and completion evidence](frd/frd-03-triage.md#normal-workflow-and-completion-evidence) rather than defining another transition policy.
+Triage is a distinct inbox classification/label and separate pre-case record, never a case state. The UI implements the [Core-owned normal workflow and completion evidence](../frd/frd-03-triage.md#normal-workflow-and-completion-evidence) rather than defining another transition policy.
 
 The detail workspace presents the normal sequence from registration-gated `Needs sorting`, through `Open`, missing-information correspondence, and an accepted finding, to exact reply-chain evidence and `Completed`. It must show acknowledgement, information request, or other ordinary correspondence as non-completing activity; display missing, ambiguous, unapproved, or technically failed reply evidence; and expose `Cancelled` as the separately named end without finding/reply.
 
@@ -555,7 +555,7 @@ Finding correction/replacement, new response, reasoned reopen, and optional late
 
 ### Case
 
-The Case workspace visibly preserves the immutable [Case/PO and principal identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), registration, [Inspection, standalone Audit, or Inspection + Audit type](frd/frd-01-case-identity-and-lifecycle.md#case-types), secondary Audit identity where applicable, workflow state, `Due by`/overdue state, and EVA proxy limitation. It presents accepted case-party functions and the inspection-address snapshot for that Case without allowing later reusable organisation/repairer edits to rewrite historical case evidence.
+The Case workspace visibly preserves the immutable [Case/PO and principal identity](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), registration, [Inspection, standalone Audit, or Inspection + Audit type](../frd/frd-01-case-identity-and-lifecycle.md#case-types), secondary Audit identity where applicable, workflow state, `Due by`/overdue state, and EVA proxy limitation. It presents accepted case-party functions and the inspection-address snapshot for that Case without allowing later reusable organisation/repairer edits to rewrite historical case evidence.
 
 A wrong-principal repair is presented as the Core-owned `Created in error` original and its linked replacement, never as an editable Case/PO or principal field. Both references remain visible and the original has no reopen control.
 
@@ -599,11 +599,11 @@ report correction never implies a fee/invoice change.
 
 Report generation, PDF custody, Outlook Sent evidence, and external receipt are
 separate. Report sent enters post-report work rather than closing the Case.
-`CASE-23` query/dispute controls are `Next / 0.4.0` in the [capability inventory](capabilities.md#capabilities); the alpha UI invents no reply state machine.
+`CASE-23` query/dispute controls are `Next / 0.4.0` in the [capability inventory](../capabilities.md#capabilities); the alpha UI invents no reply state machine.
 
-Lifecycle actions use only the named [Core lifecycle and correspondence contract](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence): Post-report completion, Provider cancellation, Collision Engineers rejection, and Created in error remain distinct from acknowledgements, information requests, report-Sent evidence, queries, and other correspondence. The interface never substitutes a generic Close action. A closed Case is read-only; only a permitted reasoned reopen to a valid nonterminal state restores mutation controls, and `Created in error` offers only its linked-replacement route.
+Lifecycle actions use only the named [Core lifecycle and correspondence contract](../frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence): Post-report completion, Provider cancellation, Collision Engineers rejection, and Created in error remain distinct from acknowledgements, information requests, report-Sent evidence, queries, and other correspondence. The interface never substitutes a generic Close action. A closed Case is read-only; only a permitted reasoned reopen to a valid nonterminal state restores mutation controls, and `Created in error` offers only its linked-replacement route.
 
-Each Case has at most one authorised staff editor at a time through the [Core lease and mutation guard](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery). Other authorised staff see the holder and that Case read-only. `Enter edit mode`, renewal, `Leave editing`, authoritative expiry, reload/compare, and reacquire are the only recovery interactions: lease loss or a stale version disables every mutation, preserves proposed values for comparison, and never overwrites the newer Case. There is no forced Administrator takeover, bulk Case edit, direct external edit, or collaborative merge control.
+Each Case has at most one authorised staff editor at a time through the [Core lease and mutation guard](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery). Other authorised staff see the holder and that Case read-only. `Enter edit mode`, renewal, `Leave editing`, authoritative expiry, reload/compare, and reacquire are the only recovery interactions: lease loss or a stale version disables every mutation, preserves proposed values for comparison, and never overwrites the newer Case. There is no forced Administrator takeover, bulk Case edit, direct external edit, or collaborative merge control.
 
 ### Documents and external evidence
 
@@ -643,7 +643,7 @@ The exact UI-07 fields are:
 
 ### Permanent history
 
-The History panel is a read-only presentation of the [Core-owned permanent action history](frd/frd-04-parties-accounts-and-access.md#permanent-action-history). It shows the attributable staff or automated actor, caller, time, one affected Case or pre-case record, action/outcome, reason where required, and before/after or evidence reference needed to understand each business event. It does not render message bodies, routine views, refresh/polling, retries, lease heartbeats, or adapter/Worker mechanics; those remain telemetry or security evidence outside the operational UI.
+The History panel is a read-only presentation of the [Core-owned permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history). It shows the attributable staff or automated actor, caller, time, one affected Case or pre-case record, action/outcome, reason where required, and before/after or evidence reference needed to understand each business event. It does not render message bodies, routine views, refresh/polling, retries, lease heartbeats, or adapter/Worker mechanics; those remain telemetry or security evidence outside the operational UI.
 
 ## Complete UI state contract
 
@@ -693,7 +693,7 @@ Each visible capability/state also needs authenticated Web-caller and named Core
 
 ## Deferred and absent UI seams
 
-Exact horizon and first-introduction release remain owned by the [capability inventory](capabilities.md#capabilities). No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
+Exact horizon and first-introduction release remain owned by the [capability inventory](../capabilities.md#capabilities). No future allocation creates an alpha route, control, workflow, placeholder or dormant implementation.
 
 ### Deferred integration and intake surfaces
 
@@ -735,8 +735,8 @@ Deferred AI may propose but must not mutate, accept or send autonomously. Future
 
 One recorded exception (operator widening, 2026-08-03; extended by the
 operator-approved AI-09 specification —
-[ADR-0021](adr/0021-automation-actor-direct-write-assessment-contract.md) and
-[FRD-11](frd/frd-11-reports-correspondence-and-reviewed-proposals.md), the
+[ADR-0021](../adr/0021-automation-actor-direct-write-assessment-contract.md) and
+[FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md), the
 re-entry specification for exactly this slice): the Engineer assessment
 workbench (UI-15) exists as design markup under
 `src/Pegasus.Web/Pages/Cases/Assessment/`, and the AI-09 wiring task
@@ -792,33 +792,33 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 
 | Concern | Durable owner or source | Runtime consumer or evidence |
 | --- | --- | --- |
-| Product capability and horizon | [Requirements](prd/README.md), [capabilities](capabilities.md) | Planned staff routes; current caller is narrower |
-| Open policy and token questions | [Open decisions](open-decisions.md) | No implementation inference until resolved |
-| Architecture and caller boundaries | [Architecture](current-architecture.md) | Core, Web, Worker, MCP and external adapters |
-| Production, release, monitoring, and recovery state | [Operations](operations.md) | No deployment claim from design or source presence |
-| Setup, testing, release, and recovery procedure | [Runbook](runbook.md) | Procedure is not execution evidence |
-| Engineering procedure | [Engineering](engineering.md) | Reviewed implementation and verification; `.agents/skills/` routes remain subject to it |
+| Product capability and horizon | [Requirements](../prd/README.md), [capabilities](../capabilities.md) | Planned staff routes; current caller is narrower |
+| Open policy and token questions | [Open decisions](../open-decisions.md) | No implementation inference until resolved |
+| Architecture and caller boundaries | [Architecture](../current-architecture.md) | Core, Web, Worker, MCP and external adapters |
+| Production, release, monitoring, and recovery state | [Operations](../operations.md) | No deployment claim from design or source presence |
+| Setup, testing, release, and recovery procedure | [Runbook](../runbook.md) | Procedure is not execution evidence |
+| Engineering procedure | [Engineering](../engineering.md) | Reviewed implementation and verification; `.agents/skills/` routes remain subject to it |
 | Design authority | This file | Approved Web tokens, assets, components and patterns |
 | Current Web shell | This file’s approved direction; current code is evidence only | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Current Web tokens/layout | This file | `src/Pegasus.Web/wwwroot/css/site.css`, conforming: approved colour, spacing, 2px radius, 1px border and focus ring, with no unapproved literal and no new token |
 | Current dashboard | Current exercised component map | `src/Pegasus.Web/Pages/Index.cshtml` |
 | Current intake caller | Current Development pattern | `src/Pegasus.Web/Pages/Intake/` → Core `ProcessIntake` |
-| Master logo | `design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_Layout.cshtml` |
+| Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_Layout.cshtml` |
 | Renderer templates/style | Repository renderer asset sources | `workspaces/report-renderer/src/CollisionRenderer.Core` |
 | Engineer signatures | Repository renderer signature sources | Renderer Core only; excluded from Web decorative imagery |
-| Imported renderer/skills/AI source | [Workspaces](../workspaces/README.md) | Non-caller evidence unless separately integrated and accepted |
-| Decision rationale | [Decision records](adr/README.md) | Does not itself prove implementation |
+| Imported renderer/skills/AI source | [Workspaces](../../workspaces/README.md) | Non-caller evidence unless separately integrated and accepted |
+| Decision rationale | [Decision records](../adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
-| External reference qualification | [Reference index](../reference/README.md) | Reference presence never creates authority |
-| Claude Design system (design-tool bindings) | `design/system/` — React bindings that render the classes of `site.css` byte-for-byte (`dist/styles.css` is a build-time copy, never a second token file); `.design-sync/` holds the sync config, per-component previews and conventions | claude.ai/design project “Pegasus Design System”. Design-tool output only: not referenced by `Pegasus.slnx`, the Web runtime, or any deployment; not a caller. Refresh after any `site.css` change (`cd design/system && npm run build`, then `/design-sync`) |
+| External reference qualification | [Reference index](../../reference/README.md) | Reference presence never creates authority |
+| Claude Design system (design-tool bindings) | `docs/design/system/` — React bindings that render the classes of `site.css` byte-for-byte (`dist/styles.css` is a build-time copy, never a second token file); `.design-sync/` holds the sync config, per-component previews and conventions | claude.ai/design project “Pegasus Design System”. Design-tool output only: not referenced by `Pegasus.slnx`, the Web runtime, or any deployment; not a caller. Refresh after any `site.css` change (`cd docs/design/system && npm run build`, then `/design-sync`) |
 
 The original `collision-engineers-design-dev` bundle supplied the shared logo, colour, type and icon foundation but explicitly did not define this internal command-centre application. The repository imports only approved shared essentials and renderer assets. Marketing layouts, imagery, fonts, WhatsApp styling, scroll reveals and mobile navigation are excluded. The source bundle is not retained as a second design system.
 
 The similarly named logo and signature files under `reference/rendererref1/`
 are retained supplied evidence. The logo and all three signature pairs are
-byte-identical to the governed assets under `design/brand/`, but are not
+byte-identical to the governed assets under `docs/design/brand/`, but are not
 deduplicated: `reference/` preserves the supplied evidence grouping while
-`design/` owns runtime use. Equal bytes do not transfer either role and the
+`docs/design/` owns runtime use. Equal bytes do not transfer either role and the
 evidence copies do not replace this design authority.
 
 ## Change and verification rule
@@ -844,27 +844,27 @@ Status: **Planned `0.1.0-alpha.1` requirements with Operations-first shell selec
 
 ### Evidence state and scope
 
-The implemented route set is owned by [architecture — current callers](current-architecture.md); the alpha shell spans intake, image intake, cases, triage, search, operations, and administration; the desktop evaluator is separately owned ([ADR-0016](adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
+The implemented route set is owned by [architecture — current callers](../current-architecture.md); the alpha shell spans intake, image intake, cases, triage, search, operations, and administration; the desktop evaluator is separately owned ([ADR-0016](../adr/0016-standalone-desktop-email-evaluator.md)). This implementation state does not by itself prove deployment or operator acceptance.
 
-The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
+The intended setting is a small office of approximately eight users. Staff accounts use Pegasus-managed usernames and passwords; authenticated Web callers derive the actor and roles server-side, while implementation does not itself prove deployed session behavior. Core owns the exact [staff role access matrix](../frd/frd-04-parties-accounts-and-access.md#staff-role-access-matrix), automated-actor boundary, and [case edit authority and recovery](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery); this design must not create broader permissions or a second role policy.
 
 | Actor | Planned UI boundary |
 | --- | --- |
 | Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
 | Engineer, User | Staff shell without Administration surfaces. The ordinary case/action controls are the same for both roles. |
 | Automated processing | No UI account or interactive control. |
-| Provider API client ([API-01–API-04, `Next / 0.4.0`](capabilities.md#capabilities)) | No staff shell or Administration surface. |
+| Provider API client ([API-01–API-04, `Next / 0.4.0`](../capabilities.md#capabilities)) | No staff shell or Administration surface. |
 | External/customer | No application account. A capability-bearing `/Uploads/{token}` link exposes only bounded document submission and generic terminal outcomes, with no case or request identity disclosure. |
 
 Every protected route and action visibly handles unauthenticated, disabled-session, stale-role, denied, loading, and successful outcomes. Route or control hiding is never authorisation. The UI offers neither permanent deletion, credential/cloud/release administration, a generic mailbox-rule editor, bulk case editing, nor external direct Case editing.
 
 ### `0.1.0-alpha.1` flows
 
-**Intake** presents the immutable source occurrence and its derived evidence separately from the editable candidate and accepted Case projection; matching conflict, ambiguity, manual association, reversal, and reassociation remain visible rather than rewriting the source. The evidence pane retains the exact `All`/`Instructions`/`Images` filters. Opening source evidence or supporting detail preserves the current list/detail position and every unsaved candidate edit; returning restores the Intake or Case-detail context without silently discarding or replacing proposed values. Controls invoke the Core-owned [source and Case association](frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) and [mandatory pre-case gate](frd/frd-02-intake-and-source-identity.md#mandatory-pre-case-gates) contracts. The result view shows provenance, attachments/images, suggestions, validation, conflicts, origin, dispatch/retry state, the accepted `Review` or incomplete `Not ready` Case, or the explicit reason no case/reference exists.
+**Intake** presents the immutable source occurrence and its derived evidence separately from the editable candidate and accepted Case projection; matching conflict, ambiguity, manual association, reversal, and reassociation remain visible rather than rewriting the source. The evidence pane retains the exact `All`/`Instructions`/`Images` filters. Opening source evidence or supporting detail preserves the current list/detail position and every unsaved candidate edit; returning restores the Intake or Case-detail context without silently discarding or replacing proposed values. Controls invoke the Core-owned [source and Case association](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) and [mandatory pre-case gate](../frd/frd-02-intake-and-source-identity.md#mandatory-pre-case-gates) contracts. The result view shows provenance, attachments/images, suggestions, validation, conflicts, origin, dispatch/retry state, the accepted `Review` or incomplete `Not ready` Case, or the explicit reason no case/reference exists.
 
-**Triage** remains visually and navigationally distinct from a Case and from generic inbox sorting. Its list/detail workspace presents the registration gate, assignee, named findings and states, missing/ambiguous reply evidence, replacement history, completion/cancellation, reopen, and optional later Case association. Core owns the [normal Triage workflow and completion evidence](frd/frd-03-triage.md#normal-workflow-and-completion-evidence); the design must distinguish ordinary acknowledgement or information correspondence from the exact reply-chain evidence required to complete the workflow.
+**Triage** remains visually and navigationally distinct from a Case and from generic inbox sorting. Its list/detail workspace presents the registration gate, assignee, named findings and states, missing/ambiguous reply evidence, replacement history, completion/cancellation, reopen, and optional later Case association. Core owns the [normal Triage workflow and completion evidence](../frd/frd-03-triage.md#normal-workflow-and-completion-evidence); the design must distinguish ordinary acknowledgement or information correspondence from the exact reply-chain evidence required to complete the workflow.
 
-**Case** keeps Case/PO, principal, registration, [Inspection, standalone Audit, or Inspection + Audit identity](frd/frd-01-case-identity-and-lifecycle.md#case-types), workflow state, due date, and EVA proxy limitation visible. It presents the accepted Case projection alongside source/provenance, data, documents/images, parties and inspection address, vehicle/MOT, tasks/reminders, outbound evidence, external-work states, and permanent history. Core owns [principal and historical case-party identity](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), [lifecycle closure and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence), [outbound correspondence evidence](frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence), and one-case [edit authority and recovery](frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery). The workspace identifies the active editor and stale version, becomes read-only after lease loss or named closure, and offers only the authorised retry/reopen/reacquire routes; one control mutates one current Case at a time.
+**Case** keeps Case/PO, principal, registration, [Inspection, standalone Audit, or Inspection + Audit identity](../frd/frd-01-case-identity-and-lifecycle.md#case-types), workflow state, due date, and EVA proxy limitation visible. It presents the accepted Case projection alongside source/provenance, data, documents/images, parties and inspection address, vehicle/MOT, tasks/reminders, outbound evidence, external-work states, and permanent history. Core owns [principal and historical case-party identity](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), [lifecycle closure and correspondence](../frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence), [outbound correspondence evidence](../frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence), and one-case [edit authority and recovery](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery). The workspace identifies the active editor and stale version, becomes read-only after lease loss or named closure, and offers only the authorised retry/reopen/reacquire routes; one control mutates one current Case at a time.
 
 **Administration** is an Administrator-only surface implementing the linked role matrix. It exposes account/access/role, principal successor, configuration, and approved-mailbox-allowlist controls, but no generic rules editor, credential/cloud operation, bulk predecessor import, bulk Case edit, or direct external Case-edit surface.
 
@@ -874,19 +874,19 @@ Case/PO, Image Intake Reference, registration, claimant, claim number, principal
 
 ### Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
+Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 
 An intake row always presents received date above received time and its precise processing outcome. At constrained desktop width, long Case/PO or Image Intake Reference text moves to a labelled second line; it must not overlap the received timestamp or another row field.
 
 #### `0.1.0-alpha.1` surface inventory
 
-- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; pre-Case Image-intake registration with its Image Intake Reference, association/await-instruction outcome, and no Case state; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures. Each row identifies its exact outcome rather than a generic `New`.
-- Case identity presents the Core-owned [Inspection, standalone Audit, and Inspection + Audit](frd/frd-01-case-identity-and-lifecycle.md#case-types) distinctions, secondary Audit identity, immutable [Case/PO and principal](frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), and linked `Created in error` replacement without offering identity rewrite.
-- Case work covers Not ready, Review and Held; separate mandatory instruction-completeness, image-completeness, and staff-review decisions before Engineers-queue eligibility, with no Pegasus named-Engineer assignment in alpha; due/overdue; seven-calendar-day chasers with the Held interval preserved; the Core-owned [staff-created temporary, revocable, expiring, request-scoped in-house upload-token](frd/frd-02-intake-and-source-identity.md#request-scoped-upload-links) isolation, non-disclosure, and request-local custody contract; [copyable manual chasers](frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history); tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; provider-determined inspection mode (physical address, or exact `Image Based Assessment` autofilled from the Principal's setting with reasoned override); and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
+- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](../frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; pre-Case Image-intake registration with its Image Intake Reference, association/await-instruction outcome, and no Case state; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures. Each row identifies its exact outcome rather than a generic `New`.
+- Case identity presents the Core-owned [Inspection, standalone Audit, and Inspection + Audit](../frd/frd-01-case-identity-and-lifecycle.md#case-types) distinctions, secondary Audit identity, immutable [Case/PO and principal](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), and linked `Created in error` replacement without offering identity rewrite.
+- Case work covers Not ready, Review and Held; separate mandatory instruction-completeness, image-completeness, and staff-review decisions before Engineers-queue eligibility, with no Pegasus named-Engineer assignment in alpha; due/overdue; seven-calendar-day chasers with the Held interval preserved; the Core-owned [staff-created temporary, revocable, expiring, request-scoped in-house upload-token](../frd/frd-02-intake-and-source-identity.md#request-scoped-upload-links) isolation, non-disclosure, and request-local custody contract; [copyable manual chasers](../frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history); tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; provider-determined inspection mode (physical address, or exact `Image Based Assessment` autofilled from the Principal's setting with reasoned override); and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
 
 - Case evidence shows retained source images, their provenance, category, staff-confirmed third-party exclusions, and advisory findings. It does not contain EVA or report-image selection/order controls; the focused alpha exports every eligible Case-vehicle image, EVA owns downstream ordering, and the accepted future Engineers screen owns those decisions after EVA replacement.
 - Documents/evidence covers automatic Box folder, upload/version, logical removal, closed-case lock/reopen-before-change, Box unavailable/pending/retry/unknown, exact report-Sent evidence and reasoned manual link/unlink/relink.
-- Terminal/aftercare presents the exact [Core-owned lifecycle and correspondence](frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence) outcomes and reasoned recovery paths. It must not turn acknowledgement, report-Sent evidence, or other correspondence into a generic completion action.
+- Terminal/aftercare presents the exact [Core-owned lifecycle and correspondence](../frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence) outcomes and reasoned recovery paths. It must not turn acknowledgement, report-Sent evidence, or other correspondence into a generic completion action.
 
 #### Complete state matrix
 
@@ -898,7 +898,7 @@ An intake row always presents received date above received time and its precise 
 | Triage | registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
 | Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA proxy limitation; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
 
-The UI presents the [Core-owned permanent action history](frd/frd-04-parties-accounts-and-access.md#permanent-action-history) with enough actor, time, outcome, reason, and before/after context to understand each business event. Routine views, refresh/polling, retries, leases/heartbeats, and adapter/Worker mechanics stay out of the operational history panel.
+The UI presents the [Core-owned permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history) with enough actor, time, outcome, reason, and before/after context to understand each business event. Routine views, refresh/polling, retries, leases/heartbeats, and adapter/Worker mechanics stay out of the operational history panel.
 
 ### Accessibility, desktop and data boundary
 
@@ -906,7 +906,7 @@ Use semantic landmarks/headings/tables, labels and associated errors, keyboard o
 
 The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere; decorative or generated replacement icons are prohibited. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
-Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](design.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
+Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
 
 ### Selected shell and open gates
 
@@ -914,7 +914,7 @@ Operations-first is selected for the `0.1.0-alpha.1` landing and navigation stra
 
 ### Historical material
 
-The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are recorded in the [design authority](design.md) (product direction, and rejected alternatives retained as evidence). Their obsolete planning files are retired; the [Operations-first](../design/references/mockups/candidate-a-operations-first.png), [Worklist-first](../design/references/mockups/candidate-b-worklist-first.png), and [Case-first](../design/references/mockups/candidate-c-case-first.png) rasters remain immutable selection evidence. The current design route is [design](design.md), with interaction detail in [ui-spec.md](design.md#ui-specification).
+The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are recorded in the [design authority](README.md) (product direction, and rejected alternatives retained as evidence). Their obsolete planning files are retired; the [Operations-first](references/mockups/candidate-a-operations-first.png), [Worklist-first](references/mockups/candidate-b-worklist-first.png), and [Case-first](references/mockups/candidate-c-case-first.png) rasters remain immutable selection evidence. The current design route is [design](README.md), with interaction detail in [ui-spec.md](README.md#ui-specification).
 
 ## UI specification
 
@@ -937,9 +937,9 @@ identical backing query; the combined intake screen split into Inbox and Upload;
 entity inside Queues. Each comparison direction uses the same focused-flow set.
 Production email allocated `Next / 0.3.0` appears only after its gates; every
 deferred `Next` or `Later` capability carries its exact target in the [capability
-inventory](capabilities.md#capabilities). Deferred capabilities have no alpha
+inventory](../capabilities.md#capabilities). Deferred capabilities have no alpha
 placeholder route or control — except the recorded routeless UI-15/AI-09 review
-artifacts, owned by [design § Deferred casework and advanced surfaces](design.md#deferred-casework-and-advanced-surfaces).
+artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces).
 
 The Development/local email evaluator is separately owned and has no QDOS-alpha
 route, navigation, control, `unchecked`/`checked` workbench, review-report
@@ -1077,7 +1077,7 @@ on a Case with a reason. Ordinary-image VRM and vehicle/MOT results show suggest
 confirmed, unknown/no-result, stale, unavailable, and failed distinctions with
 source/version/age; refresh never overwrites confirmed or last-good data.
 
-Image readiness display is a future surface: the advisory (registration overview, damage close-up, and the applicable reflection criterion, refreshed whenever current Case images change, with no Case-state, eligibility, or chase effect) is owned by [AI-05, `Later / 1.0.0`](capabilities.md#capabilities) and has no `0.1.0-alpha.1` surface.
+Image readiness display is a future surface: the advisory (registration overview, damage close-up, and the applicable reflection criterion, refreshed whenever current Case images change, with no Case-state, eligibility, or chase effect) is owned by [AI-05, `Later / 1.0.0`](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` surface.
 
 Roadworthiness and Assessment are separate professional findings. A correction
 shows the retained earlier version and reasoned superseding version; a closed
@@ -1096,7 +1096,7 @@ or cloud/credential operation.
 
 The complete per-scope query, mutation, Intake, Triage and Case state contract
 is the [requirements state
-matrix](design.md#complete-state-matrix); this specification does not
+matrix](README.md#complete-state-matrix); this specification does not
 compress or replace it.
 
 ### Freshness and reconciliation

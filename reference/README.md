@@ -6,7 +6,7 @@ current directory, or authorization. Accepted behavior lives in
 [architecture](../docs/current-architecture.md), unresolved questions in
 [open decisions](../docs/open-decisions.md), operator truth in
 [operator notes](../docs/operator-notes.md), and UI rules in
-[design](../docs/design.md).
+[design](../docs/design/README.md).
 
 Never infer currentness from a filename. Do not copy personal names, addresses,
 or contact rows into canonical prose. Workbooks and samples are not import
@@ -21,8 +21,8 @@ authority.
   and job spreadsheets; no automatic import.
 - `rendererref1/` — supplied report samples, design notes, logo, and signature
   sources. Its logo and three signature files are byte-identical to the four
-  same-named governed assets under `design/brand/`. Both placements remain:
-  `reference/` preserves the supplied evidence grouping while `design/` owns
+  same-named governed assets under `docs/design/brand/`. Both placements remain:
+  `reference/` preserves the supplied evidence grouping while `docs/design/` owns
   runtime use, so byte equality does not make either role or path redundant.
 
 ## Retained reviewed reports

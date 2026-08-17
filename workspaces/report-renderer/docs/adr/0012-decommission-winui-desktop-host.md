@@ -15,7 +15,7 @@ framework-agnostic `net8.0`.
 
 The operator directed on 2026-08-03 that the renderer's desktop/UI elements be
 removed. That direction is not a new design decision — the root design
-authority already scheduled it. `docs/design.md`, in the *Web and renderer
+authority already scheduled it. `docs/design/README.md`, in the *Web and renderer
 boundary* table, recorded the GUI package assets as:
 
 > Temporary renderer GUI package assets | Linked by
@@ -37,7 +37,7 @@ workspace:
 - delete `src/CollisionRenderer.Gui/` and its solution entry, configuration
   mappings and nesting entry;
 - delete the linked WinUI/MSIX package assets under
-  `design/assets/report-renderer/gui/`;
+  `docs/design/assets/report-renderer/gui/`;
 - drop `Microsoft.WindowsAppSDK` and `CommunityToolkit.Mvvm` from the package
   graph, together with `EnableMsixTooling`, the `Msix` project capability, the
   `Platforms`/`RuntimeIdentifier` pins and the MSIX identity
@@ -107,8 +107,8 @@ mixed stacks. The `net8.0` target list is superseded separately by ADR-0014.
 - `Microsoft.Playwright` is unaffected. The GUI was one of three references;
   Core drives headless Chromium for every PDF render and Mcp references it for
   browser bootstrap.
-- The governed document assets under `design/assets/report-renderer/templates/`,
-  `design/brand/logos/` and `design/brand/signatures/` are untouched and remain
+- The governed document assets under `docs/design/assets/report-renderer/templates/`,
+  `docs/design/brand/logos/` and `docs/design/brand/signatures/` are untouched and remain
   live Core build inputs.
 - Per-user desktop state written by the deleted `DesktopStateService` under
   `%APPDATA%` on individual developer machines is untracked, machine-local and

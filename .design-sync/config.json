@@ -3,7 +3,7 @@
   "shape": "package",
   "pkg": "@pegasus/design-system",
   "globalName": "PegasusDS",
-  "buildCmd": "cd design/system && npm run build",
+  "buildCmd": "cd docs/design/system && npm run build",
   "cssEntry": "dist/styles.css",
   "runtimeFontPrefixes": [
     "Poppins"
@@ -209,7 +209,7 @@
   },
   "docsDir": "docs",
   "guidelinesGlob": [
-    "../../docs/design.md"
+    "../../docs/design/README.md"
   ],
   "readmeHeader": ".design-sync/conventions.md"
 }

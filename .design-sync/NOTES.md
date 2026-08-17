@@ -5,28 +5,28 @@ Repo-specific facts for syncing `@pegasus/design-system` to claude.ai/design.
 ## Shape
 
 - Pegasus is a .NET Razor Pages app with **no JS design system of its own**. The
-  design system for Claude Design is `design/system/` — a React package whose
+  design system for Claude Design is `docs/design/system/` — a React package whose
   components render the exact markup and class names of
   `src/Pegasus.Web/wwwroot/css/site.css`, which the package build copies
-  byte-for-byte to `dist/styles.css` (`design/system/scripts/build.mjs`).
+  byte-for-byte to `dist/styles.css` (`docs/design/system/scripts/build.mjs`).
   Never author CSS in the package; if the app's stylesheet changes, rebuild.
 - Markup patterns were taken from the Razor pages/partials (`_StatusChip`,
   `_FreshnessBanner`, `_Layout`, `_ReasonDialog`, `Cases/Details`, …). The
   state→tone map in `StatusChip` is a verbatim port of `_StatusChip.cshtml`.
 - Icons: the 16-symbol Lucide sprite from `Pages/Shared/_LucideSprite.cshtml`,
   inlined as paths in `Icon.tsx`. No other icon set.
-- Logo: `design/brand/logos/logo_no_margin.png` downscaled to 416px
-  (`design/system/src/logo.png`, checksum in `docs/design.md`) and inlined as a
+- Logo: `docs/design/brand/logos/logo_no_margin.png` downscaled to 416px
+  (`docs/design/system/src/logo.png`, checksum in `docs/design/README.md`) and inlined as a
   data URI by esbuild.
-- Build: `cd design/system && npm run build` (esbuild ESM + tsc d.ts). Node 24.
-- Converter: `--node-modules design/system/node_modules --entry design/system/dist/index.js`.
+- Build: `cd docs/design/system && npm run build` (esbuild ESM + tsc d.ts). Node 24.
+- Converter: `--node-modules docs/design/system/node_modules --entry docs/design/system/dist/index.js`.
 - Playwright: repo cache has chromium-1228 → `playwright@1.61.1` in `.ds-sync/`
   (1.62 wants 1234 and fails to launch).
 - Windows/Git Bash gotcha: a heredoc containing an apostrophe breaks the Bash
   tool; write scripts/files with the Write tool and run them.
 - **CRLF checkout churn (fixed 2026-08-16, watch for regressions):**
   `core.autocrlf=true` silently rewrites `.design-sync/previews/*.tsx` and
-  `design/system/src|docs/**` to CRLF on any fresh checkout/merge, changing
+  `docs/design/system/src|docs/**` to CRLF on any fresh checkout/merge, changing
   their raw bytes and invalidating `sourceKeyFor`'s `hashFile` (no CRLF
   normalization) — this desyncs the remote anchor for most/all components on
   every Windows checkout even with zero real edits (confirmed via
@@ -40,11 +40,11 @@ Repo-specific facts for syncing `@pegasus/design-system` to claude.ai/design.
 
 ## Groups / docs / previews
 
-- Per-component docs live in `design/system/docs/<Name>.md`; frontmatter
+- Per-component docs live in `docs/design/system/docs/<Name>.md`; frontmatter
   `category:` sets the DS pane group (Shell, Actions, Status, Metrics, Record,
   Data, Forms, Overlay, Auth, Layout). Body = usage guidance + examples (the
   `.prompt.md` the design agent reads); Props are appended automatically.
-- `guidelinesGlob` points at `../../docs/design.md` (the design authority)
+- `guidelinesGlob` points at `../../docs/design/README.md` (the design authority)
   so it ships as `guidelines/design.md`.
 - All 81 previews are authored in `.design-sync/previews/` (no floor cards).
   Content is invented example data (case refs, registrations, insurer names).
@@ -61,7 +61,7 @@ Repo-specific facts for syncing `@pegasus/design-system` to claude.ai/design.
 ## Known render warns (intentional)
 
 - `[FONT_MISSING] Poppins`: only `.send-action` names it, and
-  `docs/design.md` §Send to Claude says the face is *requested, never loaded*
+  `docs/design/README.md` §Send to Claude says the face is *requested, never loaded*
   — no font bundle is ever added. Suppressed via `runtimeFontPrefixes:
   ["Poppins"]`; system fallback is what production renders too.
 - `[DTS_STYLE_SYSTEM]` on every build: React DOM attribute props are filtered
