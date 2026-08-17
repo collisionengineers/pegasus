@@ -10,8 +10,8 @@ TICK-200 has no linked PRD, FRD, or ADR; its existing `docs_todo` satisfies the 
 
 ## Steps
 
-1. Create `task/reduce-actions-wall-clock` from current `origin/dev` in `C:/Users/PC/Documents/GitHub/pegasus-worktrees/reduce-actions-wall-clock`, record the claim, and add the required root plan at `docs/temp-plans/reduce-actions-wall-clock.md`.
-2. Change `scripts/Invoke-TestShard.ps1` to group the enumerated tests by class, sort classes by descending test count with an ordinal class-name tie-break, and greedily assign each class to the currently lightest shard with a lowest-shard-number tie-break.
+1. Create `task/reduce-actions-wall-clock` from current `origin/dev` in `C:/Users/PC/Documents/GitHub/pegasus-worktrees/reduce-actions-wall-clock` and record the claim; this format-3 board keeps the full plan and checklist only in TICK-200's Kanmer documents.
+2. Change `scripts/Invoke-TestShard.ps1` to group the enumerated tests by class, sort classes by descending test count with a class-name tie-break, and greedily assign each class to the currently lightest shard with a lowest-shard-number tie-break.
 3. Add focused script tests that prove determinism, near-even test-count allocation, whole-class assignment, empty-shard handling, and exact partition verification without weakening existing failure behavior.
 4. Run the focused script tests and the repository's locked restore, Release build, and applicable focused tests; inspect the diff to prove no UI-owned path changed.
 5. Push the branch, open a PR targeting `dev`, record the implementation report and traceability, and move TICK-200 to Review.
