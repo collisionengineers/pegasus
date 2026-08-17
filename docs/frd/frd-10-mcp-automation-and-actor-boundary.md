@@ -1,5 +1,5 @@
 # FRD-10: MCP automation and actor boundary
-> Owner capabilities: MCP · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design.md
+> Owner capabilities: MCP · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## MCP automation and actor boundary
 
