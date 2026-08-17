@@ -38,3 +38,23 @@ Steps 1,2,4,5,6,8,10,11 DONE; 3 PARTIAL (B1); 7 DONE functionally / off-system v
 
 ## Verdict
 **NEEDS-CHANGES** (B1, B2). Disposition below is appended as work lands.
+
+## Disposition — 2026-08-17, commit `8bf0a3e6` (re-verified by the same independent reviewer: **PASS**)
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| B1 | EF-wrapped SQL faults terminal | **fixed-in-PR** — `IsTransientProcessingFailure` looks through `InnerException`; catch-all guarded by `IntakeExceptionPolicy.IsRecoverable`; theory case `wrapped-database` proves it. Residual: `EfIntakeReceiptStore.StoreAsync` bare `InvalidOperationException` after 3 deadlocks → filed (INTK follow-up, fault naming). |
+| B2 | Status page off design system | **fixed-in-PR** — `page-heading`/`panel`/`detail-list`/`button-row`/`primary-action`/`secondary-action`; no nested `<main>`. |
+| N1 | Unexpected exception detail dropped | **fixed-in-PR (design amended)** — persist terminal then `throw;`; host logs in full; redelivery `NoOp`; `IntakeWorkFunction` unchanged. Plan step 4 amended (see plan "Simplification pass"). |
+| N2 | `source_identity_conflict` unreachable | **fixed-in-PR** — `TerminalInputFailureCode`. |
+| N3 | `site.js` before `'use strict'` | **fixed-in-PR**. |
+| N4 | Missing operator labels / full stop | **fixed-in-PR**. |
+| N5 | Dead `TempData["UploadOutcomeMessage"]` readers | **fixed-in-PR**. |
+| N6 | current-architecture route/map | **fixed-in-PR**. |
+| Report wording | `/UploadStatus` vs `/Upload/Status/{id}` | **fixed** in the rewritten report. |
+| T1 | Auto-associated receipts link to receipt, not case | **filed-as-ticket** (INTK follow-up, with the refresh policy). |
+| T2 | Auto-refresh unbounded / retry-scheduled reads Received for hours | **filed-as-ticket** (same INTK follow-up; project `DueAtUtc`, clamp, visibility gate, or a fifth staff-visible state). |
+| T3 | Unleased `dispatched` never reconciled; "no repair needed" unproven | **routed to [[SIMPLI-010]]** (plan appended: read-only production counts first, then stale-`dispatched` re-dispatch in `FindNextDispatchCandidateAsync`). SIMPLI-009's ticket line "repair stranded dispatched work" is met there, not here — recorded in the report's deviations. |
+| Simplification lenses (5) | see plan "Simplification pass" | applied where behaviour-preserving; `IIntakeSubmission` removal, adapter-wide fault naming, `DependencyDirectionTests` Web-composition fact → **filed-as-ticket** (chore). |
+
+**Verdict: PASS.** Merge on green CI; then `verifying`.
