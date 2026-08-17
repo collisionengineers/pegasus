@@ -1,0 +1,1 @@
+Implemented on c95e24a7; pushed and opened PR https://github.com/collisionengineers/pegasus/pull/379. Focused verification passed: docs links 214 files, design-system build, renderer build, renderer tests 173/173.

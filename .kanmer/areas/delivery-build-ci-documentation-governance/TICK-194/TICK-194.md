@@ -21,11 +21,12 @@ links: []
 docs_todo: true
 commits:
   - 5599899c43086c46586eb60edc7372098f80e374
+  - 740425144f73197371c7532034f951602898cbef
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/377'
 archived: false
 created: '2026-08-12T15:08:04.783Z'
-updated: '2026-08-17T04:16:49.729Z'
+updated: '2026-08-17T04:53:14.960Z'
 ---
 
 ## What

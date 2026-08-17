@@ -2,7 +2,7 @@
 
 ## Summary
 
-Added a post-push CI guard that fails the existing repository-check workflow when a `main` update cannot be proved to consist exclusively of new two-parent merge commits on the first-parent path. The check is repository-owned, deterministic, and isolated from the active UI revamp.
+Added a post-push CI guard that fails the existing repository-check workflow when a `main` update cannot be proved to consist exclusively of new two-parent merge commits on the first-parent path. The check is repository-owned, deterministic, isolated from the active UI revamp, and refreshed over DELIVE-001's merged CI hardening.
 
 ## Changes
 
@@ -22,7 +22,7 @@ The ticket has no PRD/FRD/ADR reference because it changes repository workflow p
 - This is post-push detection; it does not prevent or reverse a violating push. GitHub rulesets/branch protection remain a separate control.
 - The all-zero before sentinel fails closed because it cannot establish an append-only merge range.
 - Local `actionlint` verification was unavailable because the executable is not installed.
-- The full architecture suite ran 92/93. The unrelated existing `WorkerActivationReleaseContractTests.LocalDeploymentPlanRejectsAppendedRogueHardCodedWorkerSetting` failure reproduces alone; focused guard tests and the Release build pass.
+- After merging DELIVE-001 from `origin/dev`, the focused guard suite passes 6/6 and the complete architecture suite passes 93/93.
 
 ## Verification hand-off
 
@@ -31,5 +31,6 @@ On merged `dev` and later merged `main`, run:
 - `dotnet restore`
 - `dotnet build --configuration Release --no-restore` — expect 0 warnings and 0 errors.
 - `dotnet test tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-restore --filter FullyQualifiedName~MainBranchHistoryGuardTests` — expect 6/6 passing.
+- `dotnet test tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` — expect 93/93 passing at refreshed head `740425144f73197371c7532034f951602898cbef`.
 - `pwsh -NoProfile -File ./scripts/Test-DocumentationLinks.ps1` — expect all relative links resolved.
 - Inspect the `repository-check / changes` job on a real merge push to `main`; expect the guard success message naming the count of new first-parent merge commits.

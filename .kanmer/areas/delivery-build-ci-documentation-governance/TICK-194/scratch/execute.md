@@ -1,1 +1,3 @@
 Opened PR https://github.com/collisionengineers/pegasus/pull/377 targeting dev at commit 5599899c43086c46586eb60edc7372098f80e374. Focused guard tests 6/6, Release build 0 warnings/errors, documentation links 215/215. Full architecture suite 92/93 due to unrelated Worker activation contract failure that reproduces alone.
+
+Refreshed PR #377 after DELIVE-001 merged to dev. Merged origin/dev without conflict (no rebase/force push), pushed head 740425144f73197371c7532034f951602898cbef, and triggered a new CI run. Local refresh: restore passed; Release build 0 warnings/errors; MainBranchHistoryGuardTests 6/6; full ArchitectureTests 93/93; documentation links 215/215.
