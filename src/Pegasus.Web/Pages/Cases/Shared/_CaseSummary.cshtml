@@ -1,48 +1,162 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
+@using Pegasus.Core.Cases
+@using Pegasus.Web.Presentation
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
+    var summary = details.Summary;
+    var data = details.Data;
 }
 
-<section class="panel" aria-labelledby="case-summary-title">
-    <h2 id="case-summary-title" class="section-label">Case identity and current state</h2>
-    <dl>
-        <dt>Case/PO</dt><dd>@workflow.Identity.Reference</dd>
-        <dt>Audit identity</dt><dd>@(workflow.Identity.AuditReference ?? "Not allocated")</dd>
-        <dt>Case type</dt><dd>@details.Summary.CaseType</dd>
-        <dt>Principal</dt><dd>@workflow.Identity.PrincipalCode</dd>
-        <dt>Registration</dt><dd>@(details.Summary.Registration ?? "Not recorded")</dd>
-        <dt>Claimant</dt><dd>@(details.Summary.Claimant ?? "Not recorded")</dd>
-        <dt>Claim number</dt><dd>@(details.Summary.ClaimNumber ?? "Not recorded")</dd>
-        <dt>Received</dt><dd>@OperatorLabels.OfficeTime(details.Summary.ReceivedAtUtc)</dd>
-        <dt>Instruction date</dt><dd>@(details.Summary.InstructionDate?.ToString("dd MMM yyyy") ?? "Not recorded")</dd>
-        <dt>Origin</dt><dd>@details.Summary.Origin</dd>
-        <dt>State</dt><dd>@workflow.State</dd>
-        <dt>Engineer</dt><dd>@(workflow.AssignedEngineerId is null ? "Unassigned" : "Assigned")</dd>
-    </dl>
+@*
+    The case overview as blocks of related facts rather than one long
+    definition list. Identity, vehicle, dates and where the case stands are
+    separate questions; a single list made the operator read all of them to
+    answer one.
 
-    @if (workflow.OriginalCaseId is { } originalCaseId)
+    Every value that came from somewhere carries its source as a one-word
+    provenance icon, taken from the case data projection rather than restated
+    here. A row still reads correctly with the icon ignored.
+*@
+@{
+    // One field of the case data projection: its current accepted value, and
+    // where that value came from. A field with no current value says so rather
+    // than rendering an empty row.
+    void DataRow<T>(string label, CaseField<T>? field, Func<T, string>? format = null)
+        where T : notnull
     {
-        <p><strong>Corrects:</strong> <a asp-page="/Cases/Details" asp-route-id="@originalCaseId">original Created-in-error case</a></p>
+        var current = field?.Current;
+        <div class="datarow">
+            <span class="datarow__field">@label</span>
+            @if (current is not null)
+            {
+                <span class="datarow__value">@(format is null ? current.Value.ToString() : format(current.Value))</span>
+                <span class="datarow__end">
+                    @{ var (word, icon) = OperatorLabels.Provenance(current.Source); }
+                    <span class="prov" tabindex="0" role="img" aria-label="@word" data-word="@word">
+                        <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
+                    </span>
+                </span>
+            }
+            else
+            {
+                <span class="datarow__value quiet">Not recorded</span>
+            }
+        </div>
     }
-    @if (workflow.ReplacementCaseId is { } replacementCaseId)
+
+    // A fact Pegasus itself established, so it carries no external source.
+    void PlainRow(string label, string value)
     {
-        <p><strong>Corrected by:</strong> <a asp-page="/Cases/Details" asp-route-id="@replacementCaseId">linked replacement case</a></p>
+        <div class="datarow">
+            <span class="datarow__field">@label</span>
+            <span class="datarow__value">@value</span>
+        </div>
     }
-</section>
+}
+
+<div class="block-grid">
+    <section class="block" aria-labelledby="block-identity">
+        <header><h2 id="block-identity">Case identity</h2></header>
+        <div>
+            @{ PlainRow("Case/PO", workflow.Identity.Reference); }
+            @{ PlainRow("Audit identity", workflow.Identity.AuditReference ?? "Not allocated"); }
+            @{ PlainRow("Case type", OperatorLabels.CaseTypeName(summary.CaseType)); }
+            @{ PlainRow("Principal", workflow.Identity.PrincipalCode); }
+            @{ DataRow("Claimant", data?.Claimant.Name); }
+            @{ DataRow("Claim number", data?.Claim.Number); }
+            @{ PlainRow("Engineer", workflow.AssignedEngineerId is null ? "Unassigned" : "Assigned"); }
+        </div>
+    </section>
+
+    <section class="block" aria-labelledby="block-vehicle">
+        <header><h2 id="block-vehicle">Vehicle</h2></header>
+        <div>
+            @{ DataRow("Registration", data?.Vehicle.Registration); }
+            @{ DataRow("Make", data?.Vehicle.Make); }
+            @{ DataRow("Model", data?.Vehicle.Model); }
+            @{
+                var mileageUnit = data?.Vehicle.MileageUnit.Current?.Value;
+                DataRow(
+                    "Odometer",
+                    data?.Vehicle.Mileage,
+                    value => mileageUnit is { Length: > 0 }
+                        ? $"{value:N0} {mileageUnit}"
+                        : value.ToString("N0"));
+            }
+        </div>
+    </section>
+
+    <section class="block" aria-labelledby="block-dates">
+        <header><h2 id="block-dates">Dates and origin</h2></header>
+        <div>
+            @{ DataRow("Incident date", data?.Accident.IncidentDate, value => value.ToString("d MMM yyyy")); }
+            @{ DataRow("Instruction date", data?.Instruction.InstructionDate, value => value.ToString("d MMM yyyy")); }
+            @{ PlainRow("Received", OperatorLabels.OfficeTime(summary.ReceivedAtUtc)); }
+            @{ PlainRow("Origin", summary.Origin); }
+        </div>
+    </section>
+
+    @if (data?.Accident.Circumstances.Current is { } circumstances)
+    {
+        <section class="block" aria-labelledby="block-circumstances">
+            <header><h2 id="block-circumstances">Accident circumstances</h2></header>
+            <div>
+                <p>
+                    @circumstances.Value
+                    <partial name="Shared/_Provenance" model="circumstances.Source" />
+                </p>
+            </div>
+        </section>
+    }
+
+    @* Where the case stands: the reason the operator opened it. *@
+    <section class="block block--standing" aria-labelledby="block-standing">
+        <header><h2 id="block-standing">Where this case stands</h2></header>
+        <div>
+            @{ PlainRow("State", OperatorLabels.CaseStage(workflow.State)); }
+            @if (workflow.DueWork is { } standingDueWork)
+            {
+                PlainRow("Outstanding", standingDueWork.MissingMaterialReason);
+                PlainRow("Due by", standingDueWork.DueBy?.ToString("d MMM yyyy") ?? "Not recorded");
+                PlainRow("Next chase", OperatorLabels.OfficeTime(standingDueWork.NextChaseAtUtc, "Not scheduled"));
+            }
+            @if (workflow.ReportApproval is not null)
+            {
+                PlainRow("Report", "Approved");
+            }
+            @if (workflow.OriginalCaseId is { } originalCaseId)
+            {
+                <div class="datarow">
+                    <span class="datarow__field">Corrects</span>
+                    <span class="datarow__value">
+                        <a asp-page="/Cases/Details" asp-route-id="@originalCaseId">the original Created-in-error case</a>
+                    </span>
+                </div>
+            }
+            @if (workflow.ReplacementCaseId is { } replacementCaseId)
+            {
+                <div class="datarow">
+                    <span class="datarow__field">Corrected by</span>
+                    <span class="datarow__value">
+                        <a asp-page="/Cases/Details" asp-route-id="@replacementCaseId">the linked replacement case</a>
+                    </span>
+                </div>
+            }
+        </div>
+    </section>
+</div>
 
 @if (workflow.DueWork is { } dueWork)
 {
-    <section class="panel" aria-labelledby="case-due-work-title">
-        <h2 id="case-due-work-title" class="section-label">Missing-material due work</h2>
-        <dl>
-            <dt>Reason</dt><dd>@dueWork.MissingMaterialReason</dd>
-            <dt>Due by</dt><dd>@(dueWork.DueBy?.ToString("dd MMM yyyy") ?? "Not recorded")</dd>
-            <dt>State</dt><dd>@dueWork.State</dd>
-            <dt>Next chase</dt><dd>@(OperatorLabels.OfficeTime(dueWork.NextChaseAtUtc, "Not scheduled"))</dd>
-            <dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd>
-            <dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd>
-            <dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd>
+    <section class="panel section-gap" aria-labelledby="case-due-work-title">
+        <h2 id="case-due-work-title" class="section-label">Chase history</h2>
+        <dl class="detail-list">
+            <div><dt>Reason</dt><dd>@dueWork.MissingMaterialReason</dd></div>
+            <div><dt>State</dt><dd>@dueWork.State</dd></div>
+            <div><dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd></div>
+            <div><dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd></div>
+            <div><dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd></div>
         </dl>
         <p>Recording a chase is an attributable manual assertion. It does not send correspondence or prove delivery.</p>
     </section>
@@ -50,31 +164,31 @@
 
 @if (workflow.ReportApproval is { } approval)
 {
-    <section class="panel" aria-labelledby="case-report-approval-title">
+    <section class="panel section-gap" aria-labelledby="case-report-approval-title">
         <h2 id="case-report-approval-title" class="section-label">Approved report artifact</h2>
-        <dl>
-            <dt>Artifact</dt><dd>@approval.ArtifactIdentity</dd>
-            <dt>SHA-256</dt><dd><code>@approval.ArtifactSha256</code></dd>
-            <dt>Approved</dt><dd>@OperatorLabels.OfficeTime(approval.ApprovedAtUtc)</dd>
-            <dt>Actor</dt><dd>@approval.ApprovedBy.SubjectId</dd>
+        <dl class="detail-list">
+            <div><dt>Artifact</dt><dd>@approval.ArtifactIdentity</dd></div>
+            <div><dt>SHA-256</dt><dd><code>@approval.ArtifactSha256</code></dd></div>
+            <div><dt>Approved</dt><dd>@OperatorLabels.OfficeTime(approval.ApprovedAtUtc)</dd></div>
+            <div><dt>Actor</dt><dd>@approval.ApprovedBy.SubjectId</dd></div>
         </dl>
     </section>
 }
 
 @if (workflow.ReportSentEvidence is { } sentEvidence)
 {
-    <section class="panel" aria-labelledby="case-report-sent-title">
+    <section class="panel section-gap" aria-labelledby="case-report-sent-title">
         <h2 id="case-report-sent-title" class="section-label">Exact retained report-Sent evidence</h2>
-        <dl>
-            <dt>Evidence ID</dt><dd>@sentEvidence.EvidenceId</dd>
-            <dt>Mailbox / Sent folder</dt><dd>@sentEvidence.MailboxIdentity / @sentEvidence.SentFolderIdentity</dd>
-            <dt>Immutable item</dt><dd>@sentEvidence.ImmutableItemIdentity</dd>
-            <dt>Internet message</dt><dd>@sentEvidence.InternetMessageIdentity</dd>
-            <dt>Conversation / reply chain</dt><dd>@sentEvidence.ConversationIdentity / @sentEvidence.ReplyChainIdentity</dd>
-            <dt>Source occurrence</dt><dd>@sentEvidence.SourceOccurrenceIdentity</dd>
-            <dt>Source / MIME SHA-256</dt><dd><code>@sentEvidence.SourceSha256</code> / <code>@sentEvidence.MimeSha256</code></dd>
-            <dt>Authoritative Sent time</dt><dd>@OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</dd>
-            <dt>Discovered / linked</dt><dd>@OperatorLabels.OfficeTime(sentEvidence.DiscoveredAtUtc) / @OperatorLabels.OfficeTime(sentEvidence.LinkedAtUtc)</dd>
+        <dl class="detail-list">
+            <div><dt>Evidence ID</dt><dd>@sentEvidence.EvidenceId</dd></div>
+            <div><dt>Mailbox / Sent folder</dt><dd>@sentEvidence.MailboxIdentity / @sentEvidence.SentFolderIdentity</dd></div>
+            <div><dt>Immutable item</dt><dd>@sentEvidence.ImmutableItemIdentity</dd></div>
+            <div><dt>Internet message</dt><dd>@sentEvidence.InternetMessageIdentity</dd></div>
+            <div><dt>Conversation / reply chain</dt><dd>@sentEvidence.ConversationIdentity / @sentEvidence.ReplyChainIdentity</dd></div>
+            <div><dt>Source occurrence</dt><dd>@sentEvidence.SourceOccurrenceIdentity</dd></div>
+            <div><dt>Source / MIME SHA-256</dt><dd><code>@sentEvidence.SourceSha256</code> / <code>@sentEvidence.MimeSha256</code></dd></div>
+            <div><dt>Authoritative Sent time</dt><dd>@OperatorLabels.OfficeTime(sentEvidence.SentAtUtc)</dd></div>
+            <div><dt>Discovered / linked</dt><dd>@OperatorLabels.OfficeTime(sentEvidence.DiscoveredAtUtc) / @OperatorLabels.OfficeTime(sentEvidence.LinkedAtUtc)</dd></div>
         </dl>
         <p>This evidence proves only the retained approved-mailbox Sent item; it does not prove delivery or close the case.</p>
     </section>

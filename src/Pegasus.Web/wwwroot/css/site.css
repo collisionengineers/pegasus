@@ -1965,3 +1965,54 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
 .draft-edit { margin-top: var(--sp-4); }
 .draft-edit > summary { display: inline-flex; width: auto; }
 .draft-edit[open] > summary { margin-bottom: var(--sp-4); }
+
+/* ---------------------------------------------------------------------------
+   Record blocks.
+
+   A case overview is several short, unrelated groups of facts — identity,
+   vehicle, dates, where it stands. One long definition list made the operator
+   read all of them to find one; separate blocks let the eye land on the group
+   it wants. Blocks reflow to one column rather than shrinking below the width
+   a registration or a claim number needs.
+   --------------------------------------------------------------------------- */
+
+.block-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.block {
+  min-width: 0;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.block > header {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-5);
+  border-bottom: var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper);
+}
+
+.block > header h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-eyebrow);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.block > div { padding: var(--sp-1) var(--sp-5) var(--sp-2); }
+
+/* The block that says where the case stands earns the one accent on the
+   overview: it is the answer the operator opened the case for. */
+.block--standing { border-left: 3px solid var(--navy-line); }

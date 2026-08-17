@@ -321,4 +321,39 @@ public static class OperatorLabels
         var sentence = string.Join(' ', words).ToLowerInvariant();
         return char.ToUpperInvariant(sentence[0]) + sentence[1..];
     }
+
+    /// <summary>
+    /// Where a value came from, as the one word the provenance icon announces
+    /// and the approved Lucide glyph that carries it.
+    /// </summary>
+    /// <remarks>
+    /// The sprite is a checksummed asset of sixteen glyphs and the design
+    /// authority records that none was added, removed or redrawn, so two of the
+    /// seven words share a glyph with a neighbour and lean on the tooltip to
+    /// tell them apart.
+    ///
+    /// "AI" has no persisted distinction from a plain document read: both are
+    /// IntakeEvidence. It is derived from the reader identity already carried on
+    /// the source label, and falls back to Extracted rather than guessing.
+    /// </remarks>
+    public static (string Word, string Icon) Provenance(CaseDataSource? source)
+    {
+        var isAiReader = source is not null
+            && source.Kind == CaseDataSourceKind.IntakeEvidence
+            && (source.Label.Contains("ai", StringComparison.OrdinalIgnoreCase)
+                || source.PolicyKey.Contains("ai", StringComparison.OrdinalIgnoreCase));
+
+        return source?.Kind switch
+        {
+            null => ("Unknown", "icon-info"),
+            CaseDataSourceKind.StaffCorrection => ("Staff", "icon-user"),
+            CaseDataSourceKind.IntakeEvidence when isAiReader => ("AI", "icon-filter"),
+            CaseDataSourceKind.IntakeEvidence => ("Extracted", "icon-file-text"),
+            CaseDataSourceKind.MailRoute => ("E-mail", "icon-arrow-right"),
+            CaseDataSourceKind.VehicleLookup => ("Lookup", "icon-search"),
+            CaseDataSourceKind.ProviderSetting => ("Principal", "icon-shield"),
+            CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
+            _ => ("Unknown", "icon-info")
+        };
+    }
 }
