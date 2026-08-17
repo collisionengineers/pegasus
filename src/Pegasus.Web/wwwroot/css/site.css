@@ -1,7 +1,7 @@
 /* Pegasus operator interface.
 
    The colour roles, the 4px rhythm, the 1px hairline and the focus ring are the
-   approved set in docs/design.md. The declared divergences — a lifted paper,
+   approved set in docs/design/README.md. The declared divergences — a lifted paper,
    a 6px radius with a very low shadow, a real type scale with tabular numerals,
    tinted chips, and the dark record-container band — are the refreshed system
    recorded in the UI standards. No marketing scale, brand face, or motion token
@@ -963,7 +963,7 @@ textarea:focus-visible,
 .workbench-grid .button-row.section-gap { margin-top: var(--sp-6); }
 
 /* ---------------------------------------------------------------------------
-   Send to Claude — a deliberate, recorded divergence from docs/design.md,
+   Send to Claude — a deliberate, recorded divergence from docs/design/README.md,
    authorised by the repo owner and scoped to this one control.
 
    The button carries the provider's own identity so it reads as Claude on
