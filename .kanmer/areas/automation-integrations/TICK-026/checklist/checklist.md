@@ -6,7 +6,7 @@
 - [x] Add validation refusals (bad role, missing lease, empty export selections) with Failed history and no leaked token
 - [x] Add `automation.documents` scope denial on `pegasus_document_add`
 - [x] Run focused `AutomationMcpIngressTests` Release and record the output
-- [ ] Write post-implementation-report, push, open PR to `dev`, move ticket to Review
+- [x] Write post-implementation-report, push, open PR to `dev`, move ticket to Review
 
 ## Progress notes
 
