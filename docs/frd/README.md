@@ -3,7 +3,7 @@
 A functional requirements document specifies **how a capability must behave** —
 inputs and outputs, states, rules, edge cases, fail-closed behaviour, and the
 evidence that proves it works. An FRD implements outcomes owned by the
-[PRD](../prd/README.md), cites [`design.md`](../design.md) for UI behaviour, and
+[PRD](../prd/README.md), cites [`design.md`](../design/README.md) for UI behaviour, and
 never invents product scope or records a technical decision (those belong to the
 PRD and the [ADRs](../adr/README.md)). Business truth is owned upstream by
 [`operator-notes.md`](../operator-notes.md).
@@ -36,7 +36,7 @@ source; heading slugs are chosen to match the anchors that already link here.
 ```md
 # FRD-NN: <domain>
 
-> Owner capabilities: <IDs> · Source PRD: <link> · Design: docs/design.md#<...>
+> Owner capabilities: <IDs> · Source PRD: <link> · Design: docs/design/README.md#<...>
 
 ## Purpose
 One paragraph: which PRD outcomes this behaviour serves.

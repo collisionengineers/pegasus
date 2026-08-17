@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const pkg = resolve(here, '..');
-const repo = resolve(pkg, '../..');
+const repo = resolve(pkg, '../../..');
 
 mkdirSync(resolve(pkg, 'dist'), { recursive: true });
 await build({

@@ -2,7 +2,7 @@
 category: Actions
 ---
 
-`.secondary-action.send-action` — the one recorded divergence from the Pegasus palette (docs/design.md, "Reviewed divergence"). The Engineer assessment surface's "Send to Claude" control carries the provider's own identity — terracotta gradient, 12px radius, Poppins-first type, sparkle glyph, blue focus ring — so it reads as Claude on sight and is never mistaken for a Collision Engineers action. Renders a `<button type="button">` with the sparkle and a label span; the default label is `Send to Claude`.
+`.secondary-action.send-action` — the one recorded divergence from the Pegasus palette (docs/design/README.md, "Reviewed divergence"). The Engineer assessment surface's "Send to Claude" control carries the provider's own identity — terracotta gradient, 12px radius, Poppins-first type, sparkle glyph, blue focus ring — so it reads as Claude on sight and is never mistaken for a Collision Engineers action. Renders a `<button type="button">` with the sparkle and a label span; the default label is `Send to Claude`.
 
 **Rules**
 
