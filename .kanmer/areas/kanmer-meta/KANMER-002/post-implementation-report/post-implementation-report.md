@@ -39,3 +39,7 @@ All checklist scope was implemented. Repository process remains owned by AGENTS.
 ## Review brief
 
 The independent reviewer should verify the plan did not omit a ticket-body cleanup area, every deleted plan has durable coverage, the design move has no live stale consumer, the duplicate proof is sufficient, the artifact preservation decision is safe, and the PR contains no product-behavior change.
+
+## Review correction — PR-001
+
+Independent review found that `.design-sync/config.json` retained a pre-move package-relative guideline glob. It and `.design-sync/NOTES.md` now use `../README.md`, which resolves from `docs/design/system` to the existing canonical `docs/design/README.md`. The explicit resolved-path check, documentation-link validation, design-system build and diff check all pass.

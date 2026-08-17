@@ -16,3 +16,5 @@
 - Documentation link validation passed for 214 tracked Markdown files.
 - The moved design-system package built successfully.
 - CollisionRenderer.Core built with 0 warnings/errors and its focused suite passed 173/173.
+
+- Review remediation: [[PR-001]] identified the package-relative `guidelinesGlob` error. Corrected it to `../README.md`; explicit resolution proves the canonical file exists, and focused checks pass.
