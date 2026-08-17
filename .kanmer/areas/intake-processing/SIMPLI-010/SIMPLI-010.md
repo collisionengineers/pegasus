@@ -2,11 +2,13 @@
 id: SIMPLI-010
 type: ticket
 title: Consolidate intake state around the receipt-to-case link
-status: implementing
+status: review
 area: intake-processing
 order: 160
 assignee: claude-code
 profile: feature
+stageEntered:
+  review: '2026-08-17T12:01:25.308Z'
 taken_at: '2026-08-17T10:00:11.412Z'
 branch: task/simpli-010-intake-state
 worktree: ../pegasus-worktrees/simpli-010-intake-state
@@ -16,9 +18,13 @@ groups:
   - HZN-003
 links: []
 blocks: []
+commits:
+  - 1e5372ce
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/387'
 archived: false
 created: '2026-08-13T12:12:48.901Z'
-updated: '2026-08-17T10:00:11.412Z'
+updated: '2026-08-17T12:01:25.308Z'
 ---
 
 ## What
