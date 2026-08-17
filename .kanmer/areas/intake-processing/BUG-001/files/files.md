@@ -33,7 +33,7 @@
 
 ## Deliberately out of scope
 
-- No `OfQDOS` token rule, PDF whitespace repair, OCR feature, or generic parser rewrite.
+- No attachment-token rule, PDF whitespace repair, OCR feature, or generic parser rewrite.
 - No attachment-based QDOS identification fallback without a separately specified requirement.
 - No Box, queue, database-schema, migration, or manual production-data fix.
 - No production deployment or receipt re-evaluation without explicit exact-target approval.

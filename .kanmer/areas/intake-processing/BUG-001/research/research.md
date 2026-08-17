@@ -21,10 +21,9 @@ This means the extraction policy is currently re-identifying the principal while
 The product rule supplied on 2026-08-17 is authoritative for this investigation:
 
 - QDOS is identified from the email body.
-- QDOS was never required to appear as `Of QDOS`.
-- Principal identification must not ordinarily be inferred by extracting attached documents; document extraction is used only where necessary for the instruction data.
+- - Principal identification must not ordinarily be inferred by extracting attached documents; document extraction is used only where necessary for the instruction data.
 
-Therefore the prior `OfQDOS` diagnosis and proposed token-recognition fix are superseded. `OfQDOS` was merely an incidental PdfPig rendering observed in one attachment. Making it an accepted principal marker would encode an accidental document layout as product policy.
+The prior attachment-token diagnosis and proposed PDF-marker fix are superseded. Attachment branding or extracted PDF wording is not principal-identification evidence.
 
 ## Live comparison
 

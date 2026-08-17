@@ -6,7 +6,7 @@ Decouple QDOS principal identification from instruction-document field extractio
 
 For a QDOS email, establish the principal from the email body within an accepted QDOS mail route. Keep mail classification as its own required decision. Once those gates establish the QDOS instruction context, extract the case fields from the appropriate readable instruction documents without requiring those documents to contain a QDOS marker. Build the draft with principal `QDOS`, then retain the existing completeness, case-match, allocation, replay, and custody gates.
 
-Do not add `OfQDOS` recognition. That string is incidental attachment extraction output and was never a product criterion.
+Do not add any attachment-token recognition. Attachment wording is not the QDOS identification criterion.
 
 ## Governing docs
 
@@ -50,7 +50,7 @@ Do not add `OfQDOS` recognition. That string is incidental attachment extraction
 ## Acceptance conditions
 
 - A QDOS email with the principal identified in its email body can use separate instruction-document content for field extraction.
-- Neither `OfQDOS` nor any other attachment-local QDOS text is required.
+- No attachment-local QDOS text is required.
 - An attachment alone does not identify the QDOS principal.
 - Missing or ambiguous route, body identity, classification, or mandatory extraction evidence fails closed with no Case/PO or Box work.
 - The corrected valid path allocates and enqueues custody exactly once under replay.
