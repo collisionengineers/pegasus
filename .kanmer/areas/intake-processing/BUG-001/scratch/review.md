@@ -43,3 +43,67 @@ The operator confirmed Pegasus is still pre-release and there are no legacy live
 **Revised disposition:** won't-do / not applicable. No migration, legacy recovery path, production-data ticket, or live remediation is required for BUG-001. This point is removed as a review blocker.
 
 The needs-changes verdict remains only for the observed red CI/test-fixture ripple, the standalone desktop evaluator compile regression, and the lack of an independent reviewer.
+
+# CI investigation and revised review — 2026-08-17
+
+**Reviewer independence:** this is a self-review by the implementing agent, not the independent review required before merge.
+
+## CI evidence
+
+GitHub Actions run: https://github.com/collisionengineers/pegasus/actions/runs/32021866902
+
+- `unit`, repository/document/reference checks, SQL shard 3, and integration coverage partition checks passed.
+- `browser`: 1 failed / 31 passed.
+- `sql-integration (1)`: 8 failed / 157 passed.
+- `sql-integration (2)`: 8 failed / 154 passed / 1 skipped.
+- Total observed test failures: 17.
+
+## Root-cause classification
+
+### A. Stale content-derived QDOS fixtures — expected fallout, tests need deliberate correction
+
+Bare DOCX/PDF inputs and uploaded EML fixtures from `synthetic@example.test` or `protocol-sender@example.invalid` still expect `CaseCreated` solely because their text says QDOS. Under the settled operator rule, those inputs do not establish QDOS. This explains the multi-format and instruction-draft failures. Tests whose actual subject is parsing, provenance, replay, conflicts, custody, or typed fields must either:
+- use a synthetic EML with one of the exact accepted QDOS senders when a definitive QDOS path is required; or
+- assert `NeedsSorting`/no QDOS draft when the fixture intentionally has no authorised sender.
+
+This is a test-fixture ripple explicitly anticipated by plan steps 3 and 9, but it was not completed.
+
+### B. Existing “ordinary correspondence” expectations — obsolete for this ticket
+
+`IntakeTestEvidence.CreateEmail` uses `instructions@qdosassist.co.uk`. Two tests expect that sender's ordinary correspondence to remain `NeedsSorting`, while the changed policy returns `CaseCreated`. The operator explicitly confirmed that non-instruction-email rules are not defined yet and are future work; BUG-001 must not invent such a predicate. For this ticket, those expectations must be revised or moved to the future capability that defines non-instruction mail.
+
+### C. OCR decision masked by missing principal — genuine unintended regression
+
+Two senderless scanned-PDF tests expected `OcrRequired` but now receive `NeedsSorting`. `ProcessIntake.AssessAsync` returns early when no principal route exists, before its existing `RequiresOcr` outcome can be selected. OCR status is document-processing state, not QDOS identity. The plan explicitly excluded changing PDF/OCR behaviour, so this early return is an unintended scope regression and must be corrected without allowing OCR/content to establish QDOS.
+
+### D. Custody fixture — incomplete test migration
+
+The failing custody test creates a manual-upload EML using the accepted QDOS sender helper, then expects the direct processing path to be definitive. Its failure needs focused reproduction while updating the fixture set; it is part of the plan's required custody ripple, not evidence that Box/custody policy itself changed.
+
+### E. Standalone desktop evaluator — concrete caller regression
+
+`scripts/email-eval-desktop` is an accepted ADR-0016 Windows tool and is documented in the runbook. After locked restore, its Release build fails at `EmailEvaluationWorkflow.cs:234` because it still calls the old extraction interface. This is not a GitHub CI failure because the project is outside `Pegasus.slnx`, but it is a real repository caller regression. The operator previously rejected the proposed update, so no fix is applied silently; the review cannot claim all callers were preserved.
+
+### F. Legacy live receipts — not applicable
+
+The operator confirmed Pegasus is pre-release and there are no legacy live receipts. No compatibility migration or production-data recovery is required.
+
+## Report, plan, and governing-doc check
+
+The intended sender-only QDOS change conforms to FRD-02, FRD-05, and FRD-09. No new ADR is needed. The report is not yet a complete account of the delivered state because it says the affected integration subsets passed while the actual PR CI later exposed 17 failures, and it does not record the desktop caller regression. Plan steps 8, 9, 11, 12, and 13 remain incomplete.
+
+## Review comments and disposition
+
+- **Blocking:** green CI/test-fixture migration, including preserving sender-only negatives. Disposition: needs changes.
+- **Blocking:** preserve senderless OCR processing outcome without using OCR to identify QDOS. Disposition: needs changes.
+- **Blocking:** standalone desktop caller compile regression. Disposition: needs explicit operator decision or repair; currently unresolved.
+- **Won't do:** invent a non-instruction-email predicate. Future product work.
+- **Won't do:** legacy-data migration. No released/live legacy data exists.
+- **Fixed in PR:** exact three-domain/prior-sender QDOS identity and removal of content identity markers.
+- **Fixed in PR:** route/draft mismatch rejection for new automatic allocations.
+
+## Verdict
+
+**Needs changes; do not merge.** PR #386 remains in Review. CI is red, OCR behaviour regressed outside ticket scope, an accepted standalone caller does not compile, and the current review is not independent.
+
+The Kanmer workflow calls for blocking items in a `PR Review` area, but this board still has no such area. No substitute area or board restructuring was invented.
