@@ -15,7 +15,7 @@
 
 - [x] Confirm board-only changes are committed and pushed.
 - [x] Record commit traceability and deployment status.
-- [ ] Remove the empty ticket worktree and local branch.
-- [ ] Release the ticket claim.
+- [x] Remove the empty ticket worktree and local branch.
+- [x] Release the ticket claim.
 
 Closeout completed: the empty ticket worktree and local branch were removed after confirming a clean worktree and zero commits ahead of origin/dev. The claim is now released.

@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/377 targeting dev at commit 5599899c43086c46586eb60edc7372098f80e374. Focused guard tests 6/6, Release build 0 warnings/errors, documentation links 215/215. Full architecture suite 92/93 due to unrelated Worker activation contract failure that reproduces alone.
