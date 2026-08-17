@@ -2,7 +2,7 @@
 id: SIMPLI-011
 type: ticket
 title: Decompose the Case Details workspace by capability
-status: verifying
+status: done
 area: case-reference-workflow
 order: 170
 assignee: claude-code
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   review: '2026-08-17T14:36:44.174Z'
   verifying: '2026-08-17T15:48:35.085Z'
+  done: '2026-08-17T15:54:09.367Z'
 taken_at: '2026-08-17T10:00:14.179Z'
 branch: task/simpli-011-case-details
 worktree: ../pegasus-worktrees/simpli-011-case-details
@@ -20,7 +21,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.922Z'
-updated: '2026-08-17T15:48:35.085Z'
+updated: '2026-08-17T15:54:09.367Z'
 ---
 
 ## What
