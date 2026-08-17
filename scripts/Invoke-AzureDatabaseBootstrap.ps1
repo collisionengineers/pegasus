@@ -76,6 +76,7 @@ function Get-MigrationPermissionMatrix {
             }
         }
     }
+    # 20260801220500_GrantWebMigrationHistoryRead.
     $expected.Add('pegasus_web_runtime_role|G|SELECT|__EFMigrationsHistory')
     $webDeleteTables = @('AspNetUserRoles', 'CaseDataFields', 'OrganizationRoles', 'TriageResponseEvidenceLinks')
     foreach ($table in $tables) {
@@ -136,6 +137,34 @@ function Get-MigrationPermissionMatrix {
         }
     }
     $expected.Add('pegasus_web_runtime_role|G|SELECT|OpenIddictScopes')
+    # 20260803205759_SendToAiAssessmentToolset: Web owns assessment edits and
+    # request/control writes; both roles remain unable to delete queue state.
+    foreach ($table in @('CaseAssessmentFields', 'CaseEstimateLines')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+    }
+    foreach ($table in @('AiWorkRequests', 'SendToAiControl')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+        $expected.Add("pegasus_web_runtime_role|D|DELETE|$table")
+        $expected.Add("pegasus_worker_runtime_role|D|DELETE|$table")
+    }
+    # 20260805223036_RetainedMailboxMessages: retained evidence is immutable;
+    # Web reads it and Worker can only append it.
+    foreach ($table in @('RetainedMailboxMessages', 'RetainedMailboxAttachments')) {
+        $expected.Add("pegasus_web_runtime_role|G|SELECT|$table")
+        $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
+        $expected.Add("pegasus_worker_runtime_role|G|INSERT|$table")
+    }
+    # 20260811063940_QdosAllocationRecovery: both runtimes execute the
+    # begin/complete/cancel allocation-attempt transaction.
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+            $expected.Add("$role|G|$permission|IntakeAllocationAttempts")
+        }
+    }
     # 20260814092852_AddWorkerCaseCreationGrants moves automatic case
     # acceptance to the least-privilege Worker role. Read the migration's
     # canonical grant block so release verification cannot drift from it.
