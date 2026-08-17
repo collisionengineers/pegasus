@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-17T05:45:24.646Z'
   verifying: '2026-08-17T05:47:59.138Z'
   done: '2026-08-17T05:48:38.793Z'
-taken_at: '2026-08-17T05:41:33.106Z'
-branch: task/kanmer-003-setup-reconcile
-worktree: ../pegasus-worktrees/kanmer-003-setup-reconcile
 labels: []
 links: []
 commits:
@@ -24,7 +21,7 @@ prs:
   - '#382'
 archived: false
 created: '2026-08-17T05:41:23.840Z'
-updated: '2026-08-17T05:48:38.793Z'
+updated: '2026-08-17T05:48:53.960Z'
 ---
 
 ## What
