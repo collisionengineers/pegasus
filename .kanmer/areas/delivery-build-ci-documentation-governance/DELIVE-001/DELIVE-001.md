@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Harden flaky CI tests (SQL deadlock, QDOS soak, cancellation race,
   pwsh-subprocess)
-status: preparing
+status: implementing
 area: delivery-build-ci-documentation-governance
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-17T04:23:51.013Z'
+taken_at: '2026-08-17T04:24:57.576Z'
+branch: task/harden-flaky-ci-tests
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/harden-flaky-ci-tests'
 labels: []
 groups:
   - EPIC-001
@@ -18,7 +21,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-14T11:15:00.236Z'
-updated: '2026-08-17T04:23:51.013Z'
+updated: '2026-08-17T04:24:57.576Z'
 ---
 
 ## What
