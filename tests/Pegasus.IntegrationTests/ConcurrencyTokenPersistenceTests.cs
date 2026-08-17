@@ -254,7 +254,7 @@ public sealed class ConcurrencyTokenPersistenceTests
             VALUES
                 ({receiptId}, {"source.eml"}, {"message/rfc822"}, {1L}, {sourceHash},
                  {"mailbox"}, {externalReceiptToken}, {FixedUtcNow}, {FixedUtcNow},
-                 {"integration-test"}, {"1"}, {0L}, {"draft_ready"}, {"test"}, {evidenceJson},
+                 {"integration-test"}, {"1"}, {0L}, {"case_created"}, {"test"}, {evidenceJson},
                  {"[]"}, {"[]"})
             """);
 
