@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Record renderer + document-extractor integration-into-repo direction; re-scope
   SIMPLI-013/SIMPLI-014
-status: preparing
+status: implementing
 area: documents-reports
 assignee: claude-code
 profile: feature
+stageEntered:
+  implementing: '2026-08-17T12:32:50.975Z'
 taken_at: '2026-08-17T10:00:27.755Z'
 branch: task/simpli-015-renderer-extractor
 worktree: ../pegasus-worktrees/simpli-015-renderer-extractor
@@ -26,7 +28,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-17T10:00:41.538Z'
+updated: '2026-08-17T12:32:50.975Z'
 ---
 
 ## What
