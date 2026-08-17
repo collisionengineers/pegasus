@@ -273,7 +273,7 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
-    public async Task ApplicableQdosContentRemainsDraftReadyWhenAdditionalPagesRequireOcr()
+    public async Task ApplicableQdosContentRemainsCaseCreatedWhenAdditionalPagesRequireOcr()
     {
         var content = new IntakeContentFragment(
             IntakeEvidenceSource.DocumentContent,
@@ -389,7 +389,7 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
-    public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseDraftReadyMessage()
+    public async Task AmbiguousCaseMatchForcesNeedsSortingOnAnOtherwiseCaseCreatedMessage()
     {
         var caseA = Guid.NewGuid();
         var caseB = Guid.NewGuid();
