@@ -68,3 +68,20 @@ The earlier production-normalization analysis was wrong for this repository and 
 - `draft_ready` is compatibility code for an unreleased/pre-release implementation. Repository guidance rejects compatibility shims for unreleased behaviour (`docs/current-architecture.md:602-613`).
 - The correct end state is direct deletion of every `draft_ready` runtime branch, comment, documentation promise, and test-fixture value. Historical behavior remains available in git history; tests of unrelated old migrations do not need to preserve this literal.
 - The two migration-test fixtures previously described as immutable historical evidence are not protected. Remove their `draft_ready` values as well; retain only whatever minimal fixture data those unrelated tests require.
+
+## Verified facts — 2026-08-17 read-only production check (claude-code)
+
+Run as `digital@collisionengineers.co.uk` (the server's Entra administrator; no grant or firewall change made) against `pegasus-prod-sql-252ow37gij.database.windows.net` / `pegasus`, `SELECT` only, via `Invoke-Sqlcmd -AccessToken`:
+
+| Metric | Count |
+| --- | --- |
+| `IntakeReceipts` total | 10 |
+| `IntakeReceipts WHERE Decision = 'draft_ready'` | **0** |
+| `IntakeWorkItems` total | 10 |
+| `IntakeWorkItems WHERE State = 'dispatched' AND LeaseToken IS NULL` | **0** |
+| … and `DueAtUtc < now − 1 h` | 0 |
+| `IntakeWorkItems` by state | completed 9, failed 1 |
+
+Consequences for this ticket:
+- The `draft_ready` alias can be deleted directly (plan step 2); no normalisation, migration, or repair. The ticket's "consolidate only after production-data inspection" line is met by this check — record the table above in proof.
+- No stranded unleased `dispatched` rows exist today, so the [[SIMPLI-009]] "repair stranded dispatched work" line has no data to repair. The lost-queue-message gap (a `dispatched` row nothing re-dispatches) is still a real design hole; keep the small `FindNextDispatchCandidateAsync` stale-`dispatched` re-dispatch in scope as resilience, not repair — or, if the plan judges it separate, file it and say so.

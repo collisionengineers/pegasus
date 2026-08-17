@@ -58,3 +58,7 @@ Steps 1,2,4,5,6,8,10,11 DONE; 3 PARTIAL (B1); 7 DONE functionally / off-system v
 | Simplification lenses (5) | see plan "Simplification pass" | applied where behaviour-preserving; `IIntakeSubmission` removal, adapter-wide fault naming, `DependencyDirectionTests` Web-composition fact → **filed-as-ticket** (chore). |
 
 **Verdict: PASS.** Merge on green CI; then `verifying`.
+
+## T3 resolved by data — 2026-08-17
+
+Read-only production count (as the server's Entra admin, SELECT only): `IntakeWorkItems WHERE State='dispatched' AND LeaseToken IS NULL` = **0** (10 work items: 9 completed, 1 failed); `IntakeReceipts WHERE Decision='draft_ready'` = 0. So the ticket's "repair stranded dispatched work" line has nothing to repair; the plan's premise was unproven but turns out true. The lost-queue-message design gap stays with [[SIMPLI-010]] as resilience. Full table on SIMPLI-010 `research`.
