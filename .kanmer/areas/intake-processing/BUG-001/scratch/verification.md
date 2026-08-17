@@ -26,3 +26,15 @@ The operator supplied the literal `MERGE AUTH GRANTED`.
 - At last observation: changes, reference-data, infrastructure, and source-workspaces passed; documentation failed; unit/browser/three SQL shards were still pending.
 
 PR #394 remains open and unmerged because repository policy requires green CI. Consequently BUG-001 is still absent from `main`; no `proof.md` or Done transition is valid yet. No deployment was performed.
+
+## Verification completed — 2026-08-17
+
+- Release PR #394 merged to main as `2b0df78cd599cef9f273a8ae04ce3b7889c97f78`.
+- Main contains BUG-001 merge commit `03ce5a715fc633e80703f6711d8edfeb40a69b13`.
+- Release CI fully green after the approved Markdown-root exemptions and one unchanged rerun of a timing-sensitive workspace test.
+- Merged-main locked restore passed.
+- Merged-main Release build passed with 0 warnings and 0 errors.
+- Focused Core passed 151/151; architecture passed 94/94.
+- Focused combined SQL batch passed 36/39; the three isolation-sensitive failures each passed individually unchanged, and all release SQL/browser lanes were green.
+- Proof written at version `85e30cb58ae99382`.
+- No deployment or live-app claim: Pegasus is pre-release.
