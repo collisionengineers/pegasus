@@ -29,3 +29,32 @@ Verdict: **NEEDS CHANGES**
 Ticket body; research; files; plan; checklist; open-questions; post-implementation report; SIMPLI-015 body/research/files; PR metadata and full Git diff against current `origin/dev`; old/new tree counts; stale-path searches; `git diff --check`; duplicate blob identity and inbound-reference searches; current ignored-artifact inventory; live PR check state.
 
 Re-review after PR-001 lands. Do not merge this revision.
+
+# Independent re-review — 2026-08-17
+
+Reviewer: independent subagent (not the implementer)
+PR: #379 amended head `a70c2ddfbdb11af1e854ca8bff1ec36fa388307f`
+Verdict: **PASS**
+
+## PR-001 verification
+
+- `.design-sync/config.json` now sets `guidelinesGlob` to `../README.md`.
+- Resolving that value from package root `docs/design/system` produces `docs/design/README.md`; `Test-Path` returned `True`.
+- `.design-sync/NOTES.md` now states the same package-relative `../README.md` contract.
+- The remediation commit changes only `.design-sync/config.json` and `.design-sync/NOTES.md`; `git diff --check origin/dev...a70c2ddf` passed.
+- `npm run build` in `docs/design/system` passed and copied the Web stylesheet.
+- `pwsh -File ./scripts/Test-DocumentationLinks.ps1` passed: all relative links resolve across 214 Markdown files.
+
+## Full-diff reassessment
+
+The amended commit is narrowly scoped to the sole blocking review finding. The prior full-diff conclusions remain unchanged: the plan covers every ticket-body area; design-tree accounting and consumer retargeting are otherwise complete; all 21 temporary plans have a recorded durable disposition with live renderer direction preserved in SIMPLI-015; the duplicate workbook deletion is proven; ignored artifacts were safely preserved; and there is no unauthorized product/operator-note change.
+
+**Repository-required answers remain:** the plan missed nothing implied by the ticket, and the amended implementation now misses nothing in the plan.
+
+## Disposition
+
+- Prior blocking comment: **fixed-in-PR** by `a70c2ddf`; [[PR-001]] is satisfied.
+- CI note: documentation, changes, and reference-data checks are green at re-review time; source-workspaces, unit, SQL integration, and browser jobs remain in progress. This is not a code-review defect, but repository policy still prohibits merge until all required checks are green.
+- No open questions exist.
+
+PASS for independent review. Do not merge until CI is fully green.

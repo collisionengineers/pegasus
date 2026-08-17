@@ -18,11 +18,12 @@ labels: []
 links: []
 commits:
   - c95e24a7
+  - a70c2ddf
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/379'
 archived: false
 created: '2026-08-14T12:30:37.742Z'
-updated: '2026-08-17T04:53:38.922Z'
+updated: '2026-08-17T04:56:49.546Z'
 ---
 
 Cleanup on:
