@@ -9,11 +9,14 @@ area: delivery-build-ci-documentation-governance
 assignee: ''
 profile: feature
 labels: []
+groups:
+  - EPIC-001
 links:
   - SIMPLI-006
+docs_todo: true
 archived: false
 created: '2026-08-14T11:15:00.236Z'
-updated: '2026-08-14T11:15:00.236Z'
+updated: '2026-08-17T04:04:47.169Z'
 ---
 
 ## What
