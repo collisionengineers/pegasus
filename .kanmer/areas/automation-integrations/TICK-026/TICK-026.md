@@ -4,12 +4,15 @@ type: ticket
 title: >-
   MCP-04 — Automation Actor document actions through the same Core use cases as
   the staff app
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: grok-shell-kanmer
 profile: feature
 stageEntered:
   preparing: '2026-08-17T13:05:50.615Z'
+taken_at: '2026-08-17T13:07:53.709Z'
+branch: task/tick-026-mcp-04-document-evidence
+worktree: ../pegasus-worktrees/tick-026-mcp-04-document-evidence
 labels:
   - capability
   - MCP-04
@@ -23,7 +26,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:03:53.304Z'
-updated: '2026-08-17T13:05:50.615Z'
+updated: '2026-08-17T13:07:53.709Z'
 ---
 
 ## What
