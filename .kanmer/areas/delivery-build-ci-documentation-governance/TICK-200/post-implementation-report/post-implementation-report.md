@@ -2,7 +2,7 @@
 
 ## Summary
 
-The SQL integration matrix now sorts whole test classes by descending enumerated test count and snake-deals alternating rows across three runners. Final run 31998887285 proved SQL job times of 7m56s, 7m15s, and 7m47s versus baseline 31996804786's 8m47s, 6m27s, and 6m47s, reducing the controlled SQL critical path by 51 seconds (9.7%). Every check passed, all 491 tests remained covered exactly once, and the PR contains no UI or repository-plan paths. The final run's unrelated browser lane varied to 11m18s and determined overall completion, so this report claims only the measured SQL-lane improvement.
+The SQL integration matrix now sorts whole test classes by descending enumerated test count and snake-deals alternating rows across three runners. Run 31998887285 on implementation head `30933616c3caa10c2a4744afbd9b800c7ecc4c99` proved SQL job times of 7m56s, 7m15s, and 7m47s versus baseline 31996804786's 8m47s, 6m27s, and 6m47s, reducing the controlled SQL critical path by 51 seconds (9.7%). Every check passed, all 491 tests remained covered exactly once, and the PR contains no UI or repository-plan paths. That run's unrelated browser lane varied to 11m18s and determined overall completion, so this report claims only the measured SQL-lane improvement. The exact final reviewed PR head is `2db2b0eaebc9f6c07c394743974630ea9fb3bc16`, which adds the required normal merge of current `origin/dev` without changing the five-path ticket diff.
 
 ## Changes
 
@@ -32,4 +32,4 @@ On merged `dev`, run:
 - Run list-only allocation for shards 1–3 with the non-Corpus/non-Browser filter, then `-VerifyPartition`; expect 165/163/163 and all 491 tests exactly once.
 - Recheck a comparable full workflow run. Keep runner/dependency queue, SQL execution, coverage join, and browser execution as separate measurements.
 
-Pre-review evidence: final head `30933616c3caa10c2a4744afbd9b800c7ecc4c99`; PR run 31998887285 green; local focused scripts green; locked restore green; Release build green with 0 warnings/errors; no UI or temp-plan path in the PR diff.
+Pre-review evidence: exact final reviewed head `2db2b0eaebc9f6c07c394743974630ea9fb3bc16`; measured implementation run 31998887285 at ancestor `30933616c3caa10c2a4744afbd9b800c7ecc4c99` green; local focused scripts green after the base merge; locked restore green; Release build green with 0 warnings/errors; no UI or temp-plan path in the PR diff.
