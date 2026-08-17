@@ -1485,6 +1485,11 @@ internal sealed class EmlExtractor
 
         private void SetLimited(string code, string message, string partPath, int offset, int length)
         {
+            if (!CheckControl(partPath, offset))
+            {
+                return;
+            }
+
             if (IsHardStop(_outcome))
             {
                 return;
