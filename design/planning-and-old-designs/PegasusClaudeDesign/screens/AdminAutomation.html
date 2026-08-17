@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Automation · Pegasus</title>
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.css">
+<link rel="stylesheet" href="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/styles.css">
+<style>a{color:var(--navy-fg)}a:hover{color:var(--ce-red-dark)}</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script src="../_ds/pegasus-design-system-d795cfe7-300d-4c42-a837-9a1714dd1a36/_ds_bundle.js"></script>
+</head><body>
+<div id="root"></div>
+<script type="text/babel" src="shared.jsx"></script>
+<script type="text/babel">
+const {BackLink, Eyebrow, PageHeading, SectionLabel, Notice, Panel, DetailList, StatusChip, RowConfirm, DataTable, Input, Button, Pager, Blockhead} = DS;
+const ACTIVITY = [
+  {when:"16 Aug 16:48", record:"Action", event:"Assessment values recorded", subject:"pegasus-automation", outcome:"Recorded", target:"QDOS26014", corr:"c-7f21", reason:"—"},
+  {when:"15 Aug 16:12", record:"Action", event:"Assessment values recorded", subject:"pegasus-automation", outcome:"Recorded", target:"QDOS26013", corr:"c-6d80", reason:"—"},
+  {when:"15 Aug 16:11", record:"Action", event:"Case read", subject:"pegasus-automation", outcome:"Allowed", target:"QDOS26013", corr:"c-6d80", reason:"—"},
+  {when:"12 Aug 09:03", record:"Denied request", event:"Administration endpoint called", subject:"pegasus-automation", outcome:"Denied", target:"—", corr:"c-5a44", reason:"Automation holds no administration authority"},
+];
+function Page(){
+  return <Shell nav="Administration">
+    <BackLink href="Administration.html">Back to Administration</BackLink>
+    <Eyebrow>Administration</Eyebrow>
+    <PageHeading title="Automation"/>
+    <div style={{marginTop:"var(--sp-6)",maxWidth:"1120px",display:"grid",gap:"var(--sp-6)"}}>
+      <Notice>The Automation actor is not a staff account and holds no administration rights.</Notice>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(340px,1fr))",gap:"var(--sp-6)",alignItems:"start"}}>
+        <Panel>
+          <Blockhead title="Client registration"/>
+          <DetailList items={[
+            {term:"Client identifier", value:<code>pegasus-automation</code>},
+            {term:"Display name", value:"Claude automation"},
+            {term:"State", value:<StatusChip state="Enabled" tone="green" icon="check-circle"/>},
+            {term:"Granted scopes", value:"case.write, inbox.read, document.read"},
+          ]}/>
+          <div style={{marginTop:"var(--sp-4)"}}><RowConfirm summary="Disable client" reasonId="auto-disable" confirm="Disable client"/></div>
+        </Panel>
+        <Panel>
+          <Blockhead title="Send to AI"/>
+          <DetailList items={[
+            {term:"State", value:<StatusChip state="Enabled" tone="green" icon="check-circle"/>},
+            {term:"Last hand-off", value:"QDOS26014 · 16 Aug 16:48"},
+          ]}/>
+          <div style={{marginTop:"var(--sp-4)"}}><RowConfirm summary="Disable AI" reasonId="ai-disable" confirm="Disable AI"/></div>
+        </Panel>
+      </div>
+      <div>
+        <SectionLabel>Recorded activity</SectionLabel>
+        <div style={{display:"flex",gap:"10px",alignItems:"center",margin:"0 0 var(--sp-4)"}}>
+          <label htmlFor="corr" style={{fontSize:"var(--t-sm)",fontWeight:600}}>Correlation identifier</label>
+          <Input id="corr" style={{maxWidth:"220px"}}/>
+          <Button>Filter</Button>
+        </div>
+        <DataTable caption="Automation actions and denied requests, most recent first" rows={ACTIVITY} columns={[
+          {header:"When", cell:r=>r.when, tabular:true},
+          {header:"Record", cell:r=>r.record==="Denied request"?<StatusChip state="Denied" icon="alert-circle"/>:r.record},
+          {header:"Event", cell:r=>r.event},
+          {header:"Outcome", cell:r=>r.outcome},
+          {header:"Target", cell:r=>r.target==="—"?r.target:<a href="Case.html">{r.target}</a>},
+          {header:"Correlation", cell:r=><a href="#">{r.corr}</a>},
+          {header:"Reason", cell:r=>r.reason},
+        ]}/>
+        <Pager context="Page 1 · showing 4" nextHref="#" label="Activity pages"/>
+      </div>
+    </div>
+  </Shell>;
+}
+mount(<Page/>);
+</script>
+</body></html>
