@@ -76,6 +76,11 @@ try {
         'docs/prd/new.md',
         'docs/frd/new.md',
         'docs/adr/new.md',
+        'docs/design/new.md',
+        '.design-sync/new.md',
+        '.grok/skills/example/SKILL.md',
+        '.stitch/DESIGN.md',
+        'design/planning-and-old-designs/new.md',
         'workspaces/document-extraction/docs/new.md',
         'workspaces/report-renderer/new.md'
     )
@@ -87,7 +92,7 @@ try {
     $allowedHead = Add-TestCommit -Message 'add allowed markdown'
     Assert-Passes -Case 'Canonical and registered workspace additions' -Base $initial -Head $allowedHead
 
-    $forbidden = @('new-root.md', '.agents/new.md', 'docs/design/new.md', 'reference/new.md', 'docs/temp-plans/new.md')
+    $forbidden = @('new-root.md', '.agents/new.md', 'reference/new.md', 'docs/temp-plans/new.md')
     foreach ($path in $forbidden) {
         $fullPath = Join-Path $testRoot $path
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $fullPath) | Out-Null

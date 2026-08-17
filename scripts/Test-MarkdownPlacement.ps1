@@ -27,8 +27,8 @@ function Assert-CommitRevision {
 function Test-AllowedMarkdownPath {
     param([Parameter(Mandatory)][string] $Path)
 
-    $normalized = $Path.Replace('\', '/').TrimStart('./')
-    return $normalized -match '^(docs/(prd|frd|adr)|workspaces/(document-extraction|report-renderer))/.+\.md$'
+    $normalized = $Path.Replace('\', '/') -replace '^\./', ''
+    return $normalized -match '^((docs/(prd|frd|adr|design))|workspaces/(document-extraction|report-renderer)|\.design-sync|\.grok|\.stitch|design/planning-and-old-designs)/.+\.md$'
 }
 
 $resolvedRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
@@ -75,7 +75,7 @@ try {
     $invalidPaths = @($violations | Sort-Object -Unique)
     if ($invalidPaths.Count -gt 0) {
         $details = $invalidPaths | ForEach-Object { "  - $_" }
-        throw "New Markdown files must be placed under docs/prd, docs/frd, docs/adr, or a registered workspace root:`n$($details -join "`n")"
+        throw "New Markdown files must be placed under an approved documentation or integration root:`n$($details -join "`n")"
     }
 
     Write-Output "Markdown placement passed for $Base..$Head."
