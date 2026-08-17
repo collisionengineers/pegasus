@@ -2,11 +2,13 @@
 id: SIMPLI-007
 type: ticket
 title: Move the QDOS alpha acceptance gate out of application composition
-status: implementing
+status: review
 area: platform-operations
 order: 130
 assignee: claude-code
 profile: feature
+stageEntered:
+  review: '2026-08-17T12:30:24.172Z'
 taken_at: '2026-08-17T10:00:08.513Z'
 branch: task/simpli-007-acceptance-gate
 worktree: ../pegasus-worktrees/simpli-007-acceptance-gate
@@ -18,9 +20,13 @@ links: []
 blocks: []
 refs:
   - docs/adr/0013-qdos-alpha-implementation-contract.md
+commits:
+  - c9e657c3
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/388'
 archived: false
 created: '2026-08-13T12:12:48.841Z'
-updated: '2026-08-17T12:13:56.697Z'
+updated: '2026-08-17T12:30:24.172Z'
 ---
 
 ## What
