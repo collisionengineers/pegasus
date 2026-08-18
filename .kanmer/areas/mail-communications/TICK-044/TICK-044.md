@@ -4,10 +4,12 @@ type: ticket
 title: >-
   MAIL-02 — Map detailed email classifications to Receiving work, Query, Other,
   Needs sorting, or the separate Triage workflow
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-18T15:21:29.366Z'
 labels:
   - capability
   - MAIL-02
@@ -22,7 +24,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.669Z'
-updated: '2026-08-18T15:20:20.322Z'
+updated: '2026-08-18T15:21:29.366Z'
 ---
 
 ## What

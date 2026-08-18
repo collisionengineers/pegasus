@@ -4,10 +4,12 @@ type: ticket
 title: >-
   MAIL-04 — Explainable classification evidence, policy version, and correction
   history
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-18T15:21:25.839Z'
 labels:
   - capability
   - MAIL-04
@@ -18,10 +20,12 @@ labels:
 groups:
   - EPIC-006
 links: []
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.708Z'
-updated: '2026-08-18T15:20:20.663Z'
+updated: '2026-08-18T15:21:25.861Z'
 ---
 
 ## What

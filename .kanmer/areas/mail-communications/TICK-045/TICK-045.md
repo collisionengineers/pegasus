@@ -2,10 +2,12 @@
 id: TICK-045
 type: ticket
 title: MAIL-03 — One shared classification policy across all supported mailboxes
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-18T15:21:22.108Z'
 labels:
   - capability
   - MAIL-03
@@ -19,7 +21,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.689Z'
-updated: '2026-08-18T15:20:20.505Z'
+updated: '2026-08-18T15:21:22.108Z'
 ---
 
 ## What
