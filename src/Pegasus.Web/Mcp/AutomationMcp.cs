@@ -31,8 +31,8 @@ public static class AutomationMcp
 /// <summary>
 /// Composition-time options for the gated Automation MCP ingress. The whole
 /// surface stays absent unless <c>Features:AutomationMcp</c> is enabled, and
-/// enabling it outside the DevelopmentOffline runtime profile fails closed:
-/// production activation remains separately approved work.
+/// required configuration is valid. The gate is off by default, so the whole
+/// surface remains absent until an explicitly configured deployment enables it.
 /// </summary>
 public sealed record AutomationMcpOptions(
     string ClientId,
@@ -42,21 +42,13 @@ public sealed record AutomationMcpOptions(
 {
     public Uri ResourceUri => new(PublicOrigin, AutomationMcp.McpEndpointPath);
 
-    public static AutomationMcpOptions? TryCreate(
-        IConfiguration configuration,
-        bool developmentOfflineProfile)
+    public static AutomationMcpOptions? TryCreate(IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(configuration);
         if (!configuration.GetValue<bool>(AutomationMcp.FeatureFlag))
         {
             return null;
         }
-        if (!developmentOfflineProfile)
-        {
-            throw new InvalidOperationException(
-                $"{AutomationMcp.FeatureFlag} requires the DevelopmentOffline runtime profile.");
-        }
-
         var clientId = configuration["AutomationMcp:ClientId"]?.Trim();
         if (string.IsNullOrWhiteSpace(clientId) || clientId.Length > 100)
         {

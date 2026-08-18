@@ -40,16 +40,13 @@ public static class AutomationMcpExtensions
                 server.AllowClientCredentialsFlow();
                 server.RegisterScopes([.. AutomationMcp.Scopes]);
                 server.SetAccessTokenLifetime(AutomationMcp.AccessTokenLifetime);
-                // The gate restricts this surface to the DevelopmentOffline
-                // profile, so ephemeral keys are always acceptable: tokens do
-                // not survive a restart, which suits local evidence runs.
+                // This deployment has one always-on replica, so local keys are
+                // sufficient for its short-lived client-credentials tokens.
                 server.AddEphemeralEncryptionKey();
                 server.AddEphemeralSigningKey();
-                // The gate restricts this surface to the DevelopmentOffline
-                // profile where the local host may terminate on plain HTTP
-                // (and the in-process integration test server always does).
-                // Production activation is separately approved work and would
-                // revisit transport requirements with real certificates.
+                // TLS terminates at the Container Apps ingress
+                // (allowInsecure: false); the app listens on plain HTTP behind
+                // it, as does the in-process integration test server.
                 server.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
                     .DisableTransportSecurityRequirement();

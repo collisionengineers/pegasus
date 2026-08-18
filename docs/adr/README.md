@@ -36,6 +36,7 @@ never renumbered or reused.
 | [0021](0021-automation-actor-direct-write-assessment-contract.md) | Automation Actor direct-write assessment contract | FRD-10, FRD-11 |
 | [0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) | Stable approved-mailbox identity and per-mailbox fresh start | FRD-08 |
 | [0025](0025-integrate-renderer-and-extractor-into-the-application.md) | Integrate the report renderer and document extractor into the application, not into standalone packages | FRD-02, FRD-05, FRD-11 |
+| [0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | FRD-10, FRD-11 |
 
 ## Superseded and relocated
 
