@@ -4,11 +4,11 @@ type: ticket
 title: Activate the Pegasus Automation MCP gate
 status: implementing
 area: automation-integrations
-assignee: codex-mcp-client
+assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-18T09:45:52.837Z'
-taken_at: '2026-08-18T09:24:36.507Z'
+taken_at: '2026-08-18T11:12:31.011Z'
 branch: task/auto-001-activate-mcp-gate
 worktree: ../pegasus-worktrees/auto-001-activate-mcp-gate
 labels:
@@ -22,7 +22,7 @@ refs:
   - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-18T08:49:54.851Z'
-updated: '2026-08-18T09:45:52.837Z'
+updated: '2026-08-18T11:12:31.011Z'
 ---
 
 ## Why
