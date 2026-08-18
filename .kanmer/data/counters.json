@@ -43,5 +43,6 @@
   "DELIV": 3,
   "INTK": 4,
   "PLAT": 2,
-  "CASE": 1
+  "CASE": 1,
+  "AUTO": 1
 }
