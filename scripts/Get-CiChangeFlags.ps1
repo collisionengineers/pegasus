@@ -8,7 +8,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/(Invoke-(QdosAlphaAcceptance|TestShard)|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
+$buildPattern = '^(src|tests)/|^Pegasus\.slnx$|\.csproj$|\.props$|\.targets$|packages\.lock\.json$|^global\.json$|^nuget\.config$|^scripts/(Invoke-TestShard|Test-(MainBranchHistory|TestShard)|Get-CiChangeFlags)\.ps1$|^\.github/workflows/ci\.yml$|^\.github/actions/'
 $infrastructurePattern = '^infra/|^azure\.yaml$|^scripts/(Get-CiChangeFlags|Test-CiChangeFlags|Test-AzureDeploymentPlan|Invoke-ProductionSmoke|Invoke-ProductionAdministratorBootstrap|Invoke-AzureDatabaseBootstrap)\.ps1$|^\.github/workflows/ci\.yml$'
 
 function Test-AnyPath {
