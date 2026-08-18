@@ -18,3 +18,10 @@ Derived from plan.md, one box per step. Tick with `set_ticket_doc` as you comple
 - Harness updated: volume roots fall back to a flat `corpus/*.eml` dump; labelled facts use `QdosLabelledCorpusFact`.
 - Worktrees do not copy ignored `corpus/`; discovery walks the common git dir to the primary checkout. Corpus is read-only.
 - 2026-08-17 volume run: 256 EML; routes 75 accepted / 167 no-match / 13 needs-sorting / 1 unreadable; accepted-route 14 classified (8 pre-instruction, 3 audit, 3 inspection) / 61 unclassified / 0 ambiguous. Labelled facts skipped. Core focused tests: 29 passed.
+
+## Closeout — TICK-009 (2026-08-18)
+
+- [x] PR #391 MERGED 2026-08-17T13:59:38Z
+- [x] proof.md written on merged `main` `f1e116c6`; moved to Done; Outcome recorded; deployment = production (release 9)
+- [x] Worktree `../pegasus-worktrees/tick-009-mail-21-classification-foundation` removed; local + remote branch deleted; prune
+- [x] Released

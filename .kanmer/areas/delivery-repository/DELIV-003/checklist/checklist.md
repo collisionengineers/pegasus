@@ -31,3 +31,11 @@ Derived from `plan.md`; each box is independently checkable.
   documentation-link validation passed. The four lenses found no duplication,
   unnecessary mechanism, repeated work, or cross-layer responsibility: this is
   a one-commit history convergence using the DELIV-002 policy.
+
+## Closeout — DELIV-003 (2026-08-18)
+
+- [x] Items 5–7 completed by release 9 (fetch, ancestry, SHA recorded, MERGE AUTH, atomic push, equality, main guard green, proof for DELIV-003 and DELIV-002)
+- [x] PR #399 MERGED 2026-08-18T09:25:51Z
+- [x] proof.md finalised; moved to Done; Outcome recorded
+- [x] Worktree `../pegasus-worktrees/deliv-003-converge-main-history` removed; local + remote branch deleted; prune
+- [x] Released

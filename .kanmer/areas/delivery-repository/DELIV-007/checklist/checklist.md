@@ -13,3 +13,13 @@
 ## Progress notes
 
 - 2026-08-18: Implemented and pushed; PR https://github.com/collisionengineers/pegasus/pull/402.
+
+- [x] Independent review passed; PR #402 merged (`74613fbd`, 2026-08-18T11:22:17Z).
+- [x] Verified on merged `main` (proof) — no `qdos-pressure` workflow, no scheduled workflows.
+
+## Closeout — DELIV-007 (2026-08-18)
+
+- [x] PR #402 MERGED
+- [x] proof.md finalised; moved to Done; Outcome recorded
+- [x] Worktree `../pegasus-worktrees/deliv-007-retire-qdos-pressure` removed; local + remote branch deleted; prune
+- [x] Released

@@ -34,3 +34,12 @@ Derived from `plan.md`; each box is independently checkable.
 
 - 2026-08-18: PR #396 review P2 fixed in `00f9de38`; the review thread was
   resolved after the atomic lease-checked procedure and documentation checks.
+
+## Closeout — DELIV-002 (2026-08-18)
+
+- [x] PR #396 MERGED 2026-08-18T09:21:50Z
+- [x] proof.md finalised (first ff promotion evidence)
+- [x] Moved to Done
+- [x] Outcome recorded
+- [x] Worktree `../pegasus-worktrees/deliv-002-fast-forward-main-release` removed; `git branch -d`; remote branch deleted; prune
+- [x] Released

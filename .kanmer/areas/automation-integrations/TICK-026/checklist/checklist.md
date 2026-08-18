@@ -15,3 +15,10 @@ Worktree created at `../pegasus-worktrees/tick-026-mcp-04-document-evidence` on 
 Focused Release run: 9 passed, 0 failed (`dotnet test … --filter FullyQualifiedName~AutomationMcpIngressTests`). Export requires a fresh `pegasus_case_edit_begin` after add because `CaseMutationGuard.Complete` clears the lease.
 
 Pushed `task/tick-026-mcp-04-document-evidence` and opened https://github.com/collisionengineers/pegasus/pull/393 targeting `dev`.
+
+## Closeout — TICK-026 (2026-08-18)
+
+- [x] PR #393 MERGED 2026-08-18T11:12:20Z (`6cf9b166`)
+- [x] proof.md rewritten from the merged-main run (15/15); moved to Done; Outcome recorded; deployment = production (release 9)
+- [x] Worktree `../pegasus-worktrees/tick-026-mcp-04-document-evidence` removed; local + remote branch deleted; prune
+- [x] Released

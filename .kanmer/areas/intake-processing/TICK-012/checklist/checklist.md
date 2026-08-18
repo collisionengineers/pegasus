@@ -38,3 +38,10 @@
 - Re-drive learning: resetting a COMPLETED work item to re-process fails with `staged_artifact_integrity_failure` — the transient staged bytes are reconciled/removed after processing, so completed work cannot be re-run from source (by design). Valid re-drives for a stuck failed-allocation receipt: (a) staff "Retry allocation" (RetryAsync replays the frozen command; no staged bytes needed), or (b) a fresh forward (new staged artifact). SQL reset of the work item is NOT viable.
 - The 08:52 BST (07:52 UTC) forward classified `needs_sorting` ("readable content does not provide enough evidence to suggest a principal") — NOT a permission issue; that specific email did not present as a definitive QDOS audit (content/format), so it correctly withholds. Distinct from the 08:17 case_created path.
 - PERMANENT FIX (code) still owed: a migration adding all the above worker grants to WorkerGrants (the hotfixes are drift until codified). The worker matrix in `20260729199000_RuntimeRoleReconciliation.cs` predates auto-allocation-on-worker and must be brought up to the acceptance/custody write-set.
+
+## Closeout — TICK-012 (2026-08-18)
+
+- [x] Work merged via PR #376 (2026-08-17) and on `main` since #394; no open PR/branch for this ticket
+- [x] proof.md finalised (release-9 addendum: grants migration codified and applied); moved to Done; Outcome + follow-ups recorded; deployment = production
+- [x] No worktree/branch to remove (ticket was never taken with one)
+- [x] Released

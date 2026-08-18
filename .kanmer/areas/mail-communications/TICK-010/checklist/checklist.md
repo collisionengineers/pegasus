@@ -13,3 +13,10 @@ Derived from plan.md, one box per step. Tick with `set_ticket_doc` as you comple
 
 - Added three LocalDB round-trips in `MailboxIntakeIntegrationTests`. No schema or policy change.
 - Focused results: 3 persist/reload passed; `MailTaxonomyTests` 15 passed.
+
+## Closeout — TICK-010 (2026-08-18)
+
+- [x] PR #392 MERGED 2026-08-17T13:51:11Z
+- [x] proof.md written on merged `main` `f1e116c6`; moved to Done; Outcome recorded; deployment = production (release 9)
+- [x] Worktree `../pegasus-worktrees/tick-010-mail-22-taxonomy` removed; local + remote branch deleted; prune
+- [x] Released

@@ -12,3 +12,10 @@
   that `docs/engineering.md` already prohibits disabled flags and other
   dormant implementation shapes. `git diff --check` passed and the diff
   changes only `AGENTS.md`.
+
+## Closeout — DELIV-004 (2026-08-18)
+
+- [x] PR #398 MERGED 2026-08-18T09:24:59Z
+- [x] proof.md written on main; moved to Done; Outcome recorded
+- [x] Worktree `../pegasus-worktrees/deliv-004-no-gated-features` removed; local + remote branch deleted; prune
+- [x] Released
