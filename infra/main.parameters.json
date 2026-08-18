@@ -47,6 +47,9 @@
     "boxClientSecretSecretUri": {
       "value": "${BOX_CLIENT_SECRET_SECRET_URI}"
     },
+    "automationMcpClientSecretUri": {
+      "value": "${AUTOMATION_MCP_CLIENT_SECRET_URI}"
+    },
     "dvlaApiKeySecretUri": {
       "value": "${DVLA_API_KEY_SECRET_URI}"
     },
