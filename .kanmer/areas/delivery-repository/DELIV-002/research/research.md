@@ -24,3 +24,7 @@ How can Pegasus stop creating a content-redundant `main` → `dev` synchronizati
 ## Open questions
 
 - See [open-questions](../open-questions.md): the release actor/enforcement design needs an owner decision before planning.
+
+## Confirmed direction — 2026-08-18
+
+- GitHub-side branch protection and rulesets are intentionally out of scope on subscription grounds. The target workflow therefore relies on explicit `MERGE AUTH GRANTED` and post-push CI detection; it does not claim to prevent an unauthorized direct `main` update at the GitHub boundary.
