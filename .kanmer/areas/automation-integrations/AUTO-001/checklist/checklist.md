@@ -16,3 +16,5 @@
 
 - 2026-08-18: Read-only Azure inventory and live endpoint checks completed. No cloud state changed.
 - 2026-08-18: Claude Desktop custom remote-connector OAuth settings verified from official Anthropic documentation.
+
+- 2026-08-18: Paused before configuration mutation. The exact deployed source revision from `/diagnostics/version` (`aecad2479f52dadfedca109413a458c60c85323e`) has the same explicit `DevelopmentOffline` guard as the worktree; setting `Features__AutomationMcp=true` with `Runtime__Profile=Production` would fail startup. Source/IaC changes drafted during execution were discarded after the operator specified config-only activation. Awaiting reconciliation of that contradiction.
