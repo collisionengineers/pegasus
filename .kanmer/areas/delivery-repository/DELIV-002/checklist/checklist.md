@@ -3,9 +3,11 @@
 Derived from `plan.md`; each box is independently checkable.
 
 - [ ] Replace the merge-commit release guidance in `docs/engineering.md` with
-  the canonical non-force exact-SHA procedure and its exclusions.
+  the canonical non-force exact-SHA procedure, its exclusions, and the
+  one-time branch-local DELIV-003 convergence allowance.
 - [ ] Align `AGENTS.md`'s authorization and allowed-operation rules with the
-  canonical procedure without duplicating its command sequence.
+  canonical procedure: permit that one convergence PR, forbid a direct
+  `dev` update, and keep the exception single-use.
 - [ ] Change `scripts/Test-MainBranchHistory.ps1` from a two-parent predicate
   to append-only and release-branch ancestry validation.
 - [ ] Fetch `origin/dev`, pass it to the revised guard, and preserve the
@@ -21,6 +23,6 @@ Derived from `plan.md`; each box is independently checkable.
 
 ## Progress notes
 
-- 2026-08-18: [[DELIV-003]] was filed and blocked by this ticket. It owns the
-  one-time shared-branch convergence and first remote promotion after this
-  policy change reaches `dev` and the user grants exact `MERGE AUTH GRANTED`.
+- 2026-08-18: [[DELIV-003]] begins after this ticket's PR is merged into
+  `dev` with CI green, not after this ticket reaches Done. Its first
+  promotion supplies the merged-`main` proof for both tickets.

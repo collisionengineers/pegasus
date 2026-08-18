@@ -11,12 +11,11 @@ stageEntered:
   preparing: '2026-08-18T08:01:12.101Z'
 labels: []
 links: []
-blocks:
-  - DELIV-003
+blocks: []
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T08:18:42.467Z'
+updated: '2026-08-18T08:34:01.893Z'
 ---
 
 ## What
@@ -36,19 +35,25 @@ even when it adds no unique content. Returning that synthetic merge commit to
   fast-forward-only promotion from `dev` to `main`.
 - Replace the main-history guard that requires two-parent merge commits with
   checks that enforce the chosen release-branch ancestry invariant.
-- Preserve shared branch history: do not rebase, reset, or force-push `dev`
-  or `main`.
-- [[DELIV-003]] owns the one-time convergence and first remote promotion after
-  this policy change is merged into `dev`.
+- Establish the one-time transition: after this ticket's PR is merged into
+  `dev` with CI green, [[DELIV-003]] may merge `origin/main` into its own
+  `origin/dev`-based task branch and deliver that merge through the normal
+  reviewed PR-to-`dev` path.
+- Preserve shared branch history: do not rebase, reset, force-push, or directly
+  update `dev` for the convergence. The exception ends once it is merged.
+- [[DELIV-003]] then owns the first remote promotion under exact
+  `MERGE AUTH GRANTED`.
 
 ## Verification
 
+- [ ] The policy permits the one-time reviewed convergence PR and thereafter
+  requires fast-forward-only promotion from `dev` to `main`.
 - [ ] A release promotion succeeds only when `main` is an ancestor of
   `dev` and leaves both refs at the reviewed commit.
 - [ ] The main-history CI guard accepts a `main` head contained in `dev`
   and rejects a head outside `dev`; it does not claim to determine the
   human authorization behind a valid fast-forward.
-- [ ] After a release, `git merge-base --is-ancestor main dev` succeeds and
-  no routine `main` → `dev` synchronization merge is required.
+- [ ] After the first release, `git merge-base --is-ancestor main dev`
+  succeeds and no routine `main` → `dev` synchronization merge is required.
 
 ## Outcome

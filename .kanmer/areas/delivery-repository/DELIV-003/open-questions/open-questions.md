@@ -1,9 +1,12 @@
 # Open questions — DELIV-003
 
-- [ ] Does “after DELIV-002 completed” mean **after DELIV-002's PR is merged
-  into `dev` and its CI is green** (recommended), rather than after Kanmer
-  Done? Waiting for Done deadlocks: DELIV-002 needs this first promotion to
-  reach merged `main` and obtain its required proof.
+- [x] DELIV-003 begins after DELIV-002's policy PR is merged into `dev` with
+  CI green, rather than after Kanmer Done. This avoids the proof-cycle: the
+  first DELIV-003 promotion supplies merged-`main` evidence for both tickets.
+- [x] DELIV-002 owns the explicit, single-use allowance to merge
+  `origin/main` into this ticket's `origin/dev`-based branch and PR it to
+  `dev`. If the merged policy lacks that allowance, stop and correct
+  DELIV-002; do not use an alternate shared-ref operation.
 
 ## Parked (explicitly deferred)
 
