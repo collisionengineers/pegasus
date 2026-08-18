@@ -4,11 +4,13 @@ type: ticket
 title: >-
   INT-31 — Authenticated staff generate a temporary, revocable, expiring,
   request-scoped link for isolated unauthenticated image/d…
-status: implementing
+status: preparing
 area: intake-processing
-order: 50
+order: 40
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-18T14:12:27.399Z'
 labels:
   - capability
   - INT-31
@@ -20,7 +22,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-12T15:03:53.456Z'
-updated: '2026-08-17T06:41:38.844Z'
+updated: '2026-08-18T14:12:27.399Z'
 ---
 
 ## What
