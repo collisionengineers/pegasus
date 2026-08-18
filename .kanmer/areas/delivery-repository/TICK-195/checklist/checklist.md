@@ -12,3 +12,10 @@
 - `origin/dev` advanced during verification. Merged current `origin/dev` into the ticket branch, then confirmed the ticket diff against that base contains only the workflow and two validator scripts.
 - Verification passed: focused regression suite; real `origin/dev..HEAD` placement check; 219-file documentation link check; invalid-revision fail-closed smoke test; and `git diff --check`.
 - Opened PR #384 targeting `dev`.
+
+## Closeout — TICK-195 (2026-08-18)
+
+- [x] PR #384 MERGED 2026-08-17T06:35:48Z (gate later removed by DELIV-005 by decision)
+- [x] proof.md written; moved to Done; Outcome recorded
+- [x] Remote branch `task/markdown-placement-validator` deleted; local worktree/branch live on workstation `PC` — cleanup owed there
+- [x] Released

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-17T13:32:42.052Z'
   verifying: '2026-08-17T13:59:46.773Z'
   done: '2026-08-18T12:22:26.383Z'
-taken_at: '2026-08-17T13:24:17.755Z'
-branch: task/tick-009-mail-21-classification-foundation
-worktree: ../pegasus-worktrees/tick-009-mail-21-classification-foundation
 labels:
   - capability
   - MAIL-21
@@ -35,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:52.949Z'
-updated: '2026-08-18T12:24:51.632Z'
+updated: '2026-08-18T12:30:08.555Z'
 ---
 
 ## What

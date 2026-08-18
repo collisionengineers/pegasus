@@ -19,3 +19,10 @@
 - Locked restore and Release build passed with zero warnings/errors; architecture suite passed 87/87; document-extraction solution passed 972 with one opt-in cohort skip.
 - Commit: `4b1cfed8be9530e367225a3deac4a651ae0da534`.
 - PR: https://github.com/collisionengineers/pegasus/pull/378
+
+## Closeout — DELIVE-001 (2026-08-18)
+
+- [x] PR #378 MERGED 2026-08-17T04:50:07Z
+- [x] proof.md written on merged `main`; moved to Done; Outcome recorded
+- [x] Remote branch `task/harden-flaky-ci-tests` deleted; local worktree/branch live on workstation `PC` — cleanup owed there
+- [x] Released

@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-18T09:23:34.421Z'
   verifying: '2026-08-18T09:26:10.373Z'
   done: '2026-08-18T12:22:14.790Z'
-taken_at: '2026-08-18T09:22:14.165Z'
-branch: task/deliv-003-converge-main-history
-worktree: ../pegasus-worktrees/deliv-003-converge-main-history
 labels: []
 links:
   - DELIV-002
@@ -26,7 +23,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T08:17:54.534Z'
-updated: '2026-08-18T12:23:53.661Z'
+updated: '2026-08-18T12:29:51.394Z'
 ---
 
 ## What

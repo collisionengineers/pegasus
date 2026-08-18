@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-18T08:46:39.169Z'
   verifying: '2026-08-18T09:22:03.268Z'
   done: '2026-08-18T12:22:11.807Z'
-taken_at: '2026-08-18T08:39:15.115Z'
-branch: task/deliv-002-fast-forward-main-release
-worktree: ../pegasus-worktrees/deliv-002-fast-forward-main-release
 labels: []
 links: []
 blocks: []
@@ -27,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T12:23:40.677Z'
+updated: '2026-08-18T12:29:47.354Z'
 ---
 
 ## What

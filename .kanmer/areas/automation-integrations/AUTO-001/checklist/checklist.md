@@ -22,3 +22,14 @@
 - 2026-08-18: ADR-0026 superseded the former DevelopmentOffline-only composition rule. The source and IaC change compiled successfully; no test suite was run by operator direction.
 - 2026-08-18: Replacement image `sha256:e5d1d01d36039cfb220b941bd442846016baf06a670d95630797a4653ac7d072` failed only on database-schema readiness. No migration was applied. Rollback revision `pegasus-prod-web-252ow37gij--rollbacka593b` is healthy and has the gate false.
 - 2026-08-18 (claude-code takes over): the live app currently carries the `AutomationMcp__*` env + `automation-mcp-client-secret` reference with the flag `false` on `--rollbacka593b` (image `aecad247`). Release 9's `azd provision` from the promoted `main` will own that configuration going forward. Merged `origin/dev` (`17696a9c`), kept the architecture snapshot stateless (`db3f57db`).
+
+- [x] Post-implementation report, PR #403, independent review (fixes `3f836469`), merged as `f1e116c6`.
+- [x] Release 9 promoted the merged SHA, applied the migrations and provisioned the web revision with `Features__AutomationMcp=true` (`AUTOMATION_MCP_CLIENT_SECRET_URI` set).
+- [x] Live evidence captured (token, `/mcp`, 15 tools, denials, permanent history, kill switch disable/re-enable); proof written; docs refreshed (PR #404).
+
+## Closeout — AUTO-001 (2026-08-18)
+
+- [x] PR #403 MERGED 2026-08-18T11:34:52Z
+- [x] proof.md finalised; moved to Done; Outcome recorded; deployment = production
+- [x] Worktree `../pegasus-worktrees/auto-001-activate-mcp-gate` removed; local + remote branch deleted; prune
+- [x] Released

@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-18T09:23:04.809Z'
   verifying: '2026-08-18T09:25:10.376Z'
   done: '2026-08-18T12:22:08.400Z'
-taken_at: '2026-08-18T09:21:33.793Z'
-branch: task/deliv-004-no-gated-features
-worktree: ../pegasus-worktrees/deliv-004-no-gated-features
 labels:
   - policy
   - source-now
@@ -27,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T08:50:16.059Z'
-updated: '2026-08-18T12:24:01.598Z'
+updated: '2026-08-18T12:29:54.395Z'
 ---
 
 ## Why

@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-18T10:43:49.729Z'
   verifying: '2026-08-18T11:22:23.433Z'
   done: '2026-08-18T12:22:18.888Z'
-taken_at: '2026-08-18T10:39:38.441Z'
-branch: task/deliv-007-retire-qdos-pressure
-worktree: ../pegasus-worktrees/deliv-007-retire-qdos-pressure
 labels:
   - ci
   - source-now
@@ -26,7 +23,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T10:38:32.819Z'
-updated: '2026-08-18T12:24:19.687Z'
+updated: '2026-08-18T12:30:02.319Z'
 ---
 
 ## What

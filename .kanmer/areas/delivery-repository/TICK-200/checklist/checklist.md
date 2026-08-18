@@ -15,3 +15,10 @@
 - Final live allocation is 165/163/163 across 70 whole classes; all 491 tests are assigned exactly once.
 - `pwsh ./scripts/Test-TestShard.ps1`, `pwsh ./scripts/Test-CiChangeFlags.ps1`, locked restore, and Release build passed after merging `origin/dev`; the successful retry built with 0 warnings and 0 errors after shutting down a stale local MSBuild node that held `Pegasus.Core.dll`.
 - PR diff against current `origin/dev`: `.github/workflows/ci.yml`, `scripts/Get-CiChangeFlags.ps1`, `scripts/Invoke-TestShard.ps1`, `scripts/Test-CiChangeFlags.ps1`, and new `scripts/Test-TestShard.ps1` only.
+
+## Closeout — TICK-200 (2026-08-18)
+
+- [x] PR #381 MERGED 2026-08-17T06:07:40Z
+- [x] proof.md written on merged `main`; moved to Done; Outcome recorded
+- [x] Remote branch `task/reduce-actions-wall-clock` deleted; local worktree/branch live on workstation `PC` — cleanup owed there
+- [x] Released

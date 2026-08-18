@@ -18,3 +18,10 @@
 - CollisionRenderer.Core built with 0 warnings/errors and its focused suite passed 173/173.
 
 - Review remediation: [[PR-001]] identified the package-relative `guidelinesGlob` error. Corrected it to `../README.md`; explicit resolution proves the canonical file exists, and focused checks pass.
+
+## Closeout — KANMER-002 (2026-08-18)
+
+- [x] PR #379 MERGED 2026-08-17T05:21:47Z
+- [x] proof.md written on merged `main`; moved to Done; Outcome recorded
+- [x] Worktree `../pegasus-worktrees/kanmer-002-repo-plan-doc-cleanup` already absent (pruned); stray local branch `KANMER-002-repo-doc-cleanup` and remote `task/kanmer-002-repo-plan-doc-cleanup` deleted
+- [x] Released
