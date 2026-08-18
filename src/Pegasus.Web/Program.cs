@@ -225,10 +225,8 @@ if ((localDocumentCustodyConfigured || productionProfile)
 
 // The Automation MCP ingress is composition-gated off by default: when the
 // flag is absent nothing below registers and no /mcp or /connect/token route
-// exists. Enabling it outside the DevelopmentOffline profile throws.
-var automationMcpOptions = AutomationMcpOptions.TryCreate(
-    builder.Configuration,
-    developmentOfflineProfile);
+// exists. An explicitly configured deployment may enable it in Production.
+var automationMcpOptions = AutomationMcpOptions.TryCreate(builder.Configuration);
 
 // The Send to AI hand-off (AI-09) follows the same gate pattern: absent by
 // default, DevelopmentOffline-only, and without it the assessment panel

@@ -16,6 +16,7 @@ param graphInboxFolderId string
 param graphSentFolderId string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
+param automationMcpClientSecretUri string
 param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
 param dvsaClientSecretSecretUri string
@@ -388,6 +389,11 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
           keyVaultUrl: boxClientSecretSecretUri
           identity: webIdentity.id
         }
+        {
+          name: 'automation-mcp-client-secret'
+          keyVaultUrl: automationMcpClientSecretUri
+          identity: webIdentity.id
+        }
       ]
     }
     template: {
@@ -415,6 +421,10 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Box__RootFolderId', value: '405543781910' }
             { name: 'Box__ConfigJson', secretRef: 'box-config-json' }
             { name: 'Box__ClientSecret', secretRef: 'box-client-secret' }
+            { name: 'Features__AutomationMcp', value: 'true' }
+            { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
+            { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
+            { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
           ]
           resources: {
             cpu: json('0.5')

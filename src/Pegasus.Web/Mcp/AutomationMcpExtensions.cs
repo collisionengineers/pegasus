@@ -40,9 +40,8 @@ public static class AutomationMcpExtensions
                 server.AllowClientCredentialsFlow();
                 server.RegisterScopes([.. AutomationMcp.Scopes]);
                 server.SetAccessTokenLifetime(AutomationMcp.AccessTokenLifetime);
-                // The gate restricts this surface to the DevelopmentOffline
-                // profile, so ephemeral keys are always acceptable: tokens do
-                // not survive a restart, which suits local evidence runs.
+                // This deployment has one always-on replica, so local keys are
+                // sufficient for its short-lived client-credentials tokens.
                 server.AddEphemeralEncryptionKey();
                 server.AddEphemeralSigningKey();
                 // The gate restricts this surface to the DevelopmentOffline

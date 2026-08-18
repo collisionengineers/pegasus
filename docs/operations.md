@@ -168,6 +168,18 @@ example Claude Code presenting a bearer token), production
 certificate/transport decisions, deployment, and live activation remain
 separately approved work.
 
+**Production configuration attempt — 2026-08-18.** The approved configuration-only
+activation created `automation-mcp-client-secret` in the production Key Vault,
+granted the Web managed identity Key Vault Secrets User on that exact secret,
+and composed a new Container Apps revision with the feature setting and secret
+reference. Revision `pegasus-prod-web-252ow37gij--0000002` failed startup with
+`Features:AutomationMcp requires the DevelopmentOffline runtime profile`; it
+never received traffic. The gate was returned to `false`, and revision
+`pegasus-prod-web-252ow37gij--0000003` is healthy with `/health/live` and
+`/health/ready` returning 200 and the MCP routes closed. This proves that the
+deployed image requires a source change before live activation; it is not a
+configuration-only gate.
+
 ## Dated evidence qualifications
 
 The retained evidence observations are qualified as follows:

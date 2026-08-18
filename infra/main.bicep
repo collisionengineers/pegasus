@@ -50,6 +50,8 @@ param graphSentFolderId string
 param boxConfigJsonSecretUri string
 @description('Versioned Key Vault secret URI containing the Box client secret.')
 param boxClientSecretSecretUri string
+@description('Versioned Key Vault secret URI containing the Automation MCP OAuth client secret.')
+param automationMcpClientSecretUri string
 @description('Versioned Key Vault secret URI containing the DVLA VES API key.')
 param dvlaApiKeySecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA OAuth client ID.')
@@ -96,6 +98,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     graphSentFolderId: graphSentFolderId
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
     boxClientSecretSecretUri: boxClientSecretSecretUri
+    automationMcpClientSecretUri: automationMcpClientSecretUri
     dvlaApiKeySecretUri: dvlaApiKeySecretUri
     dvsaClientIdSecretUri: dvsaClientIdSecretUri
     dvsaClientSecretSecretUri: dvsaClientSecretSecretUri

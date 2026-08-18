@@ -1,9 +1,9 @@
 ---
 id: ADR-0021
-status: accepted
+status: superseded
 date: 2026-08-03
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0026]
 related_capabilities: []
 related_frd: [frd-10, frd-11]
 tags: [mcp, automation, ai]
