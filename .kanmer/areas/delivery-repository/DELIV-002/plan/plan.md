@@ -97,3 +97,18 @@ or introduce a durable application architecture decision.
   subscription-boundary decision, recorded in research and open questions.
 - The transition exception is intentionally narrow and ends with the
   DELIV-003 convergence PR. No open questions remain.
+
+## Simplification pass — 2026-08-18
+
+- **Reuse:** retained the existing `Test-MainBranchHistory.ps1` entry point,
+  `Before`/ `Head` checks, CI changes job, and test-repository helper; no
+  second guard or release mechanism was added.
+- **Simplification:** removed the per-commit parent-count loop rather than
+  layering the ancestry rule on top of it. The release-branch argument is the
+  only new guard input.
+- **Efficiency:** one additional local ref fetch runs only for the existing
+  `main` push guard; it is needed to establish the source-branch invariant.
+  No repeated application or network work was introduced.
+- **Altitude:** the structural predicate remains in the existing script, while
+  the human authority check stays in the documented release procedure. No
+  code finding was applied, skipped, or deferred.
