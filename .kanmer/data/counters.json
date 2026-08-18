@@ -40,9 +40,10 @@
   "EPIC": 5,
   "HZN": 3,
   "PR": 2,
-  "DELIV": 5,
+  "DELIV": 6,
   "INTK": 4,
-  "PLAT": 2,
-  "CASE": 1,
-  "AUTO": 1
+  "PLAT": 5,
+  "CASE": 2,
+  "AUTO": 1,
+  "ENG": 1
 }
