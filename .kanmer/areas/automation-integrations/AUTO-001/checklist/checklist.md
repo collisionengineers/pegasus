@@ -9,7 +9,8 @@
 - [x] Read back the healthy rollback revision and closed MCP routes without reading secret material.
 - [x] Remove only the deployed source guard and add the matching IaC configuration.
 - [x] Compile the solution and Bicep template; no test suite run by operator direction.
-- [ ] Build, publish, and deploy the replacement Web image to the approved Container App.
+- [x] Build and publish the immutable replacement Web image; attempt deployment and roll it back when its database readiness check failed.
+- [ ] Obtain approval and apply the required database-migration release, then deploy the already-published replacement Web image.
 - [ ] Configure Claude Desktop and capture the fifteen-tool success/denial/validation/history evidence, kill switch, and closed-route rollback.
 - [ ] Refresh current-state docs, write the post-implementation report, and open the PR.
 
@@ -18,3 +19,4 @@
 - 2026-08-18: Live configuration produced revision `pegasus-prod-web-252ow37gij--0000002`, which exited with `Features:AutomationMcp requires the DevelopmentOffline runtime profile.`
 - 2026-08-18: Rollback set `Features__AutomationMcp=false`. Revision `pegasus-prod-web-252ow37gij--0000003` is healthy; live/ready return 200 and MCP metadata/endpoint return the pre-activation 302 closed state.
 - 2026-08-18: ADR-0026 superseded the former DevelopmentOffline-only composition rule. The source and IaC change compiled successfully; no test suite was run by operator direction.
+- 2026-08-18: Replacement image `sha256:e5d1d01d36039cfb220b941bd442846016baf06a670d95630797a4653ac7d072` failed only on database-schema readiness. No migration was applied. Rollback revision `pegasus-prod-web-252ow37gij--rollbacka593b` is healthy and has the gate false.
