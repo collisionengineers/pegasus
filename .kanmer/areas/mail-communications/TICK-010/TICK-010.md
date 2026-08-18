@@ -20,6 +20,7 @@ labels:
 groups:
   - EPIC-003
   - HZN-003
+  - EPIC-006
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
@@ -31,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:52.968Z'
-updated: '2026-08-18T12:30:12.255Z'
+updated: '2026-08-18T15:19:41.740Z'
 ---
 
 ## What

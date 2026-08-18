@@ -15,11 +15,12 @@ labels:
   - blocked
 groups:
   - EPIC-003
+  - EPIC-006
 links: []
 blocks: []
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-17T06:41:42.931Z'
+updated: '2026-08-18T15:19:47.652Z'
 ---
 
 ## What

@@ -15,11 +15,12 @@ labels:
   - requires-live-approval
 groups:
   - EPIC-003
+  - EPIC-006
 links:
   - TICK-048
 archived: false
 created: '2026-08-12T15:05:19.217Z'
-updated: '2026-08-17T06:41:41.680Z'
+updated: '2026-08-18T15:19:45.556Z'
 ---
 
 ## What

@@ -15,10 +15,12 @@ labels:
   - post-alpha
   - blocked
   - requires-live-approval
+groups:
+  - EPIC-006
 links: []
 archived: false
 created: '2026-08-12T15:06:02.476Z'
-updated: '2026-08-17T06:41:49.557Z'
+updated: '2026-08-18T15:19:48.614Z'
 ---
 
 ## What
