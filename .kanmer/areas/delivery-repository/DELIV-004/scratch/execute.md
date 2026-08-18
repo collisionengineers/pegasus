@@ -1,0 +1,1 @@
+2026-08-18 — Implemented and pushed `ea908247b222376c2dc7f25cf825bfdca98a822a`; opened PR #398: https://github.com/collisionengineers/pegasus/pull/398. Documentation-only verification passed (`git diff --check` and targeted policy search).

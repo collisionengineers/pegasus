@@ -19,9 +19,11 @@ links:
   - AUTO-001
 commits:
   - ea908247b222376c2dc7f25cf825bfdca98a822a
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/398'
 archived: false
 created: '2026-08-18T08:50:16.059Z'
-updated: '2026-08-18T09:23:04.809Z'
+updated: '2026-08-18T09:23:28.235Z'
 ---
 
 ## Why

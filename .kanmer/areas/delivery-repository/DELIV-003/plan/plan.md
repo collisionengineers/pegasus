@@ -89,3 +89,13 @@ no-change determination in proof is expected if that remains true.
 - No GitHub prevention is configured by accepted subscription-boundary
   decision. Mitigation: explicit authority, structural CI guard, and recorded
   read-back; these remain detective rather than server-side prevention.
+
+## Simplification pass — 2026-08-18
+
+- **Reuse:** used Git's existing merge operation and the DELIV-002 release
+  procedure; no new script, guard, branch model, or documentation mechanism.
+- **Simplification:** the convergence commit has no tree diff, so no content
+  change was invented to make the PR look substantive.
+- **Efficiency:** one local ancestry check and no new application work.
+- **Altitude:** history convergence remains at the repository-delivery layer;
+  no application architecture or runtime policy changed.
