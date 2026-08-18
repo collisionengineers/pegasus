@@ -43,19 +43,14 @@
   meaning — so the one-icon-per-meaning rule is untouched. `docs/design/README.md`
   now records them and narrows the two rules accordingly.
 
-## Blocked
-
-- [x] **The mark files themselves are not in the tree.** Not a decision — a
-  transport limit. `DesignSync.get_file` is capped at 256 KiB and every source
-  PNG is larger, so all fourteen downloads returned `truncated: true` at exactly
-  196,608 bytes. Committing one would have committed a corrupt image.
-
-  Everything else is done: markup, stylesheet, and the design authority all
-  expect the final filenames, and `wwwroot/images/marks/README.md` lists each
-  file and where it is used. Copying the originals into that folder is the only
-  remaining step. Until then each `<img>` renders as its empty `alt`, which
-  breaks nothing because the marks are decorative — confirmed by the full axe
-  suite passing with the files absent.
+- [x] **The mark files themselves are not in the tree.**
+  Resolved 2026-08-18: the operator placed the full Claude Design folder at
+  `PegasusDesign/` in the worktree. The ten placed marks were downscaled to
+  128×128 (Lanczos) from the 1024×1024 sources and committed to
+  `src/Pegasus.Web/wwwroot/images/marks/`. Their SHA-256 values are recorded in
+  the marks README and in the design authority's source-to-runtime mapping. The
+  four unplaced marks (`activity`, `brand`, `calendar`, `casefolder`) are not
+  referenced by any markup and were not copied.
 
 ## Parked (explicitly deferred)
 
