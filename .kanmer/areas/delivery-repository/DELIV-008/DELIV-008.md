@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Release 9: promote dev to main, deploy to production, refresh current-state
   docs
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-18T10:49:29.692Z'
 labels:
   - release
   - requires-live-approval
@@ -17,7 +19,7 @@ links:
 deployment: not-deployed
 archived: false
 created: '2026-08-18T10:49:05.877Z'
-updated: '2026-08-18T10:49:05.877Z'
+updated: '2026-08-18T10:49:29.692Z'
 ---
 
 ## What
