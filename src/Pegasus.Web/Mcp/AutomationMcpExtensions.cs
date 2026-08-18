@@ -51,6 +51,8 @@ public static class AutomationMcpExtensions
                 server.RegisterResources(options.ResourceUri.AbsoluteUri);
                 server.SetAccessTokenLifetime(AutomationMcp.AccessTokenLifetime);
                 server.SetRefreshTokenLifetime(AutomationMcp.RefreshTokenLifetime);
+                // A hard cap: a connector re-consents at least fortnightly.
+                server.DisableSlidingRefreshTokenExpiration();
                 // This deployment has one always-on replica, so local keys are
                 // sufficient for its short-lived client-credentials tokens.
                 server.AddEphemeralEncryptionKey();

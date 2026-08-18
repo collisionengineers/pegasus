@@ -104,6 +104,13 @@ public sealed class AuthorizeModel : AdministrationPageModel
 
         var status = await registry.GetStatusAsync(actor, cancellationToken);
         var scopes = GrantedScopes(request, status);
+        if (scopes.Length == 0)
+        {
+            // A code without any granted scope could never call a tool; refuse
+            // it here rather than issue a token /mcp will reject.
+            return Refuse(Errors.InvalidScope, "The connector requested no granted scope.");
+        }
+
         await registry.RecordConnectorDecisionAsync(
             actor,
             RedirectUri(request),
@@ -135,10 +142,11 @@ public sealed class AuthorizeModel : AdministrationPageModel
         }
 
         var request = OpenIddictRequest();
+        var status = await registry.GetStatusAsync(actor, cancellationToken);
         await registry.RecordConnectorDecisionAsync(
             actor,
             RedirectUri(request),
-            [.. request.GetScopes()],
+            GrantedScopes(request, status),
             approved: false,
             IsOperationKeyValid(OperationKey) ? OperationKey : NewOperationKey(),
             cancellationToken);

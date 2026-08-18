@@ -38,9 +38,10 @@ history. An approved code is issued for the **Automation Actor** principal
 (subject = client id, granted scopes, MCP audience), never for the staff
 member, so tokens from every grant are indistinguishable to the actor
 resolver, the kill switch, the rate limit and the tools. Refresh tokens carry
-`offline_access` for the connector's convenience and die with the client
-registration or a Web restart (ephemeral keys). Dynamic client registration
-and per-staff MCP tokens remain excluded.
+`offline_access` for the connector's convenience, expire fourteen days after
+consent (no sliding renewal, so a connector re-consents at least fortnightly),
+and die earlier with the client registration or a Web restart (ephemeral
+keys). Dynamic client registration and per-staff MCP tokens remain excluded.
 
 ## Consequences
 
