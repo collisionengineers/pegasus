@@ -16,3 +16,5 @@
 - 2026-08-18: Claude Desktop custom remote-connector OAuth settings verified from official Anthropic documentation.
 - 2026-08-18: Source/test changes discarded at operator direction. Activation is configuration-only; no .NET test or rebuild is required.
 - 2026-08-18: Read-only RBAC census found the Web identity has secret-level Key Vault Secrets User access only to the two Box secrets. The new Automation MCP secret needs one matching exact-secret assignment.
+
+- 2026-08-18: Approved live configuration attempt stopped before any mutation. The current Azure identity is forbidden from `Microsoft.KeyVault/vaults/secrets/setSecret/action` on `pegasusprodkv252ow37g`; no Automation MCP secret, role assignment, Container App setting, or revision was created.
