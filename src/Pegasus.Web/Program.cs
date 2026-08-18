@@ -772,22 +772,33 @@ if (automationMcpOptions is not null)
             StringComparison.OrdinalIgnoreCase);
         var isMcpEndpoint = automationPath.StartsWithSegments(
             AutomationMcp.McpEndpointPath);
-        if (!isTokenEndpoint && !isMcpEndpoint)
+        var isAuthorizationEndpoint = automationPath.Equals(
+            AutomationMcp.AuthorizationEndpointPath,
+            StringComparison.OrdinalIgnoreCase);
+        if (!isTokenEndpoint && !isMcpEndpoint && !isAuthorizationEndpoint)
         {
             await next(context);
             return;
         }
 
-        if (isTokenEndpoint && HttpMethods.IsPost(context.Request.Method))
+        if ((isTokenEndpoint && HttpMethods.IsPost(context.Request.Method))
+            || isAuthorizationEndpoint)
         {
             // Seed/reconcile the single Automation client registration before
-            // OpenIddict authenticates the caller against it.
+            // OpenIddict validates the caller (token) or the connector's
+            // authorization request against it.
             await context.RequestServices
                 .GetRequiredService<AutomationClientRegistry>()
                 .EnsureRegisteredAsync(context.RequestAborted);
         }
 
         await next(context);
+        if (isAuthorizationEndpoint)
+        {
+            // The consent page is a staff surface; its refusals are recorded
+            // by the page itself, not as transport denials.
+            return;
+        }
 
         // Transport-level denials on the automation surface are material and
         // become attributable security events. Tool-level denials (scope,

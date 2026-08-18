@@ -10,13 +10,17 @@ using static OpenIddict.Abstractions.OpenIddictConstants;
 namespace Pegasus.Web.Mcp;
 
 /// <summary>
-/// Client-credentials token issuance for the single Automation client.
-/// OpenIddict has already authenticated the client id and secret against the
-/// seeded registration before this passthrough handler runs; the handler
-/// re-checks the Administrator kill switch, then issues a short-lived access
-/// token carrying the granted per-area scopes and the fixed MCP audience.
-/// Routine successful issuance stays content-safe telemetry; denials write
-/// security events.
+/// Token issuance for the single Automation client. OpenIddict has already
+/// authenticated the client id and secret against the seeded registration
+/// (and, for the authorization-code and refresh grants, validated the code or
+/// refresh token, the redirect URI and the PKCE verifier) before this
+/// passthrough handler runs; the handler re-checks the Administrator kill
+/// switch, then issues a short-lived access token carrying the granted
+/// per-area scopes and the fixed MCP audience. Every grant yields the same
+/// principal shape — subject is the client id — so the actor resolver and the
+/// tool authorization treat connector tokens exactly like client-credentials
+/// tokens. Routine successful issuance stays content-safe telemetry; denials
+/// write security events.
 /// </summary>
 internal static class AutomationTokenEndpoint
 {
@@ -30,11 +34,13 @@ internal static class AutomationTokenEndpoint
         var request = httpContext.GetOpenIddictServerRequest()
             ?? throw new InvalidOperationException(
                 "The OpenIddict server request is unavailable.");
-        if (!request.IsClientCredentialsGrantType())
+        var connectorGrant = request.IsAuthorizationCodeGrantType()
+            || request.IsRefreshTokenGrantType();
+        if (!request.IsClientCredentialsGrantType() && !connectorGrant)
         {
             return Forbid(
                 Errors.UnsupportedGrantType,
-                "Only the client-credentials grant is supported.");
+                "Only the client-credentials, authorization-code and refresh-token grants are supported.");
         }
 
         var clientId = request.ClientId
@@ -57,16 +63,29 @@ internal static class AutomationTokenEndpoint
                 "The Automation client registration is disabled.");
         }
 
-        var identity = new ClaimsIdentity(
-            TokenValidationParameters.DefaultAuthenticationType,
-            Claims.Name,
-            Claims.Role);
-        identity.SetClaim(Claims.Subject, clientId);
-        identity.SetScopes(request.GetScopes());
-        identity.SetResources(AutomationMcp.Audience);
-        identity.SetDestinations(_ => [Destinations.AccessToken]);
+        IEnumerable<string> scopes;
+        if (connectorGrant)
+        {
+            // The scopes were fixed at consent; the code/refresh-token
+            // principal carries them and OpenIddict has already validated it.
+            var granted = await httpContext.AuthenticateAsync(
+                OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+            var principal = granted.Principal;
+            if (principal is null
+                || !string.Equals(principal.GetClaim(Claims.Subject), clientId, StringComparison.Ordinal))
+            {
+                return Forbid(Errors.InvalidGrant, "The authorization is no longer valid.");
+            }
+
+            scopes = principal.GetScopes();
+        }
+        else
+        {
+            scopes = request.GetScopes();
+        }
+
         return Results.SignIn(
-            new ClaimsPrincipal(identity),
+            AutomationPrincipal.Create(clientId, scopes),
             properties: null,
             OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
@@ -79,4 +98,27 @@ internal static class AutomationTokenEndpoint
                 [OpenIddictServerAspNetCoreConstants.Properties.ErrorDescription] = description
             }),
             [OpenIddictServerAspNetCoreDefaults.AuthenticationScheme]);
+}
+
+/// <summary>
+/// The one principal shape every Automation grant issues: subject is the
+/// client id, the granted per-area scopes (plus <c>offline_access</c> when a
+/// refresh token is wanted), the fixed MCP audience, and access-token
+/// destinations. Refresh tokens are issued only from the connector flow, so
+/// client-credentials tokens keep their previous shape.
+/// </summary>
+internal static class AutomationPrincipal
+{
+    public static ClaimsPrincipal Create(string clientId, IEnumerable<string> scopes)
+    {
+        var identity = new ClaimsIdentity(
+            TokenValidationParameters.DefaultAuthenticationType,
+            Claims.Name,
+            Claims.Role);
+        identity.SetClaim(Claims.Subject, clientId);
+        identity.SetScopes(scopes);
+        identity.SetResources(AutomationMcp.Audience);
+        identity.SetDestinations(_ => [Destinations.AccessToken]);
+        return new ClaimsPrincipal(identity);
+    }
 }

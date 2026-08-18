@@ -23,6 +23,7 @@ internal static class AutomationMcpTestSupport
 {
     public const string ClientId = "pegasus-automation";
     public const string ClientSecret = "integration-test-automation-secret-0123456789";
+    public const string ConnectorRedirectUri = "https://connector.example/api/mcp/auth_callback";
     public const string AllScopes =
         "automation.cases automation.intake automation.documents automation.assessment";
 
@@ -36,6 +37,7 @@ internal static class AutomationMcpTestSupport
             builder.UseSetting("AutomationMcp:ClientId", ClientId);
             builder.UseSetting("AutomationMcp:ClientSecret", ClientSecret);
             builder.UseSetting("AutomationMcp:PublicOrigin", "http://localhost/");
+            builder.UseSetting("AutomationMcp:RedirectUris", ConnectorRedirectUri);
             builder.UseSetting("AutomationMcp:RegistrationCacheSeconds", "0");
         });
 

@@ -15,6 +15,7 @@ public static class AutomationMcp
     public const string RateLimitPolicy = "AutomationMcp";
     public const string Audience = "pegasus-automation-mcp";
     public const string TokenEndpointPath = "/connect/token";
+    public const string AuthorizationEndpointPath = "/authorize";
     public const string McpEndpointPath = "/mcp";
     public const string ResourceMetadataPath = "/.well-known/oauth-protected-resource/mcp";
     public const string CasesScope = "automation.cases";
@@ -23,6 +24,7 @@ public static class AutomationMcp
     public const string AssessmentScope = "automation.assessment";
     public const int RequestsPerClientPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
+    public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
     public static IReadOnlyList<string> Scopes { get; } =
         [CasesScope, IntakeScope, DocumentsScope, AssessmentScope];
@@ -38,9 +40,16 @@ public sealed record AutomationMcpOptions(
     string ClientId,
     string ClientSecret,
     Uri PublicOrigin,
-    TimeSpan RegistrationCacheLifetime)
+    TimeSpan RegistrationCacheLifetime,
+    IReadOnlyList<Uri> RedirectUris)
 {
     public Uri ResourceUri => new(PublicOrigin, AutomationMcp.McpEndpointPath);
+
+    /// <summary>
+    /// The authorization-code flow for external connectors exists only when
+    /// an administrator has configured at least one exact redirect URI.
+    /// </summary>
+    public bool ConnectorAuthorizationEnabled => RedirectUris.Count > 0;
 
     public static AutomationMcpOptions? TryCreate(IConfiguration configuration)
     {
@@ -83,10 +92,30 @@ public sealed record AutomationMcpOptions(
                 "AutomationMcp:RegistrationCacheSeconds must be between 0 and 60.");
         }
 
+        // Exact redirect URIs for external MCP connectors (comma or semicolon
+        // separated). https only, except loopback for local evidence runs; no
+        // fragment. Absent means the authorization-code flow is not offered.
+        var redirectUris = new List<Uri>();
+        foreach (var candidate in (configuration["AutomationMcp:RedirectUris"] ?? string.Empty)
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var redirectUri)
+                || !string.IsNullOrEmpty(redirectUri.Fragment)
+                || (redirectUri.Scheme != Uri.UriSchemeHttps
+                    && !(redirectUri.Scheme == Uri.UriSchemeHttp && redirectUri.IsLoopback)))
+            {
+                throw new InvalidOperationException(
+                    "AutomationMcp:RedirectUris entries must be absolute https URIs (http only for loopback) without a fragment.");
+            }
+
+            redirectUris.Add(redirectUri);
+        }
+
         return new(
             clientId,
             clientSecret,
             publicOrigin,
-            TimeSpan.FromSeconds(cacheSeconds));
+            TimeSpan.FromSeconds(cacheSeconds),
+            redirectUris);
     }
 }

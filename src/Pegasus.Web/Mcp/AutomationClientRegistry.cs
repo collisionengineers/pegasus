@@ -203,7 +203,57 @@ public sealed class AutomationClientRegistry(
             descriptor.Permissions.Add(
                 OpenIddictConstants.Permissions.GrantTypes.ClientCredentials);
         }
+        if (enabled && options.ConnectorAuthorizationEnabled)
+        {
+            // Authorization code + PKCE for external connectors, with refresh
+            // tokens so a connector re-authenticates without a new consent
+            // every ten minutes. Redirect URIs are exact and administrator
+            // managed; disabling the client removes these grants with the rest.
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Authorization);
+            descriptor.Permissions.Add(
+                OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode);
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.RefreshToken);
+            descriptor.Permissions.Add(OpenIddictConstants.Permissions.ResponseTypes.Code);
+            descriptor.Permissions.Add(
+                OpenIddictConstants.Permissions.Prefixes.Resource + options.ResourceUri.AbsoluteUri);
+            descriptor.Requirements.Add(
+                OpenIddictConstants.Requirements.Features.ProofKeyForCodeExchange);
+            foreach (var redirectUri in options.RedirectUris)
+            {
+                descriptor.RedirectUris.Add(redirectUri);
+            }
+        }
 
         return descriptor;
+    }
+
+    /// <summary>
+    /// The Administrator's consent decision for an external connector is
+    /// permanent history: who authorised which redirect target for which
+    /// scopes, or refused it.
+    /// </summary>
+    public Task RecordConnectorDecisionAsync(
+        ActionActor actor,
+        Uri redirectUri,
+        IReadOnlyCollection<string> scopes,
+        bool approved,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        ArgumentNullException.ThrowIfNull(redirectUri);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+        return actionHistory.AppendAsync(
+            new ActionHistoryEntry(
+                Guid.NewGuid(),
+                "automation_client",
+                options.ClientId,
+                approved ? "automation_connector_authorized" : "automation_connector_denied",
+                actor,
+                timeProvider.GetUtcNow(),
+                approved ? "Succeeded" : "Denied",
+                operationKey.Trim(),
+                $"Connector {redirectUri.GetLeftPart(UriPartial.Authority)}; scopes: {string.Join(' ', scopes)}"),
+            cancellationToken);
     }
 }
