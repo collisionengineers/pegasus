@@ -313,11 +313,11 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     → 302 to `https://claude.ai/api/mcp/auth_callback?code=…&state=…`; the
     code + PKCE verifier + client secret → access token (600 s) and refresh
     token, scope `automation.cases automation.documents offline_access`;
-    `/mcp` `tools/list` → 15 tools and an intake tool refused for the
-    unconsented scope; refresh issued a new token; ActionHistory
+    `/mcp` `tools/list` → 15 tools and an intake tool refused for a scope
+    outside the token; refresh issued a new token; ActionHistory
     `automation_connector_authorized` (Staff actor, "Connector
-    https://claude.ai; scopes: …"). Worker redeployed by `config-zip` and
-    polling. Not proved: the Claude.ai product completing the flow itself —
+    https://claude.ai; scopes: …"). Worker redeployed by `config-zip`; smoke
+    passed with `approved-live-worker` and the inbox poll state advanced. Not proved: the Claude.ai product completing the flow itself —
     the operator connects the connector from their account.
 
   - **Release 9** was the first exact-SHA fast-forward promotion under the
@@ -457,13 +457,13 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     repair, baseline, activation, mail receipt, Case/PO, Box-custody, or
     product-acceptance claim.
 
-    **Current Worker state (2026-08-18, live-verified at release 9):** the
+    **Current Worker state (2026-08-18, live-verified at release 10):** the
     containment above was reversed on 2026-08-13 — the production Worker
     `pegasus-prod-worker-252ow37gij` is **enabled**. All nine
     `AzureWebJobs.<function>.Disabled` settings read `false`
     (`Invoke-ProductionSmoke.ps1 -ExpectedWorkerActivation approved-live-worker`
     passed on 2026-08-18; `PEGASUS_WORKER_ACTIVATION=approved-live-worker` is the
-    azd input). Beyond configuration, the release-9 package's inbox poll ran
+    azd input). Beyond configuration, the release-10 package's inbox poll ran
     against the deployed estate (`ApprovedInboxPollStates.LastCompletedAtUtc`
     advanced within a minute, no failure code) and the Worker created a real
     case with Box custody on 2026-08-14 (INT-25 tier-5 evidence, TICK-012).
