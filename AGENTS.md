@@ -270,8 +270,10 @@ date, and agent and moves it to the working stage — that record *is* the claim
    pass ran with honest dispositions (unapplied findings named, with a reason
    or a ticket). For a docs-only task, review the PR diff and description for
    missing or unauthorized scope. A task PR may merge
-   into `dev` only after that review passes and CI is green. Explicit
-   `MERGE AUTH GRANTED` is required only for `dev` to `main`.
+   into `dev` only after that review passes and CI is green. A `dev` to `main`
+   release is an exact-SHA, non-force promotion governed by
+   [engineering](docs/engineering.md#branches-and-delivery), and needs
+   explicit `MERGE AUTH GRANTED` immediately before the `main` update.
    Committing is not gated: commit to your own task branch freely and often, in
    small logical slices, without operator authority. Only the `dev` → `main`
    merge requires `MERGE AUTH GRANTED`.
@@ -290,6 +292,12 @@ require its own ticket.
 Never touch work that is not yours. Allowed operations are discarding only your
 own unpushed commits in your own task worktree, merging `origin/dev` into that
 branch, merging its green and independently reviewed PR into `dev`, deleting
-its merged branch and worktree, and maintenance pushes to `dev` limited to task
-claims and owned temporary-plan deletions. Never force-push, rewrite `dev` or
-`main`, stash/reset/clean another person's work, or stage beyond the task.
+its merged branch and worktree, maintenance pushes to `dev` limited to task
+claims and owned temporary-plan deletions, and the authorised exact-SHA,
+non-force `dev` to `main` promotion specified in
+[engineering](docs/engineering.md#branches-and-delivery). The sole migration
+exception is DELIV-003: after DELIV-002 has merged to `dev` with green CI, its
+own `origin/dev`-based task branch may merge `origin/main` and deliver that
+merge through its reviewed PR to `dev`; it never permits a direct `dev` update
+and expires as that PR merges. Never force-push, rewrite `dev` or `main`,
+stash/reset/clean another person's work, or stage beyond the task.
