@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Release 9: promote dev to main, deploy to production, refresh current-state
   docs
-status: implementing
+status: review
 area: delivery-repository
 assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-18T10:49:29.692Z'
+  review: '2026-08-18T12:18:11.524Z'
 taken_at: '2026-08-18T11:24:15.274Z'
 branch: task/deliv-008-release-9
 worktree: ../pegasus-worktrees/deliv-008-release-9
@@ -22,7 +23,7 @@ links:
 deployment: not-deployed
 archived: false
 created: '2026-08-18T10:49:05.877Z'
-updated: '2026-08-18T11:24:15.274Z'
+updated: '2026-08-18T12:18:11.524Z'
 ---
 
 ## What
