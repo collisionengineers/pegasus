@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-18T13:21:40.912Z'
   verifying: '2026-08-18T13:52:59.648Z'
   done: '2026-08-18T14:45:26.738Z'
-taken_at: '2026-08-18T12:59:02.005Z'
-branch: task/auto-002-connector-auth-code
-worktree: ../pegasus-worktrees/auto-002-connector-auth-code
 labels:
   - now
   - MCP
@@ -34,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-18T12:57:32.747Z'
-updated: '2026-08-18T14:45:54.423Z'
+updated: '2026-08-18T14:47:01.446Z'
 ---
 
 ## Why

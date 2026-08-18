@@ -15,3 +15,13 @@
 ## Progress notes
 
 - 2026-08-18: Implemented on `task/auto-002-connector-auth-code` (`17545b6f`); PR https://github.com/collisionengineers/pegasus/pull/405. Two OpenIddict-7 facts learned: the client registration must exist before OpenIddict validates `/authorize` (seed in the automation middleware), and the `resource` indicator MCP clients send must be registered (`RegisterResources`) and permitted per client.
+
+- [x] Independent review PASS (follow-ups `15e98424`); PR #405 merged as `d8de29cb`.
+- [x] Release 10 ([[DELIV-009]]) promoted and provisioned; live connector evidence captured; proof written; docs refreshed (PR #407).
+
+## Closeout — AUTO-002 (2026-08-18)
+
+- [x] PR #405 MERGED
+- [x] proof.md finalised; Done; Outcome recorded; deployment = production
+- [x] Worktree `../pegasus-worktrees/auto-002-connector-auth-code` removed; local + remote branch deleted; prune
+- [x] Released
