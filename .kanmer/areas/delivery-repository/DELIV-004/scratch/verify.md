@@ -1,0 +1,1 @@
+2026-08-18 — Verification cannot begin yet: PR #398 merged into `dev` as `ac641ceb2bb522fdc26f2323d9b0423271b13c31`, but that commit is not an ancestor of `origin/main` (main currently ends at `2b0df78c`). Repository policy requires proof from merged `main`; no proof or Done move was written against the wrong branch.
