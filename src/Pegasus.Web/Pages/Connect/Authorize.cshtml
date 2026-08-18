@@ -1,0 +1,50 @@
+@page "/authorize"
+@model Pegasus.Web.Pages.Connect.AuthorizeModel
+@{
+    ViewData["Title"] = "Authorise an automation connector";
+    ViewData["Eyebrow"] = "Administration";
+}
+
+<partial name="Shared/_PageHeader" />
+
+<aside class="notice">
+    <p>An external MCP connector is asking to act as the Automation actor. The connector never receives staff rights: every action it takes runs as <strong>@Model.ClientDisplayName</strong> through the approved tool inventory, within the scopes below, and is permanently recorded. Your decision is recorded too.</p>
+</aside>
+
+<section class="panel" aria-labelledby="connector-heading">
+    <h2 id="connector-heading" class="section-label">Connection request</h2>
+    <dl class="detail-list">
+        <div><dt>Connector</dt><dd>@Model.ConnectorOrigin</dd></div>
+        <div><dt>Acts as</dt><dd>@Model.ClientDisplayName</dd></div>
+        <div>
+            <dt>Requested access</dt>
+            <dd>
+                @if (Model.RequestedScopes.Count == 0)
+                {
+                    <span>No granted scope was requested; the connector would be unable to call any tool.</span>
+                }
+                else
+                {
+                    <ul>
+                        @foreach (var (scope, description) in Model.RequestedScopes)
+                        {
+                            <li><code>@scope</code> — @description</li>
+                        }
+                    </ul>
+                }
+            </dd>
+        </div>
+    </dl>
+
+    <form method="post" class="section-gap">
+        @foreach (var parameter in Model.RequestParameters)
+        {
+            <input type="hidden" name="@parameter.Key" value="@parameter.Value" />
+        }
+        <input type="hidden" asp-for="OperationKey" />
+        <div class="button-row">
+            <button type="submit" asp-page-handler="Accept" class="primary-action">Authorise the connector</button>
+            <button type="submit" asp-page-handler="Deny" class="secondary-action">Refuse</button>
+        </div>
+    </form>
+</section>

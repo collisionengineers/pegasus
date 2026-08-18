@@ -50,6 +50,9 @@
     "automationMcpClientSecretUri": {
       "value": "${AUTOMATION_MCP_CLIENT_SECRET_URI}"
     },
+    "automationMcpRedirectUris": {
+      "value": "${AUTOMATION_MCP_REDIRECT_URIS=https://claude.ai/api/mcp/auth_callback}"
+    },
     "dvlaApiKeySecretUri": {
       "value": "${DVLA_API_KEY_SECRET_URI}"
     },

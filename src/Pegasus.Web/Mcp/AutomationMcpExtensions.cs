@@ -37,9 +37,22 @@ public static class AutomationMcpExtensions
             .AddServer(server =>
             {
                 server.SetTokenEndpointUris(AutomationMcp.TokenEndpointPath);
+                server.SetAuthorizationEndpointUris(AutomationMcp.AuthorizationEndpointPath);
                 server.AllowClientCredentialsFlow();
+                // External MCP connectors (for example the Claude.ai remote
+                // connector) obtain tokens by authorization code + PKCE with an
+                // Administrator consent step; the client registration only
+                // receives that grant when redirect URIs are configured.
+                server.AllowAuthorizationCodeFlow().RequireProofKeyForCodeExchange();
+                server.AllowRefreshTokenFlow();
                 server.RegisterScopes([.. AutomationMcp.Scopes]);
+                // MCP clients name the protected resource (RFC 8707) in their
+                // authorization requests; the only valid one is this /mcp.
+                server.RegisterResources(options.ResourceUri.AbsoluteUri);
                 server.SetAccessTokenLifetime(AutomationMcp.AccessTokenLifetime);
+                server.SetRefreshTokenLifetime(AutomationMcp.RefreshTokenLifetime);
+                // A hard cap: a connector re-consents at least fortnightly.
+                server.DisableSlidingRefreshTokenExpiration();
                 // This deployment has one always-on replica, so local keys are
                 // sufficient for its short-lived client-credentials tokens.
                 server.AddEphemeralEncryptionKey();
@@ -49,6 +62,7 @@ public static class AutomationMcpExtensions
                 // it, as does the in-process integration test server.
                 server.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
+                    .EnableAuthorizationEndpointPassthrough()
                     .DisableTransportSecurityRequirement();
             })
             .AddValidation(validation =>
@@ -103,9 +117,11 @@ public static class AutomationMcpExtensions
     }
 
     /// <summary>
-    /// Maps the bearer-only automation surface: the client-credentials token
-    /// endpoint and the streamable-HTTP MCP endpoint. A staff browser cookie
-    /// is never accepted on <c>/mcp</c>: the endpoint policy authenticates
+    /// Maps the bearer-only automation surface: the token endpoint (client
+    /// credentials, authorization code, refresh) and the streamable-HTTP MCP
+    /// endpoint. The Administrator consent page at <c>/authorize</c> is a
+    /// Razor Page (staff cookie), not mapped here. A staff browser cookie is
+    /// never accepted on <c>/mcp</c>: the endpoint policy authenticates
     /// exclusively with the automation bearer scheme, and an unauthenticated
     /// call receives 401 with WWW-Authenticate resource-metadata discovery.
     /// </summary>
