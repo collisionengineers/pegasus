@@ -4,7 +4,7 @@ type: ticket
 title: >-
   MCP-04 — Automation Actor document actions through the same Core use cases as
   the staff app
-status: verifying
+status: done
 area: automation-integrations
 assignee: grok-shell-kanmer
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-17T13:05:50.615Z'
   review: '2026-08-17T13:39:23.549Z'
   verifying: '2026-08-18T11:12:26.582Z'
+  done: '2026-08-18T12:22:36.260Z'
 taken_at: '2026-08-17T13:07:53.709Z'
 branch: task/tick-026-mcp-04-document-evidence
 worktree: ../pegasus-worktrees/tick-026-mcp-04-document-evidence
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/393'
 archived: false
 created: '2026-08-12T15:03:53.304Z'
-updated: '2026-08-18T11:12:26.582Z'
+updated: '2026-08-18T12:22:36.260Z'
 ---
 
 ## What

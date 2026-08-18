@@ -2,7 +2,7 @@
 id: DELIV-003
 type: ticket
 title: Converge shared branches for the first fast-forward release
-status: verifying
+status: done
 area: delivery-repository
 assignee: codex-mcp-client
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-18T08:24:16.980Z'
   review: '2026-08-18T09:23:34.421Z'
   verifying: '2026-08-18T09:26:10.373Z'
+  done: '2026-08-18T12:22:14.790Z'
 taken_at: '2026-08-18T09:22:14.165Z'
 branch: task/deliv-003-converge-main-history
 worktree: ../pegasus-worktrees/deliv-003-converge-main-history
@@ -23,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T08:17:54.534Z'
-updated: '2026-08-18T09:26:10.373Z'
+updated: '2026-08-18T12:22:14.790Z'
 ---
 
 ## What

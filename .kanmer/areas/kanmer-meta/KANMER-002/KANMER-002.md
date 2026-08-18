@@ -2,7 +2,7 @@
 id: KANMER-002
 type: ticket
 title: Repo Plan doc cleanup and organization into kanmer
-status: verifying
+status: done
 area: kanmer-meta
 order: 20
 assignee: codex
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-17T04:49:08.745Z'
   review: '2026-08-17T04:53:38.922Z'
   verifying: '2026-08-17T05:21:56.612Z'
+  done: '2026-08-18T12:22:55.153Z'
 taken_at: '2026-08-17T04:45:15.072Z'
 branch: task/kanmer-002-repo-plan-doc-cleanup
 worktree: ../pegasus-worktrees/kanmer-002-repo-plan-doc-cleanup
@@ -24,7 +25,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/379'
 archived: false
 created: '2026-08-14T12:30:37.742Z'
-updated: '2026-08-17T05:21:56.612Z'
+updated: '2026-08-18T12:22:55.153Z'
 ---
 
 Cleanup on:

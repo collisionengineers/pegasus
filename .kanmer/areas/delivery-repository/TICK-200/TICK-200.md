@@ -2,7 +2,7 @@
 id: TICK-200
 type: ticket
 title: Reduce remaining GitHub Actions wall-clock time
-status: verifying
+status: done
 area: delivery-repository
 assignee: codex-mcp-client
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-17T05:19:09.158Z'
   review: '2026-08-17T05:25:08.863Z'
   verifying: '2026-08-17T06:07:48.798Z'
+  done: '2026-08-18T12:22:48.385Z'
 taken_at: '2026-08-17T05:21:02.383Z'
 branch: task/reduce-actions-wall-clock
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/reduce-actions-wall-clock'
@@ -31,7 +32,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-12T15:08:04.974Z'
-updated: '2026-08-17T06:43:42.449Z'
+updated: '2026-08-18T12:22:48.385Z'
 ---
 
 ## What

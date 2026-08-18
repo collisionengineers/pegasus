@@ -4,13 +4,14 @@ type: ticket
 title: >-
   MAIL-21 — Minimum shared Core classification foundation: versioned rules,
   decision evidence, ambiguity outcome, and acceptance co…
-status: verifying
+status: done
 area: mail-communications
 assignee: grok-shell-kanmer
 profile: feature
 stageEntered:
   review: '2026-08-17T13:32:42.052Z'
   verifying: '2026-08-17T13:59:46.773Z'
+  done: '2026-08-18T12:22:26.383Z'
 taken_at: '2026-08-17T13:24:17.755Z'
 branch: task/tick-009-mail-21-classification-foundation
 worktree: ../pegasus-worktrees/tick-009-mail-21-classification-foundation
@@ -32,7 +33,7 @@ prs:
   - '391'
 archived: false
 created: '2026-08-12T15:03:52.949Z'
-updated: '2026-08-17T13:59:46.773Z'
+updated: '2026-08-18T12:22:26.383Z'
 ---
 
 ## What

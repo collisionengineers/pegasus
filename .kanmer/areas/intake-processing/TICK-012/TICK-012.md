@@ -2,13 +2,14 @@
 id: TICK-012
 type: ticket
 title: INT-25 — Automatic case creation from definitive authorised intake
-status: verifying
+status: done
 area: intake-processing
 order: 10
 assignee: claude-code
 profile: feature
 stageEntered:
   verifying: '2026-08-18T10:48:30.360Z'
+  done: '2026-08-18T12:22:33.457Z'
 labels:
   - capability
   - INT-25
@@ -21,7 +22,7 @@ links:
 blocks: []
 archived: false
 created: '2026-08-12T15:03:53.008Z'
-updated: '2026-08-18T10:48:30.360Z'
+updated: '2026-08-18T12:22:33.457Z'
 ---
 
 ## What
