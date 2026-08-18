@@ -3,10 +3,11 @@
 ## Question
 
 Do the existing repository rules already prohibit shipping features behind a
-closed composition or feature gate, and what must DELIV-004 change?
+closed composition or feature gate, and what must DELIV-004 clarify?
 
 ## Findings
 
+- A closed composition or feature gate is a disabled flag.
 - `AGENTS.md` requires claims to prove the actual caller and distinguishes a
   registration, green build, and deployed feature. It also makes the
   `docs/engineering.md` simplicity rules binding on every task.
@@ -16,23 +17,18 @@ closed composition or feature gate, and what must DELIV-004 change?
   a disabled flag, or dark destructive code.
   - It further requires anything built but unwired for two weeks to gain a real
     caller or be deleted.
-- The existing wording therefore already rejects dark, disabled implementation
-  as the way to defer work. It does not, however, state the user's categorical
-  release rule in `AGENTS.md`: a closed gate means the feature is not shipped
-  and cannot be claimed as implemented.
-- `AGENTS.md` places repository rules in itself and currently references the
-  Engineering rules rather than repeating this release claim. The clarification
-  belongs in `AGENTS.md`, with `docs/engineering.md` retained as the detailed
-  anti-dormancy authority.
+- The existing policy therefore already forbids treating a closed-gate feature
+  as shipped, delivered, or a valid form of deferral. `AGENTS.md` imports
+  that policy by making the Engineering rules apply to every task.
 
 ## Implications
 
-DELIV-004 should add one concise, unambiguous repository rule to `AGENTS.md`
-that closed-gate behaviour is not shipped, delivered, or claimable; a gate is
-not a deferral mechanism. It should align with—not duplicate or weaken—the
-existing Engineering prohibition on dormant registrations, unused endpoints,
-disabled flags, and dark destructive code.
+DELIV-004 is a clarification/hardening task, not a new policy decision. Any
+`AGENTS.md` change should express the existing rule plainly: closed-gate work
+is a disabled flag, therefore is not shipped or claimable. It must reinforce,
+not duplicate, weaken, or create an exception to the Engineering rule.
 
 ## Open questions
 
-None. The user has set the intended rule: we do not ship features gated off.
+None. The user has confirmed the intended interpretation: we do not ship
+features gated off.

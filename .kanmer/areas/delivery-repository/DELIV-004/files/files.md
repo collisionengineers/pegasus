@@ -4,16 +4,16 @@
 
 | Path | Why |
 |---|---|
-| `AGENTS.md` | Canonical repository-rule owner. Add the explicit rule that a feature behind a closed gate is not shipped, delivered, or claimable. |
+| `AGENTS.md` | Canonical repository-rule owner. Make its binding link to the existing no-disabled-flag policy explicit: a feature behind a closed gate is not shipped, delivered, or claimable. |
 
 ## Context files
 
 | Path | What it tells the implementer |
 |---|---|
-| `docs/engineering.md` | Already forbids deferring capabilities as dormant registration, unused endpoint, disabled flag, or dark destructive code; the new `AGENTS.md` rule must reinforce this without creating a competing policy. |
+| `docs/engineering.md` | The pre-existing detailed authority: a deferred capability is never a dormant registration, unused endpoint, disabled flag, or dark destructive code; a closed gate is a disabled flag. |
 | `docs/index.md` | Confirms that repository rules live in `AGENTS.md` and that Engineering is downstream working guidance. |
 | `docs/operations.md` | Uses implemented-but-gated wording for current-state facts; it is context for truthful terminology, not an activation instruction. |
-| `AUTO-001` | Related activation ticket demonstrating why a closed gate must be treated as unshipped until separately activated and evidenced. |
+| `AUTO-001` | Related activation ticket; activation is separate work and is not needed to establish the policy. |
 
 ## Ripple effects
 
