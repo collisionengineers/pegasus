@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Release 9: promote dev to main, deploy to production, refresh current-state
   docs
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-18T10:49:29.692Z'
+taken_at: '2026-08-18T11:24:15.274Z'
+branch: task/deliv-008-release-9
+worktree: ../pegasus-worktrees/deliv-008-release-9
 labels:
   - release
   - requires-live-approval
@@ -19,7 +22,7 @@ links:
 deployment: not-deployed
 archived: false
 created: '2026-08-18T10:49:05.877Z'
-updated: '2026-08-18T10:49:29.692Z'
+updated: '2026-08-18T11:24:15.274Z'
 ---
 
 ## What
