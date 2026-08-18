@@ -24,11 +24,13 @@ links:
 docs_todo: true
 commits:
   - 4b1cfed8be9530e367225a3deac4a651ae0da534
+  - 14ce3843
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/378'
+deployment: n/a
 archived: false
 created: '2026-08-14T11:15:00.236Z'
-updated: '2026-08-18T12:22:51.461Z'
+updated: '2026-08-18T12:26:19.187Z'
 ---
 
 ## What
@@ -48,4 +50,8 @@ A slow, flaky per-PR gate blocks unrelated (e.g. docs) PRs and trains reviewers 
 
 ## Verification
 
-- [ ] Each test either passes deterministically 20x locally under load, or is moved off the per-PR required set with rationale.
+- [x] Each test either passes deterministically 20x locally under load, or is moved off the per-PR required set with rationale.
+
+## Outcome
+
+Shipped via PR #378 (merged 2026-08-17T04:50:07Z, `14ce3843`; on `main` since #394): Worker validator aligned to the 1/1 replica contract, diagnostics on the pwsh subprocess test, deadlock-1205 retry in the parallel allocation test, cancellation made deterministic in the extractor, and the pressure soak moved to a nightly lane. That nightly lane was itself retired on 2026-08-18 ([[DELIV-007]]). Architecture suite 96/96 and all three SQL shards green on the release-9 SHA. Worktree cleanup owed on workstation `PC`; the remote branch was deleted. Closed out 2026-08-18.
