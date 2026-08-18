@@ -55,7 +55,7 @@ activation; installing a tool never establishes a caller.
 | `Browser` | The `Browser` trait pins Microsoft Playwright for .NET, Chromium, and Deque axe-core. It drives the rendered DevelopmentOffline Operations, intake, Triage, administration, password-change, and case-document routes through a loopback Kestrel host, including semantic, responsive, forced-colour, and reduced-motion checks. It remains local caller evidence: Edge Stable, Narrator, manual accessibility review, external approvals, deployment, and operator/management acceptance remain separate fail-closed gates. |
 | `Graph` | Microsoft Dev Proxy and mocked Kiota request adapters for paging, throttling, 401/403, 429, 5xx, timeout, authentication, and retry. |
 | `Observability` | OpenTelemetry in-memory exporter and an optional native Collector for correlation, attributes, health signals, OTLP, and redaction. |
-| `Performance` | `Invoke-QdosAlphaAcceptance.ps1 -Profile CiPressure` compiles the two bounded pressure sources through the existing integration-test host, exercises eight concurrent DevelopmentOffline Web callers, and retains content-safe TRX and hashed run evidence. It installs no load-test framework and makes no alpha-capacity claim. |
+| `Performance` | No lane. The nightly in-process pressure probe was retired on 2026-08-18 (DELIV-007) as diagnostic-only CI that gated nothing; the trait stays reserved for a future lane with an accepted capacity claim. |
 | `Security` | .NET dependency vulnerability checks and OWASP ZAP; ZAP uses the conditional container profile. |
 | `Containers` | A container runtime (Docker Desktop in Linux-container mode on Windows, the native engine on Linux), conditionally for ZAP, optional telemetry, optional SQL compatibility, or a specifically approved licensed Document Intelligence container. Docker is never required merely for Azurite. On Linux the local database is a container, so a container runtime is a base prerequisite there rather than a conditional one. |
 | `LiveIntegration` | The existing approved developer identity/secret tooling and exact SDK/CLI owned by the feature. Never part of the default local check. |
@@ -64,15 +64,9 @@ Storage Explorer, SSMS, and Postman are optional conveniences.
 
 Do not add Service Bus, Event Hubs, Cosmos DB, Redis, PostgreSQL, Azure Files, ADLS, local SMTP infrastructure, Testcontainers, or related emulators without a later accepted architectural need.
 
-`CiPressure` is the current narrow Checkpoint 12 pressure profile. The
-[QDOS pressure procedure](runbook.md#qdos-pressure-profiles) owns its invocation,
-source-revision checks, prerequisites, staging, cleanup, and evidence path.
-GitHub registers it as a nightly 03:00 UTC and manually dispatched diagnostic
-workflow, outside the pull-request gate, with retained evidence on every run.
-
-This lane proves bounded in-process Web-caller concurrency, latency, antiforgery denial, cancellation recovery, and idempotent replay against controlled fixtures. It does **not** prove the approved 30-minute workload, 2,000-case/source distribution, Worker/Azurite queue recovery, LocalDB restore, full case/EVA/report journeys, deployment, or acceptance.
-
-`OfflineCandidate` is the current fail-closed profile and remains unavailable
+`OfflineCandidate` is the only profile of
+[`Invoke-QdosAlphaAcceptance.ps1`](runbook.md#qdos-offline-candidate-runner).
+It is fail closed and remains unavailable
 without the approved immutable dataset, caller manifest, and run-owned local
 evidence required by the runbook. Its capability-coverage check is owned by the
 runner script and reads the alpha roster from `docs/capabilities.md`; the
@@ -80,8 +74,8 @@ application registers no acceptance gate. It never promotes offline evidence to
 deployed, live-verified, release-accepted, QDOS operator-accepted, or Collision
 Engineers management-accepted evidence.
 
-Traits currently in use are `SqlServer`, `Browser`, `Corpus`, `QdosPressure`,
-and `QdosAlphaAcceptance`. Additional stable planned traits (unused until their
+Traits currently in use are `SqlServer`, `Browser`, `Corpus`, and
+`QdosAlphaAcceptance`. Additional stable planned traits (unused until their
 lanes exist) are `Unit`, `Integration`, `Storage`, `FunctionsHost`,
 `Performance`, `Security`, `Recovery`, and `LiveIntegration`.
 

@@ -674,35 +674,30 @@ Use managed identity and scoped RBAC. Store unavoidable third-party secrets in I
 
 ## Testing model
 
-### QDOS pressure profiles
+### QDOS offline candidate runner
 
-`scripts/Invoke-QdosAlphaAcceptance.ps1` is the Checkpoint 12 pressure
-orchestrator. `CiPressure` temporarily stages
-`tests/Pegasus.PerformanceTests/CapacitySoakTests.cs` and
-`FailureInjectionTests.cs` into the existing `Pegasus.IntegrationTests`
-compilation, runs only `Category=QdosPressure`, removes that owned staging
-directory unconditionally, and writes content-safe evidence beneath
-`artifacts/qdos-alpha-acceptance/<run-id>/`. Supply the exact 40-character
-checked-out source revision:
-
-GitHub runs this profile nightly at 03:00 UTC and on manual dispatch through
-`.github/workflows/qdos-pressure.yml`. Hosted-runner variance makes it a
-recurring diagnostic lane rather than a pull-request gate; every run retains
-its content-safe evidence artifact.
+`scripts/Invoke-QdosAlphaAcceptance.ps1` is the Checkpoint 12 offline
+acceptance orchestrator. Its only profile is `OfflineCandidate`; it runs the
+`Category=QdosAlphaAcceptance` lane of `Pegasus.IntegrationTests` at the exact
+supplied 40-character source revision and writes content-safe evidence beneath
+`artifacts/qdos-alpha-acceptance/<run-id>/`. No workflow schedules it; the
+former nightly `CiPressure` probe was retired on 2026-08-18 (DELIV-007).
 
 ```powershell
 ./scripts/Invoke-QdosAlphaAcceptance.ps1 `
-  -Profile CiPressure `
-  -SourceRevision $env:GITHUB_SHA
+  -Profile OfflineCandidate `
+  -SourceRevision (git rev-parse HEAD) `
+  -CapacityDatasetManifest <path> `
+  -CallerEvidenceManifest <path> `
+  -LocalRunManifest <path>
 ```
 
 The runner requires Git metadata and a clean working tree, resolves the
 supplied revision to the exact checked-out `HEAD`, and rejects a mismatch
-before creating the run evidence directory or compiling tests.
-`OfflineCandidate` also requires the caller manifest to identify that exact
-revision and run.
+before creating the run evidence directory or compiling tests. It also
+requires the caller manifest to identify that exact revision and run.
 
-`-Profile OfflineCandidate` is deliberately fail closed. It requires the
+`OfflineCandidate` is deliberately fail closed. It requires the
 operator-approved immutable 2,000-case dataset and hash, the complete
 QDOS-owned caller-evidence manifest, and the exact run-owned
 `artifacts/local-development/<run-id>/run-manifest.json`. That local manifest
