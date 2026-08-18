@@ -33,3 +33,9 @@ Claude Desktop controls connector and tool access. Pegasus supplies the existing
 | Future deployment removes the configuration. | Keep the equivalent IaC settings in this ticket. |
 | Runtime configuration is incompatible with the deployed revision. | Check new revision health immediately and roll the gate back to its closed state if it fails. |
 | Secret exposure. | Generate/store it directly in Key Vault; suppress command output and never retrieve, log, or commit it. |
+
+## Live outcome — 2026-08-18
+
+The configuration-only hypothesis was tested and disproved on the approved production target. The configured revision exited with `Features:AutomationMcp requires the DevelopmentOffline runtime profile`; it never became ready. The gate was immediately rolled back to `false`, producing healthy revision `pegasus-prod-web-252ow37gij--0000003` with the MCP routes closed.
+
+The exact deployed source SHA (`aecad2479f52dadfedca109413a458c60c85323e`) contains that guard. A source change and replacement image are therefore required to activate the existing endpoint. Do not retain an IaC setting that turns the gate on until that code is deployed.
