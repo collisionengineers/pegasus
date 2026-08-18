@@ -2,20 +2,23 @@
 id: DELIV-002
 type: ticket
 title: Adopt fast-forward-only dev-to-main releases
-status: preparing
+status: implementing
 area: delivery-repository
 order: 0
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-18T08:01:12.101Z'
+taken_at: '2026-08-18T08:39:15.115Z'
+branch: task/deliv-002-fast-forward-main-release
+worktree: ../pegasus-worktrees/deliv-002-fast-forward-main-release
 labels: []
 links: []
 blocks: []
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T08:34:01.893Z'
+updated: '2026-08-18T08:39:15.115Z'
 ---
 
 ## What
