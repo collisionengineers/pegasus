@@ -2,12 +2,13 @@
 id: DELIV-005
 type: ticket
 title: Remove Markdown-placement CI gate
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-18T09:33:17.459Z'
+  review: '2026-08-18T09:35:00.198Z'
 taken_at: '2026-08-18T09:33:53.473Z'
 branch: task/deliv-005-remove-markdown-ci
 worktree: ../pegasus-worktrees/deliv-005-remove-markdown-ci
@@ -20,9 +21,13 @@ links:
   - DELIV-004
 blocks:
   - DELIV-004
+commits:
+  - 015f2e21dc7dba75b347256143bc425701f66a94
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/401'
 archived: false
 created: '2026-08-18T09:33:13.048Z'
-updated: '2026-08-18T09:33:53.473Z'
+updated: '2026-08-18T09:35:00.198Z'
 ---
 
 ## Why

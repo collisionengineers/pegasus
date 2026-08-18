@@ -39,3 +39,7 @@ repository task workflow and changes the existing CI convention in place.
 Removing the gate deliberately stops CI from enforcing Markdown placement. The
 scope is kept narrow by retaining the regression test and link checker, and by
 leaving the policy script itself unchanged for potential future use.
+
+## Simplification pass — 2026-08-18
+
+n/a — docs-only workflow configuration. The change removes one isolated CI step and reuses the existing documentation job; it adds no mechanism, abstraction, or duplicate policy.
