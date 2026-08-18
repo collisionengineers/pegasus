@@ -76,3 +76,10 @@ configured client id/secret).
 - Live after release 10: Claude.ai connector authorises through `/authorize` (Administrator consent), lists 15 tools; ActionHistory `automation_connector_authorized`.
 
 ## Simplification pass — (to be recorded before the PR)
+
+### 2026-08-18 — dispositions
+
+- Reuse — the consent page issues its code through the same `AutomationPrincipal.Create` the token endpoint uses (extracted from the endpoint; two callers), records history through the registry's existing ActionHistory writer, and reuses `AdministrationPageModel` (`TryGetActor`, `NewOperationKey`, `IsOperationKeyValid`) and the admin page markup classes. Tests reuse `AutomationMcpTestSupport`.
+- Simplification — tried factoring the three handlers' identical guard (actor → right → composed ingress) into one helper; nullable flow analysis then lost the non-null facts and forced suppressions, so the explicit nine lines per handler stay (clarity over brevity). Client-credentials path unchanged apart from sharing the principal factory.
+- Efficiency — n/a (one extra `GetStatusAsync` per consent; cached registration).
+- Altitude — redirect URIs are configuration rendered from Bicep, not code; scope descriptions live on the page (UI copy), not in Core; no FRD change because the grant is a transport mechanism, not behaviour of a capability. Findings applied; nothing deferred.
