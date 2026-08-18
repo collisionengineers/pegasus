@@ -13,19 +13,24 @@
     <h1>Upload</h1>
 </header>
 
-<section class="panel form-panel" aria-labelledby="upload-title">
-    <h2 id="upload-title" class="section-label">Upload a document</h2>
-    <form method="post" enctype="multipart/form-data">
-        <input asp-for="ExternalReceiptToken" type="hidden" />
-        <div asp-validation-summary="ModelOnly" class="validation-summary-errors" role="alert"></div>
-        <label asp-for="Upload">
-            Drag a file here, or browse
-            @* The accepted types are stated, not left in an `accept`
-               attribute the operator cannot read. *@
-            <span class="field-hint">E-mail, Word document, PDF or image — up to @Pegasus.Web.Pages.UploadModel.MaximumSizeLabel.</span>
-        </label>
-        <input asp-for="Upload" type="file" accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
-        <span asp-validation-for="Upload" class="field-validation-error"></span>
-        <button type="submit" class="primary-action">Upload</button>
-    </form>
-</section>
+@* One thing happens here, so the screen is a single centred column rather than
+   a panel floating at full page width. *@
+<div class="form-column">
+    <section class="panel" aria-labelledby="upload-title">
+        <h2 id="upload-title" class="section-label">Upload a document</h2>
+        <form method="post" enctype="multipart/form-data">
+            <input asp-for="ExternalReceiptToken" type="hidden" />
+            <div asp-validation-summary="ModelOnly" class="validation-summary-errors" role="alert"></div>
+            <div class="dropzone">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                <label asp-for="Upload">Drag a file here, or browse</label>
+                @* The accepted types are stated, not left in an `accept`
+                   attribute the operator cannot read. *@
+                <span class="field-hint">E-mail, Word document, PDF or image — up to @Pegasus.Web.Pages.UploadModel.MaximumSizeLabel.</span>
+                <input asp-for="Upload" type="file" accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
+            </div>
+            <span asp-validation-for="Upload" class="field-validation-error"></span>
+            <button type="submit" class="primary-action primary-action--block">Upload</button>
+        </form>
+    </section>
+</div>

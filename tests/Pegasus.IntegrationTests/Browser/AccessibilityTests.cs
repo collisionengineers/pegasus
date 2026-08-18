@@ -79,9 +79,13 @@ public sealed class AccessibilityTests
         // design. What must hold on both is that nothing renders a tall empty
         // band above the content, which the sprite assertion above already
         // covers, plus: the content is inside the viewport without scrolling.
+        //
+        // Two navigations satisfy it: the authenticated shell's left rail, and
+        // the brand-only top bar the external upload screen keeps. Either must
+        // start at the top of the viewport.
         Assert.True(await support.Page.EvaluateAsync<bool>(
             "(() => {"
-            + "  const nav = document.querySelector('.app-nav');"
+            + "  const nav = document.querySelector('.app-rail, .app-nav');"
             + "  if (nav) { return nav.getBoundingClientRect().top < 10; }"
             + "  const card = document.querySelector('.auth-card');"
             + "  return card !== null && card.getBoundingClientRect().top < window.innerHeight;"

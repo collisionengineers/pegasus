@@ -60,8 +60,11 @@
     </header>
     <div class="record__accent"></div>
 
+    @* The bar carries the actions valid now, and the committed one sits behind
+       the rule at the end. "Actions" named no action; the things an operator
+       comes here to do are editing the case and opening its assessment. *@
     <div class="record__bar">
-        <a class="btn" href="#case-actions">Actions</a>
+        <a class="btn" href="#case-actions">Edit case</a>
         @if (workflow.OriginalCaseId is { } originalCaseId)
         {
             <a class="btn" asp-page="/Cases/Details" asp-route-id="@originalCaseId">Original case</a>
@@ -70,13 +73,17 @@
         {
             <a class="btn" asp-page="/Cases/Details" asp-route-id="@replacementCaseId">Replacement case</a>
         }
+        <span class="gated" data-condition="@(canExport ? null : "Available in Review")">
+            <a class="btn @(canExport ? string.Empty : "is-disabled")"
+               asp-page="/Cases/Documents/Export" asp-route-id="@summary.CaseId"
+               aria-disabled="@(canExport ? "false" : "true")">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                Export
+            </a>
+        </span>
         <span class="record__bar-end">
             <span class="record__bar-rule" aria-hidden="true"></span>
-            <span class="gated" data-condition="@(canExport ? null : "Available in Review")">
-                <a class="btn btn--dark @(canExport ? string.Empty : "is-disabled")"
-                   asp-page="/Cases/Documents/Export" asp-route-id="@summary.CaseId"
-                   aria-disabled="@(canExport ? "false" : "true")">Export</a>
-            </span>
+            <a class="btn btn--dark" asp-page="/Cases/Assessment/Index" asp-route-id="@summary.CaseId">Open assessment</a>
         </span>
     </div>
 

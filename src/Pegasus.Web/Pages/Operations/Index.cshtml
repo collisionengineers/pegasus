@@ -12,9 +12,11 @@
         .ToArray();
 }
 
+@* The rail is the way back, so the heading's right-hand slot carries the thing
+   only this screen can say: when its work list was last read. *@
 <header class="page-heading">
     <h1>Operations</h1>
-    <a class="secondary-action" asp-page="/Index">Back to Dashboard</a>
+    <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
 </header>
 
 @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))

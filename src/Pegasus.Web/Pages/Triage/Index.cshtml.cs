@@ -29,7 +29,8 @@ namespace Pegasus.Web.Pages.Triage;
 public sealed class IndexModel(
     IListTriage listTriage,
     ISearchCases searchCases,
-    IDashboardQueries dashboardQueries) : PageModel
+    IDashboardQueries dashboardQueries,
+    TimeProvider timeProvider) : PageModel
 {
     private const int PageSize = 25;
 
@@ -39,6 +40,16 @@ public sealed class IndexModel(
         searchCases ?? throw new ArgumentNullException(nameof(searchCases));
     private readonly IDashboardQueries _dashboardQueries =
         dashboardQueries ?? throw new ArgumentNullException(nameof(dashboardQueries));
+    private readonly TimeProvider _timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+
+    /// <summary>
+    /// When these counts and rows were last read, so the screen can say how
+    /// current it is. FRD-12 requires every count and query to expose its last
+    /// successful update time; it is set only after the queries return, so a
+    /// failed load never claims to be fresh.
+    /// </summary>
+    public DateTimeOffset? LoadedAtUtc { get; private set; }
 
     /// <summary>
     /// Which queue is open: <c>not_ready</c>, <c>review</c>, <c>held</c> or
@@ -122,6 +133,7 @@ public sealed class IndexModel(
                 cancellationToken);
         }
 
+        LoadedAtUtc = _timeProvider.GetUtcNow();
         return Page();
     }
 

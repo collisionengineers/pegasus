@@ -2,59 +2,63 @@
 @model Pegasus.Web.Pages.Administration.IndexModel
 @{
     ViewData["Title"] = "Administration";
-    ViewData["Lede"] = "Manage staff access, organizations, principals, workflow configuration, and approved mailbox routes through authenticated, permanently recorded administration callers.";
 }
 
-<partial name="Shared/_PageHeader" />
+@* No lede. It listed the eight cards immediately below it, in longer words. *@
+<header class="page-heading">
+    <h1>Administration</h1>
+</header>
 
 <div class="admin-workspaces">
     <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-user" /></svg></span>
+        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/accounts.png" asp-append-version="true" alt="" /></span>
         <div>
             <h2><a asp-page="/Administration/Accounts/Index">Staff accounts</a></h2>
             <p>Create staff accounts, permanently disable access, and require a password change at first sign-in.</p>
         </div>
     </section>
     <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-shield" /></svg></span>
+        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/roles.png" asp-append-version="true" alt="" /></span>
         <div>
             <h2><a asp-page="/Administration/Roles/Index">Staff roles</a></h2>
-            <p>Assign the Administrator, Engineer, and User roles without allowing the final enabled Administrator to be removed.</p>
+            <p>Assign the Administrator, Engineer and User roles. The final enabled Administrator cannot be removed.</p>
         </div>
     </section>
     <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-check-circle" /></svg></span>
+        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/access.png" asp-append-version="true" alt="" /></span>
         <div>
             <h2><a asp-page="/Administration/Access/Index">Access review</a></h2>
             <p>Review current staff access and record an attributable review decision.</p>
         </div>
     </section>
     <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-file-text" /></svg></span>
+        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/organisations.png" asp-append-version="true" alt="" /></span>
         <div>
-            <h2><a asp-page="/Administration/Organizations/Index">Organizations</a></h2>
+            <h2><a asp-page="/Administration/Organizations/Index">Organisations</a></h2>
             <p>Manage independently selectable Work Provider and Instruction Intermediary roles.</p>
         </div>
     </section>
     <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-lock" /></svg></span>
+        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/principals.png" asp-append-version="true" alt="" /></span>
         <div>
             <h2><a asp-page="/Administration/Principals/Index">Principals</a></h2>
             <p>Create immutable principal identities and replace them through a linked, sequence-preserving successor.</p>
         </div>
     </section>
     <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-filter" /></svg></span>
+        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/configuration.png" asp-append-version="true" alt="" /></span>
         <div>
             <h2><a asp-page="/Administration/Configuration">Workflow configuration</a></h2>
-            <p>Manage the versioned completeness and staff-review gates required before Engineer assignment.</p>
+            <p>The versioned completeness and staff-review gates required before Engineer assignment.</p>
         </div>
     </section>
     <section class="admin-card">
-        <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-info" /></svg></span>
+        <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" /></span>
         <div>
             <h2><a asp-page="/Administration/Mailboxes">Approved mailboxes</a></h2>
-            <p>Approve mailbox addresses for the fixed inbound Intake and exact Sent-evidence routes.</p>
+            @* "Intake" is forbidden in the interface; the route the operator
+               knows is the Inbox. *@
+            <p>Approve mailbox addresses for the read-only Inbox and Sent-evidence routes.</p>
         </div>
     </section>
     @* A capability a deployment has not composed is absent. The Automation
@@ -63,10 +67,10 @@
     @if (Model.AutomationComposed)
     {
         <section class="admin-card">
-            <span class="admin-card__icon" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-refresh-cw" /></svg></span>
+            <span class="admin-card__icon admin-card__icon--mark" aria-hidden="true"><img class="mark mark--lg" src="~/images/marks/automation.png" asp-append-version="true" alt="" /></span>
             <div>
                 <h2><a asp-page="/Administration/Automation/Index">Automation</a></h2>
-                <p>Its recorded activity, and its client registration.</p>
+                <p>The one named Automation actor, the Send to AI switch, and the permanent record of everything they did.</p>
             </div>
         </section>
     }

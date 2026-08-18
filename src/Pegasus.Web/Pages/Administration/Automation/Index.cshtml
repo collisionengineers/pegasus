@@ -3,7 +3,6 @@
 @{
     ViewData["Title"] = "Automation";
     ViewData["Eyebrow"] = "Administration";
-    ViewData["Lede"] = "One named Automation actor may call approved ordinary case, intake, and document actions through its own authenticated machine ingress. It is not a staff account, holds no administration authority, and every action it takes is permanently recorded. Client secrets are never shown here.";
 }
 
 <a class="back-link" asp-page="/Administration/Index">
@@ -17,6 +16,11 @@
 {
     <div role="status" class="status-card">@status</div>
 }
+
+@* What the Automation actor is and is not, kept from the lede it replaces. *@
+<aside class="notice">
+    <p>The Automation actor is not a staff account and holds no administration rights. It may call approved ordinary case, Inbox and document actions through its own authenticated machine ingress, and every action it takes is permanently recorded. Client secrets are never shown here.</p>
+</aside>
 
 <div asp-validation-summary="All" class="validation-summary"></div>
 

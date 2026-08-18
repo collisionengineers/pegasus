@@ -285,6 +285,133 @@ h3 { font-size: var(--t-h3); font-weight: 600; }
 .footer { background: var(--panel); border-top: var(--border); color: var(--muted); font-size: var(--t-xs); }
 .footer-inner { min-height: 40px; justify-content: flex-start; }
 
+/* ---------------------------------------------------------------------------
+   The operator rail.
+
+   The authenticated shell is a 236px left rail, not a top bar. The routes stay
+   in the settled order and the rail carries their outstanding counts, so the
+   operator sees where the work is without opening anything. The top bar above
+   is retained for the external upload screen, which is not a place in the
+   application and shows the company rather than the product.
+
+   The current route is a red left border AND a weight change, either of which
+   identifies it without hue, alongside aria-current="page". Red here is the
+   sanctioned active-navigation use, not decoration.
+   --------------------------------------------------------------------------- */
+
+.app-rail-shell {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  min-height: 100vh;
+  background: var(--paper);
+}
+
+.app-rail {
+  display: flex;
+  position: sticky;
+  top: 0;
+  flex-direction: column;
+  height: 100vh;
+  overflow-y: auto;
+  border-right: var(--border);
+  background: var(--panel);
+}
+
+.app-rail__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: var(--border);
+  color: var(--ink);
+  font-weight: 800;
+  letter-spacing: -.01em;
+  text-decoration: none;
+}
+
+.app-rail__brand img {
+  display: block;
+  width: 104px;
+  height: 30px;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.app-rail__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--sp-3) var(--sp-2);
+}
+
+.rail-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  min-height: 36px;
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid transparent;
+  color: var(--ink);
+  font-size: var(--t-body);
+  text-decoration: none;
+}
+
+.rail-link:hover { background: var(--paper); color: var(--ink); }
+
+.rail-link[aria-current="page"] {
+  border-left-color: var(--ce-red);
+  background: var(--ce-red-tint);
+  color: var(--ce-red);
+  font-weight: 700;
+}
+
+/* A count is a fact, not a badge: it never becomes the only way to read the
+   row, and the warm tone is reserved for a queue that is actually waiting. */
+.rail-link__count { color: var(--muted); font-size: var(--t-sm); font-variant-numeric: tabular-nums; }
+.rail-link__count--waiting { color: var(--amber-fg); font-weight: 700; }
+
+.app-rail__user {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  margin-top: auto;
+  padding: var(--sp-4) var(--sp-5);
+  border-top: var(--border);
+}
+
+.app-rail__user form { margin: 0; }
+
+.app-rail__name {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--t-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-rail__action {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.app-rail__action--quiet { color: var(--muted); font-weight: 400; }
+
+.app-rail-main {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1280px;
+  padding: var(--sp-8) var(--sp-10) var(--sp-16);
+}
+
 .skip-link {
   position: fixed;
   z-index: 100;
@@ -903,6 +1030,17 @@ textarea:focus-visible,
   .user-menu { width: 100%; padding: var(--sp-3) 0 0; border-top: var(--border); border-left: 0; }
   .app-shell { padding: var(--sp-6) var(--sp-4) var(--sp-8); }
   .page-heading { align-items: flex-start; flex-direction: column; }
+
+  /* The rail lies down rather than hiding. Every route, count and control stays
+     reachable; the current-route rule moves to the bottom edge so the non-colour
+     signal survives the reflow. */
+  .app-rail-shell { grid-template-columns: minmax(0, 1fr); }
+  .app-rail { position: static; height: auto; border-right: 0; border-bottom: var(--border); }
+  .app-rail__nav { flex-direction: row; flex-wrap: wrap; }
+  .rail-link { border-bottom: 2px solid transparent; border-left: 0; }
+  .rail-link[aria-current="page"] { border-bottom-color: var(--ce-red); border-left-color: transparent; }
+  .app-rail__user { flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--sp-4); margin-top: 0; }
+  .app-rail-main { padding: var(--sp-6) var(--sp-4) var(--sp-8); }
 }
 
 @media (max-width: 720px) {
@@ -1756,3 +1894,236 @@ details > summary.btn::-webkit-details-marker { display: none; }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* ---------------------------------------------------------------------------
+   Upload dropzone.
+
+   The one place a file leaves someone's desk and enters a case, so it is a
+   destination rather than a control tucked under a label. The native file input
+   stays visible inside it: a styled stand-in that merely opens the real picker
+   would be a second control claiming to be the first.
+   --------------------------------------------------------------------------- */
+
+.dropzone {
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-16) var(--sp-10);
+  border: 2px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  text-align: center;
+}
+
+.dropzone--compact { padding: var(--sp-8) var(--sp-6); }
+
+.dropzone > label { margin: 0; font-size: var(--t-h3); font-weight: 700; }
+.dropzone .field-hint { margin: 0; }
+.dropzone input[type="file"] { margin-top: var(--sp-2); max-width: 100%; }
+
+/* A single-purpose screen is centred and narrow; a wide column would put the
+   dropzone's edges further apart than the file it accepts. */
+.form-column { width: 100%; max-width: 680px; margin: var(--sp-10) auto 0; }
+.form-column--narrow { max-width: 640px; margin-top: 0; }
+.form-column--wide { max-width: 860px; margin-top: 0; }
+
+/* On a single-purpose screen the submit spans the column: there is nothing else
+   to weigh it against, so a button sized to its own text reads as optional. */
+.primary-action--block {
+  display: flex;
+  width: 100%;
+  margin-top: var(--sp-6);
+  justify-content: center;
+}
+
+/* A table cell that carries two facts stacks them rather than running them
+   together: a sender and its address, a subject and its attachment count, a
+   received date and its time. */
+.stack { display: grid; gap: 1px; min-width: 0; }
+.stack small { color: var(--muted); }
+.stack > a { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Unread is carried by weight and by the word "Unread" in the row, never by
+   weight alone. */
+tbody tr[data-state="unread"] .stack > a,
+tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
+
+/* Evidence figures sit in a row that reflows rather than a fixed column count:
+   the number of findings on a record varies, and an empty cell reads as a
+   missing fact. The design system applies the figure's own stacking inline;
+   stating it here keeps the markup free of style attributes. */
+.evidence-figure { display: grid; gap: 2px; }
+
+.evidence-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--sp-6);
+}
+
+/* Correcting an extracted value is the exception, so the eleven fields sit
+   behind a disclosure. They post whether it is open or shut. */
+.draft-edit { margin-top: var(--sp-4); }
+.draft-edit > summary { display: inline-flex; width: auto; }
+.draft-edit[open] > summary { margin-bottom: var(--sp-4); }
+
+/* ---------------------------------------------------------------------------
+   Record blocks.
+
+   A case overview is several short, unrelated groups of facts — identity,
+   vehicle, dates, where it stands. One long definition list made the operator
+   read all of them to find one; separate blocks let the eye land on the group
+   it wants. Blocks reflow to one column rather than shrinking below the width
+   a registration or a claim number needs.
+   --------------------------------------------------------------------------- */
+
+.block-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.block {
+  min-width: 0;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+
+.block > header {
+  display: flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-5);
+  border-bottom: var(--border);
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper);
+}
+
+.block > header h2 {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--t-eyebrow);
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.block > div { padding: var(--sp-1) var(--sp-5) var(--sp-2); }
+
+/* The block that says where the case stands earns the one accent on the
+   overview: it is the answer the operator opened the case for. */
+.block--standing { border-left: 3px solid var(--navy-line); }
+
+/* ---------------------------------------------------------------------------
+   Marks.
+
+   The commissioned Pegasus icon set: purpose-drawn raster marks for the
+   administration workspaces, the empty states that name what is missing, and
+   the product lockup. They are not a second icon system — the Lucide sprite
+   still carries every semantic action and state inline in a row. A mark names
+   a whole surface, at a size a line glyph cannot hold.
+
+   Always decorative: each is aria-hidden and sits beside text that already
+   says the same thing, so nothing is lost when images are off.
+   --------------------------------------------------------------------------- */
+
+.mark { display: block; flex: 0 0 auto; object-fit: contain; }
+
+.mark--sm { width: 30px; height: 30px; }
+.mark--md { width: 44px; height: 44px; }
+.mark--lg { width: 56px; height: 56px; }
+
+/* The rail lockup is cropped to its head: the wordmark beside it already says
+   Pegasus, and repeating it in the image would say it twice. */
+.app-rail__brand .mark { width: 30px; height: 41px; object-position: top center; }
+.app-rail__brand span { display: block; width: 30px; height: 30px; overflow: hidden; }
+
+/* An admin card's mark replaces the tinted icon square rather than sitting in
+   one: the drawing carries its own ground. */
+.admin-card__icon--mark { width: 56px; height: 56px; align-self: start; background: transparent; }
+
+/* A named empty state: the mark, then the sentence that says what is absent. */
+.mark-empty { display: grid; justify-items: center; gap: var(--sp-4); padding: var(--sp-8) 0; }
+.mark-empty .mark { opacity: .85; }
+
+.auth-card__lockup { width: 112px; height: 112px; margin: 0 auto var(--sp-4); }
+
+/* ---------------------------------------------------------------------------
+   Estimate tabs (EXT-09, Later / 1.0.0 — inactive).
+
+   Several estimates can sit on one case: an import from an estimating service,
+   the engineer's own, one recorded by automation. The strip is folder tabs
+   rather than pills, because the panel below is the inside of the selected
+   one, not a filtered view of a list.
+   --------------------------------------------------------------------------- */
+
+.est-tabs {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: var(--sp-2) var(--sp-3) 0;
+  border: var(--border);
+  border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--paper);
+}
+
+.est-tab {
+  max-width: 220px;
+  padding: 7px var(--sp-6);
+  overflow: hidden;
+  border: var(--border);
+  border-radius: 6px 6px 0 0;
+  background: var(--panel);
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.est-tab[aria-selected="true"] {
+  margin-bottom: -1px;
+  border-bottom: 1px solid var(--panel);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.est-add {
+  margin: 0 0 var(--sp-1) 2px;
+  padding: 6px 9px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.est-tabs__state { margin-left: auto; padding-bottom: 6px; }
+
+.est-body { border-radius: 0 0 var(--radius) var(--radius); }
+
+/* A vehicle plan the engineer marks damage on (UI-15, Later / 1.0.0 —
+   inactive). Line art on the recessed ground, so it reads as a diagram to work
+   on rather than a photograph. */
+.damage-plan {
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+
+.damage-plan svg { display: block; width: 100%; }
+
+/* A check that has not been run states that, rather than showing a blank
+   result panel that could be mistaken for a clean report. */
+.history-check { display: grid; justify-items: start; gap: var(--sp-3); }

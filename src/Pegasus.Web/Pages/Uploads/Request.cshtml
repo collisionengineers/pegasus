@@ -4,32 +4,41 @@
     ViewData["Title"] = "Upload requested documents";
 }
 
-<header class="page-heading">
-    <div>
-        <p class="eyebrow">Secure document request</p>
-        <h1>Upload requested documents</h1>
-        <p class="lede">Documents submitted here are retained directly in the requesting case. Do not upload material unrelated to the request you received.</p>
-    </div>
-</header>
+@* The heading carries the eyebrow and the title alone. The sentence that was a
+   lede is ordinary body copy: it is an instruction to the person uploading, not
+   a description of the screen. *@
+<div class="form-column form-column--narrow">
+    <header class="page-heading">
+        <div>
+            <p class="eyebrow">Secure document request</p>
+            <h1>Upload requested documents</h1>
+        </div>
+    </header>
 
-@if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
-{
-    <div class="status-card" role="status">@Model.StatusMessage</div>
-}
+    <p>Documents submitted here go directly to Collision Engineers against the request you received. Do not upload material unrelated to that request.</p>
 
-@if (Model.UploadPolicy is not null)
-{
-    <section class="panel form-panel" aria-labelledby="request-upload-title">
-        <h2 id="request-upload-title" class="section-label">Choose a document</h2>
-        <p>Maximum file size: @Model.MaximumFileSize.</p>
-        <form method="post" enctype="multipart/form-data">
-            <input asp-for="Token" type="hidden" />
-            <input asp-for="OperationKey" type="hidden" />
-            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-            <label asp-for="Upload">Document</label>
-            <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
-            <span asp-validation-for="Upload" class="field-validation"></span>
-            <button type="submit" class="primary-action">Upload document</button>
-        </form>
-    </section>
-}
+    @if (!string.IsNullOrWhiteSpace(Model.StatusMessage))
+    {
+        <div class="status-card" role="status">@Model.StatusMessage</div>
+    }
+
+    @if (Model.UploadPolicy is not null)
+    {
+        <section class="panel section-gap" aria-labelledby="request-upload-title">
+            <h2 id="request-upload-title" class="section-label">Choose a document</h2>
+            <form method="post" enctype="multipart/form-data">
+                <input asp-for="Token" type="hidden" />
+                <input asp-for="OperationKey" type="hidden" />
+                <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+                <div class="dropzone dropzone--compact">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    <label asp-for="Upload">Drag a file here, or browse</label>
+                    <span class="field-hint">Up to @Model.MaximumFileSize.</span>
+                    <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
+                </div>
+                <span asp-validation-for="Upload" class="field-validation"></span>
+                <button type="submit" class="primary-action primary-action--block">Upload document</button>
+            </form>
+        </section>
+    }
+</div>
