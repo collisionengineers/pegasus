@@ -181,6 +181,10 @@ every task carries:
 - Canonical local verification: `dotnet restore`, `dotnet build --configuration
   Release`, and focused/full `dotnet test`; exact profiles are owned by the
   [runbook](docs/runbook.md#locked-restore-build-and-test).
+- A closed composition or feature gate is a disabled flag, not a partially
+  shipped feature. Do not ship, release, merge as delivered, claim, or document
+  a feature behind one as delivered; defer it through the documented
+  backlog/decision process until it has its real caller and activation evidence.
 - Preserve work that is not yours. The single authoritative allowed/banned
   operation list is in [Repository task workflow](#repository-task-workflow).
 - **Read-only Azure/cloud checks are fully permitted** with no per-target
