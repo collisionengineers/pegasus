@@ -15,11 +15,21 @@ Authority order is defined once in the
   lines riding into `main`'s `NOW.md` at release are accepted cosmetics.
 - Promote `dev` to `main` only as an exact-SHA fast-forward: fetch both remote
   refs, confirm `git merge-base --is-ancestor origin/main origin/dev`, record
-  the reviewed `origin/dev` SHA, push that SHA without force to
-  `refs/heads/main`, fetch again, and require both remote heads to equal the
-  recorded SHA. The release actor needs explicit `MERGE AUTH GRANTED` before
-  the push. A failed preflight, rejected push, or unequal read-back stops the
-  release; it is never repaired by a rebase, reset, or force push.
+  the reviewed `origin/dev` SHA, then atomically push that SHA to both
+  `refs/heads/main` and `refs/heads/dev` with an explicit lease on `dev`:
+
+  ```text
+  git push --atomic --force-with-lease=refs/heads/dev:<reviewed-dev-sha> origin <reviewed-dev-sha>:refs/heads/main <reviewed-dev-sha>:refs/heads/dev
+  ```
+
+  The second refspec is a no-op only when `dev` still equals the reviewed SHA;
+  the transaction rejects a concurrent change instead of partially promoting
+  `main`. The lease is an expected-value assertion, not permission to rewrite:
+  neither shared ref may be rewritten. Fetch again and require both remote
+  heads to equal the recorded SHA. The release actor needs explicit `MERGE AUTH
+  GRANTED` before the push. A failed preflight, rejected transaction, or
+  unequal read-back stops the release; it is never repaired by a rebase, reset,
+  or force push.
 - A GitHub PR merge, rebase merge, or squash merge is not an exact-SHA
   promotion and does not replace that procedure. GitHub protection and
   rulesets are intentionally out of scope on subscription grounds, so the
