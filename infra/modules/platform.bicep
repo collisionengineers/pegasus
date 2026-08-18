@@ -17,6 +17,7 @@ param graphSentFolderId string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
 param automationMcpClientSecretUri string
+param automationMcpRedirectUris string
 param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
 param dvsaClientSecretSecretUri string
@@ -425,6 +426,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
             { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
+            { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
           ]
           resources: {
             cpu: json('0.5')

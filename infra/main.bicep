@@ -52,6 +52,8 @@ param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
 @description('Versioned Key Vault secret URI containing the Automation MCP OAuth client secret.')
 param automationMcpClientSecretUri string
+@description('Exact redirect URIs (comma separated) of the external MCP connectors allowed to use the authorization-code flow; empty disables that flow.')
+param automationMcpRedirectUris string = ''
 @description('Versioned Key Vault secret URI containing the DVLA VES API key.')
 param dvlaApiKeySecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA OAuth client ID.')
@@ -99,6 +101,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
     boxClientSecretSecretUri: boxClientSecretSecretUri
     automationMcpClientSecretUri: automationMcpClientSecretUri
+    automationMcpRedirectUris: automationMcpRedirectUris
     dvlaApiKeySecretUri: dvlaApiKeySecretUri
     dvsaClientIdSecretUri: dvsaClientIdSecretUri
     dvsaClientSecretSecretUri: dvsaClientSecretSecretUri

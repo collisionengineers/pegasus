@@ -209,6 +209,20 @@ evidence used only read tools; no write tool was exercised against production
 data. Not proved: an external MCP client (Claude Desktop/Code) session — the
 operator's connector configuration is outside this repository.
 
+**Connector flow (ADR-0027, shipped after release 9).** External MCP clients
+authorise by OAuth 2.1 authorization code + PKCE: the browser is sent to
+`/authorize`, a Pegasus Administrator with the manage-automation-clients right
+signs in (the strict same-site staff cookie means one sign-in per
+authorisation) and approves or refuses the connector for the requested scopes;
+the code is exchanged at `/connect/token` with the client id, the client
+secret and the PKCE verifier, and a refresh token is issued. Redirect URIs are
+exact and administrator-managed through `AutomationMcp__RedirectUris`
+(rendered from Bicep; the azd input `AUTOMATION_MCP_REDIRECT_URIS` defaults to
+`https://claude.ai/api/mcp/auth_callback`). The consent decision is
+permanent history (`automation_connector_authorized` / `_denied`); the
+tokens act as the Automation actor with the same kill switch, rate limit and
+scopes as client-credentials tokens.
+
 ## Dated evidence qualifications
 
 The retained evidence observations are qualified as follows:
