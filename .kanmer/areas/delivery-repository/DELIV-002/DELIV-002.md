@@ -11,10 +11,12 @@ stageEntered:
   preparing: '2026-08-18T08:01:12.101Z'
 labels: []
 links: []
+blocks:
+  - DELIV-003
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T08:01:12.101Z'
+updated: '2026-08-18T08:17:54.563Z'
 ---
 
 ## What
