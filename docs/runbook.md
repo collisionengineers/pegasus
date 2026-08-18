@@ -898,12 +898,32 @@ runbook (git history, `azure-production-replacement-plan.md`). The one-off
 predecessor archive/retirement scripts completed their purpose in that run and
 are also recoverable from git history.
 
-The next release is the first whose Web and Worker packages load native ONNX
-Runtime and SkiaSharp binaries on the deployed Linux runtimes
+The deployed Web and Worker packages have carried native ONNX Runtime and
+SkiaSharp binaries on the Linux runtimes since release 8
 (`Microsoft.ML.OnnxRuntime`, SkiaSharp with the `NoDependencies` Linux native
-asset, models embedded in the Infrastructure assembly). Until a deployed
-vision path is exercised, native load on the deployed runtime is unverified
-evidence.
+asset, models embedded in the Infrastructure assembly). Both hosts start and
+serve; until a deployed vision path is exercised, native inference on the
+deployed runtime remains unverified evidence.
+
+Two route facts recorded by release 9 (details in operations):
+
+- `efbundle.exe` builds the Web host, so run it from `src/Pegasus.Web` with
+  the Production process environment (`ASPNETCORE_ENVIRONMENT=Production`,
+  `Runtime__Profile=Production`, `ConnectionStrings__Pegasus`,
+  `AzureIdentity__WebClientId`, the two storage account names and the custody
+  service URI, `Box__BaseUri`/`Box__UploadUri`/`Box__RootFolderId`, and
+  shape-only placeholder values for `Box__ConfigJson`/`Box__ClientSecret` —
+  the host is built, never started) and `AZURE_TOKEN_CREDENTIALS=AzureCliCredential`
+  so `Authentication=Active Directory Default` uses the release operator's CLI
+  sign-in. The migration bundle uses only `--connection`.
+- Deploy the Worker with `az functionapp deployment source config-zip
+  --resource-group rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
+  ./artifacts/releases/<version>/worker.zip`; `azd deploy worker
+  --from-package` triggers a remote Oryx build that rejects the pre-published
+  package and crash-loops the host until a good package lands. Before
+  provisioning, confirm every `*_SECRET_URI` azd input names
+  `pegasusprodkv252ow37g` — the local azd environment is not authoritative and
+  once carried the retired adopted vaults.
 
 ### Durable Worker activation and rollback
 
@@ -913,9 +933,11 @@ The currently implemented production Worker gate is fail-closed and two-state.
 `AzureWebJobs.<function>.Disabled` settings as `false`. Omission, an empty or
 misspelled value, and every other value render them as `true`.
 
-The exact production Worker is currently contained: all nine settings read
-`true`, all nine function definitions remain discoverable, and the ignored azd
-input reads `disabled`. The dated evidence and its limits are owned by
+The exact production Worker is currently **enabled**: all nine settings read
+`false`, all nine function definitions remain discoverable, and the azd input
+`PEGASUS_WORKER_ACTIVATION` reads `approved-live-worker`. Every later release
+must retain that input (the enabled-estate preflight below). The dated
+evidence and its limits are owned by
 [operations § Production environment](operations.md#production-environment).
 
 Accepted

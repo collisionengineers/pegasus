@@ -96,7 +96,7 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 | DVLA/DVSA | Deterministic contracts, invalid identifiers, retries, unavailable-service outcomes | Entitlement, identity, real response behavior |
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
 | Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
-| Automation MCP | Implemented but composition-gated off by default; enabled only in DevelopmentOffline evidence runs with a configuration-supplied client secret; integration tests drive token issuance, denial, tool calls (including the direct-write assessment tranche), and the kill switch over HTTP | Real external client evidence, production certificate/transport decisions, and separately approved activation |
+| Automation MCP | Implemented; composition gate **enabled in production by release 9** (ADR-0026) with a Key Vault-backed client secret; integration tests drive token issuance, denial, tool calls (including the direct-write assessment tranche), and the kill switch over HTTP; live token/inventory/denial/history/kill-switch evidence recorded on 2026-08-18 under Production environment | Real external client evidence, production certificate/transport decisions, and separately approved activation |
 | Send to AI channel hand-off | Implemented but composition-gated off by default (`Features:SendToAi`, DevelopmentOffline only); integration tests drive the pointer hand-off, refusal, reconcile, and the Administrator switch against a local fake connector | The recorded round-trip evidence run with a real Claude Code channel session, and any production activation, which additionally needs a non-preview transport decision (ADR-0021) |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
@@ -105,14 +105,16 @@ Managed identity itself is unavailable locally. LocalDB does not prove Azure SQL
 
 Graph Sent-item evidence does not prove recipient delivery or automatic case matching.
 
-### Automation MCP is implemented but gated off
+### Automation MCP is implemented and enabled in production
 
 The Automation Actor ingress (MCP-01–04, MCP-06) is implemented inside `Pegasus.Web`
 and composition-gated off by default: unless `Features:AutomationMcp` is
 enabled, no `/mcp` endpoint, `/connect/token` route, or resource-metadata
 document exists and the application keeps failing closed by exposing no such
 ingress. Until ADR-0026 the flag was accepted only in the DevelopmentOffline
-runtime profile; the deployed state of the gate is recorded under
+runtime profile; since release 9 (2026-08-18) the production Web revision
+renders `Features__AutomationMcp=true` from Bicep with the Key Vault-backed
+client secret, and the dated live evidence is recorded under
 [Production environment](#production-environment). Migration
 `20260803151159_AutomationActorOpenIddict` re-created the OpenIddict tables
 (the dormant set from `20260729150000_DocumentCustodyAndRequests` had been
@@ -183,9 +185,29 @@ Its enabled revision did not become ready: the database readiness check reported
 that the configured schema is not current. No migration was applied. It was
 rolled back to healthy revision `pegasus-prod-web-252ow37gij--rollbacka593b`,
 using the previously deployed image with `Features__AutomationMcp=false`;
-health endpoints return 200 and `/mcp` is closed. A separately approved
-database-migration release is required before this image can activate the MCP
-endpoint.
+health endpoints returned 200 and `/mcp` was closed. That out-of-band image
+was never deployed again: release 9 (below) applied the two pending migrations
+and provisioned the promoted `main` revision with the gate enabled from Bicep.
+
+**Live activation evidence — 2026-08-18, release 9 (revision
+`pegasus-prod-web-252ow37gij--f1e116c6eb93`).** Against the production
+`/connect/token` and `/mcp`: a wrong client secret → 401 `invalid_client`
+(`automation_token_rejected` security event); client credentials for
+`pegasus-automation` with scope `automation.cases` → Bearer token,
+`expires_in` 600; `/mcp` without a token → 401 with `WWW-Authenticate: Bearer
+resource_metadata=…` (`automation_access_denied`); `initialize` and
+`tools/list` → the fifteen approved tools; `pegasus_case_search` → success
+with a `Succeeded` ActionHistory row for ActorKind `Automation`;
+`pegasus_intake_queue_list` with the cases-only token → refused, "The
+'automation.intake' scope is required" (`automation_scope_denied`);
+`pegasus_case_get` with an empty id → refused with a `Failed` ActionHistory
+row. Administrator kill switch (Administration → Automation): disable → token
+endpoint 400 `unauthorized_client` and an in-flight token refused within 12 s
+("The Automation client registration is disabled."); re-enable → tokens issue
+and tool calls succeed again; the registration was left enabled. Success
+evidence used only read tools; no write tool was exercised against production
+data. Not proved: an external MCP client (Claude Desktop/Code) session — the
+operator's connector configuration is outside this repository.
 
 ## Dated evidence qualifications
 
@@ -234,7 +256,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 8**. A branch
+- **Deployed evidence:** the estate currently serves **release 9**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -252,6 +274,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 9 | 2026-08-18 | `f1e116c6…` | `sha256:63e86324…` | `pegasus-prod-web-252ow37gij--f1e116c6eb93` | `20260814092852_AddWorkerCaseCreationGrants`, `20260814094632_DropBoxFileRequests` |
+  | — | 2026-08-12/14 | `dd61ac56…`, then `aecad247…` | `sha256:04d39c20…`, then tag `azd-deploy-1786687004` | `--13m13ph`, then `--azd-1786687080` | three 2026-08-11/12 migrations, then `20260813025241_StandaloneAuditReportDecision` (un-numbered `azd deploy` deployments; no immutable manifest was retained) |
   | 8 | 2026-08-07 | `ded44fd7…` | `sha256:c993eb0e…` | `pegasus-prod-web-252ow37gij--ded44fd7be0a` | three 2026-08-05/06 migrations |
   | 7 | 2026-08-05 | `32feefa…` | `sha256:c8a0ebac…` | `pegasus-prod-web-252ow37gij--32feefacc388` | none |
   | 6 | 2026-08-05 | `474a0924…` | `sha256:b2ceaf37…` | `pegasus-prod-web-252ow37gij--474a0924a6ba` | `20260803205759_SendToAiAssessmentToolset` |
@@ -262,6 +286,52 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 9** was the first exact-SHA fast-forward promotion under the
+    DELIV-002 policy (`main` = `dev` = `f1e116c6`, main-push history guard
+    "9 new first-parent commit(s); main head is contained in the release
+    branch") and carried PRs 362–403 beyond release 8 (376–403 beyond the
+    un-numbered 14 Aug deployment): the PRD/FRD/ADR documentation model, the
+    ai-centre extraction, SIMPLI-001/007–011/015 (Worker-owned queued intake,
+    upload status page, Case Details capability pages, renderer/extractor
+    integration), BUG-001 QDOS principal from sender route, MAIL-21/22
+    classification foundation and taxonomy, MCP-04 document caller evidence,
+    the operator rail UI (PLAT-001), the fast-forward release policy and the
+    revised main guard, the removal of the Markdown-placement gate and of the
+    qdos-pressure lane, and AUTO-001 (Automation MCP enabled by configuration,
+    ADR-0026). Its two migrations were applied with the immutable
+    `efbundle.exe` before the packages (`Verified 459 catalogued
+    permission/denial rows and 306 effective runtime DML rows` from the
+    database bootstrap) and read back in `__EFMigrationsHistory`. The manifest
+    SHA-256 was `67A9C17A…`.
+
+    Four things this release found, recorded as properties of the route:
+
+    - The local azd environment still carried the retired adopted vaults
+      (`cespkboxkvv76a47`, `cespkenrichkvgi62sd`, since purged) as the six
+      Box/DVLA/DVSA secret URIs. The Web already referenced
+      `pegasusprodkv252ow37g` (same secret versions); the Worker still
+      referenced the old vaults and **all six of its Key Vault references were
+      unresolved in production** until this release re-rendered them against
+      `pegasusprodkv252ow37g`, where both identities hold Key Vault Secrets
+      User. After the release all six read `Resolved`.
+    - `azd deploy worker --from-package` fails on this estate (remote Oryx
+      build cannot detect a dotnet version in a pre-published package); the
+      route that works is `az functionapp deployment source config-zip --src
+      worker.zip`. The failed attempt caused a ~7-minute Functions host
+      crash-loop (`dotnet exited with code 134`) that ended when the package
+      landed; the host has been running since with the nine functions loaded
+      and `ApprovedInboxPollStates.LastCompletedAtUtc` advancing.
+    - That crash-loop, together with the release traffic, exhausted the Log
+      Analytics workspace's 0.1 GB/day cap at 11:52 UTC
+      (`dataIngestionStatus: OverQuota`; `quotaNextResetTime` 2026-08-19 03:00 UTC), so no
+      Application Insights telemetry from any role exists after ~11:56 UTC on
+      2026-08-18; the post-release watch used the Functions admin host status
+      and database poll-state readbacks instead.
+    - `efbundle.exe` builds the Web host, so it needs the Production process
+      environment (see the runbook) and `AZURE_TOKEN_CREDENTIALS=AzureCliCredential`
+      to authenticate as the release operator; without the latter the default
+      credential chain stalls on the Visual Studio credential.
 
   - **Release 8** carried PRs 342, 356 and 357 — CASE-27 edit authority, the
     mailbox envelope bound that had been refusing real QDOS instructions, and
@@ -354,14 +424,16 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     repair, baseline, activation, mail receipt, Case/PO, Box-custody, or
     product-acceptance claim.
 
-    **Current Worker state (2026-08-13, live-verified):** the containment above
-    was reversed — the production Worker `pegasus-prod-worker-252ow37gij` is now
-    **enabled**. All nine `AzureWebJobs.<function>.Disabled` settings read
-    `false` (`az functionapp config appsettings list`, 2026-08-13; the same nine
-    `false` values were recorded on 2026-08-12 for the post-release-8 source
-    below). This proves live configuration only — not that any trigger, mailbox
-    poll, intake, custody action, or other business caller has run against the
-    deployed estate.
+    **Current Worker state (2026-08-18, live-verified at release 9):** the
+    containment above was reversed on 2026-08-13 — the production Worker
+    `pegasus-prod-worker-252ow37gij` is **enabled**. All nine
+    `AzureWebJobs.<function>.Disabled` settings read `false`
+    (`Invoke-ProductionSmoke.ps1 -ExpectedWorkerActivation approved-live-worker`
+    passed on 2026-08-18; `PEGASUS_WORKER_ACTIVATION=approved-live-worker` is the
+    azd input). Beyond configuration, the release-9 package's inbox poll ran
+    against the deployed estate (`ApprovedInboxPollStates.LastCompletedAtUtc`
+    advanced within a minute, no failure code) and the Worker created a real
+    case with Box custody on 2026-08-14 (INT-25 tier-5 evidence, TICK-012).
 - **Post-release-8 deployment (observed 2026-08-12):** Production Web serves an
   un-numbered post-release-8 deployment: revision
   `pegasus-prod-web-252ow37gij--13m13ph`, source revision
@@ -373,11 +445,15 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   `20260811063940_QdosAllocationRecovery`, `20260811122654_CaseCustodyEvaRecovery`,
   and `20260812010335_ManualInspectionAuditCustody` — and an authorised
   `__EFMigrationsHistory` readback on 2026-08-12 confirmed all three are applied.
-  **Do not assign a new numbered release until the immutable manifest and
-  migration transcript are recovered.** Nothing here is live-verified beyond
-  smoke and Worker configuration: no browser journey has exercised the
-  upload-to-case path, the Inbox, CASE-27 edit authority, or an enabled Worker
-  caller against the deployed estate.
+  A further `azd deploy` on 2026-08-14 served `aecad247…` (forwarded-QDOS-Audit
+  intake fix) with `20260813025241_StandaloneAuditReportDecision` applied. No
+  immutable manifest was retained for either; they are recorded as the
+  un-numbered row in the release table and superseded by release 9, whose
+  manifest and migration transcript exist. Live verification beyond smoke and
+  Worker configuration is limited to the INT-25 tier-5 case creation
+  (2026-08-14) and the release-9 Automation MCP evidence above; no browser
+  journey has exercised the upload-to-case path, the Inbox, or CASE-27 edit
+  authority against the deployed estate.
 - **Temporary verification account:** `claudeuiverification` exists on the
   production estate as an enabled Administrator, seeded by release 6 from the
   `Bootstrap:VerificationAccount` block committed to `appsettings.json`. It
