@@ -290,7 +290,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   - **Release 9** was the first exact-SHA fast-forward promotion under the
     DELIV-002 policy (`main` = `dev` = `f1e116c6`, main-push history guard
     "9 new first-parent commit(s); main head is contained in the release
-    branch") and carried PRs 375–403: the PRD/FRD/ADR documentation model, the
+    branch") and carried PRs 362–403 beyond release 8 (376–403 beyond the
+    un-numbered 14 Aug deployment): the PRD/FRD/ADR documentation model, the
     ai-centre extraction, SIMPLI-001/007–011/015 (Worker-owned queued intake,
     upload status page, Case Details capability pages, renderer/extractor
     integration), BUG-001 QDOS principal from sender route, MAIL-21/22
@@ -323,7 +324,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
       and `ApprovedInboxPollStates.LastCompletedAtUtc` advancing.
     - That crash-loop, together with the release traffic, exhausted the Log
       Analytics workspace's 0.1 GB/day cap at 11:52 UTC
-      (`dataIngestionStatus: OverQuota`, reset 03:00 UTC next day), so no
+      (`dataIngestionStatus: OverQuota`; `quotaNextResetTime` 2026-08-19 03:00 UTC), so no
       Application Insights telemetry from any role exists after ~11:56 UTC on
       2026-08-18; the post-release watch used the Functions admin host status
       and database poll-state readbacks instead.

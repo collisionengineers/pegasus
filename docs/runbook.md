@@ -898,8 +898,8 @@ runbook (git history, `azure-production-replacement-plan.md`). The one-off
 predecessor archive/retirement scripts completed their purpose in that run and
 are also recoverable from git history.
 
-Release 9 (2026-08-18) was the first whose Web and Worker packages load
-native ONNX Runtime and SkiaSharp binaries on the deployed Linux runtimes
+The deployed Web and Worker packages have carried native ONNX Runtime and
+SkiaSharp binaries on the Linux runtimes since release 8
 (`Microsoft.ML.OnnxRuntime`, SkiaSharp with the `NoDependencies` Linux native
 asset, models embedded in the Infrastructure assembly). Both hosts start and
 serve; until a deployed vision path is exercised, native inference on the
