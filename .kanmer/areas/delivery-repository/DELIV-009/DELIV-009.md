@@ -2,12 +2,15 @@
 id: DELIV-009
 type: ticket
 title: 'Release 10: promote dev to main and deploy the connector authorization flow'
-status: implementing
+status: done
 area: delivery-repository
 assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-18T13:22:46.527Z'
+  review: '2026-08-18T14:45:30.802Z'
+  verifying: '2026-08-18T14:45:35.013Z'
+  done: '2026-08-18T14:45:39.890Z'
 taken_at: '2026-08-18T13:36:35.288Z'
 branch: task/deliv-009-release-10
 worktree: ../pegasus-worktrees/deliv-009-release-10
@@ -20,7 +23,7 @@ links:
 deployment: not-deployed
 archived: false
 created: '2026-08-18T13:22:24.613Z'
-updated: '2026-08-18T13:36:35.288Z'
+updated: '2026-08-18T14:45:39.890Z'
 ---
 
 ## What
