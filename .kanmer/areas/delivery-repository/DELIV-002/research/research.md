@@ -18,7 +18,7 @@ How can Pegasus stop creating a content-redundant `main` → `dev` synchronizati
 - Do **not** rebase `dev` or `main`; that would rewrite shared history and conflicts with the repository workflow.
 - The viable target process is: finish the existing one-time convergence, confirm `main` is an ancestor of `dev`, then promote the reviewed `dev` SHA to `main` with a non-force ref update. Git rejects the promotion if `main` changed incompatibly.
 - A rewritten GitHub PR merge is not a substitute. Retaining an ordinary GitHub PR merge is incompatible with the ticket’s exact-SHA/equal-head invariant.
-- The history script should change from “every update is a two-parent merge” to validating the chosen linear-release invariant. It cannot, by itself and after the event, distinguish an authorized direct fast-forward from an unauthorized direct push; remote update restriction must own prevention.
+- The history script should change from “every update is a two-parent merge” to validating the chosen linear-release invariant. It cannot, by itself and after the event, distinguish an authorized direct fast-forward from an unauthorized direct push; with remote prevention intentionally out of scope, it remains a detective control.
 - No product PRD, FRD, or ADR is needed. [docs/index.md](../../../../../docs/index.md) assigns repository-development workflow to `docs/engineering.md` and repository task safety to `AGENTS.md`.
 
 ## Open questions
@@ -28,3 +28,5 @@ How can Pegasus stop creating a content-redundant `main` → `dev` synchronizati
 ## Confirmed direction — 2026-08-18
 
 - GitHub-side branch protection and rulesets are intentionally out of scope on subscription grounds. The target workflow therefore relies on explicit `MERGE AUTH GRANTED` and post-push CI detection; it does not claim to prevent an unauthorized direct `main` update at the GitHub boundary.
+
+- The approved release mechanism is a manual, non-force promotion by the human holding `MERGE AUTH GRANTED`: fetch `origin/main` and `origin/dev`; confirm `git merge-base --is-ancestor origin/main origin/dev`; record the reviewed `origin/dev` SHA; run `git push origin <reviewed-dev-sha>:refs/heads/main`; fetch again and confirm both remote branch heads equal that SHA. A failed preflight, rejected push, or unequal post-push heads stops the release rather than rebasing or forcing either branch.
