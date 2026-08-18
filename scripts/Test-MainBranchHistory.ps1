@@ -6,6 +6,9 @@ param(
     [Parameter(Mandatory)]
     [string] $Head,
 
+    [Parameter(Mandatory)]
+    [string] $ReleaseBranch,
+
     [string] $RepositoryPath = (Get-Location).Path
 )
 
@@ -30,10 +33,16 @@ try {
 
     $beforeCommit = @(Invoke-Git rev-parse --verify "$Before^{commit}")[-1].Trim()
     $headCommit = @(Invoke-Git rev-parse --verify "$Head^{commit}")[-1].Trim()
+    $releaseCommit = @(Invoke-Git rev-parse --verify "$ReleaseBranch^{commit}")[-1].Trim()
 
     & git -C $RepositoryPath merge-base --is-ancestor $beforeCommit $headCommit 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "The before revision $beforeCommit is not an ancestor of $headCommit; the push is not an append-only update."
+    }
+
+    & git -C $RepositoryPath merge-base --is-ancestor $headCommit $releaseCommit 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "The main head is not an ancestor of release branch $($releaseCommit): $headCommit."
     }
 
     $commits = @(Invoke-Git rev-list --first-parent --reverse "$beforeCommit..$headCommit")
@@ -41,16 +50,7 @@ try {
         throw "No new first-parent commits exist between $beforeCommit and $headCommit."
     }
 
-    foreach ($commit in $commits) {
-        $line = @(Invoke-Git rev-list --parents -n 1 $commit)[-1].Trim()
-        $parts = @($line -split '\s+' | Where-Object { $_ })
-        if ($parts.Count -ne 3) {
-            $parentCount = $parts.Count - 1
-            throw "Commit $commit has $parentCount parent(s); every new mainline commit must be a two-parent merge commit."
-        }
-    }
-
-    Write-Output "Main history guard passed: $($commits.Count) new first-parent commit(s), all two-parent merges."
+    Write-Output "Main history guard passed: $($commits.Count) new first-parent commit(s); main head is contained in the release branch."
 }
 catch {
     Write-Error "Main history guard failed: $($_.Exception.Message)"

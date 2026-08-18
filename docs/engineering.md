@@ -9,11 +9,36 @@ Authority order is defined once in the
 
 ## Branches and delivery
 
-- Task branches are cut from `dev` and merge into `dev` through a PR; `dev`
-  merges into `main` through a PR as a merge commit; `main` is the active
-  deployment and the sole revision eligible for an authorised one. `dev` and
-  `main` are never rebased, reset, or force-pushed. Claim lines riding into
-  `main`'s `NOW.md` at release are accepted cosmetics.
+- Task branches are cut from `dev` and merge into `dev` through a PR. `main`
+  is the active deployment and the sole revision eligible for an authorised
+  release. `dev` and `main` are never rebased, reset, or force-pushed. Claim
+  lines riding into `main`'s `NOW.md` at release are accepted cosmetics.
+- Promote `dev` to `main` only as an exact-SHA fast-forward: fetch both remote
+  refs, confirm `git merge-base --is-ancestor origin/main origin/dev`, record
+  the reviewed `origin/dev` SHA, then atomically push that SHA to both
+  `refs/heads/main` and `refs/heads/dev` with an explicit lease on `dev`:
+
+  ```text
+  git push --atomic --force-with-lease=refs/heads/dev:<reviewed-dev-sha> origin <reviewed-dev-sha>:refs/heads/main <reviewed-dev-sha>:refs/heads/dev
+  ```
+
+  The second refspec is a no-op only when `dev` still equals the reviewed SHA;
+  the transaction rejects a concurrent change instead of partially promoting
+  `main`. The lease is an expected-value assertion, not permission to rewrite:
+  neither shared ref may be rewritten. Fetch again and require both remote
+  heads to equal the recorded SHA. The release actor needs explicit `MERGE AUTH
+  GRANTED` before the push. A failed preflight, rejected transaction, or
+  unequal read-back stops the release; it is never repaired by a rebase, reset,
+  or force push.
+- A GitHub PR merge, rebase merge, or squash merge is not an exact-SHA
+  promotion and does not replace that procedure. GitHub protection and
+  rulesets are intentionally out of scope on subscription grounds, so the
+  main-push CI check is detective rather than a server-side prevention.
+- One transition only: after DELIV-002's PR reaches `dev` with green CI,
+  DELIV-003 may merge `origin/main` into its own branch cut from `origin/dev`
+  and deliver it through the normal reviewed PR to `dev`. It must not update
+  `dev` directly, and the exception expires when that PR merges. Thereafter
+  no routine `main` → `dev` synchronization merge is permitted.
 - Commit subjects are imperative and name a capability ID from
   [capabilities](capabilities.md) when one applies; otherwise they name the
   task.
