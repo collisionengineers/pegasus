@@ -117,8 +117,9 @@ The Automation Actor ingress (MCP-01–04, MCP-06) is implemented inside `Pegasu
 and composition-gated off by default: unless `Features:AutomationMcp` is
 enabled, no `/mcp` endpoint, `/connect/token` route, or resource-metadata
 document exists and the application keeps failing closed by exposing no such
-ingress. The flag is accepted only in the DevelopmentOffline runtime profile;
-enabling it anywhere else fails startup. Migration
+ingress. Until ADR-0026 the flag was accepted only in the DevelopmentOffline
+runtime profile; the deployed state of the gate is recorded under
+[Production environment](#production-environment). Migration
 `20260803151159_AutomationActorOpenIddict` re-created the OpenIddict tables
 (the dormant set from `20260729150000_DocumentCustodyAndRequests` had been
 dropped by `20260730203833_RemoveDormantOpenIddict`) with the Web-only

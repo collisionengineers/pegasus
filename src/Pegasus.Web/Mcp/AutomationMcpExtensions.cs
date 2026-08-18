@@ -44,11 +44,9 @@ public static class AutomationMcpExtensions
                 // sufficient for its short-lived client-credentials tokens.
                 server.AddEphemeralEncryptionKey();
                 server.AddEphemeralSigningKey();
-                // The gate restricts this surface to the DevelopmentOffline
-                // profile where the local host may terminate on plain HTTP
-                // (and the in-process integration test server always does).
-                // Production activation is separately approved work and would
-                // revisit transport requirements with real certificates.
+                // TLS terminates at the Container Apps ingress
+                // (allowInsecure: false); the app listens on plain HTTP behind
+                // it, as does the in-process integration test server.
                 server.UseAspNetCore()
                     .EnableTokenEndpointPassthrough()
                     .DisableTransportSecurityRequirement();
