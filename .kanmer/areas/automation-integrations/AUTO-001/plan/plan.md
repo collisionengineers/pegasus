@@ -36,3 +36,31 @@ The external MCP client selects its connector and tool-access policy. Pegasus pr
 | Future infrastructure deployment removes activation | Declare the exact Key Vault reference and settings in the existing Bicep Container App resource. |
 | Secret exposure | Keep the generated value in Key Vault only; read back names/references rather than values. |
 | Incorrect external-client access | Exercise only the existing OAuth/client-credentials boundary and record success/denial/history evidence. |
+
+## Take-over amendment — 2026-08-18 (claude-code)
+
+Steps 4–5 as originally written (push an out-of-band image built off `dev@5ab3b773`
+and update only the Container App) are replaced: `main` is the sole revision
+eligible for an authorised release (`docs/engineering.md`), so this branch is
+merged onto current `dev`, reviewed, merged, and shipped by [[DELIV-008]]
+(release 9) — promotion, migrations, `azd provision` with this branch's bicep
+(`Features__AutomationMcp=true`, Key Vault secret reference), Worker package,
+smoke. Live MCP evidence (token, `/mcp`, inventory, denial/validation/history,
+kill switch, closed-route rollback) is then captured against that release.
+The already-published image `pegasus/web:a593bc89…` is not deployed.
+
+## Simplification pass — 2026-08-18
+
+Lenses over the branch diff (ADR-0026, ADR index/0021 status, bicep parameter +
+secret + four settings, `AutomationMcpOptions.TryCreate` signature, two
+comments, operations note):
+- Reuse — the secret follows the existing `box-client-secret` Key Vault
+  reference pattern; no new mechanism. Applied as-is.
+- Simplification — `TryCreate` lost its now-meaningless `developmentOfflineProfile`
+  parameter and its only caller was updated. Nothing else to remove.
+- Efficiency — n/a.
+- Altitude — one finding: `docs/current-architecture.md` had gained a dated
+  event narrative (belongs to operations); replaced with a stateless pointer
+  (`db3f57db`). ADR-0021 is marked `superseded` wholesale while ADR-0026 carries
+  its inventory forward by reference — acceptable under the append-only ADR
+  rule; left as the author wrote it.
