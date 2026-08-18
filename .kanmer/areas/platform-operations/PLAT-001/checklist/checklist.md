@@ -101,3 +101,14 @@ a follow-up ticket.
 - [ ] `git branch -d task/claude-design-ui` (`-D` if squash/rebase-merged)
 - [ ] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: "release"`
+
+## Closeout — PLAT-001
+
+- [x] PR merge verified (`gh pr view --json state,mergedAt`) — MERGED 2026-08-18T09:23:05Z
+- [x] proof.md finalised (PR URL + merge date appended)
+- [x] Moved to final stage (done, 2026-08-18T09:36:55Z)
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] cd out of worktree; `git worktree remove --force ../pegasus-worktrees/claude-design-ui`
+- [x] `git branch -D task/claude-design-ui` (rebase-merged, `-D` safe)
+- [x] `git push origin --delete task/claude-design-ui` + `git fetch --prune` + `git worktree prune`
+- [x] `take_ticket action: "release"` — ticket released

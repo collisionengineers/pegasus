@@ -24,3 +24,11 @@ This is a production architecture and release change, not a configuration flip. 
 The operator confirms the intended boundary: **tool selection/permissioning is owned by the external MCP client, not Pegasus.** The client is Claude Desktop, using OAuth client credentials (client ID and client secret) to obtain a bearer token. Pegasus’s role is to expose the endpoint and its approved tool inventory, authenticate that OAuth client, enforce only protocol/security boundaries, and record permanent history.
 
 The existing per-area scope claims remain a protocol enforcement mechanism in the current implementation; they must not become a second Pegasus-side business approval workflow. The activation does not need a user-selected “minimum scope set.” Claude Desktop’s configured client/tool policy determines what it asks to use; Pegasus must neither add a new inventory nor duplicate that policy.
+
+## Claude Desktop connector compatibility — 2026-08-18
+
+Official Anthropic guidance confirms the intended caller model: a Claude Desktop custom **remote** MCP connector accepts an OAuth client ID and OAuth client secret in Advanced settings. Connector and per-conversation tool controls are configured in Claude, matching the operator clarification. The remote connection is brokered from Anthropic cloud infrastructure, not from the desktop machine; the Pegasus public Container App endpoint is therefore the required reachable HTTPS endpoint.
+
+This validates the existing server's one confidential OAuth client/client-credentials design as the correct activation path. The work is limited to enabling its already-designed production composition, wiring the non-secret settings and the secret reference, and proving the real Claude connector caller. It must not introduce a second permission model, new tool scopes, a new actor model, or an OAuth authorization-code/user-login flow.
+
+Sources: Anthropic Help Center, “Use connectors to extend Claude's capabilities” (updated 2026-08-11), custom connector steps; and “Get started with custom connectors using remote MCP” (updated 2026-08-18), network and OAuth settings.

@@ -49,3 +49,9 @@ Promote the existing composition-gated ingress to a production-capable, still de
 Claude Desktop is the one OAuth confidential client and holds the client ID/client secret. Its MCP configuration controls the tools it exposes to the actor and therefore its tool-use policy. Pegasus continues to validate bearer tokens and its existing scope claims as a transport boundary, but this task does **not** create a Pegasus-side scope-approval process or ask an operator to choose a tool allow-list.
 
 Step 1 is therefore narrowed to: record exact approval for the production mutation and external evidence run, plus the named Claude Desktop OAuth client configuration. The production key/HTTPS decision remains separate because the code presently uses local-only ephemeral OpenIddict keys and relaxed transport; it is not a tool-permission decision.
+
+## Superseding clarification — no new permission model or ADR prerequisite
+
+The new evidence confirms that the existing OAuth confidential-client design is the intended Claude Desktop remote-connector path. The former proposal to create a new ADR is withdrawn: this activation extends the accepted ADR-0021 composition boundary using the established Azure Container Apps HTTPS and Key Vault-secret patterns; it does not create a new architecture boundary.
+
+Implementation still needs to remove the explicitly local-only startup restriction and enforce HTTPS at the public bearer endpoint, but does not add authorization-code login, client-specific tool policy, new scopes, or a Pegasus-side tool allow-list. The Claude connector is configured with its client ID/secret and controls its tool access. Pegasus validates its bearer token, exposes the current inventory, records history, and retains the Administrator kill switch.
