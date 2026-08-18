@@ -25,12 +25,13 @@ links: []
 docs_todo: true
 commits:
   - be46d8ea870bec31a86eadadc28901b55da467e8
+  - 31148e1d
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/380'
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.898Z'
-updated: '2026-08-18T12:22:45.438Z'
+updated: '2026-08-18T12:25:54.615Z'
 ---
 
 ## What
@@ -48,14 +49,17 @@ This remains an unresolved current-work item in the canonical Kanmer board; it i
 
 ## Verification
 
-- [ ] The task plan defines the owned change, failure behavior, tests, and acceptance evidence.
-- [ ] Completion is recorded only at the evidence tier actually proved.
+- [x] The task plan defines the owned change, failure behavior, tests, and acceptance evidence.
+- [x] Completion is recorded only at the evidence tier actually proved.
 
 ## Notes
 
 - Source: the retired pre-Kanmer tracker — Next — repository hygiene.
 
-
 ## Tracker migration
 
 Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.
+
+## Outcome
+
+Credential-free `infrastructure` lane shipped via PR #380 (merged 2026-08-17T05:17:57Z, `31148e1d`; on `main` since #394). Behaviour confirmed on real PRs on 2026-08-18: it ran on the bicep-changing PR #403, skipped on docs-only #404 and tests-only #393; `Test-CiChangeFlags.ps1` and `Test-AzureDeploymentPlan.ps1 -Mode Local` pass on `main`. Worktree cleanup owed on workstation `PC`; the remote branch was deleted. Closed out 2026-08-18.
