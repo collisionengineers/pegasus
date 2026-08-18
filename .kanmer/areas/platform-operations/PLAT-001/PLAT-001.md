@@ -18,9 +18,25 @@ labels:
 links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - 196e65ac
+  - 23b88b8d
+  - f9cd4b9a
+  - b5bf39a5
+  - 7206773a
+  - 9988c1d8
+  - d4bb25ad
+  - 97ea8b4d
+  - 269deec1
+  - 8c3ef48a
+  - 8b3a784b
+  - ac346686
+  - fe44ec8a
+prs:
+  - '397'
 archived: false
 created: '2026-08-17T12:29:59.429Z'
-updated: '2026-08-17T14:33:41.674Z'
+updated: '2026-08-18T09:22:06.351Z'
 ---
 
 ## What

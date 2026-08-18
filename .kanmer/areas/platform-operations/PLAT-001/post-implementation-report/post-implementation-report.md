@@ -187,3 +187,17 @@ What `kanmer-verify` should run on merged `main`:
 - Local `DevelopmentOffline` run: capture screenshots of the rail and one screen
   per family (Dashboard, Inbox, Queues, Cases, Case Details, Assessment,
   Administration, Upload). Verify the marks render beside their text.
+
+## Verification results (rebased HEAD, 2026-08-18)
+
+| Suite | Result |
+| --- | --- |
+| `dotnet build --configuration Release` | succeeded, 0 warnings, 0 errors |
+| `Pegasus.Core.Tests` | 580 passed, 0 failed |
+| `Pegasus.ArchitectureTests` | 94 passed, 0 failed |
+| Web integration (non-Browser, non-Corpus) | 504 passed, 0 failed |
+| Browser (axe + Playwright journeys) | 32 passed, 0 failed |
+
+Branch rebased onto `origin/dev` (27 commits) with no conflicts. All 13 commits
+replayed cleanly. Visual proof (screenshots) deferred to the verifying stage on
+merged `main`, per the proof model.

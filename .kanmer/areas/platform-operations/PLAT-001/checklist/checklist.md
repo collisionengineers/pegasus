@@ -78,3 +78,15 @@ operator copy and were restored.
 them means a per-request query in the shell; FRD-12 forbids a stale zero
 placeholder, so rendering nothing is correct until a real figure exists. Worth
 a follow-up ticket.
+
+## Verification (2026-08-18, rebased HEAD)
+
+- [x] Browser accessibility suite green — 32 passed, 0 failed
+- [x] `dotnet build --configuration Release` clean, 0 warnings 0 errors — rebased onto origin/dev
+- [x] Architecture tests: 94 passed — on rebased HEAD
+- [x] Core tests: 580 passed — on rebased HEAD
+- [x] Web integration tests: 504 passed — on rebased HEAD
+- [ ] Local `DevelopmentOffline` run; visual proof of the rail and one screen per family — deferred to verifying stage on merged main
+- [x] No diff under `Pegasus.Core`, `Pegasus.Infrastructure`, `workspaces/`, `corpus/` — verified on rebased HEAD
+- [x] Marks: 10 placed PNGs copied at 128×128 Lanczos (78 KB total), SHA-256 recorded in marks README and design authority
+- [x] Open-questions: blocked item (mark files) ticked — resolved 2026-08-18
