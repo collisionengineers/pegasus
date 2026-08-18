@@ -8,44 +8,65 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
     private readonly string _testRoot = Path.Combine(Path.GetTempPath(), $"pegasus-main-history-{Guid.NewGuid():N}");
 
     [Fact]
-    public void AllowsMergeOnlyAppend()
+    public void AllowsExactFastForward()
     {
         var repository = CreateRepository();
         var before = Git(repository, "rev-parse", "HEAD").Output.Trim();
-        Git(repository, "checkout", "-b", "feature");
-        Commit(repository, "feature.txt", "feature", "feature commit");
+        Git(repository, "branch", "dev");
+        Git(repository, "checkout", "dev");
+        Commit(repository, "feature.txt", "feature", "development commit");
         Git(repository, "checkout", "main");
-        Git(repository, "merge", "--no-ff", "feature", "-m", "merge feature");
+        Git(repository, "merge", "--ff-only", "dev");
         var head = Git(repository, "rev-parse", "HEAD").Output.Trim();
 
-        var result = RunGuard(repository, before, head);
+        var result = RunGuard(repository, before, head, "dev");
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("all two-parent merges", result.Output);
+        Assert.Contains("contained in the release branch", result.Output);
     }
 
     [Fact]
-    public void RejectsDirectCommit()
+    public void AllowsReleasedHeadWhenDevHasAdvanced()
     {
         var repository = CreateRepository();
         var before = Git(repository, "rev-parse", "HEAD").Output.Trim();
+        Git(repository, "branch", "dev");
+        Git(repository, "checkout", "dev");
+        Commit(repository, "released.txt", "released", "released development commit");
+        var releasedHead = Git(repository, "rev-parse", "HEAD").Output.Trim();
+        Git(repository, "checkout", "main");
+        Git(repository, "merge", "--ff-only", "dev");
+        Git(repository, "checkout", "dev");
+        Commit(repository, "later.txt", "later", "later development commit");
+
+        var result = RunGuard(repository, before, releasedHead, "dev");
+
+        Assert.Equal(0, result.ExitCode);
+    }
+
+    [Fact]
+    public void RejectsDirectMainCommitOutsideDev()
+    {
+        var repository = CreateRepository();
+        var before = Git(repository, "rev-parse", "HEAD").Output.Trim();
+        Git(repository, "branch", "dev");
         Commit(repository, "direct.txt", "direct", "direct commit");
 
-        AssertRejected(repository, before, "has 1 parent(s)");
+        AssertRejected(repository, before, "dev", "not an ancestor of release branch");
     }
 
     [Fact]
-    public void RejectsMixedBatchWithDirectMainlineCommit()
+    public void RejectsGitHubStyleMergeCommitOutsideDev()
     {
         var repository = CreateRepository();
         var before = Git(repository, "rev-parse", "HEAD").Output.Trim();
+        Git(repository, "branch", "dev");
         Git(repository, "checkout", "-b", "feature");
         Commit(repository, "feature.txt", "feature", "feature commit");
         Git(repository, "checkout", "main");
-        Git(repository, "merge", "--no-ff", "feature", "-m", "merge feature");
-        Commit(repository, "direct.txt", "direct", "direct commit");
+        Git(repository, "merge", "--no-ff", "feature", "-m", "GitHub-style merge");
 
-        AssertRejected(repository, before, "has 1 parent(s)");
+        AssertRejected(repository, before, "dev", "not an ancestor of release branch");
     }
 
     [Fact]
@@ -53,7 +74,16 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
     {
         var repository = CreateRepository();
 
-        AssertRejected(repository, new string('a', 40), "rev-parse --verify");
+        AssertRejected(repository, new string('a', 40), "main", "rev-parse --verify");
+    }
+
+    [Fact]
+    public void RejectsUnavailableReleaseBranch()
+    {
+        var repository = CreateRepository();
+        var before = Git(repository, "rev-parse", "HEAD").Output.Trim();
+
+        AssertRejected(repository, before, new string('a', 40), "rev-parse --verify");
     }
 
     [Fact]
@@ -61,7 +91,7 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
     {
         var repository = CreateRepository();
 
-        AssertRejected(repository, new string('0', 40), "all-zero sentinel");
+        AssertRejected(repository, new string('0', 40), "main", "all-zero sentinel");
     }
 
     [Fact]
@@ -75,7 +105,7 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
         Git(repository, "checkout", "main");
         Commit(repository, "main.txt", "main", "main commit");
 
-        AssertRejected(repository, before, "is not an ancestor");
+        AssertRejected(repository, before, "main", "is not an ancestor");
     }
 
     public void Dispose()
@@ -90,19 +120,19 @@ public sealed class MainBranchHistoryGuardTests : IDisposable
         }
     }
 
-    private void AssertRejected(string repository, string before, string expected)
+    private void AssertRejected(string repository, string before, string releaseBranch, string expected)
     {
         var head = Git(repository, "rev-parse", "HEAD").Output.Trim();
-        var result = RunGuard(repository, before, head);
+        var result = RunGuard(repository, before, head, releaseBranch);
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains(expected, result.Output, StringComparison.OrdinalIgnoreCase);
     }
 
-    private CommandResult RunGuard(string repository, string before, string head) =>
+    private CommandResult RunGuard(string repository, string before, string head, string releaseBranch) =>
         Run("pwsh", _repositoryRoot,
             "-NoLogo", "-NoProfile", "-File", Path.Combine(_repositoryRoot, "scripts", "Test-MainBranchHistory.ps1"),
-            "-Before", before, "-Head", head, "-RepositoryPath", repository);
+            "-Before", before, "-Head", head, "-ReleaseBranch", releaseBranch, "-RepositoryPath", repository);
 
     private string CreateRepository()
     {

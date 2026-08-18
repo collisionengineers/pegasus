@@ -21,13 +21,15 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - name: Reject non-merge history on main
+      - name: Require main history to be contained in dev
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         env:
           BEFORE_SHA: ${{ github.event.before }}
           HEAD_SHA: ${{ github.sha }}
-        run: ./scripts/Test-MainBranchHistory.ps1 -Before $env:BEFORE_SHA -Head $env:HEAD_SHA
+        run: |
+          git fetch --no-tags origin refs/heads/dev:refs/remotes/origin/dev
+          ./scripts/Test-MainBranchHistory.ps1 -Before $env:BEFORE_SHA -Head $env:HEAD_SHA -ReleaseBranch origin/dev
       - name: Detect whether a build-relevant path changed
         id: detect
         shell: pwsh
