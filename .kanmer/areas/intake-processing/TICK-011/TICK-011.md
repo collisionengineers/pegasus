@@ -2,7 +2,7 @@
 id: TICK-011
 type: ticket
 title: INT-17 — Automatic vehicle-registration reading from ordinary vehicle images
-status: verifying
+status: done
 area: intake-processing
 order: 10
 assignee: ''
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-18T15:23:56.120Z'
   review: '2026-08-18T15:23:56.177Z'
   verifying: '2026-08-18T15:23:56.230Z'
+  done: '2026-08-18T15:24:28.274Z'
 labels:
   - capability
   - INT-17
@@ -21,9 +22,14 @@ groups:
 links: []
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+commits:
+  - ae6f0c2d
+  - ef3eb4c7
+  - f7d99b18
+deployment: not-deployed
 archived: false
 created: '2026-08-12T15:03:52.988Z'
-updated: '2026-08-18T15:23:56.230Z'
+updated: '2026-08-18T15:24:45.325Z'
 ---
 
 ## What
@@ -49,3 +55,7 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 - Source: `docs/capabilities.md` — INT-17.
 - Canonical owner: [Ordinary-image VRM and image analysis](docs/frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis)
 - Activation/boundary: Allocated but non-blocking for `0.1.0-alpha.1` acceptance; the engine is the in-process ONNX stack of [ADR-0019](adr/0019-in-process-onnx-vrm-recognition.md), scanning image-only material automatically in the intake pipeline. The operator accepted the threshold 2026-08-03 at the **0.80** bar with the accepted match rules (full-cohort run `20260803-092906`; the ADR-0019 index entry owns the numbers). Source-image-bound with recorded abstention/failure outcomes; no instruction invention or external upload, and the only autonomous actions are the `INT-28`/`INT-32` register+associate at the accepted bar.
+
+## Outcome
+
+Retrospective reconciliation completed on 2026-08-18. INT-17 was already present on merged `main` through commits `ae6f0c2d`, `ef3eb4c7`, and `f7d99b18`; no TICK-011 source diff or PR was created. Independent review passed and the focused ImageIntake Core suite passed 78/78 on `origin/main` at `d8de29cb`. No follow-up ticket was required. Production caller execution was not established, so deployment is recorded as `not-deployed`.
