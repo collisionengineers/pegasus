@@ -23,3 +23,7 @@
 Not proved: the Claude.ai product itself completing the flow — the operator connects the connector from their account (URL `<origin>/mcp`, client id `pegasus-automation`, secret from Key Vault). Everything the product does (discovery → `/authorize` → consent → callback with code → token exchange → `/mcp`) is exercised above against production with the product's registered redirect URI.
 
 PR #405 merged 2026-08-18 (`d8de29cb`); shipped by release 10 ([[DELIV-009]]).
+
+## Addendum — Claude.ai product connected (2026-08-18, ~15:07–15:09 UTC)
+
+The operator's own Claude.ai custom connector completed the flow against production after re-entering the client secret (the first two attempts at 14:52 UTC passed consent but the exchange was refused `invalid_client` — an unauthenticated exchange, reproduced as the only failing shape). Live web console log: `Client (Anthropic/ClaudeAI 1.0.0)` ↔ `Server (pegasus-automation 0.1.0-alpha.1)`: 4× `tools/list`, 6× `tools/call`, 12× `server/discover`; case queries executed under the Automation actor. Diagnosis method for future incidents: OpenIddict token denials write `automation_token_rejected` without the OAuth error; the exchange shapes that succeed are client_secret_basic (raw or URL-encoded secret) and client_secret_post, with or without `resource`; only a secret-less exchange fails. The tier-5 external-client evidence for the connector flow is therefore complete.
