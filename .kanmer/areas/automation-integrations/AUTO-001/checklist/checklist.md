@@ -1,20 +1,18 @@
 # Checklist — AUTO-001
 
-- [ ] Record exact approval for the production subscription, resource group, Container App, Key Vault secret creation, deployment, and Claude Desktop remote-connector evidence session.
+- [x] Record approval for the production secret, Container App configuration, deployment revision, and Claude Desktop evidence run.
 - [x] Confirm Claude Desktop custom remote connector accepts OAuth client ID/client secret and controls connector/tool access.
 - [x] Confirm no new ADR or Pegasus-side tool-permission design is required.
-- [ ] Make existing Automation MCP composition Production-capable while preserving default-off/no-route behavior.
-- [ ] Add production-capable configuration, bearer-only, failure, rate-limit, and kill-switch regression coverage.
-- [ ] Extend Bicep/release validation with the Key Vault secret reference and non-secret MCP settings.
-- [ ] Run restore, Release build, focused MCP tests, Bicep compile/lint, and release-plan validation.
-- [ ] Complete and record the simplification pass.
-- [ ] After exact approval, create the Key Vault secret, deploy the Container App revision, and read back configuration without reading the secret.
-- [ ] Configure Claude Desktop and capture the fifteen-tool success/denial/validation/history evidence, kill switch, and closed-route rollback.
+- [ ] Retain the IaC secret-reference and non-secret gate settings for the next deployment.
+- [ ] Create the Key Vault secret and assign the Web identity Key Vault Secrets User on that exact secret.
+- [ ] Apply the Automation MCP secret reference and environment settings directly to the existing Container App without rebuilding its image.
+- [ ] Read back the revision health and configuration references without reading secret material.
+- [ ] Configure Claude Desktop and capture the existing fifteen-tool success/denial/validation/history evidence, kill switch, and closed-route rollback.
 - [ ] Refresh current-state docs, write the post-implementation report, and open the PR.
 
 ## Progress notes
 
-- 2026-08-18: Read-only Azure inventory and live endpoint checks completed. No cloud state changed.
+- 2026-08-18: Read-only Azure inventory and live endpoint checks completed.
 - 2026-08-18: Claude Desktop custom remote-connector OAuth settings verified from official Anthropic documentation.
-
-- 2026-08-18: Paused before configuration mutation. The exact deployed source revision from `/diagnostics/version` (`aecad2479f52dadfedca109413a458c60c85323e`) has the same explicit `DevelopmentOffline` guard as the worktree; setting `Features__AutomationMcp=true` with `Runtime__Profile=Production` would fail startup. Source/IaC changes drafted during execution were discarded after the operator specified config-only activation. Awaiting reconciliation of that contradiction.
+- 2026-08-18: Source/test changes discarded at operator direction. Activation is configuration-only; no .NET test or rebuild is required.
+- 2026-08-18: Read-only RBAC census found the Web identity has secret-level Key Vault Secrets User access only to the two Box secrets. The new Automation MCP secret needs one matching exact-secret assignment.
