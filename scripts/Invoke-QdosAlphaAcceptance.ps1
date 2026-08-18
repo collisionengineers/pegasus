@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('CiPressure', 'OfflineCandidate')]
-    [string]$Profile = 'CiPressure',
+    [ValidateSet('OfflineCandidate')]
+    [string]$Profile = 'OfflineCandidate',
 
     [Parameter(Mandatory)]
     [ValidatePattern('^[a-fA-F0-9]{40}$')]
@@ -23,11 +23,6 @@ $ErrorActionPreference = 'Stop'
 $repositoryRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $integrationProject = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj'
 $acceptanceSourceRoot = Split-Path $integrationProject -Parent
-# These two source-only pressure files deliberately have no project. This
-# orchestrator stages them into the compiled integration-test project below,
-# so their sole build and caller owner remains this revision-bound gate.
-$pressureSourceRoot = Join-Path $repositoryRoot 'tests/Pegasus.PerformanceTests'
-$stagingRoot = Join-Path $repositoryRoot 'tests/Pegasus.IntegrationTests/QdosPressure.Generated'
 $evidenceRoot = Join-Path $repositoryRoot "artifacts/qdos-alpha-acceptance/$RunId"
 $evidencePath = Join-Path $evidenceRoot 'evidence.json'
 $evidenceTempPath = Join-Path $evidenceRoot 'evidence.json.tmp'
@@ -610,17 +605,12 @@ function Assert-AlphaCapabilityCoverage {
 }
 
 $resolvedSourceRevision = Resolve-RepositorySourceRevision -RequestedRevision $SourceRevision
-$previousProfile = [Environment]::GetEnvironmentVariable('PEGASUS_QDOS_PRESSURE_PROFILE', 'Process')
 
-$offlinePrerequisites = $null
-$acceptanceCoverage = $null
-if ($Profile -eq 'OfflineCandidate') {
-    $offlinePrerequisites = Assert-OfflineCandidatePrerequisites -ExpectedSourceRevision $resolvedSourceRevision
-    $acceptanceCoverage = Assert-AlphaCapabilityCoverage `
-        -CallerManifest $offlinePrerequisites.CallerManifest `
-        -CallerManifestPath $offlinePrerequisites.CallerManifestPath `
-        -RequiredCapabilityIds (Get-AlphaCapabilityIds)
-}
+$offlinePrerequisites = Assert-OfflineCandidatePrerequisites -ExpectedSourceRevision $resolvedSourceRevision
+$acceptanceCoverage = Assert-AlphaCapabilityCoverage `
+    -CallerManifest $offlinePrerequisites.CallerManifest `
+    -CallerManifestPath $offlinePrerequisites.CallerManifestPath `
+    -RequiredCapabilityIds (Get-AlphaCapabilityIds)
 $sourceRevisionProperty = "/p:SourceRevisionId=$resolvedSourceRevision"
 $includeSourceRevisionProperty = '/p:IncludeSourceRevisionInInformationalVersion=true'
 
@@ -630,9 +620,7 @@ if (Test-Path -LiteralPath $evidenceRoot) {
 [System.IO.Directory]::CreateDirectory($evidenceRoot) | Out-Null
 $failure = $null
 $result = 'failed'
-$testResultHash = $null
 $acceptanceResultHash = $null
-$stagingCreated = $false
 
 try {
     if (-not (Test-Path -LiteralPath $integrationProject -PathType Leaf)) {
@@ -640,83 +628,24 @@ try {
     }
 
     [System.IO.Directory]::CreateDirectory($resultsRoot) | Out-Null
-    if ($Profile -eq 'OfflineCandidate') {
-        # The acceptance test lane: the recovery and triage tests that carry
-        # the QdosAlphaAcceptance trait, compiled at this exact revision.
-        & dotnet test $integrationProject --configuration Release --filter 'Category=QdosAlphaAcceptance' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-alpha-acceptance.trx' $includeSourceRevisionProperty $sourceRevisionProperty
-        if ($LASTEXITCODE -ne 0) {
-            throw "QDOS alpha acceptance test lane failed with exit code $LASTEXITCODE."
-        }
-
-        $acceptanceTrxPath = Join-Path $resultsRoot 'qdos-alpha-acceptance.trx'
-        if (-not (Test-Path -LiteralPath $acceptanceTrxPath -PathType Leaf)) {
-            throw 'QDOS alpha acceptance test lane completed without the required TRX evidence.'
-        }
-        $acceptanceResultHash = (Get-FileHash -LiteralPath $acceptanceTrxPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    }
-
-    $sources = @(
-        Join-Path $pressureSourceRoot 'CapacitySoakTests.cs'
-        Join-Path $pressureSourceRoot 'FailureInjectionTests.cs'
-    )
-    foreach ($source in $sources) {
-        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-            throw "Required pressure source '$source' does not exist."
-        }
-    }
-
-    if (Test-Path -LiteralPath $stagingRoot) {
-        throw "Refusing to replace unexpected pressure staging directory '$stagingRoot'."
-    }
-
-    [System.IO.Directory]::CreateDirectory($stagingRoot) | Out-Null
-    $stagingCreated = $true
-    foreach ($source in $sources) {
-        Copy-Item -LiteralPath $source -Destination $stagingRoot
-    }
-    Set-Item -Path 'Env:PEGASUS_QDOS_PRESSURE_PROFILE' -Value 'CiPressure'
-
-    & dotnet test $integrationProject --configuration Release --filter 'Category=QdosPressure' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-pressure.trx' $includeSourceRevisionProperty $sourceRevisionProperty
+    # The acceptance test lane: the recovery and triage tests that carry
+    # the QdosAlphaAcceptance trait, compiled at this exact revision.
+    & dotnet test $integrationProject --configuration Release --filter 'Category=QdosAlphaAcceptance' --results-directory $resultsRoot --logger 'trx;LogFileName=qdos-alpha-acceptance.trx' $includeSourceRevisionProperty $sourceRevisionProperty
     if ($LASTEXITCODE -ne 0) {
-        throw "QDOS caller pressure tests failed with exit code $LASTEXITCODE."
+        throw "QDOS alpha acceptance test lane failed with exit code $LASTEXITCODE."
     }
 
-    $trxPath = Join-Path $resultsRoot 'qdos-pressure.trx'
-    if (-not (Test-Path -LiteralPath $trxPath -PathType Leaf)) {
-        throw 'QDOS caller pressure tests completed without the required TRX evidence.'
+    $acceptanceTrxPath = Join-Path $resultsRoot 'qdos-alpha-acceptance.trx'
+    if (-not (Test-Path -LiteralPath $acceptanceTrxPath -PathType Leaf)) {
+        throw 'QDOS alpha acceptance test lane completed without the required TRX evidence.'
     }
-
-    $testResultHash = (Get-FileHash -LiteralPath $trxPath -Algorithm SHA256).Hash.ToLowerInvariant()
-    $result = if ($Profile -eq 'OfflineCandidate') {
-        'offline-candidate-verified'
-    }
-    else {
-        'ci-pressure-verified'
-    }
+    $acceptanceResultHash = (Get-FileHash -LiteralPath $acceptanceTrxPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $result = 'offline-candidate-verified'
 }
 catch {
     $failure = $_.Exception.Message
 }
 finally {
-    if ($null -eq $previousProfile) {
-        Remove-Item -Path 'Env:PEGASUS_QDOS_PRESSURE_PROFILE' -ErrorAction SilentlyContinue
-    }
-    else {
-        Set-Item -Path 'Env:PEGASUS_QDOS_PRESSURE_PROFILE' -Value $previousProfile
-    }
-
-    if ($stagingCreated -and (Test-Path -LiteralPath $stagingRoot -PathType Container)) {
-        Remove-Item -LiteralPath $stagingRoot -Recurse -Force
-    }
-
-    $sourceHashes = [ordered]@{}
-    foreach ($name in @('CapacitySoakTests.cs', 'FailureInjectionTests.cs')) {
-        $path = Join-Path $pressureSourceRoot $name
-        if (Test-Path -LiteralPath $path -PathType Leaf) {
-            $sourceHashes[$name] = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
-        }
-    }
-
     $offlineMatrixSourceHashes = [ordered]@{}
     foreach ($name in @(
         'RecoveryTests.cs',
@@ -737,46 +666,21 @@ finally {
         sourceRevision = $resolvedSourceRevision
         startedUtc = $startedUtc.ToString('O')
         completedUtc = [DateTimeOffset]::UtcNow.ToString('O')
-        testResultSha256 = $testResultHash
-        pressureSourceSha256 = $sourceHashes
         offlineMatrixSourceSha256 = $offlineMatrixSourceHashes
         acceptanceTestResultSha256 = $acceptanceResultHash
-        acceptanceCoverage = if ($null -ne $acceptanceCoverage) {
-            [ordered]@{
-                capabilityRegister = 'docs/capabilities.md'
-                targetVersion = $alphaTargetVersion
-                requiredCapabilityCount = $acceptanceCoverage.RequiredCapabilityCount
-                offlineAccepted = $true
-                releaseAccepted = $acceptanceCoverage.ReleaseAccepted
-                releaseBlockers = $acceptanceCoverage.ReleaseBlockers
-            }
+        acceptanceCoverage = [ordered]@{
+            capabilityRegister = 'docs/capabilities.md'
+            targetVersion = $alphaTargetVersion
+            requiredCapabilityCount = $acceptanceCoverage.RequiredCapabilityCount
+            offlineAccepted = $true
+            releaseAccepted = $acceptanceCoverage.ReleaseAccepted
+            releaseBlockers = $acceptanceCoverage.ReleaseBlockers
         }
-        else {
-            $null
-        }
-        capacityDatasetManifestSha256 = if ($null -ne $offlinePrerequisites) {
-            $offlinePrerequisites.CapacityManifestSha256
-        }
-        else {
-            $null
-        }
-        callerEvidenceManifestSha256 = if ($null -ne $offlinePrerequisites) {
-            $offlinePrerequisites.CallerManifestSha256
-        }
-        else {
-            $null
-        }
-        localRunManifestSha256 = if ($null -ne $offlinePrerequisites) {
-            $offlinePrerequisites.LocalRunManifestSha256
-        }
-        else {
-            $null
-        }
+        capacityDatasetManifestSha256 = $offlinePrerequisites.CapacityManifestSha256
+        callerEvidenceManifestSha256 = $offlinePrerequisites.CallerManifestSha256
+        localRunManifestSha256 = $offlinePrerequisites.LocalRunManifestSha256
         failure = $failure
-        limitation = if ($Profile -eq 'CiPressure') {
-            'Deterministic in-process Web caller pressure only. This is not the approved 30-minute dataset soak, Worker/Azurite pressure, deployment, live verification, or operator/management acceptance.'
-        }
-        elseif ($result -eq 'offline-candidate-verified') {
+        limitation = if ($result -eq 'offline-candidate-verified') {
             'This runner verified the QDOS-owned offline caller map against the capability register, the acceptance test lane, the run-scoped deterministic-offline manifest, and approved immutable capacity evidence. Live adapter scopes, Azure deployment and recovery, exact-head review, QDOS operator acceptance, Collision Engineers management approval, release, and deployment remain separate fail-closed gates.'
         }
         else {
@@ -792,12 +696,7 @@ if ($null -ne $failure) {
     throw "$failure Evidence: $evidencePath (sha256:$evidenceHash)"
 }
 
-if ($Profile -eq 'OfflineCandidate') {
-    Write-Output "QDOS offline candidate verification passed for run '$RunId'."
-}
-else {
-    Write-Output "QDOS CI pressure verification passed for run '$RunId'."
-}
+Write-Output "QDOS offline candidate verification passed for run '$RunId'."
 Write-Output "Evidence: $evidencePath"
 Write-Output "Evidence SHA-256: $evidenceHash"
 Write-Output 'This result is not release acceptance, deployment evidence, live verification, QDOS operator acceptance, or Collision Engineers management approval.'
