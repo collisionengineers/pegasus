@@ -24,3 +24,21 @@ Release worktree `../pegasus-worktrees/deliv-008-release-9` @ f1e116c6, clean.
 - C18: revision `pegasus-prod-web-252ow37gij--f1e116c6eb93` 100% traffic Healthy; image `…/pegasus/web@sha256:63e86324…`; `Features__AutomationMcp=true`; `/diagnostics/version` sourceSha `f1e116c6…`; live/ready 200; `/Cases` → https sign-in; `/mcp` unauthenticated → 401.
 - C19: `azd deploy worker --from-package` failed (remote Oryx build on a pre-published package — same as the 14 Aug log); `az functionapp deployment source config-zip --src worker.zip` → "Deployment was successful." → runbook gap: record the working route.
 - C20: `Invoke-ProductionSmoke.ps1` full → "Production Worker activation smoke passed (approved-live-worker). Production smoke passed." Nine functions listed, none disabled. Worker KV references now all `Resolved`.
+
+### C21 watch (12:00–12:15 UTC)
+
+- App Insights: worker exception burst 11:48–11:56 UTC (~1.3k `dotnet exited with code 134` / "Failed to start language worker process" / "Exceeded language worker restart retry count … recycling the Functions Host") — the window between the failed `azd deploy worker` remote-build attempt and the successful `config-zip`; none after 11:56.
+- **Log Analytics workspace hit its 0.1 GB/day cap at 11:52:46 UTC (`dataIngestionStatus: OverQuota`, resets 2026-08-19 03:00 UTC)** — no telemetry from any role after ~11:56 is the cap, not an outage. Verified the Worker independently: admin host status `Running`, uptime ≈21 min, nine functions loaded/enabled; `ApprovedInboxPollStates.LastCompletedAtUtc = 2026-08-18 12:09:45Z` (23 s before the read), no `LastFailureCode`.
+- Web: revision `--f1e116c6eb93` healthy; live/ready 200; version sourceSha f1e116c6; anonymous `/Cases` → https sign-in.
+- Pre-existing before this release (now fixed by the corrected secret URIs): `SentEvidencePollFunction` invocations were `success=False` at 11:49–11:50 while all six Worker Key Vault references were unresolved.
+
+### AUTO-001 live evidence (11:59–12:03 UTC, production `/connect/token` + `/mcp`)
+
+- Wrong secret → 401 `invalid_client` (SecurityEvents `automation_token_rejected`).
+- Client credentials `pegasus-automation`, scope `automation.cases` → Bearer token, `expires_in` 600.
+- `/mcp` without token → 401 with `WWW-Authenticate: Bearer resource_metadata=…` (SecurityEvents `automation_access_denied`).
+- `initialize` 200; `tools/list` → 15 tools: assessment_get/update, case_edit_begin/end/renew, case_get, case_search, case_update_details, document_add/download/export, eva_bundle_generate, eva_handoff_status, intake_queue_list, intake_submit.
+- `pegasus_case_search` (pageSize 1) → success, structured result (correlationId, page, items…) — ActionHistory `Succeeded` for `pegasus_case_search`, ActorKind Automation, ActorSubjectId pegasus-automation.
+- `pegasus_intake_queue_list` with the cases-only token → isError "The 'automation.intake' scope is required for this tool." (SecurityEvents `automation_scope_denied`).
+- `pegasus_case_get` with empty id → isError "A non-empty case identifier is required." — ActionHistory `Failed`.
+- Kill switch (Administration → Automation as `claudeuiverification`): disable → token endpoint 400 `unauthorized_client`; in-flight token at T+12 s → "The Automation client registration is disabled."; re-enable → new token issued and `pegasus_case_search` succeeds again. Registration left **enabled**.
