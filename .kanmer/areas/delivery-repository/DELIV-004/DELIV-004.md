@@ -2,10 +2,12 @@
 id: DELIV-004
 type: ticket
 title: Prohibit shipping features behind disabled gates
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-18T09:14:39.400Z'
 labels:
   - policy
   - source-now
@@ -13,7 +15,7 @@ links:
   - AUTO-001
 archived: false
 created: '2026-08-18T08:50:16.059Z'
-updated: '2026-08-18T08:50:16.059Z'
+updated: '2026-08-18T09:14:39.400Z'
 ---
 
 ## Why
