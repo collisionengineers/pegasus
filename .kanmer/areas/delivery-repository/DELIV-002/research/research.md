@@ -30,3 +30,34 @@ How can Pegasus stop creating a content-redundant `main` → `dev` synchronizati
 - GitHub-side branch protection and rulesets are intentionally out of scope on subscription grounds. The target workflow therefore relies on explicit `MERGE AUTH GRANTED` and post-push CI detection; it does not claim to prevent an unauthorized direct `main` update at the GitHub boundary.
 
 - The approved release mechanism is a manual, non-force promotion by the human holding `MERGE AUTH GRANTED`: fetch `origin/main` and `origin/dev`; confirm `git merge-base --is-ancestor origin/main origin/dev`; record the reviewed `origin/dev` SHA; run `git push origin <reviewed-dev-sha>:refs/heads/main`; fetch again and confirm both remote branch heads equal that SHA. A failed preflight, rejected push, or unequal post-push heads stops the release rather than rebasing or forcing either branch.
+
+## CI and repository-gate check — 2026-08-18
+
+- A read-only GitHub API check found no branch protection on `main` (the
+  protection endpoint returns HTTP 404) and no repository rulesets
+  (`[]`). No server-side required-check, linear-history, or merge-method rule
+  will block the policy change or a later direct non-force promotion.
+- `.github/workflows/ci.yml` runs on every pull request and on pushes to
+  `main`. The existing `Test-MainBranchHistory.ps1` step has the condition
+  `push && refs/heads/main`; it does **not** run on the DELIV-002 PR to
+  `dev`. Therefore its current two-parent requirement cannot block the PR
+  that replaces it.
+- The intended files include
+  `scripts/Test-MainBranchHistory.ps1`,
+  `.github/workflows/ci.yml`, and
+  `tests/Pegasus.ArchitectureTests/MainBranchHistoryGuardTests.cs`.
+  `Get-CiChangeFlags.ps1` classifies that change set as both
+  `Build: true` and `Infrastructure: true`. The PR will run the always-on
+  documentation lane, the unit lane (including architecture tests), SQL
+  integration shards, browser tests, and the infrastructure lane. These are
+  ordinary correctness checks, not policy rejections.
+- Once DELIV-002 and DELIV-003 are merged into `dev`, the first exact-SHA
+  push to `main` runs the **revised** guard contained in that pushed SHA. It
+  should pass only if the new `main` head is contained in the fetched
+  `origin/dev` history. If someone promoted before the revised guard reached
+  `dev`, the current guard would report failure after the push because a
+  fast-forwarded `dev` commit is not a two-parent release merge.
+- The CI guard remains post-push detective control. It cannot prevent a bad
+  ref update, nor identify the person who authorized a structurally valid
+  update; the agreed exact-SHA preflight, post-push read-back, and explicit
+  `MERGE AUTH GRANTED` remain necessary.
