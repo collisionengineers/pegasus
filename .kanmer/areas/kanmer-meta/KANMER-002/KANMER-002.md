@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-17T04:53:38.922Z'
   verifying: '2026-08-17T05:21:56.612Z'
   done: '2026-08-18T12:22:55.153Z'
-taken_at: '2026-08-17T04:45:15.072Z'
-branch: task/kanmer-002-repo-plan-doc-cleanup
-worktree: ../pegasus-worktrees/kanmer-002-repo-plan-doc-cleanup
 labels: []
 links: []
 commits:
@@ -27,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-14T12:30:37.742Z'
-updated: '2026-08-18T12:26:28.035Z'
+updated: '2026-08-18T12:30:38.146Z'
 ---
 
 Cleanup on:

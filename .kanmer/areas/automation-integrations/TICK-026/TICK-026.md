@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-17T13:39:23.549Z'
   verifying: '2026-08-18T11:12:26.582Z'
   done: '2026-08-18T12:22:36.260Z'
-taken_at: '2026-08-17T13:07:53.709Z'
-branch: task/tick-026-mcp-04-document-evidence
-worktree: ../pegasus-worktrees/tick-026-mcp-04-document-evidence
 labels:
   - capability
   - MCP-04
@@ -37,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.304Z'
-updated: '2026-08-18T12:25:24.887Z'
+updated: '2026-08-18T12:30:15.384Z'
 ---
 
 ## What

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-17T05:08:02.437Z'
   verifying: '2026-08-17T05:18:07.021Z'
   done: '2026-08-18T12:22:45.438Z'
-taken_at: '2026-08-17T05:05:35.827Z'
-branch: task/infra-validation-lane
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/infra-validation-lane'
 labels:
   - now
   - source-now
@@ -31,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.898Z'
-updated: '2026-08-18T12:25:54.615Z'
+updated: '2026-08-18T12:30:27.003Z'
 ---
 
 ## What

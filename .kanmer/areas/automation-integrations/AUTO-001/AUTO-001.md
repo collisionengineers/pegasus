@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-18T11:17:41.883Z'
   verifying: '2026-08-18T11:34:59.459Z'
   done: '2026-08-18T12:22:59.396Z'
-taken_at: '2026-08-18T11:12:31.011Z'
-branch: task/auto-001-activate-mcp-gate
-worktree: ../pegasus-worktrees/auto-001-activate-mcp-gate
 labels:
   - now
   - requires-live-approval
@@ -35,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-18T08:49:54.851Z'
-updated: '2026-08-18T12:26:40.017Z'
+updated: '2026-08-18T12:30:40.869Z'
 ---
 
 ## Why

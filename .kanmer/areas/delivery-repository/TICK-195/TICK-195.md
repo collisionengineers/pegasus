@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-17T06:14:55.107Z'
   verifying: '2026-08-17T06:36:03.971Z'
   done: '2026-08-18T12:22:42.184Z'
-taken_at: '2026-08-17T06:12:16.504Z'
-branch: task/markdown-placement-validator
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/markdown-placement-validator'
 labels:
   - now
   - source-now
@@ -31,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.833Z'
-updated: '2026-08-18T12:25:45.774Z'
+updated: '2026-08-18T12:30:23.455Z'
 ---
 
 ## What

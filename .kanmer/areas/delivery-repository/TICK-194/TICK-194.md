@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-17T04:16:49.729Z'
   verifying: '2026-08-17T05:04:32.212Z'
   done: '2026-08-18T12:22:39.389Z'
-taken_at: '2026-08-17T04:10:19.599Z'
-branch: task/main-branch-history-guard
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/main-branch-history-guard'
 labels:
   - now
   - source-now
@@ -30,7 +27,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.783Z'
-updated: '2026-08-18T12:25:35.774Z'
+updated: '2026-08-18T12:30:19.341Z'
 ---
 
 ## What

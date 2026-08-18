@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-17T13:37:03.714Z'
   verifying: '2026-08-17T13:51:20.226Z'
   done: '2026-08-18T12:22:30.228Z'
-taken_at: '2026-08-17T13:32:55.563Z'
-branch: task/tick-010-mail-22-taxonomy
-worktree: ../pegasus-worktrees/tick-010-mail-22-taxonomy
 labels:
   - capability
   - MAIL-22
@@ -34,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:52.968Z'
-updated: '2026-08-18T12:25:00.575Z'
+updated: '2026-08-18T12:30:12.255Z'
 ---
 
 ## What
