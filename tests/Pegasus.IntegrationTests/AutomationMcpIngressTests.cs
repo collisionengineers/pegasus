@@ -1,9 +1,6 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Text;
-using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Documents;
@@ -11,17 +8,13 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 using Pegasus.Web.Authentication;
 using Pegasus.Web.Mcp;
+using static Pegasus.IntegrationTests.AutomationMcpTestSupport;
 
 namespace Pegasus.IntegrationTests;
 
 [Trait("Category", "SqlServer")]
 public sealed class AutomationMcpIngressTests
 {
-    private const string ClientId = "pegasus-automation";
-    private const string ClientSecret = "integration-test-automation-secret-0123456789";
-    private const string AllScopes =
-        "automation.cases automation.intake automation.documents automation.assessment";
-
     private static readonly string[] ExpectedTools =
     [
         "pegasus_case_search",
@@ -500,90 +493,4 @@ public sealed class AutomationMcpIngressTests
                     DateTimeOffset.UtcNow.AddMinutes(5)));
         }
     }
-
-    private static WebApplicationFactory<Program> WithAutomationMcp(
-        IntakeWebApplicationFactory factory) =>
-        factory.WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("Features:AutomationMcp", "true");
-            builder.UseSetting("AutomationMcp:ClientId", ClientId);
-            builder.UseSetting("AutomationMcp:ClientSecret", ClientSecret);
-            builder.UseSetting("AutomationMcp:PublicOrigin", "http://localhost/");
-            builder.UseSetting("AutomationMcp:RegistrationCacheSeconds", "0");
-        });
-
-    private static async Task<string> RequestTokenAsync(HttpClient client, string scope)
-    {
-        using var response = await client.PostAsync(
-            "/connect/token",
-            new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["grant_type"] = "client_credentials",
-                ["client_id"] = ClientId,
-                ["client_secret"] = ClientSecret,
-                ["scope"] = scope
-            }));
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.True(
-            response.IsSuccessStatusCode,
-            $"Token issuance failed with {(int)response.StatusCode}: {body}");
-        using var document = JsonDocument.Parse(body);
-        return document.RootElement.GetProperty("access_token").GetString()
-            ?? throw new InvalidOperationException("The token response is missing access_token.");
-    }
-
-    private static async Task<HttpResponseMessage> PostMcpAsync(
-        HttpClient client,
-        string? accessToken,
-        string payload)
-    {
-        using var request = new HttpRequestMessage(HttpMethod.Post, "/mcp");
-        request.Content = new StringContent(payload, Encoding.UTF8, "application/json");
-        request.Headers.Accept.ParseAdd("application/json");
-        request.Headers.Accept.ParseAdd("text/event-stream");
-        if (accessToken is not null)
-        {
-            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
-        }
-
-        return await client.SendAsync(request);
-    }
-
-    private static async Task<JsonDocument> ReadJsonRpcAsync(HttpResponseMessage response)
-    {
-        var body = await response.Content.ReadAsStringAsync();
-        if (response.Content.Headers.ContentType?.MediaType == "text/event-stream")
-        {
-            var data = body
-                .Split('\n')
-                .Select(line => line.TrimEnd('\r'))
-                .Where(line => line.StartsWith("data:", StringComparison.Ordinal))
-                .Select(line => line[5..].Trim())
-                .First(line => line.Length > 0);
-            return JsonDocument.Parse(data);
-        }
-
-        return JsonDocument.Parse(body);
-    }
-
-    private static string ToolsListPayload(int id) =>
-        JsonSerializer.Serialize(new
-        {
-            jsonrpc = "2.0",
-            id,
-            method = "tools/list"
-        });
-
-    private static string ToolCallPayload(int id, string tool, object arguments) =>
-        JsonSerializer.Serialize(new
-        {
-            jsonrpc = "2.0",
-            id,
-            method = "tools/call",
-            @params = new
-            {
-                name = tool,
-                arguments
-            }
-        });
 }
