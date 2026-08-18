@@ -1,41 +1,38 @@
-# Plan — AUTO-001: enable the Automation MCP configuration
+# Plan — AUTO-001: enable the Automation MCP in production
 
 ## Approach
 
-This is a runtime-configuration activation, not an application rebuild. Retain the deployed Web image and configure the existing production Container App with the OAuth client-secret reference and Automation MCP settings. The matching IaC change records those same settings so the gate remains enabled on the next normal deployment.
+Enable the existing Automation MCP Web composition in Production. The initial configuration-only attempt showed that the deployed image rejected the feature; ADR-0026 therefore supersedes the DevelopmentOffline-only composition decision. The source change removes only that profile restriction. Existing OAuth client validation, Core use cases, scopes, rate limit, permanent history, and Administrator kill switch remain unchanged.
 
-Claude Desktop controls connector and tool access. Pegasus supplies the existing remote MCP endpoint, OAuth client validation, inventory, permanent history, rate limit, and Administrator kill switch. No new tool policy, scope design, Core behavior, migration, or source/test change is in scope.
+The external MCP client selects its connector and tool-access policy. Pegasus provides the existing HTTPS `/mcp` and `/connect/token` surfaces and continues its existing authentication and safety boundary; it does not introduce a new Pegasus-side tool-permission design.
 
 ## Governing docs
 
-- **FRD-10**: the live Claude Desktop caller must evidence the existing inventory’s success, authorization failure, validation failure, and permanent history.
-- **ADR-0021**: retain the accepted single-client, direct-write tool boundary and excluded confirmation/approval/dispatch tools. This activation does not modify either document.
+- **FRD-10**: preserves the Automation Actor boundary, ordinary Core actions, and required real-caller evidence.
+- **ADR-0026**: permits explicit Production configuration of the existing composition gate while retaining its fail-closed default and safeguards.
+- **ADR-0021**: superseded by ADR-0026 for the former DevelopmentOffline-only activation rule; its direct-write inventory remains unchanged.
 
 ## Steps
 
-1. Retain the IaC changes that declare the versioned Automation MCP secret URI, Container App secret reference, and non-secret feature/client/public-origin settings for future deployments.
-2. In Key Vault `pegasusprodkv252ow37g`, create `automation-mcp-client-secret` without returning or recording its value. Assign the existing Web managed identity (`pegasus-prod-web-id-252ow37gij`) **Key Vault Secrets User** only on that new secret, matching its two existing secret-level assignments.
-3. Update Container App `pegasus-prod-web-252ow37gij` directly—without rebuilding its image—to reference that secret and set `Features__AutomationMcp=true`, `AutomationMcp__ClientId=pegasus-automation`, `AutomationMcp__ClientSecret`, and its current public HTTPS origin. Read back only setting/secret-reference names and revision health.
-4. Configure the Claude Desktop custom remote connector with the public `/mcp` URL and OAuth client ID/secret. Record its existing fifteen-tool success, authorization-denial, validation-denial, permanent-history, kill-switch, and closed-route rollback evidence.
-5. Update current-state documentation from the fresh readback and complete the PR/report. No .NET build or test is required for this configuration-only activation.
+1. Add ADR-0026 and update the ADR index/ADR-0021 status to record the approved Production composition boundary.
+2. Remove the DevelopmentOffline-only check from `AutomationMcpOptions.TryCreate`; retain every validation of the feature flag, client ID, client secret, public origin, and registration-cache lifetime.
+3. Add the versioned Automation MCP secret URI, Key Vault secret reference, and non-secret Container App settings to Bicep so a future infrastructure deployment preserves the enabled state.
+4. Build the replacement Web release artifact, push its immutable Linux/AMD64 OCI image to the existing production ACR, and update only `pegasus-prod-web-252ow37gij` to the new digest. No test suite is run at the operator's direction.
+5. Confirm the new revision is healthy, read back only secret-reference/configuration names, and exercise the existing OAuth/MCP routes. Configure Claude Desktop with its OAuth client ID/secret and record the requested real-caller evidence.
+6. Refresh current-state documents, complete the report, and open the PR.
 
 ## Verification
 
-- Read-only Key Vault/Container App configuration and secret-reference census; never read the secret value.
-- New Container App revision is healthy; `/health/live`, `/health/ready`, metadata, OAuth token, and MCP endpoint exhibit the expected state.
-- Claude Desktop evidence exercises the existing fifteen-tool inventory plus denial, validation, history, kill switch, and rollback.
+- `dotnet build --configuration Release --no-restore` and Bicep compilation succeed. No .NET tests are run by direction.
+- Exact new Web image digest and source SHA are read back from the existing production target.
+- `/health/live` and `/health/ready` succeed; OAuth metadata, token-denial/success, MCP authorization denial, and configured-client access are observed without retrieving the secret value.
+- The existing Administrator kill switch returns the ingress to its closed state and rollback restores the prior healthy revision if needed.
 
 ## Risks and mitigations
 
 | Risk | Mitigation |
 | --- | --- |
-| The Web identity cannot resolve the new secret. | Create only one secret-level Key Vault Secrets User assignment, matching existing Box-secret access. |
-| Future deployment removes the configuration. | Keep the equivalent IaC settings in this ticket. |
-| Runtime configuration is incompatible with the deployed revision. | Check new revision health immediately and roll the gate back to its closed state if it fails. |
-| Secret exposure. | Generate/store it directly in Key Vault; suppress command output and never retrieve, log, or commit it. |
-
-## Live outcome — 2026-08-18
-
-The configuration-only hypothesis was tested and disproved on the approved production target. The configured revision exited with `Features:AutomationMcp requires the DevelopmentOffline runtime profile`; it never became ready. The gate was immediately rolled back to `false`, producing healthy revision `pegasus-prod-web-252ow37gij--0000003` with the MCP routes closed.
-
-The exact deployed source SHA (`aecad2479f52dadfedca109413a458c60c85323e`) contains that guard. A source change and replacement image are therefore required to activate the existing endpoint. Do not retain an IaC setting that turns the gate on until that code is deployed.
+| Missing or malformed Automation MCP settings | Retain existing startup validation and roll back immediately if the new revision is unhealthy. |
+| Future infrastructure deployment removes activation | Declare the exact Key Vault reference and settings in the existing Bicep Container App resource. |
+| Secret exposure | Keep the generated value in Key Vault only; read back names/references rather than values. |
+| Incorrect external-client access | Exercise only the existing OAuth/client-credentials boundary and record success/denial/history evidence. |
