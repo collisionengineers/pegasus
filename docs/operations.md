@@ -209,7 +209,7 @@ evidence used only read tools; no write tool was exercised against production
 data. Not proved: an external MCP client (Claude Desktop/Code) session — the
 operator's connector configuration is outside this repository.
 
-**Connector flow (ADR-0027, shipped after release 9).** External MCP clients
+**Connector flow (ADR-0027, live since release 10).** External MCP clients
 authorise by OAuth 2.1 authorization code + PKCE: the browser is sent to
 `/authorize`, a Pegasus Administrator with the manage-automation-clients right
 signs in (the strict same-site staff cookie means one sign-in per
@@ -270,7 +270,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   accepted), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 9**. A branch
+- **Deployed evidence:** the estate currently serves **release 10**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -288,6 +288,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 10 | 2026-08-18 | `d8de29cb…` | `sha256:4bd50f66…` | `pegasus-prod-web-252ow37gij--d8de29cb94f3` | none |
   | 9 | 2026-08-18 | `f1e116c6…` | `sha256:63e86324…` | `pegasus-prod-web-252ow37gij--f1e116c6eb93` | `20260814092852_AddWorkerCaseCreationGrants`, `20260814094632_DropBoxFileRequests` |
   | — | 2026-08-12/14 | `dd61ac56…`, then `aecad247…` | `sha256:04d39c20…`, then tag `azd-deploy-1786687004` | `--13m13ph`, then `--azd-1786687080` | three 2026-08-11/12 migrations, then `20260813025241_StandaloneAuditReportDecision` (un-numbered `azd deploy` deployments; no immutable manifest was retained) |
   | 8 | 2026-08-07 | `ded44fd7…` | `sha256:c993eb0e…` | `pegasus-prod-web-252ow37gij--ded44fd7be0a` | three 2026-08-05/06 migrations |
@@ -300,6 +301,24 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 10** (same day, second exact-SHA fast-forward, `main` = `dev` =
+    `d8de29cb`, manifest SHA-256 `E9B28747…`) carried the release-9 docs
+    refresh (PR 404) and AUTO-002 (PR 405): authorization code + PKCE for
+    external MCP connectors with Administrator consent (ADR-0027). Live
+    evidence the same hour: discovery advertises `authorization_endpoint`
+    and `S256`; the connector's `/authorize` request redirects an anonymous
+    browser to sign-in with the request preserved; the seeded Administrator's
+    consent page named `https://claude.ai` and the requested scopes; approve
+    → 302 to `https://claude.ai/api/mcp/auth_callback?code=…&state=…`; the
+    code + PKCE verifier + client secret → access token (600 s) and refresh
+    token, scope `automation.cases automation.documents offline_access`;
+    `/mcp` `tools/list` → 15 tools and an intake tool refused for the
+    unconsented scope; refresh issued a new token; ActionHistory
+    `automation_connector_authorized` (Staff actor, "Connector
+    https://claude.ai; scopes: …"). Worker redeployed by `config-zip` and
+    polling. Not proved: the Claude.ai product completing the flow itself —
+    the operator connects the connector from their account.
 
   - **Release 9** was the first exact-SHA fast-forward promotion under the
     DELIV-002 policy (`main` = `dev` = `f1e116c6`, main-push history guard
