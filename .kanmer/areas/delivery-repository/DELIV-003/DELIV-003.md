@@ -19,12 +19,14 @@ links:
   - DELIV-002
 commits:
   - a592beae
+  - 0aa56b9c
+  - f1e116c6
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/399'
 deployment: n/a
 archived: false
 created: '2026-08-18T08:17:54.534Z'
-updated: '2026-08-18T12:22:14.790Z'
+updated: '2026-08-18T12:23:53.661Z'
 ---
 
 ## What
@@ -55,10 +57,12 @@ refs equal without routine return merges.
 
 ## Verification
 
-- [ ] The reviewed convergence preserves every existing commit and makes
+- [x] The reviewed convergence preserves every existing commit and makes
   `origin/main` an ancestor of `origin/dev`.
-- [ ] The reviewed `origin/dev` SHA is promoted without force and both remote
+- [x] The reviewed `origin/dev` SHA is promoted without force and both remote
   branch heads then equal that SHA.
-- [ ] The revised `main` guard passes on the resulting push.
+- [x] The revised `main` guard passes on the resulting push.
 
 ## Outcome
+
+Convergence PR #399 (`a592beae`, merged 2026-08-18T09:25:51Z as `0aa56b9c`). The first exact-SHA promotion was executed on 2026-08-18 under `MERGE AUTH GRANTED` as part of release 9 ([[DELIV-008]]): `2b0df78c..f1e116c6 main`, both heads `f1e116c6`, main-push guard passed. Closed out 2026-08-18.

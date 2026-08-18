@@ -21,12 +21,13 @@ blocks: []
 commits:
   - eab23d3d
   - 00f9de38
+  - dcbdb129
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/396'
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T12:22:11.807Z'
+updated: '2026-08-18T12:23:40.677Z'
 ---
 
 ## What
@@ -57,14 +58,16 @@ even when it adds no unique content. Returning that synthetic merge commit to
 
 ## Verification
 
-- [ ] The policy permits the one-time reviewed convergence PR and thereafter
+- [x] The policy permits the one-time reviewed convergence PR and thereafter
   requires fast-forward-only promotion from `dev` to `main`.
-- [ ] A release promotion succeeds only when `main` is an ancestor of
+- [x] A release promotion succeeds only when `main` is an ancestor of
   `dev` and leaves both refs at the reviewed commit.
-- [ ] The main-history CI guard accepts a `main` head contained in `dev`
+- [x] The main-history CI guard accepts a `main` head contained in `dev`
   and rejects a head outside `dev`; it does not claim to determine the
   human authorization behind a valid fast-forward.
-- [ ] After the first release, `git merge-base --is-ancestor main dev`
+- [x] After the first release, `git merge-base --is-ancestor main dev`
   succeeds and no routine `main` → `dev` synchronization merge is required.
 
 ## Outcome
+
+Policy, guard and workflow shipped via PR #396 (merged 2026-08-18T09:21:50Z, `dcbdb129`). Exercised for real by release 9 ([[DELIV-008]]): exact-SHA atomic promotion `2b0df78c..f1e116c6`, both heads equal, main-push guard passed ("9 new first-parent commit(s); main head is contained in the release branch"). Closed out 2026-08-18.

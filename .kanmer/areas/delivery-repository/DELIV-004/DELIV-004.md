@@ -21,11 +21,13 @@ links:
   - AUTO-001
 commits:
   - ea908247b222376c2dc7f25cf825bfdca98a822a
+  - ac641ceb
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/398'
+deployment: n/a
 archived: false
 created: '2026-08-18T08:50:16.059Z'
-updated: '2026-08-18T12:22:08.400Z'
+updated: '2026-08-18T12:24:01.598Z'
 ---
 
 ## Why
@@ -39,3 +41,5 @@ A feature that is compiled or merged but disabled by a composition or feature ga
 - Repository workflow and documentation claims remain consistent with the rule.
 
 ## Outcome
+
+Rule added to `AGENTS.md` (PR #398, merged 2026-08-18T09:24:59Z as `ac641ceb`); on `main` since release 9. Applied the same day: [[AUTO-001]] activated the Automation MCP gate in production instead of shipping it dark. The stored block on [[DELIV-005]] resolved when that ticket reached Done. Closed out 2026-08-18.
