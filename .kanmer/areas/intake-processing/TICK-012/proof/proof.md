@@ -101,3 +101,13 @@ A forwarded QDOS **Audit** email was auto-processed by the deployed Worker end-t
 **What it took (root cause):** deploying dev fix #2 (`73a3380d`) to prod was necessary but NOT sufficient. The true blocker was that the Worker's least-privilege SQL role `pegasus_worker_runtime_role` was never granted the case-creation permissions (it predated auto-allocation moving to the Worker; the WorkerGrants matrix in `20260729199000_RuntimeRoleReconciliation.cs` is stale). The acceptance transaction (`EfCaseAcceptanceStore.AcceptOnceAsync`) INSERTs ~20 tables in one batch; a full worker grant reconciliation (incl. the EF cascade child `CaseDataFields`) was applied as a prod hotfix. Local tests never caught this because LocalDB runs full-privilege.
 
 **Still owed:** codify the worker grants as a migration (they are currently manual drift); clear the stuck pre-fix backlog via staff Retry allocation; the DOC-01 UI link + dead-code removal (TICK-017); docs refresh.
+
+---
+
+## Verification on merged `main` `f1e116c6` — 2026-08-18 (release 9)
+
+- The manual Worker grant hotfix from 2026-08-14 is now codified: migration `20260814092852_AddWorkerCaseCreationGrants` was applied to production by release 9 (`efbundle.exe`, `__EFMigrationsHistory` readback) and `Invoke-AzureDatabaseBootstrap.ps1` verified the full matrix ("Verified 459 catalogued permission/denial rows and 306 effective runtime DML rows"). The "still owed" grant migration is closed.
+- The Worker package at `f1e116c6` is deployed and polling (`ApprovedInboxPollStates.LastCompletedAtUtc` advancing; all nine functions enabled; smoke passed).
+- Remaining follow-ups are tracked outside this ticket: DOC-01 UI link / dead-code removal ([[TICK-017]]); clearing the stuck pre-fix backlog via staff Retry allocation (operational task); docs refresh landed with release 9 (PR #404).
+
+Work landed via PR #376 (2026-08-17) and shipped to `main` in #394 and release 9.
