@@ -103,6 +103,15 @@ public sealed class AutomationDocumentIngressTests
                 structured.GetProperty("notice").GetString(),
                 StringComparison.Ordinal);
         }
+
+        Assert.Equal(2, await factory.Database.ScalarAsync<int>(
+            """
+            SELECT COUNT(*) FROM ActionHistory
+            WHERE ActorKind = N'Automation'
+              AND EventKind = N'pegasus_document_download'
+              AND Outcome = N'Succeeded'
+              AND ActorSubjectId = N'pegasus-automation'
+            """));
     }
 
     [Fact]
@@ -252,6 +261,18 @@ public sealed class AutomationDocumentIngressTests
             Assert.Contains("edit lease token is required", body, StringComparison.OrdinalIgnoreCase);
         }
 
+        using (var emptyVersion = await AutomationMcpTestSupport.PostMcpAsync(
+            client,
+            token,
+            AutomationMcpTestSupport.ToolCallPayload(
+                73,
+                "pegasus_document_download",
+                new { caseId = Guid.NewGuid(), occurrenceId = Guid.NewGuid(), versionId = Guid.Empty })))
+        {
+            var body = (await AutomationMcpTestSupport.ReadJsonRpcAsync(emptyVersion)).RootElement.ToString();
+            Assert.Contains("version identifier", body, StringComparison.OrdinalIgnoreCase);
+        }
+
         using (var emptyExport = await AutomationMcpTestSupport.PostMcpAsync(
             client,
             token,
@@ -272,11 +293,11 @@ public sealed class AutomationDocumentIngressTests
             Assert.DoesNotContain(leaked, body, StringComparison.Ordinal);
         }
 
-        Assert.Equal(3, await factory.Database.ScalarAsync<int>(
+        Assert.Equal(4, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM ActionHistory
             WHERE ActorKind = N'Automation'
-              AND EventKind IN (N'pegasus_document_add', N'pegasus_document_export')
+              AND EventKind IN (N'pegasus_document_add', N'pegasus_document_download', N'pegasus_document_export')
               AND Outcome = N'Failed'
             """));
     }
@@ -289,9 +310,8 @@ public sealed class AutomationDocumentIngressTests
         using var client = mcpFactory.CreateClient();
         var casesOnlyToken = await AutomationMcpTestSupport.RequestTokenAsync(client, "automation.cases");
 
-        using var response = await AutomationMcpTestSupport.PostMcpAsync(
-            client,
-            casesOnlyToken,
+        var payloads = new[]
+        {
             AddPayload(
                 80,
                 Guid.NewGuid(),
@@ -299,15 +319,36 @@ public sealed class AutomationDocumentIngressTests
                 "Other",
                 0,
                 new string('e', 64),
-                "mcp:document-scope-denied"));
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        using var document = await AutomationMcpTestSupport.ReadJsonRpcAsync(response);
-        Assert.Contains(
-            "automation.documents",
-            document.RootElement.ToString(),
-            StringComparison.Ordinal);
+                "mcp:document-scope-denied"),
+            AutomationMcpTestSupport.ToolCallPayload(
+                81,
+                "pegasus_document_download",
+                new { caseId = Guid.NewGuid(), occurrenceId = Guid.NewGuid(), versionId = Guid.NewGuid() }),
+            AutomationMcpTestSupport.ToolCallPayload(
+                82,
+                "pegasus_document_export",
+                new
+                {
+                    caseId = Guid.NewGuid(),
+                    selections = new[] { new { occurrenceId = Guid.NewGuid(), versionId = Guid.NewGuid() } },
+                    expectedCaseVersion = 0,
+                    editLeaseToken = new string('e', 64),
+                    operationKey = "mcp:document-export-scope-denied"
+                })
+        };
 
-        Assert.Equal(1, await factory.Database.ScalarAsync<int>(
+        foreach (var payload in payloads)
+        {
+            using var response = await AutomationMcpTestSupport.PostMcpAsync(client, casesOnlyToken, payload);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            using var document = await AutomationMcpTestSupport.ReadJsonRpcAsync(response);
+            Assert.Contains(
+                "automation.documents",
+                document.RootElement.ToString(),
+                StringComparison.Ordinal);
+        }
+
+        Assert.Equal(payloads.Length, await factory.Database.ScalarAsync<int>(
             """
             SELECT COUNT(*) FROM SecurityEvents
             WHERE ReasonCode = N'automation_scope_denied'
