@@ -45,7 +45,7 @@
 
 ## Blocked
 
-- [ ] **The mark files themselves are not in the tree.** Not a decision — a
+- [x] **The mark files themselves are not in the tree.** Not a decision — a
   transport limit. `DesignSync.get_file` is capped at 256 KiB and every source
   PNG is larger, so all fourteen downloads returned `truncated: true` at exactly
   196,608 bytes. Committing one would have committed a corrupt image.
