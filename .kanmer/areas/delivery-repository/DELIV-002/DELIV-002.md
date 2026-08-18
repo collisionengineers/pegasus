@@ -2,23 +2,28 @@
 id: DELIV-002
 type: ticket
 title: Adopt fast-forward-only dev-to-main releases
-status: implementing
+status: review
 area: delivery-repository
 order: 0
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-18T08:01:12.101Z'
+  review: '2026-08-18T08:46:39.169Z'
 taken_at: '2026-08-18T08:39:15.115Z'
 branch: task/deliv-002-fast-forward-main-release
 worktree: ../pegasus-worktrees/deliv-002-fast-forward-main-release
 labels: []
 links: []
 blocks: []
+commits:
+  - eab23d3d
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/396'
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T08:39:15.115Z'
+updated: '2026-08-18T08:46:39.169Z'
 ---
 
 ## What

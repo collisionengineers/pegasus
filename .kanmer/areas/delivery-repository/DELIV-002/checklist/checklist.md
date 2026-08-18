@@ -15,7 +15,7 @@ Derived from `plan.md`; each box is independently checkable.
 - [x] Update `MainBranchHistoryGuardTests.cs` for fast-forward acceptance,
   later-`dev` ancestry, direct-main rejection, synthetic-merge rejection, and
   the existing invalid-history cases.
-- [ ] Run the four-lens simplification pass over the task diff and record dated
+- [x] Run the four-lens simplification pass over the task diff and record dated
   dispositions in `plan.md`; open the reviewed single PR to `dev`.
 - [x] Run `dotnet restore`, the Release build, focused architecture tests, and
   documentation-link validation; record their results in the
@@ -30,3 +30,4 @@ Derived from `plan.md`; each box is independently checkable.
   changes in `task/deliv-002-fast-forward-main-release`. Local validation
   passed: restore, Release build, 96 architecture tests, documentation links,
   CI-change classification, and Markdown-placement checks.
+- 2026-08-18: Opened PR #396 to `dev`; independent Kanmer review is next.
