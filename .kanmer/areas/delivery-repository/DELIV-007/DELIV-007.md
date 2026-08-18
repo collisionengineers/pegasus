@@ -2,17 +2,22 @@
 id: DELIV-007
 type: ticket
 title: Retire the qdos-pressure nightly CI lane
-status: backlog
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: chore
+stageEntered:
+  preparing: '2026-08-18T10:39:23.666Z'
+taken_at: '2026-08-18T10:39:38.441Z'
+branch: task/deliv-007-retire-qdos-pressure
+worktree: ../pegasus-worktrees/deliv-007-retire-qdos-pressure
 labels:
   - ci
   - source-now
 links: []
 archived: false
 created: '2026-08-18T10:38:32.819Z'
-updated: '2026-08-18T10:38:32.819Z'
+updated: '2026-08-18T10:39:38.441Z'
 ---
 
 ## What
