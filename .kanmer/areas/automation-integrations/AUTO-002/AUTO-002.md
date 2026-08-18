@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Authorization-code + PKCE for external MCP connectors with Administrator
   consent
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-18T12:57:36.231Z'
+taken_at: '2026-08-18T12:59:02.005Z'
+branch: task/auto-002-connector-auth-code
+worktree: ../pegasus-worktrees/auto-002-connector-auth-code
 labels:
   - now
   - MCP
@@ -21,7 +24,7 @@ refs:
   - docs/adr/0026-enable-automation-mcp-by-explicit-deployment-configuration.md
 archived: false
 created: '2026-08-18T12:57:32.747Z'
-updated: '2026-08-18T12:57:36.231Z'
+updated: '2026-08-18T12:59:02.005Z'
 ---
 
 ## Why
