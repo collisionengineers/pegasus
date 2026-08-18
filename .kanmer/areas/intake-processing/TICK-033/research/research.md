@@ -1287,3 +1287,14 @@ This design meets the ticket's central intent: an external recipient can contrib
 - OWASP — File Upload Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/File_Upload_Cheat_Sheet.html
 - OWASP — Forgot Password Cheat Sheet (token properties applicable to capability links): https://cheatsheetseries.owasp.org/cheatsheets/Forgot_Password_Cheat_Sheet.html
 - Box — File Requests API guide: https://developer.box.com/guides/file-requests/
+
+## 25. Source mapping update — 2026-08-18
+
+The earlier architecture recommendation is now superseded by a read-only source inspection of the current `dev` branch:
+
+- The capability is already implemented at the existing Core/Web/Infrastructure boundary: `RequestUploadPolicy` owns opaque token validation, expiry, revocation, request limits and replay decisions; `EfDocumentRequestStore` persists the link/receipt and custody data; `/Uploads/{token}` is the only anonymous caller.
+- Staff creation and revocation are already thin authenticated handlers on the case custody page; the public page has antiforgery, no-store caching and a per-token attempt limiter.
+- Durable integration tests cover retention rollback/retry and Web tests cover the staff controls. `docs/current-architecture.md` records the source-state caller and explicitly distinguishes it from deployment and acceptance evidence.
+- Commit `f43e3a2b` removes the obsolete Box File Request persistence/caller. The capability inventory still says “UI removal pending”, which is stale against that source history.
+
+**Implication:** Do not create a second upload implementation. TICK-033 is a reconciliation/evidence task: correct the one stale capability-inventory boundary statement, preserve the existing implementation, and verify the targeted test suite. Live activation and browser acceptance remain outside this ticket because they require exact-target approval.

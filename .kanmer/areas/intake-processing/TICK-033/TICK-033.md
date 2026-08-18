@@ -4,13 +4,16 @@ type: ticket
 title: >-
   INT-31 — Authenticated staff generate a temporary, revocable, expiring,
   request-scoped link for isolated unauthenticated image/d…
-status: preparing
+status: implementing
 area: intake-processing
 order: 40
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-18T14:12:27.399Z'
+taken_at: '2026-08-18T15:22:39.593Z'
+branch: task/tick-033-request-upload-reconciliation
+worktree: ../pegasus-worktrees/tick-033
 labels:
   - capability
   - INT-31
@@ -20,9 +23,11 @@ groups:
   - HZN-003
 links: []
 blocks: []
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.456Z'
-updated: '2026-08-18T14:12:27.399Z'
+updated: '2026-08-18T15:22:39.593Z'
 ---
 
 ## What

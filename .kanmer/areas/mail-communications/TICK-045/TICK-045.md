@@ -18,10 +18,11 @@ labels:
 groups:
   - EPIC-006
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:53.689Z'
-updated: '2026-08-18T15:21:22.108Z'
+updated: '2026-08-18T15:22:23.846Z'
 ---
 
 ## What
