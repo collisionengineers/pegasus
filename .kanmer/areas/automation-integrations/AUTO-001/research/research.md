@@ -18,3 +18,9 @@ What currently prevents the deployed Automation Actor from reaching Pegasus, and
 ## Implications
 
 This is a production architecture and release change, not a configuration flip. The implementation must preserve default-off behaviour, introduce production-grade token signing/encryption and HTTPS transport requirements, source the client secret only from the existing production Key Vault, and deploy only after the user supplies exact approval for the named target and an external-client evidence run. The ticket should remain in Preparing until that approval and transport/key decision are recorded.
+
+## Clarification — 2026-08-18
+
+The operator confirms the intended boundary: **tool selection/permissioning is owned by the external MCP client, not Pegasus.** The client is Claude Desktop, using OAuth client credentials (client ID and client secret) to obtain a bearer token. Pegasus’s role is to expose the endpoint and its approved tool inventory, authenticate that OAuth client, enforce only protocol/security boundaries, and record permanent history.
+
+The existing per-area scope claims remain a protocol enforcement mechanism in the current implementation; they must not become a second Pegasus-side business approval workflow. The activation does not need a user-selected “minimum scope set.” Claude Desktop’s configured client/tool policy determines what it asks to use; Pegasus must neither add a new inventory nor duplicate that policy.

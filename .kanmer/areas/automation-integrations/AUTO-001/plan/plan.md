@@ -43,3 +43,9 @@ Promote the existing composition-gated ingress to a production-capable, still de
 | Over-broad actor access. | Bind one named actor and the minimum approved existing scopes; preserve server-side per-tool scope checks. |
 | A live route cannot be closed quickly. | Prove the existing Administrator kill switch and deploy rollback to the no-route state before calling activation complete. |
 | Docs claim stale deployment facts. | Refresh current-state docs from post-deploy readback, including the current version discrepancy found in research. |
+
+## Clarification — external client controls tool use
+
+Claude Desktop is the one OAuth confidential client and holds the client ID/client secret. Its MCP configuration controls the tools it exposes to the actor and therefore its tool-use policy. Pegasus continues to validate bearer tokens and its existing scope claims as a transport boundary, but this task does **not** create a Pegasus-side scope-approval process or ask an operator to choose a tool allow-list.
+
+Step 1 is therefore narrowed to: record exact approval for the production mutation and external evidence run, plus the named Claude Desktop OAuth client configuration. The production key/HTTPS decision remains separate because the code presently uses local-only ephemeral OpenIddict keys and relaxed transport; it is not a tool-permission decision.
