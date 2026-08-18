@@ -1,29 +1,29 @@
-# Plan — AUTO-001: activate the production Automation MCP gate
+# Plan — AUTO-001: activate the Claude Desktop Automation MCP connector
 
 ## Status
 
-**Blocked pending the recorded user decisions in `open-questions`.** This plan deliberately does not authorize any cloud, Key Vault, credential, deployment, or external-client write.
+Planned and waiting only for explicit approval of the named production mutations and live evidence run in `open-questions`. No cloud state, credential, or external connector will be changed before that approval.
 
 ## Approach
 
-Promote the existing composition-gated ingress to a production-capable, still default-off configuration. Preserve the single-client registry, scopes, Core use cases, rate limit, history, and Administrator kill switch. Replace only the local-only assumptions (DevelopmentOffline restriction, ephemeral token keys, relaxed transport) with an approved production token-key and HTTPS design; use the existing versioned-Key-Vault-to-Container-App-secret pattern for the credential. A setting-only change is rejected because current code fails startup in Production and its ephemeral keys invalidate a production token boundary on restart.
+Enable the existing one-client OAuth client-credentials MCP composition in Production, retaining default-off behavior when configuration is incomplete. Claude Desktop’s custom remote connector receives the public MCP URL plus OAuth client ID/secret in its Advanced settings and controls connector/tool use. Pegasus does not add a second tool-permission policy: it authenticates the bearer client, exposes its existing fifteen tools, retains its protocol-level validation, permanent history, rate limit, and Administrator kill switch.
+
+This reuses the existing Web composition, client registry, integration-test harness, Container Apps HTTPS endpoint, and Key Vault-to-Container-App secret-reference pattern. It is preferable to a new client, scope policy, or OAuth user-login flow because those would duplicate the accepted actor boundary.
 
 ## Governing docs
 
-- **FRD-10** (linked): preserve the one Automation Actor boundary and prove real-client success, authorization denial, validation denial, and action history for every approved tool; no staff browser or management authority reaches MCP.
-- **ADR-0021** (linked): retain the fifteen-tool direct-write inventory, scopes, leases, replay/version guards, permanent history, and structural absence of confirmation, approval, and dispatch tools. This ticket does not change the business contract.
-- **New ADR required before implementation:** record durable production token signing/encryption-key custody, rotation, HTTPS transport, and rollback behavior. This is a technical decision that ADR-0021 explicitly leaves unmade; it must be created through `kanmer-docs` after user approval and linked here.
+- **FRD-10**: meet its required external caller, success, authorization failure, validation failure, and action-history evidence for the approved inventory.
+- **ADR-0021**: retain the existing single client, direct-write tool inventory, Core use cases, leases, replay/version guards, and excluded confirmation/approval/dispatch operations. This plan does not modify either governing document or need a new ADR.
 
 ## Steps
 
-1. Resolve the three recorded approvals: exact production mutation targets, named external actor and minimum scopes, and the durable production token-key/transport decision. Record the answers in `open-questions`.
-2. Author and accept the new ADR, then link it to this ticket. It must choose managed rotatable key custody, HTTPS-only token/MCP transport, key rotation, and the closed-state rollback.
-3. Refactor the Automation MCP options and composition so the surface remains absent by default, DevelopmentOffline retains the existing ephemeral-key evidence path, and Production becomes available only with every approved non-secret/secret prerequisite. Add focused unit/integration coverage for each rejected configuration and the bearer-only route behavior.
-4. Extend existing Azure IaC and release validation with an Automation Actor client-ID parameter, versioned Key Vault secret URI, Container App secret reference, and the required feature/public-origin settings. Reuse the current Web Key Vault-reference pattern; no values are tracked or emitted.
-5. Run the canonical build plus focused Automation MCP integration tests, Bicep compile/lint, and release-plan validation. Review the diff for simplicity: no second client registry, policy owner, or parallel tool implementation.
-6. After explicit exact-target approval, create the secret in `pegasusprodkv252ow37g`, deploy the signed Web revision to `rg-pegasus-prod/pegasus-prod-web-252ow37gij`, and run the preflight/readback without disclosing secret material.
-7. With the named external actor, exercise all fifteen tools for approved scope(s), plus authorization and validation failures, action-history evidence, the Administrator kill switch, and a rollback that leaves the public route closed. Update `docs/current-architecture.md`, `docs/operations.md`, and `docs/runbook.md` with observed facts only.
-8. Write the post-implementation report, open the PR to `dev`, and move the ticket to Review. After merge, verify on merged `main` and write proof from the actual approved production evidence.
+1. Implement production-capable, fail-closed Automation MCP composition: disabled or incomplete settings expose no MCP/token/metadata route; complete Production configuration composes the existing OAuth client-credentials endpoint over the public HTTPS origin.
+2. Reuse and extend `AutomationMcpIngressTests` for valid production-capable configuration, absent/malformed configuration, bearer-only endpoint behavior, existing scope denial, rate limiting, and the Administrator kill switch.
+3. Extend the established Bicep and release-validation conventions with one versioned Key Vault secret URI, Container App secret reference, and non-secret `AutomationMcp`/feature/public-origin settings. No secret value is tracked or emitted.
+4. Run restore, Release build, focused Automation MCP tests, Bicep compile/lint, and release-plan validation. Perform the simplification pass; retain existing Core/tool/client owners.
+5. After exact approval, create the OAuth client secret in `pegasusprodkv252ow37g`, deploy the Web revision to `rg-pegasus-prod/pegasus-prod-web-252ow37gij`, and read back the deployed configuration without reading secret material.
+6. Configure Claude Desktop’s custom remote connector with the public `/mcp` URL and OAuth client ID/secret. Capture success, authorization denial, validation failure, permanent-history evidence for all fifteen tools, and the existing Administrator kill switch and closed-route rollback.
+7. Refresh `docs/current-architecture.md`, `docs/operations.md`, and `docs/runbook.md` from the observed release; write the post-implementation report and open the PR to `dev`.
 
 ## Verification
 
@@ -31,27 +31,14 @@ Promote the existing composition-gated ingress to a production-capable, still de
 - `dotnet build --configuration Release`
 - `dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --filter FullyQualifiedName~AutomationMcpIngressTests --configuration Release`
 - `az bicep build --file infra/main.bicep`
-- Existing release-plan validation and approved production smoke commands, run only after exact-target approval.
-- Fresh Azure readback: Container App revision/configuration (no secret value), health endpoints, bearer-only MCP metadata/token behavior, external-client tool ledger, action history, kill switch, and closed-state rollback.
+- Existing release-plan validation and, after explicit approval, a fresh Container App readback plus Claude Desktop remote-connector evidence.
 
 ## Risks and mitigations
 
 | Risk | Mitigation |
 | --- | --- |
-| A flag-only deployment crashes or weakens the token boundary. | Treat production key custody and HTTPS transport as an ADR prerequisite; test fail-closed configuration. |
-| Secret leakage. | Receive only a versioned Key Vault URI in deployment inputs; never read, log, commit, or write the secret to ticket documents. |
-| Over-broad actor access. | Bind one named actor and the minimum approved existing scopes; preserve server-side per-tool scope checks. |
-| A live route cannot be closed quickly. | Prove the existing Administrator kill switch and deploy rollback to the no-route state before calling activation complete. |
-| Docs claim stale deployment facts. | Refresh current-state docs from post-deploy readback, including the current version discrepancy found in research. |
-
-## Clarification — external client controls tool use
-
-Claude Desktop is the one OAuth confidential client and holds the client ID/client secret. Its MCP configuration controls the tools it exposes to the actor and therefore its tool-use policy. Pegasus continues to validate bearer tokens and its existing scope claims as a transport boundary, but this task does **not** create a Pegasus-side scope-approval process or ask an operator to choose a tool allow-list.
-
-Step 1 is therefore narrowed to: record exact approval for the production mutation and external evidence run, plus the named Claude Desktop OAuth client configuration. The production key/HTTPS decision remains separate because the code presently uses local-only ephemeral OpenIddict keys and relaxed transport; it is not a tool-permission decision.
-
-## Superseding clarification — no new permission model or ADR prerequisite
-
-The new evidence confirms that the existing OAuth confidential-client design is the intended Claude Desktop remote-connector path. The former proposal to create a new ADR is withdrawn: this activation extends the accepted ADR-0021 composition boundary using the established Azure Container Apps HTTPS and Key Vault-secret patterns; it does not create a new architecture boundary.
-
-Implementation still needs to remove the explicitly local-only startup restriction and enforce HTTPS at the public bearer endpoint, but does not add authorization-code login, client-specific tool policy, new scopes, or a Pegasus-side tool allow-list. The Claude connector is configured with its client ID/secret and controls its tool access. Pegasus validates its bearer token, exposes the current inventory, records history, and retains the Administrator kill switch.
+| An incomplete setting exposes a partial endpoint or breaks startup. | Test and preserve fail-closed no-route behavior. |
+| Secret leakage. | Pass only a versioned Key Vault URI; never retrieve, log, or track the secret. |
+| Duplicate authorization policy. | Claude controls tool access; reuse Pegasus’s existing OAuth/client registry and protocol guards only. |
+| Live rollback is unproven. | Evidence the Administrator kill switch and a deployment rollback to the closed route. |
+| Current-state docs drift. | Update them only from fresh post-deploy readback. |

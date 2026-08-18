@@ -4,35 +4,32 @@
 
 | Path | Planned change / risk |
 | --- | --- |
-| `src/Pegasus.Web/Mcp/AutomationMcp.cs` | Split safe shared option validation from production-only requirements; preserve disabled-by-default behavior. |
-| `src/Pegasus.Web/Mcp/AutomationMcpExtensions.cs` | Replace DevelopmentOffline-only ephemeral crypto and relaxed transport handling with the approved production token signing/encryption and HTTPS policy. Security-critical. |
-| `src/Pegasus.Web/Program.cs` | Compose the approved production configuration without exposing routes when the flag or prerequisites are absent. |
-| `src/Pegasus.Web/appsettings*.json` / configuration validation tests | Keep no secret or live activation value in tracked files; add fail-closed coverage for malformed/absent production configuration. |
-| `tests/Pegasus.IntegrationTests/AutomationMcpIngressTests.cs` | Extend composition and bearer transport evidence for the production-capable policy while retaining the existing local evidence harness. |
-| `infra/main.bicep`, `infra/modules/platform.bicep`, `infra/main.parameters.json` | Add versioned Key Vault secret URI plumbing, Container App secret reference, and non-secret Automation MCP environment values. Security/release-critical. |
-| `scripts/Test-AzureDeploymentPlan.ps1`, `scripts/Invoke-ProductionSmoke.ps1` and release scripts (if their existing input census needs it) | Validate the exact feature settings without reading a secret, and add the approved live smoke/rollback evidence. |
-| `docs/current-architecture.md`, `docs/operations.md`, `docs/runbook.md` | After approved deployment, record the actual activation state, target, evidence and rollback. `operations.md` also needs its stale live-version observation corrected. |
-| `docs/adr/` and `docs/adr/README.md` | A new ADR is likely required for durable production token-key custody and transport policy; do not silently turn a local ephemeral-key decision into production behavior. |
+| `src/Pegasus.Web/Mcp/AutomationMcp.cs` | Permit the existing options model to compose in Production only when complete configuration is supplied; preserve default-off behavior. |
+| `src/Pegasus.Web/Mcp/AutomationMcpExtensions.cs` | Replace the explicitly local-only transport assumptions with the production HTTPS configuration while retaining the existing OAuth confidential-client, scopes, tools, and kill switch. Security-critical. |
+| `src/Pegasus.Web/Program.cs` | Compose the endpoint only with complete configuration and retain the no-route closed state otherwise. |
+| `tests/Pegasus.IntegrationTests/AutomationMcpIngressTests.cs` | Cover production-capable composition, bearer-only behavior, malformed/absent configuration, and closed-state regression. |
+| `infra/main.bicep`, `infra/modules/platform.bicep`, `infra/main.parameters.json` | Pass the versioned Key Vault secret URI, configure the Container App secret reference, and set non-secret feature/client/public-origin values. |
+| `scripts/Test-AzureDeploymentPlan.ps1`, `scripts/Invoke-ProductionSmoke.ps1` | Extend the current release checks to validate configuration presence without retrieving a secret and capture the live smoke/rollback. |
+| `docs/current-architecture.md`, `docs/operations.md`, `docs/runbook.md` | After approved deployment, record observed activation, Claude Desktop evidence, rollback, and current live revision facts. |
 
 ## Context files
 
-| Path | Why it must be read |
+| Path | What it tells the implementer |
 | --- | --- |
-| `docs/frd/frd-10-mcp-automation-and-actor-boundary.md` | Defines the required real-caller, denial, validation, and permanent-history evidence. |
-| `docs/adr/0021-automation-actor-direct-write-assessment-contract.md` | Establishes the tool inventory and explicitly reserves production transport/activation work. |
-| `src/Pegasus.Web/Mcp/AutomationClientRegistry.cs` | Owns one-client registration and the Administrator kill switch; it must not be bypassed. |
-| `src/Pegasus.Web/Mcp/AutomationMcpExtensions.cs` | Contains the current local-only crypto/transport assumptions. |
-| `tests/Pegasus.IntegrationTests/AutomationMcpIngressTests.cs` | Existing real HTTP token, scope, denial, kill-switch, and tool-caller evidence. |
-| `infra/modules/platform.bicep` | The exact Web Container App and Key Vault-reference pattern to extend. |
-| `docs/runbook.md#live-operation-approval-matrix` | Requires exact-target approval before every cloud or credential write and deployment. |
+| `docs/frd/frd-10-mcp-automation-and-actor-boundary.md` | Real caller, authorization/validation failure, and permanent-history evidence required for the existing inventory. |
+| `docs/adr/0021-automation-actor-direct-write-assessment-contract.md` | Existing one-client, fifteen-tool composition boundary; no new tool or business-policy change. |
+| `src/Pegasus.Web/Mcp/AutomationClientRegistry.cs` | Reuse the client registration and Administrator kill switch; do not create a second client/policy owner. |
+| `tests/Pegasus.IntegrationTests/AutomationMcpIngressTests.cs` | Reuse the HTTP OAuth/MCP test harness and expected inventory. |
+| `infra/modules/platform.bicep` | Existing Web Key Vault-reference and Container App environment conventions. |
+| `docs/runbook.md#live-operation-approval-matrix` | Exact approval required before any Key Vault or Azure write. |
 
 ## Ripple effects
 
-The delivery requires a new signed production Web release and changes ingress exposure. It must retain the Administrator kill switch, update current-state documents after deployment, and record both successful and closed-state rollback evidence. No Core policy, database migration, new MCP tool, or Send to AI transport change is in scope.
+This is one production Web release and an externally configured Claude Desktop remote connector. It does not add Core policy, a database migration, a new MCP tool, OAuth user login, or a Pegasus-side tool allow-list. Claude Desktop controls connector/tool access; Pegasus validates bearer requests, serves the existing inventory, records history, and retains the kill switch.
 
-## Deliberately out of scope
+## Out of scope
 
-- Secret generation, retrieval, display, or storage in the repository.
-- Any unauthorised Azure, Key Vault, credential, Container App, database, or external-client write.
-- Tool inventory expansion, confirmation/approval/dispatch tools, or changes to the Automation Actor's Core authority.
-- The linked MCP-06 local caller-evidence work in [[TICK-027]].
+- Secret values in source control, ticket documents, logs, or command output.
+- Unapproved Azure, Key Vault, Container App, credential, or external-client mutations.
+- Changing tool inventory or confirmation/approval/dispatch boundaries.
+- [[TICK-027]]’s local assessment-caller evidence.
