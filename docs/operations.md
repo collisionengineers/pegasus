@@ -180,6 +180,18 @@ never received traffic. The gate was returned to `false`, and revision
 deployed image requires a source change before live activation; it is not a
 configuration-only gate.
 
+**Replacement-image attempt — 2026-08-18.** Source revision
+`a593bc890cf14b247841c1e878230f919e2e7f94` removed only the former
+DevelopmentOffline composition check and was uploaded as Linux/AMD64 image
+`sha256:e5d1d01d36039cfb220b941bd442846016baf06a670d95630797a4653ac7d072`.
+Its enabled revision did not become ready: the database readiness check reported
+that the configured schema is not current. No migration was applied. It was
+rolled back to healthy revision `pegasus-prod-web-252ow37gij--rollbacka593b`,
+using the previously deployed image with `Features__AutomationMcp=false`;
+health endpoints return 200 and `/mcp` is closed. A separately approved
+database-migration release is required before this image can activate the MCP
+endpoint.
+
 ## Dated evidence qualifications
 
 The retained evidence observations are qualified as follows:
