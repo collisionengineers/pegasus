@@ -52,3 +52,12 @@ Local validation passed:
 - `pwsh ./scripts/Test-CiChangeFlags.ps1`
 - `pwsh ./scripts/Test-TestMarkdownPlacement.ps1`
 - `pwsh ./scripts/Test-MarkdownPlacement.ps1 -Base <origin/dev merge-base> -Head HEAD`
+
+## Review follow-up — 2026-08-18
+
+PR #396 P2 was resolved in `00f9de38`. The release command is now an atomic,
+lease-checked transaction that includes the reviewed SHA as a no-op `dev`
+refspec; concurrent `dev` movement rejects the transaction before `main`
+changes. `pwsh ./scripts/Test-DocumentationLinks.ps1` and
+`pwsh ./scripts/Test-MarkdownPlacement.ps1 -Base <origin/dev merge-base> -Head HEAD`
+passed after the change.

@@ -112,3 +112,11 @@ or introduce a durable application architecture decision.
 - **Altitude:** the structural predicate remains in the existing script, while
   the human authority check stays in the documented release procedure. No
   code finding was applied, skipped, or deferred.
+
+## Review follow-up — 2026-08-18
+
+- P2 from PR #396 found a race between recording `dev` and a separate
+  `main` push. Fixed in `00f9de38`: the documented command uses an atomic
+  transaction containing both exact refspecs and an explicit `dev` lease, so
+  a changed `dev` aborts the entire promotion. The lease remains an
+  expected-value assertion and permits no shared-history rewrite.

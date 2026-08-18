@@ -31,3 +31,6 @@ Derived from `plan.md`; each box is independently checkable.
   passed: restore, Release build, 96 architecture tests, documentation links,
   CI-change classification, and Markdown-placement checks.
 - 2026-08-18: Opened PR #396 to `dev`; independent Kanmer review is next.
+
+- 2026-08-18: PR #396 review P2 fixed in `00f9de38`; the review thread was
+  resolved after the atomic lease-checked procedure and documentation checks.

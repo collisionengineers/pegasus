@@ -18,12 +18,13 @@ links: []
 blocks: []
 commits:
   - eab23d3d
+  - 00f9de38
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/396'
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T08:46:39.169Z'
+updated: '2026-08-18T09:13:48.049Z'
 ---
 
 ## What
