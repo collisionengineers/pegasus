@@ -1,0 +1,1 @@
+Paused after rollback. Branch `task/auto-001-activate-mcp-gate` is pushed at `f5c6840c`; resume in `../pegasus-worktrees/auto-001-activate-mcp-gate` only after approval of the exact database-migration release recorded in open-questions. Production is healthy and MCP remains closed.
