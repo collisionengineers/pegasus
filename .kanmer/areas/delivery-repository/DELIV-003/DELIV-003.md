@@ -2,16 +2,18 @@
 id: DELIV-003
 type: ticket
 title: Converge shared branches for the first fast-forward release
-status: backlog
+status: preparing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-18T08:24:16.980Z'
 labels: []
 links: []
 deployment: n/a
 archived: false
 created: '2026-08-18T08:17:54.534Z'
-updated: '2026-08-18T08:17:54.534Z'
+updated: '2026-08-18T08:24:16.980Z'
 ---
 
 ## What
