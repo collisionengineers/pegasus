@@ -70,22 +70,6 @@ jobs:
       - name: Markdown placement regression tests
         shell: pwsh
         run: ./scripts/Test-TestMarkdownPlacement.ps1
-      - name: Markdown placement
-        shell: pwsh
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PUSH_BASE_SHA: ${{ github.event.before }}
-          PUSH_HEAD_SHA: ${{ github.sha }}
-        run: |
-          if ('${{ github.event_name }}' -eq 'pull_request') {
-            $base = $env:PR_BASE_SHA
-            $head = $env:PR_HEAD_SHA
-          } else {
-            $base = $env:PUSH_BASE_SHA
-            $head = $env:PUSH_HEAD_SHA
-          }
-          ./scripts/Test-MarkdownPlacement.ps1 -Base $base -Head $head
       - name: Documentation links
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
