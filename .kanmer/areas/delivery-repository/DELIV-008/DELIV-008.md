@@ -22,10 +22,18 @@ labels:
 links:
   - DELIV-002
   - DELIV-003
-deployment: not-deployed
+commits:
+  - f1e116c6eb939f901f32e5f89d58d1d8a4701851
+  - 898ad3f0
+  - c172543f
+  - de94c1d0
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/400'
+  - 'https://github.com/collisionengineers/pegasus/pull/404'
+deployment: production
 archived: false
 created: '2026-08-18T10:49:05.877Z'
-updated: '2026-08-18T12:22:21.868Z'
+updated: '2026-08-18T12:24:39.599Z'
 ---
 
 ## What
@@ -38,11 +46,11 @@ bootstrap → `azd provision` web revision → Worker package → smoke) and ref
 
 ## Why
 
-Production serves `aecad247` (14 Aug). `main` (`2b0df78c`, PR #394) was never
-deployed and `dev` carries ~30 further reviewed commits (design UI, Case Details
-split, MAIL-21/22, SIMPLI-*, BUG-001, delivery policy). Two migrations
+Production served `aecad247` (14 Aug). `main` (`2b0df78c`, PR #394) was never
+deployed and `dev` carried ~30 further reviewed commits (design UI, Case Details
+split, MAIL-21/22, SIMPLI-*, BUG-001, delivery policy, AUTO-001). Two migrations
 (`20260814092852_AddWorkerCaseCreationGrants`, `20260814094632_DropBoxFileRequests`)
-are pending on the production database. Operations still records an
+were pending on the production database. Operations still recorded an
 "un-numbered post-release-8 deployment" pending a recovered manifest.
 
 ## Approvals recorded 2026-08-18 (operator)
@@ -50,9 +58,8 @@ are pending on the production database. Operations still records an
 - `MERGE AUTH GRANTED` for the reviewed `origin/dev` SHA recorded at preflight.
 - Azure writes: image push to `pegasusprodacr252ow37gij`; migrations + database
   bootstrap on `pegasus-prod-sql-252ow37gij/pegasus`; `azd provision` producing
-  the new digest-pinned revision on `pegasus-prod-web-252ow37gij` plus the single
-  `webIntakeQueueSender` role-assignment removal (stop if the preview shows
-  anything else); package deploy to `pegasus-prod-worker-252ow37gij`.
+  the new digest-pinned revision on `pegasus-prod-web-252ow37gij` (preview
+  reviewed and approved); package deploy to `pegasus-prod-worker-252ow37gij`.
 
 ## Verification
 
@@ -64,3 +71,5 @@ are pending on the production database. Operations still records an
 - Release-9 row and manifest evidence merged into `docs/operations.md`.
 
 ## Outcome
+
+Release 9 shipped 2026-08-18: `main` = `dev` = `f1e116c6` (PR #400 auto-marked merged by the push); web revision `pegasus-prod-web-252ow37gij--f1e116c6eb93` (image `sha256:63e86324…`, `Features__AutomationMcp=true`); both migrations applied and the runtime-role matrix verified; Worker `f1e116c6` deployed via `config-zip` and polling; smoke passed; docs refresh merged as PR #404 (`de94c1d0`, rides the next release). Findings recorded in operations/runbook: the local azd env carried the retired adopted vaults and the Worker's six Key Vault references were unresolved in production (now `Resolved`); `azd deploy worker --from-package` is not usable on this estate; the Log Analytics daily cap was exhausted at 11:52 UTC by the transient host crash-loop; `efbundle.exe` needs the Web host environment. Follow-ups: consider raising the 0.1 GB/day cap; rotate `automation-mcp-client-secret` if its value was surfaced outside Key Vault. Closed out 2026-08-18.

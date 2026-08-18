@@ -25,11 +25,13 @@ blocks:
   - DELIV-004
 commits:
   - 015f2e21dc7dba75b347256143bc425701f66a94
+  - a80c26ec
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/401'
+deployment: n/a
 archived: false
 created: '2026-08-18T09:33:13.048Z'
-updated: '2026-08-18T12:22:04.395Z'
+updated: '2026-08-18T12:24:09.270Z'
 ---
 
 ## Why
@@ -48,3 +50,5 @@ removal as unnecessary CI policy.
 - No source, documentation, or deployment content changes.
 
 ## Outcome
+
+Gate removed (PR #401, merged 2026-08-18T09:41:45Z as `a80c26ec`); PR #400's `documentation` job then passed and release 9 promoted the change to `main`. [[TICK-195]]'s validator is thereby rolled back by decision; its regression tests remain. Closed out 2026-08-18.

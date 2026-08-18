@@ -18,9 +18,15 @@ labels:
   - ci
   - source-now
 links: []
+commits:
+  - 1d20a556
+  - 74613fbd
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/402'
+deployment: n/a
 archived: false
 created: '2026-08-18T10:38:32.819Z'
-updated: '2026-08-18T12:22:18.888Z'
+updated: '2026-08-18T12:24:19.687Z'
 ---
 
 ## What
@@ -48,3 +54,5 @@ SIMPLI-008 made obsolete. The operator directed its retirement as needless CI.
   exactly as before (no behaviour change to that profile).
 
 ## Outcome
+
+Lane retired (PR #402, merged 2026-08-18T11:22:17Z as `74613fbd`); no scheduled workflow remains; on `main` since release 9. Follow-up left open for a separate decision: whether the never-run `OfflineCandidate` alpha-acceptance profile should also be retired. Closed out 2026-08-18.
