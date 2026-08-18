@@ -2,16 +2,19 @@
 id: DELIV-002
 type: ticket
 title: Adopt fast-forward-only dev-to-main releases
-status: backlog
+status: preparing
 area: delivery-repository
+order: 0
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-18T08:01:12.101Z'
 labels: []
 links: []
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T07:59:54.626Z'
+updated: '2026-08-18T08:01:12.101Z'
 ---
 
 ## What

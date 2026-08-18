@@ -4,6 +4,7 @@ type: ticket
 title: INT-17 — Automatic vehicle-registration reading from ordinary vehicle images
 status: preparing
 area: intake-processing
+order: 10
 assignee: ''
 profile: feature
 stageEntered:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:03:52.988Z'
-updated: '2026-08-17T13:21:33.416Z'
+updated: '2026-08-18T08:01:11.834Z'
 ---
 
 ## What

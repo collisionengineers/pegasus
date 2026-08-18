@@ -4,6 +4,7 @@ type: ticket
 title: INT-28 — Automatic matching of image-led and instruction-led records
 status: preparing
 area: intake-processing
+order: 30
 assignee: ''
 profile: feature
 stageEntered:
@@ -19,7 +20,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.630Z'
-updated: '2026-08-17T13:21:33.442Z'
+updated: '2026-08-18T08:01:11.852Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   parity (assessment get/update, case-detail update, EVA…
 status: preparing
 area: automation-integrations
+order: 20
 assignee: ''
 profile: feature
 stageEntered:
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:03:53.326Z'
-updated: '2026-08-17T13:24:20.304Z'
+updated: '2026-08-18T08:01:11.843Z'
 ---
 
 ## What
