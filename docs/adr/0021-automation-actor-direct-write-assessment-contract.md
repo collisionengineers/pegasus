@@ -1,15 +1,22 @@
 ---
 id: ADR-0021
-status: superseded
+status: accepted
 date: 2026-08-03
 supersedes: []
-superseded_by: [ADR-0026]
+superseded_by: []
 related_capabilities: []
 related_frd: [frd-10, frd-11]
 tags: [mcp, automation, ai]
 ---
 
 # ADR-0021: Automation Actor direct-write assessment contract and the Send to AI transport slice
+
+## Status
+
+Accepted. The DevelopmentOffline-only composition gate for
+`Features:AutomationMcp` (decision 1's final consequence) is amended by
+[ADR-0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md);
+every other clause of this record stands.
 
 ## Context
 

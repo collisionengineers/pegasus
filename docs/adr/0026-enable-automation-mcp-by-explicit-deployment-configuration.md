@@ -2,7 +2,7 @@
 id: ADR-0026
 status: accepted
 date: 2026-08-18
-supersedes: [ADR-0021]
+supersedes: []
 superseded_by: []
 related_capabilities: [MCP-01, MCP-02, MCP-03, MCP-04, MCP-06]
 related_frd: [frd-10, frd-11]
@@ -32,6 +32,12 @@ to activate the composition gate.
 
 ## Decision
 
+This record amends ADR-0021 decision 1 and its final consequence only: the
+DevelopmentOffline-only composition gate for `Features:AutomationMcp` no
+longer applies. Every other clause of ADR-0021 — the direct-write inventory,
+scopes, actor rights, permanent history, kill switch, and the Send to AI
+transport slice — stands unchanged.
+
 `Features:AutomationMcp` remains off by default but may compose the existing
 Automation MCP ingress in a Production runtime profile when all required
 Automation MCP configuration is present. The feature flag remains the
@@ -47,10 +53,14 @@ ownership of the external MCP client's client-selection or tool-access policy.
 ## Consequences
 
 - The `DevelopmentOffline` limitation for Automation MCP in ADR-0021 is
-  superseded; its direct-write inventory and all other safeguards remain in
-  force through this decision.
+  amended; its direct-write inventory and all other safeguards remain in
+  force under ADR-0021 itself.
 - An approved production configuration can enable the existing ingress without
   adding a new transport, deployment unit, or business-policy implementation.
+- Provisioning renders `Features__AutomationMcp=true` on the Web app whenever
+  the Automation MCP secret URI is supplied; the deployment-level switch off is
+  a provision without those settings, and the immediate switch off is the
+  Administrator kill switch (client registration disabled).
 - A missing or invalid required setting still fails startup rather than
   exposing a partially configured endpoint.
 
