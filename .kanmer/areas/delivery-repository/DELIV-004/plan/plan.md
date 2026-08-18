@@ -42,3 +42,7 @@ deployment, credential, or external service action occurs.
   mechanism. Mitigation: use the exact “closed gate is a disabled flag” rule
   and direct deferral to the existing documented process.
 - No open questions; the user confirmed the intended interpretation.
+
+## Simplification pass — 2026-08-18
+
+n/a — docs-only. The one-rule edit reuses the existing `docs/engineering.md` authority and adds no mechanism, abstraction, or duplicate taxonomy.

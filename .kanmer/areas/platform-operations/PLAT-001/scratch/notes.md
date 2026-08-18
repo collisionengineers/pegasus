@@ -34,3 +34,5 @@ locally and vanishes on the deployed site — that already shipped a ~1,900px
 blank band once, and there is a test asserting it. Named classes give the same
 visual result and survive. Flagged to the operator as reversible if they want it
 reversed.
+
+opened PR https://github.com/collisionengineers/pegasus/pull/397

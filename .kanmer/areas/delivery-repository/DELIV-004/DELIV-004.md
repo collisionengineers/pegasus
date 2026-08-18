@@ -2,12 +2,13 @@
 id: DELIV-004
 type: ticket
 title: Prohibit shipping features behind disabled gates
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-18T09:14:39.400Z'
+  review: '2026-08-18T09:23:04.809Z'
 taken_at: '2026-08-18T09:21:33.793Z'
 branch: task/deliv-004-no-gated-features
 worktree: ../pegasus-worktrees/deliv-004-no-gated-features
@@ -16,9 +17,11 @@ labels:
   - source-now
 links:
   - AUTO-001
+commits:
+  - ea908247b222376c2dc7f25cf825bfdca98a822a
 archived: false
 created: '2026-08-18T08:50:16.059Z'
-updated: '2026-08-18T09:21:33.793Z'
+updated: '2026-08-18T09:23:04.809Z'
 ---
 
 ## Why
