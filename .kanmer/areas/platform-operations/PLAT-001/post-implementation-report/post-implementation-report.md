@@ -1,25 +1,26 @@
 # Post-implementation report — Claude Design UI implementation
 
-Branch `task/claude-design-ui`, 11 commits, worktree
+Branch `task/claude-design-ui`, 13 commits, worktree
 `../pegasus-worktrees/claude-design-ui`. No PR opened yet.
 
 ## What shipped
 
 All 21 screen prototypes from the Claude Design project
 `710bb42f-84ed-4d82-b216-7c5d60fb5aef` folded back into `Pegasus.Web`, plus the
-shell they sit in.
+shell they sit in and the ten commissioned marks.
 
 | | |
 | --- | --- |
 | Files changed | 27 in `src/Pegasus.Web`, `docs/design/README.md`, 2 test files |
 | Untouched | `Pegasus.Core`, `Pegasus.Infrastructure`, `workspaces/`, `corpus/` — verified empty diff |
 | New CSS | one rail block, plus dropzone, block-grid, stack, evidence-row and two modifiers |
-| New binary assets | none |
+| New binary assets | 10 mark PNGs (128×128 Lanczos, 78 KB total) |
 
 Commits, in order: the rail; Dashboard/Upload/upload-link/password-change;
 Queues/Cases/Inbox; message/Operations; administration notices; new case; case
 overview; assessment; the design authority and the copy the design had moved;
-the landmark correction; the journey-test assertion.
+the landmark correction; the journey-test assertion; the commissioned marks
+and their checksums.
 
 ## The finding that decided the shape of the work
 
@@ -32,15 +33,32 @@ So there was no token, colour or component-rule work. Everything was markup,
 plus one new CSS block for the rail — which is prototype-local `<style>` in
 `screens/shared.jsx` and had never been in the design system at all.
 
+## The commissioned marks
+
+The operator supplied 14 purpose-drawn raster marks with the Claude Design
+project. Ten are placed in the markup (eight administration workspace cards, the
+Inbox and Queues empty states, and the product lockup in the rail and on the
+forced password-change card); four are supplied but not yet placed.
+
+The source PNGs are 1024×1024 RGBA (348–817 KB each). The largest CSS display
+size is 56px (`mark--lg`), so the runtime copies are downscaled to 128×128
+(Lanczos) — 78 KB total, a 63× reduction with 2.3× retina headroom. Each runtime
+file's SHA-256 is recorded in the marks README and in the design authority's
+source-to-runtime mapping table, following the same precedent as the logo and
+Lucide sprite mappings.
+
+Every mark is decorative: `aria-hidden`, empty `alt`, always beside text that
+already says the same thing, so nothing is lost with images off.
+
 ## Verification
 
 | Suite | Result |
 | --- | --- |
 | `dotnet build --configuration Release` | succeeded, 0 warnings, 0 errors |
 | `Pegasus.ArchitectureTests` | 94 passed |
-| `Pegasus.Core.Tests` | 572 passed |
-| Web integration (`*WebTests`) | 42 + 135 passed |
-| `Browser` (axe + Playwright journeys) | 32 passed |
+| `Pegasus.Core.Tests` | 580 passed |
+| Web integration (`*WebTests`) | pending — long-running suite |
+| `Browser` (axe + Playwright journeys) | pending — runs after integration |
 
 Two mechanical checks against this ticket's own rules, both clean:
 
@@ -108,13 +126,13 @@ are now written into `docs/design/README.md`.
    an underline; `aria-current="page"` and the weight change are unchanged.
    Under 1024px the rail lies down and the border moves to the bottom edge, so
    the signal survives the reflow and nothing is hidden.
-2. **The 14 PNG icon marks are not adopted.** They are defined in
-   `screens/shared.jsx` — prototype scaffolding, not design-system components —
-   and the design system's own README says icons come only from its sixteen
-   Lucide glyphs. `docs/design/README.md` agrees more strongly: a checksummed
-   register, "no brand or decorative imagery is needed", and decorative or
-   generated replacement icons prohibited. The rail brand is the existing
-   approved `logo_no_margin.png`.
+2. **The 14 PNG icon marks are adopted** (operator instruction, 2026-08-17), as a
+   second class of imagery beside the Lucide sprite. A Lucide glyph names an
+   action or state inside a row; a mark names a whole surface. All decorative,
+   `aria-hidden`, always beside text that says the same thing. The design
+   authority records them and narrows the two rules that would otherwise have
+   excluded them. The ten placed marks are committed at 128×128 (Lanczos) with
+   recorded SHA-256 checksums.
 3. **Deferred capabilities ship as unbound markup** (operator decision,
    2026-08-17), extending the precedent already recorded in
    `Cases/Assessment/Index.cshtml.cs` for UI-15. In practice the honest form
@@ -136,14 +154,14 @@ are now written into `docs/design/README.md`.
   through `ViewData["RailCounts"]`; no page supplies one. Populating them means
   a per-request query in the shell, and FRD-12 forbids a stale zero placeholder,
   so rendering nothing is correct until a real figure exists. Worth a follow-up.
-- **No visual proof captured yet.** Proof belongs on merged `main` at the
-  verifying stage, not here.
 - **The prototypes' Inbox "Category" column is absent.**
   `RetainedMailSummary` carries a processing outcome but no category, and the
   column would have been empty for every row.
 - **Case tabs stay Overview / Evidence / History.** The design adds "Inspection"
   and renames History to "Notes & history"; the app has no notes capability and
   no separate inspection section, and renaming the tab would promise one.
+- **Four marks are supplied but not yet placed.** `activity`, `brand`,
+  `calendar` and `casefolder` are not referenced by any markup.
 
 ## Follow-up tickets worth filing
 
@@ -153,3 +171,19 @@ are now written into `docs/design/README.md`.
 3. Case notes and engineer queries — shown in the prototype, unallocated.
 4. The design project's `github.md` screen map is a genuinely useful artefact and
    is currently only in the Claude Design project.
+5. The four unplaced marks (`activity`, `brand`, `calendar`, `casefolder`) need
+   surfaces or a decision to retire them.
+
+## Verification hand-off
+
+What `kanmer-verify` should run on merged `main`:
+
+- `dotnet restore ./Pegasus.slnx --locked-mode`
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- `dotnet test ./tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build`
+- `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build`
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category!=Corpus&Category!=Browser"`
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "Category=Browser&Category!=Corpus" -- xUnit.MaxParallelThreads=2`
+- Local `DevelopmentOffline` run: capture screenshots of the rail and one screen
+  per family (Dashboard, Inbox, Queues, Cases, Case Details, Assessment,
+  Administration, Upload). Verify the marks render beside their text.
