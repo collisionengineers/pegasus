@@ -10,7 +10,8 @@
             && Configuration.GetValue<bool>("Features:LocalIntake"));
 
     // Marks the route the operator is on. aria-current is the accessible signal;
-    // site.css pairs it with weight and an underline so it never relies on colour.
+    // site.css pairs it with a weight change and the rail's red left border, so
+    // the current route is never signalled by colour alone.
     var currentPage = ViewContext.RouteData.Values["page"] as string ?? string.Empty;
     string? CurrentWhen(params string[] pagePrefixes) =>
         pagePrefixes.Any(prefix =>
@@ -18,6 +19,13 @@
             || currentPage.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase))
             ? "page"
             : null;
+
+    // A rail count is a real outstanding figure a page has already queried, not
+    // a number the shell invents. FRD-12 forbids a stale zero placeholder, so an
+    // absent count renders nothing at all rather than "0".
+    var railCounts = ViewData["RailCounts"] as IReadOnlyDictionary<string, int>;
+    int? CountFor(string route) =>
+        railCounts is not null && railCounts.TryGetValue(route, out var value) ? value : null;
 }
 <html lang="en">
 <head>
@@ -29,45 +37,85 @@
 <body>
     <partial name="Shared/_LucideSprite" />
     <a class="skip-link" href="#main-content">Skip to main content</a>
-    <header class="app-nav">
-        <div class="nav-inner">
-            <a class="navbar-brand" asp-page="/Index" aria-label="Pegasus dashboard">
-                <img src="~/images/logo_no_margin.png" asp-append-version="true" alt="Collision Engineers" />
-                <span>Pegasus</span>
+    <div class="app-rail-shell">
+        @* A header, exactly as the top bar was: the rail is the page banner
+           turned on its side, carrying the brand, the primary navigation and
+           the signed-in controls. A div left that content outside every
+           landmark; an aside made it a second unnamed complementary one. *@
+        <header class="app-rail">
+            @* The commissioned lockup, cropped to its head; the wordmark beside
+               it carries the name. *@
+            <a class="app-rail__brand" asp-page="/Index" aria-label="Pegasus dashboard">
+                <span>
+                    <img class="mark" src="~/images/marks/pegasus-lockup.png" asp-append-version="true" alt="" aria-hidden="true" />
+                </span>
+                <b>Pegasus</b>
             </a>
-            <nav class="nav-links" aria-label="Primary">
-                <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index")">Dashboard</a>
+            @* The settled route order (design authority, 2026-08-04): Dashboard,
+               Inbox, Upload, Queues, Cases, Operations, Administration. *@
+            <nav class="app-rail__nav" aria-label="Primary">
+                <a class="rail-link" asp-page="/Index" aria-current="@CurrentWhen("/Index")">
+                    <span>Dashboard</span>
+                </a>
                 @if (inboxEnabled)
                 {
-                    <a class="nav-link" asp-page="/Mail/Index" aria-current="@CurrentWhen("/Mail")">Inbox</a>
-                    <a class="nav-link" asp-page="/Operations/Index" aria-current="@CurrentWhen("/Operations")">Operations</a>
-                    <a class="nav-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">Upload</a>
+                    <a class="rail-link" asp-page="/Mail/Index" aria-current="@CurrentWhen("/Mail")">
+                        <span>Inbox</span>
+                        @if (CountFor("Inbox") is { } inboxCount)
+                        {
+                            <span class="rail-link__count">@inboxCount</span>
+                        }
+                    </a>
+                    <a class="rail-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">
+                        <span>Upload</span>
+                    </a>
                 }
-                <a class="nav-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">Queues</a>
-                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Search")">Cases</a>
+                <a class="rail-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">
+                    <span>Queues</span>
+                    @if (CountFor("Queues") is { } queuesCount)
+                    {
+                        <span class="rail-link__count rail-link__count--waiting">@queuesCount</span>
+                    }
+                </a>
+                <a class="rail-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Search")">
+                    <span>Cases</span>
+                    @if (CountFor("Cases") is { } casesCount)
+                    {
+                        <span class="rail-link__count">@casesCount</span>
+                    }
+                </a>
+                @if (inboxEnabled)
+                {
+                    <a class="rail-link" asp-page="/Operations/Index" aria-current="@CurrentWhen("/Operations")">
+                        <span>Operations</span>
+                    </a>
+                }
                 @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
                 {
-                    <a class="nav-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">Administration</a>
+                    <a class="rail-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">
+                        <span>Administration</span>
+                    </a>
                 }
+            </nav>
+            @* The signed-in identity and its controls stay one named group, as
+               they were in the top bar: who you are and how to stop being them
+               belong together however the shell is laid out. *@
+            <div class="app-rail__user" role="group" aria-label="User">
                 @if (User.Identity?.IsAuthenticated == true)
                 {
-                    <span class="user-menu" role="group" aria-label="User">
-                        <span class="user-name">@User.Identity.Name</span>
-                        <a class="nav-link" asp-page="/Account/PasswordChange">Change password</a>
-                        <form method="post" asp-page="/Account/SignOut">
-                            <button class="nav-link" type="submit">Sign out</button>
-                        </form>
-                    </span>
+                    <span class="app-rail__name">@User.Identity.Name</span>
+                    <a class="app-rail__action" asp-page="/Account/PasswordChange">Change password</a>
+                    <form method="post" asp-page="/Account/SignOut">
+                        <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
+                    </form>
                 }
                 else
                 {
-                    <a class="nav-link" asp-page="/Account/SignIn">Sign in</a>
+                    <a class="app-rail__action" asp-page="/Account/SignIn">Sign in</a>
                 }
-            </nav>
-        </div>
-    </header>
-    <div class="app-shell">
-        <main id="main-content" tabindex="-1">
+            </div>
+        </header>
+        <main id="main-content" class="app-rail-main" tabindex="-1">
             @if (TempData["Confirmation"] is string confirmation)
             {
                 @* One-time confirmation of an action completed on another page.
@@ -80,12 +128,6 @@
             @RenderBody()
         </main>
     </div>
-
-    <footer class="footer">
-        <div class="footer-inner">
-            Pegasus · Collision Engineers case management
-        </div>
-    </footer>
 
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)

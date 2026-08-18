@@ -3,7 +3,6 @@
 @{
     ViewData["Title"] = "Automation activity";
     ViewData["Eyebrow"] = "Administration";
-    ViewData["Lede"] = "The consolidated permanent record of the Automation actor: every recorded action and every denied automation request. Each operation carries a correlation identifier, and filtering by it gives this record a stable address.";
 }
 
 <a class="back-link" asp-page="/Administration/Automation/Index">
@@ -12,6 +11,12 @@
 </a>
 
 <partial name="Shared/_PageHeader" />
+
+@* Why the correlation identifier is worth filtering by: it is what gives one
+   operation a stable address in a permanent record. *@
+<aside class="notice">
+    <p>The consolidated permanent record of the Automation actor: every recorded action and every denied request. Each operation carries a correlation identifier, and filtering by it gives that operation a stable address.</p>
+</aside>
 
 <form method="get" class="section-gap">
     <label>

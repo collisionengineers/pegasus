@@ -2,6 +2,7 @@
 @model Pegasus.Web.Pages.Cases.Assessment.IndexModel
 @using Pegasus.Core.AiWork
 @using Pegasus.Core.Assessment
+@using Pegasus.Web.Presentation
 @*
     Engineers assessment screen.
 
@@ -17,8 +18,6 @@
 *@
 @{
     ViewData["Title"] = "Assessment";
-    ViewData["Eyebrow"] = "Case";
-    ViewData["Lede"] = "Record the engineering assessment and the content the report is written from.";
 
     var caseId = ViewContext.RouteData.Values["id"]?.ToString() ?? string.Empty;
     var assessmentUrl = $"/Cases/{caseId}/Assessment";
@@ -50,7 +49,77 @@
     <span>Back to the case</span>
 </a>
 
-<partial name="Shared/_PageHeader" />
+@*
+    A screen about one record is one record container: the dark identity band,
+    then the actions valid now, then the sections. The identity used to be a
+    definition list in a panel, which read as one more block of content rather
+    than as the case being worked.
+*@
+@{
+    var caseStage = OperatorLabels.CaseStage(Model.Case!.Summary.State);
+}
+<article class="record" data-state="review">
+    <header class="record__head">
+        <h1>@Model.Case.Summary.Reference</h1>
+        <span class="record__identity">
+            <span><b>@Model.Case.Summary.Principal</b></span>
+            <span>@(Model.Case.Summary.Registration ?? "No registration")</span>
+            <span>@OperatorLabels.CaseTypeName(Model.Case.Summary.CaseType)</span>
+            @if (Model.Case.Workflow.DueWork?.DueBy is { } dueBy)
+            {
+                <span>Report due @dueBy.ToString("d MMM yyyy")</span>
+            }
+        </span>
+        <span class="record__head-end">
+            <partial name="Shared/_StatusChip" model="@caseStage" />
+        </span>
+    </header>
+    <div class="record__accent"></div>
+
+    @*
+        The estimating-service links and assessment import stay visible and
+        state their condition rather than vanishing: the work is real and will
+        become available, so removing the control would say something false.
+        EXT-12 (Audatex/PDF ingestion) and EXT-13 (independently licensed
+        valuation-source adapters) are both allocated Later / 1.0.0 in
+        docs/capabilities.md and each needs its own accepted contract, so
+        nothing here is wired to a handler.
+    *@
+    <div class="record__bar">
+        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Open in Glass's
+            </a>
+        </span>
+        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Open in Audatex
+            </a>
+        </span>
+        <span class="gated" data-condition="Available once assessment import is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                Import assessment
+            </a>
+        </span>
+        <span class="record__bar-end">
+            <span class="record__bar-rule" aria-hidden="true"></span>
+            <a class="btn btn--dark" href="/Cases/@caseId">Back to the case</a>
+        </span>
+    </div>
+
+    <nav class="section-tabs" aria-label="Assessment sections">
+        @* `tab`, not `section`: `@section` is the Razor section directive. *@
+        @foreach (var tab in sections)
+        {
+            <a href="@assessmentUrl?section=@tab.Key"
+               aria-current="@(tab.Key == current ? "page" : null)">@tab.Label</a>
+        }
+    </nav>
+
+    <div class="record__body">
 
 @if (TempData["AssessmentStatus"] is string assessmentStatus)
 {
@@ -60,63 +129,6 @@
 {
     <div role="status" class="status-card status-card--error">@assessmentError</div>
 }
-
-<section class="panel" aria-labelledby="case-identity-title">
-    <h2 id="case-identity-title" class="section-label">Case identity</h2>
-    <dl class="detail-list">
-        <div>
-            <dt>Case/PO</dt>
-            <dd>@Model.Case!.Summary.Reference</dd>
-        </div>
-        <div>
-            <dt>Principal</dt>
-            <dd>@Model.Case.Summary.Principal</dd>
-        </div>
-        <div>
-            <dt>Registration</dt>
-            <dd>
-                @if (Model.Case.Summary.Registration is { } registration)
-                {
-                    @registration
-                }
-                else
-                {
-                    <span aria-hidden="true">&#8212;</span><span class="vh">No value</span>
-                }
-            </dd>
-        </div>
-        <div>
-            <dt>Case type</dt>
-            <dd>@Model.Case.Summary.CaseType</dd>
-        </div>
-        <div>
-            <dt>Workflow state</dt>
-            <dd>@Model.Case.Summary.State</dd>
-        </div>
-        <div>
-            <dt>Due by</dt>
-            <dd>
-                @if (Model.Case.Workflow.DueWork?.DueBy is { } dueBy)
-                {
-                    <span class="tabular">@dueBy.ToString("yyyy-MM-dd")</span>
-                }
-                else
-                {
-                    <span aria-hidden="true">&#8212;</span><span class="vh">No value</span>
-                }
-            </dd>
-        </div>
-    </dl>
-</section>
-
-<nav class="section-tabs section-gap" aria-label="Assessment sections">
-    @* `tab`, not `section`: `@section` is the Razor section directive. *@
-    @foreach (var tab in sections)
-    {
-        <a href="@assessmentUrl?section=@tab.Key"
-           aria-current="@(tab.Key == current ? "page" : null)">@tab.Label</a>
-    }
-</nav>
 
 <div class="workbench-grid">
     <aside aria-label="Assessment readiness">
@@ -296,6 +308,22 @@
                         <small id="vehicle-condition-hint">Required.</small>
                     </div>
                 </div>
+                @*
+                    Vehicle history check. Not in docs/capabilities.md at all:
+                    before it is more than markup it needs an inventory entry,
+                    a supplier contract and an accepted ADR. Inactive — the
+                    control renders and posts nowhere, and no result is shown,
+                    because a history report nobody ran is not evidence.
+                *@
+                <h3 class="section-label section-gap">Vehicle history</h3>
+                <div class="history-check">
+                    <button type="button" class="btn" disabled>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                        Check vehicle history
+                    </button>
+                    <p class="empty-state">No history check has been run for this vehicle.</p>
+                </div>
+
                 <div class="button-row section-gap">
                     <button type="button" class="primary-action">Save vehicle</button>
                 </div>
@@ -544,7 +572,24 @@
 
         @if (current == "estimate")
         {
-            <section class="panel" aria-labelledby="estimate-title">
+            @*
+                EXT-09 (Later / 1.0.0): several estimates can sit on one case —
+                an import from an estimating service, the engineer's own, one
+                recorded by automation — and the engineer works whichever is
+                selected. Inactive: the strip renders, nothing switches, and no
+                estimate is stored. Versioned estimate lines, source versions
+                and the original-versus-assessed comparison need their own
+                accepted formula authority before any of this is wired.
+            *@
+            <div class="est-tabs" role="tablist" aria-label="Estimates on this case">
+                <button type="button" role="tab" class="est-tab" aria-selected="true" disabled>Estimate</button>
+                <button type="button" class="est-add" aria-label="New estimate" title="New estimate" disabled>+</button>
+                <span class="est-tabs__state">
+                    <partial name="Shared/_StatusChip" model="@("Unconfirmed")" />
+                </span>
+            </div>
+
+            <section class="panel est-body" aria-labelledby="estimate-title">
                 <h2 id="estimate-title">Estimate</h2>
                 <p class="lede">Build the repair one line at a time. Every total below follows from the lines and the rate card, so none of them are typed in.</p>
 
@@ -916,6 +961,35 @@
                         <small id="report-statement-of-truth-hint">Optional. Leave empty to carry the standard CPR wording.</small>
                     </div>
                 </div>
+                @*
+                    UI-15 (Later / 1.0.0): the two things the engineer sets on
+                    the report that are not text — where the damage is, and
+                    which photographs the report prints, in what order.
+                    Inactive: the diagram takes no marks, the list has no
+                    photographs to order, and neither is stored.
+                *@
+                <h3 class="section-label section-gap">Damage locations</h3>
+                <p>Marking the vehicle records where the impact was, for the diagram the report prints.</p>
+                <div class="damage-plan">
+                    <svg viewBox="0 0 400 200" role="img" aria-label="Vehicle plan view, no damage marked">
+                        <g fill="none" stroke="var(--charcoal)" stroke-width="2">
+                            <rect x="60" y="40" width="280" height="120" rx="40" />
+                            <rect x="130" y="55" width="130" height="90" rx="18" />
+                            <line x1="150" y1="55" x2="140" y2="40" /><line x1="150" y1="145" x2="140" y2="160" />
+                            <line x1="245" y1="55" x2="255" y2="40" /><line x1="245" y1="145" x2="255" y2="160" />
+                            <rect x="88" y="28" width="44" height="12" rx="6" /><rect x="88" y="160" width="44" height="12" rx="6" />
+                            <rect x="268" y="28" width="44" height="12" rx="6" /><rect x="268" y="160" width="44" height="12" rx="6" />
+                        </g>
+                        <text x="70" y="105" font-size="11" fill="var(--muted)">Front</text>
+                        <text x="305" y="105" font-size="11" fill="var(--muted)">Rear</text>
+                    </svg>
+                </div>
+                <p class="empty-state">No damage is marked.</p>
+
+                <h3 class="section-label section-gap">Report images</h3>
+                <p>Each photograph is either the overview, a close-up, included, or left out — and the order here is the order the report prints.</p>
+                <p class="empty-state">No photographs are on this case yet.</p>
+
                 <div class="button-row section-gap">
                     <button type="button" class="primary-action">Save report content</button>
                 </div>
@@ -923,6 +997,9 @@
         }
     </div>
 </div>
+
+    </div>
+</article>
 
 <div id="send-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-body" hidden>
     <div class="reason-dialog">

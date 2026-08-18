@@ -3,6 +3,15 @@
 @model Pegasus.Web.Pages.Triage.IndexModel
 @{
     ViewData["Title"] = "Queues";
+
+    // Refreshing reruns the queue and page the operator is on, not page one of
+    // everything.
+    ViewData["RefreshFields"] = new Dictionary<string, string?>
+    {
+        ["queue"] = Model.Queue,
+        ["state"] = Model.StateFilter,
+        ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString() : null
+    };
 }
 
 @* "Triage queue" spent a reserved business term on a screen that is mostly not
@@ -12,6 +21,8 @@
    unmatched e-mail, and it lives in the Inbox. *@
 <header class="page-heading">
     <h1>Queues</h1>
+    @* Every count on this screen says when it was last read. *@
+    <partial name="Shared/_FreshnessBanner" model="Model.LoadedAtUtc" />
 </header>
 
 <nav class="tabs" aria-label="Queues">
@@ -52,47 +63,52 @@
            aria-current="@(Model.StateFilter == "cancelled" ? "page" : null)">Cancelled</a>
     </nav>
 
-    <section class="panel" aria-label="Triage work">
-        @if (Model.Results.Items.Count == 0)
-        {
+    @* The table is the surface, not something sitting on one: a panel around a
+       bordered table draws a second box around the first. *@
+    @if (Model.Results.Items.Count == 0)
+    {
+        <div class="mark-empty">
+            <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
             <p class="empty-state">No triage work is open.</p>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th scope="col">Registration</th>
-                            <th scope="col">Opened</th>
-                            <th scope="col">State</th>
-                            <th scope="col">Assigned to</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var item in Model.Results.Items)
-                    {
-                        <tr>
-                            @* A triage record is pre-case, so the row leads
-                               with the registration rather than a case
-                               reference most rows will not have. *@
-                            <td><a asp-page="/Triage/Details" asp-route-id="@item.Id">@item.NormalizedVehicleRegistration</a></td>
-                            <td><time datetime="@item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.CreatedAtUtc)</time></td>
-                            <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(item.State)" /></td>
-                            <td>@(item.AssigneeId is null ? "Unassigned" : "Assigned")</td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <caption class="vh">Triage work, most recently opened first</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Opened</th>
+                        <th scope="col">State</th>
+                        <th scope="col">Assigned to</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model.Results.Items)
+                {
+                    <tr>
+                        @* A triage record is pre-case, so the row leads
+                           with the registration rather than a case
+                           reference most rows will not have. *@
+                        <td><a asp-page="/Triage/Details" asp-route-id="@item.Id">@item.NormalizedVehicleRegistration</a></td>
+                        <td><time datetime="@item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.CreatedAtUtc)</time></td>
+                        <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(item.State)" /></td>
+                        <td>@(item.AssigneeId is null ? "Unassigned" : "Assigned")</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 }
 else
 {
-    <section class="panel" aria-label="Cases in this queue">
-        @if (Model.Cases.Items.Count == 0)
-        {
+    @if (Model.Cases.Items.Count == 0)
+    {
+        <div class="mark-empty">
+            <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
             <p class="empty-state">
                 @(Model.Queue switch
                 {
@@ -101,36 +117,37 @@ else
                     _ => "No cases are waiting."
                 })
             </p>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th scope="col">Case</th>
-                            <th scope="col">Registration</th>
-                            <th scope="col">Claimant</th>
-                            <th scope="col">Principal</th>
-                            <th scope="col">Received</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var item in Model.Cases.Items)
-                    {
-                        <tr>
-                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
-                            <td>@(item.Registration ?? "—")</td>
-                            <td>@(item.Claimant ?? "—")</td>
-                            <td>@item.Principal</td>
-                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
+        </div>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <caption class="vh">Cases in this queue</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Case</th>
+                        <th scope="col">Registration</th>
+                        <th scope="col">Claimant</th>
+                        <th scope="col">Principal</th>
+                        <th scope="col">Received</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var item in Model.Cases.Items)
+                {
+                    <tr>
+                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
+                        <td>@(item.Registration ?? "—")</td>
+                        <td>@(item.Claimant ?? "—")</td>
+                        <td>@item.Principal</td>
+                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
 }
 
 @if (Model.ShowingTriage && Model.Results.TotalPages > 1)

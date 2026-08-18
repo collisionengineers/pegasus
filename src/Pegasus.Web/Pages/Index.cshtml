@@ -112,10 +112,17 @@
 </section>
 
 
-@if (Model.DueWork.Count > 0)
-{
-    <section id="due-work-list" aria-labelledby="due-work-title" class="section-gap">
-        <h2 id="due-work-title" class="section-label">Case work due</h2>
+@* The section stays whether or not there is work in it. Hiding it made an
+   empty day and a broken query look the same; a named empty result says
+   which one this is. *@
+<section id="due-work-list" aria-labelledby="due-work-title" class="section-gap">
+    <h2 id="due-work-title" class="section-label">Case work due</h2>
+    @if (Model.DueWork.Count == 0)
+    {
+        <p class="empty-state">No case work is due.</p>
+    }
+    else
+    {
         <div class="panel queue-list">
             @foreach (var item in Model.DueWork)
             {
@@ -139,5 +146,14 @@
                 </a>
             }
         </div>
-    </section>
-}
+    }
+</section>
+
+@* The dashboard reports; Operations is where the retryable work and the live
+   upload links are actually handled, so the screen ends by pointing there. *@
+<p class="section-gap">
+    <a asp-page="/Operations/Index">
+        Open Operations
+        <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-chevron-right" /></svg>
+    </a>
+</p>

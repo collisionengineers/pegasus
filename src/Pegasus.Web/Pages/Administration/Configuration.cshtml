@@ -3,7 +3,6 @@
 @{
     ViewData["Title"] = "Workflow configuration";
     ViewData["Eyebrow"] = "Administration";
-    ViewData["Lede"] = "These versioned gates control whether a case can be assigned to an Engineer. This page contains no credentials, secrets, or cloud controls.";
 }
 
 <a class="back-link" asp-page="/Administration/Index">
@@ -17,6 +16,12 @@
 {
     <div class="status-card" role="status">@status</div>
 }
+
+@* What relaxing a gate does to work already assigned — the question an
+   administrator has at the moment they reach for the checkbox. *@
+<aside class="notice">
+    <p>These versioned gates control whether a case can be assigned to an Engineer. Relaxing one applies to every case from the next version on — it does not reopen past assignments. This page contains no credentials, secrets or cloud controls.</p>
+</aside>
 
 <div class="split-main">
     <section aria-labelledby="current-workflow-configuration-heading">

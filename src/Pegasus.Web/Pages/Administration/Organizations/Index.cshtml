@@ -2,9 +2,8 @@
 @model Pegasus.Web.Pages.Administration.Organizations.IndexModel
 @using Pegasus.Core.Cases
 @{
-    ViewData["Title"] = "Organizations";
+    ViewData["Title"] = "Organisations";
     ViewData["Eyebrow"] = "Administration";
-    ViewData["Lede"] = "Organization roles are independent. A Work Provider can own principals; an Instruction Intermediary can route work without becoming the principal.";
 }
 
 <a class="back-link" asp-page="/Administration/Index">
@@ -18,6 +17,12 @@
 {
     <div class="status-card" role="status">@status</div>
 }
+
+@* The one thing about organisations that is easy to get wrong: the two roles
+   are independent, not a hierarchy. *@
+<aside class="notice">
+    <p>Organisation roles are independent: a Work Provider can own principals; an Instruction Intermediary can route work without becoming the principal.</p>
+</aside>
 
 <div class="split-main">
     <section aria-labelledby="current-organizations-heading">

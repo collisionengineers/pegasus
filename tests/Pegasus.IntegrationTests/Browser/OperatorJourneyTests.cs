@@ -167,6 +167,11 @@ public sealed class OperatorJourneyTests
         // "Intake" was internal vocabulary for what the office calls the Inbox,
         // and "Triage" is a reserved business term that was being spent on a
         // screen which is not about Triage-type work at all.
+        //
+        // The signed-in identity is no longer part of this list. In the top bar
+        // it sat inside the primary nav; in the rail it is its own named group,
+        // which is what it always was — who you are is not a route. It is
+        // asserted directly above through [aria-label='User'].
         AssertOrdered(
             navigation,
             "Dashboard",
@@ -174,8 +179,7 @@ public sealed class OperatorJourneyTests
             "Upload",
             "Queues",
             "Cases",
-            "Administration",
-            "development-offline-administrator");
+            "Administration");
 
         // The three sections an operator actually opens this screen to read.
         // Lowercased because the section labels are uppercased by the

@@ -62,6 +62,84 @@ The common hierarchy is:
 4. named workflow, evidence, lease or exception state and consequential action;
 5. provenance, external identity, permanent business history and limitations.
 
+### Authenticated shell: the operator rail
+
+**Adopted 2026-08-17.** The authenticated shell is a 236px left rail, not a top
+bar. The routes keep the settled order and the rail carries their outstanding
+counts, so an operator sees where the work is without opening anything. The
+route list, the conditional Inbox item and the Administrator-only Administration
+item are unchanged; only their placement is.
+
+Two consequences are recorded rather than assumed:
+
+- **The current route's non-colour signal is a left border, not an underline.**
+  `aria-current="page"` and the weight change are unchanged, so the route is
+  still identifiable without hue; the underline moved to the rail's leading
+  edge. Under 1024px the rail lies down into a horizontal bar and the border
+  moves to the bottom edge, so the signal survives the reflow. Nothing is
+  hidden at any width.
+- **A rail count is a figure a page already queried**, never one the shell
+  invents. An absent count renders nothing at all — a shell-level `0` would be
+  exactly the stale zero placeholder the operator-experience requirements
+  forbid.
+
+`_LayoutAuth` and `_LayoutExternal` are unaffected: sign-in, the signed-out
+confirmation, access denied, the error family and the one screen a third party
+sees are not places in the application and keep their navless or brand-only
+frame.
+
+### The Pegasus marks
+
+**Commissioned by the operator; adopted 2026-08-17.** Fourteen purpose-drawn
+raster marks, supplied with the design, live in
+`src/Pegasus.Web/wwwroot/images/marks/`. They are a second, deliberate class of
+imagery, and the earlier blanket statement that no imagery is needed for the
+internal application is narrowed to exclude them: it still holds for marketing
+photography and for generated or substitute glyphs, neither of which these are.
+
+They do not replace the Lucide sprite and do not compete with it. The division
+is by job:
+
+- **A Lucide glyph names a thing inside a row** — an action, a state, a
+  provenance word. It is 16px, inline, and one glyph means one thing everywhere.
+  The sixteen registered below remain the only glyphs used that way.
+- **A mark names a whole surface** — an administration workspace, an empty
+  result, the product itself. It is 30–112px, sits beside a heading or above a
+  sentence, and carries detail no line glyph holds at that size.
+
+Every mark is decorative: `aria-hidden`, empty `alt`, always beside text that
+already says the same thing, so nothing is lost with images off. None is used
+for a semantic action or state, so the one-icon-per-meaning rule is untouched.
+
+Current uses: the eight administration workspace cards (`accounts`, `roles`,
+`access`, `organisations`, `principals`, `configuration`, `mailboxes`,
+`automation`); the Inbox and Queues empty states (`mailboxes`, `checkmark`); and
+the product lockup in the rail and on the forced password-change card
+(`pegasus-lockup`). `activity`, `brand`, `calendar` and `casefolder` are
+supplied and not yet placed.
+
+They are approved assets and belong in the register below once their bytes are
+in the tree, on the same terms as the sprite: recorded name and SHA-256, and no
+silent substitution.
+#### Pegasus marks source-to-runtime mapping
+
+Upstream source: Claude Design project `710bb42f`, `assets/icons/` (1024×1024
+RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
+(128×128 Lanczos downscale, decorative `aria-hidden` with empty `alt`).
+
+| Mark | Upstream source & SHA-256 | Runtime destination & SHA-256 | Mapping & usage |
+| --- | --- | --- | --- |
+| `pegasus-lockup.png` | `PegasusDesign/assets/icons/pegasus-lockup.png`<br>`C8F3551841AACA26AAE4F959B263DBB2409EB44A327207F8078D85A1F33668A7` | `src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png`<br>`938C22B0F0FC621DC6FADD57748BA858CD1235292581AE47705A4ED336140EF0` | Lanczos downscale to 128×128. Rail brand lockup and forced password-change card. |
+| `accounts.png` | `PegasusDesign/assets/icons/accounts.png`<br>`AFFA12B7C8609B253AAFB38304F503F83B868DD817902B53ADDFAE65A3E353A1` | `src/Pegasus.Web/wwwroot/images/marks/accounts.png`<br>`A8D467B827E0F19A6066640FA98A75D3673DA8A8C7642C4190D59BD5EDB718D5` | Lanczos downscale to 128×128. Administration → Staff accounts. |
+| `roles.png` | `PegasusDesign/assets/icons/roles.png`<br>`D3B970330A7DDFE1BE3BD92AF8C8B682B63E2270BF5537F3D5CE60EA6B0A97C0` | `src/Pegasus.Web/wwwroot/images/marks/roles.png`<br>`D942967041CFB7A7460015572B658AC483121272F7CFC0194F68A123B71BEBF0` | Lanczos downscale to 128×128. Administration → Staff roles. |
+| `access.png` | `PegasusDesign/assets/icons/access.png`<br>`371C4EF84A9E91F8E6509ACCFF045C68121147C22CDCD12D6D6509EF244CEC7F` | `src/Pegasus.Web/wwwroot/images/marks/access.png`<br>`70C98AE7591D467CA455BC481EA37963C67CBB1A8571A7EF823049054DB08C4D` | Lanczos downscale to 128×128. Administration → Access review. |
+| `organisations.png` | `PegasusDesign/assets/icons/organisations.png`<br>`ABAE832BE33CDEBFE1D80C8E47A1FFF4D1FEF644B02F2BD5D51FC9390C421204` | `src/Pegasus.Web/wwwroot/images/marks/organisations.png`<br>`804E77E33162BB09B0374058C6E6989B92A59224F813DDDA0BA6D410A69F6E8C` | Lanczos downscale to 128×128. Administration → Organisations. |
+| `principals.png` | `PegasusDesign/assets/icons/principals.png`<br>`B85E82694474D92F3C15106699786B2081F8E2AFDE66D4A1A78E07071786C967` | `src/Pegasus.Web/wwwroot/images/marks/principals.png`<br>`879055AD9A973F05E2BE49F5EA00EDD43111D323BDC8C8952FCA727A7C9C0496` | Lanczos downscale to 128×128. Administration → Principals. |
+| `configuration.png` | `PegasusDesign/assets/icons/configuration.png`<br>`B64DCBE7FD45B24A0D9BD687BF8E16BCB3E4E587ED16F93BF1BCE12370A6E921` | `src/Pegasus.Web/wwwroot/images/marks/configuration.png`<br>`86A311A3C1ACE78E5D5A407B289F901ED7C26860BCBBBDEF59EC93A71BAFA62E` | Lanczos downscale to 128×128. Administration → Workflow configuration. |
+| `mailboxes.png` | `PegasusDesign/assets/icons/mailboxes.png`<br>`179A5677C4B73587601F0AF79162F87217C2035D096D90341281E23BFD87F688` | `src/Pegasus.Web/wwwroot/images/marks/mailboxes.png`<br>`1B727ACBE0DCC114370E0D620DCB74E20A12866C85187689ABDB8A249B61C019` | Lanczos downscale to 128×128. Administration → Approved mailboxes; Inbox empty state. |
+| `automation.png` | `PegasusDesign/assets/icons/automation.png`<br>`51F6970F9C0245E694D3562922A34AC5C3F2E762ACB5682FDF6DAA3FDFE10039` | `src/Pegasus.Web/wwwroot/images/marks/automation.png`<br>`1EABE2EF634065A1A76F78A6D520A366C49D469EBC3C92BA99F1DBA1A8F8B3FE` | Lanczos downscale to 128×128. Administration → Automation. |
+| `checkmark.png` | `PegasusDesign/assets/icons/checkmark.png`<br>`6ECC9917585A85D7B8C7EC62DB3C167689FD0F210D9838EC0B9959F1238471F3` | `src/Pegasus.Web/wwwroot/images/marks/checkmark.png`<br>`5531CC893A5C7A1137F049CF0D77A9D19B73EB30AC1036985A902FFC44A0C30F` | Lanczos downscale to 128×128. Queues empty states. |
+
 Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
 ## Design principles
@@ -283,7 +361,7 @@ Every icon rendered today is decorative and paired with a visible text label, so
 
 ### Imagery and evidence
 
-No brand or decorative imagery is needed for the internal Web application. Upstream marketing photography is excluded.
+Upstream marketing photography is excluded, and no generated or substitute glyph is used anywhere. The one class of imagery the internal Web application does carry is the [commissioned Pegasus marks](#the-pegasus-marks), adopted 2026-08-17: fourteen operator-supplied raster marks that name a surface, always decorative and always beside text that says the same thing.
 
 Genuine case images, emails and documents are operational evidence, not decorative assets. Use only authorised repository-provided evidence through its owning workflow. Never generate placeholder cases, damage images, emails, documents or people.
 
@@ -467,7 +545,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 
 | Component | Purpose and states | Runtime owner |
 | --- | --- | --- |
-| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight and underline change so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
+| Development shell/navigation | Identify the current proof and reach Development routes; normal, hover and focus; the current route carries `aria-current="page"` with a weight change **and a 2px Collision-red left border** so it is not signalled by colour alone; the Inbox item is conditional and is **absent**, never a disabled span, where the capability is not composed | `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` |
 | Navless shells | The screens that are not a place in the application. `_LayoutAuth` carries sign in, the signed-out confirmation, access denied and the error/not-found family; `_LayoutExternal` carries the one screen a third party sees and states the company, never the product | `src/Pegasus.Web/Pages/Shared/_LayoutAuth.cshtml`, `_LayoutExternal.cshtml` |
 | Status-code page | The designed answer to a status code with no exception behind it: unknown record, dead external upload link, oversized upload, rate-limited sign-in. Scoped away from the health, version and automation surfaces, whose callers want a parsable body | `src/Pegasus.Web/Pages/StatusCode.cshtml(.cs)` |
 | Operator label map | The single place a persisted code becomes words: stage, case type, document role and origin, custody, upload-link state, history event, file size. Raw `enum.ToString()`, snake_case event codes and PascalCase compounds never reach markup | `src/Pegasus.Web/Presentation/OperatorLabels.cs` |
@@ -743,6 +821,28 @@ slider. Every section form stays empty and unbound; the staff save paths
 and the review presentation of unconfirmed automation values remain
 forbidden until the full UI-15 re-entry approval.
 
+**Unbound markup proves nothing (recorded 2026-08-17).** Where a supplied
+design shows a capability the inventory allocates beyond this release, the
+markup may exist on this surface but is *implemented* only in the weakest sense
+of the evidence tiers above: no caller, no deployment, no acceptance. Three
+rules keep it from reading as more than that.
+
+- It carries **no model binding and no handler**. An unbound section that
+  posted somewhere would be the capability, not a picture of it.
+- It shows **no fabricated operator data**. Inputs render empty and read-only
+  figures render as an em dash or a named empty state — never a plausible
+  number. A convincing valuation nobody calculated is worse than no valuation.
+- Where the control is one that will genuinely arrive, it **stays visible and
+  states its condition** rather than vanishing, using the disabled-with-
+  condition idiom. The assessment's estimating-service links and assessment
+  import are the current instances: EXT-12 and EXT-13, both `Later / 1.0.0`,
+  each requiring its own accepted contract. A control that disappeared would
+  say the work is not coming; one that looked live would say it had arrived.
+
+This is a presentation allowance inside an already-recorded exception. It
+allocates nothing, and every deferred capability still re-enters the complete
+design route before it is wired.
+
 The `Send to Claude` panel states are server-rendered: `available` (the
 confirm dialog then a real POST), `sent` — "Sent. Changes will appear on
 this case for your review." with a `Check for completion` reconcile
@@ -900,7 +1000,7 @@ The UI presents the [Core-owned permanent action history](../frd/frd-04-parties-
 
 Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
 
-The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere; decorative or generated replacement icons are prohibited. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere, drawn from the sixteen registered Lucide glyphs; generated or substitute replacement glyphs are prohibited. The [commissioned Pegasus marks](#the-pegasus-marks) are a separate, approved class: they name a surface rather than an action or a state, and never stand in for a glyph. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
 Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
 

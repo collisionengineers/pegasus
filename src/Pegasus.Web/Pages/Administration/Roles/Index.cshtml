@@ -18,6 +18,12 @@
     <div class="status-card" role="status">@status</div>
 }
 
+@* The rules that will refuse a change, stated before it is attempted rather
+   than as a lede describing the screen. *@
+<aside class="notice">
+    <p>Every enabled staff member needs at least one role. Removing the final enabled Administrator is denied. Role changes invalidate existing browser sessions.</p>
+</aside>
+
 <div asp-validation-summary="ModelOnly"></div>
 
 <section aria-labelledby="role-governance-heading">
