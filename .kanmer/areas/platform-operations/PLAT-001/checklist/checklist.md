@@ -90,3 +90,14 @@ a follow-up ticket.
 - [x] No diff under `Pegasus.Core`, `Pegasus.Infrastructure`, `workspaces/`, `corpus/` — verified on rebased HEAD
 - [x] Marks: 10 placed PNGs copied at 128×128 Lanczos (78 KB total), SHA-256 recorded in marks README and design authority
 - [x] Open-questions: blocked item (mark files) ticked — resolved 2026-08-18
+
+## Closeout — PLAT-001
+
+- [x] PR merge verified (`gh pr view --json state,mergedAt`) — MERGED 2026-08-18T09:23:05Z
+- [x] proof.md finalised (PR URL + merge date appended)
+- [x] Moved to final stage (done, 2026-08-18T09:36:55Z)
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; `git worktree remove .worktrees/claude-design-ui`
+- [ ] `git branch -d task/claude-design-ui` (`-D` if squash/rebase-merged)
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
