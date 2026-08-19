@@ -203,6 +203,28 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Save classification correction", html, StringComparison.Ordinal);
         Assert.Contains("name=\"ExpectedClassificationVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"1\"", html, StringComparison.Ordinal);
+        // The Core operational-destination policy fails closed to the same
+        // "Needs sorting" wording the page already uses for an unmatched
+        // Queue/Filed-to state, computed live from this Unclassified decision.
+        Assert.Contains("<dt>Operational destination</dt><dd>Needs sorting</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Destination policy</dt><dd>mail_operational_destination version 1</dd>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MessageDetailShowsTheOperationalDestinationDerivedFromAClassifiedDecision()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassifiedInstructionAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+
+        // The retained-mail viewer is the real production caller of
+        // MailOperationalDestinationPolicy.Map: this must not silently
+        // regress to no destination, or the wrong one, for a known category.
+        Assert.Contains("<dt>Operational destination</dt><dd>Receiving work</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Destination policy</dt><dd>mail_operational_destination version 1</dd>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -488,6 +510,44 @@ public sealed class MailWorkspaceWebTests
                     [new("sender-domain", false, "The sender domain is not recognized.")],
                     "No supported category matched.",
                     "shared-mail-policy",
+                    3)),
+            CancellationToken.None);
+    }
+
+    private static async Task StoreClassifiedInstructionAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+            new(
+                SourceFileName: "classified-instruction.eml",
+                MediaType: "message/rfc822",
+                SourceLength: 1,
+                SourceHash: new string('E', 64),
+                SourceIdentity: new(IntakeSourceChannel.Mailbox, mailboxId.Length + ":" + mailboxId + messageId),
+                ReceivedAtUtc: NowUtc,
+                ProcessedAtUtc: NowUtc,
+                Actor: "system-worker:approved-inbox-poller",
+                Decision: IntakeDecision.NeedsSorting,
+                DecisionReason: "Fixture evaluation.",
+                Evidence: [],
+                Fields: [],
+                InstructionDraft: null,
+                MissingFields: [],
+                FailureCode: null,
+                FailureReason: null,
+                SourceReaderKey: "protocol_reader",
+                SourceReaderVersion: "1",
+                ExtractionPolicyKey: "protocol_policy",
+                ExtractionPolicyVersion: 1,
+                Assets: [],
+                MailClassificationDecision: MailClassificationResult.Classified(
+                    MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                    [new("attachment.engineer-notification", true, "An attached document contains the generated title.")],
+                    "An accepted Inspection instruction was recognised.",
+                    "qdos_mail_classification",
                     3)),
             CancellationToken.None);
     }
