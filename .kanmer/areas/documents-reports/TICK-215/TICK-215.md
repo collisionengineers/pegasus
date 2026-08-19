@@ -19,9 +19,10 @@ links:
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+docs_todo: true
 archived: false
 created: '2026-08-12T15:08:05.967Z'
-updated: '2026-08-19T08:57:22.311Z'
+updated: '2026-08-19T09:12:23.151Z'
 ---
 
 ## What
