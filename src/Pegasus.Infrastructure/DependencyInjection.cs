@@ -71,8 +71,11 @@ public static class DependencyInjection
         services.AddScoped<EfRetainedMailboxMessageStore>();
         services.AddScoped<IRetainedMailQueries>(
             provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
+        services.AddScoped<IRetainedMailClassificationStore>(
+            provider => provider.GetRequiredService<EfRetainedMailboxMessageStore>());
         services.AddScoped<ListRetainedMail>();
         services.AddScoped<GetRetainedMail>();
+        services.AddScoped<CorrectRetainedMailClassification>();
         services.AddScoped<GetRetainedMailFreshness>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();

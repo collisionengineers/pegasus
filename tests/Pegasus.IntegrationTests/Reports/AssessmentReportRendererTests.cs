@@ -91,6 +91,7 @@ public sealed class AssessmentReportRendererTests
         Assert.Contains("Stress repair 080", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Stress operation 080", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Statement of Truth", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("A Patterson", text, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("{{", text, StringComparison.Ordinal);
         Assert.DoesNotContain('«', text);
         Assert.True(pages.Sum(page => page.GetImages().Count()) >= 8, "Every accepted stress photo must remain embedded in the flowed PDF.");
