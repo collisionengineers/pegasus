@@ -178,3 +178,23 @@ Messaged the INTK-006, INTK-007 and INTK-008 lanes with the new requirement, the
 ### CI failure triage — the same allocation test, twice more
 
 PR #426's `sql-integration (2)` failed on `QdosAllocationRecoveryTests.DistinctParallelRetriesResolveToOneCaseAggregate` with the *assertion* symptom (`1 out of 2 items did not pass`), while PR #425 failed the same test with the *deadlock* symptom. #416, #422 and #425 (on re-run) all passed it. Two symptoms, one underlying concurrency defect, and it predates every release-12 branch — filed as **CASE-005** with the run evidence. #426 touches only migrations, scripts and docs, so it cannot be implicated. Re-running rather than treating it as a blocker, and recording honestly that a re-run was needed.
+
+### INTK-006 — DONE, and it found a second real bug
+
+Branch `intk-006-grouped-image-routing`, head `caef9dff`, PR #417.
+
+**The blocker is fixed properly.** `TryRegisterAndAssociateAsync` now takes the group's routing decision and only runs the per-member candidate search when the decision is `AssociateExistingCase` (or there is no group decision). Test `AmbiguousGroupEligibilityHandsOffDespiteAPerMemberExactMatch` builds a two-member group whose accepted VRM has both an exact and a fuzzy candidate — so the group-level count is ambiguous and the decision is hand-off — and asserts no auto-link is written while both members still register. That is the product invariant: ambiguity fails closed to hand-off and a per-member fuzzy match can no longer overrule it.
+
+**A second bug, found while verifying the first.** `SubmitGroupedIntake` submits ordinal 0 under the **bare** token (INTK-005's fix), but `TryApplyGroupAsync`'s member lookup always queried `{token}:{ordinal}`. So a real multi-member group could never find its own first member and would **wait forever**. Fixed by extracting one shared `GroupedIntakeMemberToken.Create` used by both callers, and proved by `OneEligibleCaseAssociatesEveryGroupMember` (both members register *and* associate). This is a good argument for the sequencing decision: INTK-006 was made to adopt INTK-005's single-path approach rather than keep its own bypass, and the incompatibility surfaced immediately instead of in production.
+
+**The merge-list warning earned its place.** The lane did not trust the clean merge: it generated a file list from `Migrations/` and diffed it against the string literals in `IntakePersistenceIntegrationTests`, confirming an exact match at 49 migrations after the merge and 50 after adding its own, with exactly one copy of `20260819101344_GroupedIntakeSubmission` surviving and carrying INTK-005's GRANTs. Two real conflicts were resolved by hand (`EfIntakeSubmissionGroupStore.cs`, the migration list).
+
+Other fixes: single-file bypass removed so every upload flows through `IGroupedIntakeSubmission`; recognition now reuses a recorded suggestion instead of re-running ONNX per trigger (`RecognitionRunsOnceEvenWhenTheGroupIsTriggeredTwice` — engine called twice total for two members across two triggers, not four); grouped-routing decision table written into `frd-02` with diagnostics in `frd-06` and registered in `capabilities.md`; a new migration `20260819140113_ImageIntakeGroupExpectedMemberCount`.
+
+**Dispositions:** 12 of 13 reviewer comments fixed or verified already-correct; #10 (retry incomplete group registration) explicitly **not fixed**, with a recorded reason — it needs a durable per-group outcome record, delegated to INTK-008. That is an honest unapplied finding rather than a silent gap.
+
+Checklist 26/41 → 30/41, every remaining item carrying a Progress note.
+
+Evidence: build 0/0; Core 653/653; Architecture 97/97; filtered integration 34 passed / 6 pre-existing skips / 0 failed. `-Mode Local` still fails only on the pre-existing `20260819104953` name — correctly identified as not theirs.
+
+Note its `infrastructure` CI job fails for the same pre-existing reason, which incidentally shows the gate *was* already wired into that path-gated job; what was missing is that the job does not run for every change set, which is why TICK-046's migration slipped through. The new always-on `changes` step closes that.
