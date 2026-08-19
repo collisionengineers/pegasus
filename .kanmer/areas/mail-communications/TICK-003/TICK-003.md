@@ -6,6 +6,7 @@ title: >-
   local working copy, recording adjudications into t…
 status: done
 area: mail-communications
+order: 340
 assignee: ''
 profile: custom
 requires: {}
@@ -18,7 +19,7 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.819Z'
-updated: '2026-08-17T06:43:37.907Z'
+updated: '2026-08-19T09:39:15.391Z'
 ---
 
 ## What

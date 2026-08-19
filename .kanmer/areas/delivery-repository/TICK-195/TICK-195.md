@@ -4,6 +4,7 @@ type: ticket
 title: Validate new Markdown placement in CI
 status: done
 area: delivery-repository
+order: 440
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -28,7 +29,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.833Z'
-updated: '2026-08-18T12:30:23.455Z'
+updated: '2026-08-19T09:39:15.744Z'
 ---
 
 ## What

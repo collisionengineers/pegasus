@@ -22,12 +22,14 @@ links:
   - TICK-092
   - TICK-093
   - TICK-094
+  - TICK-205
+  - TICK-207
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.682Z'
-updated: '2026-08-19T09:06:03.452Z'
+updated: '2026-08-19T09:38:46.574Z'
 ---
 
 ## What

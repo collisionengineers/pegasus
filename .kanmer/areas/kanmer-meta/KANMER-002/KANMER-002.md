@@ -4,7 +4,7 @@ type: ticket
 title: Repo Plan doc cleanup and organization into kanmer
 status: done
 area: kanmer-meta
-order: 20
+order: 50
 assignee: codex
 profile: chore
 stageEntered:
@@ -24,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-14T12:30:37.742Z'
-updated: '2026-08-18T12:30:38.146Z'
+updated: '2026-08-19T09:39:14.531Z'
 ---
 
 Cleanup on:

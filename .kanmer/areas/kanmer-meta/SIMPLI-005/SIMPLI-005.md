@@ -4,7 +4,7 @@ type: ticket
 title: Archive non-actionable Kanmer backlog items and orphaned temporary plans
 status: done
 area: kanmer-meta
-order: 110
+order: 90
 assignee: claude-code
 profile: custom
 requires: {}
@@ -15,7 +15,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.799Z'
-updated: '2026-08-17T06:43:35.850Z'
+updated: '2026-08-19T09:39:14.586Z'
 ---
 
 ## What

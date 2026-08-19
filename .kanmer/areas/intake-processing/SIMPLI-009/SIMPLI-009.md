@@ -4,7 +4,7 @@ type: ticket
 title: Make Worker the sole processor for queued intake
 status: done
 area: intake-processing
-order: 150
+order: 130
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-13T12:12:48.881Z'
-updated: '2026-08-17T11:56:09.969Z'
+updated: '2026-08-19T09:39:14.656Z'
 ---
 
 ## What

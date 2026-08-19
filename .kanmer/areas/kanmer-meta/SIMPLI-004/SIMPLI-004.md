@@ -4,7 +4,7 @@ type: ticket
 title: Retire NOW.md and establish Kanmer as the canonical work tracker
 status: done
 area: kanmer-meta
-order: 100
+order: 80
 assignee: claude-code
 profile: custom
 requires: {}
@@ -17,7 +17,7 @@ links:
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.781Z'
-updated: '2026-08-17T06:43:35.628Z'
+updated: '2026-08-19T09:39:14.570Z'
 ---
 
 ## What

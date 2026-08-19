@@ -4,7 +4,7 @@ type: ticket
 title: Move the QDOS alpha acceptance gate out of application composition
 status: done
 area: platform-operations
-order: 130
+order: 110
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-13T12:12:48.841Z'
-updated: '2026-08-17T13:09:01.531Z'
+updated: '2026-08-19T09:39:14.610Z'
 ---
 
 ## What

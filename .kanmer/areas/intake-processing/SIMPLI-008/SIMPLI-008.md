@@ -4,7 +4,7 @@ type: ticket
 title: Show queued receipt processing status to staff
 status: done
 area: intake-processing
-order: 140
+order: 120
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-13T12:12:48.862Z'
-updated: '2026-08-17T11:56:02.411Z'
+updated: '2026-08-19T09:39:14.627Z'
 ---
 
 ## What

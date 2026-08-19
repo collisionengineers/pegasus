@@ -6,6 +6,7 @@ title: >-
   decision evidence, ambiguity outcome, and acceptance co…
 status: done
 area: mail-communications
+order: 370
 assignee: grok-shell-kanmer
 profile: feature
 stageEntered:
@@ -33,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:52.949Z'
-updated: '2026-08-18T15:19:41.338Z'
+updated: '2026-08-19T09:39:15.559Z'
 ---
 
 ## What

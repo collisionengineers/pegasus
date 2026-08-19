@@ -6,7 +6,7 @@ title: >-
   ADRs
 status: done
 area: delivery-repository
-order: 120
+order: 100
 assignee: claude-code
 profile: custom
 requires: {}
@@ -18,7 +18,7 @@ links:
 blocks: []
 archived: false
 created: '2026-08-13T12:12:48.821Z'
-updated: '2026-08-17T06:43:36.054Z'
+updated: '2026-08-19T09:39:14.597Z'
 ---
 
 ## What

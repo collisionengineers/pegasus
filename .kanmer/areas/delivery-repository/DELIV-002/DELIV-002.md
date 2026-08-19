@@ -4,7 +4,7 @@ type: ticket
 title: Adopt fast-forward-only dev-to-main releases
 status: done
 area: delivery-repository
-order: 0
+order: 10
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -24,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T07:59:54.626Z'
-updated: '2026-08-18T12:29:47.354Z'
+updated: '2026-08-19T09:39:14.483Z'
 ---
 
 ## What
