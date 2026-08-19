@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-19T09:10:35.239Z'
   verifying: '2026-08-19T09:17:06.632Z'
   done: '2026-08-19T09:19:07.320Z'
-taken_at: '2026-08-19T09:09:11.923Z'
-branch: task/tick-204-assessment-outcomes
-worktree: ../pegasus-worktrees/tick-204-assessment-outcomes
 labels:
   - now
   - source-now
@@ -34,7 +31,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.231Z'
-updated: '2026-08-19T09:20:52.880Z'
+updated: '2026-08-19T09:22:21.763Z'
 ---
 
 ## What

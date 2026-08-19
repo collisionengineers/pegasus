@@ -20,7 +20,7 @@
 - [x] proof.md finalised (PR URL + merge date appended)
 - [x] Moved to final stage
 - [x] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] cd out of worktree; `git worktree remove ../pegasus-worktrees/tick-204-assessment-outcomes`
-- [ ] `git branch -d task/tick-204-assessment-outcomes` (`-D` if squash/rebase-merged)
-- [ ] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] cd out of worktree; `git worktree remove ../pegasus-worktrees/tick-204-assessment-outcomes`
+- [x] `git branch -d task/tick-204-assessment-outcomes` (`-D` if squash/rebase-merged)
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `take_ticket action: "release"`

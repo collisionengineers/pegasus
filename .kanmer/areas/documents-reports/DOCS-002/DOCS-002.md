@@ -2,7 +2,7 @@
 id: DOCS-002
 type: ticket
 title: Record the Web Container App as the integrated renderer execution boundary
-status: verifying
+status: done
 area: documents-reports
 assignee: codex-mcp-client
 profile: chore
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-19T09:13:28.723Z'
   review: '2026-08-19T09:17:43.343Z'
   verifying: '2026-08-19T09:20:45.991Z'
+  done: '2026-08-19T09:22:46.310Z'
 taken_at: '2026-08-19T09:14:51.544Z'
 branch: task/docs-002-renderer-web-boundary
 worktree: ../pegasus-worktrees/docs-002-renderer-web-boundary
@@ -26,12 +27,14 @@ blocks:
 refs:
   - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
 commits:
-  - 169bcd5b
+  - 169bcd5bbe1e334a52dbb18725d1ae46c6e8f6ab
+  - 4d1bff3db4ed16692e7646ea07e7f4491365defd
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/413'
+deployment: n/a
 archived: false
 created: '2026-08-19T09:13:24.531Z'
-updated: '2026-08-19T09:20:45.991Z'
+updated: '2026-08-19T09:23:04.833Z'
 ---
 
 ## What
@@ -56,3 +59,5 @@ TICK-215 research established a durable technical choice not fully decided by AD
 - [ ] TICK-215 can resume planning against the linked ADR.
 
 ## Outcome
+
+ADR-0028 and its ADR-index row shipped through [PR #413](https://github.com/collisionengineers/pegasus/pull/413), merged to `dev` at `4d1bff3db4ed16692e7646ea07e7f4491365defd` on 2026-08-19. The ADR is linked to [[TICK-215]], [[SIMPLI-014]], and [[PLAT-007]]. TICK-215 may now be planned; implementation and Azure/runtime proof remain with those owning tickets. No deployment was performed.
