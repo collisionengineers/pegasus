@@ -26,18 +26,40 @@ The selected alpha direction is Operations-first. The UI must provide:
 
 Every actionable search result is a full-row keyboard-focusable link or button with visible action affordance. At constrained desktop width, a long Case/PO, Image Intake Reference, or U-reference moves to a labelled second line instead of overlapping the received timestamp. Inbox and intake rows always show received date above received time, and show the precise processing outcome—such as `Case created`, `Image intake registered`, `Associated with Case`, `Unidentified`, or `Blocked intake`—rather than a generic `New`. One semantic action or state has one consistent icon across Pegasus; no decorative or generated replacement icon is used.
 
-### Unidentified queue and detail
+### Queues: tabs and filters
 
-`/Unidentified` lists open items oldest-first with the immutable U-reference,
-original filename/source, grouped-member count, received time, canonical reason, and
-next action. Detail shows every member receipt/file, custody link, safe detail,
-processing evidence, and chronological history. Exact U-reference search returns both
-open and resolved items as a distinct result type and never treats U<n> as a Case,
-Audit, or Image Intake reference. Resolution is staff-authorised, antiforgery
-protected, version-checked, idempotent by operation key, and requires a supported
-destination and reason. A stale version is a non-destructive conflict; a replay shows
-the original result. The permanent U-reference and origin remain visible after
-resolution.
+`/Triage` (nav label "Queues") is one page with five tabs, each carrying its
+own count: Not ready, Review, Held, Triage, and Unidentified. There is no
+separate top-level Unidentified navigation entry; `/Unidentified` is a
+permanent redirect to the Unidentified tab, kept for existing links and
+bookmarks rather than left dead.
+
+The Not ready tab filters by case origin — `All`, `Instruction-initiated`, or
+`Image-initiated` — the two origins settled for the Image-initiated Case
+lifecycle: a formal instructed Case, or an ImageIntake-backed projection still
+awaiting one. Each origin's rows keep their own shape (a Case row carries
+Registration/Claimant/Principal/Received; an Image-initiated row carries its
+VRM reference, registration, lifecycle status, and received date) rather than
+being forced into one column set.
+
+The Unidentified tab filters by media kind — `All`, `Images`, or `E-mails` —
+derived from the underlying retained receipt's source channel and content
+type, not a separate stored field. Every row states, in one line, what is
+going on: the U-reference, the kind, an operator-meaningful handle (the
+original filename, or the e-mail subject and sender — never an internal
+identifier), the received date and time, and the canonical reason. The row
+links to the item's detail page and nothing else.
+
+Detail for an open item shows the same kind/received/reason facts, the
+retained file or message it concerns by its operator-meaningful handle, one
+link to the underlying retained material, chronological history, and the
+resolution form. Exact U-reference search returns both open and resolved
+items as a distinct result type and never treats U<n> as a Case, Audit, or
+Image Intake reference. Resolution is staff-authorised, antiforgery
+protected, version-checked, idempotent by operation key, and requires a
+supported destination and reason. A stale version is a non-destructive
+conflict; a replay shows the original result. The permanent U-reference and
+origin remain visible after resolution.
 
 ### Dashboard freshness and reconciliation
 
