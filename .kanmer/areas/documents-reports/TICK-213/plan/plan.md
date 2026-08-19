@@ -49,3 +49,10 @@ No production/CSS/template change is authorized. If the stress test exposes clip
 ## Simplification pass
 
 Run after the focused test change. The expected disposition is test-only reuse of the existing snapshot/composition helpers, with no new production abstraction.
+
+
+## Blocking result — 2026-08-19
+
+The real-Chromium stress reproduction exposed a production defect before TICK-213 could reach Review. With 80 uniquely labelled entries in each of the three work lists and 8 accepted hashed photos, the multi-page assessment retained all terminal `080` list entries but omitted the later `Statement of Truth` section from extracted PDF text. The representative one-item/one-photo suite still passes.
+
+[[PR-009]] now blocks TICK-213 and owns diagnosis/correction under FRD-11. Per the re-plan, no renderer, template, CSS, or other production change was made here. The uncommitted failing reproduction remains in this ticket worktree as exact hand-off evidence. TICK-213 stays Implementing until the blocker lands, after which the stress test can be rerun and completed.

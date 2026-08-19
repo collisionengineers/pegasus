@@ -9,3 +9,11 @@
 ## Progress notes
 
 - 2026-08-19: Existing all-four-outcome Chromium suite passed 5/5, but its representative snapshot has one item per work list and one photo. Re-planned proportionally to add the missing stress proof; no production change is authorized.
+
+
+## Blocking evidence — 2026-08-19
+
+- [x] Added the planned verification-only stress reproduction locally; test project build passed with 0 warnings/errors.
+- [ ] Stress verification passed — **blocked by [[PR-009]]**. Real Chromium produced a multi-page PDF containing `Stress new part 080`, `Stress repair 080`, and `Stress operation 080`, but `Statement of Truth` was absent from extracted PDF text.
+- [x] Stopped without modifying production renderer/template/CSS behavior and filed [[PR-009]] as a structured blocker.
+- [ ] Focused suite, simplification, commit/PR/PIR and Review move remain pending until [[PR-009]] resolves the production defect.
