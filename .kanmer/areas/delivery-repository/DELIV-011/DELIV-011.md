@@ -4,10 +4,15 @@ type: ticket
 title: >-
   Release 11: deploy PLAT-006 (centred shell, Upload redesign) and refresh the
   current-state docs
-status: backlog
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: chore
+stageEntered:
+  implementing: '2026-08-19T08:09:38.115Z'
+taken_at: '2026-08-19T08:09:35.042Z'
+branch: task/deliv-011-release-11
+worktree: ../pegasus-worktrees/deliv-011-release-11
 labels:
   - release
   - requires-live-approval
@@ -17,7 +22,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-19T07:46:11.060Z'
-updated: '2026-08-19T07:46:11.060Z'
+updated: '2026-08-19T08:09:38.115Z'
 ---
 
 ## What
