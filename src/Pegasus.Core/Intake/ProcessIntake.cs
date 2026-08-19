@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Intake;
 
@@ -13,7 +16,8 @@ public sealed class ProcessIntake(
     IEnumerable<IMailClassificationPolicy> mailClassificationPolicies,
     EvaluateIntakeCaseMatch caseMatchEvaluator,
     TimeProvider timeProvider,
-    IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null)
+    IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
+    IRegisterUnidentified? registerUnidentified = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
@@ -236,8 +240,42 @@ public sealed class ProcessIntake(
             receipt,
             assessment.MailClassificationDecision,
             cancellationToken);
+        await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
+    }
+
+    private async Task RegisterUnidentifiedIfTerminalAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (registerUnidentified is null
+            || receipt.Decision is not (IntakeDecision.NeedsSorting
+                or IntakeDecision.Unsupported
+                or IntakeDecision.OcrRequired
+                or IntakeDecision.TechnicalFailure)
+            || (receipt.Decision == IntakeDecision.NeedsSorting
+                && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)))
+        {
+            return;
+        }
+
+        var reason = receipt.Decision switch
+        {
+            IntakeDecision.Unsupported => UnidentifiedReasonCode.UnsupportedContent,
+            IntakeDecision.OcrRequired => UnidentifiedReasonCode.NoUsableIdentification,
+            IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.TechnicalProcessingFailure,
+            _ => UnidentifiedReasonCode.NoUsableIdentification
+        };
+        await registerUnidentified.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(receipt.Id),
+                reason,
+                receipt.FailureReason ?? receipt.DecisionReason,
+                ActionActor.SystemWorker("intake-processing"),
+                $"intake-unidentified:{receipt.Id:N}:{receipt.Version}",
+                receipt.ProcessedAtUtc),
+            cancellationToken);
     }
 
     private async Task RecordAutomaticAuditEvidenceAsync(

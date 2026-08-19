@@ -15,7 +15,7 @@ An auto-fit grid of `QueueCard`s (`.queue-grid`, minimum 220px per card) that le
 
 ```tsx
 <QueueGrid>
-  <QueueCard label="Needs sorting" icon="alert-triangle" state="needs-sorting" value={4} detail="Oldest 3 days" href="/Inbox?queue=needs_sorting" />
+  <QueueCard label="Unidentified" icon="alert-triangle" state="unidentified" value={4} detail="Oldest 3 days" href="/Unidentified" />
   <QueueCard label="Blocked" icon="alert-circle" state="blocked" value={1} href="/Inbox?queue=blocked" />
   <QueueCard label="Review" icon="info" state="review" value={12} detail="Oldest 2 days" href="/Triage?queue=review" />
 </QueueGrid>

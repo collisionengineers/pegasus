@@ -1,4 +1,11 @@
 # FRD-01: Case identity and lifecycle
+
+## Unidentified boundary
+
+Unidentified material never allocates a Case/PO, Principal identity, or Audit
+reference. Missing, conflicting, or ambiguous identity-critical evidence is retained
+under its immutable `U<n>` reference with a canonical reason; only a later authorised
+resolution can link it to a supported destination, without changing that U-reference.
 > Owner capabilities: CASE (principal/reference identity, case types, lifecycle, edit/recovery, chasing) · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ### Principal, reference, organisation, and case-party identity

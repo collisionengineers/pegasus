@@ -2,7 +2,7 @@
     The single place a business or query state chooses its visual treatment.
 
     Model: the exact state text to display. Business labels keep their settled
-    casing (`Not ready`, `Blocked intake`, `Needs sorting`, `Review`, `Held`);
+    casing (`Not ready`, `Blocked intake`, `Unidentified`, `Review`, `Held`);
     this partial never rewrites the caller's words, it only picks a tone and an
     icon for them.
 
@@ -43,7 +43,7 @@
         "reopened" or "open" => ("navy", "icon-info"),
 
         // Intake and Triage
-        "needs sorting" => ("amber", "icon-alert-triangle"),
+        "needs sorting" or "unidentified" => ("amber", "icon-alert-triangle"),
         "blocked intake" or "blocked" => ("red", "icon-alert-circle"),
         "document text required" or "unsupported" => ("amber", "icon-file-text"),
         "awaiting information" => ("amber", "icon-clock"),

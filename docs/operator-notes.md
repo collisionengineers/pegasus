@@ -70,6 +70,33 @@ A case’s `has Triage` value is Boolean/reference-only. Triage findings have no
 
 `Completed` and `Cancelled` close only the separate Triage workflow. They do not make a Triage finding definitive or final for a later Case, and a reasoned reopen returns that Triage to `Open`.
 
+## Unidentified received material
+
+When Pegasus can safely retain a document, image, message, attachment, or inseparable
+submission group but cannot establish a usable identity, meaning, ownership, or
+destination, it must place the material in the **Unidentified** queue. Unidentified
+replaces the old broad `Needs sorting` destination for this meaning; it does not
+rename or collapse Triage, Blocked intake, incomplete Audit evidence, or Image Intake.
+
+Each item or inseparable group receives the next immutable internal tracking reference
+`U1`, `U2`, `U3`, and so on, with no fixed-width ceiling. The reference is not a
+Case/PO, Audit reference, Image Intake reference, Principal identity, or evidence that
+case allocation gates passed. A grouped submission receives one U-reference while
+each member retains its original filename, receipt identity, custody, and source
+history. Every item records one required reason and safe explanatory detail.
+
+The six reasons are: unreadable or corrupt content; unsupported content; no usable
+identification; conflicting identification; ambiguous ownership or destination; and
+terminal technical processing failure after custody succeeds. A conflicting vehicle
+registration group is explicitly recorded as conflicting identification. Retryable
+processing remains in processing and does not allocate a U-reference.
+
+Authorised staff may resolve an Unidentified item into a supported destination, but its
+U-reference and origin never change or become reusable. Resolution records the actor,
+time, reason, target, and immutable history. Open Unidentified work is searchable and
+visible in queue/count/detail surfaces; resolved work remains searchable and visible
+in history.
+
 ## Stage 1 — Receiving instructions or images
 
 An intake may begin in either of two ways:

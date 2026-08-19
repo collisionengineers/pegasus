@@ -85,6 +85,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     internal DbSet<IntakeWorkItemEntity> IntakeWorkItems => Set<IntakeWorkItemEntity>();
     internal DbSet<IntakeEvaluationEntity> IntakeEvaluations => Set<IntakeEvaluationEntity>();
+    internal DbSet<UnidentifiedItemEntity> UnidentifiedItems => Set<UnidentifiedItemEntity>();
+    internal DbSet<UnidentifiedSequenceEntity> UnidentifiedSequences => Set<UnidentifiedSequenceEntity>();
+    internal DbSet<UnidentifiedHistoryEntity> UnidentifiedHistory => Set<UnidentifiedHistoryEntity>();
     internal DbSet<IntakeAllocationAttemptEntity> IntakeAllocationAttempts =>
         Set<IntakeAllocationAttemptEntity>();
     internal DbSet<ApprovedInboxPollStateEntity> ApprovedInboxPollStates =>
@@ -780,6 +783,68 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ReasonCode).HasMaxLength(100);
             entity.HasIndex(item => new { item.SubjectId, item.OccurredAtUtc });
             entity.HasIndex(item => item.OccurredAtUtc);
+        });
+
+        builder.Entity<UnidentifiedItemEntity>(entity =>
+        {
+            entity.ToTable("UnidentifiedItems", table =>
+            {
+                table.HasCheckConstraint("CK_UnidentifiedItems_Sequence", "[Sequence] > 0");
+                table.HasCheckConstraint("CK_UnidentifiedItems_Version", "[Version] >= 0");
+            });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Reference).HasMaxLength(32).IsRequired();
+            entity.Property(item => item.OriginKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ReasonCode).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.SafeDetail).HasMaxLength(1000).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.CreatedByActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.CreatedByActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.CreatedByActorRolesJson).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.ResolvedByActorKind).HasMaxLength(40);
+            entity.Property(item => item.ResolvedByActorSubjectId).HasMaxLength(200);
+            entity.Property(item => item.ResolvedByActorRolesJson).HasMaxLength(500);
+            entity.Property(item => item.ResolutionReason).HasMaxLength(500);
+            entity.Property(item => item.ResolutionTargetKind).HasMaxLength(40);
+            entity.Property(item => item.ResolutionTargetId).HasMaxLength(200);
+            entity.Property(item => item.ResolutionTargetReference).HasMaxLength(200);
+            entity.Property(item => item.RegistrationOperationKey).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.RegistrationFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.HasIndex(item => item.Sequence).IsUnique();
+            entity.HasIndex(item => item.Reference).IsUnique();
+            entity.HasIndex(item => new { item.OriginKind, item.OriginId }).IsUnique();
+            entity.HasIndex(item => item.RegistrationOperationKey).IsUnique();
+            entity.HasIndex(item => new { item.State, item.CreatedAtUtc, item.Sequence });
+        });
+
+        builder.Entity<UnidentifiedSequenceEntity>(entity =>
+        {
+            entity.ToTable("UnidentifiedSequences", table =>
+                table.HasCheckConstraint("CK_UnidentifiedSequences_LastAllocatedSequence", "[LastAllocatedSequence] >= 0"));
+            entity.HasKey(item => item.Id);
+        });
+
+        builder.Entity<UnidentifiedHistoryEntity>(entity =>
+        {
+            entity.ToTable("UnidentifiedHistory");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.PreviousState).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.NewState).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.TargetKind).HasMaxLength(40);
+            entity.Property(item => item.TargetId).HasMaxLength(200);
+            entity.Property(item => item.TargetReference).HasMaxLength(200);
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.UnidentifiedItemId, item.OccurredAtUtc });
+            entity.HasOne<UnidentifiedItemEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.UnidentifiedItemId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<ProviderDomainPackageEntity>(entity =>

@@ -32,7 +32,11 @@ public sealed record CaseActivityCounts(
 /// <summary>
 /// What arrived, and what is waiting for a person.
 /// </summary>
-public sealed record MailActivityCounts(int ReceivedToday, int NeedsSorting);
+public sealed record MailActivityCounts(int ReceivedToday, int NeedsSorting)
+{
+    /// <summary>Open Unidentified items; NeedsSorting remains read-only compatibility during rollout.</summary>
+    public int Unidentified { get; init; } = NeedsSorting;
+}
 
 /// <summary>
 /// The dashboard's counts. Every member returns a real number or the tile that
