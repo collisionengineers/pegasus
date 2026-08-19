@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Required in-repo folder catalogue — operator decision 2026-08-19
+
+Extend FRD-08's single classification catalogue with the accepted folder types: Instructions, Audits, Diminution, New clients, Case queries, Enquiries, Billing, Pre-instructions, No action, Images, Cancellations, Case updates and Other. Each row maps a detailed classification to one operational destination and one administrator-approved folder type (or explicitly no move). Record stable business keys/labels and mailbox-specific identity resolution without copying transport IDs into policy or accepting client-selected folders.

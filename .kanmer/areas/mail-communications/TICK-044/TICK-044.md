@@ -2,8 +2,8 @@
 id: TICK-044
 type: ticket
 title: >-
-  MAIL-02 — Map detailed email classifications to Receiving work, Query, Other,
-  Needs sorting, or the separate Triage workflow
+  MAIL-02 — Map every detailed email classification to its operational
+  destination or Needs sorting
 status: preparing
 area: mail-communications
 assignee: ''
@@ -25,7 +25,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:53.669Z'
-updated: '2026-08-18T15:23:19.278Z'
+updated: '2026-08-19T08:26:40.835Z'
 ---
 
 ## What

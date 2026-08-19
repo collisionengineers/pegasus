@@ -10,3 +10,5 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Complete FRD-08's accepted 13-folder-type mapping and prove every classification row has one explicit folder outcome or no-move outcome.

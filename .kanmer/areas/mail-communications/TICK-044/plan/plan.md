@@ -36,3 +36,19 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Required in-repo governing catalogue — operator decision 2026-08-19
+
+Modify the existing canonical `docs/frd/frd-08-email-mailbox-and-background-processing.md`; do not create a competing taxonomy document. Add one exhaustive classification catalogue with, for every direction/family/subtype:
+
+- canonical identifier and staff-facing label;
+- positive classification criteria;
+- exclusions and precedence/ambiguity behaviour;
+- identity/evidence inputs used (headers, sender/domain, body, attachment/document evidence, reply/thread signals, provider route and Case-correlation result);
+- whether the method is deterministic rule, route-specific predicate, staff decision or explicit abstention;
+- required evidence/policy version and correction-history behaviour;
+- operational destination and Needs-sorting fallback;
+- designated Outlook folder type, cross-referenced to MAIL-23;
+- representative acceptance examples and counterexamples.
+
+Known messages never collapse into a generic Other destination. Reasoned `Other` is only the extensible new-category mechanism. Needs sorting is a fail-closed routing outcome, not a classification.

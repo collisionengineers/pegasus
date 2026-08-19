@@ -1,7 +1,9 @@
 ---
 id: TICK-057
 type: ticket
-title: 'UI-14 — Categorised email queues for Receiving work, Queries, and Other'
+title: >-
+  UI-14 — Provide detailed classified-email views with distinct Needs sorting
+  and Triage queues
 status: preparing
 area: mail-communications
 assignee: ''
@@ -24,7 +26,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-19T08:10:48.884Z'
+updated: '2026-08-19T08:26:41.065Z'
 ---
 
 ## What

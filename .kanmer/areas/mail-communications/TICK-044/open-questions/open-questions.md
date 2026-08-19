@@ -1,9 +1,11 @@
 # Open questions — MAIL-02
 
-- [ ] **Confirm the operational meaning of Other versus Needs sorting.** Proposed distinction: **Other** is a successful, explainable classification whose known business destination is the general Other queue; **Needs sorting** is a fail-closed exception queue for Ambiguous, Unclassified, contradictory, incomplete, or unsupported evidence where Pegasus cannot safely choose a business destination.
-- [ ] **Confirm the exhaustive mapping after accepting that distinction:** new instructions → Receiving work; post-report email and billing queries → Queries; accepted pre-instruction Triage requests → Triage; other pre-instruction email → Other; every remaining successfully classified category, including reasoned Other → Other; Ambiguous/Unclassified → Needs sorting.
+- [x] **Should successfully classified messages be aggregated into a generic Other destination?** — No. Every recognised example remains its own named category/subtype. Acknowledgement remains `General / acknowledgement`; autoreply, undeliverable, billing, remittance, case update, cancellation, images-before-instruction and every other known example retain their own classifications.
+- [x] **What is `Other`?** — Only the explicit taxonomy escape hatch for a genuinely new classification not covered by the canonical registry. It requires a new category name and reasoning and must not hide a known category.
+- [x] **What is `Needs sorting`?** — The fail-closed destination for mail that cannot be safely matched/classified/routed because evidence is missing, unsupported, contradictory or ambiguous. It is not a category and is not interchangeable with Other.
+- [x] **Where is the exhaustive definition owned?** — FRD-08 will contain one canonical in-repo classification and folder catalogue covering every category/subtype, criteria, evidence/method, ambiguity/failure behaviour, operational destination and designated Outlook folder type.
 
 ## Parked (explicitly deferred)
 
-- [ ] Exact automatic predicates/confidence/holdout activation beyond the delivered routes.
-- [ ] Real Outlook/Graph/cloud activation and live verification.
+- [ ] Exact automatic predicates/confidence/holdout activation beyond delivered routes requires its own accepted evidence.
+- [ ] Real Outlook/Graph/cloud activation and live verification requires exact-target approval.

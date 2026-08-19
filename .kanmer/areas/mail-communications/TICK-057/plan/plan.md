@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Operator decision — 2026-08-19
+
+Do not collapse known classifications into a generic Other queue. UI-14 consumes FRD-08's canonical classification registry and offers detailed category/subtype views, while Needs sorting remains a distinct fail-closed work queue and Triage remains its separate workflow. A reasoned custom Other classification appears under its recorded new category name and reasoning.
