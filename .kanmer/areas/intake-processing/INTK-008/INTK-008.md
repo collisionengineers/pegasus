@@ -2,7 +2,7 @@
 id: INTK-008
 type: ticket
 title: Give ImageIntake an Image-initiated Case lifecycle and merge closure
-status: review
+status: verifying
 area: intake-processing
 order: 30
 assignee: claude-code
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   preparing: '2026-08-19T11:20:52.541Z'
   review: '2026-08-19T11:39:29.235Z'
+  verifying: '2026-08-19T21:57:48.272Z'
 taken_at: '2026-08-19T13:10:09.500Z'
 branch: intk-008-image-initiated-lifecycle
 worktree: ../pegasus-worktrees/intk-008
@@ -39,7 +40,7 @@ prs:
   - '423'
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-08-19T13:10:09.500Z'
+updated: '2026-08-19T21:57:48.272Z'
 ---
 
 ## What

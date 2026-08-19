@@ -228,3 +228,16 @@ Expected observable effect afterwards: the once-a-minute `UnauthorizedAccessExce
 **current-architecture.md:** release sentence; renderer paragraph updated from "locally verified source" to deployed-with-caller (still gated on estimate import for real output; keep the honest qualification).
 
 **runbook:** the "SentEvidencePollFunction stays disabled unless separately approved" sentence updated to record the 2026-08-19 operator approval and the applied mailbox state.
+
+### The 423×424 semantic conflict — how the two vocabularies were merged (2026-08-19 ~22:00Z)
+
+Merging `dev` (now carrying INTK-008) into INTK-007 produced the conflict the pairwise analysis predicted in `frd-02`/`frd-12`, plus a trivial usings conflict in `DurableIntake.cs`. The FRD hunks were **semantic**: each side carried one operator-confirmed vocabulary — INTK-008's "Image-initiated Case projection" with the two-outcome ruling, INTK-007's "Unidentified" replacing "Needs sorting". Auto-picking either side would have destroyed the other's confirmed truth.
+
+Resolution, by hand:
+- **frd-02**: dev's paragraph structure (Image-initiated Case projection, merge/staff-close, the verbatim two-outcome operator ruling) with its two remaining "Needs sorting" phrases migrated to the Unidentified vocabulary, followed by INTK-007's full "Unidentified destination and reference" section. Asserted no stale term survived in the merged hunk.
+- **frd-12**: dev's "Image-initiated Cases" term in the dashboard-count sentence combined with INTK-007's "The Unidentified count is the exact count of open Unidentified items and links to that queue."
+- Migration list: union, verified **53/53** against the folder.
+
+Gates after the merge, all green: build 0 errors; `-Mode Local` pass; `Test-MigrationGrants` 53 files; `Test-DocumentationLinks` 205 files; the 142 focused Core tests (Unidentified + MailOperationalDestination + ImageIntake) pass. Pushed `b9a25a68`; #424 CI running on that head.
+
+#423 merged at `a907ecd2` after 10/10 green (its own `dev` merge earlier needed a real constructor resolution: INTK-006 added `IIntakeSubmissionGroupStore? groupStore`, INTK-008 added `IImageIntakeCasePairing casePairing` — combined with `casePairing` required and `groupStore` optional-last, one positional call site fixed, 91 image-intake Core tests green). #428 rebased onto post-423 dev cleanly and is in CI.
