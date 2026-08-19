@@ -2,12 +2,15 @@
 id: INTK-005
 type: ticket
 title: Allow one Upload submission to accept and track multiple files
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: Codex
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:14:26.260Z'
+taken_at: '2026-08-19T10:06:38.926Z'
+branch: intk-005-grouped-upload
+worktree: .worktrees/intk-005
 labels:
   - upload
   - ui
@@ -23,7 +26,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T09:48:49.232Z'
+updated: '2026-08-19T10:06:38.926Z'
 ---
 
 ## What
