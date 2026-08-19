@@ -2,10 +2,12 @@
 id: INTK-007
 type: ticket
 title: Replace Needs sorting with referenced Unidentified work
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:52:38.657Z'
 labels:
   - unidentified
   - queues
@@ -28,7 +30,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-19T09:48:49.377Z'
+updated: '2026-08-19T09:52:38.657Z'
 ---
 
 ## What
