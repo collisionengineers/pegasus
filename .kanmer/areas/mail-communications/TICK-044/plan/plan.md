@@ -84,3 +84,7 @@ Before review can pass:
 - Render both values in the retained mailbox viewer using existing display/accessibility conventions; keep Needs sorting, Triage, Receiving work, Queries, detailed classifications, and reasoned Other distinct.
 - Add Core plus integration/Web tests proving the real viewer caller consumes the policy, including QDOS classified, ambiguous/unclassified, and reasoned Other examples.
 - Refresh the post-implementation report and simplification dispositions, then rerun the locked build and focused/full tests. Do not claim MAIL-02 delivered from policy-unit tests alone.
+
+## Live viewer acceptance — operator decision 2026-08-19
+
+After the completed caller is deployed, perform an authenticated, read-only production browser check against retained mail. Capture evidence that a real retained message displays its exact detailed classification and Core-derived operational destination, including a fail-closed state where available. Do not change Outlook state, mailbox configuration, Graph scope, or cloud resources. Treat this as viewer/caller evidence, not a new Graph activation claim.

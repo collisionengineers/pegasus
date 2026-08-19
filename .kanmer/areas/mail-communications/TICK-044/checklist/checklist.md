@@ -19,3 +19,5 @@
 - [ ] Display both values in the retained mailbox viewer with distinct fail-closed states.
 - [ ] Add integration/Web tests proving the deployed-shaped viewer path consumes the Core policy.
 - [ ] Rerun Release build, focused/full tests, simplification pass, and update the post-implementation report after the caller lands.
+
+- [ ] After deployment, run and record an authenticated read-only production mailbox-viewer check showing real retained-mail classification and operational destination without any Outlook/cloud mutation.
