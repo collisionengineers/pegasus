@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Trigger report generation from complete accepted assessments and retain
   immutable report references
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T10:31:16.350Z'
 labels:
   - now
   - renderer-integration
@@ -33,7 +35,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-19T08:56:26.089Z'
-updated: '2026-08-19T09:42:35.562Z'
+updated: '2026-08-19T10:31:16.350Z'
 ---
 
 ## What
