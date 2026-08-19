@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Intake.Unidentified;
 
@@ -240,14 +243,60 @@ public sealed class RegisterUnidentified(IUnidentifiedStore store) : IRegisterUn
     }
 }
 
-public sealed class ResolveUnidentified(IUnidentifiedStore store) : IResolveUnidentified
+/// <summary>
+/// Resolving an Unidentified item requires the selected destination to
+/// actually exist: a typo or fabricated <c>TargetId</c> must not be able to
+/// permanently remove work from the open queue with no supported destination
+/// behind it. Each destination port is optional so a deployment lacking one
+/// of these capabilities still fails closed for that target kind rather than
+/// throwing a missing-service error; <see cref="UnidentifiedResolutionTargetKind.ExternalReference"/>
+/// is free-form by design and has no Core-owned port to validate against.
+/// </summary>
+public sealed class ResolveUnidentified(
+    IUnidentifiedStore store,
+    ICaseQueryStore? caseQueries = null,
+    IImageIntakeQueries? imageIntakeQueries = null,
+    ITriageQueries? triageQueries = null,
+    IIntakeReceiptQueries? intakeReceiptQueries = null) : IResolveUnidentified
 {
     public async Task<UnidentifiedResolveResult> ExecuteAsync(
         ResolveUnidentifiedRequest request,
         CancellationToken cancellationToken = default)
     {
         UnidentifiedValidation.ValidateResolve(request);
+        await EnsureDestinationExistsAsync(request, cancellationToken);
         return await store.ResolveAsync(request, cancellationToken);
+    }
+
+    private async Task EnsureDestinationExistsAsync(
+        ResolveUnidentifiedRequest request,
+        CancellationToken cancellationToken)
+    {
+        var targetId = request.TargetId.Trim();
+        var exists = request.TargetKind switch
+        {
+            UnidentifiedResolutionTargetKind.InstructionCase => Guid.TryParse(targetId, out var caseId)
+                && caseQueries is not null
+                && await caseQueries.GetAsync(new(caseId, request.Actor), cancellationToken) is not null,
+            UnidentifiedResolutionTargetKind.ImageIntake => Guid.TryParse(targetId, out var imageIntakeId)
+                && imageIntakeQueries is not null
+                && await imageIntakeQueries.GetAsync(imageIntakeId, cancellationToken) is not null,
+            UnidentifiedResolutionTargetKind.Triage => Guid.TryParse(targetId, out var triageId)
+                && triageQueries is not null
+                && await triageQueries.GetAsync(triageId, cancellationToken) is not null,
+            UnidentifiedResolutionTargetKind.BlockedIntake => Guid.TryParse(targetId, out var receiptId)
+                && intakeReceiptQueries is not null
+                && await intakeReceiptQueries.GetAsync(receiptId, cancellationToken) is
+                    { Decision: IntakeDecision.BlockedIntake },
+            // Free-form external reference; no Core-owned destination to validate.
+            UnidentifiedResolutionTargetKind.ExternalReference => true,
+            _ => throw new ArgumentOutOfRangeException(
+                nameof(request), "The resolution target is not recognised.")
+        };
+        if (!exists)
+        {
+            throw new UnidentifiedResolutionTargetNotFoundException(request.TargetKind, targetId);
+        }
     }
 }
 
@@ -340,3 +389,15 @@ public sealed class UnidentifiedOperationConflictException() : InvalidOperationE
 
 public sealed class UnidentifiedVersionConflictException() : InvalidOperationException(
     "The Unidentified item changed; reload it before resolving.");
+
+/// <summary>
+/// An <see cref="ArgumentException"/> so the existing Web resolve-form error
+/// handling (which already surfaces any <c>ArgumentException</c> as a model
+/// error) reports it without a separate catch clause.
+/// </summary>
+public sealed class UnidentifiedResolutionTargetNotFoundException(
+    UnidentifiedResolutionTargetKind targetKind,
+    string targetId)
+    : ArgumentException(
+        $"No {targetKind} destination exists for target '{targetId}'.",
+        nameof(ResolveUnidentifiedRequest.TargetId));

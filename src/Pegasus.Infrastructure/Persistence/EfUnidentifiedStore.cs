@@ -98,7 +98,11 @@ public sealed class EfUnidentifiedStore(
             ActorSubjectId = request.Actor.SubjectId,
             ActorRolesJson = entity.CreatedByActorRolesJson,
             OccurredAtUtc = request.CreatedAtUtc,
-            Reason = request.SafeDetail.Trim(),
+            // SafeDetail (up to UnidentifiedValidation.MaximumDetailLength = 1000
+            // chars) can exceed the narrower History.Reason column
+            // (UnidentifiedValidation.MaximumReasonLength = 500); truncate rather
+            // than let an otherwise-valid registration fail at SaveChangesAsync.
+            Reason = TruncateForHistory(request.SafeDetail.Trim()),
             OperationKey = operationKey
         });
 
@@ -145,7 +149,9 @@ public sealed class EfUnidentifiedStore(
         {
             if (replay.UnidentifiedItemId != request.UnidentifiedItemId
                 || !string.Equals(replay.Reason, request.Reason.Trim(), StringComparison.Ordinal)
-                || !string.Equals(replay.TargetId, request.TargetId.Trim(), StringComparison.Ordinal))
+                || !string.Equals(replay.TargetKind, request.TargetKind.ToString(), StringComparison.Ordinal)
+                || !string.Equals(replay.TargetId, request.TargetId.Trim(), StringComparison.Ordinal)
+                || !string.Equals(replay.TargetReference, request.TargetReference?.Trim(), StringComparison.Ordinal))
             {
                 throw new UnidentifiedOperationConflictException();
             }
@@ -240,6 +246,11 @@ public sealed class EfUnidentifiedStore(
             throw new UnidentifiedOperationConflictException();
         }
     }
+
+    private static string TruncateForHistory(string reason) =>
+        reason.Length > UnidentifiedValidation.MaximumReasonLength
+            ? reason[..UnidentifiedValidation.MaximumReasonLength]
+            : reason;
 
     private static string Fingerprint(RegisterUnidentifiedRequest request)
     {
