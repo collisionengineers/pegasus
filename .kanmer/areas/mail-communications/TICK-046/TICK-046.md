@@ -6,6 +6,7 @@ title: >-
   history
 status: review
 area: mail-communications
+order: 30
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/418'
 archived: false
 created: '2026-08-12T15:03:53.708Z'
-updated: '2026-08-19T10:58:38.268Z'
+updated: '2026-08-19T11:05:25.566Z'
 ---
 
 ## What

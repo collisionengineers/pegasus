@@ -4,6 +4,7 @@ type: ticket
 title: Allow one Upload submission to accept and track multiple files
 status: review
 area: intake-processing
+order: 10
 assignee: Codex
 profile: feature
 stageEntered:
@@ -30,7 +31,7 @@ prs:
   - '416'
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T10:38:36.745Z'
+updated: '2026-08-19T11:05:25.551Z'
 ---
 
 ## What
