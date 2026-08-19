@@ -4,6 +4,7 @@ public sealed record IntakeSubmissionGroup(
     Guid Id,
     IntakeSourceChannel Channel,
     string SubmissionToken,
+    int ExpectedMemberCount,
     string Actor,
     DateTimeOffset ReceivedAtUtc,
     IReadOnlyList<IntakeSubmissionGroupMember> Members);
@@ -41,10 +42,28 @@ public interface IIntakeSubmissionGroupStore
         string submissionToken,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Finds the parent group for a processed child source token. Grouped
+    /// uploads use the stable token shape <c>{submission}:{ordinal}</c>; the
+    /// parent token is the durable group identity and is safe to use on replay.
+    /// </summary>
+    Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IntakeSubmissionGroup?>(null);
+
+    /// <param name="expectedMemberCount">
+    /// The total member count the originating submission declared. Recorded
+    /// once at group creation and never revised by a later call — the
+    /// wait-for-all-members-terminal rule compares the members durably
+    /// present against this rather than against itself, so a group whose
+    /// later files are still being staged is never evaluated as complete.
+    /// </param>
     Task<IntakeSubmissionGroup> GetOrCreateAsync(
         Guid groupId,
         IntakeSourceChannel channel,
         string submissionToken,
+        int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
         CancellationToken cancellationToken = default);
@@ -70,6 +89,21 @@ public interface IGroupedIntakeSubmission
     Task<GroupedIntakeSubmissionResult> ExecuteAsync(
         GroupedIntakeSubmissionRequest request,
         CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// The one place that defines a group member's external receipt token, so a
+/// lookup built from a group's submission token and a member's ordinal always
+/// agrees with the token the member was actually submitted under. A second,
+/// drifted copy of this shape previously made image-intake group routing
+/// unable to ever find an ordinal-zero member: it always queried for the
+/// <c>:0</c>-suffixed shape while the member itself carried the bare
+/// submission token.
+/// </summary>
+public static class GroupedIntakeMemberToken
+{
+    public static string Create(string submissionToken, int ordinal) =>
+        ordinal == 0 ? submissionToken : $"{submissionToken}:{ordinal}";
 }
 
 public sealed class SubmitGroupedIntake(
@@ -102,6 +136,7 @@ public sealed class SubmitGroupedIntake(
             groupId,
             IntakeSourceChannel.ManualUpload,
             request.SubmissionToken,
+            files.Length,
             request.Actor,
             request.ReceivedAtUtc == default ? timeProvider.GetUtcNow() : request.ReceivedAtUtc,
             cancellationToken);
@@ -126,7 +161,7 @@ public sealed class SubmitGroupedIntake(
                 continue;
             }
 
-            var childToken = ChildToken(request.SubmissionToken, file.Ordinal);
+            var childToken = GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal);
             var childOperation = $"manual-upload:{request.SubmissionToken}:{file.Ordinal}";
             var source = file.Source with
             {
@@ -149,7 +184,4 @@ public sealed class SubmitGroupedIntake(
 
         return new(group with { Members = members }, members);
     }
-
-    private static string ChildToken(string submissionToken, int ordinal) =>
-        ordinal == 0 ? submissionToken : $"{submissionToken}:{ordinal}";
 }

@@ -268,7 +268,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
         builder.Entity<IntakeSubmissionGroupEntity>(entity =>
         {
-            entity.ToTable("IntakeSubmissionGroups");
+            entity.ToTable("IntakeSubmissionGroups", table =>
+                table.HasCheckConstraint(
+                    "CK_IntakeSubmissionGroups_ExpectedMemberCount", "[ExpectedMemberCount] >= 1"));
             entity.HasKey(item => item.Id);
             entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
             entity.Property(item => item.SubmissionToken).HasMaxLength(200).IsRequired();
@@ -1306,6 +1308,7 @@ internal sealed class IntakeSubmissionGroupEntity
     public Guid Id { get; set; }
     public required string SourceChannel { get; set; }
     public required string SubmissionToken { get; set; }
+    public int ExpectedMemberCount { get; set; }
     public required string Actor { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
     public List<IntakeSubmissionGroupMemberEntity> Members { get; set; } = [];
