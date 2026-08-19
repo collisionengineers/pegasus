@@ -1,0 +1,27 @@
+@page "/Upload/Group/{id:guid}"
+@model Pegasus.Web.Pages.UploadGroupStatusModel
+@{
+    ViewData["Title"] = "Upload received";
+}
+
+<header class="page-heading">
+    <h1>Upload received</h1>
+</header>
+
+<div class="form-column">
+    <section class="panel"
+             aria-labelledby="group-status-title"
+             data-auto-refresh="@(Model.RefreshAutomatically ? "2000" : null)">
+        <h2 id="group-status-title" class="section-label">Files in this submission</h2>
+        <p class="field-hint">Each file has its own receipt and remains associated with this submission group.</p>
+        <ol class="accepted-list">
+            @foreach (var member in Model.Group.Members)
+            {
+                <li>
+                    <a asp-page="/UploadStatus" asp-route-id="@member.StagedReceiptId">@member.SourceFileName</a>
+                    <span class="field-hint">@(Model.Statuses[member.StagedReceiptId]?.Status.ToString() ?? "Received")</span>
+                </li>
+            }
+        </ol>
+    </section>
+</div>

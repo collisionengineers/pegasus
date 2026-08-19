@@ -28,15 +28,17 @@ namespace Pegasus.Web.Pages;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed partial class UploadModel(
-    IIntakeSubmission intakeSubmission,
+    IGroupedIntakeSubmission groupedSubmission,
     TimeProvider timeProvider,
     ILogger<UploadModel> logger) : PageModel
 {
     public static string MaximumSizeLabel =>
         OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
 
+    public static int MaximumFileCount => IntakeEnvelopeLimits.MaximumBatchFileCount;
+
     [BindProperty]
-    public IFormFile? Upload { get; set; }
+    public IFormFile[] Upload { get; set; } = [];
 
     [BindProperty]
     public string ExternalReceiptToken { get; set; } = string.Empty;
@@ -62,22 +64,33 @@ public sealed partial class UploadModel(
                 "The upload receipt is invalid. Refresh the page and try again.");
         }
 
-        if (Upload is null)
+        if (Upload.Length == 0)
         {
             ModelState.AddModelError(nameof(Upload), "Choose a file to upload.");
         }
-        else if (Upload.Length == 0)
+        else if (Upload.Length > IntakeEnvelopeLimits.MaximumBatchFileCount)
         {
-            ModelState.AddModelError(nameof(Upload), "That file is empty.");
-        }
-        else if (Upload.Length > IntakeEnvelopeLimits.MaximumContentLength)
-        {
-            // Stated as the size the operator chose, against the limit, rather
-            // than as a rejection they have to work out for themselves.
             ModelState.AddModelError(
                 nameof(Upload),
-                $"This file is {OperatorLabels.FileSize(Upload.Length)}. "
-                + $"Files must be {MaximumSizeLabel} or smaller.");
+                $"You selected {Upload.Length} files. Submit {IntakeEnvelopeLimits.MaximumBatchFileCount} "
+                + "or fewer at a time.");
+        }
+        for (var index = 0; index < Upload.Length; index++)
+        {
+            var file = Upload[index];
+            if (file.Length == 0)
+            {
+                ModelState.AddModelError(
+                    nameof(Upload),
+                    Upload.Length == 1 ? "That file is empty." : $"File {index + 1} is empty.");
+            }
+            else if (file.Length > IntakeEnvelopeLimits.MaximumContentLength)
+            {
+                ModelState.AddModelError(
+                    nameof(Upload),
+                    $"File {index + 1} is {OperatorLabels.FileSize(file.Length)}. "
+                    + $"Files must be {MaximumSizeLabel} or smaller.");
+            }
         }
 
         if (!ModelState.IsValid)
@@ -93,31 +106,53 @@ public sealed partial class UploadModel(
             return Forbid();
         }
 
-        await using var memory = new MemoryStream((int)Upload!.Length);
-        await Upload.CopyToAsync(memory, cancellationToken);
-        var fileName = Path.GetFileName(Upload.FileName);
         try
         {
-            var result = await intakeSubmission.ExecuteAsync(
+            var files = new List<GroupedIntakeFile>(Upload.Length);
+            for (var index = 0; index < Upload.Length; index++)
+            {
+                var file = Upload[index];
+                await using var memory = new MemoryStream((int)file.Length);
+                await file.CopyToAsync(memory, cancellationToken);
+                files.Add(new(
+                    index,
+                    new(
+                        Path.GetFileName(file.FileName),
+                        string.IsNullOrWhiteSpace(file.ContentType)
+                            ? "application/octet-stream"
+                            : file.ContentType,
+                        memory.ToArray(),
+                        timeProvider.GetUtcNow(),
+                        $"staff:{actor.SubjectId}",
+                        new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken))));
+            }
+
+            var result = await groupedSubmission.ExecuteAsync(
                 new(
-                    fileName,
-                    string.IsNullOrWhiteSpace(Upload.ContentType)
-                        ? "application/octet-stream"
-                        : Upload.ContentType,
-                    memory.ToArray(),
-                    timeProvider.GetUtcNow(),
+                    ExternalReceiptToken,
                     $"staff:{actor.SubjectId}",
-                    new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken)),
-                $"manual-upload:{ExternalReceiptToken}",
+                    timeProvider.GetUtcNow(),
+                    files),
                 cancellationToken);
 
+            // A one-member group is the existing single-file upload flow: it
+            // keeps its own status page and replay notice rather than sending
+            // the operator to a group page for a group of one.
+            if (result.Members.Count == 1)
+            {
+                var member = result.Members[0];
+                return RedirectToPage(
+                    "/UploadStatus",
+                    new
+                    {
+                        id = member.StagedReceiptId,
+                        duplicate = member.IsDuplicate ? "true" : null
+                    });
+            }
+
             return RedirectToPage(
-                "/UploadStatus",
-                new
-                {
-                    id = result.StagedReceiptId,
-                    duplicate = result.IsDuplicate ? "true" : null
-                });
+                "/UploadGroupStatus",
+                new { id = result.Group.Id });
         }
         catch (IntakeSourceIdentityConflictException)
         {
@@ -136,7 +171,7 @@ public sealed partial class UploadModel(
             // The operator is told to try again; without this nobody can tell
             // them why, because the only record of the cause was the message
             // itself, which deliberately does not carry one.
-            LogUploadFailed(logger, fileName, exception);
+            LogUploadFailed(logger, Upload.FirstOrDefault()?.FileName ?? "(batch)", exception);
             ModelState.AddModelError(
                 string.Empty,
                 "The file could not be processed. Try again, or contact an administrator if it keeps failing.");
