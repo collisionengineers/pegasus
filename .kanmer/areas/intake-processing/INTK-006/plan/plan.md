@@ -125,3 +125,14 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 - Group routing now aggregates all members and safely associates every member only for one accepted VRM and one eligible existing Case. Detector-empty and recognizer-empty outcomes are recorded with distinct failure codes.
 - The Image-Only Case branch is not fabricated: the existing Case acceptance owner requires a real principal and immutable Case identity. INTK-007/updated governing documents must supply that authorized contract; until then the group remains available for the documented Unidentified path. This is a review/rebase policy seam, not an INTK-005 branch dependency blocker.
 - Release build passed with 0 warnings/errors. Focused Core tests (19) and VRM integration tests (5) passed.
+
+## Clarified product model — 2026-08-19
+
+The operator has clarified that Pegasus has two Case-origin types:
+
+- **Instruction-initiated Case (main/formal):** starts from an accepted official instruction document such as PDF or Word. It uses the existing Principal, Case type, and Case/PO allocation rules. Images may be absent at initial creation; missing images make the Case incomplete/Not ready, not unidentified.
+- **Image-initiated Case (secondary/pre-instruction):** starts from retained vehicle images before formal instructions arrive. It has no Case/PO because Principal/formal instruction may be unknown. It uses an immutable VRM reference with a per-VRM sequence: `AB12ABC-01`, then `AB12ABC-02`, `AB12ABC-03`, with no reuse. It is a separate source-origin record until a later Instruction-initiated Case is matched.
+
+VRM matching is the bridge: when exactly one eligible Instruction-initiated Case matches the group VRM without overlap or contradictory identity, all group images associate to that Case while both origins and history remain attributable. Otherwise the Image-initiated Case remains the single destination for the complete group.
+
+This ticket now includes the governing-document amendment needed to remove the current pre-Case-only conflict. Required reconciliation targets: `docs/operator-notes.md`, `docs/prd/pegasus-product.md`, `docs/frd/frd-01-case-identity-and-lifecycle.md`, `docs/frd/frd-02-intake-and-source-identity.md`, `docs/frd/frd-06-vehicle-and-engineering-evidence.md`, `docs/frd/frd-12-operator-experience.md`, `docs/design/README.md`, `docs/capabilities.md`, `CONTEXT.md`, and any ADR/index wording that must be superseded or relocated. The final docs must define the Image-initiated reference sequence, lifecycle, conversion/association rules, origin/history retention, and its exclusion from Case/PO, Audit, and Unidentified references.

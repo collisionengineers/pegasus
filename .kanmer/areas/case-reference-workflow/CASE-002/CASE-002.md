@@ -1,39 +1,64 @@
 ---
 id: CASE-002
 type: ticket
-title: Allocate and design engineer queries and case notes
+title: Design post-report queries raised to Engineers and separate case notes
 status: backlog
 area: case-reference-workflow
 assignee: ''
 profile: feature
 labels:
   - design
-links: []
+  - future-capability
+  - post-report
+links:
+  - PLAT-001
+  - TICK-105
+  - TICK-208
 docs_todo: true
 archived: false
 created: '2026-08-18T09:39:12.311Z'
-updated: '2026-08-18T09:39:12.311Z'
+updated: '2026-08-19T10:58:00.593Z'
 ---
 
 ## What
 
-Create capability inventory entries and design the engineer-queries workflow and case-notes capability shown as unbound markup in the Case Details screen.
+Allocate and design:
+
+1. the post-report query workflow, where a query is raised **to** the responsible Engineer after a report has been sent; and
+2. case notes as a separate capability.
 
 ## Why
 
-The Claude Design prototypes show an engineer queries panel and case notes on the Case Details screen. [[PLAT-001]] shipped these as inactive unbound markup because neither is allocated in `docs/capabilities.md`. The open-questions doc records: "Engineer queries are not allocated: raising, replying to and resolving a query is its own workflow, not a panel." Case notes are similarly unallocated — the Case tabs stayed Overview / Evidence / History because "the app has no notes capability and renaming the tab would promise one."
+The Collision Engineers operator corrected the prototype interpretation on 2026-08-19: Engineers do not raise queries. Queries arise only after a report has been sent and are directed to the Engineer responsible for that report.
 
-## Approach
+[[PLAT-001]] shipped inactive query and notes markup because neither capability is allocated. The inactive surface must not imply that an Engineer originates a query.
 
-- Add capability IDs for engineer queries (raising, replying, resolving) and case notes to `docs/capabilities.md`.
-- Design the query workflow as its own lifecycle (not a panel): states, actors, response proof, due/chaser interaction, closure.
-- Design case notes as a separate capability with its own FRD.
-- Wire the unbound markup once the capabilities are accepted.
+## Query workflow boundary
+
+- A sent report and its exact immutable version/Sent evidence are prerequisites.
+- An incoming query is raised to the responsible Engineer and linked to the exact case, report version, correspondent/source evidence, and received time.
+- The Engineer receives, responds to, and resolves the query; they do not create the originating query.
+- Define states, assignment/reassignment, query type, due/chaser behavior, response evidence, reply/send evidence, resolution, reopening/follow-up, and correction history.
+- Define intake from retained correspondence and any permitted staff recording route without fabricating an external origin.
+- Preserve the original query, every response, actor/time, and Sent evidence.
+- Expose the same accepted workflow through the user interface and MCP with equivalent authorization, confirmation, attribution, versioning, and recovery.
+
+## Case-notes boundary
+
+Case notes remain a separate capability and lifecycle. Do not merge free-form notes with externally raised post-report queries.
+
+## Current boundary
+
+The inactive interface stores nothing and must not label an Engineer as the query originator until the capability is accepted and wired.
 
 ## Verification
 
-- [ ] Capability IDs exist in `docs/capabilities.md` with allocations and owner FRDs.
-- [ ] The unbound markup carries the capability IDs in Razor comments.
-- [ ] `dotnet build --configuration Release` passes.
+- [ ] Separate capability IDs and canonical behavioral owners exist for post-report queries and case notes.
+- [ ] Query behavior requires an already-sent exact report version and records the external/staff-recorded source.
+- [ ] Tests prove Engineers cannot originate the query but can receive, respond, resolve, and handle an authorized follow-up.
+- [ ] UI and MCP use the same Core workflow and evidence.
+- [ ] MI query measures consume accepted post-report query events only.
 
-## Outcome
+## Decision record
+
+Operator correction, 2026-08-19: queries are raised to Engineers after a report is sent; Engineers do not raise queries.

@@ -65,3 +65,7 @@
 ## Operator resolution — Experian AutoCheck — 2026-08-19
 
 - [x] The vehicle-history control represents a real future capability, not markup to retire. [[ENG-001]] is the backlog owner. It remains inactive until its capability authority, exact supplier/API contract, test evidence, Core behavior, and integration boundary are accepted.
+
+## Operator correction — post-report queries — 2026-08-19
+
+- [x] Engineers do **not** raise queries. Queries are raised **to** the responsible Engineer after a report has been sent. [[CASE-002]] is the backlog owner for that workflow and for keeping case notes separate. Any prototype wording or inactive markup implying Engineer-originated queries must be corrected when the capability is activated.

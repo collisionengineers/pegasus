@@ -1,8 +1,8 @@
 # Checklist — INTK-006
 
 - [x] Create this worktree from the INTK-005 PR branch `intk-005-grouped-upload`; record the branch/base and planned post-review rebase in scratch.
-- [ ] Reconcile operator notes, PRD, FRD-01, FRD-02, FRD-06, FRD-12, design, capabilities, and index in the review/rebase workstream; this branch does not invent protected Case semantics.
-- [ ] Confirm docs explicitly define Image-Only Case reference, principal, lifecycle, and later resolution.
+- [ ] Amend operator notes, PRD, FRD-01, FRD-02, FRD-06, FRD-12, design, capabilities, CONTEXT.md, and any superseded ADR/index wording to canonicalize the two Case-origin types and remove the old pre-Case-only conflict.
+- [ ] Confirm docs explicitly define Image-initiated reference format/sequence (`VRM-01`, `VRM-02`, ...), no Case/PO, lifecycle, association/conversion, and origin/history retention.
 - [ ] Link the updated governing docs and name the exact existing Case creation use case in the plan.
 - [x] Add one canonical Core group-routing policy and exhaustive decision matrix.
 - [x] Distinguish detector-empty, recognizer-empty, below-bar, accepted, and technical recognition outcomes.
@@ -44,3 +44,9 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 - Focused Core tests: 19 passed (group routing, automatic image intake, grouped intake).
 - VRM integration tests: 5 passed.
 - Simplification pass: reuse existing `IImageIntakeCaseCandidates`, `TryRegisterAndAssociateAsync`, and receipt/group ports; no duplicate matcher or direct EF Case write added. The Image-Only Case branch remains intentionally unimplemented until the existing Case owner has an authorized principal/reference contract; this is recorded for INTK-005 review/rebase rather than invented here.
+
+
+## Clarification recorded — 2026-08-19
+
+- [x] Added the two Case-origin model to ticket scope: Instruction-initiated (formal/main, may lack images) and Image-initiated (secondary/pre-instruction, VRM-sequenced reference, no Case/PO).
+- [ ] Reconcile the current authoritative docs, which still describe image-only material as pre-Case only, with this clarified product model before completing the Image-initiated persistence and UI implementation.

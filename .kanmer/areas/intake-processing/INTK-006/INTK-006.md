@@ -24,15 +24,18 @@ links:
   - TICK-011
   - PLAT-006
 refs:
+  - docs/prd/pegasus-product.md
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+  - docs/frd/frd-12-operator-experience.md
 commits:
   - 70d7c89c
 prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T10:49:31.628Z'
+updated: '2026-08-19T10:58:14.166Z'
 ---
 
 ## What
@@ -47,6 +50,16 @@ The Upload/status surface must show which outcome occurred. Production diagnosti
 A damage close-up may contain no registration while another image selected with it does. The group is the evidence unit. The 2026-08-19 production JPEG was retained and both plate-detection and plate-recognition ran, but the partial suggestion was below threshold; Pegasus left it in `Needs sorting` with no Image Intake, association, or Image-Only case.
 
 Today the engine also collapses “no plate detected” and “plate detected but unreadable” into `NoReadableResult`, so production evidence cannot say which recognition layer abstained. Both the third terminal path and the diagnostic ambiguity must be removed.
+
+
+## Product model and documentation scope
+
+Pegasus has two Case-origin types:
+
+1. **Instruction-initiated Case** — the main/formal type. It begins with an official instruction document (PDF, Word, or equivalent accepted instruction), uses the existing Principal and Case/PO identity rules, and may initially have no images.
+2. **Image-initiated Case** — a secondary/pre-instruction type. It begins with retained vehicle images before formal instructions are received. It has no Case/PO because the Principal and formal instruction may be unknown. Its immutable reference is the VRM plus a per-VRM sequence, e.g. `AB12ABC-01`, then `AB12ABC-02`, `AB12ABC-03`, without reuse. It remains distinct from the later Instruction-initiated Case; VRM matching links the two when exactly one eligible instruction Case matches without overlap, preserving both origins and history.
+
+INTK-006 includes the governing-document reconciliation required to make this model canonical and conflict-free. Amend the operator notes, PRD, FRD-01, FRD-02, FRD-06, FRD-12, design glossary/surfaces, capabilities registry, and `CONTEXT.md`; update or supersede any ADR wording that currently states image-led work must remain pre-Case. The docs must state that Instruction-initiated Cases may lack images initially, Image-initiated Cases have no Case/PO, and the VRM-based Image-initiated reference sequence is separate from Case/PO, Audit, and Unidentified references.
 
 ## Verification
 - Fixtures cover groups with one readable VRM plus unreadable damage close-ups, one unique existing-case match, no match, ambiguous/conflicting reads, low-confidence reads, and no-readable results.
