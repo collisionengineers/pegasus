@@ -124,6 +124,21 @@ public sealed partial class UploadModel(
                     files),
                 cancellationToken);
 
+            // A one-member group is the existing single-file upload flow: it
+            // keeps its own status page and replay notice rather than sending
+            // the operator to a group page for a group of one.
+            if (result.Members.Count == 1)
+            {
+                var member = result.Members[0];
+                return RedirectToPage(
+                    "/UploadStatus",
+                    new
+                    {
+                        id = member.StagedReceiptId,
+                        duplicate = member.IsDuplicate ? "true" : null
+                    });
+            }
+
             return RedirectToPage(
                 "/UploadGroupStatus",
                 new { id = result.Group.Id });
