@@ -1,4 +1,3 @@
-using System.Data.Common;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
@@ -492,6 +491,12 @@ public sealed class ProcessQueuedIntake(
                 stagedReceipt.SourceHash,
                 content,
                 cancellationToken);
+            // Mirrors the terminal check below: once this attempt is the last
+            // one the retry schedule allows, a transient reader fault must be
+            // recorded as a terminal technical-failure receipt (and registered
+            // Unidentified) here rather than deferred to a retry that will
+            // never happen.
+            var isFinalAttempt = workItem.AttemptCount >= RetryDelays.Length;
             processed = await processIntake.ExecuteRetainedAsync(
                 new(
                     stagedReceipt.SourceFileName,
@@ -502,6 +507,7 @@ public sealed class ProcessQueuedIntake(
                     stagedReceipt.SourceIdentity),
                 durableStorageKey,
                 workItem.IsReevaluation,
+                isFinalAttempt,
                 cancellationToken);
             evaluation = await workStore.CompleteProcessingAsync(
                 workItem.Id,
@@ -515,7 +521,7 @@ public sealed class ProcessQueuedIntake(
             await FailProcessingAsync(workItem, terminal: true, failureCode, cancellationToken);
             return QueuedIntakeProcessingOutcome.Failed;
         }
-        catch (Exception exception) when (IsTransientProcessingFailure(exception))
+        catch (Exception exception) when (IntakeExceptionPolicy.IsTransientFailure(exception))
         {
             var terminal = workItem.AttemptCount >= RetryDelays.Length;
             await FailProcessingAsync(
@@ -715,22 +721,6 @@ public sealed class ProcessQueuedIntake(
         IntakeSourceIdentityConflictException => "source_identity_conflict",
         _ => null
     };
-
-    /// <summary>
-    /// Faults worth the bounded retry schedule: the named intake conflicts, the
-    /// dependency-unavailable fault adapters translate to, and raw I/O, timeout
-    /// and database faults, including any of those wrapped by another
-    /// exception, which is how EF surfaces a deadlock or dropped connection.
-    /// </summary>
-    private static bool IsTransientProcessingFailure(Exception exception) =>
-        exception is IntakeArtifactRetentionException
-            or IntakeOperationConflictException
-            or IntakeVersionConflictException
-            or IntakeDependencyUnavailableException
-            or IOException
-            or TimeoutException
-            or DbException
-        || (exception.InnerException is { } inner && IsTransientProcessingFailure(inner));
 
     private static string TransientFailureCode(Exception exception) =>
         exception is IntakeArtifactRetentionException
