@@ -82,6 +82,61 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task ChangedProviderItemIdentityDoesNotDuplicateTheSameRfcMessage()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+
+        await RetainAsync(database, Message("provider-item-before-move"));
+        await RetainAsync(database, Message("provider-item-after-move",
+            internetMessageIdentity: "<provider-item-before-move@example.invalid>"));
+
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+    }
+
+    [Fact]
+    public async Task ContradictoryIdentityForAnImmutableItemFailsClosed()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+
+        await RetainAsync(database, Message("provider-item"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => RetainAsync(
+            database,
+            Message("provider-item", internetMessageIdentity: "<different@example.invalid>")));
+    }
+
+    [Fact]
+    public async Task AThreadNeverCrossesMailboxScope()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await SeedPollStateAsync(database, "desk", "desk@collisionengineers.co.uk");
+        await RetainAsync(database, Message("instructions-item", subject: "instructions message"));
+        await RetainAsync(database, Message(
+            "desk-item",
+            subject: "desk message",
+            mailboxId: "desk",
+            mailboxAddress: "desk@collisionengineers.co.uk"));
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var page = await queries.ListAsync(
+            new(MailboxId, MailFolderScope.Inbox),
+            1,
+            25,
+            CancellationToken.None);
+        var detail = Assert.IsType<RetainedMailDetail>(
+            await queries.GetAsync(Assert.Single(page.Items).Id, CancellationToken.None));
+
+        Assert.Single(detail.Thread);
+        Assert.Equal("instructions message", detail.Thread[0].Subject);
+    }
+
+    [Fact]
     public async Task PagingIsStableAndComplete()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -358,18 +413,21 @@ public sealed class RetainedMailPersistenceTests
         string? subject = "An instruction",
         DateTimeOffset? receivedAtUtc = null,
         string? senderAddress = "sender@example.invalid",
-        string? senderDisplayName = "A Sender") => new(
-        MailboxId,
-        MailboxAddress,
+        string? senderDisplayName = "A Sender",
+        string? internetMessageIdentity = null,
+        string mailboxId = MailboxId,
+        string mailboxAddress = MailboxAddress) => new(
+        mailboxId,
+        mailboxAddress,
         immutableMessageId,
-        $"{MailboxId.Length}:{MailboxId}{immutableMessageId}",
+        $"{mailboxId.Length}:{mailboxId}{immutableMessageId}",
         receivedAtUtc ?? ReceivedAtUtc,
         1024,
         new string('A', 64),
         new(
             "inbox",
             "conversation-1",
-            $"<{immutableMessageId}@example.invalid>",
+            internetMessageIdentity ?? $"<{immutableMessageId}@example.invalid>",
             senderAddress,
             senderDisplayName,
             ["intake@collisionengineers.co.uk"],
@@ -395,13 +453,16 @@ public sealed class RetainedMailPersistenceTests
     /// on the way past; a test that writes retained rows directly has to make it
     /// itself, which is the foreign key doing its job.
     /// </summary>
-    private static async Task SeedPollStateAsync(LocalDbTestDatabase database)
+    private static async Task SeedPollStateAsync(
+        LocalDbTestDatabase database,
+        string mailboxId = MailboxId,
+        string mailboxAddress = MailboxAddress)
     {
         await using var context = await database.CreateContextAsync();
         context.ApprovedInboxPollStates.Add(new()
         {
-            MailboxId = MailboxId,
-            MailboxAddress = MailboxAddress,
+            MailboxId = mailboxId,
+            MailboxAddress = mailboxAddress,
             DueAtUtc = ReceivedAtUtc,
             LastCompletedAtUtc = ReceivedAtUtc
         });

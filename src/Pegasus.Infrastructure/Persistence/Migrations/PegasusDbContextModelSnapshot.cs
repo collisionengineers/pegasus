@@ -4400,6 +4400,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("MailboxId", "ImmutableMessageId")
                         .IsUnique();
 
+                    b.HasIndex("MailboxId", "InternetMessageIdentity")
+                        .IsUnique()
+                        .HasFilter("[InternetMessageIdentity] IS NOT NULL");
+
                     b.HasIndex("ReceivedAtUtc", "Id")
                         .IsDescending(true, false);
 
