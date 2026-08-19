@@ -10,3 +10,14 @@
 - 2026-08-19: Reconciled Outcome to DOCS-002/ADR-0028 and recorded SIMPLI-014/PLAT-007 ownership. Confirmed the three governing refs remain attached and the future detached-host question remains explicitly parked.
 
 - 2026-08-19: Verified merged `dev` at `4d1bff3d`; ADR-0028 originated at `169bcd5b`; all relative Markdown links resolved across 224 files; ADR Decision/index confirmed Web selection and unchanged Worker; `origin/dev...HEAD` has no file diff. Recorded PIR and traceability. No PR was opened because the approved execution is Kanmer-only and creating an empty/duplicate repository change would add no reviewable implementation.
+
+## Closeout — TICK-215
+
+- [x] Associated delivery PR #413 merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised with PR URL and merge date
+- [x] Moved to final stage
+- [x] Outcome and traceability recorded
+- [ ] Return to main checkout and remove zero-diff ticket worktree
+- [ ] Delete local and remote zero-diff ticket branch
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`

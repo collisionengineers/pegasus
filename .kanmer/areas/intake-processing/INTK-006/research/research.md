@@ -34,3 +34,22 @@ Azure inventory, active revision health, Function discovery, Application Insight
 ## Assumptions
 
 The correlated manual JPEG is the user-reported upload because it is the only recent manual upload and matches the reported media type. No filename, content, actor identity, or other PII was read.
+
+## Operator clarification and exact VRM trace — 2026-08-19
+
+The operator confirmed the binding outcome is exhaustive: (1) associate to the one unambiguous case when a VRM match exists, or (2) create an Image-Only case. `Needs sorting` without either case outcome is not an accepted terminal path for an uploaded vehicle image.
+
+A second read-only production query traced the correlated JPEG through the image tables:
+
+- `ImageVrmSuggestions` contains exactly one row, proving Pegasus ran recognition.
+- Engine: `fast-alpr-onnx`, version `1`.
+- Outcome: `suggested`.
+- Suggested value: `61644`.
+- Confidence: `0.160449`, below the `0.80` automatic-action bar.
+- Failure code: none; disposition remains `pending`.
+- `ImageIntakes`: zero rows for the receipt.
+- `IntakeManualAssociations`: zero rows for the receipt.
+
+This corrects the earlier implication that policy-consistent `Needs sorting` was the intended final result. It is consistent with the current implementation, but not with the operator-confirmed product requirement. The root defect is in the outcome policy/caller: `ImageIntakeAutomation.ApplyAsync` returns the unchanged receipt whenever it does not obtain exactly one distinct suggestion at or above 0.80, so the fallback Image-Only case is never created. Status wording is a secondary manifestation.
+
+The linked FRD-06 currently describes threshold-gated registration and association, while the clarified requirement makes Image-Only case creation mandatory below/without the bar. The governing behaviour must be reconciled before implementation; do not silently reinterpret `ImageIntake` registration as an allocated Image-Only case.

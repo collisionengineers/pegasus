@@ -39,3 +39,17 @@
 - Creating a case from an unowned/unidentified image.
 - Changing recognition engine/model/threshold or claiming production INT-17 recognition from this evidence.
 - Adding Web OpenTelemetry, repairing Sent-evidence polling, deploying, or changing cloud state.
+
+## Corrected primary change surface — 2026-08-19
+
+The exact trace promotes these from context to primary implementation surfaces:
+
+| Path/module | Required investigation/change |
+|---|---|
+| `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Replace the below-bar/no-readable third path with the operator-required Image-Only case fallback while preserving unique-match association. |
+| `src/Pegasus.Core/ImageIntake/ImageIntakeCasePairing.cs` | Confirm overlap/unique-match rules are shared rather than reimplemented. |
+| Existing Core case-creation port/use case | Reuse the sole Case allocation owner for Image-Only creation; do not create a parallel case writer. |
+| `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` | Determine whether an Image Intake record must precede both association and Image-Only case creation, and preserve immutable receipt/reference identity. |
+| `tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs` plus persistence/web tests | Add low-confidence, no-readable, ambiguous, unique-match, and fallback-case regression coverage. |
+
+FRD-06 and the appropriate Case/Reference governing document need behaviour reconciliation before planning because current threshold-gated semantics do not state the exhaustive two-outcome rule.
