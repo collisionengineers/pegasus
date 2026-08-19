@@ -13,3 +13,13 @@
 
 - 2026-08-19: Initial stress render exposed Scriban's 1 MiB truncation; [[PR-009]] was filed as a structured blocker.
 - 2026-08-19: PR-009 merged at `4f67a83e`; after merging current `origin/dev`, the same stress case passed as part of the 6/6 focused real-Chromium renderer suite.
+
+## Closeout checklist — 2026-08-19
+
+- [x] Confirm proof is final on merged `dev`.
+- [x] Confirm PR #421 is merged.
+- [x] Record merge commit, PR and deployment status.
+- [x] Remove ticket worktree.
+- [x] Delete local and remote ticket branches.
+- [x] Prune worktree/remote references.
+- [x] Release ticket claim.
