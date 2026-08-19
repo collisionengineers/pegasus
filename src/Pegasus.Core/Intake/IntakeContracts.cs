@@ -635,6 +635,11 @@ public interface IIntakeReceiptStore
 
 public interface IIntakeReceiptQueries
 {
+    Task<IntakeReceipt?> FindBySourceIdentityAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IntakeReceipt?>(null);
+
     Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken);
 
     /// <summary>
