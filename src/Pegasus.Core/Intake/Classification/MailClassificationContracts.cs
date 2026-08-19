@@ -40,16 +40,18 @@ public static class MailTaxonomy
         new Dictionary<ReceivedMailFamily, ImmutableArray<string>>
         {
             [ReceivedMailFamily.General] =
-                ["autoreply", "undeliverable", "general-chase", "case-summary"],
+                ["autoreply", "undeliverable", "acknowledgement", "general-chase", "case-summary"],
             [ReceivedMailFamily.Billing] =
-                ["billing-query", "general-billing"],
+                ["payment-notification", "remittance", "invoice-request", "billing-query", "general-billing"],
             [ReceivedMailFamily.NewInstructionReceived] =
                 ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
             [ReceivedMailFamily.NonClientRelated] = [],
             [ReceivedMailFamily.InProgressCases] =
-                ["cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update"],
-            [ReceivedMailFamily.PostReportEmails] = [],
-            [ReceivedMailFamily.PreInstructionEmails] = [],
+                ["cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update", "ongoing-correspondence"],
+            [ReceivedMailFamily.PostReportEmails] =
+                ["query", "dispute", "amendment-request"],
+            [ReceivedMailFamily.PreInstructionEmails] =
+                ["triage-request", "pre-formal-instruction-request", "images-received"],
             [ReceivedMailFamily.InternalCc] = []
         }.ToImmutableDictionary();
 
