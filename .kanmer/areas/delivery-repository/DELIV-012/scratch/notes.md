@@ -64,3 +64,22 @@ The TICK-045 lane reported that `MailOperationalDestinationPolicy` has no produc
 - **TICK-211** → `deployment: n/a` (a zero-diff decision record).
 - **PLAT-006, TICK-033, TICK-043, TICK-044, TICK-046** → `deployment: not-deployed`, recording the state positively instead of by an empty field. All five merged after release 10 and ship with release 12.
 - **TICK-011** still to correct: its proof cites `ae6f0c2d` and `f7d99b18` as ancestors of the deployed commit, but both are unreachable from any ref — I confirmed the reachable delivery commits are `ef3eb4c7` and `ba65c1ed`, both ancestors of `origin/main`. Its `deployment: not-deployed` is also wrong: the ImageIntake source, migration, Web pages and tests are all in the deployed release-10 tree; what the ticket means is "no live caller", which is an activation fact, not a deployment one.
+
+### Migration grants + CI guard + docs drift — lane returned, one NEW live defect found
+
+Branch `task/deliv-012-grant-and-docs-fixes`, head `98c8b041`.
+
+- **TICK-093 blocker fixed.** `GRANT SELECT, INSERT, UPDATE` + `DENY DELETE` on `CaseRepairSpecifications` to `pegasus_web_runtime_role`, added to `20260819112640_VersionedRepairSpecifications.cs` `Up()` with the same provider guard as `20260819104953`. Permissions justified per operation from `EfCaseAssessmentStore` (SELECT via `AnyAsync`, INSERT via `Add`) and `EfRepairSpecificationStore` (SELECT/INSERT/UPDATE, never `Remove`). No worker grant — the Worker reaches neither store; only `Pages/Cases/Assessment/Index.cshtml.cs` and `Mcp/AssessmentMcpTools.cs` do. Designer and snapshot untouched.
+- **New CI guard** `scripts/Test-MigrationGrants.ps1`, wired into the `changes` job. It parses `CreateTable(name: "X")` out of each `Up()` and fails unless the file grants `X` or carries an explicit opt-out marker; it also recognises the older interpolated-helper grant style so it does not raise false positives. Self-tested against a synthetic ungranted table (failed as designed) and the real tree (passes, 48 files). 65 tables across 16 pre-least-privilege migrations were exempted — each confirmed present in `20260729199000_RuntimeRoleReconciliation.cs`'s own grant arrays, so they are covered elsewhere rather than ungranted.
+- **NEW LIVE PRODUCTION DEFECT — `EvaHandoffDownloadOperations`.** The guard caught a table created by `20260811122654_CaseCustodyEvaRecovery.cs` with no grant anywhere in the tree. **I verified it against the production database directly** (read-only, `sys.database_permissions` joined to `sys.database_principals`):
+
+  | Table | Web role | Worker role |
+  |---|---|---|
+  | `EvaHandoffOperations` | GRANT SELECT, GRANT INSERT, DENY DELETE | DENY DELETE |
+  | `EvaHandoffRevisions` | GRANT SELECT, GRANT INSERT, DENY DELETE | DENY DELETE |
+  | **`EvaHandoffDownloadOperations`** | **no permission rows at all** | **none** |
+
+  The table exists in production, the migration is applied (head is later, `20260814094632`), and `EvaHandoffStore.cs:194` reads it while `:272` inserts into it, reached from `Pages/Cases/Vehicle.cshtml.cs`. So the EVA hand-off download path fails with a SQL permission error **in the currently deployed release 10** — this is not a release-12 risk, it is already broken. A follow-up migration is being added on the same branch to fix it in this release; because the original migration is applied, it cannot be edited in place.
+- **Docs drift corrected.** `current-architecture.md:85` now states the `/Inbox/{id}` POST handler and the real Web grants; line ~423 was checked and is about a different table pair, so it was correctly left alone. `operations.md:278` "min 0 max 1 — cold start accepted" → "min 1 max 1 — no scale-to-zero, no cold start", verified against `infra/modules/platform.bicep:461-462`.
+- The agent caught its own bug in self-review: a Python marker-insertion script had stripped the UTF-8 BOM from 16 migration files; restored before commit, so the diffs are comment-only.
+- Evidence: Release build 0/0; `Test-MigrationGrants`, `Test-DocumentationLinks`, `Test-CiChangeFlags` pass; Core 640/640; Architecture 97/97; `IntakePersistenceIntegrationTests` **9/9 against LocalDB**, exercising the full migration chain including the new GRANT.
