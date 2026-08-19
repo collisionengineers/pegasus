@@ -130,7 +130,7 @@
             if (!file) {
                 readout.hidden = true;
                 readout.replaceChildren();
-                browse.textContent = browse.getAttribute('data-label-choose');
+                browse.textContent = 'Choose file';
                 return;
             }
 
@@ -151,10 +151,11 @@
             small.textContent = size;
             readout.replaceChildren(glyph, name, small);
             readout.hidden = false;
-            browse.textContent = browse.getAttribute('data-label-change');
+            browse.textContent = 'Choose a different file';
         };
 
         zone.classList.add('is-enhanced');
+        input.classList.add('sr-only');
         browse.hidden = false;
         browse.addEventListener('click', function () { input.click(); });
         input.addEventListener('change', describe);
