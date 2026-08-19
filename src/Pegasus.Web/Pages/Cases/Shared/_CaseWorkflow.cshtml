@@ -580,7 +580,7 @@ else if (Model.ProposedValues.Count > 0)
         {
             <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="GenerateEvaHandoff" class="form-grid">
                 <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <p class="field-wide">The handoff includes every eligible custody-confirmed vehicle image in deterministic order; EVA owns selection and ordering from there.</p>
+                <p class="field-wide">The hand-off includes every eligible confirmed vehicle image, in a fixed order; EVA owns selection from there.</p>
                 <label class="field-wide">Reason<input name="reason" required maxlength="300" /></label><button type="submit" class="primary-action">Generate deterministic EVA handoff</button>
             </form>
         }
