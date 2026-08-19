@@ -222,6 +222,16 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
         }
     }
+    # 20260819112914_ImageInitiatedLifecycle: the Image-initiated Case
+    # lifecycle event log is append-only. Web is the only caller (the
+    # ImageIntake lifecycle transitions run only from Web-served requests in
+    # this slice; the Worker never touches ImageIntakeLifecycleEvents), so
+    # only pegasus_web_runtime_role is granted, mirroring the migration's
+    # GRANT SELECT, INSERT / DENY UPDATE, DELETE exactly.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|ImageIntakeLifecycleEvents')
+    $expected.Add('pegasus_web_runtime_role|G|INSERT|ImageIntakeLifecycleEvents')
+    $expected.Add('pegasus_web_runtime_role|D|UPDATE|ImageIntakeLifecycleEvents')
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|ImageIntakeLifecycleEvents')
     return @($expected | Sort-Object -Unique)
 }
 

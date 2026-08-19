@@ -402,6 +402,11 @@ public sealed class AutomaticImageIntakeTests
                 CaseCandidates,
                 MutationStore,
                 ReceiptQueries,
+                new ImageIntakeCasePairing(
+                    ImageIntakeQueries,
+                    CaseCandidates,
+                    MutationStore,
+                    TimeProvider.System),
                 TimeProvider.System);
         }
 
@@ -835,6 +840,11 @@ public sealed class AutomaticImageIntakeTests
                 CaseCandidates,
                 MutationStore,
                 ReceiptQueries,
+                new ImageIntakeCasePairing(
+                    ImageIntakeQueries,
+                    CaseCandidates,
+                    MutationStore,
+                    TimeProvider.System),
                 TimeProvider.System,
                 GroupStore);
         }
