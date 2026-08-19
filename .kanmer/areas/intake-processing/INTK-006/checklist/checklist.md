@@ -11,15 +11,15 @@
 - [ ] Add a unique persisted group routing outcome and replay/concurrency handling.
 - [x] Reuse `ImageIntakeCasePairing` as the single eligible-case matcher.
 - [ ] Implement the one-existing-Case branch and attach every group member.
-- [ ] Implement the Image-Only branch through the documented existing Case owner.
+- [ ] Implement the Image-initiated branch through the documented existing Case owner.
 - [ ] Preserve every receipt, original filename, source identity, ordinal, suggestion, and history entry.
-- [ ] Add status/history presentation for waiting, associated, Image-Only created, and technical failure.
+- [ ] Add status/history presentation for waiting, associated, Image-initiated created, and technical failure.
 - [ ] Test accepted VRM + one match associates all images.
 - [x] Test readable overview + no-plate close-up associates both.
-- [ ] Test zero match creates one Image-Only Case.
-- [ ] Test multiple matches create one Image-Only Case and no existing association.
-- [ ] Test conflicting VRMs create one Image-Only Case and no existing association.
-- [ ] Test all no-readable/below-bar results create one Image-Only Case.
+- [ ] Test zero match creates one Image-initiated Case.
+- [ ] Test multiple matches create one Image-initiated Case and no existing association.
+- [ ] Test conflicting VRMs create one Image-initiated Case and no existing association.
+- [ ] Test all no-readable/below-bar results create one Image-initiated Case.
 - [ ] Test processing/retryable member prevents premature finalization.
 - [ ] Test technical terminal failure follows documented failure/Unidentified semantics.
 - [ ] Test replay, reverse completion order, and concurrent finalizers produce exactly one outcome.
@@ -43,7 +43,7 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 - `dotnet build Pegasus.slnx --configuration Release --no-restore`: passed with 0 warnings and 0 errors.
 - Focused Core tests: 19 passed (group routing, automatic image intake, grouped intake).
 - VRM integration tests: 5 passed.
-- Simplification pass: reuse existing `IImageIntakeCaseCandidates`, `TryRegisterAndAssociateAsync`, and receipt/group ports; no duplicate matcher or direct EF Case write added. The Image-Only Case branch remains intentionally unimplemented until the existing Case owner has an authorized principal/reference contract; this is recorded for INTK-005 review/rebase rather than invented here.
+- Simplification pass: reuse existing `IImageIntakeCaseCandidates`, `TryRegisterAndAssociateAsync`, and receipt/group ports; no duplicate matcher or direct EF Case write added. The Image-initiated Case branch remains intentionally unimplemented until the existing Case owner has an authorized principal/reference contract; this is recorded for INTK-005 review/rebase rather than invented here.
 
 
 ## Clarification recorded — 2026-08-19

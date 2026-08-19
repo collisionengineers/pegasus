@@ -69,3 +69,7 @@
 ## Operator correction — post-report queries — 2026-08-19
 
 - [x] Engineers do **not** raise queries. Queries are raised **to** the responsible Engineer after a report has been sent. [[CASE-002]] is the backlog owner for that workflow and for keeping case notes separate. Any prototype wording or inactive markup implying Engineer-originated queries must be corrected when the capability is activated.
+
+## Operator resolution — case notes — 2026-08-19
+
+- [x] Case notes are a real future capability. [[CASE-004]] owns their separate behavior and activation; [[CASE-002]] now owns post-report queries only. The inactive notes surface remains non-persistent until CASE-004 is accepted.

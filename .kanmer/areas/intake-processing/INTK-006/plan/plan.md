@@ -2,7 +2,7 @@
 
 ## Approach
 
-Using the durable membership contract from the [[INTK-005]] PR branch, make the group—not an individual image—the routing unit. Wait until every image member has terminal recognition evidence, aggregate accepted VRMs, reuse one exact eligible-case matcher, and commit one idempotent outcome: associate all members to one existing Case or create one documented Image-Only Case and attach all members.
+Using the durable membership contract from the [[INTK-005]] PR branch, make the group—not an individual image—the routing unit. Wait until every image member has terminal recognition evidence, aggregate accepted VRMs, reuse one exact eligible-case matcher, and commit one idempotent outcome: associate all members to one existing Case or create one documented Image-initiated Case and attach all members.
 
 ## Governing docs
 
@@ -63,16 +63,16 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
    - Associate every member with the selected Case and record group-level reason/history.
    - Test that a readable overview plus an unreadable damage close-up both appear on the same Case.
 
-7. **Implement the Image-Only Case branch through the sole Case owner.**
+7. **Implement the Image-initiated Case branch through the sole Case owner.**
    - Extend the exact Case acceptance/allocation use case named after governing-doc reconciliation; do not call EF directly.
    - Pass the persisted group id and all immutable origins so replay identity is the group, not one arbitrary member.
    - Populate only fields authorized by the updated FRD. Do not invent principal, registration, instruction, claimant, or Case type defaults.
    - Create exactly one Case, then attach/register every member in ordinal order and persist the one group outcome.
    - Use the documented reference/lifecycle semantics exactly. If the docs require a nonstandard reference, add it through the existing sequence owner rather than reusing Image Intake/U/Audit sequences.
-   - Test zero-VRM, low-confidence, conflicting-VRM, no-match, and multi-match groups all create one—not N—Image-Only Case.
+   - Test zero-VRM, low-confidence, conflicting-VRM, no-match, and multi-match groups all create one—not N—Image-initiated Case.
 
 8. **Expose honest status and history.**
-   - Extend the INTK-005 group status view to show Waiting for all images, Associated with Case <reference>, Created Image-Only Case <reference>, or named technical failure.
+   - Extend the INTK-005 group status view to show Waiting for all images, Associated with Case <reference>, Created Image-initiated Case <reference>, or named technical failure.
    - Link to the existing Case details route and show every original filename/origin.
    - Add one presentation mapping in `OperatorLabels.cs`; do not emit raw enum/snake_case values.
    - Ensure receipt detail and history identify the shared group outcome without implying a low-confidence VRM was accepted.
@@ -80,10 +80,10 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
 9. **Run the complete routing matrix.**
    - One image, accepted VRM, one eligible Case → associate.
    - Overview accepted VRM + close-up no plate, one eligible Case → associate both.
-   - Accepted VRM, zero eligible Cases → one Image-Only Case.
-   - Accepted VRM, two eligible Cases → one Image-Only Case, no existing association.
-   - Two distinct accepted VRMs → one Image-Only Case, no existing association.
-   - All no-plate/unreadable/below-bar → one Image-Only Case.
+   - Accepted VRM, zero eligible Cases → one Image-initiated Case.
+   - Accepted VRM, two eligible Cases → one Image-initiated Case, no existing association.
+   - Two distinct accepted VRMs → one Image-initiated Case, no existing association.
+   - All no-plate/unreadable/below-bar → one Image-initiated Case.
    - One member retryable/processing → no final outcome yet.
    - Technical terminal failure → documented failure/Unidentified path after INTK-007 semantics, never silent Case creation.
    - Replay, reverse completion order, and two concurrent finalizers → same one outcome/Case.
@@ -98,7 +98,7 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
 ## Verification
 
 - Durable evidence proves both recognition layers' distinguishable outcomes without sensitive logs.
-- Every completed vehicle-image group reaches exactly one association-or-Image-Only Case outcome.
+- Every completed vehicle-image group reaches exactly one association-or-Image-initiated Case outcome.
 - No group is split, no fallback Case is duplicated, and low-confidence/conflicting text never attaches to an existing Case.
 - Original filenames, receipts, identities, order, suggestions, and history remain attributable.
 - The implementation uses INTK-005 group identity and the existing Case/Image Intake owners.
@@ -123,7 +123,7 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 - Implemented from INTK-005 PR branch SHA `ed04f498`; the dependency is intentionally branch-based and not a merge blocker. Rebase onto the reviewed INTK-005 result before final merge.
 - Reused the existing `IIntakeReceiptQueries`, `IIntakeSubmissionGroupStore`, `IImageIntakeCaseCandidates`, `TryRegisterAndAssociateAsync`, and image-intake suggestion store. No duplicate candidate matcher, generic workflow abstraction, or direct EF Case mutation was introduced.
 - Group routing now aggregates all members and safely associates every member only for one accepted VRM and one eligible existing Case. Detector-empty and recognizer-empty outcomes are recorded with distinct failure codes.
-- The Image-Only Case branch is not fabricated: the existing Case acceptance owner requires a real principal and immutable Case identity. INTK-007/updated governing documents must supply that authorized contract; until then the group remains available for the documented Unidentified path. This is a review/rebase policy seam, not an INTK-005 branch dependency blocker.
+- The Image-initiated Case branch is not fabricated: the existing Case acceptance owner requires a real principal and immutable Case identity. INTK-007/updated governing documents must supply that authorized contract; until then the group remains available for the documented Unidentified path. This is a review/rebase policy seam, not an INTK-005 branch dependency blocker.
 - Release build passed with 0 warnings/errors. Focused Core tests (19) and VRM integration tests (5) passed.
 
 ## Clarified product model — 2026-08-19

@@ -17,6 +17,8 @@ labels:
   - design
 links:
   - ENG-001
+  - CASE-002
+  - CASE-004
 refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
@@ -37,7 +39,7 @@ prs:
   - '397'
 archived: false
 created: '2026-08-17T12:29:59.429Z'
-updated: '2026-08-19T10:55:02.719Z'
+updated: '2026-08-19T10:59:28.451Z'
 ---
 
 ## What

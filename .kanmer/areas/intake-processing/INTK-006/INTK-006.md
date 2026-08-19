@@ -1,7 +1,7 @@
 ---
 id: INTK-006
 type: ticket
-title: Associate each vehicle-image group or create one Image-Only case
+title: Associate each vehicle-image group or create one Image-initiated Case
 status: implementing
 area: intake-processing
 assignee: Codex
@@ -35,19 +35,19 @@ prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T10:58:14.166Z'
+updated: '2026-08-19T10:59:54.519Z'
 ---
 
 ## What
 Fix grouped vehicle-image processing so every accepted image group reaches one of the two operator-required outcomes:
 
 1. If the group yields one unambiguous confident VRM and exactly one eligible case matches without overlap, associate every image in the group to that case.
-2. Otherwise create one Image-Only case containing the whole image group.
+2. Otherwise create one Image-initiated Case containing the whole image group.
 
 The Upload/status surface must show which outcome occurred. Production diagnostics must also distinguish the two recognition layers without recording image content.
 
 ## Why
-A damage close-up may contain no registration while another image selected with it does. The group is the evidence unit. The 2026-08-19 production JPEG was retained and both plate-detection and plate-recognition ran, but the partial suggestion was below threshold; Pegasus left it in `Needs sorting` with no Image Intake, association, or Image-Only case.
+A damage close-up may contain no registration while another image selected with it does. The group is the evidence unit. The 2026-08-19 production JPEG was retained and both plate-detection and plate-recognition ran, but the partial suggestion was below threshold; Pegasus left it in `Needs sorting` with no Image Intake, association, or Image-initiated Case.
 
 Today the engine also collapses “no plate detected” and “plate detected but unreadable” into `NoReadableResult`, so production evidence cannot say which recognition layer abstained. Both the third terminal path and the diagnostic ambiguity must be removed.
 
@@ -64,8 +64,8 @@ INTK-006 includes the governing-document reconciliation required to make this mo
 ## Verification
 - Fixtures cover groups with one readable VRM plus unreadable damage close-ups, one unique existing-case match, no match, ambiguous/conflicting reads, low-confidence reads, and no-readable results.
 - One confident, unambiguous group VRM with one eligible case match associates every group image to that case.
-- Every other accepted group creates one Image-Only case containing every group image.
-- Conflicting evidence fails closed against existing cases and is kept together in the Image-Only case.
+- Every other accepted group creates one Image-initiated Case containing every group image.
+- Conflicting evidence fails closed against existing cases and is kept together in the Image-initiated Case.
 - No group member terminates as an unrelated generic `Needs sorting` item.
 - The status/result surface identifies the resulting existing or newly created case for the whole group.
 - Non-sensitive diagnostics distinguish at least: detector found no plate; detector found a crop but recognition returned no usable registration; usable suggestion produced; technical failure.
