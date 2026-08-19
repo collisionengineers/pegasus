@@ -169,7 +169,7 @@
 {
     <section class="panel form-panel section-gap" aria-labelledby="register-image-intake-title">
         <h2 id="register-image-intake-title" class="section-label">Register Image intake</h2>
-        <p>Image-only material with a usable normalised registration becomes a pre-Case Image intake with a permanent reference; it never becomes a Case by itself.</p>
+        <p>Image-only material with a usable registration becomes an Image-initiated Case with a permanent reference; it never becomes a formal Case by itself.</p>
         <form method="post" asp-page-handler="RegisterImageIntake" asp-route-id="@Model.Receipt.Id">
             <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
             <label for="register-vrm">Vehicle registration</label>
