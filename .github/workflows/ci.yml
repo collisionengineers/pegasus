@@ -55,6 +55,18 @@ jobs:
       - name: Test SQL shard assignment
         shell: pwsh
         run: ./scripts/Test-TestShard.ps1
+      - name: Migration runtime-grant check
+        shell: pwsh
+        run: ./scripts/Test-MigrationGrants.ps1
+      # The release route runs Test-AzureDeploymentPlan, but CI never did, so a
+      # merge could leave the route's own preflight failing and nobody found out
+      # until a release was attempted. That is exactly what happened before
+      # release 12: a grant-carrying migration merged without its database
+      # bootstrap census entry and -Mode Local failed on dev. Local mode needs
+      # no cloud credentials - only `az bicep build` - so it belongs here.
+      - name: Azure deployment plan (Local)
+        shell: pwsh
+        run: ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
 
   documentation:
     # The one lane every change set runs, including change sets that touch no
