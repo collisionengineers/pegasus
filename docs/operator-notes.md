@@ -81,6 +81,19 @@ Collision Engineers prepares sufficiently evidenced work to be passed to an Engi
 
 An image-only arrival may be described operationally as an “image-initiated case” and may be logged in the holding process. Technically, its immutable source occurrence and evidence remain pre-case and distinct from any accepted editable Case while the provider, instruction type, or case association is ambiguous. Images alone must not create a definitive association. They may be linked automatically only on a definitive match, or linked manually by staff. A mistaken link or merge is reasonedly reversible while both original intake origins and every prior association remain attributable.
 
+## Image-initiated Case clarification — 2026-08-19
+
+The image-first record is a secondary Image-initiated Case projection, not a
+formal Instruction-initiated Case. When the vision/VRM system identifies one
+usable registration it receives the immutable VRM-sequenced Image Intake
+Reference (for example AB12ABC-01), is searchable, and is retained under that
+reference. It has no Case/PO. A later unique non-overlapping match merges it
+into the Instruction-initiated Case and records history on both records; staff
+may permanently close it with a reason when instructions never arrive.
+
+Conflicting valid VRMs are not a readable Image-initiated Case outcome. The
+whole group enters Unidentified with the explicit conflicting_vrms marker.
+
 A required image set should ideally show:
 
 - the sustained vehicle damage; and

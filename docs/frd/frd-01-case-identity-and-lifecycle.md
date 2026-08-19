@@ -55,6 +55,13 @@ Every closure selects exactly one named terminal outcome, records the authentica
 
 Every Image-intake association, reversal, or correction records the same attributable relationship evidence without closing or creating a Case. The Case, Case/PO, Image Intake Reference, source relationships, and chronology remain intact.
 
+An Image-initiated Case is a separate image-first lifecycle projection over the
+ImageIntake record. It never allocates a Principal, Case/PO, or formal Case row.
+Its immutable VRM reference remains visible when the record is merged into one
+eligible Instruction-initiated Case. Merge and staff closure are named,
+reasoned history events; the formal Case history shows the merged reference and
+the original image record shows its formal Case target.
+
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
 When a Case passes its staff-review gate, it becomes visible in the Engineers

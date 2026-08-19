@@ -164,4 +164,10 @@ This deliberately favours a reviewable abstention or qualified range over a plau
 - **Preserved seam:** raw observations, normalized units, model/rule version, estimate/range, calibration evidence, and staff disposition remain distinct source-labelled identities.
 - **Excluded:** this creates no provider adapter, scheduled lookup, cohort dataset, automatic external call, or unreviewed Case mutation.
 - **Activation evidence:** representative chronological holdouts, contract and failure/recovery proof, a real caller, and operator acceptance are required.
+
+The accepted VRM reading bar may create an Image-initiated Case reference before
+formal instructions arrive. A readable sibling keeps a registration-free damage
+close-up in the same group. No-readable or conflicting valid VRMs do not receive
+a fabricated image reference; they enter the grouped Unidentified contract with
+the applicable reason, including conflicting_vrms.
 - **Irreversible choice:** the estimate may be derived only by this conservative algorithm; unsafe evidence yields abstention or a qualified range rather than an invented mileage value.

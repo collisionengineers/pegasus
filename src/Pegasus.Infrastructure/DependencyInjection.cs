@@ -343,6 +343,11 @@ public static class DependencyInjection
             services.AddSingleton<ICaseCustody, UnavailableCaseCustody>();
         }
 
+        services.AddSingleton<IImageIntakeCustody>(provider =>
+            provider.GetRequiredService<ICaseCustody>() as IImageIntakeCustody
+            ?? throw new InvalidOperationException(
+                "The configured custody adapter must implement Image-initiated custody."));
+
         services.AddScoped<IProcessQueuedCustody, EfQueuedCustodyProcessor>();
 
         if (composesDocumentSurface)

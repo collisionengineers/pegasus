@@ -23,6 +23,24 @@ public sealed record CaseCustodyRoot(
     string RemoteId,
     string Reference);
 
+public sealed record ImageIntakeCustodyRoot(
+    Guid ImageIntakeId,
+    string RemoteId,
+    string ImageIntakeReference);
+
+/// <summary>
+/// Image-initiated custody reuses the configured adapter but is distinct from
+/// a formal Case root and never allocates a Case/PO.
+/// </summary>
+public interface IImageIntakeCustody
+{
+    Task<ImageIntakeCustodyRoot> CreateOrGetRootAsync(
+        Guid imageIntakeId,
+        string imageIntakeReference,
+        string operationKey,
+        CancellationToken cancellationToken);
+}
+
 public sealed record IntakeSourceCustodyReference(
     Guid IntakeReceiptId,
     string SourceFileName,

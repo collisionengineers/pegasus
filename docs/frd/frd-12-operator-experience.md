@@ -49,5 +49,11 @@ The UI never infers state from colour alone, never uses decorative glyphs as
 unlabeled controls, and never presents draft, queued, attempted, allocated, or
 configured work as completed, delivered, deployed, or accepted.
 
+Image-initiated Cases are searchable using their VRM reference or registration
+and use the named states Awaiting instruction, Merged into Instruction-initiated
+Case, and Staff-closed. Details show preserved filenames/group evidence, custody,
+and chronological merge/closure history. Staff closure is a reasoned action and
+terminal records are read-only; it is not a generic Close control.
+
 The durable interaction, visual, component, and source/runtime rules are owned
 by [design](../design/README.md).
