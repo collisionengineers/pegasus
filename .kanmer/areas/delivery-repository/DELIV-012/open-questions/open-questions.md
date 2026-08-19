@@ -77,3 +77,49 @@ Every question below was put to the operator with the question tool on
   `intake-work` held by the Web identity, and the inert azd variable
   `BOX_ROOT_FOLDER_ID=392761581105`. Deferred: neither is a functional
   dependency and removing a live role assignment is an unrelated write.
+
+## Resolved — second round (2026-08-19, during execution)
+
+- [x] **Q7 — How should the report renderer reach a usable state, given that
+  repair costs have no source of truth?** The report-draft entry point was
+  built and is reachable, but `AssessmentReportSnapshot.Validate()` requires
+  labour hours, an hourly rate, parts, paint materials and specialist/other,
+  and I verified none of those is persisted: `rates.card` and `rates.class` are
+  free-text assessment fields, `HourlyRate` exists only inside the report
+  contract (`AssessmentReportRendering.cs:88`) and nowhere in persistence, and
+  EXT-09 — which owns estimate formulas — is scheduled Later/1.0.0 with the note
+  *"formulas and permissions require accepted authority"*. Fabricating figures
+  was refused: they would be wrong money in an engineering report.
+
+  **Answer (verbatim): "these are imported through other means generally ie
+  external estimating systems: auxatex, glasses etc. Or an AI performs an
+  estimate and sends via MCP connector. We also need to be able to drag+drop an
+  estimate in"**
+
+  Resolution: repair costs are **imported, not typed**. Three routes are named —
+  external estimating systems (Audatex, Glass's), an AI estimate delivered
+  through the MCP connector, and drag-and-drop of an estimate file. None of the
+  three exists yet. This is new operator truth and a new capability; it is
+  captured as its own ticket rather than improvised inside the release.
+
+  Consequence for release 12: the entry point ships **reachable and honest** —
+  it lists "Repair cost figures" among the outstanding readiness items and stays
+  disabled for a live case until an estimate is imported. The renderer is no
+  longer dark (it has a production caller), and no invented figures ship. Worth
+  noting for whoever picks up the import work: `EstimateLineInput` /
+  `CaseEstimateLineRecord` already carry `Type`, `WorkUnits` and `Price`
+  (`AssessmentContracts.cs:164-196`), so an imported estimate has somewhere real
+  to land; what is missing is the import path and the accepted derivation from
+  those lines to the report's cost buckets, which is EXT-09's authority to
+  settle, not this release's.
+
+- [x] **Q8 — Web container sizing for in-process Chromium.** The renderer runs
+  inside the Web Container App, currently 0.5 vCPU / 1 GiB with a single
+  always-warm replica (min = max = 1); Azure Container Apps hard-OOM-kills
+  rather than throttling, so a render could take the site down. ACR capacity was
+  checked and is not a constraint (1.3 GB used of 10 GB).
+  **Answer: "Raise to 1.0 vCPU / 2 GiB."** Approved, roughly $16 → $32 per
+  month. This edits `infra/modules/platform.bicep`, so it changes what
+  `azd provision --preview` should show; the preview is reviewed against exactly
+  two expected changes (the new digest-pinned Web revision and this sizing
+  change) before `azd provision` runs, and anything else stops the release.
