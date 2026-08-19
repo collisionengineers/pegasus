@@ -141,5 +141,5 @@ public sealed class SubmitGroupedIntake(
     }
 
     private static string ChildToken(string submissionToken, int ordinal) =>
-        $"{submissionToken}:{ordinal}";
+        ordinal == 0 ? submissionToken : $"{submissionToken}:{ordinal}";
 }
