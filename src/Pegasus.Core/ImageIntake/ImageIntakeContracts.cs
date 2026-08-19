@@ -20,7 +20,20 @@ public sealed record ImageIntakeRecord(
     Guid Id,
     ImageIntakeOrigin Origin,
     string NormalizedVehicleRegistration,
-    string ImageIntakeReference);
+    string ImageIntakeReference,
+    ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
+    Guid? MergedIntoCaseId = null,
+    string? MergedIntoCaseReference = null,
+    string? ClosureReason = null,
+    DateTimeOffset? ClosedAtUtc = null,
+    long LifecycleVersion = 0);
+
+public enum ImageInitiatedCaseState
+{
+    AwaitingInstruction,
+    MergedIntoInstructionCase,
+    StaffClosed
+}
 
 /// <summary>
 /// Formats the registration-based identity `{normalised VRM}-{sequence}` with a
@@ -79,13 +92,70 @@ public sealed record ImageIntakeSummary(
     string NormalizedVehicleRegistration,
     Guid? AssociatedCaseId,
     string? AssociatedCaseReference,
-    DateTimeOffset RegisteredAtUtc);
+    DateTimeOffset RegisteredAtUtc,
+    ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
+    string? ClosureReason = null);
 
+public sealed record ImageIntakeLifecycleEvent(
+    Guid Id,
+    Guid ImageIntakeId,
+    string EventType,
+    ActionActor Actor,
+    DateTimeOffset OccurredAtUtc,
+    string Reason,
+    string OperationKey,
+    long BeforeVersion,
+    long AfterVersion,
+    Guid? CaseId = null,
+    string? CaseReference = null);
+
+/// <summary>
+/// The record plus the context that is not part of it: when it was registered
+/// and the origin receipt's current Case association. The Image-initiated
+/// lifecycle is not restated here — <see cref="Record"/> is its one owner and
+/// these forward to it, so the two can never disagree. Lifecycle history is a
+/// separate read (<see cref="IImageIntakeStore.ListHistoryAsync"/>): only the
+/// Image-initiated Case page renders it.
+/// </summary>
 public sealed record ImageIntakeDetail(
     ImageIntakeRecord Record,
     DateTimeOffset RegisteredAtUtc,
     Guid? AssociatedCaseId,
-    string? AssociatedCaseReference);
+    string? AssociatedCaseReference)
+{
+    public ImageInitiatedCaseState State => Record.State;
+
+    public Guid? MergedIntoCaseId => Record.MergedIntoCaseId;
+
+    public string? MergedIntoCaseReference => Record.MergedIntoCaseReference;
+
+    public string? ClosureReason => Record.ClosureReason;
+
+    public DateTimeOffset? ClosedAtUtc => Record.ClosedAtUtc;
+
+    public long LifecycleVersion => Record.LifecycleVersion;
+}
+
+/// <summary>
+/// The formal Case reference is deliberately not carried on this request: the
+/// store resolves it from the persisted Case by <see cref="CaseId"/> inside the
+/// same transaction, so a caller can never record a stale or mistyped
+/// reference on the merge event or on the Image intake row.
+/// </summary>
+public sealed record MergeImageInitiatedCaseRequest(
+    Guid ImageIntakeId,
+    Guid CaseId,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    long ExpectedVersion);
+
+public sealed record CloseImageInitiatedCaseRequest(
+    Guid ImageIntakeId,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    long ExpectedVersion);
 
 public interface IImageIntakeQueries
 {
@@ -129,8 +199,10 @@ public sealed record ImageIntakeOperationReplay(ImageIntakeRecord Result);
 /// per-VRM Image Intake Reference atomically (a reference is never reused),
 /// verifies the origin against the persisted receipt and evaluation revision,
 /// and moves the receipt's decision to `ImageIntakeRegistered` in the same
-/// transaction. An `ImageIntakes` row is immutable after creation; case
-/// association lives exclusively on the origin receipt.
+/// transaction. Registration identity is immutable after creation — only the
+/// Image-initiated lifecycle columns change, and only through
+/// <see cref="MergeAsync"/>/<see cref="CloseAsync"/>; case association lives
+/// exclusively on the origin receipt.
 /// </summary>
 public interface IImageIntakeStore : IImageIntakeQueries
 {
@@ -152,6 +224,21 @@ public interface IImageIntakeStore : IImageIntakeQueries
     Task EnsureRegisteredReceiptDecisionAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
+
+    Task<ImageIntakeRecord> MergeAsync(
+        MergeImageInitiatedCaseRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-initiated lifecycle is not available."));
+
+    Task<ImageIntakeRecord> CloseAsync(
+        CloseImageInitiatedCaseRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-initiated lifecycle is not available."));
+
+    Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
+        Guid imageIntakeId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ImageIntakeLifecycleEvent>>([]);
 }
 
 /// <summary>

@@ -79,7 +79,42 @@ An intake may begin in either of two ways:
 
 Collision Engineers prepares sufficiently evidenced work to be passed to an Engineer.
 
-An image-only arrival may be described operationally as an “image-initiated case” and may be logged in the holding process. Technically, its immutable source occurrence and evidence remain pre-case and distinct from any accepted editable Case while the provider, instruction type, or case association is ambiguous. Images alone must not create a definitive association. They may be linked automatically only on a definitive match, or linked manually by staff. A mistaken link or merge is reasonedly reversible while both original intake origins and every prior association remain attributable.
+An image-only arrival is an Image-initiated Case projection and may be logged in the holding process. Its immutable source occurrence, evidence, and VRM reference remain distinct from any formal Instruction-initiated Case while instructions or case association are pending. Images alone do not create a formal Case/PO association. They may be linked automatically only on a definitive match, or linked manually by staff. A mistaken link or merge is reasonedly reversible while both original intake origins and every prior association remain attributable.
+
+## Image-initiated Case clarification — 2026-08-19
+
+The image-first record is a secondary Image-initiated Case projection, not a
+formal Instruction-initiated Case. When the vision/VRM system identifies one
+usable registration it receives the immutable VRM-sequenced Image Intake
+Reference (for example AB12ABC-01), is searchable, and is retained under that
+reference. It has no Case/PO. A later unique non-overlapping match merges it
+into the Instruction-initiated Case and records history on both records; staff
+may permanently close it with a reason when instructions never arrive.
+
+Conflicting valid VRMs are not a readable Image-initiated Case outcome. The
+whole group enters Unidentified with the explicit conflicting_vrms marker.
+
+### Two branches for a readable registration — operator ruling, 2026-08-19
+
+A readable vehicle registration on received images settles into exactly one of
+two outcomes, never a third:
+
+- If the registration **matches an existing Case** (by VRM), the images are
+  attached to that Case as evidence — they do not create a separate
+  Image-initiated Case.
+- If the registration **matches no existing Case**, that creates an
+  Image-initiated Case under its own VRM-sequenced reference, as described
+  above.
+
+Operator, verbatim: “It could be either an image initiated case, OR it could
+be images being received for an existing case. ie if we get images, with a
+registration that doesnt match any existing case, then that creates an image
+initiated case. If they match an existing case (by VRM), then get get
+attached as evidence to that case.” This is the same fork already described
+above (register, then either await, merge, or staff-close) restated as the
+two settled outcomes for a readable registration; it does not change the
+existing sentence that automatic linking requires a definitive match and
+manual linking remains a staff action.
 
 A required image set should ideally show:
 

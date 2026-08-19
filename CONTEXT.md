@@ -5,7 +5,7 @@ Pegasus is Collision Engineers’ case-management and reporting domain. This glo
 ## Language
 
 **Case**:
-A permanent record of Collision Engineers work created only after the accepted Principal, Case type, and identity-critical gates are settled. An instructed Case has a Case/PO; a pre-Case Image intake is not a Case.
+A permanent record of Collision Engineers work. An Instruction-initiated Case is the formal record created after Principal, Case type, and identity-critical gates settle; an Image-initiated Case is a separate image-first projection with no Case/PO.
 _Avoid_: Job
 
 **Principal**:
@@ -17,7 +17,7 @@ Collision Engineers’ immutable internal reference, allocated from the accepted
 _Avoid_: Claim number, external reference
 
 **Image intake**:
-A durable pre-Case record for image-only material with a usable normalised VRM. It carries an Image Intake Reference, may associate its evidence with one eligible instructed Case, and otherwise awaits definitive instruction; VRM alone never promotes it to a Case.
+A durable Image-initiated Case projection for image-only material with a usable normalised VRM. It carries an Image Intake Reference, may merge into one eligible instructed Case, and otherwise awaits definitive instruction or is staff-closed with a reason; it never becomes a formal Case/PO.
 _Avoid_: Image Case, temporary Case
 
 **Image Intake Reference**:

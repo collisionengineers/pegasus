@@ -22,6 +22,31 @@ internal sealed class ImageIntakeEntity
     public required string Reason { get; set; }
     public required string CreationOperationKey { get; set; }
     public required string RequestFingerprint { get; set; }
+    public required string LifecycleState { get; set; }
+    public long LifecycleVersion { get; set; }
+    public Guid? MergedIntoCaseId { get; set; }
+    public string? MergedIntoCaseReference { get; set; }
+    public string? ClosureReason { get; set; }
+    public DateTimeOffset? ClosedAtUtc { get; set; }
+}
+
+internal sealed class ImageIntakeLifecycleEventEntity
+{
+    public Guid Id { get; set; }
+    public Guid ImageIntakeId { get; set; }
+    public ImageIntakeEntity ImageIntake { get; set; } = null!;
+    public required string EventType { get; set; }
+    public required string ActorKind { get; set; }
+    public required string ActorSubjectId { get; set; }
+    public required string ActorRolesJson { get; set; }
+    public required string Reason { get; set; }
+    public required string OperationKey { get; set; }
+    public required string RequestFingerprint { get; set; }
+    public DateTimeOffset OccurredAtUtc { get; set; }
+    public long BeforeVersion { get; set; }
+    public long AfterVersion { get; set; }
+    public Guid? CaseId { get; set; }
+    public string? CaseReference { get; set; }
 }
 
 /// <summary>
