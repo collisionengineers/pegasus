@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,16 +9,21 @@ using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Reports;
 
 namespace Pegasus.Web.Pages.Cases.Assessment;
 
 /// <summary>
 /// The Send to AI wiring for the assessment surface (AI-09; see ADR-0021 /
 /// FRD-11: docs/adr/0021-automation-actor-direct-write-assessment-contract.md,
-/// docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md). This model binds
-/// the case identity header, the Send to Claude panel, and the PAV slider's
-/// recorded-evidence data; the section forms themselves stay unbound design
-/// markup until the UI-15 activation task wires the staff save paths.
+/// docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md), plus
+/// the DELIV-012 report-draft entry point. This model binds the case
+/// identity header, the Send to Claude panel, the report-draft panel, and
+/// the PAV slider's recorded-evidence data; the section forms themselves
+/// stay unbound design markup until the UI-15 activation task wires the
+/// staff save paths. The report draft reads already-saved assessment values
+/// through the same store as the rest of this page — it does not depend on
+/// those unbound forms.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -27,6 +33,7 @@ public sealed class IndexModel(
     IGetCaseAssessment getAssessment,
     IAiWorkRequestStore workRequests,
     ISendToAiControl sendToAiControl,
+    GenerateCaseAssessmentReportDraft generateReportDraft,
     TimeProvider timeProvider) : PageModel
 {
     public CaseDetails? Case { get; private set; }
@@ -46,6 +53,14 @@ public sealed class IndexModel(
 
     public string ReconcileOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>
+    /// The DELIV-012 report-draft entry point's readiness: ready to render,
+    /// or every named reason it is not (case unrecognized when null).
+    /// </summary>
+    public AssessmentReportDraftPreparation? ReportDraftPreparation { get; private set; }
+
+    public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
+
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -63,8 +78,61 @@ public sealed class IndexModel(
 
         Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
         LatestRequest = await workRequests.GetLatestForCaseAsync(id, cancellationToken);
+        ReportDraftPreparation = await generateReportDraft.PrepareAsync(id, actor, cancellationToken);
         await EvaluatePanelStateAsync(cancellationToken);
         return Page();
+    }
+
+    /// <summary>
+    /// Renders and returns the report draft PDF (DELIV-012). Readiness is
+    /// decided by <see cref="AssessmentReportProjection"/>, the same
+    /// readiness rail rendered on this page; a case that is not ready
+    /// returns to the page with every outstanding reason named rather than
+    /// throwing.
+    /// </summary>
+    public async Task<IActionResult> OnPostGenerateReportDraftAsync(
+        Guid id,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToPage(new { id });
+        }
+
+        GenerateCaseAssessmentReportDraftResult result;
+        try
+        {
+            result = await generateReportDraft.ExecuteAsync(id, actor, cancellationToken);
+        }
+        catch (Exception exception) when (exception is ReportRenderRejectedException
+            or InvalidOperationException
+            or IOException
+            or TimeoutException)
+        {
+            TempData["AssessmentError"] = "The report draft could not be generated. Retry the operation.";
+            return RedirectToPage(new { id });
+        }
+
+        switch (result.Outcome)
+        {
+            case GenerateCaseAssessmentReportDraftOutcome.NotFound:
+                return NotFound();
+            case GenerateCaseAssessmentReportDraftOutcome.NotReady:
+                TempData["AssessmentError"] =
+                    "The report draft is not ready. " + string.Join(
+                        " ",
+                        result.Reasons.Select(reason => $"{reason.Requirement}: {reason.WhyOutstanding}"));
+                return RedirectToPage(new { id });
+            default:
+                var assessmentPdf = result.Draft!.Assessment;
+                return File(assessmentPdf.Pdf, "application/pdf", assessmentPdf.SuggestedFileName);
+        }
     }
 
     public async Task<IActionResult> OnPostSendAsync(
