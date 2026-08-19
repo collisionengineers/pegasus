@@ -152,3 +152,34 @@ that `Test-MigrationGrants.ps1` lands via that branch's own PR #426, which
 will merge before this one; recheck `-Mode Local` after merging `dev` post
 `#426` — it should then name nothing, and if it names this branch's own
 migration at that point, that is a real regression to fix.
+
+### code-simplifier agent pass — result (2026-08-19)
+
+Item 7 above referenced this pending; it has landed. 11 findings applied, all
+behaviour-preserving, all folded into commit `b264a36a` ("INTK-008 apply the
+code-simplifier pass over this branch's diff") — see that commit message for
+the itemised list, or the plan document's dated Simplification pass section
+for the same list. Highlights: `ImageIntakeDetail` stopped re-declaring six
+fields `ImageIntakeRecord` already carried; a duplicate private
+`ListHistoryAsync` was deleted; the terminal-state rule moved from the EF
+store to `ImageIntakeLifecycleRules.RequireTransitionable` in Core;
+`ImageIntakeCasePairing` now takes one required `IImageIntakeStore` instead
+of a second optional-with-silent-disable one (the exact smell CLAUDE.md
+names); and `OperatorLabels.ImageIntakeLifecycleStateContinuation` fixed a
+real bug the takeover's own `Details.cshtml` edit had introduced (a plain
+`.ToLowerInvariant()` silently mangling "Instruction-initiated Case"'s
+capitalisation).
+
+Not applied (design changes, not cleanup): a SQL-level state filter for the
+Awaiting-instruction scan (already dispositioned above as accepted at
+current scale), projecting `SyncMergeAfterLinkAsync`'s existence check
+instead of a full detail load, and unifying `DbUpdateConcurrencyException`
+vs `IntakeVersionConflictException` across stores (already genuinely split
+by convention).
+
+Re-verified after applying: `dotnet build Pegasus.slnx -c Release` — 0
+warnings/errors. `dotnet test tests/Pegasus.Core.Tests -c Release` —
+644/644. `dotnet test tests/Pegasus.IntegrationTests -c Release --filter
+"FullyQualifiedName~ImageIntake|FullyQualifiedName~IntakePersistenceIntegrationTests|FullyQualifiedName~QdosAllocationRecoveryTests"`
+— 33/33. `dotnet test tests/Pegasus.ArchitectureTests -c Release` — 97/97.
+Pushed as `b264a36a`.
