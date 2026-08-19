@@ -29,11 +29,12 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 commits:
   - 7af3f834
+  - 702148f2
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/411'
 archived: false
 created: '2026-08-12T15:03:53.669Z'
-updated: '2026-08-19T08:36:43.063Z'
+updated: '2026-08-19T08:44:09.682Z'
 ---
 
 ## What

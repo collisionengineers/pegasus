@@ -1,1 +1,3 @@
 Opened PR https://github.com/collisionengineers/pegasus/pull/411 targeting dev. Release build: 0 warnings/errors. Full Core suite: 615 passed. Focused taxonomy/destination/QDOS suite: 78 passed. No external mailbox/cloud writes performed.
+
+Addressed blocking review ticket MAIL-001 in commit 702148f2. Corrected model: every classified result carries exact MailCategory; known non-workflow categories map to DetailedClassification, reasoned novel categories alone map to Other, and Ambiguous/Unclassified remain NeedsSorting with no category. Release build 0 warnings/errors; full Core 616/616; focused 78/78. Pushed to PR #411; awaiting independent re-review.
