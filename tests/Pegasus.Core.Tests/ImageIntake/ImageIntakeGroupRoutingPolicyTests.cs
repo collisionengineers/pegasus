@@ -20,7 +20,7 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
     }
 
     [Fact]
-    public void ConflictingReadsChooseOneImageOnlyOutcome()
+    public void ConflictingReadsRouteToUnidentifiedWithSpecificReason()
     {
         var result = ImageIntakeGroupRoutingPolicy.Evaluate(
         [
@@ -30,8 +30,8 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
         expectedMemberCount: 2,
         eligibleCaseCount: 1);
 
-        Assert.Equal(ImageIntakeGroupRoutingDecision.CreateImageOnlyCase, result.Decision);
-        Assert.Equal("group_conflicting_accepted_vrms", result.ReasonCode);
+        Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
+        Assert.Equal("conflicting_vrms", result.ReasonCode);
     }
 
     [Fact]
@@ -43,6 +43,22 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
             eligibleCaseCount: 1);
 
         Assert.Equal(ImageIntakeGroupRoutingDecision.WaitingForMembers, result.Decision);
+    }
+
+    [Fact]
+    public void OneUsableVrmWithoutUniqueCaseHandsOffToImageIntake()
+    {
+        var result = ImageIntakeGroupRoutingPolicy.Evaluate(
+        [
+            Member(VrmRecognitionOutcomeKind.Suggested, "AC04", 0.95),
+            Member(VrmRecognitionOutcomeKind.NoReadableResult, null, null)
+        ],
+        expectedMemberCount: 2,
+        eligibleCaseCount: 0);
+
+        Assert.Equal(ImageIntakeGroupRoutingDecision.HandOffToImageIntake, result.Decision);
+        Assert.Equal("AC04", result.NormalizedRegistration);
+        Assert.Equal("group_vrm_no_eligible_case", result.ReasonCode);
     }
 
     private static ImageIntakeGroupMemberRecognition Member(

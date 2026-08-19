@@ -183,13 +183,15 @@ public sealed class ImageIntakeAutomation(
         activity?.SetTag("image_intake.group_id", group.Id);
         activity?.SetTag("image_intake.group_outcome", routing.Decision.ToString());
         activity?.SetTag("image_intake.group_reason", routing.ReasonCode);
-        if (routing.Decision != ImageIntakeGroupRoutingDecision.AssociateExistingCase
+        if (routing.Decision is ImageIntakeGroupRoutingDecision.RouteToUnidentified
+            or ImageIntakeGroupRoutingDecision.TechnicalFailure
+            or ImageIntakeGroupRoutingDecision.WaitingForMembers
+            or ImageIntakeGroupRoutingDecision.WaitingForRecognition
             || routing.NormalizedRegistration is null)
         {
-            // The existing Case owner deliberately requires a principal and a
-            // normal acceptance request. Until governing docs define the
-            // Image-Only Case identity, do not fabricate one here; the group
-            // remains available for the documented Unidentified fallback.
+            // No accepted VRM is available for ImageIntake registration. Keep
+            // the intact group available for Unidentified, including the
+            // explicit conflicting_vrms outcome.
             return receipt;
         }
 
