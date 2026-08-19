@@ -172,10 +172,19 @@
         zone.addEventListener('drop', function (event) {
             event.preventDefault();
             zone.classList.remove('is-dragover');
-            if (event.dataTransfer && event.dataTransfer.files.length > 0) {
-                input.files = event.dataTransfer.files;
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+            var dropped = event.dataTransfer ? event.dataTransfer.files : null;
+            if (!dropped || dropped.length === 0) {
+                return;
             }
+            // One file per upload: a multi-file drop keeps the first, so what
+            // the readout names is exactly what the form will send.
+            if (dropped.length > 1 && !input.multiple) {
+                var single = new DataTransfer();
+                single.items.add(dropped[0]);
+                dropped = single.files;
+            }
+            input.files = dropped;
+            input.dispatchEvent(new Event('change', { bubbles: true }));
         });
 
         describe();
