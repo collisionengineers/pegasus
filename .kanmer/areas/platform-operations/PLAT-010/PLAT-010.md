@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Strip UI narration estate-wide to the design rule: one H1, no ledes,
   one-sentence consequence guidance
-status: preparing
+status: implementing
 area: platform-operations
 assignee: claude-code
 profile: fix
+stageEntered:
+  implementing: '2026-08-19T23:45:41.132Z'
 taken_at: '2026-08-19T23:01:15.166Z'
 branch: task/plat-010-copy-strip
 worktree: ../pegasus-worktrees/plat-010-copy-strip
@@ -24,7 +26,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-19T23:00:23.570Z'
-updated: '2026-08-19T23:01:15.166Z'
+updated: '2026-08-19T23:45:41.132Z'
 ---
 
 ## What
