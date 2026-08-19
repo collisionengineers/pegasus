@@ -258,3 +258,16 @@ Operator authorisations received via the question tool:
 | E7 | Prod head `20260814094632` (8 pending); duplicate canonical Message-IDs 0; `CaseEstimateLines` 0; `IntakeReceipts` 12 |
 | E4 | main-push `repository-check` run `32309456172` — watching |
 | E8 | `oras cp` to `pegasusprodacr252ow37gij` — running |
+
+### Release execution continued
+
+| Step | Result |
+|---|---|
+| E4 | main-push `repository-check` run `32309456172` — completed (see next readback) |
+| E8 | `oras cp` succeeded; ACR digest readback `sha256:6dcf3ca1…` — **matches the manifest exactly** |
+| E9a | PreMigration pass |
+| E9b | `efbundle` applied all 8 migrations; transcript saved to `artifacts/releases/0.1.0-alpha.1/migration-transcript.txt`. Two false starts, both environmental and instructive: (1) `azd env get-value` for a key that does not exist (`AZURE_WEB_CLIENT_ID`) returns the CLI's update-notice text, which then failed Guid validation — the real key is `WEB_IDENTITY_CLIENT_ID`; values were pinned literally after reading `azd env get-values`. (2) The runbook's "shape-only placeholder" for `Box__ConfigJson` must actually be shape-valid Box JWT JSON (`boxAppSettings.{clientID,clientSecret,appAuth.{publicKeyID,privateKey,passphrase}}` + `enterpriseID`) — a bare `{"placeholder":true}` fails host construction. Worth adding the exact placeholder to the runbook in the docs refresh. |
+| E9c | Readback: head `20260819180000_GrantEvaHandoffDownloadOperations`, all 8 new ids present. **Both grant fixes verified live in production**: `CaseRepairSpecifications` = Web SELECT/INSERT/UPDATE + DENY DELETE; `EvaHandoffDownloadOperations` = Web SELECT/INSERT + DENY DELETE, Worker DENY DELETE — the previously zero-permission table is fixed. |
+| E10 | `Invoke-AzureDatabaseBootstrap` — **Verified 496 catalogued permission/denial rows and 332 effective runtime DML rows.** Exit 0. |
+| E12 | env set (digest / suffix `ed3be51c95bc` / activations); PreProvision pass ("Worker Disabled settings render 'false'" = enabled estate). `azd provision --preview` diffed against **release 10's own preview**: byte-identical property changes except `revisionSuffix d8de29cb94f3 → ed3be51c95bc`. The cpu/memory raise is inside the `* properties.template.containers` entry both previews carry; every other Modify line is the standing what-if normalization noise release 10 also showed. Stop condition satisfied with evidence, not judgement. |
+| E13 | `azd provision` running |
