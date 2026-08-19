@@ -28,3 +28,18 @@ Branch `task/plat-006-shell-upload`, worktree `../pegasus-worktrees/plat-006-she
 ## Simplification pass
 
 _(recorded before the PR opens)_
+
+### Simplification pass — 2026-08-19
+
+Lenses: reuse, simplification, efficiency, altitude — run by the `code-simplifier` agent over `git show HEAD` on the branch, then applied by hand.
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| 1 | `.dropzone.is-enhanced input[type=file]` restated `.sr-only` declaration for declaration | **Applied** — block deleted; `site.js` adds `sr-only` to the input when it enhances the zone |
+| 2 | `.dropzone__glyph .icon` sizing duplicated `.icon--lg` | **Applied** — rule deleted; both svgs carry `icon--lg` |
+| 3 | `upload-aside` class had no rule | **Applied** — removed |
+| 4 | `.has-file` restated the base border colour, and being declared after `.is-dragover` at equal specificity it hid the drag feedback once a file was already chosen | **Applied** — redundant declaration dropped and `.is-dragover` moved last (a defect in this branch's own diff, so fixed here rather than ticketed) |
+| 5 | Inner `.form-column` wrapper existed only to be neutralised by `.upload-layout .form-column` | **Applied** — wrapper and override removed; the grid track bounds the panel |
+| 6 | Four `data-label-*` attributes carrying two identical literals on two pages; the existing label-swap precedent (`data-copy-target`) hardcodes the swapped string in JS | **Applied** — literals moved into `site.js` |
+
+Not findings (confirmed correct): `role="status"`/`aria-live` readout, `hidden` attribute for the script-only button, native input as the no-script control.
