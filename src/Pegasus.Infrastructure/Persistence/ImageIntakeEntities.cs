@@ -41,6 +41,7 @@ internal sealed class ImageIntakeLifecycleEventEntity
     public required string ActorRolesJson { get; set; }
     public required string Reason { get; set; }
     public required string OperationKey { get; set; }
+    public required string RequestFingerprint { get; set; }
     public DateTimeOffset OccurredAtUtc { get; set; }
     public long BeforeVersion { get; set; }
     public long AfterVersion { get; set; }

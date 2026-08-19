@@ -543,6 +543,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.ActorRolesJson).HasMaxLength(1000).IsRequired();
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.CaseReference).HasMaxLength(50);
             entity.HasIndex(item => item.OperationKey).IsUnique();
             entity.HasIndex(item => new { item.ImageIntakeId, item.OccurredAtUtc });
