@@ -8,25 +8,6 @@ public sealed class RepairSpecificationPolicyTests
     private static readonly ActionActor Engineer =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
 
-    [Theory]
-    [InlineData(RepairSpecificationPurpose.OrdinaryAssessment, RepairSpecificationRole.Ordinary)]
-    [InlineData(RepairSpecificationPurpose.Audit, RepairSpecificationRole.Conservative)]
-    [InlineData(RepairSpecificationPurpose.Audit, RepairSpecificationRole.Maximised)]
-    public void OnlyApprovedPurposeRolePairsAreAccepted(
-        RepairSpecificationPurpose purpose,
-        RepairSpecificationRole role) =>
-        RepairSpecificationPolicy.ValidatePurposeAndRole(purpose, role);
-
-    [Theory]
-    [InlineData(RepairSpecificationPurpose.OrdinaryAssessment, RepairSpecificationRole.Conservative)]
-    [InlineData(RepairSpecificationPurpose.OrdinaryAssessment, RepairSpecificationRole.Maximised)]
-    [InlineData(RepairSpecificationPurpose.Audit, RepairSpecificationRole.Ordinary)]
-    public void AmbiguousPurposeRolePairsFailClosed(
-        RepairSpecificationPurpose purpose,
-        RepairSpecificationRole role) =>
-        Assert.Throws<InvalidOperationException>(() =>
-            RepairSpecificationPolicy.ValidatePurposeAndRole(purpose, role));
-
     [Fact]
     public void LegacySourceCannotBeAccepted()
     {
@@ -89,29 +70,8 @@ public sealed class RepairSpecificationPolicyTests
         Assert.Equal(["Paint repaired area", "Geometry check"], lists.AdditionalOperations);
     }
 
-    [Fact]
-    public void AcceptanceAllowsTheTwoAuditRolesButNeverAliasesThem()
-    {
-        var conservative = Draft() with
-        {
-            Purpose = RepairSpecificationPurpose.Audit,
-            Role = RepairSpecificationRole.Conservative,
-        };
-        var maximised = conservative with
-        {
-            SpecificationId = Guid.NewGuid(),
-            Role = RepairSpecificationRole.Maximised,
-        };
-        RepairSpecificationPolicy.ValidateAcceptance(conservative, Engineer);
-        RepairSpecificationPolicy.ValidateAcceptance(maximised, Engineer);
-        Assert.NotEqual(conservative.SpecificationId, maximised.SpecificationId);
-        Assert.NotEqual(conservative.Role, maximised.Role);
-    }
-
     private static RepairSpecificationVersion Draft() => new(
         Guid.NewGuid(), Guid.NewGuid(), 1,
-        RepairSpecificationPurpose.OrdinaryAssessment,
-        RepairSpecificationRole.Ordinary,
         RepairSpecificationState.Draft,
         new(RepairSpecificationSourceRoute.Manual, "case://estimate/1", "v1", new string('a', 64)),
         [Line("new_part", 1)],

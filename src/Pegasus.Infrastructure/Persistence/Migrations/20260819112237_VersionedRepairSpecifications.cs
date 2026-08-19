@@ -28,8 +28,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Version = table.Column<int>(type: "int", nullable: false),
-                    Purpose = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
-                    Role = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     State = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     SourceRoute = table.Column<string>(type: "nvarchar(30)", maxLength: 30, nullable: false),
                     SourceArtifactReference = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
@@ -55,8 +53,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 {
                     table.PrimaryKey("PK_CaseRepairSpecifications", x => x.Id);
                     table.CheckConstraint("CK_CaseRepairSpecifications_Acceptance", "([State] IN ('Accepted', 'Superseded') AND [AcceptedBy] IS NOT NULL AND [AcceptedAtUtc] IS NOT NULL) OR ([State] = 'Draft' AND [AcceptedBy] IS NULL AND [AcceptedAtUtc] IS NULL)");
-                    table.CheckConstraint("CK_CaseRepairSpecifications_Purpose", "[Purpose] IN ('OrdinaryAssessment', 'Audit')");
-                    table.CheckConstraint("CK_CaseRepairSpecifications_Role", "[Role] IN ('Ordinary', 'Conservative', 'Maximised')");
                     table.CheckConstraint("CK_CaseRepairSpecifications_SourceRoute", "[SourceRoute] IN ('LegacyUnresolved', 'Manual', 'Glasses', 'AudatexPdf', 'ApprovedAiProposal')");
                     table.CheckConstraint("CK_CaseRepairSpecifications_State", "[State] IN ('Draft', 'Accepted', 'Superseded')");
                     table.CheckConstraint("CK_CaseRepairSpecifications_Version", "[Version] > 0");
@@ -73,10 +69,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             migrationBuilder.Sql(
                 """
                 INSERT INTO [CaseRepairSpecifications]
-                    ([Id], [CaseId], [Version], [Purpose], [Role], [State], [SourceRoute],
+                    ([Id], [CaseId], [Version], [State], [SourceRoute],
                      [CreatedBy], [CreationOperationKey], [CreatedAtUtc])
-                SELECT NEWID(), lines.[CaseId], 1, 'OrdinaryAssessment', 'Ordinary', 'Draft',
-                       'LegacyUnresolved', 'legacy-migration',
+                SELECT NEWID(), lines.[CaseId], 1, 'Draft', 'LegacyUnresolved',
+                       'legacy-migration',
                        CONCAT('legacy-migration:', CONVERT(nvarchar(36), lines.[CaseId])),
                        SYSUTCDATETIME()
                 FROM [CaseEstimateLines] AS lines
@@ -87,8 +83,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 FROM [CaseEstimateLines] AS lines
                 INNER JOIN [CaseRepairSpecifications] AS specifications
                     ON specifications.[CaseId] = lines.[CaseId]
-                    AND specifications.[Purpose] = 'OrdinaryAssessment'
-                    AND specifications.[Role] = 'Ordinary'
                     AND specifications.[Version] = 1;
                 """);
 
@@ -105,22 +99,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 filter: "[RepairSpecificationId] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
+                name: "IX_CaseRepairSpecifications_CaseId",
+                table: "CaseRepairSpecifications",
+                column: "CaseId",
+                unique: true,
+                filter: "[State] = 'Accepted'");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_CaseRepairSpecifications_CaseId_CreationOperationKey",
                 table: "CaseRepairSpecifications",
                 columns: new[] { "CaseId", "CreationOperationKey" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_CaseRepairSpecifications_CaseId_Purpose_Role",
+                name: "IX_CaseRepairSpecifications_CaseId_Version",
                 table: "CaseRepairSpecifications",
-                columns: new[] { "CaseId", "Purpose", "Role" },
-                unique: true,
-                filter: "[State] = 'Accepted'");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CaseRepairSpecifications_CaseId_Purpose_Role_Version",
-                table: "CaseRepairSpecifications",
-                columns: new[] { "CaseId", "Purpose", "Role", "Version" },
+                columns: new[] { "CaseId", "Version" },
                 unique: true);
 
             migrationBuilder.AddForeignKey(

@@ -155,13 +155,10 @@ advice, Engineer approval, or product policy merely by existing.
 ### Canonical repair specifications
 
 Every accepted repair specification is an immutable, versioned Core aggregate.
-An ordinary assessment has exactly one current accepted `ordinary` version.
-An Audit deliberately has two independently accepted current versions,
-`conservative` and `maximised`; neither overwrites, aliases, or silently
-replaces the other. The Audit pair is a data contract only until its separately
-approved template and presentation capability activate.
+Each Case has exactly one current accepted canonical version, shared by the
+Inspection and Audit report paths.
 
-Each version retains its stable identity, purpose and role, ordered technical
+Each version retains its stable identity, ordered technical
 lines, source route, source artifact identity/version/hash, mapping evidence,
 raw calculation basis and totals, creating actor/time, and—when accepted—the
 named Engineer and acceptance time. Glass's, Audatex PDF, an approved AI
@@ -173,12 +170,11 @@ report readiness.
 
 Corrections create a new reasoned version which retains and supersedes the
 earlier accepted version; accepted rows and their evidence are never edited in
-place. A purpose/role with no unambiguous current accepted version fails closed.
-All roles share one technical line vocabulary and calculation basis. The three
+place. A Case with no unambiguous current accepted version fails closed. The
+shared specification uses one technical line vocabulary and calculation basis. The three
 assessment-report lists—new parts, repairs, and additional operations—are a
 single deterministic names-only projection of those ordered lines, not a
-second renderer-owned repair specification. Audit uplift and document wording
-remain outside this contract.
+second renderer-owned repair specification.
 
 ### Conservative MOT mileage estimation
 

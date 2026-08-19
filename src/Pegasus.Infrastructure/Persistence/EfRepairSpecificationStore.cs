@@ -18,7 +18,6 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RepairSpecificationPolicy.ValidatePurposeAndRole(request.Purpose, request.Role);
         RequireEngineer(request.Actor);
         var source = request.Source.Route == RepairSpecificationSourceRoute.LegacyUnresolved
             ? request.Source
@@ -41,12 +40,10 @@ public sealed class EfRepairSpecificationStore(
         Guard(workflow, request.ExpectedCaseVersion, request.Actor, request.EditLeaseToken, Now());
         if (await context.CaseRepairSpecifications.AnyAsync(
                 item => item.CaseId == request.CaseId
-                    && item.Purpose == request.Purpose.ToString()
-                    && item.Role == request.Role.ToString()
                     && item.State == RepairSpecificationState.Draft.ToString(),
                 cancellationToken))
         {
-            throw new InvalidOperationException("A current draft already exists for this repair-specification role.");
+            throw new InvalidOperationException("A current repair-specification draft already exists for this case.");
         }
 
         CaseRepairSpecificationEntity? predecessor = null;
@@ -58,18 +55,22 @@ public sealed class EfRepairSpecificationStore(
                     item => item.Id == predecessorId && item.CaseId == request.CaseId,
                     cancellationToken)
                 ?? throw new InvalidOperationException("The repair specification being corrected was not found.");
-            if (predecessor.State != RepairSpecificationState.Accepted.ToString()
-                || predecessor.Purpose != request.Purpose.ToString()
-                || predecessor.Role != request.Role.ToString())
+            if (predecessor.State != RepairSpecificationState.Accepted.ToString())
             {
-                throw new InvalidOperationException("A correction must supersede the accepted version of the same role.");
+                throw new InvalidOperationException("A correction must supersede the accepted repair specification.");
             }
+        }
+        else if (await context.CaseRepairSpecifications.AnyAsync(
+            item => item.CaseId == request.CaseId
+                && item.State == RepairSpecificationState.Accepted.ToString(),
+            cancellationToken))
+        {
+            throw new InvalidOperationException(
+                "The accepted repair specification is immutable; start a reasoned correction that identifies it.");
         }
 
         var nextVersion = (await context.CaseRepairSpecifications
-            .Where(item => item.CaseId == request.CaseId
-                && item.Purpose == request.Purpose.ToString()
-                && item.Role == request.Role.ToString())
+            .Where(item => item.CaseId == request.CaseId)
             .MaxAsync(item => (int?)item.Version, cancellationToken) ?? 0) + 1;
         var now = Now();
         var entity = new CaseRepairSpecificationEntity
@@ -78,8 +79,6 @@ public sealed class EfRepairSpecificationStore(
             CaseId = request.CaseId,
             Case = workflow.Case,
             Version = nextVersion,
-            Purpose = request.Purpose.ToString(),
-            Role = request.Role.ToString(),
             State = RepairSpecificationState.Draft.ToString(),
             SourceRoute = source.Route.ToString(),
             SourceArtifactReference = source.ArtifactReference,
@@ -110,7 +109,7 @@ public sealed class EfRepairSpecificationStore(
         }
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "repair_specification_draft_started", requestHash,
-            new { entity.Id, entity.Version, entity.Purpose, entity.Role }, now);
+            new { entity.Id, entity.Version }, now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -149,12 +148,11 @@ public sealed class EfRepairSpecificationStore(
         RepairSpecificationPolicy.ValidateAcceptance(candidate, request.Actor);
         if (await context.CaseRepairSpecifications.AnyAsync(
                 item => item.CaseId == request.CaseId && item.Id != entity.Id
-                    && item.Purpose == entity.Purpose && item.Role == entity.Role
                     && item.State == RepairSpecificationState.Accepted.ToString()
                     && item.Id != entity.SupersedesSpecificationId,
                 cancellationToken))
         {
-            throw new InvalidOperationException("A current accepted specification already exists for this role; start a reasoned correction.");
+            throw new InvalidOperationException("A current accepted repair specification already exists; start a reasoned correction.");
         }
         if (entity.SupersedesSpecificationId is { } predecessorId)
         {
@@ -181,7 +179,7 @@ public sealed class EfRepairSpecificationStore(
         entity.AcceptedAtUtc = now;
         AddHistory(context, workflow, request.Actor, request.OperationKey, request.Reason,
             "repair_specification_accepted", requestHash,
-            new { entity.Id, entity.Version, entity.Purpose, entity.Role }, now);
+            new { entity.Id, entity.Version }, now);
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(entity);
@@ -197,14 +195,11 @@ public sealed class EfRepairSpecificationStore(
     }
 
     public async Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
-        Guid caseId, RepairSpecificationPurpose purpose, RepairSpecificationRole role,
-        CancellationToken cancellationToken)
+        Guid caseId, CancellationToken cancellationToken)
     {
-        RepairSpecificationPolicy.ValidatePurposeAndRole(purpose, role);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
             .SingleOrDefaultAsync(item => item.CaseId == caseId
-                && item.Purpose == purpose.ToString() && item.Role == role.ToString()
                 && item.State == RepairSpecificationState.Accepted.ToString(), cancellationToken);
         return entity is null ? null : Map(entity);
     }
@@ -298,8 +293,6 @@ public sealed class EfRepairSpecificationStore(
 
     private static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity) => new(
         entity.Id, entity.CaseId, entity.Version,
-        Enum.Parse<RepairSpecificationPurpose>(entity.Purpose),
-        Enum.Parse<RepairSpecificationRole>(entity.Role),
         Enum.Parse<RepairSpecificationState>(entity.State),
         new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
             entity.SourceArtifactReference, entity.SourceVersion, entity.SourceSha256),

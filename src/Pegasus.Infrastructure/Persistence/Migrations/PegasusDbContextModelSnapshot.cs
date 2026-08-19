@@ -1857,18 +1857,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
-                    b.Property<string>("Purpose")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
                     b.Property<bool?>("RepairerVatRegistered")
                         .HasColumnType("bit");
-
-                    b.Property<string>("Role")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
 
                     b.Property<string>("SourceArtifactReference")
                         .HasMaxLength(500)
@@ -1905,23 +1895,19 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CaseId", "CreationOperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("CaseId", "Purpose", "Role")
+                    b.HasIndex("CaseId")
                         .IsUnique()
                         .HasFilter("[State] = 'Accepted'");
 
-                    b.HasIndex("CaseId", "Purpose", "Role", "Version")
+                    b.HasIndex("CaseId", "CreationOperationKey")
+                        .IsUnique();
+
+                    b.HasIndex("CaseId", "Version")
                         .IsUnique();
 
                     b.ToTable("CaseRepairSpecifications", null, t =>
                         {
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_Acceptance", "([State] IN ('Accepted', 'Superseded') AND [AcceptedBy] IS NOT NULL AND [AcceptedAtUtc] IS NOT NULL) OR ([State] = 'Draft' AND [AcceptedBy] IS NULL AND [AcceptedAtUtc] IS NULL)");
-
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Purpose", "[Purpose] IN ('OrdinaryAssessment', 'Audit')");
-
-                            t.HasCheckConstraint("CK_CaseRepairSpecifications_Role", "[Role] IN ('Ordinary', 'Conservative', 'Maximised')");
 
                             t.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", "[SourceRoute] IN ('LegacyUnresolved', 'Manual', 'Glasses', 'AudatexPdf', 'ApprovedAiProposal')");
 

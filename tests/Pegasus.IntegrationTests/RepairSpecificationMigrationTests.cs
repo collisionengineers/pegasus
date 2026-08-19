@@ -5,8 +5,8 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class RepairSpecificationMigrationTests
 {
-    private const string PreviousMigration = "20260814094632_DropBoxFileRequests";
-    private const string RepairSpecificationMigration = "20260819100144_VersionedRepairSpecifications";
+    private const string PreviousMigration = "20260819093019_RetainedMailboxInternetMessageIdentity";
+    private const string RepairSpecificationMigration = "20260819112237_VersionedRepairSpecifications";
     private const string CaseId = "93000000-0000-0000-0000-000000000001";
     private const string LineId = "93000000-0000-0000-0000-000000000002";
 
@@ -30,8 +30,6 @@ public sealed class RepairSpecificationMigrationTests
              FROM CaseRepairSpecifications
              WHERE CaseId = '{CaseId}'
                AND Version = 1
-               AND Purpose = 'OrdinaryAssessment'
-               AND Role = 'Ordinary'
                AND State = 'Draft'
                AND SourceRoute = 'LegacyUnresolved'
                AND AcceptedBy IS NULL

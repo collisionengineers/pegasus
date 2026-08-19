@@ -51,8 +51,6 @@ internal sealed class CaseRepairSpecificationEntity
     public Guid CaseId { get; set; }
     public CaseEntity Case { get; set; } = null!;
     public int Version { get; set; }
-    public required string Purpose { get; set; }
-    public required string Role { get; set; }
     public required string State { get; set; }
     public required string SourceRoute { get; set; }
     public string? SourceArtifactReference { get; set; }

@@ -2,19 +2,6 @@ using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Assessment;
 
-public enum RepairSpecificationPurpose
-{
-    OrdinaryAssessment,
-    Audit,
-}
-
-public enum RepairSpecificationRole
-{
-    Ordinary,
-    Conservative,
-    Maximised,
-}
-
 public enum RepairSpecificationState
 {
     Draft,
@@ -58,8 +45,6 @@ public sealed record RepairSpecificationVersion(
     Guid SpecificationId,
     Guid CaseId,
     int Version,
-    RepairSpecificationPurpose Purpose,
-    RepairSpecificationRole Role,
     RepairSpecificationState State,
     RepairSpecificationSource Source,
     IReadOnlyList<CaseEstimateLineRecord> Lines,
@@ -80,24 +65,6 @@ public static class RepairSpecificationPolicy
 {
     public const string PolicyKey = "repair-specification";
     public const int PolicyVersion = 1;
-
-    public static void ValidatePurposeAndRole(
-        RepairSpecificationPurpose purpose,
-        RepairSpecificationRole role)
-    {
-        var valid = purpose switch
-        {
-            RepairSpecificationPurpose.OrdinaryAssessment => role == RepairSpecificationRole.Ordinary,
-            RepairSpecificationPurpose.Audit => role is RepairSpecificationRole.Conservative
-                or RepairSpecificationRole.Maximised,
-            _ => false,
-        };
-        if (!valid)
-        {
-            throw new InvalidOperationException(
-                $"Role '{role}' is not valid for repair-specification purpose '{purpose}'.");
-        }
-    }
 
     public static RepairSpecificationSource ValidateSource(RepairSpecificationSource source)
     {
@@ -145,7 +112,6 @@ public static class RepairSpecificationPolicy
     {
         ArgumentNullException.ThrowIfNull(specification);
         ArgumentNullException.ThrowIfNull(actor);
-        ValidatePurposeAndRole(specification.Purpose, specification.Role);
         if (actor.Kind != ActorKind.Staff || !actor.IsInRole(StaffRole.Engineer))
         {
             throw new InvalidOperationException(
@@ -215,8 +181,6 @@ public static class RepairSpecificationPolicy
 public sealed record StartRepairSpecificationDraftRequest(
     Guid CaseId,
     long ExpectedCaseVersion,
-    RepairSpecificationPurpose Purpose,
-    RepairSpecificationRole Role,
     RepairSpecificationSource Source,
     ActionActor Actor,
     string OperationKey,
@@ -254,7 +218,5 @@ public interface IRepairSpecificationStore
 
     Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
         Guid caseId,
-        RepairSpecificationPurpose purpose,
-        RepairSpecificationRole role,
         CancellationToken cancellationToken);
 }
