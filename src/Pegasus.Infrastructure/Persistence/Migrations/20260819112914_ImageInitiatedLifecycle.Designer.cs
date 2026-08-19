@@ -2949,6 +2949,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<string>("RequestFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .IsFixedLength()
+                        .HasColumnType("nchar(64)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("OperationKey")
