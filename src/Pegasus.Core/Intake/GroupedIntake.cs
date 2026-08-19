@@ -116,6 +116,10 @@ public sealed class SubmitGroupedIntake(
             request.ReceivedAtUtc == default ? timeProvider.GetUtcNow() : request.ReceivedAtUtc,
             cancellationToken);
 
+        // ListMembersAsync has no per-call knowledge of duplication, so this
+        // call's own replay/duplicate outcome per ordinal is tracked here and
+        // stamped onto the members it returns.
+        var isDuplicateByOrdinal = new Dictionary<int, bool>(files.Length);
         foreach (var file in files)
         {
             var existing = await groupStore.FindMemberAsync(group.Id, file.Ordinal, cancellationToken);
@@ -128,6 +132,7 @@ public sealed class SubmitGroupedIntake(
                     throw new IntakeSourceIdentityConflictException(existing.SourceHash, expectedHash);
                 }
 
+                isDuplicateByOrdinal[file.Ordinal] = true;
                 continue;
             }
 
@@ -139,6 +144,7 @@ public sealed class SubmitGroupedIntake(
             };
             var received = await submission.ExecuteAsync(source, childOperation, cancellationToken);
             await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken);
+            isDuplicateByOrdinal[file.Ordinal] = received.IsDuplicate;
         }
 
         var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
@@ -147,9 +153,13 @@ public sealed class SubmitGroupedIntake(
             throw new InvalidDataException("The submission group is missing a file member.");
         }
 
+        members = members
+            .Select(member => member with { IsDuplicate = isDuplicateByOrdinal[member.Ordinal] })
+            .ToArray();
+
         return new(group with { Members = members }, members);
     }
 
     private static string ChildToken(string submissionToken, int ordinal) =>
-        $"{submissionToken}:{ordinal}";
+        ordinal == 0 ? submissionToken : $"{submissionToken}:{ordinal}";
 }

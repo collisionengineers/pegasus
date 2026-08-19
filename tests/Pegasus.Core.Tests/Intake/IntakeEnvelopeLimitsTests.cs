@@ -43,4 +43,13 @@ public sealed class IntakeEnvelopeLimitsTests
     {
         Assert.Equal(10 * 1024 * 1024, IntakeEnvelopeLimits.MaximumContentLength);
     }
+
+    [Fact]
+    public void TheBatchBoundIsFileCountTimesThePerFileBoundPlusOverhead()
+    {
+        Assert.Equal(
+            (IntakeEnvelopeLimits.MaximumBatchFileCount * (long)IntakeEnvelopeLimits.MaximumContentLength)
+                + IntakeEnvelopeLimits.MultipartOverhead,
+            IntakeEnvelopeLimits.MaximumBatchContentLength);
+    }
 }

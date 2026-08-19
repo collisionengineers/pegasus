@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
@@ -186,6 +187,72 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task MessageDetailExplainsTheVersionedDecisionAndOffersExactMessageCorrection()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+
+        Assert.Contains("Classification evidence", html, StringComparison.Ordinal);
+        Assert.Contains("shared-mail-policy version 3", html, StringComparison.Ordinal);
+        Assert.Contains("sender-domain", html, StringComparison.Ordinal);
+        Assert.Contains("Permanent correction history", html, StringComparison.Ordinal);
+        Assert.Contains("Save classification correction", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"ExpectedClassificationVersion\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"1\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CraftedOrOversizedCorrectionsFailClosedWithoutHistoryWrites()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification";
+        var attempts = new[]
+        {
+            new Dictionary<string, string> { ["ClassificationKey"] = "received:999" },
+            new Dictionary<string, string> { ["ClassificationKey"] = "sent:999" },
+            new Dictionary<string, string>
+            {
+                ["ClassificationKey"] = "other-received",
+                ["OtherClassificationName"] = new string('n', MailCategory.OtherNameMaxLength + 1),
+                ["OtherClassificationReasoning"] = "No existing category fits."
+            },
+            new Dictionary<string, string>
+            {
+                ["ClassificationKey"] = "other-received",
+                ["OtherClassificationName"] = "New category",
+                ["OtherClassificationReasoning"] = new string('r', MailCategory.OtherReasoningMaxLength + 1)
+            }
+        };
+
+        foreach (var attempt in attempts)
+        {
+            var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+            attempt["__RequestVerificationToken"] = AntiforgeryToken(page);
+            attempt["ExpectedClassificationVersion"] = "1";
+            attempt["CorrectionReason"] = "Reviewed retained evidence.";
+            using var response = await client.PostAsync(route, new FormUrlEncodedContent(attempt));
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Contains(
+                "Choose a valid classification and complete any Other details.",
+                await response.Content.ReadAsStringAsync(),
+                StringComparison.Ordinal);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(1, await context.IntakeMailClassificationDecisions.Select(item => item.Version).SingleAsync());
+        Assert.Empty(await context.IntakeMailClassificationHistory.ToListAsync());
+    }
+
+    [Fact]
     public async Task AForwardedMessageShowsTheProvenOriginalSenderAndItsForwarder()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -271,6 +338,16 @@ public sealed class MailWorkspaceWebTests
         var to = text.IndexOf(end, from, StringComparison.Ordinal);
         Assert.True(to > from, $"'{end}' was not rendered after '{start}'.");
         return text[from..to];
+    }
+
+    private static string AntiforgeryToken(string html)
+    {
+        var match = Regex.Match(
+            html,
+            "<input[^>]*name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(match.Success, "The antiforgery token was not rendered.");
+        return WebUtility.HtmlDecode(match.Groups[1].Value);
     }
 
     private static async Task<Guid[]> SeedAsync(
@@ -375,6 +452,43 @@ public sealed class MailWorkspaceWebTests
                     [new("desk@collisionengineers.co.uk", "transport")],
                     [new("original@qdosassist.co.uk", "inline forward")],
                     new("original@qdosassist.co.uk", "inline forward"))),
+            CancellationToken.None);
+    }
+
+    private static async Task StoreClassificationAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+            new(
+                SourceFileName: "classified.eml",
+                MediaType: "message/rfc822",
+                SourceLength: 1,
+                SourceHash: new string('D', 64),
+                SourceIdentity: new(IntakeSourceChannel.Mailbox, mailboxId.Length + ":" + mailboxId + messageId),
+                ReceivedAtUtc: NowUtc,
+                ProcessedAtUtc: NowUtc,
+                Actor: "system-worker:approved-inbox-poller",
+                Decision: IntakeDecision.NeedsSorting,
+                DecisionReason: "Fixture evaluation.",
+                Evidence: [],
+                Fields: [],
+                InstructionDraft: null,
+                MissingFields: [],
+                FailureCode: null,
+                FailureReason: null,
+                SourceReaderKey: "protocol_reader",
+                SourceReaderVersion: "1",
+                ExtractionPolicyKey: "protocol_policy",
+                ExtractionPolicyVersion: 1,
+                Assets: [],
+                MailClassificationDecision: MailClassificationResult.Unclassified(
+                    [new("sender-domain", false, "The sender domain is not recognized.")],
+                    "No supported category matched.",
+                    "shared-mail-policy",
+                    3)),
             CancellationToken.None);
     }
 

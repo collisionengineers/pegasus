@@ -39,7 +39,7 @@ What Linux gives this project that Windows does not:
 | --- | --- |
 | Runtime parity with production | Web and Worker deploy to Linux, so a Linux workstation runs the same runtime as the deployed application. |
 | A container runtime without Docker Desktop | The local database needs containers. |
-| `poppler-utils` (`pdftoppm`) | Already required by `workspaces/report-renderer/scripts/visual-regression.ps1`, and packaged on Linux. |
+| `poppler-utils` (`pdftoppm`) | Available for optional local PDF raster inspection; automated renderer acceptance uses real Chromium and PDF content assertions. |
 | `fonts-liberation` and `fonts-dejavu-core` | The exact fonts the renderer's container image installs, so local PDF glyph metrics match the deployed container. |
 | `perf` and `lldb` beside `dotnet-trace`, `dotnet-counters`, `dotnet-dump` and `dotnet-gcdump` | Deeper diagnosis for the `Performance` evidence profile. |
 | No long-path constraint | The repository's longest tracked relative path (about 122 characters) needs no configuration. |
@@ -63,7 +63,7 @@ A 2026-07-27 currency check found:
 
 These vendor facts can drift. Refresh them before changing the SDK, target framework, Functions host, or release platform.
 
-Re-checked 2026-08-05 when `workspaces/report-renderer/` moved from `net8.0` to `net10.0` and its SDK pin from `10.0.300` to `10.0.302`. The three vendor facts above are unchanged; no repository target framework outside that workspace moved.
+Re-checked 2026-08-19 after report rendering was integrated into the .NET monolith. The three vendor facts above are unchanged.
 
 ### Checkout path
 
@@ -366,10 +366,17 @@ Source workspaces validate independently and are not part of the application sol
 
 ```powershell
 Push-Location ./workspaces/document-extraction; dotnet test --solution ./CollisionDocNet.slnx --configuration Release; Pop-Location
-Push-Location ./workspaces/report-renderer; dotnet run --project ./src/CollisionRenderer.Cli -- install-browser; dotnet test ./CollisionRenderer.sln --configuration Release; Pop-Location
 ```
 
 These checks prove only the imported source snapshots. They do not activate an application reference, model, skill, external call, or deployment. Workspace ownership is indexed in [workspaces](../workspaces/README.md).
+
+Report rendering is part of the application solution. After a Release build,
+install its pinned Playwright Chromium and run the Browser-tagged integration proof:
+
+```powershell
+pwsh ./tests/Pegasus.IntegrationTests/bin/Release/net10.0/playwright.ps1 install chromium
+dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AssessmentReportRendererTests"
+```
 
 ## Provider-domain reference authoring
 
