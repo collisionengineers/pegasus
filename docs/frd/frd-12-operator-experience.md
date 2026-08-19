@@ -41,7 +41,7 @@ Reconciliation that accepts, rejects, links, or changes an external business
 fact instead enters permanent business history with the responsible actor,
 source/version, before/after values, time, and reason where required.
 
-`New cases today` counts every instructed Case created in the current Europe/London calendar day, including a Case later closed that day. It excludes pre-Case Image intakes, Triage, `Needs sorting`, and `Blocked intake`. It is separate from `Due today`, `Sent to Engineer`, and `Reports sent`.
+`New cases today` counts every instructed Case created in the current Europe/London calendar day, including a Case later closed that day. It excludes Image-initiated Cases, Triage, `Needs sorting`, and `Blocked intake`. It is separate from `Due today`, `Sent to Engineer`, and `Reports sent`.
 
 `Due by` and overdue/chaser work remain a separate operational view from `New cases today`. The case list and persistent case identity area expose due/overdue state, while the case workspace keeps the missing-material reason, next chase, last recorded outcome, and next permitted action together. Triage has no due/chaser presentation.
 
