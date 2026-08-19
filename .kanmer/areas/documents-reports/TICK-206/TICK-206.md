@@ -2,10 +2,12 @@
 id: TICK-206
 type: ticket
 title: Map renderer templates to capabilities and decide proposed retirements
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:02:12.676Z'
 labels:
   - now
   - source-now
@@ -19,7 +21,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.359Z'
-updated: '2026-08-19T08:57:19.855Z'
+updated: '2026-08-19T09:02:12.676Z'
 ---
 
 ## What

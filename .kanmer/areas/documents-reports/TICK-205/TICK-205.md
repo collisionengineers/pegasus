@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Resolve the canonical repair-specification versus dual-Audit-specification
   conflict
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:02:10.979Z'
 labels:
   - now
   - source-now
@@ -22,7 +24,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.306Z'
-updated: '2026-08-19T08:57:19.843Z'
+updated: '2026-08-19T09:02:10.979Z'
 ---
 
 ## What
