@@ -2,7 +2,7 @@
 
 - [x] Create this worktree from the INTK-005 PR branch `intk-005-grouped-upload`; record the branch/base and planned post-review rebase in scratch.
 - [ ] Amend operator notes, PRD, FRD-01, FRD-02, FRD-06, FRD-12, design, capabilities, CONTEXT.md, and any superseded ADR/index wording to canonicalize the two Case-origin types and remove the old pre-Case-only conflict.
-- [ ] Confirm docs explicitly define Image-initiated reference format/sequence (`VRM-01`, `VRM-02`, ...), no Case/PO, lifecycle, association/conversion, and origin/history retention.
+- [ ] Confirm docs explicitly define Image-initiated reference format/sequence (`AB12ABC-01`, `AB12ABC-02`, ...), no Case/PO, lifecycle, association/conversion, and origin/history retention.
 - [ ] Link the updated governing docs and name the exact existing Case creation use case in the plan.
 - [x] Add one canonical Core group-routing policy and exhaustive decision matrix.
 - [x] Distinguish detector-empty, recognizer-empty, below-bar, accepted, and technical recognition outcomes.
@@ -16,10 +16,10 @@
 - [ ] Add status/history presentation for waiting, associated, Image-initiated created, and technical failure.
 - [ ] Test accepted VRM + one match associates all images.
 - [x] Test readable overview + no-plate close-up associates both.
-- [ ] Test zero match creates one Image-initiated Case.
-- [ ] Test multiple matches create one Image-initiated Case and no existing association.
-- [ ] Test conflicting VRMs create one Image-initiated Case and no existing association.
-- [ ] Test all no-readable/below-bar results create one Image-initiated Case.
+- [ ] Test one usable VRM with zero match creates one Image-initiated Case.
+- [ ] Test one usable VRM with multiple matches creates one Image-initiated Case and no existing association.
+- [ ] Test conflicting VRMs enter one INTK-007 Unidentified group and receive no fabricated VRM reference.
+- [ ] Test all no-readable/below-bar results enter one INTK-007 Unidentified group and receive no fabricated VRM reference.
 - [ ] Test processing/retryable member prevents premature finalization.
 - [ ] Test technical terminal failure follows documented failure/Unidentified semantics.
 - [ ] Test replay, reverse completion order, and concurrent finalizers produce exactly one outcome.

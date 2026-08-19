@@ -73,3 +73,7 @@
 ## Operator resolution — case notes — 2026-08-19
 
 - [x] Case notes are a real future capability. [[CASE-004]] owns their separate behavior and activation; [[CASE-002]] now owns post-report queries only. The inactive notes surface remains non-persistent until CASE-004 is accepted.
+
+## Operator resolution — four unplaced supplied marks — 2026-08-19
+
+- [x] `activity`, `brand`, `calendar`, and `casefolder` are intended for use, not retirement. [[PLAT-008]] owns reviewing the actual artwork, mapping each mark to the appropriate genuine surface, recording its checksum mapping, and placing it without inventing a feature or placeholder solely to consume an asset.

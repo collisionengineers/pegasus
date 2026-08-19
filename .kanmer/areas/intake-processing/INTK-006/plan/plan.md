@@ -27,13 +27,13 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
    - Do not stop implementation solely because INTK-005 has not merged; stop only if the existing owner cannot safely express the requested outcome without inventing product policy, and record that precise boundary in the report.
 
 2. **Define one canonical group-routing policy in Core.**
-   - Add an enum/record only if needed for these mutually exclusive states: WaitingForMembers, WaitingForRecognition, AssociateExistingCase, CreateImageOnlyCase, TechnicalFailure.
+   - Add an enum/record only if needed for these mutually exclusive states: WaitingForMembers, WaitingForRecognition, AssociateExistingCase, CreateImageInitiatedCase, TechnicalFailure.
    - Inputs are ordered group members, each terminal recognition result, normalized accepted suggestions, and eligible Case candidates.
    - Ignore below-bar text for automatic identity. Preserve it as evidence only.
    - Compute distinct accepted normalized VRMs across every member.
    - Select AssociateExistingCase only when the set contains exactly one VRM and the shared candidate owner returns exactly one eligible Case with no contradiction.
    - Select CreateImageOnlyCase for zero accepted VRMs, more than one accepted VRM, zero eligible matches, or multiple eligible matches.
-   - Never return an unhandled/NeedsSorting third path for a completed vehicle group.
+   - Never return an unhandled generic Needs sorting path for a completed vehicle group; the explicit third destination is INTK-007 Unidentified when no valid VRM exists.
 
 3. **Make recognition completion explicit.**
    - Change `OnnxVrmRecognitionEngine` result mapping so detector-empty and recognizer-empty are distinguishable safe results.
@@ -69,7 +69,7 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
    - Populate only fields authorized by the updated FRD. Do not invent principal, registration, instruction, claimant, or Case type defaults.
    - Create exactly one Case, then attach/register every member in ordinal order and persist the one group outcome.
    - Use the documented reference/lifecycle semantics exactly. If the docs require a nonstandard reference, add it through the existing sequence owner rather than reusing Image Intake/U/Audit sequences.
-   - Test zero-VRM, low-confidence, conflicting-VRM, no-match, and multi-match groups all create one—not N—Image-initiated Case.
+   - Test no-match and multi-match groups with one usable VRM create one—not N—Image-initiated Case; zero-VRM, low-confidence, or conflicting-VRM groups follow the INTK-007 Unidentified contract.
 
 8. **Expose honest status and history.**
    - Extend the INTK-005 group status view to show Waiting for all images, Associated with Case <reference>, Created Image-initiated Case <reference>, or named technical failure.
@@ -82,8 +82,8 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
    - Overview accepted VRM + close-up no plate, one eligible Case → associate both.
    - Accepted VRM, zero eligible Cases → one Image-initiated Case.
    - Accepted VRM, two eligible Cases → one Image-initiated Case, no existing association.
-   - Two distinct accepted VRMs → one Image-initiated Case, no existing association.
-   - All no-plate/unreadable/below-bar → one Image-initiated Case.
+   - Two distinct accepted VRMs → one INTK-007 Unidentified group, no fabricated VRM reference.
+   - All no-plate/unreadable/below-bar → one INTK-007 Unidentified group, no fabricated VRM reference.
    - One member retryable/processing → no final outcome yet.
    - Technical terminal failure → documented failure/Unidentified path after INTK-007 semantics, never silent Case creation.
    - Replay, reverse completion order, and two concurrent finalizers → same one outcome/Case.
@@ -98,8 +98,8 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
 ## Verification
 
 - Durable evidence proves both recognition layers' distinguishable outcomes without sensitive logs.
-- Every completed vehicle-image group reaches exactly one association-or-Image-initiated Case outcome.
-- No group is split, no fallback Case is duplicated, and low-confidence/conflicting text never attaches to an existing Case.
+- Every completed vehicle-image group reaches exactly one association, Image-initiated Case, or INTK-007 Unidentified outcome.
+- No group is split, no fallback Case is duplicated, no VRM reference is fabricated, and low-confidence/conflicting text never attaches to an existing Case.
 - Original filenames, receipts, identities, order, suggestions, and history remain attributable.
 - The implementation uses INTK-005 group identity and the existing Case/Image Intake owners.
 - Governing docs and code agree on reference/principal/lifecycle semantics.
