@@ -17,6 +17,10 @@ public sealed class UploadGroupStatusModel(
     public IReadOnlyDictionary<Guid, QueuedIntakeStatus?> Statuses { get; private set; } =
         new Dictionary<Guid, QueuedIntakeStatus?>();
 
+    public bool RefreshAutomatically => Statuses.Values.Any(status =>
+        status is null
+            || status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing);
+
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         var group = await groups.GetAsync(id, cancellationToken);
