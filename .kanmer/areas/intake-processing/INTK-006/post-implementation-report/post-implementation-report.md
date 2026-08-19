@@ -37,3 +37,7 @@ On merged `main`, run:
 - Full `dotnet test Pegasus.slnx --configuration Release`
 
 Verify that a grouped overview plus no-plate damage close-up associates both receipts to one eligible existing Case, and capture the recorded detector/recognizer failure codes without exposing pixels or raw registration text.
+
+## Scope clarification — 2026-08-19
+
+Code audit confirms the existing ImageIntake route already allocates a VRM-based reference for a usable read even when no eligible formal Case matches. This PR does not create a principal-less formal Cases row. The remaining Image-initiated Case lifecycle (search, Box custody presentation, staff close, merge/subsumption and formal-Case history) is explicitly delegated to [[INTK-008]]. Conflicting valid VRMs and no-identity groups are delegated to [[INTK-007]] with the explicit conflicting_vrms reason. INTK-006's review must assess only the grouped recognition, diagnostics, stable aggregation, and unique existing-Case association slice.

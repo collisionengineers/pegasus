@@ -48,3 +48,7 @@ The post-implementation report will cite focused test output, Release build outp
 ### Simplification re-check — PR-010
 
 Kept canonical validation on `MailCategory` beside the sole taxonomy list and invoked it from the Core command. Web performs only early parsing for useful validation feedback; it is not the trust boundary. One parameterized page-pipeline test exercises all four hostile inputs and checks both current version and empty history, avoiding four duplicated fixtures.
+
+### Simplification re-check — PR-012
+
+The repository already owns one exact ordered migration list in `IntakePersistenceIntegrationTests`; the fix adds the missing committed identifier there and does not add another schema registry or weaken the equality assertion.

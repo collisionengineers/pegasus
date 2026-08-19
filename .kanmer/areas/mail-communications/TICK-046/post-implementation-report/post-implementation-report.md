@@ -44,3 +44,7 @@ On merged `main`:
 ## Review response — PR-010
 
 Hardened canonical category construction and the Core correction command against undefined numeric Received/Sent enum values and oversized Other name/reasoning. The Web parser now rejects these inputs as controlled validation errors. Added Core factory coverage and a real antiforgery/page-pipeline test which submits all four crafted forms and proves the decision remains version 1 with no history rows. Also corrected the stale read-only XML remark on `MessageModel`.
+
+## Review response — PR-012
+
+Updated the canonical committed-migration regression fixture to include `20260819104953_MailClassificationCorrectionHistory`. The exact SQL Server migration test now applies the complete chain, observes no pending migrations, and passes. Integration Release build completed with 0 warnings/errors.

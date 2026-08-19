@@ -20,3 +20,5 @@
 - 2026-08-19: Governing FRD already states the delivered contract, so no normative documentation wording or current/deployed-state claim was changed.
 
 - 2026-08-19 review fix PR-010: Core now validates defined enum values, registered category/subtype shapes, and bounded Other details independently of Razor input. Crafted `received:999`, `sent:999`, oversized Other name and oversized Other reasoning all return controlled validation with no decision/history write. Focused Core 19/19 and real page-pipeline no-write test 1/1 passed.
+
+- 2026-08-19 review fix PR-012: added `20260819104953_MailClassificationCorrectionHistory` to the exact committed-migration fixture. Integration project Release build passed 0 warnings/errors; `CommittedMigrationCreatesTheSqlServerSchema` passed 1/1; `git diff --check` passed.

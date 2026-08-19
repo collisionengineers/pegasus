@@ -68,3 +68,11 @@ None for ticket planning. The governing-document step must explicitly settle the
 ## Parallel-branch execution note — 2026-08-19
 
 This ticket is intentionally implemented from the INTK-005 PR branch before PR merge. Record the exact base SHA in execution scratch and ticket notes. When INTK-005 is reviewed, rebase this branch onto the reviewed INTK-005 result and resolve any conflicts before its PR is finalized. INTK-005 review/merge coordination is not an execution blocker.
+
+## Reuse finding and scope split — 2026-08-19
+
+Thorough code inspection confirms that ImageIntake is already the image-first route. ImageIntakeAutomation registers a confident usable VRM through IRegisterImageIntake even when the eligible-case query returns zero or multiple candidates. EfImageIntakeStore allocates the immutable per-VRM reference with the existing sequence owner, and the web ImageIntake pages show the unmatched record as awaiting instruction. There is no hidden path that inserts a principal-less row into formal Cases or creates a Case/PO on an unmatched image.
+
+Therefore INTK-006 must not add a second allocator or weaken formal Case acceptance. The grouped-routing slice ends at the existing-Case association or the existing ImageIntake hand-off. INTK-008 owns the ImageIntake-to-Image-initiated Case terminology, lifecycle, search/history, Box custody presentation, staff closure, and merge/subsumption. INTK-007 owns conflicting valid VRMs and other no-identity groups as one Unidentified U<n> work item with the explicit conflicting_vrms marker.
+
+The accepted ADR-0013 wording that image-led work remains pre-Case is a durable conflict; INTK-008 must add a superseding ADR and reconcile the operator notes, PRD, FRDs, design, capabilities, index, and CONTEXT.md.

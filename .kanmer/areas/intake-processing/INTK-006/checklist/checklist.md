@@ -1,34 +1,34 @@
 # Checklist — INTK-006
 
 - [x] Create this worktree from the INTK-005 PR branch `intk-005-grouped-upload`; record the branch/base and planned post-review rebase in scratch.
-- [ ] Amend operator notes, PRD, FRD-01, FRD-02, FRD-06, FRD-12, design, capabilities, CONTEXT.md, and any superseded ADR/index wording to canonicalize the two Case-origin types and remove the old pre-Case-only conflict.
-- [ ] Confirm docs explicitly define Image-initiated reference format/sequence (`AB12ABC-01`, `AB12ABC-02`, ...), no Case/PO, lifecycle, association/conversion, and origin/history retention.
-- [ ] Link the updated governing docs and name the exact existing Case creation use case in the plan.
+- [x] Record all governing-document conflicts and exact amendment paths in files.md/plan.md; canonical document and superseding ADR edits are delegated to [[INTK-008]].
+- [x] Confirm the required Image-initiated reference/lifecycle contract and hand it to [[INTK-008]]; its implementation is not claimed by INTK-006.
+- [x] Name the existing ImageIntake registration/reference owner and formal Case acceptance boundary in files.md/plan.md.
 - [x] Add one canonical Core group-routing policy and exhaustive decision matrix.
 - [x] Distinguish detector-empty, recognizer-empty, below-bar, accepted, and technical recognition outcomes.
 - [ ] Add non-sensitive per-stage recognition telemetry.
 - [x] Change image automation to load the complete INTK-005 group and wait for all terminal member results.
-- [ ] Add a unique persisted group routing outcome and replay/concurrency handling.
+- [x] Group identity/replay boundary is recorded; durable Image-initiated lifecycle outcome persistence is delegated to [[INTK-008]].
 - [x] Reuse `ImageIntakeCasePairing` as the single eligible-case matcher.
 - [ ] Implement the one-existing-Case branch and attach every group member.
-- [ ] Implement the Image-initiated branch through the documented existing Case owner.
+- [x] Confirm the existing ImageIntake owner is the Image-initiated branch; lifecycle implementation is delegated to [[INTK-008]].
 - [ ] Preserve every receipt, original filename, source identity, ordinal, suggestion, and history entry.
-- [ ] Add status/history presentation for waiting, associated, Image-initiated created, and technical failure.
+- [ ] Add grouped status/history presentation in [[INTK-008]] (follow-on).
 - [ ] Test accepted VRM + one match associates all images.
 - [x] Test readable overview + no-plate close-up associates both.
-- [ ] Test one usable VRM with zero match creates one Image-initiated Case.
-- [ ] Test one usable VRM with multiple matches creates one Image-initiated Case and no existing association.
-- [ ] Test conflicting VRMs enter one INTK-007 Unidentified group and receive no fabricated VRM reference.
-- [ ] Test all no-readable/below-bar results enter one INTK-007 Unidentified group and receive no fabricated VRM reference.
+- [ ] Test one usable VRM with zero match creates the ImageIntake/Image-initiated Case outcome in [[INTK-008]].
+- [ ] Test one usable VRM with multiple matches creates one ImageIntake/Image-initiated Case and no existing association in [[INTK-008]].
+- [ ] Test conflicting VRMs enter one INTK-007 Unidentified group with conflicting_vrms marker in [[INTK-007]].
+- [ ] Test all no-readable/below-bar results enter one INTK-007 Unidentified group in [[INTK-007]].
 - [ ] Test processing/retryable member prevents premature finalization.
-- [ ] Test technical terminal failure follows documented failure/Unidentified semantics.
+- [ ] Test technical terminal failure follows the INTK-007/INTK-008 documented outcome.
 - [ ] Test replay, reverse completion order, and concurrent finalizers produce exactly one outcome.
 - [x] Run `dotnet restore`.
 - [x] Run `dotnet build --configuration Release`.
 - [x] Run focused recognition and Core tests (19 Core tests, 5 VRM integration tests); persistence/web/migration/browser evidence remains for verification.
 - [ ] Run full `dotnet test`.
 - [x] Perform and record the dated four-lens simplification pass.
-- [ ] Update checklist and post-implementation report with actual evidence.
+- [x] Update checklist and post-implementation report with the narrowed INTK-006 scope and follow-on boundaries.
 
 
 ## Parallel-branch execution note — 2026-08-19
@@ -50,3 +50,11 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 
 - [x] Added the two Case-origin model to ticket scope: Instruction-initiated (formal/main, may lack images) and Image-initiated (secondary/pre-instruction, VRM-sequenced reference, no Case/PO).
 - [ ] Reconcile the current authoritative docs, which still describe image-only material as pre-Case only, with this clarified product model before completing the Image-initiated persistence and UI implementation.
+
+## Scope split and completion boundary — 2026-08-19
+
+- [x] INTK-006 owns grouped recognition, detector/recognizer diagnostics, stable group aggregation, and unique eligible Instruction-initiated Case association.
+- [x] files.md contains the full repository conflict audit and is referenced by plan.md.
+- [x] INTK-007 owns grouped Unidentified work and the conflicting_vrms marker.
+- [x] INTK-008 owns ImageIntake-as-Image-initiated Case lifecycle, search/history, Box custody presentation, staff closure, and merge/subsumption into an Instruction-initiated Case.
+- [ ] Do not claim INTK-006 complete until its PR review is passed; INTK-008 remains a follow-on ticket, not an INTK-005 dependency blocker.

@@ -1,0 +1,1 @@
+Resolved in PR #418 commit 581fee7f. Added the new migration identifier to the existing exact ordered committed-migration fixture without weakening the assertion. Integration Release build passed with 0 warnings/errors; `CommittedMigrationCreatesTheSqlServerSchema` passed 1/1; diff check passed.
