@@ -12,6 +12,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // no-runtime-grant: ActionHistory - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: SecurityEvents - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: Triage - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: SentEmailEvidence - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: TriageFindings - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: TriageHistory - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: EmailResponseEvidence - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: TriageResponseEvidenceLinks - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
             migrationBuilder.CreateTable(
                 name: "ActionHistory",
                 columns: table => new
