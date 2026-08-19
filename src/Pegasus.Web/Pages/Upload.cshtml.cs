@@ -28,7 +28,6 @@ namespace Pegasus.Web.Pages;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed partial class UploadModel(
-    IIntakeSubmission submission,
     IGroupedIntakeSubmission groupedSubmission,
     TimeProvider timeProvider,
     ILogger<UploadModel> logger) : PageModel
@@ -109,28 +108,6 @@ public sealed partial class UploadModel(
 
         try
         {
-            if (Upload.Length == 1)
-            {
-                var file = Upload[0];
-                await using var memory = new MemoryStream((int)file.Length);
-                await file.CopyToAsync(memory, cancellationToken);
-                var received = await submission.ExecuteAsync(
-                    new(
-                        Path.GetFileName(file.FileName),
-                        string.IsNullOrWhiteSpace(file.ContentType)
-                            ? "application/octet-stream"
-                            : file.ContentType,
-                        memory.ToArray(),
-                        timeProvider.GetUtcNow(),
-                        $"staff:{actor.SubjectId}",
-                        new(IntakeSourceChannel.ManualUpload, ExternalReceiptToken)),
-                    $"manual-upload:{ExternalReceiptToken}",
-                    cancellationToken);
-                return RedirectToPage(
-                    "/UploadStatus",
-                    new { id = received.StagedReceiptId, duplicate = received.IsDuplicate });
-            }
-
             var files = new List<GroupedIntakeFile>(Upload.Length);
             for (var index = 0; index < Upload.Length; index++)
             {
