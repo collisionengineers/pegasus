@@ -563,6 +563,9 @@ builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueri
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
+builder.Services.AddScoped<SubmitGroupedIntake>();
+builder.Services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
+    serviceProvider.GetRequiredService<SubmitGroupedIntake>());
 // The consolidated Automation activity read model backs the Administration
 // view in every profile; the ingress itself stays behind the composition gate.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();

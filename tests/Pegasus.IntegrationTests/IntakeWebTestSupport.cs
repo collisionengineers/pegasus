@@ -358,6 +358,25 @@ internal static partial class IntakeWebDriver
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 
+        if (TryGetUploadGroupId(upload.Location, out var groupId))
+        {
+            var groups = services.GetRequiredService<IIntakeSubmissionGroupStore>();
+            var group = await groups.GetAsync(groupId, cancellationToken)
+                ?? throw new InvalidOperationException("The upload group was not persisted.");
+            var first = Guid.Empty;
+            foreach (var member in group.Members.OrderBy(item => item.Ordinal))
+            {
+                var memberEvaluation = await DrainStagedAsync(services, member.StagedReceiptId, cancellationToken);
+                first = first == Guid.Empty ? memberEvaluation.ProcessedReceiptId : first;
+            }
+
+            return upload with
+            {
+                Location = new Uri($"/Received/{first:D}", UriKind.Relative),
+                ProcessedReceiptId = first
+            };
+        }
+
         // The token the upload was posted under identifies its receipt exactly,
         // whatever the page did next. Where the redirect names a case it cannot
         // be trusted for this: an image set that joins an existing case lands on
@@ -390,6 +409,22 @@ internal static partial class IntakeWebDriver
             Location = new Uri(detailLocation, UriKind.Relative),
             ProcessedReceiptId = processedReceiptId
         };
+    }
+
+    private static bool TryGetUploadGroupId(Uri? location, out Guid id)
+    {
+        id = Guid.Empty;
+        if (location is null)
+        {
+            return false;
+        }
+
+        var segments = location.OriginalString.Split('?', 2)[0]
+            .Split('/', StringSplitOptions.RemoveEmptyEntries);
+        return segments.Length == 3
+            && string.Equals(segments[0], "Upload", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(segments[1], "Group", StringComparison.OrdinalIgnoreCase)
+            && Guid.TryParse(segments[2], out id);
     }
 
     /// <summary>
@@ -516,6 +551,32 @@ internal static partial class IntakeWebDriver
             var file = new ByteArrayContent(bytes);
             file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
             multipart.Add(file, "Upload", uploadName);
+        }
+
+        using var response = await client.PostAsync("/Upload", multipart, cancellationToken);
+        var responseBody = await response.Content.ReadAsStringAsync(cancellationToken);
+        return new(
+            response.StatusCode,
+            response.Headers.Location,
+            responseBody,
+            ExternalReceiptToken: externalReceiptToken);
+    }
+
+    public static async Task<UploadResult> PostUploadManyAsync(
+        HttpClient client,
+        string antiforgeryToken,
+        string externalReceiptToken,
+        IReadOnlyList<(string Name, string MediaType, byte[] Bytes)> files,
+        CancellationToken cancellationToken = default)
+    {
+        using var multipart = new MultipartFormDataContent();
+        multipart.Add(new StringContent(antiforgeryToken), "__RequestVerificationToken");
+        multipart.Add(new StringContent(externalReceiptToken), "ExternalReceiptToken");
+        foreach (var item in files)
+        {
+            var content = new ByteArrayContent(item.Bytes);
+            content.Headers.ContentType = MediaTypeHeaderValue.Parse(item.MediaType);
+            multipart.Add(content, "Upload", item.Name);
         }
 
         using var response = await client.PostAsync("/Upload", multipart, cancellationToken);
