@@ -6,13 +6,14 @@
 - [x] Wire the real caller without duplicating business rules.
 - [x] Add focused acceptance tests for duplicate delivery, post-move provider ID, missing/contradictory identity and cross-mailbox isolation.
 - [x] Run `dotnet restore` and `dotnet build --configuration Release`.
-- [ ] Run focused tests and the relevant full suite.
-- [ ] Run and record the four-lens simplification pass.
+- [x] Run focused tests and the relevant full suite.
+- [x] Run and record the four-lens simplification pass.
 - [x] Update governing/current-state documentation only to the evidence tier actually reached.
-- [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+- [x] Write the post-implementation report with commands, results, residual risks and deployment qualification.
 
 ## Progress notes
 
 - 2026-08-19: Reused `PollApprovedInbox`, `IRetainedMailboxMessageStore`, `EfRetainedMailboxMessageStore`, the Graph immutable-ID request convention, and the existing retained-mail integration fixtures. No second policy owner or UI path was added.
 - 2026-08-19: The retained path now requires RFC Message-ID, derives its bounded intake occurrence token from that RFC identity, preserves the provider immutable ID separately, enforces mailbox+RFC uniqueness, refuses contradictory identity/content, and scopes thread reads by mailbox and folder.
-- 2026-08-19: Locked restore and Release build passed with 0 warnings/errors. Initial focused Core (20/20) and integration (27/27) runs passed; after strengthening the intake token, integration remained 27/27 and one Core assertion exposed only an expected token-length typo, now corrected for rerun.
+- 2026-08-19: Locked restore passed. Final Release build passed with 0 warnings/errors; full Core passed 617/617; Architecture passed 96/96; focused Production Graph plus retained-mail integration passed 27/27; the final retained-mail run after simplification passed 12/12. `git diff --check` passed.
+- 2026-08-19: Four-lens simplification found one duplicated identity lookup; it was consolidated without behavioural change. Documentation claims local implementation only and does not claim deployment or live mailbox verification.

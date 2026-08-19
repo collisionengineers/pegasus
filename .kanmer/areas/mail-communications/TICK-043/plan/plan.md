@@ -36,3 +36,11 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Simplification pass — 2026-08-19
+
+- **Reuse:** kept `PollApprovedInbox`, its existing SHA-256/receipt-token convention, `IRetainedMailboxMessageStore`, the EF retained read model, and Graph's existing immutable-ID request; no second identity service or policy list was introduced.
+- **Simplification:** extracted the repeated existing-message lookup into one store helper; retained the existing positional contracts and migration stream rather than adding an identity wrapper or new project.
+- **Efficiency:** duplicate detection and thread isolation remain SQL-side indexed queries; added the mailbox + RFC unique index and kept list/detail projection shapes unchanged.
+- **Altitude:** FRD-08 owns behavioural identity rules, Core validates them, Infrastructure enforces persistence, and the existing Graph/poll caller supplies the facts. No UI or transport mutation leaked into MAIL-01.
+- **Disposition:** applied the duplicate-query extraction. No unapplied behaviour-preserving finding remains.

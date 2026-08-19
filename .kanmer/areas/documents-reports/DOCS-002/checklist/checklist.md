@@ -17,8 +17,8 @@
 - [x] PR merge verified (`gh pr view --json state,mergedAt`)
 - [x] proof.md finalised (PR URL + merge date recorded)
 - [x] Moved to final stage
-- [ ] Outcome recorded in ticket body (PR link, follow-ups)
-- [ ] Returned to main checkout; remove ticket worktree
-- [ ] Delete local ticket branch (`-D` permitted only because PR is verified merged)
-- [ ] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] Outcome recorded in ticket body (PR link, follow-ups)
+- [x] Returned to main checkout; remove ticket worktree
+- [x] Delete local ticket branch (`-D` permitted only because PR is verified merged)
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `take_ticket action: "release"`

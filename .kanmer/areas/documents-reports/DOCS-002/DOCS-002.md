@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-19T09:17:43.343Z'
   verifying: '2026-08-19T09:20:45.991Z'
   done: '2026-08-19T09:22:46.310Z'
-taken_at: '2026-08-19T09:14:51.544Z'
-branch: task/docs-002-renderer-web-boundary
-worktree: ../pegasus-worktrees/docs-002-renderer-web-boundary
 labels:
   - now
   - renderer-integration
@@ -34,7 +31,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-19T09:13:24.531Z'
-updated: '2026-08-19T09:23:04.833Z'
+updated: '2026-08-19T09:23:28.790Z'
 ---
 
 ## What
