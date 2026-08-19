@@ -35,6 +35,10 @@ areas:
     name: Kanmer Meta
     color: "#5b8cff"
     prefix: KANMER
+  - id: pr-review
+    name: PR Review
+    color: "#ef4444"
+    prefix: PR
 idPrefixes:
   ticket: TICK
   plan: PLAN
