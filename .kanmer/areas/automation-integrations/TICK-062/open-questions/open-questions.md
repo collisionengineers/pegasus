@@ -1,7 +1,7 @@
 # Open questions — MCP-05
 
-No unresolved operator question for planning. Expose read/query tools first and only those mutations already delivered for staff; never add arbitrary folder/delete/send powers or a second policy owner.
+- [x] **What email-workspace capability must Automation MCP expose?** — Resolved by the operator on 2026-08-19: every user-facing email-workspace option/tool must be accessible and usable through Automation MCP. This includes browsing/search/detail, classification and correction, queues, folder recommendation and confirmed move, suggestions, automatic/manual Case association and correction, read state, categories, flags, folder operations, deletion/restoration/permanent deletion where supported, and compose/reply/forward/send when their owning capabilities land. MCP must call the same Core queries/commands and enforce staff-equivalent authorization, exact-message scope, confirmation, version checks, idempotency, attribution, failure, and recovery behavior. It grants no arbitrary folder, delete, send, or policy power beyond the corresponding user-facing action.
 
 ## Parked (explicitly deferred)
 
-- [ ] Real Outlook/Graph/cloud activation and live verification — requires explicit approval for exact targets and operations.
+- [x] **What live Outlook/Graph/cloud verification is required?** — Resolved by the operator on 2026-08-19: after deployment, run the classified-email tool inventory through the live Automation MCP client. Exercise every read/query tool against the production workspace. Prove every user-facing mutation tool is discoverable and usable, but execute an external or production-data write only under the separate exact-target approval recorded by its owning MAIL ticket. Capture tool discovery, authorization parity, request/result shape, actor attribution, version/replay behavior, and denial of unsupported or unapproved operations.

@@ -10,3 +10,7 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Inventory every user-facing email-workspace option and expose a thin Automation MCP tool over the same Core query/command; record any owning capability not yet landed as a dependency, not an omission.
+- [ ] Prove authorization, confirmation, exact-target, version, idempotency, attribution, failure, recovery, and destructive-action parity for every mutation tool.
+- [ ] After deployment, run the full inventory through the live Automation MCP client; exercise all reads and execute writes only under each owning MAIL ticket's separately recorded exact-target approval.

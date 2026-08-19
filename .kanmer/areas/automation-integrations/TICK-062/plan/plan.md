@@ -36,3 +36,9 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Full user-facing MCP parity — operator decision 2026-08-19
+
+Automation MCP must expose every email-workspace option available to an authorised user through thin tools over the same Core owners. The inventory includes browsing/search/detail; classification/correction and queues; folder recommendation and confirmed move; suggestions; automatic/manual Case association, unlink and relink; read state, category, flag, folder, delete, restore and permanent-delete operations; and compose/reply/forward/send once their owning capabilities land. Preserve the exact user-facing authorization, confirmation, version, idempotency, attribution, history, failure and recovery contracts. Do not create MCP-only policy or arbitrary destination/delete/send authority.
+
+After deployment, run the complete tool inventory through the live Automation MCP client. Exercise all reads. Demonstrate mutation-tool discovery and validation, and execute writes only within the exact-target approvals separately recorded by the owning MAIL tickets. Capture successful parity, replay/version behavior, attribution, and explicit denial of unapproved scope.
