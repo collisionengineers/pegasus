@@ -75,7 +75,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260819093019_RetainedMailboxInternetMessageIdentity",
                 "20260819104953_MailClassificationCorrectionHistory",
                 "20260819112640_VersionedRepairSpecifications",
-                "20260819112914_ImageInitiatedLifecycle"
+                "20260819112914_ImageInitiatedLifecycle",
+                "20260819180000_GrantEvaHandoffDownloadOperations"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
