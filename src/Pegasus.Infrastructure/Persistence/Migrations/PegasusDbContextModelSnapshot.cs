@@ -4315,6 +4315,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("BodyPlainText")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CanonicalInternetMessageIdentity")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
                     b.Property<string>("CcAddressesJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -4396,6 +4401,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("ConversationIdentity");
 
                     b.HasIndex("ExternalReceiptToken");
+
+                    b.HasIndex("MailboxId", "CanonicalInternetMessageIdentity")
+                        .IsUnique()
+                        .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
 
                     b.HasIndex("MailboxId", "ImmutableMessageId")
                         .IsUnique();

@@ -51,6 +51,9 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.ImmutableMessageId).HasMaxLength(500).IsRequired();
             entity.Property(item => item.ConversationIdentity).HasMaxLength(500);
             entity.Property(item => item.InternetMessageIdentity).HasMaxLength(500);
+            entity.Property(item => item.CanonicalInternetMessageIdentity)
+                .HasMaxLength(500)
+                .UseCollation("Latin1_General_100_BIN2");
             entity.Property(item => item.ExternalReceiptToken).HasMaxLength(200).IsRequired();
             entity.Property(item => item.SenderAddress).HasMaxLength(320);
             entity.Property(item => item.SenderDisplayName).HasMaxLength(320);
@@ -62,6 +65,9 @@ internal static class MailboxModelConfiguration
             // One row per message per mailbox: the poll inserts if absent and a
             // redelivery is refused here, not judged in application code.
             entity.HasIndex(item => new { item.MailboxId, item.ImmutableMessageId }).IsUnique();
+            entity.HasIndex(item => new { item.MailboxId, item.CanonicalInternetMessageIdentity })
+                .IsUnique()
+                .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
             entity.HasIndex(item => new { item.ReceivedAtUtc, item.Id }).IsDescending(true, false);
             entity.HasIndex(item => new
             {
