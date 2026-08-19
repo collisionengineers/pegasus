@@ -5,8 +5,8 @@
 | Path | Exact responsibility |
 |---|---|
 | `docs/operator-notes.md` | Protected business truth: record the operator-confirmed exhaustive grouped outcome and reconcile the old pre-Case statement. Must be changed through kanmer-docs with explicit operator confirmation already present in this ticket. |
-| `docs/prd/pegasus-product.md` | State product outcome/boundary for Image-Only Cases and preserve Unidentified/Triage/Blocked/Audit distinctions. |
-| `docs/frd/frd-01-case-identity-and-lifecycle.md` | Define Image-Only Case reference, principal, lifecycle, conversion/resolution, and immutable-origin behavior. |
+| `docs/prd/pegasus-product.md` | State product outcome/boundary for Image-initiated Cases and preserve Unidentified/Triage/Blocked/Audit distinctions. |
+| `docs/frd/frd-01-case-identity-and-lifecycle.md` | Define Image-initiated Case reference, principal, lifecycle, conversion/resolution, and immutable-origin behavior. |
 | `docs/frd/frd-02-intake-and-source-identity.md` | Define upload group identity and the exhaustive association-or-create algorithm. |
 | `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Define group-wide recognition aggregation, accepted bar, conflict behavior, and detector/reader diagnostic states. |
 | `docs/frd/frd-12-operator-experience.md` and `docs/design/README.md` | Define group status and visible Case outcome/next action. |
@@ -15,15 +15,15 @@
 | `src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs` | Add only recognition/group outcome contracts needed by automation; keep one canonical state/reason vocabulary. |
 | `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Replace per-receipt early return with idempotent group orchestration and exhaustive association-or-create behavior. |
 | `src/Pegasus.Core/ImageIntake/ImageIntakeCasePairing.cs` | Extract/reuse the exact unique eligible-case selection rule as the single pairing owner. |
-| `src/Pegasus.Core/Cases/` existing acceptance/use-case files identified after docs | Extend the sole Case creation owner for the documented Image-Only Case type; never write Cases directly from image automation. |
+| `src/Pegasus.Core/Cases/` existing acceptance/use-case files identified after docs | Extend the sole Case creation owner for the documented Image-initiated Case type; never write Cases directly from image automation. |
 | `src/Pegasus.Core/Intake/DurableIntake.cs` | Invoke/re-drive group automation only after group membership and recognition completion conditions are met. |
 | `src/Pegasus.Infrastructure/Vision/OnnxVrmRecognitionEngine.cs` | Preserve detector→recognizer sequence and return distinct safe outcomes for no crop versus unreadable crop. |
 | `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` | Persist/query per-member suggestions and idempotent associations; widen for group lookup only through Core contracts. |
-| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` | Persist one idempotent group routing outcome and any documented Image-Only fields/constraints. |
+| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` | Persist one idempotent group routing outcome and any documented Image-initiated fields/constraints. |
 | `src/Pegasus.Infrastructure/Persistence/Migrations/<timestamp>_GroupedImageRouting.cs` and snapshot | Add outcome/idempotency schema and any Case-type schema required by the governing docs. |
-| `src/Pegasus.Web/Pages/UploadStatus.cshtml(.cs)` or INTK-005 group status page | Show waiting-for-group, associated Case, or created Image-Only Case accurately. |
+| `src/Pegasus.Web/Pages/UploadStatus.cshtml(.cs)` or INTK-005 group status page | Show waiting-for-group, associated Case, or created Image-initiated Case accurately. |
 | `src/Pegasus.Web/Pages/Cases/Details.cshtml(.cs)` | Show every grouped image/origin on the resulting Case using existing Image Intake/case evidence patterns. |
-| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Add the single operator label for documented Image-Only Case/outcome if needed. |
+| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Add the single operator label for documented Image-initiated Case/outcome if needed. |
 | `src/Pegasus.Web/Program.cs` | Register changed ports/use cases through existing scoped conventions. |
 | `tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs` | Exhaustive group routing matrix and replay/concurrency logic. |
 | `tests/Pegasus.Core.Tests/ImageIntake/ImageIntakeCasePairingTests.cs` | Exact unique-match/no-overlap/conflict policy remains shared. |

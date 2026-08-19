@@ -35,14 +35,15 @@ prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T10:59:54.519Z'
+updated: '2026-08-19T11:01:07.212Z'
 ---
 
 ## What
-Fix grouped vehicle-image processing so every accepted image group reaches one of the two operator-required outcomes:
+Fix grouped vehicle-image processing so every accepted image group reaches an explicit operator outcome:
 
-1. If the group yields one unambiguous confident VRM and exactly one eligible case matches without overlap, associate every image in the group to that case.
-2. Otherwise create one Image-initiated Case containing the whole image group.
+1. If the group yields one unambiguous confident VRM and exactly one eligible Instruction-initiated Case matches without overlap, associate every image in the group to that Case.
+2. If the group has one usable VRM but no unique eligible instruction match, create one Image-initiated Case containing the whole image group.
+3. If the group has no usable VRM or conflicting/ambiguous accepted VRMs, it cannot receive the required VRM-based Image-initiated reference; route the intact group through the [[INTK-007]] Unidentified contract (U<n>) until staff resolves the identity.
 
 The Upload/status surface must show which outcome occurred. Production diagnostics must also distinguish the two recognition layers without recording image content.
 
@@ -50,7 +51,6 @@ The Upload/status surface must show which outcome occurred. Production diagnosti
 A damage close-up may contain no registration while another image selected with it does. The group is the evidence unit. The 2026-08-19 production JPEG was retained and both plate-detection and plate-recognition ran, but the partial suggestion was below threshold; Pegasus left it in `Needs sorting` with no Image Intake, association, or Image-initiated Case.
 
 Today the engine also collapses “no plate detected” and “plate detected but unreadable” into `NoReadableResult`, so production evidence cannot say which recognition layer abstained. Both the third terminal path and the diagnostic ambiguity must be removed.
-
 
 ## Product model and documentation scope
 
@@ -63,11 +63,12 @@ INTK-006 includes the governing-document reconciliation required to make this mo
 
 ## Verification
 - Fixtures cover groups with one readable VRM plus unreadable damage close-ups, one unique existing-case match, no match, ambiguous/conflicting reads, low-confidence reads, and no-readable results.
-- One confident, unambiguous group VRM with one eligible case match associates every group image to that case.
-- Every other accepted group creates one Image-initiated Case containing every group image.
-- Conflicting evidence fails closed against existing cases and is kept together in the Image-initiated Case.
+- One confident, unambiguous group VRM with one eligible instruction Case associates every group image to that Case.
+- One usable VRM with zero or multiple eligible instruction matches creates one Image-initiated Case containing every group image.
+- No usable or conflicting/ambiguous VRM follows the INTK-007 Unidentified contract as one intact group and receives no fabricated VRM reference.
+- Conflicting evidence fails closed against existing Cases and is kept together; it must not attach to an existing Case on a partial read.
 - No group member terminates as an unrelated generic `Needs sorting` item.
-- The status/result surface identifies the resulting existing or newly created case for the whole group.
+- The status/result surface identifies the resulting existing Case, Image-initiated Case, Unidentified reference, or named technical failure for the whole group.
 - Non-sensitive diagnostics distinguish at least: detector found no plate; detector found a crop but recognition returned no usable registration; usable suggestion produced; technical failure.
 - Diagnostics prove whether each layer ran without logging source-image content or creating a second business-decision taxonomy.
 

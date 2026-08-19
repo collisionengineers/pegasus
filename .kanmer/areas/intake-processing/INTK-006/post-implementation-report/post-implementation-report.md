@@ -2,7 +2,7 @@
 
 ## Summary
 
-Implemented the non-blocking INTK-005 branch integration for grouped vehicle-image routing. Grouped receipts are now discovered from their stable child source tokens, all group members are evaluated together, and a single accepted VRM plus one eligible existing Case associates every member. Vision outcomes now retain distinct detector-empty versus recognizer-empty reasons. The authorized Image-Only Case fallback remains deferred to the existing Case owner/governing-document contract; this branch does not invent a principal or Case reference.
+Implemented the non-blocking INTK-005 branch integration for grouped vehicle-image routing. Grouped receipts are now discovered from their stable child source tokens, all group members are evaluated together, and a single accepted VRM plus one eligible existing Case associates every member. Vision outcomes now retain distinct detector-empty versus recognizer-empty reasons. The authorized Image-initiated Case fallback remains deferred to the existing Case owner/governing-document contract; this branch does not invent a principal or Case reference.
 
 ## Changes
 
@@ -18,12 +18,12 @@ Implemented the non-blocking INTK-005 branch integration for grouped vehicle-ima
 
 ## Governing docs
 
-No protected operator or normative governing document was changed in this implementation branch. The implementation reuses the existing `IImageIntakeCaseCandidates`, `IRegisterImageIntake`, and `ICaseAcceptanceStore` boundaries. The latter requires a real principal and immutable Case identity, so an Image-Only Case cannot be fabricated safely. INTK-007 and the reviewed governing-document reconciliation must define that authorized fallback contract before it is wired.
+No protected operator or normative governing document was changed in this implementation branch. The implementation reuses the existing `IImageIntakeCaseCandidates`, `IRegisterImageIntake`, and `ICaseAcceptanceStore` boundaries. The latter requires a real principal and immutable Case identity, so an Image-initiated Case cannot be fabricated safely. INTK-007 and the reviewed governing-document reconciliation must define that authorized fallback contract before it is wired.
 
 ## Risks / follow-ups
 
 - INTK-005 PR #416 is the branch base at `ed04f498`; rebase this branch onto the reviewed INTK-005 result and reconcile conflicts before merge.
-- The Image-Only Case branch and persisted group outcome/history are not claimed complete here; they require the authorized reference/principal/lifecycle contract. Do not merge this PR as the full INTK-006 acceptance until that review decision is resolved.
+- The Image-initiated Case branch and persisted group outcome/history are not claimed complete here; they require the authorized reference/principal/lifecycle contract. Do not merge this PR as the full INTK-006 acceptance until that review decision is resolved.
 - INTK-007 owns the Unidentified queue and must receive terminal grouped failures without silently reverting to the old Needs sorting meaning.
 
 ## Verification hand-off
