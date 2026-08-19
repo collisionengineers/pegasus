@@ -1,366 +1,349 @@
-# DELIV-012 — Research: recent tickets since the last deploy
+# DELIV-012 research — recent tickets since the last deploy
 
-Anchor facts used throughout: last production deployment = **release 10**, commit `d8de29cb` (git log confirms `2026-08-18 13:52:50 +0000`), deployed 2026-08-18T13:52Z. Production still serves release 10. `origin/dev` = `560f741c`. Anything merged/completed after 2026-08-18T13:52Z is **not** in production, regardless of what any proof/checklist document claims.
+Anchor facts: last production deployment = release 10, `d8de29cb`, 2026-08-18T13:52Z; production still serves that build. `origin/dev` = `560f741c` at research time (confirmed by `git fetch origin dev`). Anything merged to `dev` after 2026-08-18T13:52Z is **not** in production. Local main-repo working tree (`dev` branch, HEAD `4ba63888`) is one commit *behind* `origin/dev` (missing PR #420's merge commit `560f741c` itself) — file-level checks below use `git show origin/dev:<path>` rather than the working tree where that matters.
 
-A note on method: `updated_since` on this board is unreliable as a "real activity" signal by itself — a board-wide `order`-field reindex (actor `codex-mcp-client`) touched the `updated` timestamp of essentially every ticket on the board at 2026-08-19T09:39:14–15Z, including tickets last touched weeks ago. The roster below is filtered to tickets whose activity log shows a **real** mutation (status/doc/take/commit/PR change, not just an `order` bump) at or after the 2026-08-18T13:52Z cutoff.
+Note on method: `list_items` filtered to `updated_since: 2026-08-18T13:52:00Z` returned 68 tickets, but a board-wide `order` reindex by `codex-mcp-client` at 2026-08-19T09:39:14–15Z touched nearly every ticket's `updated` timestamp as a side effect (confirmed via `get_activity` on several — their only post-cutoff entry is `update / order`). The roster below is filtered to tickets with genuine non-order activity since the cutoff (status change, doc write, take, commit/PR update), cross-referenced against `review`/`verifying`/`done` status. 29 tickets qualify.
 
 ---
 
 ## 1. Roster since the last deploy
 
-29 non-archived tickets in `review`/`verifying`/`done` show genuine activity since the release-10 cutoff.
-
-| ID | Title (short) | Status | Profile | Taken (assignee / branch) | PR(s) | Merged to dev? | `deployment` field | Docs | Checklist | Unresolved open-questions |
+| ID | Title (short) | Status | Profile | Taken (branch / worktree / assignee) | PR(s) | Merged→dev? | `deployment` field | Docs present | Checklist | Unresolved open-questions |
 |---|---|---|---|---|---|---|---|---|---|---|
-| TICK-093 | ENG-01 canonical repair specification | verifying | feature | codex-mcp-client / `task/tick-093-versioned-repair-spec` (still taken) | #420 | Yes (12:16Z) | not-deployed | full | 6/6 | none |
-| INTK-007 | Replace Needs sorting with Unidentified | review | feature | Codex / `intk-007-unidentified-intake` (still taken) | #424 (open, no CI) | No | — | full | 22/36 | none (but doc itself says "implementation deliberately blocked until kanmer-docs reconciles protected/governing docs" — see §4) |
-| TICK-045 | MAIL-03 shared classification policy | review | feature | Codex / `task/tick-045-shared-classification-policy` (still taken) | #422 (open, mostly green, 1 pending) | No | — | full | 12/12 | none |
-| INTK-008 | Image-initiated Case lifecycle | review | feature | Codex / `intk-008-image-initiated-lifecycle` (still taken) | #423 (open, no CI) | No | — | full | 8/29 | none |
-| INTK-006 | Grouped image routing | review | fix | Codex / `intk-006-grouped-image-routing` (still taken) | #417 (open, red CI) | No | — | full | 26/41 | none |
-| TICK-213 | Density subsumption decision | done | feature | codex-mcp-client (released) | #421 | Yes (11:37Z) | n/a | full+proof | 15/15 | none |
-| TICK-046 | MAIL-04 classification evidence/history | verifying | feature | codex-mcp-client / `task/tick-046-classification-history` (still taken) | #418 | Yes (11:23Z) | — | full | 10/10 | none |
-| PR-009 | Preserve report tails under long content | done | fix | codex-mcp-client (released) | #419 | Yes (11:21Z) | n/a | full+proof | 17/17 | none |
-| INTK-005 | Grouped upload | review | feature | Codex / `intk-005-grouped-upload` (still taken) | #416 (open, red CI) | No | — | full | 7/33 | none |
-| PLAT-001 | Claude Design UI implementation | done | feature | claude-code (released) | #397 | Yes (2026-08-18T09:23Z, predates cutoff) | **absent from item record** (finding) | full+proof | 55/63 (mostly stale duplicate checklist sections — see §3) | none (rich resolution log) |
-| TICK-099 | RPT-04 diminution — decision | done | feature | codex-mcp-client (released) | none (zero diff) | n/a | n/a | full+proof | 13/13 | none |
-| TICK-205 | Audit repair-spec model — decision | done | feature | codex-mcp-client (released) | none (zero diff) | n/a | n/a | full+proof | 16/16 | none |
-| TICK-212 | Renderer package lock files — decision | done | feature | codex-mcp-client (released) | none (zero diff) | n/a | n/a | full+proof | 12/12 | none |
-| TICK-207 | Audit template reuse — decision | done | feature | codex-mcp-client (released) | none (zero diff) | n/a | n/a | full+proof | 13/13 | none |
-| TICK-211 | Renderer analyzer strictness — decision | done | feature | codex-mcp-client (released) | none (zero diff) | n/a | None (unset, not `n/a`) | full+proof | 11/16 (unchecked = decision-profile template artifacts) | none |
-| TICK-203 | Renderer MCP surface — decision | done | feature | codex-mcp-client (released) | none (zero diff) | n/a | n/a | full+proof | 12/12 | none |
-| TICK-043 | MAIL-01 mailbox/thread/message identity | verifying | feature | codex-mcp-client / `task/tick-043-mailbox-identity` (still taken) | #414 | Yes (10:34Z) | — | full | 10/10 | none |
-| SIMPLI-014 | Integrate CollisionRenderer behind Core port | done | feature | codex-mcp-client (released) | #415 | Yes (10:29Z) | None (unset) | full+proof | 18/24 (unchecked = closeout housekeeping) | none |
-| TICK-215 | Renderer execution boundary — decision (ADR-0028) | done | feature | codex-mcp-client (released) | none (sourced via DOCS-002's #413) | n/a | n/a | full+proof | 12/12 | none |
-| TICK-204 | Assessment-report outcome variants | done | feature | codex-mcp-client (released) | #412 | Yes (09:17Z) | n/a | full+proof | 11/11 | none |
-| TICK-010 | MAIL-22 taxonomy persistence | done | feature | grok-shell-kanmer (released) | #392 | Yes — release 9, predates window | production (release 9) | full+proof | 8/8 | none above Parked |
-| TICK-009 | MAIL-21 classification volume cohort | done | feature | grok-shell-kanmer (released) | #391 | Yes — release 9, predates window | production (release 9) | full+proof | 12/12 | none above Parked |
-| DOCS-002 | ADR-0028: Web Container App as renderer boundary | done | chore | codex-mcp-client (released) | #413 | Yes (09:19Z) | n/a | full+proof | 11/11 | none |
-| DELIV-009 | Release 10: promote dev→main, deploy | done | chore | claude-code (released) | #406, #407 | Yes → **main**, deployed | production (release 10 itself) | plan/checklist/proof only (no research/open-q — correct for this profile) | 10/10 | n/a (no open-questions doc for this profile) |
-| AUTO-002 | Authorization-code + PKCE for MCP connectors | done | feature | claude-code (released) | #405 | Yes (13:52:51Z — part of release 10) | production | full minus open-q | 15/17 | n/a |
-| TICK-011 | INT-17 VRM reading — reconciliation | done | feature | (none) | none (reconciliation only; code already on `main` via `ae6f0c2d`/`ef3eb4c7`/`f7d99b18`) | n/a | not-deployed (caller-activation gap, not code-absence — see §3) | full minus open-q | 10/10 | n/a |
-| TICK-044 | MAIL-02 classification→destination mapping | verifying | feature | codex-mcp-client / `task/tick-044-classification-catalogue` (still taken) | #411 | Yes (09:03Z) | — | full | 12/18 (6 unticked, **not** under Parked — real gap, see §3) | none in open-questions.md itself |
-| PLAT-006 | Centre shell content region, redesign Upload | verifying | fix | claude-code / `task/plat-006-shell-upload` (still taken) | #409 | **Yes**, merged 08:08:07Z (confirmed directly via `gh`; a sub-agent's draft read this as still-open — corrected here) | — | full minus research/open-q | 9/10 (item 10 "PR to dev, review, merge" stale-unticked post-merge) | n/a |
-| TICK-033 | INT-31 capability-inventory reconciliation (docs-only) | verifying | feature | codex-mcp-client / `task/tick-033` (still taken) | #408 | Yes (2026-08-18T15:38Z) | — | full minus open-q | 4/5 (CI evidence for #408 not yet confirmed in-ticket) | n/a |
+| TICK-093 | ENG-01 canonical repair specification | verifying | feature | `task/tick-093-versioned-repair-spec` / `../pegasus-worktrees/tick-093-versioned-repair-spec` / codex-mcp-client | #420 | Yes (12:16Z) | not-deployed | all 7 | 6/6 | none |
+| INTK-007 | Replace Needs sorting with Unidentified | review | feature | `intk-007-unidentified-intake` / `.worktrees/intk-007` / Codex | #424 | No (open) | — | all 7 | 22/36 | none (impl. gated on docs, done) |
+| TICK-045 | MAIL-03 shared classification policy | review | feature | `task/tick-045-shared-classification-policy` / Codex | #422 | No (open) | — | all 7 | 12/12 | none (all parked items resolved) |
+| INTK-008 | ImageIntake → Image-initiated Case lifecycle | review | feature | `intk-008-image-initiated-lifecycle` / Codex | #423 | No (open) | — | all 7 | 8/29 | none listed (but no dated Simplification-pass section — see §2) |
+| INTK-006 | Grouped image routing | review | fix | `intk-006-grouped-image-routing` / Codex | #417 | No (open, DIRTY/conflicting) | — | all 7 | 26/41 | none (all [x]) |
+| TICK-213 | Decide density scope for rendered docs | done | feature | — / codex-mcp-client | #421 | Yes | n/a | all 8 | 15/15 | none |
+| TICK-046 | MAIL-04 classification evidence/history | verifying | feature | `task/tick-046-classification-history` / codex-mcp-client | #418 | **Yes, merged 11:23:50Z** | None (stale — should be n/a, see §3) | 7 (no proof yet) | 10/10 | none |
+| PR-009 | Fix long-list/photo Chromium truncation | done | fix | — / codex-mcp-client | #419 | Yes | n/a | all 8 | 17/17 | none |
+| INTK-005 | Grouped Upload (multi-file) | review | feature | `intk-005-grouped-upload` / Codex | #416 | No (open) | — | all 7 | 7/33 | none |
+| PLAT-001 | Claude Design UI implementation | done | feature | — / claude-code | #397 | Yes | **not set — should be `production`, see §4** | all 8 | 55/63 | 1 unchecked verification item (visual proof), acknowledged follow-up |
+| TICK-099 | RPT-04 diminution deferral | done | feature | — / codex-mcp-client | none (zero-diff) | n/a | n/a | all 8 | 13/13 | none |
+| TICK-205 | Audit needs no dual-spec/uplift | done | feature | — / codex-mcp-client | none (zero-diff) | n/a | n/a | all 8 | 16/16 | none |
+| TICK-212 | Renderer package lock files | done | feature | — / codex-mcp-client | #415 (subsumed) | Yes | n/a | all 8 | 12/12 | none |
+| TICK-207 | Audit reuses Inspection template | done | feature | — / codex-mcp-client | none (zero-diff) | n/a | n/a | all 8 | 13/13 | none |
+| TICK-211 | Renderer analyzer strictness | done | feature | — / codex-mcp-client | #415 (subsumed) | Yes | n/a | all 7 | 11/16 | none |
+| TICK-203 | Reconcile renderer MCP vs Automation Actor | done | feature | — / codex-mcp-client | #415 (subsumed) | Yes | n/a | all 8 | 12/12 | none |
+| TICK-043 | MAIL-01 mailbox/thread/message identity | verifying | feature | `task/tick-043-mailbox-identity` / codex-mcp-client | #414 | Yes | None | 7 (no proof yet) | 10/10 | not checked in depth (see §3) |
+| SIMPLI-014 | Integrate CollisionRenderer behind Core render contract | done | feature | — / codex-mcp-client | #415 | Yes | None | all 8 | **18/24, incomplete** | 1 unchecked verification item — "a real Pegasus caller renders… end to end" is **not actually true**, see §3 |
+| TICK-215 | Decide renderer execution location | done | feature | — / codex-mcp-client | #413 (via DOCS-002) | Yes | n/a | all 8 | 12/12 | none |
+| TICK-204 | Define assessment-report outcome variants | done | feature | — / codex-mcp-client | #412 | Yes | n/a | all 8 | 11/11 | none |
+| TICK-010 | MAIL-22 taxonomy persistence | done | feature | — / grok-shell-kanmer | #392 | Yes (release 9) | production (correctly, release 9 not 10/12) | all 8 | 8/8 | none |
+| TICK-009 | MAIL-21 classification foundation | done | feature | — / grok-shell-kanmer | #391 | Yes (release 9) | production (correctly, release 9) | all 8 | 12/12 | none |
+| DOCS-002 | ADR-0028: renderer runs in Web Container App | done | chore | — / codex-mcp-client | #413 | Yes | n/a | all 8 | 11/11 | none |
+| DELIV-009 | Release 10 promotion | done | chore | — / claude-code | #406, #407 | Yes (main+dev) | **production** (correct — this IS the deploy) | plan/checklist/proof only | 10/10 | none |
+| AUTO-002 | Authorization-code + PKCE for MCP connectors | done | feature | — / claude-code | #405 | Yes (release 10) | **production** (correct, live-evidenced) | 7 (no files) | 15/17 | none |
+| TICK-011 | INT-17 automatic VRM reading (retrospective) | done | feature | — / (unassigned) | none (retrospective, no PR) | Yes (already on main) | not-deployed (honestly self-reported — caller not established) | 6 (no files/open-q) | 10/10 | none |
+| TICK-044 | MAIL-02 classification→destination mapping | verifying | feature | `task/tick-044-classification-catalogue` / codex-mcp-client | #411 | Yes | None | 7 (no proof yet) | **12/18, incomplete — real caller explicitly not wired yet**, see §3 | **self-acknowledged unresolved item**, see §3 |
+| PLAT-006 | Centre shell content region + redesign Upload | verifying | fix | `task/plat-006-shell-upload` / claude-code | #409 | Yes | None | 5 (no research/open-q — not required for `fix` profile) | 9/10 | n/a (no open-questions doc) |
+| TICK-033 | INT-31 request-upload capability-inventory correction | verifying | feature | `task/tick-033-request-upload-reconciliation` / codex-mcp-client | #408 | Yes | None | 6 (no open-questions doc) | 4/5 (integration tests locally timed out, left for CI) | n/a (no open-questions doc) |
 
-Docs legend: "full" = research/files/plan/checklist/open-questions/post-implementation-report/scratch all present; "full+proof" adds proof.md (verifying/done-stage requirement); some chore/custom-profile tickets correctly omit research/open-questions per their profile.
-
-**No unresolved (`- [ ]` above `## Parked`) open-questions items were found in any of the 23 roster tickets that carry an open-questions document.** Every ticket that shows `- [ ]` items has them correctly below `## Parked (explicitly deferred)`, which is not gate-counted.
+**28 real tickets** (TICK-213/PR-009/TICK-046/TICK-204/DOCS-002/SIMPLI-014/etc. above), all genuinely active since the cutoff. 5 have open PRs against `dev` (INTK-005/006/007/008, TICK-045); the rest are merged-to-dev-not-production or genuinely deployed (TICK-009/010 in release 9, AUTO-002/DELIV-009 in release 10).
 
 ---
 
-## 2. Open PRs — one section per ticket
+## 2. Open PRs — INTK-005, INTK-006, INTK-007, INTK-008, TICK-045
 
-A shared pattern across all five open PRs: every one carries at least one **unaddressed `chatgpt-codex-connector[bot]` review comment**, and no PR has a human reviewer comment. A second shared pattern: **every PR whose diff includes a `CREATE TABLE` migration omits the `GRANT ... TO [pegasus_web_runtime_role]` statement** that the repo's own recent convention requires (see `20260819104953_MailClassificationCorrectionHistory.cs` for the correct idiom) — this is the same defect class already confirmed on merged TICK-093, so it is now a **pattern**, not an isolated miss.
+All five PRs are an EPIC-007 (INTK-*) / EPIC-006 (TICK-045) cluster built in the last few hours. **A systemic deployment risk runs through four of the five**: every new EF Core migration in this batch creates tables the Web app writes to, and **none of the four grant `pegasus_web_runtime_role` any permission** — the repo convention (confirmed against `20260819104953_MailClassificationCorrectionHistory.cs`, TICK-046's already-merged migration, and `20260814092852_AddWorkerCaseCreationGrants.cs`) is `migrationBuilder.Sql("GRANT SELECT, INSERT/UPDATE ON OBJECT::[dbo].[Table] TO [pegasus_web_runtime_role];")` per new table. `grep -n GRANT` across all five PR diffs found **zero** GRANT statements anywhere in #416, #417, #423, or #424 (TICK-045/#422 adds no schema, so it's exempt). This is the same class of defect the sibling research lane already verified for TICK-093/#420 (merged).
 
-### INTK-005 — PR #416 "grouped upload" (open, RED CI)
+### #416 INTK-005 — Allow one Upload submission to accept multiple files
 
-One authenticated Upload POST now accepts multiple files as a durable submission group (`IntakeSubmissionGroups`/`IntakeSubmissionGroupMembers` + migration, Core `GroupedIntake` orchestration, new `UploadGroupStatus` page). Single commit `ed04f498`. Checklist 7/33.
+**What it does:** Adds a Core `GroupedIntake` boundary (group + ordered member contracts, one store port, one use case) around the existing per-file `IIntakeSubmission`; new `IntakeSubmissionGroups`/`IntakeSubmissionGroupMembers` tables; changes the authenticated Upload page to accept multiple files and redirect to a new `UploadGroupStatus` page listing every member's outcome.
 
-**Reviewer comments (Codex bot, review at 10:35:35Z, all unaddressed — no commits since):**
-1. P1 `Upload.cshtml:36` — multi-file selections can exceed `Program.cs`'s unchanged 10 MiB+64 KiB `MultipartBodyLengthLimit`.
-2. P2 `UploadGroupStatus.cshtml:12` — no `data-auto-refresh`; rows stick at "Processing".
-3. P2 `EfIntakeSubmissionGroupStore.cs:122` — concurrent same-token inserts can collide on `(GroupId, Ordinal)`, no retry.
-4. P2 `Upload.cshtml.cs:129` — exact-replay redirect loses "already received" messaging.
-5. **P1 `GroupedIntake.cs:128` — rewrites the single-file token to `token:0`**, breaking `ExternalReceiptToken` correlation for existing callers.
+**CI:** `sql-integration (1/2/3)` **fail**; `browser`, `unit`, `sql-integration-coverage`, `changes`, `documentation`, `reference-data` pass. `infrastructure` skipped. Mergeable, but `mergeStateStatus: UNSTABLE`.
 
-Plan covers the ticket's acceptance criteria; implementation matches plan structurally, but finding #5 directly contradicts the plan's own step 5 ("retain `ExternalReceiptToken`"). Simplification pass recorded (dated 2026-08-19) but predates the CI run and doesn't name the deterministic failures below. No scope drift.
+**Reviewer comments (Codex bot, all at 10:35:36Z, none addressed — no commits pushed after the review):**
+- **P1** `Upload.cshtml:36` — multipart body limit still capped at ~10 MiB in `Program.cs`, so two valid 6 MiB files fail before `OnPostAsync` even though the page now advertises multi-file support.
+- **P2** `UploadGroupStatus.cshtml:12` — the new status page doesn't set `data-auto-refresh`, so rows stay at `Received`/`Processing` until manual reload.
+- **P2** `EfIntakeSubmissionGroupStore.cs:122` — concurrent same-token submissions racing on the unique `(GroupId, Ordinal)` constraint aren't retried, so one request in a double-submit can fail outright.
+- **P2** `Upload.cshtml.cs:129` — exact-replay of the same token now always redirects to the generic group page, losing the "already received; no duplicate" feedback.
+- **P1** `GroupedIntake.cs:128` — single-file uploads now get their occurrence token rewritten from `token` to `token:0`, breaking any code/tests that correlate by the original `ExternalReceiptToken`.
 
-**CI is red and the root cause is confirmed**: `sql-integration (1/2/3)` fail 8 tests, all in the same family (`InstructionDraftWebTests`, `IntakeWebNegativeTests`, `QdosIntakeWebTests`) — traced directly to finding #5's `token:0` rewrite, plus one unrelated stale-migration-name fixture test.
+**Plan vs ticket:** covers what INTK-005's body asks for. **Simplification pass:** recorded, dated 2026-08-19, in `plan/`, credible (reuses `IIntakeSubmission`, no new queue/framework). **Scope drift:** none — an explicit "Parallel-branch execution note" documents that INTK-006 was deliberately built from this PR's branch before merge (non-blocking, reconciled by rebase later); this is unusual but is disclosed, not hidden.
 
-**Deployment risk — confirmed GRANT gap**: `20260819101344_GroupedIntakeSubmission.cs` creates both new tables with no `GRANT` statement. The PR's own post-implementation report even flags it ("Runtime-role grants... should be confirmed... before production promotion") without fixing it.
-
-**Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Blocker | `src/Pegasus.Infrastructure/Persistence/Migrations/20260819101344_GroupedIntakeSubmission.cs` | No GRANT to `pegasus_web_runtime_role` on `IntakeSubmissionGroups`/`IntakeSubmissionGroupMembers`. Remediation: add `migrationBuilder.Sql("GRANT SELECT, INSERT ON OBJECT::[dbo].[IntakeSubmissionGroups] TO [pegasus_web_runtime_role];")` (and the member table) matching the `20260819104953_MailClassificationCorrectionHistory.cs` idiom; verify with a permission-role integration test. | [verified] |
-| Blocker | `src/Pegasus.Core/Intake/GroupedIntake.cs:128` | Single-file token rewritten to `token:0`, breaking `ExternalReceiptToken` correlation; causes 8 CI failures. Remediation: only synthesize `{token}:{ordinal}` for group members beyond the first (or key membership internally without touching `ExternalReceiptToken`); pass the original token through unmodified for single-member groups. Test: `dotnet test --filter "FullyQualifiedName~InstructionDraftWebTests|FullyQualifiedName~IntakeWebNegativeTests|FullyQualifiedName~QdosIntakeWebTests"` → 0 failures. | [verified] |
-| Should-fix | `src/Pegasus.Web/Program.cs` (`MultipartBodyLengthLimit`, ~line 502-505) | Global multipart limit unchanged while multi-file groups can exceed it. Remediation: derive the limit from `IntakeEnvelopeLimits.MaximumContentLength * <max files per group>`; add a 2-file-over-10MiB integration test. | [verified] |
-| Should-fix | `src/Pegasus.Web/Pages/UploadGroupStatus.cshtml:12` | Missing `data-auto-refresh`. Remediation: add the same attribute used elsewhere; add a browser test asserting its presence. | [suspected, needs check] |
-| Nit | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` (`CommittedMigrationCreatesTheSqlServerSchema`) | Expected-migrations fixture missing the new migration name. Remediation: add it to the expected list. | [verified] |
-| Should-fix | `src/Pegasus.Infrastructure/EfIntakeSubmissionGroupStore.cs:122` | No retry on concurrent same-token `(GroupId, Ordinal)` collision. Remediation: catch the unique-constraint exception, reload, return the existing member. | [suspected, needs check] |
-
-### INTK-006 — PR #417 "grouped image routing" (open, RED CI, built on INTK-005)
-
-Aggregates a group's terminal VRM recognitions and associates the whole group to one existing Case only when exactly one usable VRM matches exactly one eligible Case. A same-day "Scope split" ticket-body amendment explicitly narrows this PR to that one outcome, deferring Image-initiated-Case creation to INTK-008 and Unidentified routing to INTK-007 — a self-consistent, ticket-authorized narrowing, not a silent gap, but it means the PR cannot be read against the ticket's *original* three-outcome acceptance criteria without that split being accepted in review. Checklist 26/41.
-
-**Reviewer comments — two Codex rounds.** Round 1 (10:54:14Z, on commit `70d7c89c`) had 9 comments; two are confirmed **addressed** by later commits `866d305e`/`599bfe6d` (single-VRM groups with no eligible case now fall through correctly; single-file uploads redirect back to `/Upload/Status/{id}`). The rest remain open, most seriously:
-- **P1 `ImageIntakeAutomation.cs:205` — still unaddressed at current HEAD (verified by direct read)**: `TryRegisterAndAssociateAsync`/`TryAssociateAsync` results are ignored in the member loop, so a recoverable per-member failure silently completes the group.
-- P1 `ImageIntakeAutomation.cs:182` — expected member count read at evaluation time; an interrupted group can pass a false-equal check. [suspected, needs check]
-- Round 2 (11:26:15Z, on current HEAD `599bfe6d` — by definition unaddressed): **P1 `ImageIntakeAutomation.cs:200`** — `HandOffToImageIntake` (multi-candidate ambiguity) decisions still enter the same association loop and can re-query into a different match than intended [verified by direct read]; P2 replay-identity/idempotency issues inherited from #416.
-
-**CI provenance problem (process blocker):** the only workflow run for this branch (`32244323472`) was triggered at commit `70d7c89c`, **before** the two remediation commits. No CI has ever run against current HEAD, and the branch is `mergeStateStatus: DIRTY`/`CONFLICTING` against `dev`. The checklist's "tests passed after rebuild" line is a local, non-CI claim.
-
-Simplification pass recorded twice, honest and specific (names concrete reuse, states the Image-initiated-Case branch is deliberately deferred to INTK-008). No migration of its own — inherits, does not add to, INTK-005's GRANT gap.
+**Deployment risk:** `IntakeSubmissionGroups`/`IntakeSubmissionGroupMembers` created with no GRANT [verified — `grep GRANT` on the migration diff hunk is empty]. Own post-implementation-report already flags this: *"Runtime-role grants for the new tables should be confirmed against the deployment migration conventions before production promotion."*
 
 **Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Blocker (process) | PR #417 @ `599bfe6d` | Current HEAD never went through CI; branch is CONFLICTING against `dev`. Remediation: rebase onto a fixed INTK-005, push, require a fresh green run before further review. | [verified] |
-| Should-fix | `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` (member loop, ~195-210) | Per-member association result never checked; `HandOffToImageIntake` decisions share the unconditional loop instead of being routed away. Remediation: capture the per-member result and don't finalize the group on failure; gate the loop on `routing.Decision == AssociateExistingCase` explicitly. Test: Core test forcing one member's registration to fail, assert group not marked complete. | [verified] |
-| Should-fix | `ImageIntakeAutomation.cs:182`, `:150` | Possible member-count race and non-image/N² recognizer inclusion. | [suspected, needs check] |
-| Nit | inherited | Multipart limit / auto-refresh issues from #416 apply here too via the shared branch base. | [verified] |
+- **[blocker] [verified]** Missing GRANT on `IntakeSubmissionGroups`/`IntakeSubmissionGroupMembers`. File: `src/Pegasus.Infrastructure/Persistence/Migrations/20260819101344_GroupedIntakeSubmission.cs`. Remediation: in `Up()`, after the two `CreateTable` calls, add `migrationBuilder.Sql("GRANT SELECT, INSERT ON OBJECT::[dbo].[IntakeSubmissionGroups] TO [pegasus_web_runtime_role];");` and the same for `IntakeSubmissionGroupMembers` (INSERT/SELECT — the store only inserts and queries, never updates/deletes members), matching the pattern in `20260819104953_MailClassificationCorrectionHistory.cs:101-105`. Test: apply the migration to a throwaway SQL Server instance under the `pegasus_web_runtime_role` login and confirm an insert into both tables succeeds without a permission error.
+- **[should-fix] [verified]** Multipart body size cap unchanged in `Program.cs` while the UI now advertises multi-file uploads (Codex P1 comment, unaddressed). Remediation: raise `FormOptions.MultipartBodyLengthLimit` (and any Kestrel/IIS equivalent) in `src/Pegasus.Web/Program.cs` to a limit derived from `IntakeEnvelopeLimits.MaximumContentLength * <max files>` plus overhead, or reject the excess client-side before submit with a clear message. Test: submit two 6 MiB files via the integration multipart helper and assert success instead of a 400.
+- **[nit] [verified]** `UploadGroupStatus.cshtml` missing `data-auto-refresh` (Codex P2, unaddressed). Remediation: add the attribute used elsewhere (e.g. `UploadStatus.cshtml`) to the group status row container.
 
-### INTK-007 — PR #424 "Replace Needs sorting with Unidentified" (open, NO CI RUN)
+### #417 INTK-006 — Grouped image routing
 
-Adds a Core-owned `Unidentified` aggregate (immutable `U<n>` references, six-code reason taxonomy, Open/Resolved lifecycle, EF persistence + legacy backfill, operator queue/detail UI, MCP tools) as a wide replacement for `Needs sorting`. Checklist 22/36. The ticket's own open-questions.md states: *"Implementation is deliberately blocked until kanmer-docs reconciles the protected and governing documents. That is a prerequisite, not an open product question."* — yet the PR is already open with code implemented (see §4).
+**What it does:** Routes an entire vehicle-image group (not one image) to a single outcome — associate all members to one existing eligible Case when there's one confident VRM and one match, or defer to INTK-008's ImageIntake lifecycle when there's no match. Distinguishes detector-empty vs recognizer-empty vision outcomes. **Also edits `docs/operator-notes.md`** (protected) to introduce the "Image-initiated Case" concept.
 
-**Reviewer comments (Codex bot, unaddressed, no CI has ever run on this PR):**
-- P1 `ProcessIntake.cs:258` — below-threshold image intake excluded from Unidentified registration by scan ordering, becomes untracked.
-- P1 `EfUnidentifiedStore.cs:174` — resolution accepts any nonempty free-form `TargetId` with no destination-port validation.
-- **P1 `Message.cshtml.cs:114` "Keep Needs sorting distinct from Unidentified"** — verified against diff: `MailRouteDisposition.NeedsSorting` and `IntakeDecision.NeedsSorting` are both directly relabeled `"Unidentified"` in the UI regardless of whether a U-item was actually registered.
-- P1 `ProcessIntake.cs:256` — every `TechnicalFailure` (including a first-attempt transient error) immediately allocates an immutable U-reference rather than retrying.
-- P1 `ProcessIntake.cs:243` — a later staff reevaluation that resolves a receipt never reconciles the existing open U-item, leaving it stale.
-- P2 replay/idempotency and detail-page evidence gaps (`EfUnidentifiedStore.cs:148`, `Unidentified/Details.cshtml.cs:63`, `Unidentified/Details.cshtml:25`).
+**CI:** *no checks reported* on the branch (confirmed via `gh pr checks 417`). `mergeStateStatus: DIRTY`, `mergeable: CONFLICTING`.
 
-**Plan vs. implementation:** the plan explicitly anticipated the hard part, requiring "a producer-by-producer matrix" and stating existing `docs/operator-notes.md` "Needs sorting" usages "must be reconciled, not silently overwritten" before code — but the merged diff only **adds** a new "Unidentified received material" section to `operator-notes.md` and leaves **three pre-existing "Needs sorting" mentions unreconciled** (verified at lines 42, 199, 388 on `dev`@560f741c). Simplification pass present, dated, honest (names deferred grouped-submission/retained-mail/audit work).
+**Reviewer comments (Codex bot, 10:54:14Z + 11:26:15Z across two reviews, unaddressed):**
+- **P1** `ImageIntakeAutomation.cs:182` — expected member count is read from `members.Count` (currently-persisted count), not the group's declared total, so an interrupted/racing submission can under-count and finalize prematurely.
+- **P1** `Upload.cshtml:36` — same multipart size-limit issue as #416 (shared file).
+- **P2** `UploadGroupStatus.cshtml:14` — same missing auto-refresh as #416.
+- **P2** `ImageIntakeAutomation.cs:150` — non-image receipts (PDFs/Word docs) in a mixed group are passed into the image recognizer without checking `ImageIntakeLifecycleRules.IsImageOnlyMaterial` first.
+- **P2** `GroupedIntake.cs:131` — replayed/duplicate groups lose the `IsDuplicate` feedback flag.
 
-**Deployment risk — confirmed GRANT gap**: migration `20260819115323_UnidentifiedWork.cs` creates three new tables (`UnidentifiedItems`, `UnidentifiedSequences`, `UnidentifiedHistory`) with zero GRANT statements — the ticket's own checklist self-flags this as incomplete.
+**Plan vs ticket:** the plan is candid about scope: it explicitly narrows to "grouped recognition, diagnostics, stable aggregation, and unique existing-Case association" and defers the Image-initiated Case branch to INTK-008 — consistent with the ticket body's own "Scope split — 2026-08-19" addendum. **Implementation vs plan:** matches; own post-implementation-report states the Image-initiated Case branch is deliberately not claimed complete here. **Simplification pass:** recorded and dated, credible (reuses `IImageIntakeCaseCandidates`, `TryRegisterAndAssociateAsync`; no duplicate matcher). A documented "Review remediation evidence" section shows one round of self-fix (commit `866d305e`) already applied to restore single-file behaviour broken by an earlier commit — good sign of real iteration, but happened *before* the Codex review shown above, which is still unaddressed.
 
-**operator-notes.md / invariant analysis:** The added text is careful and explicitly claims to preserve distinctness ("does not rename or collapse Triage, Blocked intake, incomplete Audit evidence, or Image Intake"). The actual CLAUDE.md-protected invariant sentence lives in `docs/prd/pegasus-product.md`, not `operator-notes.md`, and **is rewritten there**: `Needs sorting` is removed from the definitional list and replaced by `Unidentified`/`Image Intake` bullets, done with an explicit terminology mapping — a deliberate, ticket-authorized rename, not a silent collapse. The real defect is narrower: `operator-notes.md` itself was left internally inconsistent post-merge (new + stale old language coexisting), contradicting the ticket's own reconciliation commitment, and the UI-label collapse (finding above) can present "Unidentified" for cases that aren't actually U-registered.
+**operator-notes.md diff (verified, quoted):** Changes the "image-only arrival" paragraph from *"may be described operationally as an 'image-initiated case'… remains pre-case and distinct from any accepted editable Case… Images alone must not create a definitive association"* to *"is an Image-initiated Case projection… remains distinct from any formal Instruction-initiated Case while instructions or case association are pending… Images alone do not create a formal Case/PO association"* and adds a new "Image-initiated Case clarification — 2026-08-19" section introducing the VRM-sequenced reference, searchability, and merge/close lifecycle. **This is a material meaning change**, not a restatement: it converts a "pre-Case, not yet a real record" concept into a first-class second Case-origin type with its own reference sequence and lifecycle. The ticket's plan/open-questions cite *"the operator has clarified…"* as authority, but **`docs/open-decisions.md` contains no corresponding entry** — the only record of this operator confirmation is the implementing agent's own ticket notes (see §4).
+
+**Deployment risk:** shares the `IntakeSubmissionGroups`/Members migration with #416 (identical file, same GRANT gap — not double-counted). No new tables of its own in this PR.
 
 **Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Blocker | `src/Pegasus.Infrastructure/Persistence/Migrations/20260819115323_UnidentifiedWork.cs` | No GRANT for `UnidentifiedItems`/`UnidentifiedSequences`/`UnidentifiedHistory`. Remediation: add the standard GRANT block per table, scoped to actual caller verbs; add a runtime-grant regression test (ticket's own checklist already names this item). | [verified] |
-| Should-fix | `docs/operator-notes.md` lines 42, 199, 388 (base `dev`) | Three pre-existing "Needs sorting" references left unreconciled after the PR only adds new text — contradicts the ticket's own plan commitment. Remediation: update each to reference `Unidentified` or explicitly mark as historical/compatibility text. | [verified] |
-| Should-fix | `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs:114` | `MailRouteDisposition.NeedsSorting`/`IntakeDecision.NeedsSorting` both render as "Unidentified" regardless of actual U-registration. Remediation: only show "Unidentified" where a backing `UnidentifiedItem` exists; use a distinct interim label otherwise. | [verified] |
-| Should-fix | `ProcessIntake.cs:258`, `:243`, `:256` | Below-threshold intake untracked; stale open U-items on reevaluation; transient failures immediately consume an immutable U-reference. | [suspected, needs check] |
-| Nit | (process) | No CI has ever run on PR #424. Must run before merge — cannot rely on any of the above being the only issues. | [verified] |
+- **[blocker] [verified]** `ImageIntakeAutomation.cs:182` uses `members.Count` (persisted-so-far) as both actual and expected member count, so a racing/interrupted group can finalize before all members arrive. Remediation: persist the declared expected member count at group creation time (INTK-005's group store already has the full member list on submission) and pass that value — not a live count query — into the completion check in `ImageIntakeAutomation.ApplyAsync`. Test: a Core unit test that stores 3 declared members, processes 2, and asserts the routing policy returns `WaitingForMembers` rather than finalizing.
+- **[should-fix] [suspected, needs check]** operator-notes.md meaning change lacks an independent confirmation record outside the ticket's own notes — flagged for operator resolution in §4, not a code fix.
+- **[should-fix] [verified]** Non-image receipts in a mixed group bypass `IsImageOnlyMaterial` before recognizer invocation (Codex P2). Remediation: in `ImageIntakeAutomation.cs` around line 150, filter the group to members where `IsImageOnlyMaterial` is true before calling the recognizer, and route non-image members through the existing document path unchanged. Test: a Core test with one image + one PDF in a group, asserting the PDF is never passed to `OnnxVrmRecognitionEngine`.
 
-### INTK-008 — PR #423 "Image-initiated lifecycle" (open, RED CI: `sql-integration (2)` failing)
+### #423 INTK-008 — Image-initiated Case lifecycle
 
-Turns `ImageIntake` into an explicit lifecycle projection (`AwaitingInstruction` → `MergedIntoInstructionCase`/`StaffClosed`) with VRM-keyed custody, history, and a new ADR-0029 superseding ADR-0013. Checklist 8/29.
+**What it does:** Adds explicit lifecycle states (`AwaitingInstruction`, `MergedIntoInstructionCase`, `StaffClosed`) over the existing `ImageIntake` aggregate; new `ImageIntakeLifecycleEvents` table plus 5 new columns on `ImageIntakes`; wires merge-on-match from `ImageIntakeCasePairing`; adds ADR-0029 and supersedes ADR-0013 (frontmatter only, not edited in place — correct per repo convention). Also edits `docs/operator-notes.md` and `docs/prd/pegasus-product.md`.
 
-**Reviewer comments (Codex bot, unaddressed):**
-- P1 `EfImageIntakeStore.cs:264` — close reason can exceed 500 chars, fails at SQL instead of being validated.
-- P2 `EfImageIntakeStore.cs:325` — operation-key replay doesn't check command fields, so a mismatched replay can silently return the first result.
-- P2 `ImageIntake/Details.cshtml.cs:79` — `DbUpdateConcurrencyException` on a stale close isn't caught (500 instead of documented conflict UX).
-- P2 `ImageIntake/Details.cshtml:38` — raw enum/snake_case values render instead of going through `OperatorLabels.cs`.
-- **P1 `docs/capabilities.md:215`** — normative lifecycle behavior inserted into a doc CLAUDE.md defines as schedule/registry-only, table left truncated.
-- **P1 `docs/adr/README.md:30`** — ADR-0013 marked `superseded` in its own frontmatter but still listed under "Current architecture decisions (status: accepted)".
-- **P1 `CONTEXT.md:148`** — normative lifecycle requirements duplicated into the terminology doc, creating a second normative owner alongside the FRDs.
+**CI:** `sql-integration (2)` **fails**; the rest pass. `mergeStateStatus: DIRTY`, `mergeable: CONFLICTING`.
 
-**CI is red and the failure is a real behavioral gap, not flake**: `sql-integration (2)` fails 2/171, including `ImageIntakeWebTests.StaffRegistersAnImageOnlyReceiptAndFindsItEverywhere` (page doesn't render "awaiting definitive instruction") — matches the ticket's own checklist admission that "VRM-keyed Box adapter invocation and custody state presentation still need final implementation/verification before PR." A second failing test (`QdosAllocationRecoveryTests`) touches files outside this PR's diff, indicating a regression from the shipped code rather than an unrelated flake.
+**Reviewer comments (Codex bot, 11:49:05–06Z, unaddressed):**
+- **P1** migration `20260819112914_ImageInitiatedLifecycle.cs:33` — backfill sets every *existing* `ImageIntakes` row to `awaiting_instruction` even if it's already linked via `IntakeManualAssociations`/`CaseIntakeLinks`, silently losing their real merged state after upgrade.
+- **P1** `ImageIntakeCasePairing.cs:77` — if `AutoLinkAsync` succeeds but the follow-up merge call fails, the exception is swallowed with the association already committed, leaving the record permanently stuck (future pairing runs see `associated: false` and never retry the merge).
+- **P1** `ImageIntakeCasePairing.cs:77` (second comment, same line) — the new merge transition is invoked only from automatic pairing; the existing manual staff link/reverse route in `Pages/Intake/Details.cshtml.cs` never calls it, so a staff-created link never reaches `MergedIntoInstructionCase`.
+- **P1** `CustodyContracts.cs:41` — **repo-wide search for `IImageIntakeCustody`/`CreateOrGetRootAsync` finds only the interface, its adapters, and DI registration — no application caller ever invokes it.** [This independently confirms the sibling lane's "dark code" pattern for a *third* ticket in this batch — matches TICK-093's `IRepairSpecificationStore` and TICK-044's `MailOperationalDestinationPolicy`.]
+- **P2** `ImageIntake/Index.cshtml.cs:78` — exact-reference search reconstructs `ImageIntakeSummary` with the old 7-arg constructor, so every exact-reference search result shows the default `AwaitingInstruction` state regardless of actual lifecycle state.
 
-**Simplification pass: not recorded** — plan step 11 and the checklist item "Run simplification pass and record dispositions" are both still open; no dated heading exists anywhere (a CLAUDE.md process gap, unlike INTK-007's honest pass).
+**Plan vs ticket / implementation vs plan:** plan is thorough and matches the ticket's boundaries (explicitly excludes INTK-006/007's scope). **Simplification pass: not found.** Unlike every sibling ticket in this batch (INTK-005/006/007, TICK-045 all have a dated "Simplification pass" section in `plan/`), INTK-008's plan only has a *planned step* ("11. Run the simplification pass…") with no dated findings/dispositions recorded anywhere in plan.md or checklist.md — a process gap against this repo's required convention (CLAUDE.md §4: "record findings and dispositions in the ticket's plan under a dated 'Simplification pass' heading").
 
-**Scope drift confirmed**: normative behavior added to `docs/capabilities.md` and `CONTEXT.md` (both meant non-normative), plus the ADR index left internally inconsistent.
+**operator-notes.md diff:** same "Image-initiated Case clarification" section as #417 (near-identical hunk — these two branches share the same governing-doc reconciliation work). Same concern as §"#417" above.
 
-**operator-notes.md / invariant analysis:** the diff **replaces** the paragraph describing image-only arrivals — old text described an "image-initiated case" only as an operational description with pre-case evidence; new text declares it formally *is* an Image-initiated Case projection with its own reference scheme, plus a new "clarification" section. This is a genuine meaning change, but it was flagged and resolved through the ticket's own open-questions.md (all ticked) and a corresponding ADR-0029 — a properly authorized change, not a silent one. No `Needs sorting`/`Triage`/`Blocked intake` text is touched by this PR.
+**Deployment risk:** `ImageIntakeLifecycleEvents` table + 5 new `ImageIntakes` columns, **no GRANT** [verified — empty `grep GRANT`]. The custody-invocation gap (P1 above) means even once merged, no code path actually transfers registered images to Box custody for new Image-initiated Cases.
 
 **Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Blocker | `src/Pegasus.Infrastructure/Persistence/Migrations/20260819112914_ImageInitiatedLifecycle.cs` | No GRANT for the new `ImageIntakeLifecycleEvents` table or new `ImageIntakes` columns. Remediation: same GRANT pattern as the other three PRs. | [verified] |
-| Blocker | CI @ current HEAD | `sql-integration (2)` red: `ImageIntakeWebTests.StaffRegistersAnImageOnlyReceiptAndFindsItEverywhere` fails on missing UI text — genuine behavioral gap, ticket's own checklist agrees custody/presentation work is unfinished. Must not merge until green. | [verified] |
-| Should-fix | (process) | No simplification pass recorded despite CLAUDE.md requiring one for non-docs-only tasks; plan step 11 and its checklist item are open. Remediation: run and record it before merge. | [verified] |
-| Should-fix | `docs/capabilities.md:215`, `docs/adr/README.md:30`, `CONTEXT.md:148` | Normative behavior leaked into non-normative registries; ADR-0013 still listed as accepted despite superseded frontmatter. Remediation: move behavioral content to the FRDs only; trim capabilities.md/CONTEXT.md back to index entries; move ADR-0013's row out of the accepted table. | [verified] |
-| Should-fix | `EfImageIntakeStore.cs:264`, `:325`; `Details.cshtml.cs:79`; `Details.cshtml:38` | Unvalidated close-reason length, weak replay-field check, uncaught concurrency exception, raw enum leakage. | [suspected, needs check] |
+- **[blocker] [verified]** Missing GRANT for `ImageIntakeLifecycleEvents` (and implicitly for UPDATE on the 5 new `ImageIntakes` columns, since existing GRANTs predate this migration and may not cover new columns depending on how the original table grant was scoped — needs the exact original grant statement checked). File: `20260819112914_ImageInitiatedLifecycle.cs`. Remediation: same as #416 — add `GRANT SELECT, INSERT ON OBJECT::[dbo].[ImageIntakeLifecycleEvents] TO [pegasus_web_runtime_role];` in `Up()`, and confirm (via `sp_helprotect` or an integration test under the runtime role) that the pre-existing `ImageIntakes` table grant already covers `UPDATE` on all columns generically (SQL Server column-level GRANT is all-or-nothing unless explicitly column-scoped, so this is likely fine, but must be verified, not assumed).
+- **[blocker] [verified]** No caller ever invokes `IImageIntakeCustody`/`CreateOrGetRootAsync` (Codex P1, corroborated by direct grep against `origin/dev`'s DI/Program.cs — zero matches outside definition/adapters/DI registration). Remediation: wire the custody-root creation into the same code path that transitions a group to the Image-initiated outcome (likely `ImageIntakeCasePairing` or the INTK-006 group-routing policy once merged) — call `CreateOrGetRootAsync` and transfer registered images at the point a new Image-initiated Case reference is allocated. Test: an integration test asserting the fake/local custody adapter receives a `CreateOrGetRootAsync` call when a group with a usable VRM and no eligible match is processed.
+- **[should-fix] [verified]** Backfill migration overwrites existing linked `ImageIntakes` rows to `AwaitingInstruction`, losing their real state (Codex P1). Remediation: in the migration's data-backfill SQL, `CASE` on whether a row has a matching `IntakeManualAssociations`/`CaseIntakeLinks` entry and set `MergedIntoInstructionCase` with the linked Case id/reference for those rows instead of a blanket `AwaitingInstruction`.
+- **[should-fix] [verified]** Manual staff link/reverse route bypasses the new lifecycle transition (Codex P1). Remediation: call the same merge-transition method from `Pages/Intake/Details.cshtml.cs`'s existing `linkIntake.ExecuteAsync`/`reverseIntakeLink.ExecuteAsync` handlers that `ImageIntakeCasePairing` calls for automatic pairing.
+- **[nit] [verified]** No dated Simplification-pass record in plan.md/checklist.md, unlike every sibling ticket in this batch.
 
-### TICK-045 — PR #422 "shared classification policy" (open, mostly green — 1 pending)
+### #424 INTK-007 — Replace Needs sorting with Unidentified
 
-Touches exactly two files: one new integration test (`RetainedMailPersistenceTests.cs`, +86 lines) and a one-line `docs/capabilities.md` evidence-tier update — no production `src/` code, no migration. Proves the existing MAIL-04 `CorrectRetainedMailClassification` Core command behaves identically/independently for two mailbox identities. Checklist 12/12 (fully checked).
+**What it does:** The largest PR in the batch (49 files, +8346/-48). Adds a Core `Unidentified` aggregate with atomic `U<n>` reference allocation, six canonical reasons, Open/Resolved state, full Web queue/detail/resolution UI, MCP tools, and a legacy-`NeedsSorting`-to-`Unidentified` backfill migration. Edits `docs/operator-notes.md` and `docs/prd/pegasus-product.md`.
 
-**Reviewer comments (Codex bot, two P1s, both unaddressed — no commit after `139a4571`, still the tip):**
-1. **P1 `RetainedMailPersistenceTests.cs:345`** "Exercise the classification policy instead of seeding its output" — verified: the test builds a `MailClassificationResult` inline via `.Ambiguous(...)` and passes it straight to `StoreClassifiedReceiptAsync`; no `IMailClassificationPolicy`/classifier is invoked anywhere in the new test. The test proves the correction/persistence path is mailbox-agnostic, **not** that classification itself is shared across mailboxes — undercutting the ticket's own title.
-2. **P1 `RetainedMailPersistenceTests.cs:320`** "Use a documented supported mailbox" — verified: the test invents `claims@collisionengineers.co.uk` as its second mailbox; `docs/operator-notes.md`'s supported estate is `desk@`/`engineers@`/`info@`/`instructions@collisionengineers.co.uk` only. `claims@` is not a real, documented mailbox.
+**CI:** *no checks reported* on the branch. `mergeStateStatus: DIRTY`, `mergeable: CONFLICTING`.
 
-**Plan vs. implementation:** the plan deliberately avoids a second classification command (correctly, per "one Core owner") but frames cross-mailbox acceptance as satisfied by the correction/persistence test alone — the Codex findings are substantively correct that this doesn't evidence "shared classification policy." Simplification pass recorded (dated 2026-08-19) but predates review and wasn't updated after.
+**Reviewer comments (Codex bot, 12:16:32Z, unaddressed — PR opened minutes before this research ran):**
+- **P1** `ProcessIntake.cs:258` — a below-threshold image-only receipt with no confident VRM is excluded from Unidentified registration by the same condition that should trigger it, so it's silently dropped rather than getting a `U<n>` reference.
+- **P1** `EfUnidentifiedStore.cs:174` — resolution to `InstructionCase`/`ImageIntake`/`Triage`/`BlockedIntake` accepts any nonempty free-form `TargetId` with no destination-port validation, so a typo'd or fabricated target id silently removes an item from the queue with no real link created.
+- **P1** `Mail/Message.cshtml.cs:114` — maps the existing `NeedsSorting` route/state directly to `Unidentified`, which **the repo's own product invariant requires to remain distinct** (see below).
+- **P1** `ProcessIntake.cs:256` — a transient/retryable source-reader exception is converted to `TechnicalFailure` on the *first* attempt, allocating an immutable `U<n>` for what may be a recoverable outage.
+- **P2** `EfUnidentifiedStore.cs:148` — replay-detection compares only actor/reason/target, not `TargetKind`/`TargetReference`, so a conflicting command with the same operation key can be silently treated as a successful replay.
 
-**Deployment risk:** none — no migration, no schema change, no config/Worker wiring. CI is effectively green (`unit`, `browser`, `sql-integration (2)`, `sql-integration (3)`, `reference-data`, `changes`, `documentation` all pass; `sql-integration (1)` is `pending`, `infrastructure` is `skipping` — `mergeStateStatus: UNSTABLE` reflects those, not a failure).
+**Product-invariant check (verified, quoted diff):** `docs/prd/pegasus-product.md`'s "Terminology and outcomes" line changes from *"`Audit`, `Triage`, `Needs sorting`, and `Blocked intake` have distinct meanings"* to *"`Audit`, `Triage`, `Unidentified`, `Image Intake`, and `Blocked intake` have distinct meanings."* This is the ticket's explicit, disclosed purpose (title: "Replace Needs sorting with referenced Unidentified work") — not a rogue change. **However**, this repo's own `CLAUDE.md` "Product invariants" section still states verbatim: *"`Audit`, `Triage`, `Needs sorting`, and `Blocked intake` retain their settled distinct meanings; `Triage` is the only current term."* CLAUDE.md is a repository governance file, not one of the `docs/` files this PR touches — **no ticket in this batch updates it**, so once INTK-007 merges, CLAUDE.md's own invariant text will be stale relative to the product it governs. This is an operator/repo-governance question, not a code defect (§4).
 
-**`MailOperationalDestinationPolicy` dark-code gap — explicit answer: this PR does NOT resolve it.** `src/Pegasus.Core/Intake/Classification/MailOperationalDestinationPolicy.cs` has zero references outside its own file anywhere in `src/` (confirmed by repo-wide grep) — no DI registration, no caller. TICK-045's own research never names the class; it scopes MAIL-03 strictly to taxonomy/correction sharing, explicitly deferring destination/routing behavior elsewhere. `MailOperationalDestinationPolicy` (operational destination routing, owned by TICK-044) is a different capability than MAIL-03 (classification-policy sharing) — TICK-045 was never meant to wire it up, and doesn't.
+Separately, the Codex P1 comment on `Mail/Message.cshtml.cs:114` is a genuine implementation concern: mapping `NeedsSorting` straight to `Unidentified` risks conflating cases that should route to Triage/Blocked intake/Audit instead — exactly the distinction the invariant (in either wording) requires to be preserved.
+
+**Plan vs ticket:** the plan is unusually rigorous — explicit "Implementation is deliberately blocked until kanmer-docs reconciles the protected and governing documents" gate, which was respected (governing docs updated first per the checklist). **Simplification pass:** recorded, dated, and candid — explicitly lists what's *not* done ("the unchecked grouped-submission, retained-mail/Operations projection, and full stale-term audit work remains explicit scope"). Checklist is 22/36 — consistent with its own post-implementation-report's disclosed follow-ups (retained-mail/Operations projections still using legacy compatibility paths, runtime-grant verification pending).
+
+**Deployment risk:** `UnidentifiedItems`/`UnidentifiedSequences`/`UnidentifiedHistory`, **no GRANT** [verified — empty `grep GRANT`]. Own post-implementation-report explicitly lists "Runtime-role grant verification and clean/upgrade migration integration tests remain for review/verification" as an open risk — self-aware but unresolved.
 
 **Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Should-fix | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs:313-397` | New test seeds a `MailClassificationResult` directly rather than invoking a classification policy; proves mailbox-agnostic correction, not shared classification. Remediation: either rescope `docs/capabilities.md`'s MAIL-03 claim to "correction path is mailbox-agnostic," or add a real classifier invocation to the scenario before claiming local-evidence tier. | [verified] |
-| Should-fix | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs:320` | Second mailbox `claims@collisionengineers.co.uk` is not in the documented supported estate. Remediation: use `instructions@collisionengineers.co.uk` (or another documented mailbox) as the second identity, or add `claims@` to approved-mailbox config with justification first. | [verified] |
-| Nit (info) | `docs/capabilities.md` MAIL-03 row | Evidence-tier wording reads as if classification-policy sharing was proven; tighten once the above is resolved. | [verified] |
+- **[blocker] [verified]** Missing GRANT for all three new tables. File: `20260819115323_UnidentifiedWork.cs`. Remediation: add `GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedItems]`, `GRANT SELECT, INSERT ON OBJECT::[dbo].[UnidentifiedSequences]` (sequence table only needs read+insert under serializable allocation, no update), and `GRANT SELECT, INSERT ON OBJECT::[dbo].[UnidentifiedHistory]` (append-only, consider `DENY UPDATE, DELETE` to match the `IntakeMailClassificationHistory` convention) to `pegasus_web_runtime_role`. Test: same as #416.
+- **[blocker] [verified]** Below-threshold image-only receipts silently excluded from Unidentified registration (Codex P1). Remediation: in `ProcessIntake.cs` around line 258, invert or correct the guard so image-only receipts with no confident VRM *do* reach `RegisterUnidentifiedAsync` unless they're still retryable/processing — check the exact boolean logic against the six canonical reasons in `UnidentifiedContracts.cs`. Test: a Core test with a below-bar VRM suggestion asserting the receipt ends up with a `U<n>` reference and `NoUsableIdentification` reason, not silently dropped.
+- **[should-fix] [verified]** Free-form `TargetId` resolution with no destination-port validation (Codex P1). Remediation: in `EfUnidentifiedStore.cs` around line 174, validate `TargetId` against the actual destination store (`ICaseAcceptanceStore`, `IImageIntakeStore`, `ITriageStore`, `IBlockedIntakeStore` as applicable to `TargetKind`) before accepting the resolution, rather than accepting any nonempty string.
+- **[should-fix] [suspected, needs check]** `NeedsSorting`→`Unidentified` mapping in `Mail/Message.cshtml.cs:114` may conflate distinct destinations (Codex P1) — needs a manual trace of which `NeedsSorting` producers this mapping covers vs. the FRD-03 Triage/Blocked-intake/Audit routing rules to confirm whether it's actually wrong or just imprecisely worded.
+- **[nit] [suspected, needs check]** CLAUDE.md's Product Invariants section will be stale (still says "Needs sorting") once this merges — no ticket in the visible batch updates it. Flagged for operator/maintainer decision in §4.
+
+### #422 TICK-045 — MAIL-03 shared classification policy
+
+**What it does:** The smallest PR (87 additions, 2 files). No production code or schema change — adds one SQL integration test proving `CorrectRetainedMailClassification` behaves identically for two distinct mailbox identities, and updates `docs/capabilities.md`'s MAIL-03 evidence-tier note. Explicitly does **not** claim live/deployed verification (production currently has one linked mailbox; the ticket's own open-questions record the operator's 2026-08-19 resolution that a two-mailbox live check is out of scope for this ticket).
+
+**CI:** all green except `sql-integration (1)` still `pending` at the time of this check; `infrastructure` skipped as usual.
+
+**Reviewer comments (Codex bot, 11:38:19Z, unaddressed):**
+- **P1** `RetainedMailPersistenceTests.cs:345` — the test seeds the *same* fabricated `MailClassificationResult` for both mailboxes via `StoreClassifiedReceiptAsync` before exercising only the correction/history path, so it doesn't actually exercise the classification *policy* itself for either mailbox — it only proves the correction path is mailbox-agnostic, not that classification is.
+- **P1** `RetainedMailPersistenceTests.cs:320` — the test invents `claims@collisionengineers.co.uk` [verified — `const string secondMailboxAddress = "claims@collisionengineers.co.uk";` present in the PR diff at that hunk] as a second mailbox, but the actually-supported estate per `docs/operator-notes.md:413` is `desk`, `engineers`, `info`, `instructions` — none of which is `claims`. The test's premise (this address is "supported") isn't backed by the documented mailbox list.
+
+**Plan vs ticket:** the plan is explicit that MAIL-03 is *"functionally carried by the existing MAIL-04 exact-message correction path"* and this branch adds only the missing cross-mailbox integration evidence — a narrow, well-scoped read. Checklist 12/12, spot-checked against the diff (only 2 files, matches exactly what's claimed). **Simplification pass:** recorded, dated, minimal and honest ("no code changes required after the pass").
+
+**Deployment risk:** none — no migration, no schema, no production code touched. `TICK-044`'s `MailOperationalDestinationPolicy` dark-code status (see §3) is **not** resolved by this PR — TICK-045 exercises `CorrectRetainedMailClassification` (a different, already-wired MAIL-04 command), not the MAIL-02 destination policy.
+
+**Verified findings:**
+- **[should-fix] [verified]** Test seeds classification output directly rather than exercising the classification policy, undermining its value as MAIL-03 acceptance evidence (Codex P1). Remediation: in `RetainedMailPersistenceTests.cs`, replace the direct `StoreClassifiedReceiptAsync` seed with a call through the actual classification entry point (whatever Core service performs initial classification for a retained message) for at least one of the two mailboxes, so the test proves the *policy* — not just the correction/history persistence — is mailbox-invariant.
+- **[nit] [verified]** Test uses an undocumented mailbox address `claims@collisionengineers.co.uk` not in the four-mailbox estate recorded in `docs/operator-notes.md:413` (Codex P1). Remediation: swap to one of the four documented mailboxes not already used by the first test identity (`desk`, `engineers`, `info`, or `instructions`), or add a short comment clarifying this is a synthetic/hypothetical second identity for the purpose of proving mailbox-scoping, not an implied fifth supported mailbox.
 
 ---
 
-## 3. Verifying / Done tickets since the deploy
+## 3. Verifying/done tickets since the deploy
 
-### Tickets already reviewed in §1/§2 context — clean, no findings
+### TICK-093 — ENG-01 canonical repair specification (verifying, PR #420, **merged to dev**)
 
-**TICK-213** (density subsumption decision, done, merged #421): confirms no compact/density option exists anywhere in the codebase and only renamed/consolidated a stress test. Entry point: none stated — correctly so, test/decision-only. Zero findings [verified]. Not blocked on release 12 (`n/a` is accurate).
+Delivers one case-scoped, immutable, versioned repair specification with source-route provenance (`CaseRepairSpecifications` table), superseding the earlier "conservative/maximised Audit spec" idea per TICK-205's operator correction. No `proof.md` yet (fine — not required until `done`). Checklist 6/6, all real.
 
-**TICK-204** (assessment-report outcome variants, done, merged #412): documents the four canonical outcomes in FRD-11 and fixes a prior PR-003 review defect on the Contract-repair cap. Entry point: none stated — correct, no renderer caller exists yet (SIMPLI-014/DOCS-001 own that). Zero findings [verified]. Not blocked on release 12.
-
-**DOCS-002** (ADR-0028 Web Container App as renderer boundary, done, merged #413): `docs/adr/README.md` correctly lists ADR-0028 as accepted; `docs/current-architecture.md` correctly does *not* yet describe the boundary in implementation terms (that's TICK-215/PLAT-007's job, not overrun by DOCS-002). Zero findings [verified]. Not blocked on release 12.
-
-**DELIV-009** (release 10 promotion, done): proof.md accurately documents the actual production deploy — atomic `origin/dev`→`origin/main` push at `d8de29cb`, matching web revision, Worker redeploy, smoke test pass, artifacts retained. This ticket **is** release 10; its claims are already true. Zero findings [verified]. Not applicable to release 12.
-
-**AUTO-002** (PKCE connector auth, done, part of release 10): proof.md's live-evidence table is dated 2026-08-18 within release 10's window; a later addendum confirms an actual end-to-end connector run. Entry point `<origin>/authorize` and `<origin>/mcp`, genuinely live in production. Zero findings [verified]. Not applicable to release 12.
-
-**TICK-099, TICK-205, TICK-212, TICK-207, TICK-211, TICK-203** (six EPIC-004 decision/reconciliation tickets, done, zero repo diff each): all correctly `n/a`/no-deployment, no proof overclaims, no user-facing entry point (all decisions, not code). Zero findings [verified] across all six. Not blocked on release 12 — nothing to deploy.
-
-**TICK-215** (renderer execution boundary decision, done, zero diff, sourced via DOCS-002's PR #413): correctly `n/a`, explicitly defers runtime/capacity proof to PLAT-007. Zero findings [verified].
-
-**TICK-010, TICK-009** (MAIL-22/MAIL-21, done, `deployment: production` — but dated to **release 9**, predating this window): both proofs correctly scope to release-9 evidence and explicitly disclaim later capability (staff-confirmation UI, live user-confirmed classification). No entry point beyond backend classification persistence (TICK-010) / mail-intake pipeline (TICK-009). Zero findings [verified]. Not applicable to release 12 (already shipped).
-
-### PLAT-001 — Claude Design UI implementation (done, merged to dev #397, PREDATES cutoff but never released to main)
-
-Folds the Claude Design UI into `Pegasus.Web`: 21 screens, left-rail shell, 10 marks. Entry point: **the Pegasus.Web app itself** (Dashboard, Upload, Queues, Cases, Inbox, Operations, Administration, Case Details, Assessment via left rail) — the one roster ticket with a genuine, stated, user-facing entry point. Proof correctly cites only the merged-`dev` commit `5ab3b773`, never claims production.
-
-Checklist 55/63 — but **7 of the 8 unchecked boxes are stale-duplicate artifacts**, not real gaps: the checklist doc has a duplicated "## Closeout — PLAT-001" section (first copy 3/8 checked, second copy 8/8 checked) and a duplicated "## Verification" block, from being appended-to rather than edited. Only **one** open box is genuine outstanding work: local DevelopmentOffline visual screenshots, explicitly named as a follow-up in the ticket's own Outcome text.
+**Claimed entry point:** `EfCaseAssessmentStore` (existing, wired assessment flow) writes `CaseRepairSpecifications` rows as part of normal case-assessment editing — a real caller exists for the *table*, even though the dedicated `IRepairSpecificationStore`/`EfRepairSpecificationStore` added by this ticket has none.
 
 **Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Nit | PLAT-001 `checklist` document | Duplicated stale "## Closeout" and "## Verification" sections produce 7 of 8 false-open boxes. Remediation: delete the first (stale) copies, keep the fully-checked later versions, so checked/total reflects the one real remaining item (visual screenshots). | [verified] |
-| Should-fix | PLAT-001 item record | `deployment` field is **entirely absent** (not even `n/a`/`not-deployed`), unlike every sibling ticket. Remediation: set it to `not-deployed` (merged to `dev` only, never to `main`) so downstream tooling reading the field doesn't treat it as unset. | [verified] |
+- **[blocker] [verified]** No `GRANT` for `CaseRepairSpecifications` in `20260819112640_VersionedRepairSpecifications.cs` (confirmed: `git show origin/dev:<migration> | grep GRANT` → empty), while `EfCaseAssessmentStore.cs:117-135` (existing, already-wired store) does `context.CaseRepairSpecifications.Add(specification)` on the normal case-assessment save path — an already-live, already-called code path that **will hit a SQL permission error in production** the first time a case-assessment draft is saved after this deploys, because `pegasus_web_runtime_role` has no grant on the new table. Remediation: add a follow-up migration (do not edit the merged one) with `GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[CaseRepairSpecifications] TO [pegasus_web_runtime_role];` — INSERT for new specs/corrections, UPDATE only if any field is mutated in place (the "successor" correction model in the ticket body suggests append-only/new-row-per-version, so SELECT+INSERT may suffice; confirm against `EfCaseAssessmentStore.cs`'s exact write pattern). Test: apply migrations to a clean DB under the `pegasus_web_runtime_role` login, then exercise the case-assessment save path that reaches line ~132 and confirm no permission error.
+- **[should-fix] [verified]** `IRepairSpecificationStore`/`EfRepairSpecificationStore` (330 new lines) has zero callers anywhere in `origin/dev` outside its own definition, its EF implementation, and DI registration — confirmed via `git grep -n IRepairSpecificationStore origin/dev -- '*.cs'`, which returns only the interface declaration. This is genuinely dark code as delivered; it may be intentionally forward-looking for a follow-on ticket (TICK-092/096/097/098/100/081/092 all block on TICK-093 per its `blocks` field), in which case this is expected and not a defect — but it should be confirmed against one of those blocked tickets' plans before release 12, not assumed.
 
-**Blocked on release 12:** **Yes** — the only ticket in this roster genuinely waiting on the next `dev→main` promotion to become a true "delivered to operators" claim; its "done" status covers implementation, not delivery.
+**Blocked on release 12 for proof to become true:** Yes — `proof.md` doesn't exist yet, and the GRANT gap must be fixed before any downstream ticket that writes `CaseRepairSpecifications` in production can be trusted.
 
-### TICK-011 — INT-17 automatic VRM reading (done, reconciliation only, `deployment: not-deployed`)
+### TICK-043 — MAIL-01 mailbox/thread/message identity (verifying, PR #414, merged)
 
-No new commit; the feature is already on `main` via `ae6f0c2d`/`ef3eb4c7`/`f7d99b18`, and the verified commit is **`d8de29cb`, the exact release-10 anchor** — the code is physically in production. `deployment: not-deployed` reflects that **no live caller is wired in**, not that the code is missing; proof explicitly disclaims "production caller execution or deployment." Zero findings beyond a documentation-clarity nit.
+Not deeply audited beyond `get_item`/checklist (10/10) due to scope/time; no `proof.md` yet. Body is the generic "Plan and research" MAIL-* template shared with TICK-044/045/046 (all four MAIL-0x tickets share this templated body — a board-generation artefact, not a defect). **Recommend a follow-up pass on TICK-043 specifically** before it reaches `done`, using the same method as TICK-044/046 below (open-questions + checklist cross-check), since its sibling tickets both surfaced real gaps.
 
-| Sev | Finding | Tag |
-|---|---|---|
-| Nit | `not-deployed` is technically accurate but easy to misread as "code not shipped" when the real gap is caller-activation. Remediation: no code change — reword the Outcome/proof to distinguish "code deployed, capability not activated" from "code not yet deployed," so a future reader doesn't file a redundant "wait for release" follow-up. | [verified] |
+### TICK-044 — MAIL-02 classification→operational destination (verifying, PR #411, merged)
 
-**Blocked on release 12:** No in the simple sense — the code already rode along in release 10; the gap needs a caller-wiring ticket, not a redeploy.
+**This ticket documents its own incompleteness.** `open-questions.md` records an operator resolution: *"the retained mailbox viewer is meant to show this information. TICK-044 must wire the Core mapping into the retained-mail projection and display the detailed classification plus operational destination in the mailbox viewer. **A policy referenced only by tests is incomplete and must not pass review as delivered.**"* The checklist (12/18) confirms this is unresolved:
+```
+- [ ] Wire `MailOperationalDestinationPolicy` into the retained-mail Core projection as the real caller.
+- [ ] Carry the exact classification and derived operational destination to the mailbox list/detail view without duplicate persistence.
+- [ ] Display both values in the retained mailbox viewer with distinct fail-closed states.
+- [ ] Add integration/Web tests proving the deployed-shaped viewer path consumes the Core policy.
+- [ ] After deployment, run and record an authenticated read-only production mailbox-viewer check…
+```
+Independently confirmed: `git grep -n MailOperationalDestinationPolicy origin/dev -- '*.cs'` returns only its own definition file — zero callers, matching the sibling lane's exact claim.
 
-### TICK-093 — ENG-01 canonical repair specification (verifying, merged #420, `not-deployed`)
-
-One case-scoped canonical accepted `CaseRepairSpecifications` aggregate (immutable versions, source-route provenance, correction/supersession), replacing the earlier rejected dual conservative/maximised Audit model per TICK-205's correction. Entry point: **none stated** — consumed internally via `EfCaseAssessmentStore`; no cited Web page (TICK-092, a separate ticket, owns render-snapshot exposure). No `proof.md` exists yet; nothing overclaims deployment.
-
-**Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Blocker | `src/Pegasus.Infrastructure/Persistence/Migrations/20260819112640_VersionedRepairSpecifications.cs:25` | `CREATE TABLE CaseRepairSpecifications` has no GRANT to `pegasus_web_runtime_role`, breaking the established migration convention; `EfCaseAssessmentStore.cs:117-135` performs a real `.Add()` write to it. Remediation: add `migrationBuilder.Sql("GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[CaseRepairSpecifications] TO [pegasus_web_runtime_role];")` (guarded by the repo's standard `IF DATABASE_PRINCIPAL_ID(...)` idiom, see `20260819104953_MailClassificationCorrectionHistory.cs`) plus matching `REVOKE` in `Down()`. Test: extend `RepairSpecificationMigrationTests`/`AssessmentPersistenceIntegrationTests` to run under the actual `pegasus_web_runtime_role` connection and assert the write succeeds. | [verified] |
-| Should-fix | `src/Pegasus.Infrastructure/.../EfRepairSpecificationStore.cs` / `IRepairSpecificationStore` | Zero references outside their own files anywhere in `src/Pegasus.Web`, `src/Pegasus.Worker`, or any DI composition root — dark code; the real write path is the unrelated `EfCaseAssessmentStore`. Remediation: either register `EfRepairSpecificationStore` in `src/Pegasus.Infrastructure/DependencyInjection.cs` and route a real caller through it, or delete it as dead code via a follow-up ticket. | [verified] |
-| Should-fix | Ticket's own plan/checklist/PIR | Neither gap above is acknowledged anywhere in the ticket's documents; the checklist (6/6) and PIR's "Risks/follow-ups" section list only rendering/provider/deployment items. Remediation: note both gaps in a proof/PIR addendum before this reaches Done. | [verified] |
-
-**Blocked on release 12:** Yes, for any "deployed"/live claim — currently correctly `not-deployed`.
-
-### TICK-043 — MAIL-01 mailbox/thread/message identity (verifying, merged #414, `not-deployed`)
-
-Adds a canonical RFC Message-ID (NFKC-normalized, invariant-uppercase) as the durable duplicate/identity boundary for retained mail, separate from Graph's provider ID; fails closed on missing/contradictory identity. Entry point: the existing Graph/poll ingestion caller — no new UI. Migration only adds columns/indexes to an existing table (no `CREATE TABLE`), so **no GRANT gap applies**. open-questions.md fully resolved. Zero findings beyond the general pattern already covered.
-
-**Blocked on release 12:** Yes, for any deployed claim.
-
-### TICK-044 — MAIL-02 classification→destination mapping (verifying, merged #411, `not-deployed`)
-
-Adds an exhaustive Core taxonomy-to-operational-destination mapping (`MailOperationalDestinationPolicy`, versioned `mail_operational_destination` v1). Entry point stated in the ticket's own open-questions.md: **the retained mailbox viewer** — but this is exactly the wiring left undone.
+**Claimed entry point:** none yet — self-acknowledged.
 
 **Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Blocker (process) | Ticket checklist (6 unticked items, none under Parked) | `git grep -ln "MailOperationalDestinationPolicy" origin/dev` returns only the policy file, its unit test, and one doc mention — **zero references in `src/Pegasus.Web` or any caller**. The ticket's own open-questions.md records the operator's bar verbatim: *"A policy referenced only by tests is incomplete and must not pass review as delivered."* The ticket has already cleared review (stage: verifying) with that bar unmet. Remediation: wire `MailOperationalDestinationPolicy` into `EfRetainedMailboxMessageStore`'s projection and `src/Pegasus.Web/Pages/Mail/Index.cshtml.cs`/`Message.cshtml.cs`; add a `MailWorkspaceWebTests` case (pattern from TICK-046) proving the real page renders the derived destination; re-run the six unchecked checklist items and update the PIR. This is a review-process finding, not just a code gap — flag for the review lane. | [verified] |
-| Info | `docs/current-architecture.md:563` | Correctly, *not* stale — already describes the policy as unwired ("the pure mapping performs no Outlook mutation"). | [verified] |
+- **[blocker] [verified, self-acknowledged by the ticket]** `MailOperationalDestinationPolicy` has no caller. This ticket should **not advance past `verifying`** until the checklist's unchecked "wire into retained-mail projection" items are done — the ticket's own bar for "review-passable" is explicitly not yet met. Remediation: wire the policy into whatever Core query backs the retained-mail viewer's `GET /Inbox/{id}` handler (see `docs/current-architecture.md`'s "Current callers and entry points" section for the existing read path), surface both the detailed classification and the derived destination in the view model, add a Web/integration test asserting the viewer path calls the policy, and only then request the read-only production check the operator specified.
 
-**Blocked on release 12:** Yes, for any deployed claim — and additionally blocked on the wiring finding above regardless of deployment.
+**Blocked on release 12:** Yes, and should arguably not reach `done` before the caller-wiring checklist items are completed regardless of the deploy.
 
-### TICK-046 — MAIL-04 classification evidence, policy version, correction history (verifying, merged #418, `not-deployed`)
+### TICK-046 — MAIL-04 classification evidence/policy version/correction history (verifying, PR #418, **merged 11:23:50Z**)
 
-Adds an exact-message classification dossier and a reasoned staff correction workflow. Entry point: `GET /Inbox/{id}` (`src/Pegasus.Web/Pages/Mail/Message.cshtml`), plus new handler `OnPostCorrectClassificationAsync`. Migration correctly GRANTs `SELECT, UPDATE` on `IntakeMailClassificationDecisions` and `SELECT, INSERT` (+ DENY UPDATE/DELETE) on the append-only `IntakeMailClassificationHistory` — no GRANT gap here. open-questions.md fully resolved.
+Adds `IntakeMailClassificationDecisions`/`IntakeMailClassificationHistory` with real GRANTs this time (`GRANT SELECT, UPDATE` on Decisions, `GRANT SELECT, INSERT` + `DENY UPDATE, DELETE` on History — a clean example of the convention done right). Checklist 10/10, no unresolved open-questions.
 
-**Verified findings:**
-| Sev | File:line | Finding | Tag |
-|---|---|---|---|
-| Should-fix | `docs/current-architecture.md:85` | Confirmed stale: current text says `GET /Inbox/{id}` "carries no handler" and "the Web runtime role holds SELECT alone" on retained-mail tables — both now false once TICK-046 deploys (`OnPostCorrectClassificationAsync` exists; the runtime role now also holds UPDATE/INSERT on the two named tables). Remediation: update line 85 as part of whichever task performs the release-12 deploy (per the safety-rail requiring current-state docs refreshed in the same task as the deploy) — not TICK-046 itself, which correctly didn't pre-claim deployed state. | [verified] |
+**Stale doc confirmed:** `docs/current-architecture.md:85` states *"Both are read-only: the pages carry no handler, and **the Web runtime role holds SELECT alone on the retained-mail tables**."* This is now inaccurate — TICK-046's merged migration grants `UPDATE`/`INSERT` on the two new classification tables to `pegasus_web_runtime_role`, and the correction path (`CorrectRetainedMailClassification`, exercised by both TICK-045 and TICK-046) is a real write path from the mail detail view. **[should-fix] [verified]** Remediation: update `docs/current-architecture.md:85` to reflect that the Web runtime role now has write access to the classification-correction tables (not the retained-mail *source* tables themselves, which likely remain SELECT-only — the wording needs to distinguish the two, not just soften "alone").
 
-**Blocked on release 12:** Yes, for any deployed claim (and the current-architecture.md fix is explicitly tied to that same deploy task).
+**Entry point:** the retained-mail correction UI (`/Inbox/{id}`) via `CorrectRetainedMailClassification` — real, already exercised by the merged migration's own GRANT and by TICK-045's test.
 
-### PLAT-006 — Centre shell content region, redesign Upload (verifying, merged #409 08:08:07Z, `not-deployed`)
+**Blocked on release 12:** No code risk found; the doc staleness is independent of deployment status and should be fixed regardless.
 
-Presentation-only fix: centres `.app-rail-main` beyond ~1520px, replaces the raw file input with a real dropzone, adds a "What happens next"/"Accepted files" panel to `/Upload`, fixes a ≤1023px blank-band regression found along the way. Entry point: **`/Upload`** and **`/Uploads/{token}`**, plus shell CSS site-wide. Simplification pass recorded honestly (6 findings, all applied, including one self-found defect fixed in-branch).
+### PLAT-006 — Centre shell content + redesign Upload (verifying, PR #409, merged)
 
-**Verified findings:**
-| Sev | Finding | Tag |
-|---|---|---|
-| Nit | Checklist item 10 ("PR to dev, review, merge") is still unticked even though PR #409 merged at 08:08:07Z — confirmed directly via `gh pr view 409` (`state: MERGED`). The checklist doc simply wasn't updated post-merge. Remediation: tick item 10 and note the merge commit. | [verified] |
+Presentation-only (6 files under `Pegasus.Web` + design README), thoroughly self-tested (32 browser tests run twice, 513 integration tests, local visual sweep at three viewports). Six simplification findings recorded and applied, including a self-caught CSS ordering bug fixed within the same branch. Honestly discloses non-scope items (Case detail/Assessment/New case not swept; a 500 error on `/Cases/Create` without `receiptId` noted as a pre-existing issue, not this ticket's). Checklist 9/10 — the one open item is production confirmation, correctly deferred to post-deploy.
 
-**Blocked on release 12:** Yes — and it's already staged: PLAT-006 is exactly the ticket named in the (now-superseded) release-11 PR #410 and in DELIV-011's outcome ("Release 12 carries PLAT-006 and everything since").
+**Entry point:** `/Upload`, `/Uploads/{token}`, and the shell content region generally — directly observable, well-evidenced.
 
-### TICK-033 — INT-31 upload-link capability-inventory reconciliation (verifying, merged #408, `not-deployed`)
+**No new findings** beyond what the report itself already discloses. **Blocked on release 12:** yes, for the "confirmed on production" checklist item and the design-tool `/design-sync` refresh it flags as owed.
 
-Despite the title reading like the temp-upload-link feature itself, the actual scope is a **one-line documentation correction** to `docs/capabilities.md` (removing stale "UI removal pending" wording); it does not implement or modify FRD-02's token/expiry/scope/revocation behaviour, which already exists behind the pre-existing `/Uploads/{token}` caller. Entry point: none created by this ticket (pre-existing `/Uploads/{token}`). Simplification pass recorded as "n/a — docs-only," an appropriate disposition.
+### TICK-033 — INT-31 capability-inventory correction (verifying, PR #408, merged)
 
-**Verified findings:**
-| Sev | Finding | Tag |
-|---|---|---|
-| Should-fix | No `proof.md` exists yet; the one unticked checklist item ("Run focused request-upload integration tests") reflects a local 2-minute timeout, not a pass/fail result, and PR #408's checks were only "queued" at handoff. Remediation: before Done, fetch the actual CI verdict for #408 (`gh pr checks 408`) and record `CaseDetailsWebTests`/`DocumentCustodyDurabilityTests`' real result in a new proof.md — this is a security-adjacent area (upload-link revocation/replay). | [verified] |
-| Nit | Title implies a feature-implementation scope the ticket doesn't actually carry; the security-relevant token logic was implemented earlier, elsewhere. Remediation: no code change — clarify in the ticket record which earlier ticket/commit owns the Core token/expiry/scope implementation so a future reader doesn't misattribute it. | [suspected, needs check] |
+One-line fix to `docs/capabilities.md` (removes a stale "UI removal pending" note; the removal already happened via an earlier commit `f43e3a2b`). Docs-only, simplification pass correctly recorded as n/a. Checklist 4/5 — the open item is that `CaseDetailsWebTests`/`DocumentCustodyDurabilityTests` timed out locally and were left for CI, which is honestly disclosed rather than claimed as passing.
 
-**Blocked on release 12:** Not deployment-blocked as scoped (docs-only, no runtime effect), but its Done-readiness is blocked on a real CI verdict for #408.
+**No findings.** **Blocked on release 12:** no — this ticket makes no claim that depends on deployment.
 
-### SIMPLI-014 — Integrate CollisionRenderer behind a Core-owned port (done, merged #415, deployment unset)
+### SIMPLI-014 — Integrate CollisionRenderer behind a Core-owned render contract (done, PR #415, merged)
 
-Folds the standalone `workspaces/report-renderer/` into the monolith: `Pegasus.Core/Reports` owns the render contract and all four outcome calculations; `Pegasus.Infrastructure/Reports` is the sole adapter; composition happens only in `Pegasus.Web` (per ADR-0028), not Worker. The "one Core owner" rule is honored and independently confirmed (`DependencyDirectionTests`, 39/39, cited in proof.md, assert exactly one Infrastructure adapter and no renderer libraries in Core). Entry point: **none stated by design** — plan step 5 explicitly forbids adding any HTTP/Razor/MCP/CLI/background trigger; only test code calls it today, with the real caller deferred to [[DOCS-001]]. Two dated simplification passes recorded, both honest ("No finding was deferred").
+**The ticket's own Outcome text overstates readiness.** It says *"the active surface is the approved rendererref1 assessment plus fee note"*, implying a working, reachable feature. Verified against `origin/dev`: the render contract is real (`IAssessmentReportRenderer` at `AssessmentReportRendering.cs:265`, correctly DI-registered as `PlaywrightAssessmentReportRenderer` in `DependencyInjection.cs:407`), and its use case `GenerateAssessmentReportDraft` is also DI-registered (`AddScoped`, `DependencyInjection.cs:408`) — but **`git grep -n GenerateAssessmentReportDraft origin/dev` finds it invoked only from `Pegasus.Core.Tests` and `Pegasus.IntegrationTests` — zero Web/Worker/MCP callers.** There is no page, controller, or MCP tool anywhere in `origin/dev` that actually triggers report generation for an operator. This directly matches the systemic "dark code" pattern already found in TICK-093 (`IRepairSpecificationStore`), TICK-044 (`MailOperationalDestinationPolicy`), and INTK-008 (`IImageIntakeCustody`) — a fourth independent instance in this same deploy window.
+
+Checklist 18/24 — six unchecked items are consistent with this: the original ticket verification criterion *"A real Pegasus caller renders at least one accepted report variant end to end through the composed Web/Worker path"* is unmet. Simplification pass and CI evidence otherwise credible (Release build clean, focused tests pass).
+
+**Claimed entry point:** none — self-contradicts its own outcome text once checked against code.
 
 **Verified findings:**
-| Sev | Finding | Tag |
-|---|---|---|
-| Nit | Checklist's "Released Kanmer claim" line is unticked in both the original and "completion" closeout sections despite status = done. Remediation: check for a lingering SIMPLI-014 claim/worktree and release it if still held; tick the stale boxes for hygiene. | [verified] |
-| Info | Deliberately no live caller — material only if another document later implies reports are user-reachable before DOCS-001 lands one. No remediation needed for SIMPLI-014 itself. | [verified] |
+- **[should-fix] [verified]** `GenerateAssessmentReportDraft`/`IAssessmentReportRenderer` has no application caller despite the ticket's outcome text implying an "active surface." Remediation: this is very likely intentionally deferred to a follow-on ticket (the ticket links TICK-203/204/205/206/207/208/211/212/213/214/215/216 as "sub-decisions to resolve at activation," several of which are the docs-only decision tickets already closed in this same window) — confirm which specific follow-on ticket owns wiring the real Web/Worker caller (candidates: TICK-092 "render-snapshot projection," or a not-yet-created ticket), and correct SIMPLI-014's outcome wording to say "renderer integrated, real caller pending [[TICK-XXX]]" rather than "the active surface is…", which reads as delivered when it is not yet reachable by any operator action.
 
-**Blocked on release 12:** Yes, for any deployment claim — proof correctly scopes to integration/CI tier only ("No cloud or main write occurred").
+**Blocked on release 12:** the integration itself (code merged, builds, tests pass) doesn't need deployment to be "true" — but the outcome-text overclaim should be corrected regardless of deploy status, and the "real caller" gap is a functional gap independent of environment.
 
-### PR-009 — Preserve report tails under long content (done, merged #419, deployment n/a)
+### PR-009 — Fix long-list/photo Chromium truncation (done, PR #419, merged)
 
-Fixes a real regression TICK-213's own stress test exposed on merged `dev`: an 80-item/8-photo Repairable render dropped the trailing Statement of Truth section. Root cause precisely diagnosed: Scriban's `TemplateContext.LimitToString` defaults to 1,048,576 characters and silently truncates; a third embedded base64 photo pushed composed HTML past that limit. Fix: `LimitToString = 0` in `src/Pegasus.Infrastructure/Reports/PlaywrightAssessmentReportRenderer.cs` — a one-line, well-targeted change. Covered by a new real-Chromium regression test in `tests/Pegasus.IntegrationTests/Reports/AssessmentReportRendererTests.cs` with a documented failing-before/passing-after cycle; full 6/6 renderer suite green afterward. Simplification pass recorded, honest, dated. Zero findings — a clean fix.
+A genuine, well-evidenced regression fix: TICK-213's stress test (80 entries × 3 families + 8 photos) exposed that Scriban's default 1 MiB template-output cap truncated the composed HTML during the third large embedded photo, silently dropping the trailing Statement-of-Truth/signature section from real Chromium-rendered PDFs. Fix (commit `f08961ea`) switches the template context to documented "unlimited output." New real-Chromium regression test added and passing (per TICK-213's own outcome text, "6/6" including this scenario). Checklist 17/17, `deployment: n/a` correctly (not yet deployed, no overclaim).
 
-**Blocked on release 12:** Yes, for any deployment claim (same as SIMPLI-014 — no live caller yet either).
+**No findings** — this is a clean, narrow fix with a real repro and a real regression test added.
+
+**Blocked on release 12:** yes, for the fix to reach production (report rendering isn't live yet regardless — see SIMPLI-014 above).
+
+### TICK-213 — Decide whether density applies to all rendered document bodies (done, PR #421, merged)
+
+Decision ticket: normal/default density only, no per-caller density option exists or is planned. Its own stress test discovered the PR-009 defect (a good example of a "decision" ticket doing real verification work, not just recording a choice). `deployment: n/a` correctly — no production change, only a verification-test addition.
+
+**No findings.**
+
+### TICK-204 — Define assessment-report outcome variants (done, PR #412, docs-only)
+
+FRD-11 now defines the four canonical outcomes and makes the Core-computed VAT-inclusive total the Contract repair cap. Also resolved a separate correction (PR-003) in the same PR — a small scope note, disclosed, not hidden. `deployment: n/a` correct (docs-only).
+
+**No findings.**
+
+### DOCS-002 — ADR-0028: renderer runs in Web Container App (done, PR #413, merged)
+
+Clean thin-ADR ticket. `deployment: n/a` correct. ADR frontmatter/index conventions followed correctly (verified against the repo's own ADR conventions in CLAUDE.md — supersession recorded as `status: superseded` pattern was used correctly for the *linked* ADR-0013 in the related INTK-008 ticket, not this one directly).
+
+**No findings.**
+
+### DELIV-009 — Release 10 promotion (done, PRs #406/#407, `deployment: production` — correct, this **is** the deploy)
+
+This is the deploy event anchor itself. `deployment: production` is correct and expected (this ticket's whole job is the promotion). Verified the post-deploy doc-refresh requirement (CLAUDE.md: *"docs/current-architecture.md… and docs/operations.md… must match the reality just shipped"*): PR #407 (`f79c24d9`) touches only `docs/operations.md`. `docs/current-architecture.md` was **not** touched by #407 — but independently verified it already correctly describes AUTO-002's authorization-code+PKCE flow (line 465: *"authorization code with PKCE after Administrator consent (ADR-0027)"*), because AUTO-002's own implementation PR (#405) evidently updated it directly. **Net: the safety-rail requirement is satisfied**, just split across two PRs rather than one — not a defect, but worth noting for anyone auditing "did #407 alone refresh both docs" (it didn't; #405 + #407 together did).
+
+**No findings.** Correctly self-documents CI flakiness encountered during the release (hosted-runner checkout timeouts, one known deadlock-flake retry) rather than hiding it.
+
+### AUTO-002 — Authorization-code + PKCE for MCP connectors (done, PR #405, `deployment: production` — correct)
+
+Very well evidenced: lists the exact live verification performed (discovery endpoint, sign-in redirect, Administrator consent naming claude.ai, code exchange to `https://claude.ai/api/mcp/auth_callback`, `/mcp` with 15 tools and scope enforcement, refresh, `ActionHistory` event `automation_connector_authorized`). Entry point is concrete and real: `<origin>/mcp`, client id `pegasus-automation`. Checklist 15/17 — two open items are external/operator-side (the Claude.ai product completing the flow from the operator's own account; dropping `plain` from `code_challenge_methods_supported`), correctly not blocking `done`.
+
+**No findings.**
+
+### Docs-only decision cluster (TICK-099, 205, 207, 211, 212, 203, 215) — done
+
+All seven are EPIC-004 renderer-scope decision/subsumption tickets, mostly zero-diff ("subsumed by SIMPLI-014/PR #415" or "produced no repository diff"). Spot-checked bodies and outcomes: internally consistent, correctly scoped, `deployment: n/a` throughout, no overclaims found. TICK-099 (RPT-04 diminution) is a clean, explicit deferral with a well-written "prohibited substitutes" list guarding against scope creep. No findings in this cluster.
+
+### TICK-010 / TICK-009 — MAIL-22 / MAIL-21 (done, release 9, not this window's deploy)
+
+Both correctly attribute their `deployment: production` to **release 9** (PR #392/#391, verified on `main` `f1e116c6`), not release 10/12 — no overclaim relative to the current deploy anchor. Included in the roster only because a `groups` field update touched their `updated` timestamp; no new work in this window. No findings.
+
+### PLAT-001 — Claude Design UI implementation (done, PR #397, merged 2026-08-18)
+
+**Finding: stale/missing `deployment` field.** PLAT-001's own `deployment` field is unset (`None`), but PLAT-006's ticket body — written by a different agent/session — states outright: *"Two visual defects reported by the operator against **release 10 (the first release carrying PLAT-001's Claude Design shell)**."* This is independent, cross-ticket confirmation that PLAT-001 **is** in production as of release 10, yet its own record doesn't say so. **[nit] [verified]** Remediation: set PLAT-001's `deployment` field to `production` via `update_item` (out of scope for this read-only research task — flagged for the operator/board maintainer). Checklist 55/63 — the eight open items are disclosed follow-ups (rail counts, Experian AutoCheck capability ID, case notes, unplaced marks, screenshots), not silent gaps.
+
+### TICK-011 — INT-17 automatic VRM reading, retrospective (done, no PR, already on `main`)
+
+A genuinely unusual but honest closure: the capability was already implemented on `main` before this ticket existed (commits `ae6f0c2d`/`ef3eb4c7`/`f7d99b18`), so the ticket is a retrospective reconciliation with no new diff. `deployment: not-deployed` is **correct and deliberately conservative** — the outcome text explicitly says *"Production caller execution was not established, so deployment is recorded as not-deployed"* even though the code is on `main`, distinguishing code-presence from a proven live caller. This is the kind of honest self-report the other findings above show is sometimes missing elsewhere (SIMPLI-014, PLAT-001) — worth noting as a positive example, not a defect.
 
 ---
 
 ## 4. Open questions / contradictions for the operator
 
-1. **PR #410 ("Release 11") is stale but still open on GitHub.** `git log`/`gh pr view 410` confirms it is `MERGEABLE`/`CLEAN` with 42 commits, titled "Release 11: dev → main (PLAT-006 centred shell + Upload redesign, release-10/INT-31 docs)". DELIV-011's own Outcome (recorded 2026-08-19) states: *"Superseded by [[DELIV-012]]. Release 11 was prepared locally at `feda958f`... the operator held the `main` push... Release 12 carries PLAT-006 and everything since."* DELIV-012's own verification checklist requires `gh pr list --state open` → empty before release 12 closes. **Recommendation:** close PR #410 once DELIV-012 opens its own release-12 dev→main PR, rather than trying to reuse or fast-forward it — its base is already behind `dev`.
-2. **INTK-007's own open-questions.md says implementation was "deliberately blocked until kanmer-docs reconciles the protected and governing documents," calling that "a prerequisite, not an open product question."** Yet PR #424 is already open with a full implementation and the ticket is at "review" stage. **Question for the operator:** has that kanmer-docs reconciliation actually happened? If not, INTK-007 was implemented ahead of its own stated blocking condition — worth confirming before merge, independent of the code-level findings in §2.
-3. **TICK-044 cleared "review" with its own recorded operator bar unmet.** Its open-questions.md quotes the operator directly: *"A policy referenced only by tests is incomplete and must not pass review as delivered."* Its own checklist shows `MailOperationalDestinationPolicy` still has zero non-test callers. **Recommendation:** either return TICK-044 to implementing for the wiring, or let DELIV-012 remediate it directly as part of PR integration (this research treats it as a should-fix, not a full revert).
-4. **Two PRs (#423 INTK-008, #424 INTK-007) make genuine meaning-changes to protected/invariant documents** (`operator-notes.md`'s image-initiated-case description; the PRD sentence CLAUDE.md quotes verbatim about `Needs sorting`'s distinct meaning). Both were run through the ticket's own open-questions.md and, for INTK-008, a corresponding ADR (ADR-0029) — properly authorized, not silent. The residual issue is narrower and mechanical: INTK-007 left `operator-notes.md` internally inconsistent (new + old "Needs sorting" text coexisting) rather than fully reconciling it as its own plan promised. This is a should-fix, not a governance violation, but the operator may still want to eyeball the final `operator-notes.md` diff before release 12 given its protected status.
-5. **Git hygiene, pre-existing DELIV-012 scope:** a local branch `pr417check` (head `599bfe6d`, i.e. INTK-006's tip, created 2026-08-19T12:20:01+0100) exists with no matching ticket — likely a manual review branch from this research session or a sibling lane. A stale worktree/branch for `task/deliv-011-release-11` (superseded, per §4.1) also remains checked out at `../pegasus-worktrees/deliv-011-release-11`. Both fall inside DELIV-012's own stated git-hygiene scope ("three local branches and two worktrees") — no operator decision needed, just noting them for the plan phase.
+1. **Tickets currently taken by other agents/machines — do not touch, coordinate first.** All are `codex-mcp-client` or `Codex` (a different agent identity than this session's `claude-code`), still actively worked:
 
-### Tickets currently taken by other agents/machines — must be left alone or coordinated, not touched directly
+   | Ticket | Assignee | Branch | Worktree |
+   |---|---|---|---|
+   | TICK-093 | codex-mcp-client | `task/tick-093-versioned-repair-spec` | `../pegasus-worktrees/tick-093-versioned-repair-spec` |
+   | INTK-007 | Codex | `intk-007-unidentified-intake` | `.worktrees/intk-007` |
+   | TICK-045 | Codex / execute_tick_045 | `task/tick-045-shared-classification-policy` | `../pegasus-worktrees/tick-045-shared-classification-policy` |
+   | INTK-008 | Codex | `intk-008-image-initiated-lifecycle` | `.worktrees/intk-008` |
+   | INTK-006 | Codex | `intk-006-grouped-image-routing` | `.worktrees/intk-006` |
+   | TICK-046 | codex-mcp-client | `task/tick-046-classification-history` | `../pegasus-worktrees/tick-046-classification-history` |
+   | INTK-005 | Codex | `intk-005-grouped-upload` | `.worktrees/intk-005` |
+   | TICK-043 | codex-mcp-client | `task/tick-043-mailbox-identity` | `../pegasus-worktrees/tick-043-mailbox-identity` |
+   | TICK-044 | codex-mcp-client | `task/tick-044-classification-catalogue` | `../pegasus-worktrees/tick-044-classification-catalogue` |
+   | PLAT-006 | claude-code | `task/plat-006-shell-upload` | `../pegasus-worktrees/plat-006-shell-upload` |
+   | TICK-033 | codex-mcp-client | `task/tick-033-request-upload-reconciliation` | `../pegasus-worktrees/tick-033` |
 
-All ten are taken by **Codex** / **codex-mcp-client** (not `claude-code`), and all are mid-pipeline (review or verifying) with open worktrees:
+   None of these should be released/force-moved by another agent while taken. (PLAT-006 is `claude-code`-assigned but a *different* session than this one — same caution applies.)
 
-| Ticket | Assignee | Branch | Worktree |
-|---|---|---|---|
-| TICK-093 | codex-mcp-client | `task/tick-093-versioned-repair-spec` | `../pegasus-worktrees/tick-093-versioned-repair-spec` |
-| INTK-007 | Codex | `intk-007-unidentified-intake` | `.worktrees/intk-007` |
-| TICK-045 | Codex / execute_tick_045 | `task/tick-045-shared-classification-policy` | `../pegasus-worktrees/tick-045-shared-classification-policy` |
-| INTK-008 | Codex | `intk-008-image-initiated-lifecycle` | `.worktrees/intk-008` |
-| INTK-006 | Codex | `intk-006-grouped-image-routing` | `.worktrees/intk-006` |
-| TICK-046 | codex-mcp-client | `task/tick-046-classification-history` | `../pegasus-worktrees/tick-046-classification-history` |
-| INTK-005 | Codex | `intk-005-grouped-upload` | `.worktrees/intk-005` |
-| TICK-043 | codex-mcp-client | `task/tick-043-mailbox-identity` | `../pegasus-worktrees/tick-043-mailbox-identity` |
-| TICK-044 | codex-mcp-client | `task/tick-044-classification-catalogue` | `../pegasus-worktrees/tick-044-classification-catalogue` |
-| TICK-033 | codex-mcp-client | `task/tick-033` | `../pegasus-worktrees/tick-033` |
+2. **Systemic missing-GRANT pattern across five independent tickets in one day (TICK-093/merged, INTK-005/006/007/008 all still open).** This is the same class of defect recurring five times from what appear to be different implementing sessions — worth asking the operator whether this should become an explicit checklist/CI gate (e.g., a test that fails if a new EF migration creates a table with no matching `GRANT … TO [pegasus_web_runtime_role]` statement) rather than relying on each ticket's own reviewer to catch it. **Recommendation:** add such a gate before release 12; it would have caught all five instances mechanically.
 
-(PLAT-006 is also still taken, but by `claude-code` — this session's own family, not a coordination concern.)
+3. **INTK-006/INTK-008's operator-notes.md "Image-initiated Case" change has no record in `docs/open-decisions.md`.** Both tickets' plans cite "the operator has clarified…" (dated 2026-08-19) as authority for a material meaning change to protected `docs/operator-notes.md` and `docs/prd/pegasus-product.md`, but the only trace of that clarification is inside the implementing tickets' own notes — `grep -i "image-initiated" docs/open-decisions.md` finds nothing. **Recommendation:** the operator should confirm this decision was actually theirs (not an agent's inference dressed as "operator clarification") before these PRs merge, and record it in `docs/open-decisions.md` per the repo's own protected-doc discipline.
 
-DELIV-012's remediation plan should route fixes for these tickets' PRs through normal PR-comment/follow-up-commit channels (or a scoped subagent working directly on the existing branch, per repo convention for "your own task worktree"), not by touching another agent's worktree directly or force-pushing over in-flight work.
+4. **CLAUDE.md's Product Invariants section will contradict the shipped product once INTK-007 merges.** CLAUDE.md still lists `Needs sorting` as one of four settled terms; INTK-007's entire purpose is replacing that term with `Unidentified` throughout the product and its governing `docs/`. CLAUDE.md itself is outside `docs/` and isn't touched by any ticket in this batch. **Recommendation:** either the operator confirms CLAUDE.md's invariant line should be updated alongside INTK-007's merge (a repo-governance edit, per CLAUDE.md's own routing table — "a repository rule, convention, or process" belongs in CLAUDE.md), or confirms `Needs sorting` should remain a valid alternate term at the governance level even after the product-facing rename.
 
-### Deployment-field claims checked against evidence
+5. **PLAT-001's `deployment` field says nothing, but it's confirmed live in production via a different ticket's cross-reference (PLAT-006).** Low-stakes bookkeeping fix — flagged in §3, listed here because it's a `deployment` field claiming-nothing-when-it-should-claim-something case, the mirror image of the overclaim pattern the task asked to check for.
 
-No ticket in the roster was found to claim `production`/`deployed` incorrectly. The two data-hygiene issues found were **absence**, not overclaim: PLAT-001's `deployment` field is unset entirely (§3), and TICK-011's `not-deployed` is accurate but easy to misread (§3).
+6. **Local main-repo checkout's `dev` branch (HEAD `4ba63888`) is one commit behind `origin/dev` (`560f741c`)** — the very last merge (PR #420/TICK-093) hadn't been fetched into the working tree at research time. Not itself a problem (this research used `git show origin/dev:<path>` throughout to compensate), but worth a `git pull` before anyone does file-level work in that checkout.
 
 ---
 
 ## 5. Implications for release 12
 
-**Already correctly settled, no release-12 dependency:** TICK-099, TICK-205, TICK-212, TICK-207, TICK-211, TICK-203, TICK-215, TICK-213, TICK-204, DOCS-002 (all zero-diff or docs-only decisions, `n/a`), TICK-010, TICK-009 (already shipped in release 9), DELIV-009, AUTO-002 (already shipped in release 10), TICK-011 (code already shipped in release 10; the remaining gap is caller-wiring, not deployment).
+**Tickets whose proof depends on this deployment (release 12), or that become provable only once it ships:**
+- **TICK-093** — needs the GRANT fix *before* release 12, or the very first case-assessment save in production will throw a SQL permission error via the already-wired `EfCaseAssessmentStore` write path. This is the single highest-priority item to fix before promoting `dev` to `main`.
+- **PLAT-006** — its own checklist item "Deployed and confirmed on production" is explicitly pending release 12.
+- **PR-009 / TICK-213 / SIMPLI-014** — the entire integrated-renderer chain is merged to `dev` but not live; release 12 is what would let anyone actually verify the Chromium-render fix and density decision in production — **except SIMPLI-014 still needs a real Web/Worker caller wired before there's anything to verify in production at all** (see §3 finding).
+- **TICK-043 / TICK-044 / TICK-046** — none has `proof.md` yet; TICK-044 explicitly should not advance until its caller-wiring checklist is finished, independent of deploy timing.
+- **AUTO-002 / DELIV-009** — already fully provable; no release-12 dependency (they *are* release 10).
+- **TICK-033** — needs CI to confirm the two locally-timed-out integration tests before this can be considered done with real (not just local) evidence, independent of deploy.
 
-**Proof depends on release 12 / becomes provable once it deploys** (all currently correctly `not-deployed`/unset, already merged to `dev`): **PLAT-001** (only entry-point-bearing UI ticket in the roster — needs the promotion to make its "delivered" claim true, plus fix its checklist doc and missing `deployment` field first), **TICK-093**, **TICK-043**, **TICK-044**, **TICK-046**, **PLAT-006**, **TICK-033**, **SIMPLI-014**, **PR-009**. Of these, **TICK-046**'s `docs/current-architecture.md:85` fix should be bundled into the same release-12 deploy task (per the safety-rail requiring current-state docs to move with the deploy that makes them true).
+**Tickets that can move to `done` once deployed (assuming their remaining checklist items are otherwise clean):** PLAT-006, and — once the GRANT fixes land — TICK-093, TICK-043, TICK-044, TICK-046.
 
-**Need remediation before they should be considered release-ready, independent of deployment:**
-- **TICK-093** — missing GRANT (blocker) + dark `EfRepairSpecificationStore` (should-fix), neither acknowledged in its own docs.
-- **TICK-044** — `MailOperationalDestinationPolicy` still has zero callers despite the ticket's own operator bar requiring a real caller before "delivered"; already past review with this unmet.
-- **PLAT-006** — trivial (tick a stale checklist box), not release-blocking.
-- **TICK-033** — needs a real CI verdict for #408 before its own Done claim is honest; not release-blocking (docs-only, no runtime effect).
-
-**Open PRs — none are safe to merge as-is; all five carry unaddressed reviewer findings and four of five carry the same missing-GRANT defect:**
-- **INTK-005** (#416): 2 blockers (missing GRANT; `token:0` regression causing 8 confirmed CI failures) + 2 should-fix.
-- **INTK-006** (#417): 1 process blocker (HEAD never CI-tested, CONFLICTING against dev) + 1 should-fix (unchecked per-member association result) — inherits INTK-005's GRANT gap.
-- **INTK-007** (#424): 1 blocker (missing GRANT) + 3 should-fix (unreconciled operator-notes.md text; UI label collapse; untracked below-threshold intake) — never CI-tested at all.
-- **INTK-008** (#423): 2 blockers (missing GRANT; red CI on a genuine behavioral gap) + 2 should-fix (no simplification pass recorded; normative content in non-normative docs).
-- **TICK-045** (#422): 2 should-fix (test doesn't actually exercise classification sharing; undocumented mailbox used in the test) — otherwise green and low-risk; does not touch `MailOperationalDestinationPolicy`, so that gap persists regardless of merge order.
-
-**Recommended remediation order for DELIV-012's plan phase:** fix the recurring missing-GRANT defect once as a shared pattern-fix (TICK-093, INTK-005, INTK-006 shared base, INTK-007, INTK-008 — five migrations, one fix pattern) before integrating any of the open PRs; resolve INTK-005's `token:0` regression before INTK-006 (which is built on top of it) can be usefully re-tested; get INTK-008's CI green before merge; settle the INTK-007 kanmer-docs-reconciliation question (§4.2) before or alongside its merge; TICK-045 can merge with only minor test-quality caveats once its own should-fix items are triaged.
+**Tickets that need remediation *before* release 12, not just deployment:**
+1. TICK-093 — add the missing `CaseRepairSpecifications` GRANT (blocker, live write path already exists).
+2. TICK-044 — wire `MailOperationalDestinationPolicy` into the retained-mail viewer (ticket's own stated bar for passing review).
+3. All four open INTK PRs (#416/417/423/424) — fix the missing GRANTs in their respective migrations before merge, address the P1 reviewer findings (especially INTK-006's premature-finalization race and INTK-008's custody-invocation gap and unreachable-manual-merge gap), and resolve the two DIRTY/CONFLICTING merge states (#417, #423, #424) before any of them can even be merged to `dev`, let alone promoted.
+4. SIMPLI-014 — either wire a real caller for `GenerateAssessmentReportDraft` or correct its outcome text so it doesn't imply a reachable feature exists.
