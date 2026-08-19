@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -20,6 +20,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // no-runtime-grant: ProviderDomainPackages - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: ProviderReferences - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: ProviderDomainEvidence - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
             migrationBuilder.CreateTable(
                 name: "ProviderDomainPackages",
                 columns: table => new

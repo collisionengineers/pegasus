@@ -184,6 +184,35 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
     }
+    # 20260819104953_MailClassificationCorrectionHistory: adds an UPDATE grant
+    # to the pre-existing SELECT on IntakeMailClassificationDecisions (the
+    # Web's OnPostCorrectClassificationAsync handler corrects it in place),
+    # and grants the new IntakeMailClassificationHistory audit trail SELECT,
+    # INSERT with UPDATE and DELETE both denied (it is append-only).
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|IntakeMailClassificationDecisions')
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|IntakeMailClassificationHistory")
+    }
+    foreach ($permission in @('UPDATE', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|D|$permission|IntakeMailClassificationHistory")
+    }
+    # 20260819112640_VersionedRepairSpecifications: Web owns repair-specification
+    # draft/accept writes; the Worker does not call the store, so it gets none.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseRepairSpecifications")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseRepairSpecifications')
+    # 20260819180000_GrantEvaHandoffDownloadOperations: closes a live production
+    # gap (verified against sys.database_permissions) -- the table was created
+    # by 20260811122654_CaseCustodyEvaRecovery with no grant at all. Mirrors
+    # the sibling EvaHandoffOperations/EvaHandoffRevisions shape: Web reads
+    # and appends via EvaHandoffStore; the Worker never calls it and gets the
+    # same defensive DELETE denial those siblings hold, nothing granted.
+    foreach ($permission in @('SELECT', 'INSERT')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|EvaHandoffDownloadOperations")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|EvaHandoffDownloadOperations')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|EvaHandoffDownloadOperations')
     return @($expected | Sort-Object -Unique)
 }
 
