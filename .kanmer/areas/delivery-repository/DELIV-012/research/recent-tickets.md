@@ -165,7 +165,7 @@ Round 1 (10:54:14Z, on `70d7c89c`) — 10 comments. Commits `866d305e` (11:17) a
 | P2 Preserve duplicate feedback for replayed groups | **yes** — fixed in the same change, `duplicate=received.IsDuplicate` preserved |
 | P1 Register confident groups even without an eligible case | **yes** — `ImageIntakeGroupRoutingDecision.HandOffToImageIntake` is no longer in the early-return exclusion list |
 | P1 Persist expected member count | unclear |
-| P1 Raise request limit | **no** — `Program.cs:504` unchanged (shared root cause with INTK-005) |
+| P1 Raise request limit | **no** — `Program.css:504` unchanged (shared root cause with INTK-005) |
 | P1 Specify grouped routing in the owning FRD | **no** — no FRD file in the diff |
 | P2 Refresh grouped status | **no** |
 | P2 Exclude non-image receipts from recognition | unclear |
@@ -265,6 +265,7 @@ unchecked scope remains explicit").
 | should-fix | `docs/operator-notes.md` lines 42, 199, 388 | Reconcile the three surviving literal "Needs sorting" mentions the PR left unedited, or explicitly mark them as historical/compatibility text with a dated note. This is a protected doc: the change must preserve every material business statement, so prefer annotating over deleting, and complete the ticket's own unticked "final stale-term search". | [verified] |
 | should-fix | `CLAUDE.md` product-invariants section | The repo's own invariant still lists `Needs sorting` among the settled distinct meanings while PR #424 already rewrites that exact sentence in `docs/prd/pegasus-product.md`. After #424 merges the two governing files disagree. Update the CLAUDE.md line in the same PR, or add `Unidentified` alongside and state the transition. | [verified] |
 | nit | PR #424 branch state | `CONFLICTING`/`DIRTY` and zero CI runs. Rebase onto current `dev` before any further review; the absent workflow runs are very likely a consequence of the conflicted state. | [verified] |
+| should-fix | `src/Pegasus.Core/Intake/Classification/MailOperationalDestinationPolicy.cs:24` (shipped by TICK-044, merged; not part of this PR) | `gh pr diff 424 --name-only` confirms this file is untouched by INTK-007. Its `MailOperationalDestination` enum still defines a `NeedsSorting` member and is the class that would emit it for ambiguous mail — an existing `Needs sorting` producer that INTK-007's own verification bullet ("all existing producers are inventoried and either migrated or mapped") never actually inventories. Low-impact today only because the policy has zero real callers yet (§3.1, TICK-044/B2) — it will resurface as a live "Needs sorting" value the moment TICK-044's caller-wiring work lands, undoing this PR's stated replacement. Remediation: rename/replace `MailOperationalDestination.NeedsSorting` and update `MailOperationalDestinationPolicyTests.cs` in the same change that finally wires TICK-044/B2's caller, not as an afterthought. | [verified] |
 
 ---
 
@@ -807,6 +808,28 @@ ticket anywhere in this roster claims production without evidence** — the four
 **Recommendation:** set the five to `not-deployed` during the release-12 pass so the board
 records the state positively rather than by omission. Low priority.
 
+**Q8 — PR #410's own description is stale relative to what it will actually promote.**
+`gh pr view 410 --json body` shows text written for the superseded release-11 scope
+("Carries beyond `main` (`f79c24d9`): PR 407 — release-10 record… PR 408 — INT-31…
+PR 409 — PLAT-006…"), naming only 3 of the 12 merges now on `dev`. Its `headRefOid` tracks
+`dev` live (it is a `dev`→`main` PR, not a frozen branch snapshot), so the SHA it would
+promote is already correct — only the prose description undersells the diff.
+**Recommendation:** rewrite #410's description (or close it and let DELIV-012 open a fresh
+`dev`→`main` PR) to name everything since release 10 before anyone reviews it against the
+stated scope; a reviewer working from the current description would materially
+under-estimate what they're approving.
+
+**Q9 — the "operator clarified the Image-initiated Case model on 2026-08-19" premise cited
+by INTK-006/007/008 has no record in `docs/open-decisions.md`.** `grep -i "image-initiated"
+docs/open-decisions.md` returns nothing. This does not mean the clarification did not
+happen — it may have been given directly and simply not logged there, or logged and later
+archived — but three PRs and multiple protected-document edits all rest on it, so the
+operator confirming it directly (and where, if anywhere, it is recorded) would remove doubt
+before release 12 integrates all three. Related git-hygiene note: a stray local branch
+`pr417check` (head `599bfe6d`, INTK-006's tip, created 2026-08-19T12:20+0100) exists with no
+matching ticket, likely a manual review branch from this research window — falls inside
+DELIV-012's own stated git-hygiene scope, no operator decision needed.
+
 ---
 
 ## 5. Implications for release 12
@@ -827,9 +850,9 @@ merges. That is a docs edit, cheap, and should ride along.
 
 ### 5.2 Tickets whose proof depends on this deployment
 
-**Eleven tickets cannot complete their proof until release 12 ships.** Six are in
-`verifying` and are blocked from reaching `done`; five are in `done` with proof correctly
-self-limited to merged `dev`.
+**Ten tickets cannot complete their proof until release 12 ships.** Six are in `verifying`
+and are blocked from reaching `done`; four are in `done` with proof correctly self-limited
+to merged `dev`.
 
 | Blocked in `verifying` (cannot move to `done`) | Blocked in `done` (proof self-limited to `dev`) |
 | --- | --- |
@@ -868,13 +891,13 @@ counted as undeployed work.
 2. **Fix B3** (`docs/current-architecture.md:85`) and the TICK-205/TICK-207 proof
    corrections (F3/F4) — cheap, docs-only.
 3. **Decide Q2**: ship release 12 from the 12 already-merged PRs, leaving the four INTK PRs
-   for release 13. This is the recommendation — it unblocks eleven tickets' proof now, and
-   the INTK set needs 32 review findings addressed, two red CI lanes fixed, two branches
+   for release 13. This is the recommendation — it unblocks ten tickets' proof now, and the
+   INTK set needs 32 review findings addressed, two red CI lanes fixed, two branches
    rebased out of conflict, and Q3/Q4 operator answers before any of it is mergeable.
 4. **Optionally land TICK-045** first if Q5 is resolved — it is green, clean, 2 files, and
    would carry MAIL-03 with it.
 5. Run release 12, verify, refresh `docs/operations.md` and `docs/current-architecture.md`,
-   then walk the blocked tickets to `done`.
+   then walk the ten blocked tickets to `done`.
 
 ### 5.5 Release-mechanics reminders carried from the estate research
 
