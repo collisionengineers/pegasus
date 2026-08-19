@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -148,7 +148,7 @@ public sealed class EfImageIntakeStore(
             Reason = request.Reason.Trim(),
             CreationOperationKey = operationKey,
             RequestFingerprint = requestFingerprint,
-            LifecycleState = "awaiting_instruction",
+            LifecycleState = ToCode(ImageInitiatedCaseState.AwaitingInstruction),
             LifecycleVersion = 0
         };
         context.ImageIntakes.Add(entity);
@@ -261,7 +261,10 @@ public sealed class EfImageIntakeStore(
 
     public Task<ImageIntakeRecord> MergeAsync(
         MergeImageInitiatedCaseRequest request,
-        CancellationToken cancellationToken) => TransitionAsync(
+        CancellationToken cancellationToken)
+    {
+        ImageIntakeLifecycleRules.ValidateMerge(request);
+        return TransitionAsync(
             request.ImageIntakeId,
             request.ExpectedVersion,
             request.OperationKey,
@@ -270,12 +273,15 @@ public sealed class EfImageIntakeStore(
             "merged_into_instruction_case",
             ImageInitiatedCaseState.MergedIntoInstructionCase,
             request.CaseId,
-            request.CaseReference,
             cancellationToken);
+    }
 
     public Task<ImageIntakeRecord> CloseAsync(
         CloseImageInitiatedCaseRequest request,
-        CancellationToken cancellationToken) => TransitionAsync(
+        CancellationToken cancellationToken)
+    {
+        ImageIntakeLifecycleRules.ValidateClose(request);
+        return TransitionAsync(
             request.ImageIntakeId,
             request.ExpectedVersion,
             request.OperationKey,
@@ -284,8 +290,8 @@ public sealed class EfImageIntakeStore(
             "staff_closed",
             ImageInitiatedCaseState.StaffClosed,
             null,
-            null,
             cancellationToken);
+    }
 
     public async Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
         Guid imageIntakeId,
@@ -309,19 +315,26 @@ public sealed class EfImageIntakeStore(
         string eventType,
         ImageInitiatedCaseState targetState,
         Guid? caseId,
-        string? caseReference,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        var operation = operationKey.Trim();
+        var fingerprint = TransitionFingerprint(imageIntakeId, eventType, actor, reason, caseId);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
         var replay = await context.ImageIntakeLifecycleEvents.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.OperationKey == operationKey.Trim(), cancellationToken);
+            .SingleOrDefaultAsync(item => item.OperationKey == operation, cancellationToken);
         if (replay is not null)
         {
             var replayEntity = await context.ImageIntakes.AsNoTracking()
                 .SingleAsync(item => item.Id == replay.ImageIntakeId, cancellationToken);
+            if (replay.ImageIntakeId != imageIntakeId
+                || !FingerprintEquals(replay.RequestFingerprint, fingerprint))
+            {
+                throw new ImageIntakeOperationConflictException(replayEntity.OriginReceiptId, operation);
+            }
+
             return Map(replayEntity);
         }
 
@@ -331,22 +344,27 @@ public sealed class EfImageIntakeStore(
         {
             throw new DbUpdateConcurrencyException("The Image-initiated Case changed before this transition.");
         }
-        if (!string.Equals(entity.LifecycleState, "awaiting_instruction", StringComparison.Ordinal))
+        ImageIntakeLifecycleRules.RequireTransitionable(ParseState(entity.LifecycleState));
+
+        string? caseReference = null;
+        if (caseId is { } targetCaseId)
         {
-            throw new InvalidOperationException("A terminal Image-initiated Case cannot be changed.");
+            caseReference = await context.Cases
+                .AsNoTracking()
+                .Where(item => item.Id == targetCaseId)
+                .Select(item => item.Reference)
+                .SingleOrDefaultAsync(cancellationToken)
+                ?? throw new KeyNotFoundException($"Case '{targetCaseId}' does not exist.");
         }
 
+        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var before = entity.LifecycleVersion;
         entity.LifecycleState = ToCode(targetState);
         entity.LifecycleVersion++;
         entity.MergedIntoCaseId = caseId;
         entity.MergedIntoCaseReference = caseReference;
         entity.ClosureReason = targetState == ImageInitiatedCaseState.StaffClosed ? reason.Trim() : null;
-        entity.ClosedAtUtc = targetState == ImageInitiatedCaseState.StaffClosed
-            ? (timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow())
-            : null;
-        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
-        var operation = operationKey.Trim();
+        entity.ClosedAtUtc = targetState == ImageInitiatedCaseState.StaffClosed ? now : null;
         context.ImageIntakeLifecycleEvents.Add(new ImageIntakeLifecycleEventEntity
         {
             Id = Guid.NewGuid(),
@@ -357,6 +375,7 @@ public sealed class EfImageIntakeStore(
             ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role)),
             Reason = reason.Trim(),
             OperationKey = operation,
+            RequestFingerprint = fingerprint,
             OccurredAtUtc = now,
             BeforeVersion = before,
             AfterVersion = entity.LifecycleVersion,
@@ -500,14 +519,7 @@ public sealed class EfImageIntakeStore(
             Map(entity),
             entity.CreatedAtUtc,
             association?.CaseId,
-            association?.CaseReference,
-            ParseState(entity.LifecycleState),
-            entity.MergedIntoCaseId,
-            entity.MergedIntoCaseReference,
-            entity.ClosureReason,
-            entity.ClosedAtUtc,
-            await ListHistoryAsync(context, entity.Id, cancellationToken),
-            entity.LifecycleVersion);
+            association?.CaseReference);
     }
 
     private static async Task<IReadOnlyList<ImageIntakeSummary>> ProjectAsync(
@@ -576,19 +588,6 @@ public sealed class EfImageIntakeStore(
             .ToArray();
     }
 
-    private static async Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
-        PegasusDbContext context,
-        Guid imageIntakeId,
-        CancellationToken cancellationToken)
-    {
-        var rows = await context.ImageIntakeLifecycleEvents.AsNoTracking()
-            .Where(item => item.ImageIntakeId == imageIntakeId)
-            .OrderByDescending(item => item.OccurredAtUtc)
-            .ThenByDescending(item => item.Id)
-            .ToArrayAsync(cancellationToken);
-        return rows.Select(Map).ToArray();
-    }
-
     private static async Task<(Guid CaseId, string CaseReference)?> AssociationAsync(
         PegasusDbContext context,
         Guid originReceiptId,
@@ -634,16 +633,20 @@ public sealed class EfImageIntakeStore(
     {
         var vrm = request.NormalizedVehicleRegistration.Trim().ToUpperInvariant();
         var fingerprint = RegisterFingerprint(request, vrm);
-        var retained = Encoding.UTF8.GetBytes(entity.RequestFingerprint);
-        var supplied = Encoding.UTF8.GetBytes(fingerprint);
         if (entity.OriginReceiptId != request.Origin.ReceiptId
-            || retained.Length != supplied.Length
-            || !CryptographicOperations.FixedTimeEquals(retained, supplied))
+            || !FingerprintEquals(entity.RequestFingerprint, fingerprint))
         {
             throw new ImageIntakeOperationConflictException(
                 request.Origin.ReceiptId,
                 request.OperationKey.Trim());
         }
+    }
+
+    private static bool FingerprintEquals(string retained, string supplied)
+    {
+        var left = Encoding.UTF8.GetBytes(retained);
+        var right = Encoding.UTF8.GetBytes(supplied);
+        return left.Length == right.Length && CryptographicOperations.FixedTimeEquals(left, right);
     }
 
     private static string RegisterFingerprint(RegisterImageIntakeRequest request, string vrm) =>
@@ -659,6 +662,27 @@ public sealed class EfImageIntakeStore(
             request.Actor.Kind.ToString(),
             request.Actor.SubjectId,
             request.Reason.Trim()));
+
+    /// <summary>
+    /// Mirrors <see cref="RegisterFingerprint"/> for a lifecycle transition: a
+    /// replayed operation key must carry the exact same command, or it is a
+    /// conflicting reuse rather than a retry.
+    /// </summary>
+    private static string TransitionFingerprint(
+        Guid imageIntakeId,
+        string eventType,
+        ActionActor actor,
+        string reason,
+        Guid? caseId) =>
+        Hash(string.Join(
+            '|',
+            "image_intake_transition",
+            imageIntakeId.ToString("N"),
+            eventType,
+            actor.Kind.ToString(),
+            actor.SubjectId,
+            reason.Trim(),
+            caseId?.ToString("N") ?? string.Empty));
 
     private static string Snapshot(IntakeReceiptEntity receipt) => JsonSerializer.Serialize(new
     {

@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
@@ -25,36 +25,50 @@ public sealed class RegisterImageIntake(IImageIntakeStore store) : IRegisterImag
 
 public static class ImageIntakeLifecycleRules
 {
+    /// <summary>
+    /// Merge is reached from the automatic pairing paths as well as a staff
+    /// link, so it accepts the system worker on the same terms as automatic
+    /// registration.
+    /// </summary>
     public static void ValidateMerge(MergeImageInitiatedCaseRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ValidateActor(request.Actor, allowWorker: true);
+        ArgumentNullException.ThrowIfNull(request.Actor, nameof(request));
+        RequireRegistrationActor(request.Actor);
         RequireId(request.ImageIntakeId, nameof(request.ImageIntakeId));
         RequireId(request.CaseId, nameof(request.CaseId));
-        RequireText(request.CaseReference, "A formal Case reference is required.", 50, nameof(request.CaseReference));
         ValidateOperation(request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request.Reason));
         ArgumentOutOfRangeException.ThrowIfNegative(request.ExpectedVersion);
     }
 
+    /// <summary>
+    /// Staff closure is always a reasoned casework decision — never automatic,
+    /// so unlike merge it admits no system-worker actor.
+    /// </summary>
     public static void ValidateClose(CloseImageInitiatedCaseRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ValidateActor(request.Actor, allowWorker: false);
+        ArgumentNullException.ThrowIfNull(request.Actor, nameof(request));
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         RequireId(request.ImageIntakeId, nameof(request.ImageIntakeId));
         ValidateOperation(request.OperationKey);
         RequireText(request.Reason, "A reason is required.", 500, nameof(request.Reason));
         ArgumentOutOfRangeException.ThrowIfNegative(request.ExpectedVersion);
     }
 
-    private static void ValidateActor(ActionActor actor, bool allowWorker)
+    /// <summary>
+    /// `Awaiting instruction` is the one state a transition may leave;
+    /// `Merged into instruction case` and `Staff-closed` are permanent
+    /// outcomes. Core owns which states are terminal — the store enforces it
+    /// by calling this before it mutates the row.
+    /// </summary>
+    public static void RequireTransitionable(ImageInitiatedCaseState current)
     {
-        ArgumentNullException.ThrowIfNull(actor);
-        if (allowWorker && actor.Kind == ActorKind.SystemWorker)
+        if (current != ImageInitiatedCaseState.AwaitingInstruction)
         {
-            return;
+            throw new InvalidOperationException("A terminal Image-initiated Case cannot be changed.");
         }
-        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
     }
 
     private static void RequireId(Guid value, string parameterName)
