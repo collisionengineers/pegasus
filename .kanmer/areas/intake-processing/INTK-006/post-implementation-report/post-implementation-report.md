@@ -41,3 +41,7 @@ Verify that a grouped overview plus no-plate damage close-up associates both rec
 ## Scope clarification — 2026-08-19
 
 Code audit confirms the existing ImageIntake route already allocates a VRM-based reference for a usable read even when no eligible formal Case matches. This PR does not create a principal-less formal Cases row. The remaining Image-initiated Case lifecycle (search, Box custody presentation, staff close, merge/subsumption and formal-Case history) is explicitly delegated to [[INTK-008]]. Conflicting valid VRMs and no-identity groups are delegated to [[INTK-007]] with the explicit conflicting_vrms reason. INTK-006's review must assess only the grouped recognition, diagnostics, stable aggregation, and unique existing-Case association slice.
+
+## Review remediation evidence — 2026-08-19
+
+PR #417 initially broke existing single-file/replay behavior because every upload was rewritten as a grouped child token and redirected to the group status page. Commit 866d305e restores the single-file path through IIntakeSubmission, preserves the duplicate query/message, and adds the grouped migration to the schema expectation. Release build passed with 0 warnings/errors; five targeted SQL/web/group tests passed. The multi-file group path remains unchanged.

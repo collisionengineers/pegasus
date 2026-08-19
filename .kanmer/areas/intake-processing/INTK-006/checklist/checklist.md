@@ -58,3 +58,11 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 - [x] INTK-007 owns grouped Unidentified work and the conflicting_vrms marker.
 - [x] INTK-008 owns ImageIntake-as-Image-initiated Case lifecycle, search/history, Box custody presentation, staff closure, and merge/subsumption into an Instruction-initiated Case.
 - [ ] Do not claim INTK-006 complete until its PR review is passed; INTK-008 remains a follow-on ticket, not an INTK-005 dependency blocker.
+
+## Review remediation — 2026-08-19
+
+- [x] Preserve the established single-file upload path: one file uses its original receipt token and /Upload/Status route; multi-file submissions use the durable group route.
+- [x] Preserve duplicate replay messaging on the single-file status route.
+- [x] Update the migration-schema expectation for GroupedIntakeSubmission.
+- [x] Re-run targeted integration coverage: five selected SQL/web/group tests passed after rebuild.
+- [x] Commit/push remediation as 866d305e.

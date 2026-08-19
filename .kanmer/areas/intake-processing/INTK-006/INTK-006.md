@@ -4,6 +4,7 @@ type: ticket
 title: Associate each vehicle-image group or create one Image-initiated Case
 status: implementing
 area: intake-processing
+order: 30
 assignee: Codex
 profile: fix
 stageEntered:
@@ -32,11 +33,12 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - 70d7c89c
+  - 866d305e
 prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T11:11:49.092Z'
+updated: '2026-08-19T11:17:31.163Z'
 ---
 
 ## What

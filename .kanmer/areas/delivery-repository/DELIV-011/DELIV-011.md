@@ -6,6 +6,7 @@ title: >-
   current-state docs
 status: implementing
 area: delivery-repository
+order: 20
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -22,7 +23,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-19T07:46:11.060Z'
-updated: '2026-08-19T08:09:38.115Z'
+updated: '2026-08-19T11:17:31.156Z'
 ---
 
 ## What

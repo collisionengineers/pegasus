@@ -4,6 +4,7 @@ type: ticket
 title: Decide whether density applies to all rendered document bodies
 status: implementing
 area: documents-reports
+order: 40
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -24,7 +25,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.829Z'
-updated: '2026-08-19T10:43:50.525Z'
+updated: '2026-08-19T11:17:31.168Z'
 ---
 
 ## What
