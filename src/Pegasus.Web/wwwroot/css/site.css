@@ -1908,8 +1908,9 @@ details > summary.btn::-webkit-details-marker { display: none; }
 
    The one place a file leaves someone's desk and enters a case, so it is a
    destination rather than a control tucked under a label. The native file input
-   stays visible inside it: a styled stand-in that merely opens the real picker
-   would be a second control claiming to be the first.
+   is the control: without script it is visible inside the zone; with script
+   (site.js) the zone itself takes the drop and a button opens the same input,
+   so there is never a second control claiming to be the first.
    --------------------------------------------------------------------------- */
 
 .dropzone {
@@ -1948,7 +1949,7 @@ details > summary.btn::-webkit-details-marker { display: none; }
    lose nothing and a no-script page still shows the input. The focus ring
    moves to the dropzone so a focused, hidden input is visible. */
 .dropzone.is-enhanced { position: relative; }
-.dropzone.is-enhanced:focus-within { outline: var(--focus-ring); outline-offset: 2px; }
+.dropzone.is-enhanced:has(input[type="file"]:focus-visible) { outline: var(--focus-ring); outline-offset: 2px; }
 .dropzone__browse { margin-top: var(--sp-2); }
 
 /* A chosen file: a solid edge and the name. A file over the target: the
@@ -2001,8 +2002,8 @@ details > summary.btn::-webkit-details-marker { display: none; }
   border-radius: var(--radius-sm);
   background: var(--paper);
   color: var(--charcoal);
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
   font-size: var(--t-xs);
+  font-weight: 600;
 }
 
 /* A single-purpose screen is centred and narrow; a wide column would put the
