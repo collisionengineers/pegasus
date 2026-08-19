@@ -125,33 +125,26 @@
         }
 
         var describe = function () {
-            var file = input.files && input.files[0];
-            zone.classList.toggle('has-file', Boolean(file));
-            if (!file) {
+            var files = input.files ? Array.from(input.files) : [];
+            zone.classList.toggle('has-file', files.length > 0);
+            if (files.length === 0) {
                 readout.hidden = true;
                 readout.replaceChildren();
-                browse.textContent = 'Choose file';
+                browse.textContent = 'Choose files';
                 return;
             }
 
-            // Whole megabytes past 1 MB, kilobytes below: enough to confirm the
-            // right file was picked, not a second size policy.
-            var size = file.size >= 1048576
-                ? (file.size / 1048576).toFixed(1) + ' MB'
-                : Math.max(1, Math.round(file.size / 1024)) + ' KB';
-            var glyph = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            glyph.setAttribute('class', 'icon');
-            glyph.setAttribute('aria-hidden', 'true');
-            var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-            use.setAttribute('href', '#icon-file-text');
-            glyph.appendChild(use);
-            var name = document.createElement('span');
-            name.textContent = file.name;
-            var small = document.createElement('small');
-            small.textContent = size;
-            readout.replaceChildren(glyph, name, small);
+            var rows = files.map(function (file) {
+                var row = document.createElement('span');
+                var size = file.size >= 1048576
+                    ? (file.size / 1048576).toFixed(1) + ' MB'
+                    : Math.max(1, Math.round(file.size / 1024)) + ' KB';
+                row.textContent = file.name + ' (' + size + ')';
+                return row;
+            });
+            readout.replaceChildren.apply(readout, rows);
             readout.hidden = false;
-            browse.textContent = 'Choose a different file';
+            browse.textContent = 'Choose different files';
         };
 
         zone.classList.add('is-enhanced');
@@ -175,13 +168,6 @@
             var dropped = event.dataTransfer ? event.dataTransfer.files : null;
             if (!dropped || dropped.length === 0) {
                 return;
-            }
-            // One file per upload: a multi-file drop keeps the first, so what
-            // the readout names is exactly what the form will send.
-            if (dropped.length > 1 && !input.multiple) {
-                var single = new DataTransfer();
-                single.items.add(dropped[0]);
-                dropped = single.files;
             }
             input.files = dropped;
             input.dispatchEvent(new Event('change', { bubbles: true }));

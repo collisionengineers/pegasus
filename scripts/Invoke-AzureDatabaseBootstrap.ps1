@@ -184,18 +184,6 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
     }
-<<<<<<< HEAD
-    # 20260819112914_ImageInitiatedLifecycle: the Image-initiated Case
-    # lifecycle event log is append-only. Web is the only caller (the
-    # ImageIntake lifecycle transitions run only from Web-served requests in
-    # this slice; the Worker never touches ImageIntakeLifecycleEvents), so
-    # only pegasus_web_runtime_role is granted, mirroring the migration's
-    # GRANT SELECT, INSERT / DENY UPDATE, DELETE exactly.
-    $expected.Add('pegasus_web_runtime_role|G|SELECT|ImageIntakeLifecycleEvents')
-    $expected.Add('pegasus_web_runtime_role|G|INSERT|ImageIntakeLifecycleEvents')
-    $expected.Add('pegasus_web_runtime_role|D|UPDATE|ImageIntakeLifecycleEvents')
-    $expected.Add('pegasus_web_runtime_role|D|DELETE|ImageIntakeLifecycleEvents')
-=======
     # 20260819104953_MailClassificationCorrectionHistory: adds an UPDATE grant
     # to the pre-existing SELECT on IntakeMailClassificationDecisions (the
     # Web's OnPostCorrectClassificationAsync handler corrects it in place),
@@ -225,7 +213,25 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|EvaHandoffDownloadOperations')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|EvaHandoffDownloadOperations')
->>>>>>> origin/dev
+    # 20260819101344_GroupedIntakeSubmission: the Upload page's grouped
+    # submission tables. EfIntakeSubmissionGroupStore only reads and appends
+    # (no UPDATE, no Remove) and the Worker never references either table, so
+    # the Web role gets SELECT and INSERT and the Worker gets nothing.
+    foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+    }
+    # 20260819112914_ImageInitiatedLifecycle: the Image-initiated Case
+    # lifecycle event log is append-only. Web is the only caller (the
+    # ImageIntake lifecycle transitions run only from Web-served requests in
+    # this slice; the Worker never touches ImageIntakeLifecycleEvents), so
+    # only pegasus_web_runtime_role is granted, mirroring the migration's
+    # GRANT SELECT, INSERT / DENY UPDATE, DELETE exactly.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|ImageIntakeLifecycleEvents')
+    $expected.Add('pegasus_web_runtime_role|G|INSERT|ImageIntakeLifecycleEvents')
+    $expected.Add('pegasus_web_runtime_role|D|UPDATE|ImageIntakeLifecycleEvents')
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|ImageIntakeLifecycleEvents')
     return @($expected | Sort-Object -Unique)
 }
 
