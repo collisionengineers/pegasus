@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/418 from task/tick-046-classification-history. Release build 0 warnings/errors; full Core 634/634; exact SQL/Web acceptance 2/2. No live Outlook/cloud write.

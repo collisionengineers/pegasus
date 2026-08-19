@@ -4,12 +4,13 @@ type: ticket
 title: >-
   MAIL-04 — Explainable classification evidence, policy version, and correction
   history
-status: implementing
+status: review
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-18T15:21:25.839Z'
+  review: '2026-08-19T10:52:46.993Z'
 taken_at: '2026-08-19T10:35:23.458Z'
 branch: task/tick-046-classification-history
 worktree: ../pegasus-worktrees/tick-046-classification-history
@@ -25,9 +26,13 @@ groups:
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - db9e35fe
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/418'
 archived: false
 created: '2026-08-12T15:03:53.708Z'
-updated: '2026-08-19T10:35:23.458Z'
+updated: '2026-08-19T10:52:46.993Z'
 ---
 
 ## What
