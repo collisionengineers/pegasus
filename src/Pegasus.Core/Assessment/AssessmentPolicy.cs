@@ -455,6 +455,13 @@ public static class AssessmentPolicy
         return normalized;
     }
 
+    public static IReadOnlyList<EstimateLineInput> NormalizeRepairSpecificationLines(
+        IReadOnlyList<EstimateLineInput> lines)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        return NormalizeLines(lines);
+    }
+
     private static string? NormalizeCode(
         string? value,
         IReadOnlyList<string> codes,

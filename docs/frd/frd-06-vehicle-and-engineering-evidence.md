@@ -152,6 +152,30 @@ A skill, prompt, model, workspace, external schema, or imported reference never
 becomes current OEM instruction, repair policy, valuation authority, legal
 advice, Engineer approval, or product policy merely by existing.
 
+### Canonical repair specifications
+
+Every accepted repair specification is an immutable, versioned Core aggregate.
+Each Case has exactly one current accepted canonical version, shared by the
+Case's report projections.
+
+Each version retains its stable identity, ordered technical
+lines, source route, source artifact identity/version/hash, mapping evidence,
+raw calculation basis and totals, creating actor/time, and—when accepted—the
+named Engineer and acceptance time. Glass's, Audatex PDF, an approved AI
+proposal, and manual entry are provenance routes, never authorities: imported
+or automated material remains a draft until an authorised Engineer accepts the
+exact source, mapping, ordered lines, and calculation basis. Legacy lines with
+no such evidence remain explicit `LegacyUnresolved` drafts and cannot satisfy
+report readiness.
+
+Corrections create a new reasoned version which retains and supersedes the
+earlier accepted version; accepted rows and their evidence are never edited in
+place. A Case with no unambiguous current accepted version fails closed. The
+shared specification uses one technical line vocabulary and calculation basis. The three
+assessment-report lists—new parts, repairs, and additional operations—are a
+single deterministic names-only projection of those ordered lines, not a
+second renderer-owned repair specification.
+
 ### Conservative MOT mileage estimation
 
 > Owner capability: ENG (vehicle enrichment). Relocated from ADR-0012 (2026-07-30).
