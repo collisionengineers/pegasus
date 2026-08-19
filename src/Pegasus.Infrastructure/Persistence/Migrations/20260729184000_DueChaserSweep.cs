@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,6 +11,7 @@ public sealed class DueChaserSweep : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: CaseDueChasers - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         migrationBuilder.DropIndex(
             name: "IX_CaseDueWork_State_NextChaseAtUtc",
             table: "CaseDueWork");

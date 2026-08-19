@@ -27,6 +27,36 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // no-runtime-grant: ApplicationInitializations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: AspNetRoles - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: AspNetUsers - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: IntakeStagedReceipts - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: OpenIddictApplications - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: OpenIddictScopes - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: Organizations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: PrincipalSequenceLineages - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: AspNetRoleClaims - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: AspNetUserClaims - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: AspNetUserLogins - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: AspNetUserRoles - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: AspNetUserTokens - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: IntakeEvaluations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: IntakeWorkItems - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: OpenIddictAuthorizations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: OrganizationRoles - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: CaseSequences - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: Principals - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: OpenIddictTokens - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: Cases - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: BoxFileRequests - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: CaseDocuments - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: CaseHistory - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: ExternalWorkItems - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: RequestUploadLinks - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: DocumentVersions - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: CaseIntakeLinks - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: DocumentOccurrences - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: RequestUploadReceipts - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
             migrationBuilder.AddColumn<long>(
                 name: "Version",
                 table: "IntakeReceipts",

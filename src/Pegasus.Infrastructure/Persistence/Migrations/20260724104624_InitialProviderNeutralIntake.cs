@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -14,6 +14,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // no-runtime-grant: IntakeReceipts - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: InstructionDrafts - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: IntakeAssets - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+            // no-runtime-grant: IntakeReceiptEvents - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
             migrationBuilder.CreateTable(
                 name: "IntakeReceipts",
                 columns: table => new
