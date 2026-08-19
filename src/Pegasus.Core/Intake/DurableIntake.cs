@@ -691,7 +691,11 @@ public sealed class ProcessQueuedIntake(
                 new(
                     existing.Id,
                     existing.Version,
-                    ActionActor.SystemWorker("intake-processing"),
+                    // UnidentifiedValidation.ValidateResolve requires Staff or
+                    // Automation (unlike registration, which also accepts
+                    // SystemWorker); this automatic reconciliation is
+                    // authorised automation, not registration.
+                    ActionActor.Automation("intake-processing"),
                     $"intake-unidentified-reconcile:{receipt.Id:N}:{receipt.Version}",
                     $"The receipt now has a {targetKind} destination; the Unidentified item is superseded.",
                     targetKind,
