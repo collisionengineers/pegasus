@@ -23,7 +23,7 @@ signature, and the fee note.
 | `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x` | Pre-accident value, repair cost including VAT, salvage value, and recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value; the accepted category and its approved salvage treatment are required. |
 | `repairable` | `REPAIRABLE REPORT`; `REPAIRABLE` | Pre-accident value, labour hours, and repair cost including VAT | Recommended settlement is the calculated repair cost for the Engineer's repairable finding. |
 | `cash_in_lieu` | `CASH IN LIEU REPORT`; `CASH IN LIEU` | Pre-accident value, labour hours, and cash-in-lieu settlement | The recommended cash-in-lieu settlement is the calculated repair cost. |
-| `contract_repair` | `CONTRACT REPAIR REPORT`; `CONTRACT REPAIR` | Pre-accident value, labour hours, and repair cost including VAT | The settlement records the accepted VAT-inclusive contract-repair amount as a cap which cannot increase. |
+| `contract_repair` | `CONTRACT REPAIR REPORT`; `CONTRACT REPAIR` | Pre-accident value, labour hours, and repair cost including VAT | The Core-computed VAT-inclusive repair total is the agreed contract-repair cap and cannot increase. |
 
 `Pegasus.Core` selects the outcome from the accepted Engineer finding and
 owns the calculation of each derived figure once from accepted, source-labelled
@@ -32,7 +32,8 @@ settlement in place of those inputs, or reinterpret one outcome as another.
 Missing, unknown, conflicting, or incomplete outcome data fails closed before
 an accepted report artifact is rendered. Outcome-specific data is required
 where it affects the document, including category and salvage for total loss
-and the accepted capped amount for contract repair.
+and the accepted raw cost components from which Core computes the contract-repair
+cap.
 
 Supplied template, schema, wording, design, and sample material is evidence for
 this contract, not a second policy owner. Any category treatment, recovery or
