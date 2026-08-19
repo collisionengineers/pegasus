@@ -36,9 +36,9 @@ internal sealed class UnidentifiedMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Lists open Unidentified items, or all items when state is supplied. Each item has an immutable U-reference, canonical reason, origin and safe detail.")]
+    [Description("Lists open Unidentified items by default, or a specific state when supplied. Each item has an immutable U-reference, canonical reason, origin and safe detail.")]
     public async Task<IReadOnlyList<UnidentifiedToolItem>> ListAsync(
-        [Description("Optional exact state: Open or Resolved.")] string? state = null,
+        [Description("Optional exact state: Open or Resolved. Defaults to Open.")] string? state = null,
         CancellationToken cancellationToken = default)
     {
         var context = await resolver.RequireAsync(AutomationMcp.IntakeScope, cancellationToken);
@@ -49,10 +49,11 @@ internal sealed class UnidentifiedMcpTools(
             null,
             () => AutomationMcpErrors.ExecuteAsync(async () =>
             {
-                UnidentifiedState? filter = null;
+                UnidentifiedState? filter = UnidentifiedState.Open;
                 if (!string.IsNullOrWhiteSpace(state))
                 {
-                    if (!Enum.TryParse<UnidentifiedState>(state.Trim(), true, out var parsed))
+                    if (!Enum.TryParse<UnidentifiedState>(state.Trim(), ignoreCase: true, out var parsed)
+                        || !Enum.IsDefined(parsed))
                     {
                         throw new McpException("The Unidentified state is not recognized.");
                     }
