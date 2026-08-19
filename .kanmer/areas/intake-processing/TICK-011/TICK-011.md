@@ -23,13 +23,12 @@ links: []
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 commits:
-  - ae6f0c2d
   - ef3eb4c7
-  - f7d99b18
-deployment: not-deployed
+  - ba65c1ed
+deployment: production
 archived: false
 created: '2026-08-12T15:03:52.988Z'
-updated: '2026-08-19T09:39:14.492Z'
+updated: '2026-08-19T13:31:42.543Z'
 ---
 
 ## What
@@ -58,4 +57,8 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 
 ## Outcome
 
-Retrospective reconciliation completed on 2026-08-18. INT-17 was already present on merged `main` through commits `ae6f0c2d`, `ef3eb4c7`, and `f7d99b18`; no TICK-011 source diff or PR was created. Independent review passed and the focused ImageIntake Core suite passed 78/78 on `origin/main` at `d8de29cb`. No follow-up ticket was required. Production caller execution was not established, so deployment is recorded as `not-deployed`.
+Retrospective reconciliation completed on 2026-08-18. INT-17 was already present on merged `main`; no TICK-011 source diff or PR was created. Independent review passed and the focused ImageIntake Core suite passed 78/78 on `origin/main` at `d8de29cb`.
+
+**Corrected 2026-08-19 by [[DELIV-012]].** This Outcome previously cited commits `ae6f0c2d`, `ef3eb4c7` and `f7d99b18`. Two of those are unreachable pre-rebase objects — `git branch -a --contains` returns no refs for either — so the citation could not be reproduced. The reachable delivery commits are **`ef3eb4c7` and `ba65c1ed`**, both ancestors of `d8de29cb`.
+
+The `deployment` field previously read `not-deployed`, which was false about the shipped code: `origin/main` contains 20 ImageIntake paths including the Core sources, `EfImageIntakeStore`, migration `20260803071539_ImageIntakeRegistration`, the Web pages and the tests. It now reads `production`, with the honest qualification recorded in `proof` and `open-questions`: **the code is shipped, but production caller execution has never been evidenced.** That is an activation gap, owned by [[INTK-006]] and [[INTK-008]], not a deployment gap — and release scoping must not treat INT-17 as undeployed work.
