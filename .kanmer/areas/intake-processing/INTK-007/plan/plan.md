@@ -120,3 +120,11 @@ No ADR is required if this remains inside existing Core/EF/Web boundaries. Do no
 - **Broken settled workflows:** explicit negative tests for Triage, Blocked, Audit, Image Intake, and Image-Only.
 - **Migration data loss:** preserve receipts/reasons/custody; deterministic tested backfill.
 - **Over-engineering:** focused aggregate inside Intake; no generic workflow/reference platform.
+
+## Simplification pass — 2026-08-19
+
+- Reuse: the new aggregate uses existing `ActionActor`, `TimeProvider`/UTC conventions, EF serializable sequence allocation, and the existing Core → Infrastructure → Web/MCP composition boundaries. No new project, runtime, or storage service was introduced.
+- Simplification: one Core reason enum and one reference formatter/parser are consumed by EF, Web, and MCP; no second label taxonomy or generic workflow/reference framework was added.
+- Efficiency: list and exact-reference queries remain database-side and indexed; queue ordering is `CreatedAtUtc, Sequence`; registration and resolution use one serializable transaction each.
+- Altitude: the UI owns presentation only, MCP delegates to the same Core resolve command, and migration compatibility is isolated to the migration SQL. Residual old decision codes remain only for rolling compatibility and preserved Triage/Image Intake paths.
+- Disposition: no behaviour-preserving simplification was identified beyond the implemented reuse and boundary corrections. The unchecked grouped-submission, retained-mail/Operations projection, and full stale-term audit work remains explicit scope for the follow-on integration/review rather than hidden behind a new abstraction.

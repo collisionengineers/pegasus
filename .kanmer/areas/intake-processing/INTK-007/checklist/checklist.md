@@ -1,7 +1,7 @@
 # Checklist — INTK-007
 
 - [x] Run kanmer-docs and update protected operator truth with the confirmed Unidentified requirement.
-- [ ] Update PRD, FRD-01/02/03/06/08/09/10/12, design, capabilities, and index as applicable.
+- [x] Update PRD, FRD-01/02/03/06/08/09/10/12, design, capabilities, and index as applicable.
 - [ ] Classify every normative old Needs sorting use into Unidentified or a preserved distinct workflow.
 - [x] Link governing docs, clear `docs_todo`, and stop if any required behavior remains contradictory.
 - [x] Add the one Core Unidentified reason taxonomy with six canonical codes.
@@ -34,8 +34,8 @@
 - [x] Run `dotnet build --configuration Release`.
 - [x] Run focused Core, persistence, migration, Web, MCP, and browser tests.
 - [ ] Run full `dotnet test`.
-- [ ] Perform and record the dated four-lens simplification pass.
-- [ ] Update checklist and post-implementation report with actual evidence.
+- [x] Perform and record the dated four-lens simplification pass.
+- [x] Update checklist and post-implementation report with actual evidence.
 
 ## Progress — 2026-08-19
 
@@ -45,5 +45,5 @@
 - Added EF entities/store, serializable sequence allocation, unique origin/reference/operation constraints, history, migration snapshot, deterministic legacy backfill, and sequence seed.
 - Routed terminal ProcessIntake outcomes through the registration use case while leaving image-only material for Image Intake processing.
 - Added Web queue/detail/resolution pages, navigation, dashboard metric, operator labels/status chip, and MCP list/get/resolve tools.
-- Verification so far: `dotnet restore`; Core Release build; Infrastructure Release build; Web Release build; IntegrationTests Release build; full Core test suite (592 passed); focused Unidentified test suite (12 passed).
-- Remaining work is explicitly unchecked below: full stale-term/semantic audit, grouped-submission persistence integration with INTK-005, mail/retained/Operations projections, migration/runtime-grant tests, full test run, and simplification pass.
+- Verification so far: `dotnet restore`; Core Release build; Infrastructure Release build; Web Release build; IntegrationTests Release build; full Core test suite (592 passed); focused Unidentified test suite (12 passed); Architecture suite (96 passed); HealthEndpoint focused suite (3 passed).
+- Remaining work is explicitly unchecked below: full stale-term/semantic audit, grouped-submission persistence integration with INTK-005, mail/retained/Operations projection completion, migration/runtime-grant tests, and final full-suite summary.
