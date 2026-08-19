@@ -184,6 +184,24 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
     }
+    # 20260819115323_UnidentifiedWork: Worker's queued DurableIntake ->
+    # ProcessIntake path registers Unidentified work automatically, and Web's
+    # Unidentified/Details resolve action and MCP tools read and resolve it,
+    # so both roles get the same matrix. UnidentifiedHistory is append-only:
+    # no caller ever updates or deletes a written row.
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($table in @('UnidentifiedItems', 'UnidentifiedSequences')) {
+            foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+                $expected.Add("$role|G|$permission|$table")
+            }
+        }
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("$role|G|$permission|UnidentifiedHistory")
+        }
+        foreach ($permission in @('UPDATE', 'DELETE')) {
+            $expected.Add("$role|D|$permission|UnidentifiedHistory")
+        }
+    }
     return @($expected | Sort-Object -Unique)
 }
 

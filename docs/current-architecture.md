@@ -71,9 +71,10 @@ A new project, runtime, store, migration stream, deployment unit, or top-level a
 These invariants — `Pegasus.Core` is the single owner of business policy;
 duplicate business implementation is a stop condition; a new top-level project,
 store, runtime, migration stream, or deployment unit requires an accepted ADR
-proving the existing boundary cannot carry it; and `Audit`, `Triage`,
-`Needs sorting`, and `Blocked intake` keep their settled distinct meanings — are
-owned by [AGENTS.md § Product invariants](../AGENTS.md#product-invariants). This
+proving the existing boundary cannot carry it; and `Audit`, `Triage`, and
+`Blocked intake` keep their settled distinct meanings, with `Unidentified`
+superseding `Needs sorting` for that meaning — are owned by
+[AGENTS.md § Product invariants](../AGENTS.md#product-invariants). This
 section reports how the running system is wired to them; it does not restate or
 compete with that owner.
 
@@ -274,7 +275,8 @@ The following invariants remain in force even where their activating callers are
 - no case deletion;
 - no reference reuse;
 - no mutation of the principal after allocation;
-- no second meaning for Audit, Triage, `Needs sorting`, or Blocked intake;
+- no second meaning for Audit, Triage, or Blocked intake, and none for
+  `Unidentified`, which supersedes the former `Needs sorting` meaning;
 - no case or reference allocation until configured principal identity, durable custody, and the accepted allocation transaction are available.
 
 No rule engine may be copied into Web, Worker, a workspace, or an integration adapter.
