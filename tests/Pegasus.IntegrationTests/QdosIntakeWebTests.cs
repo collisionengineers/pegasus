@@ -203,9 +203,9 @@ public sealed class QdosIntakeWebTests
         Assert.Null(receipt.FailureCode);
         Assert.Empty(receipt.ScannedPdfPages);
         Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "insufficient-embedded-text");
-        Assert.Contains("Needs sorting", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("Unidentified", reviewHtml, StringComparison.Ordinal);
         Assert.Contains("not an image-led scanned page", reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Needs sorting", queueHtml, StringComparison.Ordinal);
+        Assert.Contains("Unidentified", queueHtml, StringComparison.Ordinal);
     }
 
     [GenuineQdosCorpusFact(ForwardedEmailHash, ConfirmedInputTwoHash)]
@@ -340,7 +340,7 @@ public sealed class QdosIntakeWebTests
             dashboard,
             StringComparison.Ordinal);
         Assert.Contains(
-            "<strong>1</strong><span>Needs sorting</span><small>Current intake receipts</small>",
+            "<strong>1</strong><span>Unidentified</span><small>Current intake receipts</small>",
             dashboard,
             StringComparison.Ordinal);
         var sortingItem = Assert.Single(sortingQueue.Items);

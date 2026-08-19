@@ -79,7 +79,7 @@ public sealed partial class MultiFormatIntakeWebTests
         Assert.Null(receipt.FailureCode);
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == fileName && asset.Kind == IntakeAssetKind.Source);
         Assert.Contains(fileName, reviewHtml, StringComparison.Ordinal);
-        Assert.Contains("Needs sorting", reviewHtml, StringComparison.Ordinal);
+        Assert.Contains("Unidentified", reviewHtml, StringComparison.Ordinal);
     }
 
     [Theory]
