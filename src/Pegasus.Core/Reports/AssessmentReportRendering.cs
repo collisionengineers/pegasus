@@ -154,6 +154,25 @@ public sealed record AssessmentReportSnapshot(
             ["andy_patterson"] = ("A Patterson", "M.Inst.IAEA"),
         };
 
+    /// <summary>
+    /// The single lookup against the accepted-signatory list, exposed so a
+    /// caller can report an unrecognized engineer signature as a named
+    /// readiness gap before attempting to build a snapshot, rather than
+    /// duplicating this table (one list per concept).
+    /// </summary>
+    public static bool TryResolveAcceptedEngineer(
+        string signatureKey, out string name, out string qualifications)
+    {
+        if (AcceptedEngineers.TryGetValue(signatureKey, out var accepted))
+        {
+            (name, qualifications) = accepted;
+            return true;
+        }
+        name = string.Empty;
+        qualifications = string.Empty;
+        return false;
+    }
+
     public void Validate()
     {
         AcceptedReportSource.Required(OurReference, nameof(OurReference));
