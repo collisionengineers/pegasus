@@ -184,17 +184,29 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
     }
-    # 20260819115323_UnidentifiedWork: Worker's queued DurableIntake ->
-    # ProcessIntake path registers Unidentified work automatically, and Web's
-    # Unidentified/Details resolve action and MCP tools read and resolve it,
-    # so both roles get the same matrix. UnidentifiedHistory is append-only:
-    # no caller ever updates or deletes a written row.
+    # 20260819115323_UnidentifiedWork, per-object least privilege:
+    # - UnidentifiedItems: Worker (IntakeWorkFunction -> ProcessQueuedIntake ->
+    #   ProcessIntake.ExecuteRetainedAsync -> IRegisterUnidentified.RegisterAsync)
+    #   gets SELECT/INSERT/UPDATE; the UPDATE is
+    #   ProcessQueuedIntake.SynchronizeUnidentifiedAsync's reconciliation
+    #   resolve. Web never registers (no IRegisterUnidentified caller in
+    #   Pegasus.Web), so it gets SELECT/UPDATE only, the UPDATE from
+    #   Unidentified/Details.cshtml.cs's resolve handler and
+    #   UnidentifiedMcpTools.ResolveAsync.
+    # - UnidentifiedSequences: only RegisterAsync's allocation touches this
+    #   table, and that is Worker-only; Web gets nothing.
+    # - UnidentifiedHistory: append-only; both roles insert (Register's
+    #   initial row, Resolve's resolution row) and select (Resolve's own
+    #   replay check, and Details.cshtml.cs/UnidentifiedMcpTools.GetAsync's
+    #   HistoryAsync reads). No caller ever updates or deletes a row.
+    foreach ($permission in @('SELECT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|UnidentifiedItems")
+    }
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|UnidentifiedItems")
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|UnidentifiedSequences")
+    }
     foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
-        foreach ($table in @('UnidentifiedItems', 'UnidentifiedSequences')) {
-            foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
-                $expected.Add("$role|G|$permission|$table")
-            }
-        }
         foreach ($permission in @('SELECT', 'INSERT')) {
             $expected.Add("$role|G|$permission|UnidentifiedHistory")
         }

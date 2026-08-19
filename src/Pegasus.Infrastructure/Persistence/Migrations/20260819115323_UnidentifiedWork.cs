@@ -232,25 +232,45 @@ SELECT
 FROM UnidentifiedItems AS item
 WHERE item.RegistrationOperationKey LIKE 'unidentified-migration:%';");
 
-            // Both composition roots reach these tables: Worker's queued
-            // DurableIntake -> ProcessIntake path registers Unidentified work
-            // automatically (SELECT/INSERT across all three tables, plus the
-            // UPDATE that allocates the next UnidentifiedSequences value), and
-            // Web's Unidentified/Details resolve action and MCP tools read and
-            // resolve it (SELECT, and the UPDATE/INSERT that ResolveUnidentified
-            // performs). UnidentifiedHistory is append-only: no caller ever
-            // updates or deletes a row once written.
+            // Per-object least privilege, evidenced against actual callers:
+            // - UnidentifiedItems: Worker gets SELECT/INSERT/UPDATE.
+            //   RegisterAsync (EfUnidentifiedStore.cs) is reached only through
+            //   IRegisterUnidentified, which only ProcessIntake consumes, and
+            //   ProcessIntake's sole production caller is
+            //   ProcessQueuedIntake.ExecuteAsync (DurableIntake.cs, run by
+            //   Worker's IntakeWorkFunction) via ExecuteRetainedAsync — hence
+            //   SELECT (its existing-by-operation/-origin lookups) and INSERT.
+            //   Worker also gets UPDATE: ProcessQueuedIntake.SynchronizeUnidentifiedAsync
+            //   (DurableIntake.cs) calls IResolveUnidentified.ExecuteAsync to
+            //   reconcile a stale open item once a receipt reaches CaseCreated
+            //   or ImageIntakeRegistered, and ResolveAsync mutates the entity.
+            //   Web gets SELECT/UPDATE, not INSERT: nothing in Pegasus.Web
+            //   calls IRegisterUnidentified (no manual-registration surface);
+            //   Web reads via Unidentified/Index.cshtml.cs and Details.cshtml.cs
+            //   and UnidentifiedMcpTools.cs, and gets UPDATE from the same
+            //   IResolveUnidentified path via Details.cshtml.cs's resolve
+            //   handler and UnidentifiedMcpTools.ResolveAsync.
+            // - UnidentifiedSequences: only RegisterAsync ever touches this
+            //   table (select-or-seed the row, then increment
+            //   LastAllocatedSequence), and that is the Worker-only path
+            //   above; Web never allocates a sequence, so it gets nothing here.
+            // - UnidentifiedHistory: append-only, both roles write it.
+            //   RegisterAsync's initial row and ResolveAsync's resolution row
+            //   both insert here, and both are reached from Worker (as above)
+            //   and from Web (Details.cshtml.cs's resolve handler and
+            //   UnidentifiedMcpTools.ResolveAsync); ResolveAsync also SELECTs
+            //   it for its own replay check, and Details.cshtml.cs and
+            //   UnidentifiedMcpTools.GetAsync call HistoryAsync (SELECT)
+            //   directly. No caller ever updates or deletes a row.
             if (string.Equals(
                     ActiveProvider,
                     "Microsoft.EntityFrameworkCore.SqlServer",
                     StringComparison.Ordinal))
             {
                 migrationBuilder.Sql(
-                    "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedItems] TO [pegasus_web_runtime_role];");
+                    "GRANT SELECT, UPDATE ON OBJECT::[dbo].[UnidentifiedItems] TO [pegasus_web_runtime_role];");
                 migrationBuilder.Sql(
                     "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedItems] TO [pegasus_worker_runtime_role];");
-                migrationBuilder.Sql(
-                    "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedSequences] TO [pegasus_web_runtime_role];");
                 migrationBuilder.Sql(
                     "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedSequences] TO [pegasus_worker_runtime_role];");
                 migrationBuilder.Sql(
