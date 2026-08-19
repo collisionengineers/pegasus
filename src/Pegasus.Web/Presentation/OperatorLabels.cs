@@ -3,6 +3,7 @@ using System.Text;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -70,6 +71,29 @@ public static class OperatorLabels
         CaseDueWorkState.Held => "Chasing paused",
         CaseDueWorkState.Stopped => "Chasing stopped",
         _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// The application work view a classified message belongs in, from the
+    /// Core operational-destination policy.
+    /// </summary>
+    /// <remarks>
+    /// The abstention case reuses the exact "Needs sorting" wording this page
+    /// already shows for the unmatched Queue and Filed-to states
+    /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.QueueLabel"/> and
+    /// <see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
+    /// rather than introducing a second operator-visible spelling of the same
+    /// fail-closed state.
+    /// </remarks>
+    public static string MailOperationalDestinationLabel(MailOperationalDestination destination) => destination switch
+    {
+        MailOperationalDestination.ReceivingWork => "Receiving work",
+        MailOperationalDestination.Queries => "Queries",
+        MailOperationalDestination.DetailedClassification => "Detailed classification",
+        MailOperationalDestination.Other => "Other",
+        MailOperationalDestination.Triage => "Triage",
+        MailOperationalDestination.NeedsSorting => "Needs sorting",
+        _ => Humanise(destination.ToString())
     };
 
     public static string DocumentRole(DocumentSemanticRole role) => role switch
