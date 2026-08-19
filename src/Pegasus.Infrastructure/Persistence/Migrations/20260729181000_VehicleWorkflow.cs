@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,6 +11,9 @@ public sealed class VehicleWorkflow : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: VehicleLookupRequests - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: VehicleLookupObservations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: VehicleConfirmations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         migrationBuilder.CreateTable(
             name: "VehicleLookupRequests",
             columns: table => new

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
@@ -13,6 +13,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         private const string SqlServerProvider = "Microsoft.EntityFrameworkCore.SqlServer";
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // no-runtime-grant: CaseTasks - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
             RequireSqlServer();
             migrationBuilder.AddColumn<string>(
                 name: "ArchiveReason",
