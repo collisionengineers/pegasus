@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Full live correction journey — operator decision 2026-08-19
+
+Production acceptance must cover link → reasoned unlink → reasoned relink for one exact retained message. Immediately before execution, name and obtain exact-target approval for the message, initial Case, replacement Case, and reasons. Capture the displayed target summaries and confirmations, optimistic versions, before/after state, actor attribution, and immutable history for all three transitions. Abort on stale state or any target mismatch; never change Case/reference identity.

@@ -2,7 +2,7 @@
 id: SIMPLI-014
 type: ticket
 title: Integrate CollisionRenderer behind a Core-owned render contract
-status: implementing
+status: review
 area: documents-reports
 order: 200
 assignee: codex-mcp-client
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   backlog: '2026-08-17T12:53:36.226Z'
   preparing: '2026-08-19T08:57:22.253Z'
+  review: '2026-08-19T09:56:33.525Z'
 taken_at: '2026-08-19T09:22:15.273Z'
 branch: task/simpli-014-integrate-collision-renderer
 worktree: ../pegasus-worktrees/simpli-014-integrate-collision-renderer
@@ -30,9 +31,14 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
+commits:
+  - b10aba3d1266e302c534f6d5e88d8da5aa51585c
+  - b6db5f4d73ee17b3b488e8e65a694dbf06d96260
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/415'
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T09:44:39.144Z'
+updated: '2026-08-19T09:56:33.525Z'
 ---
 
 ## What

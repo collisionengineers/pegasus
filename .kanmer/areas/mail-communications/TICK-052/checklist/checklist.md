@@ -10,3 +10,6 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Immediately before live execution, record exact-target approval naming the retained message, initial Case, replacement Case, and approved unlink/relink reasons.
+- [ ] Run and evidence the full production link → unlink → relink journey, including confirmations, versions, attribution, and append-only history; abort on stale state or mismatch.

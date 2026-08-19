@@ -1,63 +1,56 @@
 # Files — INTK-006
 
-## Change surfaces
+## Where the change lands
 
-| Path/module | Why it is touched | Risk |
-|---|---|---|
-| `src/Pegasus.Web/Pages/UploadStatus.cshtml.cs` | Map the existing processed receipt decision/case state into honest operator wording and next action. | Creating a second decision taxonomy instead of using Core/Presentation labels. |
-| `src/Pegasus.Web/Pages/UploadStatus.cshtml` | Show `Needs sorting` and an appropriate receipt/queue action instead of generic `Complete`. | Disclosing internal vocabulary or implying case creation should have occurred. |
-| `src/Pegasus.Infrastructure/Persistence/EfIntakeWorkStore.cs` / queued-status query implementation | Only if the current `QueuedIntakeStatus` projection lacks the canonical receipt decision required by the UI. | Widening a port for one page when an existing query/helper already exposes it. Search first. |
-| `src/Pegasus.Core/Intake/IntakeContracts.cs` | Possible minimal status projection change if the decision is not already carried. | Optional-field/wrapper smell; preserve one Core owner. |
-| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Reuse or add one presentation mapping for terminal intake outcomes if no existing label fits. | Duplicate label table. |
-| Focused Upload/queued-status integration and browser tests | Reproduce a completed JPEG `NeedsSorting` receipt with no case and assert visible outcome/action. | A test that only asserts “Complete” and misses operator comprehension. |
+| Path | Exact responsibility |
+|---|---|
+| `docs/operator-notes.md` | Protected business truth: record the operator-confirmed exhaustive grouped outcome and reconcile the old pre-Case statement. Must be changed through kanmer-docs with explicit operator confirmation already present in this ticket. |
+| `docs/prd/pegasus-product.md` | State product outcome/boundary for Image-Only Cases and preserve Unidentified/Triage/Blocked/Audit distinctions. |
+| `docs/frd/frd-01-case-identity-and-lifecycle.md` | Define Image-Only Case reference, principal, lifecycle, conversion/resolution, and immutable-origin behavior. |
+| `docs/frd/frd-02-intake-and-source-identity.md` | Define upload group identity and the exhaustive association-or-create algorithm. |
+| `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Define group-wide recognition aggregation, accepted bar, conflict behavior, and detector/reader diagnostic states. |
+| `docs/frd/frd-12-operator-experience.md` and `docs/design/README.md` | Define group status and visible Case outcome/next action. |
+| `docs/capabilities.md`, `docs/index.md` | Reconcile capability owners and navigation if governing docs change. |
+| [[INTK-005]] Core/Infrastructure group files | Required source of stable group membership and member completion state. Do not infer groups independently. |
+| `src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs` | Add only recognition/group outcome contracts needed by automation; keep one canonical state/reason vocabulary. |
+| `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Replace per-receipt early return with idempotent group orchestration and exhaustive association-or-create behavior. |
+| `src/Pegasus.Core/ImageIntake/ImageIntakeCasePairing.cs` | Extract/reuse the exact unique eligible-case selection rule as the single pairing owner. |
+| `src/Pegasus.Core/Cases/` existing acceptance/use-case files identified after docs | Extend the sole Case creation owner for the documented Image-Only Case type; never write Cases directly from image automation. |
+| `src/Pegasus.Core/Intake/DurableIntake.cs` | Invoke/re-drive group automation only after group membership and recognition completion conditions are met. |
+| `src/Pegasus.Infrastructure/Vision/OnnxVrmRecognitionEngine.cs` | Preserve detector→recognizer sequence and return distinct safe outcomes for no crop versus unreadable crop. |
+| `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` | Persist/query per-member suggestions and idempotent associations; widen for group lookup only through Core contracts. |
+| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` | Persist one idempotent group routing outcome and any documented Image-Only fields/constraints. |
+| `src/Pegasus.Infrastructure/Persistence/Migrations/<timestamp>_GroupedImageRouting.cs` and snapshot | Add outcome/idempotency schema and any Case-type schema required by the governing docs. |
+| `src/Pegasus.Web/Pages/UploadStatus.cshtml(.cs)` or INTK-005 group status page | Show waiting-for-group, associated Case, or created Image-Only Case accurately. |
+| `src/Pegasus.Web/Pages/Cases/Details.cshtml(.cs)` | Show every grouped image/origin on the resulting Case using existing Image Intake/case evidence patterns. |
+| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Add the single operator label for documented Image-Only Case/outcome if needed. |
+| `src/Pegasus.Web/Program.cs` | Register changed ports/use cases through existing scoped conventions. |
+| `tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs` | Exhaustive group routing matrix and replay/concurrency logic. |
+| `tests/Pegasus.Core.Tests/ImageIntake/ImageIntakeCasePairingTests.cs` | Exact unique-match/no-overlap/conflict policy remains shared. |
+| `tests/Pegasus.IntegrationTests/ImageIntakePersistenceTests.cs` | Group outcome uniqueness, member association, sequence/reference, transaction/replay behavior. |
+| `tests/Pegasus.IntegrationTests/MultiFormatIntakeWebTests.cs` | End-to-end multi-image group with readable overview plus no-VRM close-up. |
+| `tests/Pegasus.IntegrationTests/ImageIntakeWebTests.cs` and browser tests | Visible group outcome, Case link, origins, and safe reasons. |
+| `tests/Pegasus.IntegrationTests/VrmRecognitionEngineTests.cs` | Distinguish no plate from unreadable crop and preserve model/version evidence. |
+
+## Required context before editing
+
+- EPIC-007 `context.md`, complete INTK-005/006 folders, and current doc gates.
+- All governing docs listed above after kanmer-docs reconciliation.
+- `src/Pegasus.Core/Cases` acceptance/allocation contracts and tests; name the exact reuse point in the plan update before coding.
+- Migration and runtime-role conventions in the two newest persistence migrations.
+- Existing Image Intake reference is not a Case/PO and must not be silently repurposed.
 
 ## Ripple effects
 
-- INTK-005 may change the same Upload/status surfaces; sequence or coordinate the tickets to avoid overlapping implementation.
-- PLAT-006/DELIV-011 changes Upload and status presentation but not business outcome projection; implementation must start from its merged result.
-- Do not change `ProcessIntake`, image recognition thresholds, principal identification, or Case allocation: production evidence shows those gates behaved correctly.
-- Web telemetry remains absent by documented architecture; adding it is broader OPS-07 work, not necessary to correct this UI defect.
-- The recurring Sent-evidence polling exception is unrelated and must not be “fixed” under this ticket.
+- INTK-005 must merge first.
+- INTK-007 supplies the eventual Unidentified destination for technical/unreadable material outside the completed vehicle-group rule; do not duplicate its U-reference taxonomy here.
+- If recognition has a technical failure, bounded retry/failure must finish before group routing. Do not create a fallback Case while a member is still retryable.
+- Group finalization must be transactional/idempotent so two completing workers cannot create two Cases or split associations.
+- Existing Case eligibility excludes post-report/closed/inconsistent candidates according to the shared pairing owner.
 
-## Context files
+## Out of scope
 
-| Path | What it tells the implementer |
-|---|---|
-| `docs/frd/frd-02-intake-and-source-identity.md` | Receipt/decision semantics and fail-closed intake. |
-| `docs/frd/frd-06-vehicle-and-engineering-evidence.md` | Image/VRM suggestions do not establish Case allocation. |
-| `docs/operator-notes.md` | Upload success is explicitly not case creation. Protected business truth. |
-| `src/Pegasus.Web/Pages/Upload.cshtml.cs` | POST ends at durable staging and redirects to status. |
-| `src/Pegasus.Web/Pages/UploadStatus.cshtml(.cs)` | The generic terminal message that hides `NeedsSorting`. |
-| `src/Pegasus.Core/Intake/ProcessIntake.cs` | Canonical terminal decision owner. |
-| `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Post-persistence image recognition/registration, distinct from Case allocation. |
-| `tests/Pegasus.IntegrationTests/MultiFormatIntakeWebTests.cs` | Direct-image `NeedsSorting` contract. |
-| TICK-011 documents | INT-17 scope, caller, production qualification, and non-Case boundary. |
-| `docs/operations.md` | Release-10 production topology and known Web/Worker telemetry boundary. |
-
-## Deliberately out of scope
-
-- Creating a case from an unowned/unidentified image.
-- Changing recognition engine/model/threshold or claiming production INT-17 recognition from this evidence.
-- Adding Web OpenTelemetry, repairing Sent-evidence polling, deploying, or changing cloud state.
-
-## Corrected primary change surface — 2026-08-19
-
-The exact trace promotes these from context to primary implementation surfaces:
-
-| Path/module | Required investigation/change |
-|---|---|
-| `src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs` | Replace the below-bar/no-readable third path with the operator-required Image-Only case fallback while preserving unique-match association. |
-| `src/Pegasus.Core/ImageIntake/ImageIntakeCasePairing.cs` | Confirm overlap/unique-match rules are shared rather than reimplemented. |
-| Existing Core case-creation port/use case | Reuse the sole Case allocation owner for Image-Only creation; do not create a parallel case writer. |
-| `src/Pegasus.Infrastructure/Persistence/EfImageIntakeStore.cs` | Determine whether an Image Intake record must precede both association and Image-Only case creation, and preserve immutable receipt/reference identity. |
-| `tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs` plus persistence/web tests | Add low-confidence, no-readable, ambiguous, unique-match, and fallback-case regression coverage. |
-
-FRD-06 and the appropriate Case/Reference governing document need behaviour reconciliation before planning because current threshold-gated semantics do not state the exhaustive two-outcome rule.
-
-## Group-level ripple — 2026-08-19
-
-Add the durable group relation introduced by [[INTK-005]] to the primary file map: image automation must load all retained image assets/receipts in the submission group, evaluate one group registration outcome, and apply one idempotent association-or-create operation to every member. Tests must prove that a no-VRM close-up follows a readable sibling and that replay/partial processing cannot split one group across cases.
-
-## Recognition observability note — 2026-08-19
-
-`OnnxVrmRecognitionEngine` currently collapses detector-empty and reader-empty results into `NoReadableResult`, and emits no per-stage telemetry. Planning should decide whether acceptance evidence needs non-sensitive counters/outcomes for “no plate detected” versus “plate detected, text unreadable.” Do not add a second business outcome taxonomy; any diagnostic detail belongs to the engine result/telemetry and must preserve the canonical intake decision.
+- Changing model weights or accepted 0.80 action bar.
+- Logging image content, crops, or raw candidates.
+- General document grouping behavior beyond the INTK-005 aggregate.
+- A parallel Case store/allocator, new runtime, generic workflow engine, or deployment.
