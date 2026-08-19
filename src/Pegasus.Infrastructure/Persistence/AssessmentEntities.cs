@@ -41,6 +41,37 @@ internal sealed class CaseEstimateLineEntity
     public DateTimeOffset RecordedAtUtc { get; set; }
     public string? ConfirmedBy { get; set; }
     public DateTimeOffset? ConfirmedAtUtc { get; set; }
+    public Guid? RepairSpecificationId { get; set; }
+    public CaseRepairSpecificationEntity? RepairSpecification { get; set; }
+}
+
+internal sealed class CaseRepairSpecificationEntity
+{
+    public Guid Id { get; set; }
+    public Guid CaseId { get; set; }
+    public CaseEntity Case { get; set; } = null!;
+    public int Version { get; set; }
+    public required string State { get; set; }
+    public required string SourceRoute { get; set; }
+    public string? SourceArtifactReference { get; set; }
+    public string? SourceVersion { get; set; }
+    public string? SourceSha256 { get; set; }
+    public decimal? CalculationLabour { get; set; }
+    public decimal? CalculationParts { get; set; }
+    public decimal? CalculationPaintMaterials { get; set; }
+    public decimal? CalculationSpecialistOther { get; set; }
+    public bool? RepairerVatRegistered { get; set; }
+    public decimal? CalculationVat { get; set; }
+    public decimal? CalculationTotal { get; set; }
+    public string? CalculationPolicyVersion { get; set; }
+    public required string CreatedBy { get; set; }
+    public required string CreationOperationKey { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+    public string? AcceptedBy { get; set; }
+    public DateTimeOffset? AcceptedAtUtc { get; set; }
+    public Guid? SupersedesSpecificationId { get; set; }
+    public string? SupersessionReason { get; set; }
+    public List<CaseEstimateLineEntity> Lines { get; set; } = [];
 }
 
 /// <summary>
