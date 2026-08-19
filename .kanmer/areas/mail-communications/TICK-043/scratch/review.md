@@ -70,3 +70,20 @@
 ## Verdict
 
 **Substantive implementation passes, but merge is blocked by required CI.** Run 32239604895: changes, documentation, reference-data, unit, browser, SQL shard 1 and SQL coverage passed; infrastructure skipped; SQL shards 2 and 3 failed for the two branch-related omissions above. Do not merge until [[PR-008]] is fixed and required CI is green.
+
+# Final independent review — 2026-08-19 — commit ee947826
+
+## Changes
+
+The complete PR delivers the canonical mailbox-scoped inbound identity contract, separate raw/provider/thread/content evidence, EF uniqueness and migration, scoped thread queries, governing-document updates, and focused Core/integration coverage. PR-008 additionally updates the committed migration inventory and gives the restart theory's observed and later independent messages distinct canonical RFC identities without changing its terminal-source assertions.
+
+## Comments and disposition
+
+- [[PR-004]]: fixed in PR — one canonical RFC equality representation now drives receipt hashing, EF lookup/write/comparison and binary-collated uniqueness.
+- [[PR-005]]: fixed in PR — post-normalization length fails closed before writes; Unicode-equivalent replay, raw evidence and separate canonical key are proven.
+- [[PR-008]]: fixed in PR — migration inventory and independent-message fixtures align with the new contract.
+- CI attempt 1's final unrelated failure was a transient SQL Server `ALTER DATABASE` lock failure in `CaseTaskArchivePersistenceTests`; failed-job rerun attempt 2 passed.
+
+## Verdict
+
+**Pass.** The implementation matches the ticket, EPIC-006 context, FRD-08, plan, checklist, report and documented simplification dispositions. No planned scope is missing, no unauthorized external write or deployment is claimed, and no blocking review comment remains. Workflow 32241230347 is fully green on head `ee947826`: changes, documentation, reference-data, unit, browser, SQL shards 1–3 and SQL coverage passed; infrastructure was correctly skipped. Approved for merge to `dev` and transition to Verifying.

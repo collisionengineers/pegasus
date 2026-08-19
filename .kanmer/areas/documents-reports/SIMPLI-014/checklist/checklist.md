@@ -22,3 +22,22 @@
 - 2026-08-19 final verification: locked restore passed; Release build passed with zero warnings/errors; focused report Core 9/9, real renderer 2/2, dependency-direction 39/39; whole Core 625/625 and Architecture 97/97 passed in the full non-corpus solution invocation. The legacy Integration suite exceeded its documented ~12-minute baseline and remained silent, so it was proportionally stopped after the renderer-focused tests had passed; CI's existing sharded lanes remain the authoritative whole-suite gate. Documentation placement/links passed, Infrastructure package vulnerability output was clear, standalone surface searches were empty, and two retained PDFs record real Chromium evidence.
 
 - 2026-08-19 PR-006/PR-007 corrections: completed exact supplied assessment/fee-note sections, hash-validated ordered photo bytes, VAT/total/payment/terms and all-four-outcome real Chromium content proof; reconciled stale runbook/design workspace references. Release build passed with zero warnings/errors; focused Core 11/11 and Browser 5/5 passed. A combined local full Integration host aborted after 124 passing tests, and the non-Browser rerun aborted after 28 passing tests, during substantial concurrent dotnet activity on the shared workstation; no test failure was reported. Existing CI head's shard-3 failure was independently inspected and is an unrelated LocalDB disposal lock (`ApprovedMailboxEstateIntegrationTests`, 173/174 passed); the new push will rerun authoritative shards.
+
+## Closeout — SIMPLI-014
+
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date included)
+- [x] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] Removed ticket worktree `../pegasus-worktrees/simpli-014-integrate-collision-renderer`
+- [ ] Deleted local and remote `task/simpli-014-integrate-collision-renderer` branch
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] Released Kanmer claim
+
+### Closeout completion — 2026-08-19
+
+- [x] Outcome and merged commit/PR recorded on ticket.
+- [x] Ticket worktree removed after clean-status and merged-PR checks.
+- [x] Local and remote task branch deleted.
+- [x] Origin fetched/pruned and worktree registry pruned; absence confirmed.
+- [ ] Kanmer claim release is the final action.

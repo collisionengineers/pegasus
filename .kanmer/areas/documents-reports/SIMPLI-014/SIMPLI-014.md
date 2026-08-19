@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-19T09:56:33.525Z'
   verifying: '2026-08-19T10:29:35.071Z'
   done: '2026-08-19T10:33:08.662Z'
-taken_at: '2026-08-19T09:22:15.273Z'
-branch: task/simpli-014-integrate-collision-renderer
-worktree: ../pegasus-worktrees/simpli-014-integrate-collision-renderer
 labels: []
 groups:
   - EPIC-002
@@ -37,11 +34,12 @@ commits:
   - b10aba3d1266e302c534f6d5e88d8da5aa51585c
   - b6db5f4d73ee17b3b488e8e65a694dbf06d96260
   - cdb50cd2bbeb84fe69172407adaca06298a437a2
+  - b548b674e31d05de6f43eeb285a25dedd7d2a768
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/415'
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T10:33:08.662Z'
+updated: '2026-08-19T10:33:57.866Z'
 ---
 
 ## What
@@ -68,3 +66,7 @@ Was "Make report renderer standalone" (replacement for [[TICK-221]]; its checkli
 - [ ] Architecture tests updated; the workspace no longer exists as a non-caller import; the sub-decision tickets above are closed or superseded.
 
 ## Outcome
+
+Integrated CollisionRenderer into the existing Pegasus Core/Infrastructure/Web monolith and retired the separate workspace/API/CLI/MCP/MCPB/container boundary. The active surface is the approved rendererref1 assessment plus fee note for four Core-owned outcomes, with Andy Patterson as the only complete selectable engineer tuple and unsupported families/wording fail closed.
+
+Merged by [PR #415](https://github.com/collisionengineers/pegasus/pull/415) to `dev` at `b548b674e31d05de6f43eeb285a25dedd7d2a768` on 2026-08-19. Verified locally and in green CI at the integrated source/Web-composition tier. Automatic triggering, durable report identity/custody/correction remain with [[DOCS-001]]; Azure runtime/deployment proof remains with [[PLAT-007]]. No deployment or `main` update occurred.
