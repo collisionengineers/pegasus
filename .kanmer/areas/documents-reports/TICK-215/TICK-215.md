@@ -2,10 +2,12 @@
 id: TICK-215
 type: ticket
 title: Decide where report rendering executes in production
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:57:22.311Z'
 labels:
   - now
   - source-now
@@ -14,9 +16,12 @@ groups:
   - EPIC-004
 links:
   - SIMPLI-015
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+  - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.967Z'
-updated: '2026-08-17T06:42:14.200Z'
+updated: '2026-08-19T08:57:22.311Z'
 ---
 
 ## What

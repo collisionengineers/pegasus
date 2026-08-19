@@ -15,9 +15,12 @@ groups:
 links:
   - TICK-098
   - SIMPLI-015
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+  - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.409Z'
-updated: '2026-08-17T06:42:12.571Z'
+updated: '2026-08-19T08:57:19.868Z'
 ---
 
 ## What

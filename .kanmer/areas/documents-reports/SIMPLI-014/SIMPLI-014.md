@@ -2,13 +2,14 @@
 id: SIMPLI-014
 type: ticket
 title: Integrate CollisionRenderer behind a Core-owned render contract
-status: backlog
+status: preparing
 area: documents-reports
 order: 200
 assignee: ''
 profile: feature
 stageEntered:
   backlog: '2026-08-17T12:53:36.226Z'
+  preparing: '2026-08-19T08:57:22.253Z'
 labels: []
 groups:
   - EPIC-002
@@ -21,7 +22,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T08:56:29.487Z'
+updated: '2026-08-19T08:57:22.253Z'
 ---
 
 ## What

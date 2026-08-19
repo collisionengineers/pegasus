@@ -18,9 +18,11 @@ groups:
   - EPIC-003
   - EPIC-004
 links: []
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.549Z'
-updated: '2026-08-19T08:56:07.236Z'
+updated: '2026-08-19T08:57:19.689Z'
 ---
 
 ## What

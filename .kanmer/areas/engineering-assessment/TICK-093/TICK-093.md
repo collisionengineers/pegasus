@@ -18,9 +18,11 @@ groups:
   - EPIC-003
   - EPIC-004
 links: []
+refs:
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-19T08:56:07.259Z'
+updated: '2026-08-19T08:57:19.706Z'
 ---
 
 ## What

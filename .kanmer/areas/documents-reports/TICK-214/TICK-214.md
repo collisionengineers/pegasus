@@ -14,9 +14,12 @@ groups:
   - EPIC-004
 links:
   - SIMPLI-015
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+  - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.885Z'
-updated: '2026-08-17T06:42:14.002Z'
+updated: '2026-08-19T08:57:19.961Z'
 ---
 
 ## What
