@@ -269,3 +269,32 @@ intent in a later PR so a future reader does not mistake it for an accident.
 
 **Verdict: pass.** Merging first, by necessity — every other branch needs this
 `dev` baseline before it can verify its own gate.
+
+## PR #416 — INTK-005 grouped upload after takeover — **PASS**
+
+Head after my census merge, 20 files, +7436/−65, all 10 lanes SUCCESS (one
+earlier shard failure was a SQL **connection timeout** on the runner, not a
+test assertion — re-run passed).
+
+**Both blockers verified in the code, not the report.** `GroupedIntake.cs:153-154`:
+`ChildToken(token, ordinal) => ordinal == 0 ? submissionToken : $"{token}:{ordinal}"`
+— a single-file upload keeps its bare token, so receipt correlation and replay
+are preserved. `Upload.cshtml.cs:141-155`: a one-member group redirects to
+`/UploadStatus` exactly as before; only genuinely multi-file groups go to
+`/UploadGroupStatus`. Those are the two behaviours CI was proving broken.
+
+**Grants** are SELECT+INSERT for the Web role only, evidenced from
+`EfIntakeSubmissionGroupStore` (no UPDATE, no Remove) and no Worker reference —
+and the census entries I added match them.
+
+**The thing I weight most:** the lane caught that its `dev` merge had silently
+dropped its own migration id with no conflict markers, and restored it. That is
+the overwrite-loss class this ticket exists to prevent, and it is why every
+later INTK merge was told to diff the list against the folder.
+
+**Honest gaps, stated not hidden:** full-solution `dotnet test` was not run
+(~28 min) and is left unticked; Core/persistence tests for empty-group,
+duplicate-filename, partial-failure and concurrent-replay were not added.
+Checklist 7/33 → 28/38 with reasons for the rest.
+
+Verdict: pass. Merge first of the INTK set — #417 is stacked on it.
