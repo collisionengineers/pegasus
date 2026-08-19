@@ -28,13 +28,14 @@ links:
   - TICK-094
   - TICK-206
   - SIMPLI-014
+  - DOCS-003
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.703Z'
-updated: '2026-08-19T09:45:16.294Z'
+updated: '2026-08-19T10:51:35.037Z'
 ---
 
 ## What

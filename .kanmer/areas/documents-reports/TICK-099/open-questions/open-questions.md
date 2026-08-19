@@ -1,7 +1,12 @@
 # Open questions
 
-No current operator question remains. The operator approved leaving unsupported workspace catalogue entries inactive; diminution is therefore deferred.
+Resolved by the Collision Engineers operator on 2026-08-19.
+
+- [x] **Activate diminution reporting now?** — No. Defer it because no approved template exists.
+- [x] **How is the deferred work retained?** — Backlog ticket [[DOCS-003]] owns activation when a representative Collision Engineers diminution template is supplied and approved.
+
+No current operator question remains.
 
 ## Parked (explicitly deferred)
 
-- [Reason: capability/template not approved for current activation] Define and approve diminution percentage semantics, wording, layout, and evidence before RPT-04 implementation.
+- [Reason: no approved template exists] Diminution percentage semantics, wording, layout, caller activation, and representative evidence remain with [[DOCS-003]].

@@ -36,3 +36,11 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Simplification pass — 2026-08-19
+
+- **Reuse:** kept the existing Core taxonomy/result, receipt envelope serializer, retained-mail store and Razor exact-message caller; no second category list or policy implementation was introduced. The UI options are projected from `MailTaxonomy`.
+- **Simplification:** retained a single correction use case and one persistence port instead of a generic mail-action framework. Before/after snapshots use one private persistence DTO because the Core category is deliberately construct-only and must be revalidated on read.
+- **Efficiency:** one transaction updates the current decision and appends history; history is loaded only for exact-message detail, never the mailbox list. Existing page-wide queries remain batched.
+- **Altitude:** Core owns authorization, validation and correction semantics; Infrastructure owns EF concurrency/serialization; Web only binds input and renders the dossier.
+- **Dispositions:** fixed the first SQL-test finding by reusing the existing versioned-envelope serializer instead of writing a second JSON shape. Added original actor/time backfill after the evidence-lens review found the current decision otherwise lacked attribution. No unapplied behaviour-preserving finding remains.
