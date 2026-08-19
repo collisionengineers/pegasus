@@ -53,3 +53,7 @@ The exact trace promotes these from context to primary implementation surfaces:
 | `tests/Pegasus.Core.Tests/ImageIntake/AutomaticImageIntakeTests.cs` plus persistence/web tests | Add low-confidence, no-readable, ambiguous, unique-match, and fallback-case regression coverage. |
 
 FRD-06 and the appropriate Case/Reference governing document need behaviour reconciliation before planning because current threshold-gated semantics do not state the exhaustive two-outcome rule.
+
+## Group-level ripple — 2026-08-19
+
+Add the durable group relation introduced by [[INTK-005]] to the primary file map: image automation must load all retained image assets/receipts in the submission group, evaluate one group registration outcome, and apply one idempotent association-or-create operation to every member. Tests must prove that a no-VRM close-up follows a readable sibling and that replay/partial processing cannot split one group across cases.

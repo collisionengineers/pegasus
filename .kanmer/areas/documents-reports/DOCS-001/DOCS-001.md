@@ -23,12 +23,13 @@ links:
   - TICK-097
 blocks:
   - PLAT-007
+  - TICK-208
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-19T08:56:26.089Z'
-updated: '2026-08-19T08:56:29.508Z'
+updated: '2026-08-19T09:31:22.673Z'
 ---
 
 ## What

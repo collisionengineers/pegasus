@@ -53,3 +53,9 @@ A second read-only production query traced the correlated JPEG through the image
 This corrects the earlier implication that policy-consistent `Needs sorting` was the intended final result. It is consistent with the current implementation, but not with the operator-confirmed product requirement. The root defect is in the outcome policy/caller: `ImageIntakeAutomation.ApplyAsync` returns the unchanged receipt whenever it does not obtain exactly one distinct suggestion at or above 0.80, so the fallback Image-Only case is never created. Status wording is a secondary manifestation.
 
 The linked FRD-06 currently describes threshold-gated registration and association, while the clarified requirement makes Image-Only case creation mandatory below/without the bar. The governing behaviour must be reconciled before implementation; do not silently reinterpret `ImageIntake` registration as an allocated Image-Only case.
+
+## Operator clarification: the group is the evidence unit — 2026-08-19
+
+Images selected in one Upload submission must remain associated. Recognition results are evaluated across that group so a readable registration image classifies damage close-ups that contain no registration. The outcome applies to every group member: associate all to the one unambiguous eligible case, or create one Image-Only case holding all of them.
+
+This makes [[INTK-005]] a delivery dependency: independent per-file receipts without durable group identity cannot implement the required evidence semantics safely. Conflicting distinct confident registrations are ambiguous and must never attach the group to an existing case; under the stated exhaustive rule the intact group goes to one Image-Only case for resolution.

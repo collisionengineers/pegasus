@@ -28,3 +28,9 @@ Implement the smallest batch composition at the Web boundary: bind a collection,
 ## Open questions
 
 None. The requested outcome establishes multiple selection; existing per-file and platform safety limits remain in force.
+
+## Operator clarification: submission grouping — 2026-08-19
+
+Selected vehicle images are one evidence group. Recognition must aggregate the group: a registration-bearing overview image can classify registration-free damage close-ups selected with it. Per-file durable receipts remain necessary for custody/replay, but they need a shared durable submission-group identity and group-level outcome.
+
+A single-file submission is a one-member group. One unambiguous confident registration across the group may drive association; conflicting distinct registrations must fail closed against existing cases. INTK-005 now blocks [[INTK-006]] because the grouping identity is required before the association/Image-Only fallback can operate correctly.

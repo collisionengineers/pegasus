@@ -35,3 +35,7 @@
 - Changing per-file format/size policy, Worker processing, case-allocation policy, or public request-upload limits.
 - A new batch store, new intake service, or second status taxonomy.
 - Literal unbounded buffering of arbitrary files in one HTTP request.
+
+## Grouping impact — 2026-08-19
+
+The earlier suggestion of merely composing independent receipt statuses is insufficient. Research/planning must locate an existing aggregate/submission identity; if none exists, introduce the smallest durable group identity at the external Web-to-Core boundary with a real second consumer in [[INTK-006]]. It must relate receipts without replacing their individual source identities, replay keys, or work items. Persistence/migration and group-level query/result tests are therefore in scope if no existing store can carry the relation.

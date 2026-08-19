@@ -1,9 +1,7 @@
 ---
 id: INTK-006
 type: ticket
-title: >-
-  Guarantee case association or Image-Only case creation for every vehicle-image
-  upload
+title: Associate each vehicle-image group or create one Image-Only case
 status: preparing
 area: intake-processing
 assignee: ''
@@ -23,25 +21,26 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T09:27:45.860Z'
+updated: '2026-08-19T09:31:41.195Z'
 ---
 
 ## What
-Fix the production vehicle-image path so every accepted image reaches one of the two operator-required outcomes:
+Fix grouped vehicle-image processing so every accepted image group reaches one of the two operator-required outcomes:
 
-1. If Pegasus confidently reads a VRM and exactly one eligible case matches without overlap, associate the image to that case.
-2. Otherwise create an Image-Only case.
+1. If the group yields one unambiguous confident VRM and exactly one eligible case matches without overlap, associate every image in the group to that case.
+2. Otherwise create one Image-Only case containing the whole image group.
 
 The Upload/status surface must show which outcome occurred.
 
 ## Why
-The 2026-08-19 production JPEG was retained and scanned, but its only VRM suggestion was below the automatic threshold. Pegasus then left the receipt in `Needs sorting`, created no Image Intake record, made no case association, and created no Image-Only case. That third terminal path conflicts with the operator-confirmed two-outcome rule and appears as though nothing happened.
+A damage close-up may contain no registration while another image selected with it does. The group is the evidence unit. The 2026-08-19 production JPEG was retained and scanned, but its only VRM suggestion was below threshold; Pegasus left it in `Needs sorting` with no Image Intake, association, or Image-Only case. Both per-file isolation and that third terminal path conflict with the operator-confirmed workflow.
 
 ## Verification
-- Production evidence and regression fixtures cover confident unique match, ambiguous/no match, low-confidence read, and no-readable-result paths.
-- A confident VRM with one unambiguous eligible match associates the image to that existing case.
-- Every other accepted vehicle-image path creates an Image-Only case without weakening immutable principal/reference rules.
-- No accepted vehicle-image upload terminates only as generic `Needs sorting`.
-- The status page identifies the resulting case and whether it was associated or newly created.
+- Fixtures cover groups with one readable VRM plus unreadable damage close-ups, one unique existing-case match, no match, ambiguous/conflicting reads, low-confidence reads, and no-readable results.
+- One confident, unambiguous group VRM with one eligible case match associates every group image to that case.
+- Every other accepted group creates one Image-Only case containing every group image.
+- Conflicting evidence fails closed against existing cases and is kept together in the Image-Only case.
+- No group member terminates as an unrelated generic `Needs sorting` item.
+- The status/result surface identifies the resulting existing or newly created case for the whole group.
 
 ## Outcome
