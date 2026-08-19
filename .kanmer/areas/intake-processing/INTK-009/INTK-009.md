@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Rebuild the Queues surface: Unidentified as a tab with image/e-mail filters,
   Not ready split by case origin, operator-safe copy
-status: backlog
+status: preparing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-19T23:13:07.344Z'
+branch: task/intk-009-queues-restructure
+worktree: ../pegasus-worktrees/intk-009-queues-restructure
 labels:
   - ui
   - queues
@@ -25,7 +28,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-19T23:12:15.125Z'
-updated: '2026-08-19T23:12:15.125Z'
+updated: '2026-08-19T23:13:07.344Z'
 ---
 
 ## What
