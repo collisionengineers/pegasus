@@ -36,6 +36,8 @@ public sealed partial class UploadModel(
     public static string MaximumSizeLabel =>
         OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
 
+    public static int MaximumFileCount => IntakeEnvelopeLimits.MaximumBatchFileCount;
+
     [BindProperty]
     public IFormFile[] Upload { get; set; } = [];
 
@@ -66,6 +68,13 @@ public sealed partial class UploadModel(
         if (Upload.Length == 0)
         {
             ModelState.AddModelError(nameof(Upload), "Choose a file to upload.");
+        }
+        else if (Upload.Length > IntakeEnvelopeLimits.MaximumBatchFileCount)
+        {
+            ModelState.AddModelError(
+                nameof(Upload),
+                $"You selected {Upload.Length} files. Submit {IntakeEnvelopeLimits.MaximumBatchFileCount} "
+                + "or fewer at a time.");
         }
         for (var index = 0; index < Upload.Length; index++)
         {
@@ -148,6 +157,21 @@ public sealed partial class UploadModel(
                     timeProvider.GetUtcNow(),
                     files),
                 cancellationToken);
+
+            // A one-member group is the existing single-file upload flow: it
+            // keeps its own status page and replay notice rather than sending
+            // the operator to a group page for a group of one.
+            if (result.Members.Count == 1)
+            {
+                var member = result.Members[0];
+                return RedirectToPage(
+                    "/UploadStatus",
+                    new
+                    {
+                        id = member.StagedReceiptId,
+                        duplicate = member.IsDuplicate ? "true" : null
+                    });
+            }
 
             return RedirectToPage(
                 "/UploadGroupStatus",

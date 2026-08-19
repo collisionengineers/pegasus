@@ -501,7 +501,9 @@ builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = (10 * 1024 * 1024) + (64 * 1024);
+    // Bounded for a whole Upload batch, not one file: IntakeEnvelopeLimits
+    // enforces the per-file cap and the maximum file count independently.
+    options.MultipartBodyLengthLimit = IntakeEnvelopeLimits.MaximumBatchContentLength;
 });
 
 Func<IServiceProvider, string>? localArtifactRootFactory = developmentOfflineProfile
@@ -538,6 +540,7 @@ documentStorage: productionBoxCustodyOptions is null
         // Web never provisions the container; the Worker owns that.
         static _ => false,
         productionBoxCustodyOptions)));
+builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);

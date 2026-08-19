@@ -31,6 +31,28 @@ public static class IntakeEnvelopeLimits
     /// than refused at the door.
     /// </remarks>
     public const long MaximumMailboxContentLength = 750L * 1024 * 1024;
+
+    /// <summary>
+    /// The most files one staff Upload submission may select as a single
+    /// group. Mirrors the 2–20+ documents a real QDOS instruction envelope
+    /// carries (see <see cref="MaximumMailboxContentLength"/>), so a staff
+    /// member reproducing that job manually is not capped below it.
+    /// </summary>
+    public const int MaximumBatchFileCount = 20;
+
+    /// <summary>
+    /// The multipart request body budget for one Upload submission: every
+    /// file in the batch at its individual cap, plus the same fixed
+    /// boundary/field overhead the single-file form always allowed.
+    /// </summary>
+    public const long MaximumBatchContentLength =
+        (MaximumBatchFileCount * (long)MaximumContentLength) + MultipartOverhead;
+
+    /// <summary>
+    /// Fixed slack for multipart boundaries and non-file form fields,
+    /// independent of how many files are in the batch.
+    /// </summary>
+    public const long MultipartOverhead = 64 * 1024;
 }
 
 /// <summary>

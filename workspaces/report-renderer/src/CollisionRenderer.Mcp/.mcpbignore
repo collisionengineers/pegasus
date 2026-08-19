@@ -1,3 +1,0 @@
-# Files excluded from the .mcpb bundle (build-mcpb.ps1 enforces these).
-# Debug symbols are not needed at runtime.
-*.pdb

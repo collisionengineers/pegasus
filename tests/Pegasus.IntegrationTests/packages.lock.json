@@ -1177,6 +1177,15 @@
         "resolved": "0.1.15",
         "contentHash": "Bf0NO4o2ZSVnemMyj21KDU1sfSgmamFC0pD4aAv19CDNXQsoO1Z6O99gNqpiK/XWWZ5d5i7JkQoT7PUBxEPz5g=="
       },
+      "PDFsharp": {
+        "type": "Transitive",
+        "resolved": "6.2.4",
+        "contentHash": "GhTr9F1uOYXHCIEOB5PXIgqn5a8WLsJL2m0eewTA0IvY1j6N4HGXHKKmEyB90/N6vrjmYamf41V9zbmdW2HY3g==",
+        "dependencies": {
+          "Microsoft.Extensions.Logging.Abstractions": "8.0.3",
+          "System.Security.Cryptography.Pkcs": "8.0.1"
+        }
+      },
       "Polly": {
         "type": "Transitive",
         "resolved": "7.2.4",
@@ -1213,6 +1222,11 @@
           "Polly.Core": "8.4.2",
           "System.Threading.RateLimiting": "8.0.0"
         }
+      },
+      "Scriban": {
+        "type": "Transitive",
+        "resolved": "7.2.6",
+        "contentHash": "k6DvaRY83jtigNudMoYlN5Zg42JEDDOCSeKrnpHiE5Gthkd9Fr+6VnYFnL3DqtkZTtPezJJdoX3ZfOTTFpQEMg=="
       },
       "SkiaSharp": {
         "type": "Transitive",
@@ -1371,10 +1385,13 @@
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.10, )",
           "Microsoft.Graph": "[6.2.0, )",
           "Microsoft.ML.OnnxRuntime": "[1.20.1, )",
+          "Microsoft.Playwright": "[1.61.0, )",
           "MimeKit": "[4.17.0, )",
           "OpenIddict.EntityFrameworkCore": "[7.6.0, )",
+          "PDFsharp": "[6.2.4, )",
           "PdfPig": "[0.1.15, )",
           "Pegasus.Core": "[0.1.0-alpha.1, )",
+          "Scriban": "[7.2.6, )",
           "SkiaSharp": "[3.116.1, )",
           "SkiaSharp.NativeAssets.Linux.NoDependencies": "[3.116.1, )"
         }
