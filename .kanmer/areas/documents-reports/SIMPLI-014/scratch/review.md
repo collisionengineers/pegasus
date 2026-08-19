@@ -54,3 +54,5 @@ GitHub traceability: formal `--request-changes` was rejected because the connect
 ### Verdict
 
 **Pass.** The corrected diff, plan, checklist, PIR, open questions, FRD-11, ADR-0025 and ADR-0028 were checked. PR-006 and PR-007 are resolved at this head, the simplification dispositions remain honest, and every required CI lane is green. Merge to `dev` is authorized by the standing delegation for this review.
+
+Merged PR #415 to `dev` after the passing independent re-review and fully green required CI. Head: `cdb50cd2bbeb84fe69172407adaca06298a437a2`; merge commit: `b548b674e31d05de6f43eeb285a25dedd7d2a768`; merged at 2026-08-19T10:29:20Z. Next stage is Verifying; no main or cloud write was performed.
