@@ -40,3 +40,12 @@ The post-implementation report will cite focused test output, Release build outp
 ## Evidence correction — one linked production mailbox — 2026-08-19
 
 Production currently has only one linked mailbox. Keep the two-mailbox invariant in local/integration acceptance using two distinct configured mailbox identities, but do not make a two-mailbox production check a TICK-045 gate or claim it occurred. A read-only production check may cover the currently linked mailbox only. The first real second-mailbox evidence belongs to the relevant mailbox-ingestion ticket ([[TICK-036]], [[TICK-037]], or [[TICK-038]]) when that mailbox is connected.
+
+## Simplification pass — 2026-08-19
+
+- **Reuse:** the branch adds no production policy, port, store, or caller. It exercises the existing `CorrectRetainedMailClassification`, `IRetainedMailQueries`, retained-message store, and existing SQL fixture helpers delivered by MAIL-04.
+- **Simplification:** the acceptance remains one coherent two-mailbox scenario rather than adding a second fake or wrapper. No behaviour-preserving simplification was identified.
+- **Efficiency:** both mailbox outcomes are proved in one migrated database and one dependency-injection scope; no repeated host, migration, or taxonomy list was introduced.
+- **Altitude:** the diff stays at MAIL-03's missing cross-mailbox evidence boundary. Route-specific predicates, folder mapping, mailbox ingestion, and external verification remain with their owning capabilities.
+
+Disposition: no code changes required after the pass; the existing Core owner completely carries the capability and the branch contains only the missing integration proof and evidence-status update.
