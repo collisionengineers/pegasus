@@ -2,10 +2,12 @@
 id: TICK-214
 type: ticket
 title: Decide the long-term MCPB host and distribution boundary
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:03:59.534Z'
 labels:
   - now
   - source-now
@@ -19,7 +21,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.885Z'
-updated: '2026-08-19T08:57:19.961Z'
+updated: '2026-08-19T09:03:59.534Z'
 ---
 
 ## What
