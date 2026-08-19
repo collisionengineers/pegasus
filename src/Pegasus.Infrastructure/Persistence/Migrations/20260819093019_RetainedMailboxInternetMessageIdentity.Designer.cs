@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    [Migration("20260819090641_RetainedMailboxInternetMessageIdentity")]
+    [Migration("20260819093019_RetainedMailboxInternetMessageIdentity")]
     partial class RetainedMailboxInternetMessageIdentity
     {
         /// <inheritdoc />
@@ -4318,6 +4318,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("BodyPlainText")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("CanonicalInternetMessageIdentity")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)")
+                        .UseCollation("Latin1_General_100_BIN2");
+
                     b.Property<string>("CcAddressesJson")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -4400,12 +4405,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExternalReceiptToken");
 
+                    b.HasIndex("MailboxId", "CanonicalInternetMessageIdentity")
+                        .IsUnique()
+                        .HasFilter("[CanonicalInternetMessageIdentity] IS NOT NULL");
+
                     b.HasIndex("MailboxId", "ImmutableMessageId")
                         .IsUnique();
-
-                    b.HasIndex("MailboxId", "InternetMessageIdentity")
-                        .IsUnique()
-                        .HasFilter("[InternetMessageIdentity] IS NOT NULL");
 
                     b.HasIndex("ReceivedAtUtc", "Id")
                         .IsDescending(true, false);
