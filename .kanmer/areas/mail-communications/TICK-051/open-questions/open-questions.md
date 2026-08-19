@@ -4,4 +4,4 @@
 
 ## Parked (explicitly deferred)
 
-- [ ] Real Outlook/Graph/cloud activation and live verification — requires explicit approval for exact targets and operations.
+- [x] **Is live production association required?** — Yes. Resolved by the operator on 2026-08-19: TICK-051 acceptance must include one live automatic association between an exact retained message and an exact Case. Immediately before the write, obtain/record approval naming both targets and verify the accepted evidence is either a system-wide unique VRM or a mailbox-scoped retained thread already associated with exactly one Case. Do not infer authority from this planning decision alone. Capture the resulting permanent association history and prove replay is idempotent; abort on zero, multiple, stale, or contradictory evidence.

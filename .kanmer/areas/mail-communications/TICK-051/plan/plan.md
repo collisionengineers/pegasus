@@ -40,3 +40,7 @@ The post-implementation report will cite focused test output, Release build outp
 ## Operator decision — 2026-08-19
 
 Do not use Case/PO references as inbound matching evidence: they are internal references. Automatic association uses (a) a VRM only when it resolves to exactly one Case system-wide, or (b) mailbox-scoped exact thread identity when that retained thread already resolves to exactly one Case. Zero, multiple, stale, or contradictory results fail closed without association.
+
+## Live association acceptance — operator decision 2026-08-19
+
+TICK-051 requires one production automatic-association journey. Immediately before executing it, name and obtain exact-target approval for the retained message and Case, then prove the evidence satisfies the accepted unique-VRM or mailbox-scoped exact-thread rule. Capture before/after association state, permanent history, attribution, and idempotent replay. Abort without writing on ambiguity, staleness, or contradictory evidence. This decision does not itself authorize an unspecified production write.

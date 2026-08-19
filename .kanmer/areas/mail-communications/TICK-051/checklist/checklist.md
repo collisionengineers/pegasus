@@ -10,3 +10,6 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Immediately before live execution, record exact-target approval naming the retained message and Case.
+- [ ] Run one live automatic association, capture before/after/history evidence, and prove replay is idempotent; abort on ambiguous, stale, or contradictory evidence.
