@@ -25,3 +25,14 @@
 - [ ] Run full `dotnet test`.
 - [ ] Perform and record the dated four-lens simplification pass.
 - [ ] Update this checklist and write the post-implementation report with actual evidence.
+
+## Execution progress — 2026-08-19
+
+- [x] Rebased the private worktree onto merged PLAT-006 changes from `origin/dev`.
+- [x] Added Core grouped-submission contracts and sequential orchestration around the existing per-file `IIntakeSubmission`.
+- [x] Added EF group/member entities, constraints, migration, model snapshot, and DI registration.
+- [x] Updated authenticated Upload binding, merged dropzone JavaScript, and group status page.
+- [x] Added replay/conflict Core tests and a multi-file SQL-backed web integration test.
+- [x] Updated the integration harness to drain every staged member of a group.
+- [x] `dotnet restore` passed; Release build passed; focused Core and grouped web tests passed.
+- [ ] Run the final full test suite, complete simplification review, commit, push, open PR, and move to Review.
