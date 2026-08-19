@@ -44,9 +44,10 @@ refs:
   - docs/capabilities.md
   - docs/current-architecture.md
   - docs/runbook.md
+  - docs/design/README.md
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-19T11:49:40.620Z'
+updated: '2026-08-19T11:59:10.320Z'
 ---
 
 ## What

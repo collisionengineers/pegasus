@@ -36,3 +36,14 @@
 - [ ] Run full `dotnet test`.
 - [ ] Perform and record the dated four-lens simplification pass.
 - [ ] Update checklist and post-implementation report with actual evidence.
+
+## Progress — 2026-08-19
+
+- Prepared and took `INTK-007` on branch `intk-007-unidentified-intake` in `.worktrees/intk-007`.
+- Reconciled protected operator notes, PRD/FRDs, design authority, capability inventory, current architecture, and runbook; linked governing docs and cleared `docs_todo`.
+- Added Core Unidentified contract: six reason codes, Open/Resolved state, receipt/group origin, canonical U-reference parser/formatter, versioned/idempotent register/resolve ports and use cases.
+- Added EF entities/store, serializable sequence allocation, unique origin/reference/operation constraints, history, migration snapshot, deterministic legacy backfill, and sequence seed.
+- Routed terminal ProcessIntake outcomes through the registration use case while leaving image-only material for Image Intake processing.
+- Added Web queue/detail/resolution pages, navigation, dashboard metric, operator labels/status chip, and MCP list/get/resolve tools.
+- Verification so far: `dotnet restore`; Core Release build; Infrastructure Release build; Web Release build; IntegrationTests Release build; full Core test suite (592 passed); focused Unidentified test suite (12 passed).
+- Remaining work is explicitly unchecked below: full stale-term/semantic audit, grouped-submission persistence integration with INTK-005, mail/retained/Operations projections, migration/runtime-grant tests, full test run, and simplification pass.
