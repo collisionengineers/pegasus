@@ -64,3 +64,60 @@ grants lane that edits that exact file.
 
 **Verdict: pass**, subject to CI going green. No blocking findings; nothing
 unapplied.
+
+## `task/deliv-012-renderer-container` — **PASS with two recorded trade-offs**
+
+Head `f1f439b8`. Diff is three build files plus one doc — proportional to the change.
+
+**Single-sourcing is real, not claimed.** `Directory.Build.props` defines
+`<PlaywrightVersion>1.61.0</PlaywrightVersion>`; `Pegasus.Infrastructure.csproj`
+now reads `Version="$(PlaywrightVersion)"` and `Pegasus.Web.csproj` sets
+`<ContainerBaseImage>mcr.microsoft.com/playwright/dotnet:v$(PlaywrightVersion)-noble</ContainerBaseImage>`.
+Both derive from one value, so a Playwright bump cannot leave the base image tag
+behind — which matters because Playwright refuses to drive a browser build it did
+not pin. Comments explain *why* rather than restating the code.
+
+**Evidence is appropriate to the constraint.** There is no Docker on this
+workstation and `az acr build` is prohibited by the runbook, so the image could
+not be run locally. Rather than claiming more than that allows, the lane proved
+containment structurally: `oras manifest fetch --oci-layout` → 14 layers
+(13 base + 1 app); the config blob carries `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`,
+`Entrypoint=["dotnet","/app/Pegasus.Web.dll"]`, `ExposedPorts 8080/tcp`,
+`APP_UID=1654`; and replaying `config.history` against `rootfs.diff_ids`
+identified the exact Chromium layer (`sha256:2c236c77…`, 776 MB) built by
+`playwright.ps1 install --with-deps`. Separately the renderer was exercised
+against a real Chromium locally — `AssessmentReportRendererTests` 6/6 in 29 s.
+That is honest: structure proven now, execution-in-container proven at §7
+verification after the deploy.
+
+**Trade-off 1 — the base image carries the .NET SDK.** `mcr.microsoft.com/playwright/dotnet`
+is an SDK image (`DOTNET_SDK_VERSION=10.0.301`), so production gains a compiler
+toolchain it does not need. The alternatives — a custom slim base with Chromium
+deps, or a multi-stage Dockerfile — both need Docker or `az acr build`, neither of
+which is available or permitted here. Accepted for this release and worth a
+follow-up ticket to build a minimal base once tooling allows; recorded rather than
+silently absorbed.
+
+**Trade-off 2 — image size, checked rather than assumed.** The archive is 1.36 GiB
+versus roughly 0.10 GB for the previous `aspnet` base. I checked the registry:
+`az acr show-usage` reports **1,320,700,039 bytes used of a 10,737,418,240 byte
+limit** on the Basic SKU across 26 existing tags. The new image adds roughly
+1.4 GB of base layers that do not dedupe with the existing aspnet-based tags,
+taking usage to about 2.7 GB — comfortably inside the limit. Subsequent releases
+add only the app layer, because the Playwright base layers will then dedupe. So
+this is not a capacity problem, but the registry is worth watching.
+
+**Not accepted into this branch, correctly:** the lane recommended raising the
+Web Container App from 0.5 vCPU / 1 GiB to 1.0 vCPU / 2 GiB and did **not** edit
+`infra/modules/platform.bicep`. That is right — it is an operator cost decision
+and any `infra/` change alters what `azd provision --preview` should show, which
+is a release stop condition.
+
+**Found while doing its own job, and out of its scope:** `Test-AzureDeploymentPlan.ps1`
+`-Mode Local` and `-Mode Artifact` both fail on clean `dev`. The lane correctly
+established via `git log`/`git diff` that the cause predates its change, did not
+attempt a fix outside its brief, and flagged it. I reproduced it independently and
+routed it to the grants lane.
+
+**Verdict: pass.** Blocking only on the release-gate fix landing first, since
+`Build-ReleaseArtifacts` is validated by the same script.
