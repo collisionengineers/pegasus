@@ -1,4 +1,5 @@
 using System.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Intake;
 
@@ -82,11 +83,47 @@ public sealed class EfIntakeSubmissionGroupStore(
         return entity is null ? null : await MapMemberAsync(context, entity, false, cancellationToken);
     }
 
-    public async Task<IntakeSubmissionGroupMember> AddMemberAsync(
+    public Task<IntakeSubmissionGroupMember> AddMemberAsync(
         Guid groupId,
         int ordinal,
         ReceivedIntake received,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        AddMemberWithRetryAsync(groupId, ordinal, received, cancellationToken);
+
+    // Same shape as EfIntakeWorkStore.ReceiveWithRetryAsync: the read-then-
+    // insert below can lose a race on the unique (GroupId, Ordinal) index
+    // when two requests replay the same submission token concurrently (the
+    // same ordinal is deterministic per token, so both can read "no existing
+    // member" before either commits). Retrying re-reads first, so the loser
+    // of the race sees the winner's row and returns it instead of failing.
+    private async Task<IntakeSubmissionGroupMember> AddMemberWithRetryAsync(
+        Guid groupId,
+        int ordinal,
+        ReceivedIntake received,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                return await AddMemberCoreAsync(groupId, ordinal, received, cancellationToken);
+            }
+            catch (Exception exception)
+                when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException(
+            "The group member could not be stored after the concurrency retry limit.");
+    }
+
+    private async Task<IntakeSubmissionGroupMember> AddMemberCoreAsync(
+        Guid groupId,
+        int ordinal,
+        ReceivedIntake received,
+        CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var staged = await context.IntakeStagedReceipts
@@ -122,6 +159,14 @@ public sealed class EfIntakeSubmissionGroupStore(
         await context.SaveChangesAsync(cancellationToken);
         return new(groupId, ordinal, staged.Id, staged.SourceFileName, staged.SourceHash, received.IsDuplicate);
     }
+
+    private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
+    {
+        SqlException { Number: 1205 or 2601 or 2627 } => true,
+        _ when exception.InnerException is not null =>
+            IsRetryableConcurrencyFailure(exception.InnerException),
+        _ => false
+    };
 
     public async Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(
         Guid groupId,
