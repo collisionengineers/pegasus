@@ -134,3 +134,21 @@ The lane wired `MailOperationalDestinationPolicy` into the retained mailbox view
 **Owed to [[TICK-044]] and not yet done:** the caller landed on TICK-045's branch, not TICK-044's, so TICK-044's checklist items — "Wire MailOperationalDestinationPolicy into the retained-mail projection", "Display both values in the retained mailbox viewer", and its acceptance-test item — are now satisfied by a diff on another ticket. I must reconcile TICK-044's checklist and `open-questions` against the merged TICK-045 diff **after** #422 merges, and record where the work actually landed. Until then TICK-044 must not clear `verifying`, per its own operator bar that a policy referenced only by tests must not pass review as delivered.
 
 **Capabilities wording:** MAIL-02's row now names the real caller and the exact page and states explicitly that UI-14 (categorised queues) remains undelivered; UI-14 was not upgraded. MAIL-03's row stays limited to what its classification test proves. Note `docs/capabilities.md` is also touched by INTK-007, which merges last — expect a conflict there and resolve by keeping both rows' honest wording.
+
+### CI diagnosis — a stale PR merge ref, not a code failure (2026-08-19 ~14:20Z)
+
+PR #425's `changes` job failed twice, each time at almost exactly 5 minutes, taking every downstream lane to `skipping`. The full job log shows the failure is inside `actions/checkout@v7` itself:
+
+```
+[command] git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules origin
+  +refs/heads/*:refs/remotes/origin/* +refs/tags/*:refs/tags/*
+  +73018a965f7ff3bbad596e904f24ec5771c89cc4:refs/remotes/pull/425/merge
+13:37:20  (start)
+13:42:20  ##[error]The operation was canceled.
+```
+
+Five minutes of no progress on the fetch, then cancellation — and `Complete job` had to terminate orphan `git`/`git-remote-https` processes. Nothing in the repository or the diff is involved; the same `changes` job passed in **22 s** on PR #416 at the same moment, so it was not runner contention either. The constant across both failures was the pull-request **merge ref** `73018a96…`, which the fetch could not resolve.
+
+Fix: closed and reopened PR #425, which made GitHub recompute the merge commit (`73018a96…` → `9c2dc00a…`). A fresh run started immediately and `documentation` passed in 28 s. Re-running the failed jobs of the old run could never have worked, because that run was pinned to the unresolvable ref — worth remembering the next time a job dies inside checkout rather than inside a step we wrote.
+
+Most likely trigger: the six merged remote branches deleted earlier in this session went out while that run's merge ref was being computed. No action needed, but if it recurs on another PR, close/reopen is the remedy rather than `gh run rerun`.
