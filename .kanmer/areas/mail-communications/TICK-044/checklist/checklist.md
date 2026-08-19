@@ -10,4 +10,4 @@
 - [x] Run focused tests and the relevant full Core suite.
 - [x] Run and record the four-lens simplification pass.
 - [x] Update governing/current-state documentation only to the evidence tier actually reached.
-- [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+- [x] Write the post-implementation report with commands, results, residual risks and deployment qualification.

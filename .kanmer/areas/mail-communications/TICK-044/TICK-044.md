@@ -4,12 +4,13 @@ type: ticket
 title: >-
   MAIL-02 — Map every detailed email classification to its operational
   destination or Needs sorting
-status: implementing
+status: review
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-18T15:21:29.366Z'
+  review: '2026-08-19T08:36:43.063Z'
 taken_at: '2026-08-19T08:29:24.733Z'
 branch: task/tick-044-classification-catalogue
 worktree: ../pegasus-worktrees/tick-044-classification-catalogue
@@ -26,9 +27,13 @@ groups:
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - 7af3f834
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/411'
 archived: false
 created: '2026-08-12T15:03:53.669Z'
-updated: '2026-08-19T08:29:24.733Z'
+updated: '2026-08-19T08:36:43.063Z'
 ---
 
 ## What

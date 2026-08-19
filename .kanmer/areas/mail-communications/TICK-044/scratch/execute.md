@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/411 targeting dev. Release build: 0 warnings/errors. Full Core suite: 615 passed. Focused taxonomy/destination/QDOS suite: 78 passed. No external mailbox/cloud writes performed.
