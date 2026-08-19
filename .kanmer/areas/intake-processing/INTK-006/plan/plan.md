@@ -32,8 +32,8 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
    - Ignore below-bar text for automatic identity. Preserve it as evidence only.
    - Compute distinct accepted normalized VRMs across every member.
    - Select AssociateExistingCase only when the set contains exactly one VRM and the shared candidate owner returns exactly one eligible Case with no contradiction.
-   - Select CreateImageOnlyCase for zero accepted VRMs, more than one accepted VRM, zero eligible matches, or multiple eligible matches.
-   - Never return an unhandled generic Needs sorting path for a completed vehicle group; the explicit third destination is INTK-007 Unidentified when no valid VRM exists.
+   - Select the existing-case association only for exactly one usable accepted VRM and exactly one eligible Instruction-initiated Case. Route zero/ambiguous/conflicting VRMs to INTK-007; route a usable VRM with no unique match to the existing ImageIntake owner, whose Image-initiated lifecycle is completed by INTK-008.
+   - Never split a completed group or leave it in an unreasoned generic Needs sorting result; no-valid/conflicting VRM uses INTK-007 Unidentified, while the usable-VRM/no-match path uses the existing ImageIntake owner.
 
 3. **Make recognition completion explicit.**
    - Change `OnnxVrmRecognitionEngine` result mapping so detector-empty and recognizer-empty are distinguishable safe results.
@@ -98,8 +98,8 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
 ## Verification
 
 - Durable evidence proves both recognition layers' distinguishable outcomes without sensitive logs.
-- Every completed vehicle-image group reaches exactly one association, Image-initiated Case, or INTK-007 Unidentified outcome.
-- No group is split, no fallback Case is duplicated, no VRM reference is fabricated, and low-confidence/conflicting text never attaches to an existing Case.
+- Every completed vehicle-image group reaches exactly one existing-Case association, existing ImageIntake hand-off, or INTK-007 Unidentified outcome.
+- No group is split, no formal fallback Case is fabricated here, no VRM reference is fabricated for conflicting/no-readable evidence, and low-confidence/conflicting text never attaches to an existing Case.
 - Original filenames, receipts, identities, order, suggestions, and history remain attributable.
 - The implementation uses INTK-005 group identity and the existing Case/Image Intake owners.
 - Governing docs and code agree on reference/principal/lifecycle semantics.
@@ -136,3 +136,19 @@ The operator has clarified that Pegasus has two Case-origin types:
 VRM matching is the bridge: when exactly one eligible Instruction-initiated Case matches the group VRM without overlap or contradictory identity, all group images associate to that Case while both origins and history remain attributable. Otherwise the Image-initiated Case remains the single destination for the complete group.
 
 This ticket now includes the governing-document amendment needed to remove the current pre-Case-only conflict. Required reconciliation targets: `docs/operator-notes.md`, `docs/prd/pegasus-product.md`, `docs/frd/frd-01-case-identity-and-lifecycle.md`, `docs/frd/frd-02-intake-and-source-identity.md`, `docs/frd/frd-06-vehicle-and-engineering-evidence.md`, `docs/frd/frd-12-operator-experience.md`, `docs/design/README.md`, `docs/capabilities.md`, `CONTEXT.md`, and any ADR/index wording that must be superseded or relocated. The final docs must define the Image-initiated reference sequence, lifecycle, conversion/association rules, origin/history retention, and its exclusion from Case/PO, Audit, and Unidentified references.
+
+## Files mapping is a required amendment input — 2026-08-19
+
+Before changing code or governing documentation, read INTK-006 files.md in full. It is the authoritative inventory for this ticket and records the exact repository conflicts, existing ImageIntake reuse points, and the paths that must be amended.
+
+1. Amend files.md first whenever research discovers a new source file, migration, route, query, custody boundary, or governing-document conflict.
+2. Use files.md to drive the documentation reconciliation: operator notes, PRD, FRD-01/02/06/12, design, capabilities, index, CONTEXT.md, and a superseding ADR for ADR-0013.
+3. Reuse the existing ImageIntake aggregate/reference owner for Image-initiated Cases. Do not add a principal-less formal Cases row, weaken Case/PO invariants, or create a second allocator.
+4. Implement the confirmed outcomes: one usable VRM/no unique match creates one Image-initiated Case; conflicting valid VRMs route the whole group to INTK-007 with the explicit conflicting_vrms marker; no-readable members follow a readable group sibling.
+5. Implement lifecycle semantics: searchable Image-initiated Cases retain original filenames and Box custody under the VRM reference, can be staff-closed with a reason, and on later matching are closed/converted as merged or subsumed with permanent cross-case history.
+6. Keep the existing staff authorization boundary; do not introduce a new permissions model.
+7. Before entering review, verify that files.md, the code diff, the governing docs, and this plan agree. Any path not represented in files.md is an incomplete plan and must be added before implementation continues.
+
+## Follow-on boundary — 2026-08-19
+
+Read and amend files.md before implementation. It is the authoritative file map and conflict audit. INTK-006 implements the grouped recognition/diagnostic/unique existing-Case association seam. INTK-008 reuses the existing ImageIntake aggregate for the usable-VRM/no-match Image-initiated Case, then adds its searchable lifecycle, Box custody presentation, staff closure, and merge/subsumption history. INTK-007 owns grouped Unidentified and conflicting_vrms. No principal-less formal Cases row or second allocator may be added.

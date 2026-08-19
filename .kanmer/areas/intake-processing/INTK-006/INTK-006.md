@@ -23,6 +23,7 @@ groups:
 links:
   - TICK-011
   - PLAT-006
+  - INTK-008
 refs:
   - docs/prd/pegasus-product.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
@@ -35,7 +36,7 @@ prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T11:01:07.212Z'
+updated: '2026-08-19T11:11:49.092Z'
 ---
 
 ## What
@@ -73,3 +74,10 @@ INTK-006 includes the governing-document reconciliation required to make this mo
 - Diagnostics prove whether each layer ran without logging source-image content or creating a second business-decision taxonomy.
 
 ## Outcome
+
+
+## Scope split — 2026-08-19
+
+The repository audit confirmed that ImageIntake already owns the VRM-based image-first reference path. The remaining Image-initiated Case terminology, lifecycle, searchable state, Box custody presentation, merge/subsumption into an Instruction-initiated Case, and staff closure are now owned by [[INTK-008]]. INTK-007 owns grouped Unidentified routing and the explicit `conflicting_vrms` reason.
+
+INTK-006 is complete when grouped recognition, detector/recognizer diagnostics, stable group aggregation, and the exact one-existing-Instruction-initiated-Case association path are implemented and evidenced. It must not claim that a principal-less formal Cases row is created. The existing ImageIntake aggregate/reference owner is the reuse seam documented in files.md and referenced by plan.md. INTK-008 is a follow-on contract/lifecycle ticket, not a blocker for the INTK-006 branch or PR.
