@@ -30,10 +30,23 @@ blocks:
   - TICK-057
   - TICK-064
   - PLAT-003
-docs_todo: true
+refs:
+  - docs/operator-notes.md
+  - docs/prd/pegasus-product.md
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
+  - docs/frd/frd-02-intake-and-source-identity.md
+  - docs/frd/frd-03-triage.md
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
+  - docs/frd/frd-09-provider-and-intermediary-routes.md
+  - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+  - docs/frd/frd-12-operator-experience.md
+  - docs/capabilities.md
+  - docs/current-architecture.md
+  - docs/runbook.md
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-19T11:47:27.623Z'
+updated: '2026-08-19T11:49:40.620Z'
 ---
 
 ## What
