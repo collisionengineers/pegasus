@@ -2,12 +2,13 @@
 id: TICK-204
 type: ticket
 title: Define the missing assessment-report outcome variants
-status: implementing
+status: review
 area: documents-reports
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:57:22.284Z'
+  review: '2026-08-19T09:10:35.239Z'
 taken_at: '2026-08-19T09:09:11.923Z'
 branch: task/tick-204-assessment-outcomes
 worktree: ../pegasus-worktrees/tick-204-assessment-outcomes
@@ -22,9 +23,13 @@ links:
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+commits:
+  - 545a287d50bc9ab223db632e4c1905e575f1121e
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/412'
 archived: false
 created: '2026-08-12T15:08:05.231Z'
-updated: '2026-08-19T09:09:11.923Z'
+updated: '2026-08-19T09:10:35.239Z'
 ---
 
 ## What

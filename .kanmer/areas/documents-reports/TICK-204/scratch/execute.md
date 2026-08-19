@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/412 targeting dev from task/tick-204-assessment-outcomes. Commit 545a287d50bc9ab223db632e4c1905e575f1121e. Verification passed; docs-only, one FRD file.
