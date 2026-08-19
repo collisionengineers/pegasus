@@ -23,9 +23,13 @@ links:
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+commits:
+  - 5dbea958
+  - 14589b8d
+deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.829Z'
-updated: '2026-08-19T11:17:31.168Z'
+updated: '2026-08-19T11:26:04.933Z'
 ---
 
 ## What
@@ -43,8 +47,8 @@ This remains an unresolved current-work item in the canonical Kanmer board; it i
 
 ## Verification
 
-- [ ] The task plan defines the owned change, failure behavior, tests, and acceptance evidence.
-- [ ] Completion is recorded only at the evidence tier actually proved.
+- [x] The task plan defines the owned density disposition, blocker boundary, stress test and acceptance evidence.
+- [x] Completion is recorded at merged-source and real-Chromium stress evidence tier.
 
 ## Notes
 
@@ -54,3 +58,10 @@ This remains an unresolved current-work item in the canonical Kanmer board; it i
 ## Tracker migration
 
 Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.
+
+
+## Outcome
+
+Normal/default styling applies to the active rendererref1 assessment and fee-note family; no Core, caller, UI, API or MCP density/fit option and no global auto-fit/multipass renderer exists. Long accepted content flows across additional pages at normal density.
+
+The first stress reproduction correctly exposed a separate complete-tail defect, resolved by [[PR-009]] / PR #419 at `4f67a83e22f0b994d5a5f6dbf08d53eec7808a6a`. After merging that current `dev` state, the real-Chromium renderer suite passes 6/6, including 80 entries per work-list family and eight photos with all terminal content, images, Statement/signature and per-page reference furniture retained. TICK-213 changes only the verification-test intent relative to current `dev`; no production, styling, density, deployment, cloud or `main` change was made.

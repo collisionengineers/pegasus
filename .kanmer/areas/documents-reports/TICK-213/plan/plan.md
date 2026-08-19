@@ -56,3 +56,17 @@ Run after the focused test change. The expected disposition is test-only reuse o
 The real-Chromium stress reproduction exposed a production defect before TICK-213 could reach Review. With 80 uniquely labelled entries in each of the three work lists and 8 accepted hashed photos, the multi-page assessment retained all terminal `080` list entries but omitted the later `Statement of Truth` section from extracted PDF text. The representative one-item/one-photo suite still passes.
 
 [[PR-009]] now blocks TICK-213 and owns diagnosis/correction under FRD-11. Per the re-plan, no renderer, template, CSS, or other production change was made here. The uncommitted failing reproduction remains in this ticket worktree as exact hand-off evidence. TICK-213 stays Implementing until the blocker lands, after which the stress test can be rerun and completed.
+
+
+## Blocker resolution and final scope — 2026-08-19
+
+[[PR-009]] merged the proven Scriban output-limit correction as `4f67a83e22f0b994d5a5f6dbf08d53eec7808a6a`. TICK-213 merged current `origin/dev` into its existing branch and reconciled the overlapping test into one regression: the upstream strong tail/image/signature/furniture assertions remain, while the test name, reference and failure message explicitly state the normal-density acceptance being decided here. The branch changes only this test naming/evidence surface relative to current `dev`; it adds no duplicate Chromium case.
+
+## Simplification pass — 2026-08-19
+
+- **Reuse:** retained PR-009's single stress fixture and assertions rather than adding a second equivalent Browser test.
+- **Simplification:** resolved the overlap to three intent-naming changes; no extra helper, fixture, production path or repository document.
+- **Efficiency:** one Chromium stress execution covers both complete-tail and normal-density acceptance; no duplicate 80×3/8-photo render.
+- **Altitude:** test-only wording makes the acceptance intent explicit. Core, Infrastructure, templates, CSS and caller contracts are unchanged.
+
+No finding was deferred.

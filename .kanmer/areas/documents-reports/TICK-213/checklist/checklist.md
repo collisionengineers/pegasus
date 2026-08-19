@@ -1,19 +1,15 @@
 # Checklist — TICK-213
 
-- [x] Confirmed SIMPLI-014 owns normal/default assessment and fee-note styling, clean page flow, no Core/caller density option, and no speculative global auto-fit.
-- [x] Inspected merged Core/Infrastructure/template source: neither Core nor application callers expose density/fit; active templates use plain `<body>`; the adapter has one fixed `PdfAsync` call per artifact and no global auto-fit loop.
-- [ ] Add and pass one verification-only real-Chromium stress test with long uniquely labelled repair lists and multiple accepted photos; assert multi-page continuation, terminal content, page furniture, embedded images, and no placeholders.
-- [ ] Run the focused renderer Browser suite and proportional build/simplification pass; record exact evidence.
-- [ ] Record the post-implementation report/outcome with the SIMPLI-014 owning merge and this test-only PR; move Review.
+- [x] Confirmed merged source has no density/fit option in Core/callers/adapter, active templates use plain normal `<body>`, and the adapter has no global auto-fit/multipass loop.
+- [x] Added the real-Chromium long-list/multi-photo stress reproduction and recorded its original failing tail omission.
+- [x] Filed [[PR-009]], stopped without broadening scope, and waited for its independently reviewed Scriban output-limit correction to merge.
+- [x] Merged current `origin/dev` containing PR-009 into the TICK-213 branch and reconciled the overlap into one non-duplicated normal-density stress regression.
+- [x] Verified the regression retains 80×3 terminal entries, eight images, Statement of Truth/signature, every-page reference furniture, multi-page normal flow and no placeholders.
+- [x] Locked restore passed; Release build passed with 0 warnings/errors; complete renderer Browser class passed 6/6 through real Chromium.
+- [x] Ran reuse/simplification/efficiency/altitude lenses; final branch diff is test-only and contains no duplicate render or production change.
+- [x] Recorded PIR/outcome and prepared traceability/PR for independent review.
 
 ## Progress notes
 
-- 2026-08-19: Existing all-four-outcome Chromium suite passed 5/5, but its representative snapshot has one item per work list and one photo. Re-planned proportionally to add the missing stress proof; no production change is authorized.
-
-
-## Blocking evidence — 2026-08-19
-
-- [x] Added the planned verification-only stress reproduction locally; test project build passed with 0 warnings/errors.
-- [ ] Stress verification passed — **blocked by [[PR-009]]**. Real Chromium produced a multi-page PDF containing `Stress new part 080`, `Stress repair 080`, and `Stress operation 080`, but `Statement of Truth` was absent from extracted PDF text.
-- [x] Stopped without modifying production renderer/template/CSS behavior and filed [[PR-009]] as a structured blocker.
-- [ ] Focused suite, simplification, commit/PR/PIR and Review move remain pending until [[PR-009]] resolves the production defect.
+- 2026-08-19: Initial stress render exposed Scriban's 1 MiB truncation; [[PR-009]] was filed as a structured blocker.
+- 2026-08-19: PR-009 merged at `4f67a83e`; after merging current `origin/dev`, the same stress case passed as part of the 6/6 focused real-Chromium renderer suite.
