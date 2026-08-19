@@ -40,3 +40,7 @@ The post-implementation report will cite focused test output, Release build outp
 ## Operator decision — 2026-08-19
 
 Deliver the full message-management scope: read/unread, categories, flags, folder operations, delete to Deleted Items, restore, and explicitly confirmed permanent deletion where the Outlook boundary supports it. Keep compose/reply/forward/send in MAIL-12, but reuse the same authorization, idempotency, attribution, concurrency, failure and recovery conventions.
+
+## Full live mailbox-mutation journey — operator decision 2026-08-19
+
+Production acceptance must exercise the complete exact-message sequence on an operator-approved disposable test message: read/unread; approved category add/remove; flag/unflag; designated folder move; delete to Deleted Items; restore; then permanent deletion where Outlook supports it. Before any write, record the exact mailbox, immutable message identity, initial state, approved folder/category, and permitted operations. Capture state and durable attribution after each step. Verify the restored message and exact identity before proceeding. Treat permanent deletion as a separate irreversible checkpoint requiring fresh explicit confirmation immediately beforehand; abort on stale identity/version or any target mismatch. Never select operational correspondence.

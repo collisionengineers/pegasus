@@ -10,3 +10,7 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Immediately before live verification, record exact approval for the disposable mailbox message, folder/category targets, and reversible operations; capture immutable identity and initial state.
+- [ ] Run and evidence read/unread, category add/remove, flag/unflag, folder move, Deleted Items deletion, and restoration with state/history after each step.
+- [ ] After proving restoration, obtain fresh exact confirmation and permanently delete only that disposable message where supported; abort on identity/version mismatch.

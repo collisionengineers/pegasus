@@ -4,4 +4,4 @@
 
 ## Parked (explicitly deferred)
 
-- [ ] Real Outlook/Graph/cloud activation and live verification — requires explicit approval for exact targets and operations.
+- [x] **Is full live Outlook/Graph verification required?** — Yes. Resolved by the operator on 2026-08-19: production acceptance must exercise read/unread, approved category, flag/unflag, designated folder movement, delete to Deleted Items, restoration, and explicitly confirmed permanent deletion where Outlook supports it. Use only an exact operator-approved disposable test message. Record immutable identity and initial state, obtain exact mailbox/message/folder/operation approval immediately before writes, verify restoration before the irreversible step, and obtain fresh explicit confirmation immediately before permanent deletion. Abort on identity/version mismatch; never use operational correspondence.
