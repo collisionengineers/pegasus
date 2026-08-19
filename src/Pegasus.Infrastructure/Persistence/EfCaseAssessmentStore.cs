@@ -470,16 +470,16 @@ public sealed class EfCaseAssessmentStore(
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        var draft = await CurrentDraftAsync(context, caseId, cancellationToken);
-        if (draft is not null)
-        {
-            return draft.Id;
-        }
-        return await context.CaseRepairSpecifications.AsNoTracking()
+        var acceptedId = await context.CaseRepairSpecifications.AsNoTracking()
             .Where(item => item.CaseId == caseId
                 && item.State == RepairSpecificationState.Accepted.ToString())
             .Select(item => (Guid?)item.Id)
             .SingleOrDefaultAsync(cancellationToken);
+        if (acceptedId is not null)
+        {
+            return acceptedId;
+        }
+        return (await CurrentDraftAsync(context, caseId, cancellationToken))?.Id;
     }
 
     private static AssessmentCaseOwnedData MapCaseOwned(
