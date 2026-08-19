@@ -32,3 +32,19 @@ PR-010 adds canonical enum/bounds validation beside `MailCategory`, invokes it a
 ### Verdict
 
 **Needs changes.** The implementation and PR-010 fix pass substantive re-review, and all other completed CI checks are green, but the required canonical migration/schema regression fails. Update the existing fixture, rerun the focused SQL test and full CI, then re-review before merge.
+
+## Final re-review — 2026-08-19 (`581fee7f`)
+
+### Changes and dispositions
+
+- [[PR-010]] remains satisfied: canonical validation is Core-owned; hostile undefined/oversized submissions fail closed and produce zero writes.
+- [[PR-012]] is fixed in PR: the exact canonical committed-migration fixture now includes `20260819104953_MailClassificationCorrectionHistory`; no assertion was weakened.
+- The post-implementation report and simplification record accurately cover the complete diff and review responses.
+
+### CI
+
+Fresh run `32246448063` passed changes, documentation, reference-data, unit, browser, SQL integration shards 1/2/3, and SQL integration coverage. Infrastructure was skipped by path rules as expected.
+
+### Verdict
+
+**Pass.** Independently reviewed the full ticket/group/docs, governing FRD, complete PR diff, Core policy ownership, append-only correction evidence/history, optimistic concurrency, replay protection, migration/backfill/grants, exact-message UI and tests. No unresolved blocker or unauthorized live Outlook/cloud mutation remains. Merge to `dev` and advance [[TICK-046]] to Verifying.

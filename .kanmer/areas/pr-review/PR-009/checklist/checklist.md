@@ -25,7 +25,7 @@
 - [x] proof.md finalised with PR URL and merge date
 - [x] Moved to Done
 - [x] Outcome/traceability/deployment n/a recorded
-- [ ] Removed `../pegasus-worktrees/pr-009-pagination-tail`
-- [ ] Deleted local/remote `task/pr-009-pagination-tail`
-- [ ] Ran fetch/prune and worktree prune
-- [ ] Released Kanmer claim
+- [x] Removed `../pegasus-worktrees/pr-009-pagination-tail`
+- [x] Deleted local/remote `task/pr-009-pagination-tail`
+- [x] Ran fetch/prune and worktree prune
+- [x] Released Kanmer claim

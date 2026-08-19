@@ -2,12 +2,15 @@
 id: INTK-008
 type: ticket
 title: Give ImageIntake an Image-initiated Case lifecycle and merge closure
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: Codex
 profile: feature
 stageEntered:
   preparing: '2026-08-19T11:20:52.541Z'
+taken_at: '2026-08-19T11:24:07.063Z'
+branch: intk-008-image-initiated-lifecycle
+worktree: .worktrees/intk-008
 labels:
   - image-initiated
   - image-intake
@@ -28,7 +31,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-08-19T11:20:52.541Z'
+updated: '2026-08-19T11:24:07.063Z'
 ---
 
 ## What
