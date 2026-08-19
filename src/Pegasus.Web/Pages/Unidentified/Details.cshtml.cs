@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Web.Presentation;
 
@@ -12,11 +13,24 @@ namespace Pegasus.Web.Pages.Unidentified;
 [Authorize(Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class DetailsModel(
     IUnidentifiedStore store,
-    IResolveUnidentified resolve) : PageModel
+    IResolveUnidentified resolve,
+    IGetIntake getIntake) : PageModel
 {
     public UnidentifiedItem Item { get; private set; } = null!;
 
     public IReadOnlyList<UnidentifiedHistoryEntry> History { get; private set; } = [];
+
+    /// <summary>
+    /// The retained receipt behind a <see cref="UnidentifiedOriginKind.Receipt"/>
+    /// origin — its filename, retained files, custody, and processing
+    /// evidence — so staff can make a safe resolution decision instead of
+    /// only seeing the origin GUID and reason. Null for a
+    /// <see cref="UnidentifiedOriginKind.SubmissionGroup"/> origin or when the
+    /// receipt lookup fails; the page degrades to the summary fields only.
+    /// </summary>
+    public IntakeReceipt? SourceReceipt { get; private set; }
+
+    public string OriginKindLabel => OperatorLabels.UnidentifiedOriginKind(Item.Origin.Kind);
 
     [BindProperty]
     public long ExpectedVersion { get; set; }
@@ -100,6 +114,36 @@ public sealed class DetailsModel(
         Item = item;
         ExpectedVersion = item.Version;
         History = await store.HistoryAsync(id, cancellationToken);
+
+        if (string.IsNullOrWhiteSpace(OperationKey))
+        {
+            // Generated once per GET and carried by the hidden form field so a
+            // retried POST (a lost response, a double submit) resubmits the
+            // same key and replays through IResolveUnidentified's idempotency
+            // check instead of being treated as a new, conflicting command. A
+            // reload after a failed POST keeps the key that POST already
+            // bound here, rather than handing out a fresh one.
+            OperationKey = $"web-unidentified-resolve:{id:N}:{Guid.NewGuid():N}";
+        }
+
+        if (item.Origin.Kind == UnidentifiedOriginKind.Receipt
+            && StaffActorFactory.TryCreate(
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var actor))
+        {
+            try
+            {
+                SourceReceipt = await getIntake.ExecuteAsync(new(item.Origin.Id, actor), cancellationToken);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Degrade to the summary fields only; the Unidentified item
+                // itself is still fully visible and resolvable.
+                SourceReceipt = null;
+            }
+        }
+
         return Page();
     }
 
