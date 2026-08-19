@@ -61,9 +61,9 @@ public sealed class AssessmentReportRendererTests
 
     [Fact]
     [Trait("Category", "Browser")]
-    public async Task LongListsAndMultiplePhotosPreserveTheCompleteAssessmentTail()
+    public async Task NormalDensityFlowsLongListsAndMultiplePhotosAcrossPagesWithoutClipping()
     {
-        const string reference = "CE-STRESS-PAGINATION";
+        const string reference = "CE-STRESS-DENSITY";
         var image = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "reference", "eva_information", "screenshots", "engineer-screens", "engineer1.png"));
         var hash = Convert.ToHexStringLower(SHA256.HashData(image));
         var snapshot = Snapshot(AssessmentReportOutcome.Repairable) with
@@ -85,7 +85,7 @@ public sealed class AssessmentReportRendererTests
         var pages = document.GetPages().ToArray();
         var text = string.Join(Environment.NewLine, pages.Select(page => page.Text));
 
-        Assert.True(pages.Length >= 8, $"Expected stress content to flow across pages; rendered {pages.Length}.");
+        Assert.True(pages.Length >= 8, $"Expected normal-density stress content to flow across pages; rendered {pages.Length}.");
         Assert.All(pages, page => Assert.Contains(reference, page.Text, StringComparison.OrdinalIgnoreCase));
         Assert.Contains("Stress new part 080", text, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Stress repair 080", text, StringComparison.OrdinalIgnoreCase);
