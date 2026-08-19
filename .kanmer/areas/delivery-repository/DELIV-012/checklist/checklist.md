@@ -181,3 +181,21 @@ five caller items are ticked with explicit provenance notes recording that the
 work landed on TICK-045's diff under this ticket, and the one remaining item —
 the authenticated production mailbox-viewer check — is what keeps it in
 `verifying` until release 12 is proven.
+
+## All PRs integrated — 2026-08-19 ~22:20Z
+
+- [x] #423 INTK-008 merged (`a907ecd2`)
+- [x] #428 report-draft entry point merged (`3de4f684`)
+- [x] #424 INTK-007 merged **last** (`ed3be51c`) — the promotion head
+- [x] `gh pr list --state open` → only #410, the dev→main CI vehicle (by design)
+- [x] Hygiene at target end state: remote = `main`, `dev`, `kanmer-board`; local = those three + `task/deliv-012-release-12` (release's own, removed at closeout); worktrees = main checkout + `.worktrees/kanmer` + the release worktree (removed at closeout)
+- [x] INTK-008 moved to `verifying`; INTK-007 to follow after the deployment proof
+
+## Release preflight — running
+
+- [x] E2: release worktree fast-forwarded to `ed3be51c95bc2a055606e5210131d37de9de2dd1`; `main` verified strict ancestor of `dev`
+- [x] Gates at the promotion head: `-Mode Local` exit 0; `Test-MigrationGrants` 53 files; Release build 0 warnings / 0 errors
+- [x] E7 read-only SQL preflight at release time: production head `20260814094632_DropBoxFileRequests` (8 migrations pending); duplicate canonical Message-ID groups = 0; `CaseEstimateLines` = 0; `IntakeReceipts` = 12 (INTK-007's backfill input is small)
+- [ ] E1: PR #410 full lane set on `ed3be51c` — running
+- [ ] E5: `Build-ReleaseArtifacts` at `ed3be51c` — running
+- [ ] E3: **STOP — request MERGE AUTH GRANTED + Azure write approvals**
