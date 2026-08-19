@@ -39,6 +39,76 @@ public enum UnidentifiedResolutionTargetKind
     ExternalReference
 }
 
+/// <summary>
+/// What kind of retained material an Unidentified item concerns, for the
+/// Queues page's Images/E-mails filter. Not persisted: derived at read time
+/// from the origin receipt's source channel and content type by
+/// <see cref="UnidentifiedMediaKindPolicy"/>.
+/// </summary>
+public enum UnidentifiedMediaKind
+{
+    Image,
+    Email,
+    Document
+}
+
+/// <summary>
+/// Classifies retained material by what an operator would call it, from the
+/// same channel/media-type vocabulary <see cref="IntakeSourceChannel"/> and
+/// <c>IntakeReceipt.MediaType</c> already carry. One rule, so the Unidentified
+/// queue row and the Unidentified detail page can never classify the same
+/// receipt two different ways.
+/// </summary>
+public static class UnidentifiedMediaKindPolicy
+{
+    public static UnidentifiedMediaKind Classify(IntakeSourceChannel channel, string mediaType)
+    {
+        // A mailbox-channel receipt is a received e-mail, whatever its
+        // content type happens to be (the message itself, not an attachment).
+        if (channel == IntakeSourceChannel.Mailbox)
+        {
+            return UnidentifiedMediaKind.Email;
+        }
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(mediaType);
+        return mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            ? UnidentifiedMediaKind.Image
+            : UnidentifiedMediaKind.Document;
+    }
+
+    /// <summary>
+    /// As <see cref="Classify(IntakeSourceChannel, string)"/>, for material
+    /// with no origin receipt to read a channel or content type from.
+    /// INTK-007's grouped-VRM-conflict Unidentified item is the only current
+    /// producer of that shape, and it is image material — the fallback lives
+    /// here, once, rather than being re-decided at each caller that has no
+    /// receipt to classify.
+    /// </summary>
+    public static UnidentifiedMediaKind Classify(IntakeSourceChannel? channel, string? mediaType) =>
+        channel is { } presentChannel
+            ? Classify(presentChannel, mediaType ?? string.Empty)
+            : UnidentifiedMediaKind.Image;
+}
+
+/// <summary>
+/// One row of the Unidentified queue tab: enough for an operator to tell what
+/// is going on without opening the record. <see cref="FileName"/> is set for
+/// an <see cref="UnidentifiedMediaKind.Image"/> or
+/// <see cref="UnidentifiedMediaKind.Document"/> row; <see cref="EmailSubject"/>
+/// and <see cref="EmailSender"/> are set for an
+/// <see cref="UnidentifiedMediaKind.Email"/> row. Never a GUID or an internal
+/// origin identifier.
+/// </summary>
+public sealed record UnidentifiedQueueRow(
+    Guid Id,
+    string Reference,
+    UnidentifiedMediaKind MediaKind,
+    string? FileName,
+    string? EmailSubject,
+    string? EmailSender,
+    DateTimeOffset ReceivedAtUtc,
+    UnidentifiedReasonCode ReasonCode);
+
 public sealed record UnidentifiedOrigin(UnidentifiedOriginKind Kind, Guid Id)
 {
     public static UnidentifiedOrigin Receipt(Guid id) => new(UnidentifiedOriginKind.Receipt, id);
@@ -221,6 +291,17 @@ public interface IUnidentifiedStore
 
     Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
         UnidentifiedState? state = UnidentifiedState.Open,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The Queues page's Unidentified tab: open items oldest-first, each
+    /// carrying enough of the origin receipt to answer what it is without a
+    /// second lookup. <paramref name="mediaKind"/> narrows to one of the
+    /// Images/E-mails filter values; <see langword="null"/> returns every open
+    /// item (the "All" filter).
+    /// </summary>
+    Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
+        UnidentifiedMediaKind? mediaKind,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(
