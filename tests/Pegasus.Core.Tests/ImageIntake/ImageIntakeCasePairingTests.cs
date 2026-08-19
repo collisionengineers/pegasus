@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 
@@ -92,24 +92,123 @@ public sealed class ImageIntakeCasePairingTests
         Assert.Equal(second.OriginReceiptId, link.ReceiptId);
     }
 
-    private static ImageIntakeSummary Summary(string reference, string registration) => new(
+    [Fact]
+    public async Task StaffClosedIntakesAreNeverTreatedAsPairingCandidates()
+    {
+        // A Staff-closed record has no Case association either, so the old
+        // `associated: false` filter would have offered it to the pairing
+        // scan forever. Filtering on lifecycle state instead must exclude it.
+        var closed = Summary("AB12CDE-01", "AB12CDE", state: ImageInitiatedCaseState.StaffClosed);
+        var queries = new FakeQueries { Unassociated = [closed] };
+        var candidates = new FakeCandidates
+        {
+            Result = [new(CaseId, "QDS26001", 0, "AB12CDE")]
+        };
+        var mutationStore = new FakeMutationStore();
+
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+            .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
+
+        Assert.Empty(mutationStore.AutoLinks);
+    }
+
+    [Fact]
+    public async Task AnAlreadyLinkedAwaitingIntakeRetriesTheMergeWithoutRelinking()
+    {
+        // AutoLinkAsync already succeeded on a previous pass (or a manual
+        // link happened) but the merge did not commit; this pass must retry
+        // only the merge, not attempt to link again.
+        var receiptId = Guid.NewGuid();
+        var summary = Summary("AB12CDE-01", "AB12CDE", associatedCaseId: CaseId) with
+        {
+            OriginReceiptId = receiptId
+        };
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(
+                Guid.NewGuid(),
+                new ImageIntakeOrigin(
+                    receiptId,
+                    new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, "token"),
+                    new string('a', 64),
+                    Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01"),
+            DateTimeOffset.UtcNow,
+            CaseId,
+            "QDS26001");
+        var queries = new FakeQueries
+        {
+            Unassociated = [summary],
+            ByOriginReceipt = { [receiptId] = detail }
+        };
+        var candidates = new FakeCandidates();
+        var mutationStore = new FakeMutationStore();
+
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+            .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
+
+        Assert.Empty(mutationStore.AutoLinks);
+        var merge = Assert.Single(queries.Merges);
+        Assert.Equal(detail.Record.Id, merge.ImageIntakeId);
+        Assert.Equal(CaseId, merge.CaseId);
+    }
+
+    private static ImageIntakeSummary Summary(
+        string reference,
+        string registration,
+        ImageInitiatedCaseState state = ImageInitiatedCaseState.AwaitingInstruction,
+        Guid? associatedCaseId = null) => new(
         Guid.NewGuid(),
         Guid.NewGuid(),
         reference,
         registration,
+        associatedCaseId,
         null,
-        null,
-        DateTimeOffset.UtcNow);
+        DateTimeOffset.UtcNow,
+        state);
 
-    private sealed class FakeQueries : IImageIntakeQueries
+    private sealed class FakeQueries : IImageIntakeStore
     {
         public IReadOnlyList<ImageIntakeSummary> Unassociated { get; init; } = [];
+
+        public Dictionary<Guid, ImageIntakeDetail> ByOriginReceipt { get; init; } = [];
+
+        public List<MergeImageInitiatedCaseRequest> Merges { get; } = [];
+
+        public Task<ImageIntakeOperationReplay?> ProbeRegisterReplayAsync(
+            RegisterImageIntakeRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ImageIntakeRecord> RegisterAsync(
+            RegisterImageIntakeRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task EnsureRegisteredReceiptDecisionAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ImageIntakeRecord> MergeAsync(
+            MergeImageInitiatedCaseRequest request,
+            CancellationToken cancellationToken)
+        {
+            Merges.Add(request);
+            return Task.FromResult(new ImageIntakeRecord(
+                request.ImageIntakeId,
+                new ImageIntakeOrigin(
+                    Guid.NewGuid(),
+                    new IntakeSourceIdentity(IntakeSourceChannel.Mailbox, "token"),
+                    new string('a', 64),
+                    Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01",
+                ImageInitiatedCaseState.MergedIntoInstructionCase));
+        }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
             bool? associated,
             CancellationToken cancellationToken)
         {
-            Assert.False(associated ?? true, "Pairing must query unassociated intakes only.");
+            Assert.Null(associated);
             return Task.FromResult(Unassociated);
         }
 
@@ -124,7 +223,8 @@ public sealed class ImageIntakeCasePairingTests
         public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
             Guid intakeReceiptId,
             CancellationToken cancellationToken) =>
-            Task.FromResult<ImageIntakeDetail?>(null);
+            Task.FromResult(
+                ByOriginReceipt.TryGetValue(intakeReceiptId, out var detail) ? detail : null);
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
             IReadOnlyCollection<Guid> intakeReceiptIds,
