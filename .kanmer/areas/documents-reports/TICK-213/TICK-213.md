@@ -2,12 +2,15 @@
 id: TICK-213
 type: ticket
 title: Decide whether density applies to all rendered document bodies
-status: preparing
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:03:34.137Z'
+taken_at: '2026-08-19T10:43:50.525Z'
+branch: task/tick-213-density-subsumption
+worktree: ../pegasus-worktrees/tick-213-density-subsumption
 labels:
   - now
   - source-now
@@ -21,7 +24,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.829Z'
-updated: '2026-08-19T09:03:34.137Z'
+updated: '2026-08-19T10:43:50.525Z'
 ---
 
 ## What

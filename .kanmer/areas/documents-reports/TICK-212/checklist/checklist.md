@@ -16,7 +16,7 @@
 - [x] proof.md finalised with owning PR URL and merge date
 - [x] Moved to Done
 - [x] Outcome/traceability/deployment n/a recorded
-- [ ] Removed `../pegasus-worktrees/tick-212-renderer-lock-subsumption`
-- [ ] Deleted local branch `task/tick-212-renderer-lock-subsumption`
-- [ ] Ran fetch/prune and worktree prune
-- [ ] Released the Kanmer claim
+- [x] Removed `../pegasus-worktrees/tick-212-renderer-lock-subsumption`
+- [x] Deleted local branch `task/tick-212-renderer-lock-subsumption`
+- [x] Ran fetch/prune and worktree prune
+- [x] Released the Kanmer claim

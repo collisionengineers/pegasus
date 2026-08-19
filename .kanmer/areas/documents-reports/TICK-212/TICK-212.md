@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-19T10:41:28.750Z'
   verifying: '2026-08-19T10:41:47.434Z'
   done: '2026-08-19T10:42:59.942Z'
-taken_at: '2026-08-19T10:39:19.075Z'
-branch: task/tick-212-renderer-lock-subsumption
-worktree: ../pegasus-worktrees/tick-212-renderer-lock-subsumption
 labels:
   - now
   - source-now
@@ -31,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.782Z'
-updated: '2026-08-19T10:42:59.942Z'
+updated: '2026-08-19T10:43:18.972Z'
 ---
 
 ## What
