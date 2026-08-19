@@ -4,7 +4,7 @@ type: ticket
 title: >-
   ENG-01 — One canonical repair specification with route provenance for Glass's,
   Audatex PDF, or an approved AI proposal
-status: implementing
+status: review
 area: engineering-assessment
 order: 50
 assignee: codex-mcp-client
@@ -28,6 +28,7 @@ links:
   - SIMPLI-014
   - TICK-205
   - TICK-098
+  - PR-011
 blocks:
   - TICK-096
   - TICK-097
@@ -46,7 +47,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-19T11:44:07.179Z'
+updated: '2026-08-19T11:44:32.994Z'
 ---
 
 ## Outcome

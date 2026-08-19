@@ -4,6 +4,7 @@ type: ticket
 title: MAIL-03 — One shared classification policy across all supported mailboxes
 status: review
 area: mail-communications
+order: 40
 assignee: Codex / execute_tick_045
 profile: feature
 stageEntered:
@@ -31,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/422'
 archived: false
 created: '2026-08-12T15:03:53.689Z'
-updated: '2026-08-19T11:34:21.837Z'
+updated: '2026-08-19T11:44:32.870Z'
 ---
 
 ## What

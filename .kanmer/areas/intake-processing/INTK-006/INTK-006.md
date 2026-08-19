@@ -4,7 +4,7 @@ type: ticket
 title: Associate each vehicle-image group or create one Image-initiated Case
 status: review
 area: intake-processing
-order: 30
+order: 20
 assignee: Codex
 profile: fix
 stageEntered:
@@ -39,7 +39,7 @@ prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T11:20:19.454Z'
+updated: '2026-08-19T11:44:32.859Z'
 ---
 
 ## What

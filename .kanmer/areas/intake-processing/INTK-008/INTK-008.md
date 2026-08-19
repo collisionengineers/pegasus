@@ -4,6 +4,7 @@ type: ticket
 title: Give ImageIntake an Image-initiated Case lifecycle and merge closure
 status: review
 area: intake-processing
+order: 30
 assignee: Codex
 profile: feature
 stageEntered:
@@ -38,7 +39,7 @@ prs:
   - '423'
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-08-19T11:43:35.105Z'
+updated: '2026-08-19T11:44:32.865Z'
 ---
 
 ## What
