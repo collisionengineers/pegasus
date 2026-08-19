@@ -2,7 +2,7 @@
 id: TICK-213
 type: ticket
 title: Decide whether density applies to all rendered document bodies
-status: review
+status: verifying
 area: documents-reports
 order: 40
 assignee: codex-mcp-client
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   preparing: '2026-08-19T09:03:34.137Z'
   review: '2026-08-19T11:26:31.492Z'
+  verifying: '2026-08-19T11:37:23.046Z'
 taken_at: '2026-08-19T10:43:50.525Z'
 branch: task/tick-213-density-subsumption
 worktree: ../pegasus-worktrees/tick-213-density-subsumption
@@ -32,7 +33,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.829Z'
-updated: '2026-08-19T11:26:31.492Z'
+updated: '2026-08-19T11:37:23.046Z'
 ---
 
 ## What
