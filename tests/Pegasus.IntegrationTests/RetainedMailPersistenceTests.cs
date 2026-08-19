@@ -100,8 +100,8 @@ public sealed class RetainedMailPersistenceTests
     public async Task EquivalentRfcRepresentationsReplayOnePollReceiptAndRetainedRow()
     {
         var source = new SequenceInboxSource(
-            PolledMessage("provider-one", " <Case-Message@Example.Invalid> ", "cursor-1"),
-            PolledMessage("provider-two", "<case-message@example.invalid>", "cursor-2"));
+            PolledMessage("provider-one", " <case@K.example> ", "cursor-1"),
+            PolledMessage("provider-two", "<CASE@K.EXAMPLE>", "cursor-2"));
         await using var database = await PollDatabaseAsync(source);
 
         await using var scope = database.CreateAsyncScope();
@@ -113,6 +113,10 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeWorkItems"));
         Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+        await using var context = await database.CreateContextAsync();
+        var retained = await context.RetainedMailboxMessages.AsNoTracking().SingleAsync();
+        Assert.Equal(" <case@K.example> ", retained.InternetMessageIdentity);
+        Assert.Equal("<CASE@K.EXAMPLE>", retained.CanonicalInternetMessageIdentity);
     }
 
     [Fact]

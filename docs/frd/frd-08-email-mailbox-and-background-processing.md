@@ -22,7 +22,10 @@ Unicode compatibility normalization, and invariant uppercase case folding.
 That same canonical key drives the Core intake receipt, retained-message
 comparison, and a binary-collated database uniqueness constraint; case-only,
 normalization-equivalent, or surrounding-whitespace variants are therefore one
-message, while distinct canonical values remain distinct. The provider immutable item identity remains a separately
+message, while distinct canonical values remain distinct. Both the raw value
+and its canonical output must fit the 500-character retained identity bound;
+normalization expansion beyond it fails closed before persistence. The raw
+transport value is retained verbatim as evidence beside the canonical key. The provider immutable item identity remains a separately
 retained coordinate used to read the item; a provider-coordinate change cannot
 create a second business occurrence for the same mailbox/RFC message. The same
 RFC identity may occur independently in two approved mailboxes. A retained
