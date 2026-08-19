@@ -18,7 +18,7 @@
 - [x] proof.md finalised at decision/ownership tier
 - [x] Moved to final stage
 - [x] Outcome and traceability recorded (commits/PRs none; deployment n/a)
-- [ ] Return to main checkout and remove zero-diff ticket worktree
-- [ ] Delete local and remote zero-diff ticket branch
-- [ ] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] Return to main checkout and remove zero-diff ticket worktree
+- [x] Delete local and remote zero-diff ticket branch
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `take_ticket action: "release"`

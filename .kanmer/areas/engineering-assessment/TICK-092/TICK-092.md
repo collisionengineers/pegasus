@@ -20,11 +20,13 @@ groups:
   - EPIC-003
   - EPIC-004
 links: []
+blocks:
+  - TICK-096
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.549Z'
-updated: '2026-08-19T09:04:30.392Z'
+updated: '2026-08-19T09:32:37.279Z'
 ---
 
 ## What

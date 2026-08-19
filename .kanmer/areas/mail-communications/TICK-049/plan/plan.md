@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Live-operation decision — 2026-08-19
+
+The operator declined a real Outlook move for this ticket. Implementation and acceptance must use local/integration tests and Graph fakes only. Do not mutate the linked production mailbox. The post-implementation report and capability evidence must explicitly qualify MAIL-07 as not live-mutation-verified.

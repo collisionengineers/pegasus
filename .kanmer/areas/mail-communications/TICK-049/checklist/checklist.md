@@ -10,3 +10,5 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Verify the full move contract with local/integration tests and Graph fakes; record explicitly that no live Outlook mutation was run or claimed.

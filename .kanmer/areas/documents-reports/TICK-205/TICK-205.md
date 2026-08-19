@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-19T09:31:01.506Z'
   verifying: '2026-08-19T09:31:14.297Z'
   done: '2026-08-19T09:32:02.301Z'
-taken_at: '2026-08-19T09:30:04.851Z'
-branch: task/tick-205-audit-spec-decision
-worktree: ../pegasus-worktrees/tick-205-audit-spec-decision
 labels:
   - now
   - source-now
@@ -34,7 +31,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.306Z'
-updated: '2026-08-19T09:32:02.301Z'
+updated: '2026-08-19T09:32:20.840Z'
 ---
 
 ## What
