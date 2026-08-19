@@ -5,3 +5,6 @@
 - [ ] [[TICK-096]] evidence proves deterministic compute-once/fail-closed behavior and correct fixed rendering for Total loss, Repairable, Cash in lieu, and Contract repair, including selected Engineer wording/signature and fee totals.
 - [ ] [[DOCS-001]] is merged and proves the real complete-assessment caller, idempotent generation, immutable report/fee-note identity and hashes, provenance/custody, retries, and correction versions without implying approval or delivery.
 - [ ] Combined focused tests, four representative Chromium renders, invalid-input cases, VAT/roadworthiness/photo/list stress cases, and the canonical restore/build/test profile are green; any gap is assigned to its owning dependency and TICK-097 is accepted with no duplicate implementation.
+
+- [ ] Add the administrator-configured per-provider fee-note packaging setting with separate-linked-artifact and appended-pages modes; reject missing/invalid/ambiguous configuration.
+- [ ] Prove both packaging modes through the same Core render workflow, including immutable identity/hash/provenance/custody, deterministic replay, corrections, and no caller/template override.

@@ -38,3 +38,12 @@ No separate RPT-02 Core model, renderer, template catalogue, persistence stream,
 ## Operator correction — shared Audit/Inspection physical report — 2026-08-19
 
 This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.
+
+## Operator decision — per-provider fee-note packaging — 2026-08-19
+
+Fee-note packaging is an administrator-configured provider policy with exactly two supported modes:
+
+1. **Separate linked artifact:** retain assessment and fee note as distinct immutable artifacts with explicit relationship, identities, hashes, provenance and custody.
+2. **Appended pages:** render the fee note as page(s) in the same assessment PDF artifact while retaining its template/payload/calculation provenance within that report version.
+
+Resolve the setting from the accepted provider configuration before rendering; browsers, MCP clients, templates and render requests cannot override it. Missing, invalid, or ambiguous configuration fails closed. Correction/retry preserves the selected policy version and reconciles the same artifact shape for identical accepted inputs. Update FRD-11 and the provider administration/configuration surface through the owning implementation ticket rather than adding a second packaging table.
