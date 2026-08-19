@@ -4,10 +4,12 @@ type: ticket
 title: >-
   ENG-01 — One canonical repair specification with route provenance for Glass's,
   Audatex PDF, or an approved AI proposal
-status: backlog
+status: preparing
 area: engineering-assessment
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:05:03.087Z'
 labels:
   - capability
   - ENG-01
@@ -22,7 +24,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-19T08:57:19.706Z'
+updated: '2026-08-19T09:05:03.087Z'
 ---
 
 ## What

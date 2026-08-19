@@ -4,10 +4,12 @@ type: ticket
 title: >-
   CASE-31 — One accepted structured case/engineering record is the source for
   every deterministic report, fee note, addendum, query…
-status: backlog
+status: preparing
 area: engineering-assessment
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:04:30.392Z'
 labels:
   - capability
   - CASE-31
@@ -22,7 +24,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.549Z'
-updated: '2026-08-19T08:57:19.689Z'
+updated: '2026-08-19T09:04:30.392Z'
 ---
 
 ## What

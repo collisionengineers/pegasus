@@ -4,10 +4,12 @@ type: ticket
 title: >-
   EXT-08 — Activate deterministic report generation from accepted Core-owned
   data through the approved renderer contract
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:04:18.407Z'
 labels:
   - capability
   - EXT-08
@@ -26,7 +28,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:05:40.146Z'
-updated: '2026-08-19T08:57:19.675Z'
+updated: '2026-08-19T09:04:18.407Z'
 ---
 
 ## What

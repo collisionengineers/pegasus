@@ -4,12 +4,15 @@ type: ticket
 title: >-
   MAIL-01 — Identify every inbound mailbox item and its mailbox/thread/message
   identity
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-18T15:21:16.581Z'
+taken_at: '2026-08-19T09:04:22.276Z'
+branch: task/tick-043-mailbox-identity
+worktree: ../pegasus-worktrees/tick-043-mailbox-identity
 labels:
   - capability
   - MAIL-01
@@ -24,7 +27,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:53.649Z'
-updated: '2026-08-19T08:10:33.179Z'
+updated: '2026-08-19T09:04:22.276Z'
 ---
 
 ## What

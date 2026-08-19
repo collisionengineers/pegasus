@@ -2,10 +2,12 @@
 id: TICK-208
 type: ticket
 title: Preserve final Sent evidence through post-report correction
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:04:31.644Z'
 labels:
   - now
   - source-now
@@ -18,7 +20,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:08:05.482Z'
-updated: '2026-08-19T08:57:19.881Z'
+updated: '2026-08-19T09:04:31.644Z'
 ---
 
 ## What
