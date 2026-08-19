@@ -7,7 +7,26 @@
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
+Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not Unidentified merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM enters Unidentified with a required reason. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
+
+### Unidentified destination and reference
+
+Safely retained material whose identity, meaning, ownership, or destination cannot be
+established becomes one `UnidentifiedItem` for the source occurrence or inseparable
+submission group. Group membership is durable: one group receives one `U<n>` reference
+and every member keeps its own filename, receipt identity, custody, and chronology.
+The reference is uppercase `U` followed by positive, invariant, unpadded decimal
+digits, allocated atomically from a dedicated sequence and never reused. The item
+stores one of the six Core-owned reasons—unreadable/corrupt, unsupported, no usable
+identification, conflicting identification, ambiguous ownership/destination, or
+terminal technical processing failure—and bounded safe detail. Retryable work does
+not allocate a reference.
+
+Unidentified is open or resolved. Authorised staff resolution requires an operation
+key, expected version, reason, and one supported destination; it appends immutable
+history with actor, time, target, and before/after state. Replays return the original
+result; conflicting operation reuse fails closed. The U-reference is never accepted
+as a Case/PO, Audit, Image Intake, or principal identity.
 
 Every intake path must:
 
@@ -19,7 +38,7 @@ Every intake path must:
 - record the actor, time, caller, source, policy version, and reason for every transition;
 - prevent untrusted content from becoming instructions, policy, identity, or authority.
 
-When a retained source remains `Needs sorting` because no category can be determined, the UI explains the missing, ambiguous, or contradictory predicates rather than presenting the positive rationale for an unrelated category.
+When a retained source becomes Unidentified because no category can be determined, the UI shows its U-reference, canonical reason, bounded safe detail, source/group, custody, and next permitted action rather than presenting the positive rationale for an unrelated category.
 
 ### Request-scoped upload links
 
@@ -92,7 +111,7 @@ Box case-file custody is a required day-one alpha capability, but it follows Cas
 
 ### Matching conflicts and reversible association
 
-Matching uses explainable evidence. Message identifiers, provider/domain policy, route identity, accepted reference tokens, VRM, party identity, and operator confirmation may contribute. A weak, ambiguous, or contradictory signal never silently associates material with a case; competing candidate cases and unresolved source-identity conflicts remain visible in `Needs sorting`.
+Matching uses explainable evidence. Message identifiers, provider/domain policy, route identity, accepted reference tokens, VRM, party identity, and operator confirmation may contribute. A weak, ambiguous, or contradictory signal never silently associates material with a case; competing candidate cases and unresolved source-identity conflicts become Unidentified with the corresponding canonical reason.
 
 VRM correlation is a suggestion until confirmed by accepted evidence or an authorised operator. Source deduplication is occurrence-aware: exact bytes and transport identifiers support correlation, while each visible placement and chronology entry remains auditable.
 

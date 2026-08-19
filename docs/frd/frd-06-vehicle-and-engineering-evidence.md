@@ -1,4 +1,12 @@
 # FRD-06: Vehicle and engineering evidence
+
+## Vehicle-image failure boundary
+
+Grouped vehicle images are evaluated together. A completed group with one usable,
+unambiguous VRM follows the existing-case or Image-initiated route; a group with no
+usable VRM enters Unidentified once, retaining all files. Two different valid VRMs
+are the explicit `ConflictingIdentification` reason and never attach silently to a
+Case.
 > Owner capabilities: INT (image/VRM), ENG · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Vehicle and engineering evidence

@@ -1,4 +1,12 @@
 # FRD-08: Email, mailbox, and background processing
+
+## Unidentified mail destination
+
+Mailbox material that is safely retained but has no unique accepted classification,
+identity, owner, or destination is registered once in Unidentified with its U
+reference and canonical reason. Retryable processing remains retryable; a terminal
+technical failure after custody uses `TechnicalProcessingFailure`. Mail projections
+link to the same Unidentified item rather than synthesising a second queue row.
 > Owner capabilities: MAIL · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Email, mailbox, and background processing

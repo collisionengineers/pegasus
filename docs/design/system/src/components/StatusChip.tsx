@@ -90,7 +90,7 @@ export function toneForState(state: string): { tone: Tone; icon: IconName } {
 export interface StatusChipProps extends Omit<HTMLAttributes<HTMLSpanElement>, 'children'> {
   /**
    * The exact state text to display, in its settled casing — `Not ready`,
-   * `Review`, `Held`, `Needs sorting`, `Blocked`, `Completed`, `Stale`… The
+   * `Review`, `Held`, `Unidentified`, `Blocked`, `Completed`, `Stale`… The
    * chip never rewrites the words; it only picks a tone and an icon for them.
    */
   state: string;

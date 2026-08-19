@@ -24,7 +24,20 @@ The selected alpha direction is Operations-first. The UI must provide:
   support;
 - responsive use without hiding required evidence or actions.
 
-Every actionable search result is a full-row keyboard-focusable link or button with visible action affordance. At constrained desktop width, a long Case/PO or Image Intake Reference moves to a labelled second line instead of overlapping the received timestamp. Inbox and intake rows always show received date above received time, and show the precise processing outcome—such as `Case created`, `Image intake registered`, `Associated with Case`, `Needs sorting`, or `Blocked intake`—rather than a generic `New`. One semantic action or state has one consistent icon across Pegasus; no decorative or generated replacement icon is used.
+Every actionable search result is a full-row keyboard-focusable link or button with visible action affordance. At constrained desktop width, a long Case/PO, Image Intake Reference, or U-reference moves to a labelled second line instead of overlapping the received timestamp. Inbox and intake rows always show received date above received time, and show the precise processing outcome—such as `Case created`, `Image intake registered`, `Associated with Case`, `Unidentified`, or `Blocked intake`—rather than a generic `New`. One semantic action or state has one consistent icon across Pegasus; no decorative or generated replacement icon is used.
+
+### Unidentified queue and detail
+
+`/Unidentified` lists open items oldest-first with the immutable U-reference,
+original filename/source, grouped-member count, received time, canonical reason, and
+next action. Detail shows every member receipt/file, custody link, safe detail,
+processing evidence, and chronological history. Exact U-reference search returns both
+open and resolved items as a distinct result type and never treats U<n> as a Case,
+Audit, or Image Intake reference. Resolution is staff-authorised, antiforgery
+protected, version-checked, idempotent by operation key, and requires a supported
+destination and reason. A stale version is a non-destructive conflict; a replay shows
+the original result. The permanent U-reference and origin remain visible after
+resolution.
 
 ### Dashboard freshness and reconciliation
 
@@ -41,7 +54,7 @@ Reconciliation that accepts, rejects, links, or changes an external business
 fact instead enters permanent business history with the responsible actor,
 source/version, before/after values, time, and reason where required.
 
-`New cases today` counts every instructed Case created in the current Europe/London calendar day, including a Case later closed that day. It excludes pre-Case Image intakes, Triage, `Needs sorting`, and `Blocked intake`. It is separate from `Due today`, `Sent to Engineer`, and `Reports sent`.
+`New cases today` counts every instructed Case created in the current Europe/London calendar day, including a Case later closed that day. It excludes pre-Case Image intakes, Triage, Unidentified, and `Blocked intake`. The Unidentified count is the exact count of open Unidentified items and links to that queue. These are separate from `Due today`, `Sent to Engineer`, and `Reports sent`.
 
 `Due by` and overdue/chaser work remain a separate operational view from `New cases today`. The case list and persistent case identity area expose due/overdue state, while the case workspace keeps the missing-material reason, next chase, last recorded outcome, and next permitted action together. Triage has no due/chaser presentation.
 

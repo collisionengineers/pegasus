@@ -1,4 +1,12 @@
 # FRD-09: Provider and intermediary routes
+
+## Unidentified route outcome
+
+An unresolved provider/intermediary route is Unidentified only when the received
+material itself is safely retained but no unique owner or destination can be
+established. The route evidence and bounded reason are preserved under one U
+reference; a reasoned policy refusal remains Blocked intake and a retryable technical
+failure remains processing.
 > Owner capabilities: API (provider/intermediary routes) · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Provider and intermediary routes

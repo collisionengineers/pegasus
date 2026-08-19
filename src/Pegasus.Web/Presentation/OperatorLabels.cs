@@ -4,6 +4,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Web.Presentation;
 
@@ -18,7 +19,7 @@ namespace Pegasus.Web.Presentation;
 ///
 /// Two of these maps are settled business vocabulary and must not drift:
 /// <see cref="CaseStage"/> carries the case lifecycle stage names, and the
-/// distinct meanings of Audit, Triage, Needs sorting and Blocked are reserved.
+/// distinct meanings of Audit, Triage, Unidentified and Blocked are reserved.
 /// Everything else falls through to <see cref="Humanise"/>, which turns an
 /// unknown code into a readable sentence rather than printing it verbatim —
 /// event codes in particular are composed at several call sites, so a fixed map
@@ -26,6 +27,24 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
+    {
+        UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",
+        UnidentifiedReasonCode.UnsupportedContent => "Unsupported content",
+        UnidentifiedReasonCode.NoUsableIdentification => "No usable identification",
+        UnidentifiedReasonCode.ConflictingIdentification => "Conflicting identification",
+        UnidentifiedReasonCode.AmbiguousOwnershipOrDestination => "Ambiguous ownership or destination",
+        UnidentifiedReasonCode.TechnicalProcessingFailure => "Technical processing failure",
+        _ => Humanise(reason.ToString())
+    };
+
+    public static string UnidentifiedState(UnidentifiedState state) => state switch
+    {
+        Pegasus.Core.Intake.Unidentified.UnidentifiedState.Open => "Unidentified",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedState.Resolved => "Resolved Unidentified",
+        _ => Humanise(state.ToString())
+    };
+
     public static string CaseStage(CaseLifecycleState state) => state switch
     {
         CaseLifecycleState.NotReady => "Not ready",

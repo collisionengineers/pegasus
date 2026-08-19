@@ -1,0 +1,57 @@
+@page "/Unidentified/{id:guid}"
+@model Pegasus.Web.Pages.Unidentified.DetailsModel
+@using Pegasus.Core.Intake.Unidentified
+@using Pegasus.Web.Presentation
+@{
+    ViewData["Title"] = Model.Item.Reference;
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Unidentified</p>
+        <h1>@Model.Item.Reference</h1>
+        <p class="lede">@Model.ReasonLabel</p>
+    </div>
+</header>
+
+<div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+
+<section class="panel" aria-labelledby="unidentified-detail-title">
+    <h2 id="unidentified-detail-title" class="section-label">Source</h2>
+    <dl class="detail-list">
+        <dt>Origin</dt><dd>@Model.Item.Origin.Kind — @Model.Item.Origin.Id</dd>
+        <dt>Received</dt><dd>@OperatorLabels.OfficeDate(Model.Item.CreatedAtUtc) @OperatorLabels.OfficeClock(Model.Item.CreatedAtUtc)</dd>
+        <dt>Reason</dt><dd>@Model.ReasonLabel</dd>
+        <dt>Detail</dt><dd>@Model.Item.SafeDetail</dd>
+        <dt>State</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.UnidentifiedState(Model.Item.State)" /></dd>
+    </dl>
+</section>
+
+<section class="panel" aria-labelledby="unidentified-history-title">
+    <h2 id="unidentified-history-title" class="section-label">History</h2>
+    <ol class="history-list">
+        @foreach (var entry in Model.History)
+        {
+            <li><strong>@entry.NewState</strong> — @entry.Reason <small>@entry.OccurredAtUtc</small></li>
+        }
+    </ol>
+</section>
+
+@if (Model.Item.State == UnidentifiedState.Open)
+{
+    <section class="panel form-panel" aria-labelledby="unidentified-resolve-title">
+        <h2 id="unidentified-resolve-title" class="section-label">Resolve</h2>
+        <form method="post" asp-page-handler="Resolve">
+            <input type="hidden" asp-for="ExpectedVersion" />
+            <label asp-for="ResolutionReason">Reason</label>
+            <textarea asp-for="ResolutionReason" maxlength="500" required></textarea>
+            <label asp-for="TargetKind">Destination</label>
+            <select asp-for="TargetKind" asp-items="Html.GetEnumSelectList<UnidentifiedResolutionTargetKind>()"></select>
+            <label asp-for="TargetId">Destination identifier</label>
+            <input asp-for="TargetId" maxlength="200" required />
+            <label asp-for="TargetReference">Destination reference (optional)</label>
+            <input asp-for="TargetReference" maxlength="200" />
+            <button type="submit" class="primary-action">Resolve</button>
+        </form>
+    </section>
+}

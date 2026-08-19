@@ -39,6 +39,6 @@ public sealed class HealthEndpointTests : IClassFixture<IntakeWebApplicationFact
 
         Assert.Contains("Active cases", html, StringComparison.Ordinal);
         Assert.Contains("E-mail activity", html, StringComparison.Ordinal);
-        Assert.Contains("Needs sorting", html, StringComparison.Ordinal);
+        Assert.Contains("Unidentified", html, StringComparison.Ordinal);
     }
 }

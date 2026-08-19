@@ -64,7 +64,7 @@ export function QueueGrid({ className, ...rest }: HTMLAttributes<HTMLDivElement>
 }
 
 export interface QueueCardProps extends Omit<HTMLAttributes<HTMLElement>, 'children'> {
-  /** The queue name, e.g. `Needs sorting`. */
+  /** The queue name, e.g. `Unidentified`. */
   label: ReactNode;
   /** The count. */
   value?: number | string;

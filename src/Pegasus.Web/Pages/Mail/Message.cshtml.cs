@@ -111,7 +111,7 @@ public sealed class MessageModel(GetRetainedMail getRetainedMail) : PageModel
     {
         MailRouteDisposition.Accepted => "Accepted",
         MailRouteDisposition.NoMatch => "No match",
-        MailRouteDisposition.NeedsSorting => "Needs sorting",
+        MailRouteDisposition.NeedsSorting => "Unidentified",
         _ => "Not yet processed"
     };
 
@@ -127,7 +127,7 @@ public sealed class MessageModel(GetRetainedMail getRetainedMail) : PageModel
     private static string OutcomeLabel(IntakeDecision? decision) => decision switch
     {
         IntakeDecision.CaseCreated => "Ready for case allocation",
-        IntakeDecision.NeedsSorting => "Needs sorting",
+        IntakeDecision.NeedsSorting => "Unidentified",
         IntakeDecision.BlockedIntake => "Blocked",
         IntakeDecision.OcrRequired => "Document text required",
         IntakeDecision.TechnicalFailure => "Technical failure",

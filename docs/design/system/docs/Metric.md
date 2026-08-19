@@ -6,7 +6,7 @@ One compact tile in a `MetricStrip` (`.metric`): the queue or figure label with 
 
 **Rules**
 
-- `label` is the settled queue text (`Not ready`, `Needs sorting`, `Received today`); `state` sets `data-state` and drives only the rail and icon tint — the words carry the meaning.
+- `label` is the settled queue text (`Not ready`, `Unidentified`, `Received today`); `state` sets `data-state` and drives only the rail and icon tint — the words carry the meaning.
 - A composed count of zero renders `0`. When the datum is absent, pass `absent="Unavailable"` (or `Refreshing`, `Stale`) so the state replaces the value; never a dash pretending to be a number.
 - Link every metric that has a list behind it; leave `href` off only when no destination exists.
 - Icons come from the Pegasus sprite (`alert-triangle` for not-ready/needs-sorting, `info` for review, `clock` for held, `alert-circle` for blocked, `file-text`, `arrow-right`, `upload`).
