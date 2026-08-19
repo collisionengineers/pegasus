@@ -45,3 +45,9 @@ Verified: real Chromium failure; terminal work-list content survives; trailing S
 To verify during execution: which minimal block/row and semantic-break adjustment makes Chromium retain the full tail; whether all eight images remain embedded and ordered; whether every page retains reference/footer text; whether the existing four-outcome suite remains green.
 
 No operator-only question remains. This is a correctness repair under existing approved behaviour.
+
+## Execution diagnosis — confirmed root cause
+
+The CSS fragmentation hypothesis was disproved by focused experiments with explicit grid rows, table rows, flex rows and block/inline rows: each still ended at the third image and omitted the tail. Opt-in HTML capture then showed the decisive invariant: composed HTML was exactly 1,048,598 bytes, contained only three photo tags and no Statement of Truth. Scriban 7.2.6 source/XML documents `TemplateContext.LimitToString` defaulting to 1,048,576 characters and appending one `...` marker on truncation. The template context used that default.
+
+Setting the existing context's `LimitToString = 0` (Scriban's documented unlimited mode) preserved the unchanged governed HTML/CSS and made the exact real-Chromium regression pass with all terminal list entries, 8 embedded photos, Statement of Truth/signature and every-page reference furniture. All exploratory layout changes were reverted. The cause is template-output truncation before Chromium, not pagination or density.

@@ -37,3 +37,16 @@ Repair the existing rendererref1 assessment flow at the exact Chromium fragmenta
 - **False image count:** use PdfPig image enumeration across all pages and unique accepted custody inputs.
 - **Duplicating TICK-213 work:** port only its uncommitted test intent into PR-009; never edit or commit its worktree.
 - **Over-solving via density:** explicitly prohibited; pagination correctness must hold at normal style.
+
+## Course correction — confirmed during execution
+
+The planned semantic photo-row/CSS correction was tested and rejected: grid, table, flex and block-row variants all truncated at the same byte boundary. Captured HTML and Scriban source proved the actual cause was `TemplateContext.LimitToString`'s 1 MiB default, which truncated the composed document before Chromium received it. The final implementation therefore keeps the rendererref1 template/CSS byte-for-byte unchanged and sets the existing context to Scriban's documented unlimited mode. This is smaller, preserves all accepted content and avoids introducing a second layout convention.
+
+## Simplification pass — 2026-08-19
+
+- **Reuse:** retained the existing template/context/render pipeline and existing Browser fixture/provider convention; no new renderer or layout path.
+- **Simplification:** reverted every exploratory template/CSS/photo formatter change once the 1 MiB cause was proven. Final production change is one setting on the existing context.
+- **Efficiency:** removed diagnostic HTML/text artifact writes and duplicated stress-test evidence code; CI keeps structural PDF assertions without extra filesystem work.
+- **Altitude:** the Infrastructure boundary changes only renderer mechanics. Core policy, inputs, density, content limits and templates remain unchanged.
+
+No finding was deferred.

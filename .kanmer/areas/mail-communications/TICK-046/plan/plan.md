@@ -44,3 +44,7 @@ The post-implementation report will cite focused test output, Release build outp
 - **Efficiency:** one transaction updates the current decision and appends history; history is loaded only for exact-message detail, never the mailbox list. Existing page-wide queries remain batched.
 - **Altitude:** Core owns authorization, validation and correction semantics; Infrastructure owns EF concurrency/serialization; Web only binds input and renders the dossier.
 - **Dispositions:** fixed the first SQL-test finding by reusing the existing versioned-envelope serializer instead of writing a second JSON shape. Added original actor/time backfill after the evidence-lens review found the current decision otherwise lacked attribution. No unapplied behaviour-preserving finding remains.
+
+### Simplification re-check — PR-010
+
+Kept canonical validation on `MailCategory` beside the sole taxonomy list and invoked it from the Core command. Web performs only early parsing for useful validation feedback; it is not the trust boundary. One parameterized page-pipeline test exercises all four hostile inputs and checks both current version and empty history, avoiding four duplicated fixtures.

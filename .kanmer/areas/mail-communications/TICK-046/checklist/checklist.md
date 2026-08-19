@@ -18,3 +18,5 @@
 - 2026-08-19: Added migration/backfill for decision actor/time/version and least-privilege Web grants. No mailbox or cloud write was performed.
 - 2026-08-19: Release build 0 warnings/errors; focused Core 18/18; full Core 634/634; focused SQL/Web acceptance 2/2 (and combined retained-mail/Web suite previously 27/28 with the sole failure an over-specific HTML attribute-order assertion, corrected and rerun green).
 - 2026-08-19: Governing FRD already states the delivered contract, so no normative documentation wording or current/deployed-state claim was changed.
+
+- 2026-08-19 review fix PR-010: Core now validates defined enum values, registered category/subtype shapes, and bounded Other details independently of Razor input. Crafted `received:999`, `sent:999`, oversized Other name and oversized Other reasoning all return controlled validation with no decision/history write. Focused Core 19/19 and real page-pipeline no-write test 1/1 passed.

@@ -40,3 +40,7 @@ On merged `main`:
 3. Run `dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build`; author result: 634/634.
 4. Run `dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~RetainedMailPersistenceTests|FullyQualifiedName~MailWorkspaceWebTests"`; expect the retained-mail and page-pipeline suites green. Author ran the combined suite at 27/28 with the only failure an over-specific HTML attribute-order assertion; after correcting that assertion, the exact SQL/Web acceptance rerun passed 2/2.
 5. In a local DevelopmentOffline browser fixture containing a classified retained message, capture the message detail showing policy/evidence/current attribution, submit a correction, then capture the success notice and immutable before/after history. Do not use a real Outlook mailbox.
+
+## Review response — PR-010
+
+Hardened canonical category construction and the Core correction command against undefined numeric Received/Sent enum values and oversized Other name/reasoning. The Web parser now rejects these inputs as controlled validation errors. Added Core factory coverage and a real antiforgery/page-pipeline test which submits all four crafted forms and proves the decision remains version 1 with no history rows. Also corrected the stale read-only XML remark on `MessageModel`.
