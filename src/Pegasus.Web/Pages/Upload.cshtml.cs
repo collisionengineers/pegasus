@@ -80,7 +80,9 @@ public sealed partial class UploadModel(
             var file = Upload[index];
             if (file.Length == 0)
             {
-                ModelState.AddModelError(nameof(Upload), $"File {index + 1} is empty.");
+                ModelState.AddModelError(
+                    nameof(Upload),
+                    Upload.Length == 1 ? "That file is empty." : $"File {index + 1} is empty.");
             }
             else if (file.Length > IntakeEnvelopeLimits.MaximumContentLength)
             {
