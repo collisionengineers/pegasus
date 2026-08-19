@@ -82,6 +82,103 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task ChangedProviderItemIdentityDoesNotDuplicateTheSameRfcMessage()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+
+        await RetainAsync(database, Message("provider-item-before-move"));
+        await RetainAsync(database, Message("provider-item-after-move",
+            internetMessageIdentity: "<provider-item-before-move@example.invalid>"));
+
+        Assert.Equal(
+            1L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+    }
+
+    [Fact]
+    public async Task EquivalentRfcRepresentationsReplayOnePollReceiptAndRetainedRow()
+    {
+        var source = new SequenceInboxSource(
+            PolledMessage("provider-one", " <case@K.example> ", "cursor-1"),
+            PolledMessage("provider-two", "<CASE@K.EXAMPLE>", "cursor-2"));
+        await using var database = await PollDatabaseAsync(source);
+
+        await using var scope = database.CreateAsyncScope();
+        var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+        var actor = ActionActor.SystemWorker("approved-inbox-poller");
+        Assert.Equal(1, await poll.ExecuteAsync(1, actor, CancellationToken.None));
+        Assert.Equal(1, await poll.ExecuteAsync(1, actor, CancellationToken.None));
+
+        Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+        Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeWorkItems"));
+        Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+        await using var context = await database.CreateContextAsync();
+        var retained = await context.RetainedMailboxMessages.AsNoTracking().SingleAsync();
+        Assert.Equal(" <case@K.example> ", retained.InternetMessageIdentity);
+        Assert.Equal("<CASE@K.EXAMPLE>", retained.CanonicalInternetMessageIdentity);
+    }
+
+    [Fact]
+    public async Task DistinctCanonicalRfcIdentitiesRemainDistinctThroughTheRealPoll()
+    {
+        var source = new SequenceInboxSource(
+            PolledMessage("provider-one", "<message-one@example.invalid>", "cursor-1"),
+            PolledMessage("provider-two", "<message-two@example.invalid>", "cursor-2"));
+        await using var database = await PollDatabaseAsync(source);
+
+        await using var scope = database.CreateAsyncScope();
+        var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+        var actor = ActionActor.SystemWorker("approved-inbox-poller");
+        Assert.Equal(1, await poll.ExecuteAsync(1, actor, CancellationToken.None));
+        Assert.Equal(1, await poll.ExecuteAsync(1, actor, CancellationToken.None));
+
+        Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+        Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeWorkItems"));
+        Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM RetainedMailboxMessages"));
+    }
+
+    [Fact]
+    public async Task ContradictoryIdentityForAnImmutableItemFailsClosed()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+
+        await RetainAsync(database, Message("provider-item"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => RetainAsync(
+            database,
+            Message("provider-item", internetMessageIdentity: "<different@example.invalid>")));
+    }
+
+    [Fact]
+    public async Task AThreadNeverCrossesMailboxScope()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await SeedPollStateAsync(database, "desk", "desk@collisionengineers.co.uk");
+        await RetainAsync(database, Message("instructions-item", subject: "instructions message"));
+        await RetainAsync(database, Message(
+            "desk-item",
+            subject: "desk message",
+            mailboxId: "desk",
+            mailboxAddress: "desk@collisionengineers.co.uk"));
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var page = await queries.ListAsync(
+            new(MailboxId, MailFolderScope.Inbox),
+            1,
+            25,
+            CancellationToken.None);
+        var detail = Assert.IsType<RetainedMailDetail>(
+            await queries.GetAsync(Assert.Single(page.Items).Id, CancellationToken.None));
+
+        Assert.Single(detail.Thread);
+        Assert.Equal("instructions message", detail.Thread[0].Subject);
+    }
+
+    [Fact]
     public async Task PagingIsStableAndComplete()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -358,18 +455,21 @@ public sealed class RetainedMailPersistenceTests
         string? subject = "An instruction",
         DateTimeOffset? receivedAtUtc = null,
         string? senderAddress = "sender@example.invalid",
-        string? senderDisplayName = "A Sender") => new(
-        MailboxId,
-        MailboxAddress,
+        string? senderDisplayName = "A Sender",
+        string? internetMessageIdentity = null,
+        string mailboxId = MailboxId,
+        string mailboxAddress = MailboxAddress) => new(
+        mailboxId,
+        mailboxAddress,
         immutableMessageId,
-        $"{MailboxId.Length}:{MailboxId}{immutableMessageId}",
+        $"{mailboxId.Length}:{mailboxId}{immutableMessageId}",
         receivedAtUtc ?? ReceivedAtUtc,
         1024,
         new string('A', 64),
         new(
             "inbox",
             "conversation-1",
-            $"<{immutableMessageId}@example.invalid>",
+            internetMessageIdentity ?? $"<{immutableMessageId}@example.invalid>",
             senderAddress,
             senderDisplayName,
             ["intake@collisionengineers.co.uk"],
@@ -390,21 +490,90 @@ public sealed class RetainedMailPersistenceTests
             .RetainAsync(message, CancellationToken.None);
     }
 
+    private static ApprovedInboxMessage PolledMessage(
+        string providerIdentity,
+        string internetMessageIdentity,
+        string cursor) => new(
+            providerIdentity,
+            $"{providerIdentity}.eml",
+            "From: sender@example.invalid\r\nMessage-ID: <stable@example.invalid>\r\n\r\nBody"u8.ToArray(),
+            ReceivedAtUtc,
+            cursor)
+        {
+            RetainedMetadata = new(
+                "inbox",
+                "conversation-1",
+                internetMessageIdentity,
+                "sender@example.invalid",
+                "Sender",
+                [MailboxAddress],
+                [],
+                "Subject",
+                "Body",
+                [],
+                IsRead: false)
+        };
+
+    private static async Task<LocalDbTestDatabase> PollDatabaseAsync(IApprovedInboxSource source)
+    {
+        var artifactRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.RetainedMailIdentityTests",
+            Guid.NewGuid().ToString("N"));
+        var database = await LocalDbTestDatabase.CreateAsync(
+            localArtifactRootFactory: _ => artifactRoot,
+            configureServices: services =>
+        {
+            services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+            services.AddScoped<ReceiveIntake>();
+            services.AddLocalApprovedInbox(_ => new(
+                LocalApprovedInboxOptions.RequiredRuntimeProfile,
+                MailboxId,
+                MailboxAddress,
+                Path.GetTempPath()));
+            services.AddSingleton(source);
+        });
+        return database;
+    }
+
     /// <summary>
     /// The per-mailbox cursor row a retained message hangs off. The poll makes it
     /// on the way past; a test that writes retained rows directly has to make it
     /// itself, which is the foreign key doing its job.
     /// </summary>
-    private static async Task SeedPollStateAsync(LocalDbTestDatabase database)
+    private static async Task SeedPollStateAsync(
+        LocalDbTestDatabase database,
+        string mailboxId = MailboxId,
+        string mailboxAddress = MailboxAddress)
     {
         await using var context = await database.CreateContextAsync();
         context.ApprovedInboxPollStates.Add(new()
         {
-            MailboxId = MailboxId,
-            MailboxAddress = MailboxAddress,
+            MailboxId = mailboxId,
+            MailboxAddress = mailboxAddress,
             DueAtUtc = ReceivedAtUtc,
             LastCompletedAtUtc = ReceivedAtUtc
         });
         await context.SaveChangesAsync();
+    }
+
+    private sealed class SequenceInboxSource(params ApprovedInboxMessage[] messages)
+        : IApprovedInboxSource
+    {
+        private readonly Queue<ApprovedInboxMessage> remaining = new(messages);
+
+        public Task<ApprovedInboxPage> ReadAsync(
+            ApprovedInboxPollLease lease,
+            int maximumMessages,
+            CancellationToken cancellationToken)
+        {
+            if (remaining.Count == 0)
+            {
+                return Task.FromResult(new ApprovedInboxPage([], lease.Cursor ?? "complete"));
+            }
+
+            var message = remaining.Dequeue();
+            return Task.FromResult(new ApprovedInboxPage([message], message.NextCursor));
+        }
     }
 }

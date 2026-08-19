@@ -246,7 +246,8 @@ public sealed class PollApprovedInboxTests
         Assert.Equal("a-1", retained.ImmutableMessageId);
         // The same token PrepareMessage handed the receipt, which is what joins the
         // retained row to its processing outcome.
-        Assert.Equal("9:mailbox-aa-1", retained.ExternalReceiptToken);
+        Assert.StartsWith("9:mailbox-arfc:", retained.ExternalReceiptToken, StringComparison.Ordinal);
+        Assert.Equal(79, retained.ExternalReceiptToken.Length);
         Assert.Equal("An instruction", retained.Metadata.Subject);
         Assert.Equal(NowUtc, retained.RetainedAtUtc);
     }
@@ -273,6 +274,50 @@ public sealed class PollApprovedInboxTests
         Assert.Equal(first.ReceivedAtUtc, second.ReceivedAtUtc);
         Assert.Equal(first.Metadata.Subject, second.Metadata.Subject);
         Assert.Equal(first.Metadata.BodyPlainText, second.Metadata.BodyPlainText);
+    }
+
+    [Fact]
+    public async Task EquivalentInternetMessageIdentitiesUseOneCanonicalReceiptToken()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "provider-one",
+                "cursor-a1",
+                Metadata(internetMessageIdentity: " <case@K.example> ")));
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "provider-two",
+                "cursor-a2",
+                Metadata(internetMessageIdentity: "<CASE@K.EXAMPLE>")));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(2, harness.Retained.Retained.Count);
+        Assert.Equal(
+            harness.Retained.Retained[0].ExternalReceiptToken,
+            harness.Retained.Retained[1].ExternalReceiptToken);
+    }
+
+    [Fact]
+    public async Task CanonicalIdentityExpansionBeyondThePersistenceBoundIsMalformed()
+    {
+        var harness = new Harness(FirstMailbox);
+        var expandingIdentity = $"<{new string('ﬃ', 498)}>";
+        Assert.Equal(500, expandingIdentity.Length);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "provider-one",
+                "cursor-a1",
+                Metadata(internetMessageIdentity: expandingIdentity)));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Empty(harness.Retained.Retained);
     }
 
     [Fact]
@@ -321,6 +366,22 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
+    public async Task MissingInternetMessageIdentityIsRefusedAsMalformedMetadata()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "a-1",
+                "cursor-a1",
+                Metadata(internetMessageIdentity: null)));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Empty(harness.Retained.Retained);
+    }
+
+    [Fact]
     public async Task AFailedRetainReleasesTheLeaseAndLeavesTheCursorUnadvanced()
     {
         var harness = new Harness(FirstMailbox);
@@ -358,11 +419,12 @@ public sealed class PollApprovedInboxTests
 
     private static RetainedMailboxMessageMetadata Metadata(
         string? subject = "An instruction",
-        IReadOnlyList<string>? toAddresses = null) =>
+        IReadOnlyList<string>? toAddresses = null,
+        string? internetMessageIdentity = "<message-1@example.invalid>") =>
         new(
             "inbox-a",
             "conversation-1",
-            "<message-1@example.invalid>",
+            internetMessageIdentity,
             "sender@example.invalid",
             "A Sender",
             toAddresses ?? ["intake@collisionengineers.co.uk"],
