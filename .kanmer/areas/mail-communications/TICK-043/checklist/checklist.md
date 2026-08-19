@@ -17,3 +17,9 @@
 - 2026-08-19: The retained path now requires RFC Message-ID, derives its bounded intake occurrence token from that RFC identity, preserves the provider immutable ID separately, enforces mailbox+RFC uniqueness, refuses contradictory identity/content, and scopes thread reads by mailbox and folder.
 - 2026-08-19: Locked restore passed. Final Release build passed with 0 warnings/errors; full Core passed 617/617; Architecture passed 96/96; focused Production Graph plus retained-mail integration passed 27/27; the final retained-mail run after simplification passed 12/12. `git diff --check` passed.
 - 2026-08-19: Four-lens simplification found one duplicated identity lookup; it was consolidated without behavioural change. Documentation claims local implementation only and does not claim deployment or live mailbox verification.
+
+## PR-004 blocking-fix notes
+
+- 2026-08-19: Unified receipt hashing, store lookup/comparison, and SQL uniqueness on one trimmed, NFKC-normalized, invariant-uppercase RFC Message-ID key. The raw transport value remains unchanged evidence.
+- 2026-08-19: Added real poll/EF tests proving case/whitespace-equivalent RFC variants create one staged receipt, work item and retained row, while distinct canonical RFC identities create two of each.
+- 2026-08-19: Blocking-fix verification passed: Release/Integration build 0 warnings/errors; focused Core 21/21; new real poll/EF regressions 2/2; full Core 618/618; retained-mail integration 14/14; diff check clean.

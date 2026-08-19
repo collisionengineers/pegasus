@@ -44,3 +44,11 @@ The post-implementation report will cite focused test output, Release build outp
 - **Efficiency:** duplicate detection and thread isolation remain SQL-side indexed queries; added the mailbox + RFC unique index and kept list/detail projection shapes unchanged.
 - **Altitude:** FRD-08 owns behavioural identity rules, Core validates them, Infrastructure enforces persistence, and the existing Graph/poll caller supplies the facts. No UI or transport mutation leaked into MAIL-01.
 - **Disposition:** applied the duplicate-query extraction. No unapplied behaviour-preserving finding remains.
+
+## PR-004 simplification re-check — 2026-08-19
+
+- **Reuse:** one public Core canonicalizer now supplies both the receipt-token and Infrastructure persistence paths; no duplicate normalization routine was accepted.
+- **Simplification:** raw RFC identity remains the evidence field and one additional canonical column is solely the database key. This is smaller and clearer than relying on three different implicit equality rules.
+- **Efficiency:** normalization is computed once per store lookup; the canonical column uses a binary-collated composite unique index, so duplicate detection remains an indexed SQL query.
+- **Altitude:** canonical equality is Core policy, while collation/index mechanics remain Infrastructure. The existing poll is the real caller.
+- **Disposition:** the blocking review finding is fixed. No unapplied simplification finding remains.
