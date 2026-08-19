@@ -11,9 +11,6 @@ assignee: claude-code
 profile: chore
 stageEntered:
   implementing: '2026-08-19T08:09:38.115Z'
-taken_at: '2026-08-19T08:09:35.042Z'
-branch: task/deliv-011-release-11
-worktree: ../pegasus-worktrees/deliv-011-release-11
 labels:
   - release
   - requires-live-approval
@@ -21,9 +18,9 @@ links:
   - PLAT-006
 refs:
   - docs/runbook.md
-archived: false
+archived: true
 created: '2026-08-19T07:46:11.060Z'
-updated: '2026-08-19T11:17:31.156Z'
+updated: '2026-08-19T12:12:49.433Z'
 ---
 
 ## What
@@ -38,13 +35,6 @@ The operator reported the two visual defects against production and asked for th
 
 Build-ReleaseArtifacts → Test-AzureDeploymentPlan (Local/Artifact/PreUpload/PreMigration/PreProvision) → oras push of the digest-pinned OCI image → (no pending migration expected — verify) → `azd provision` creating the digest-pinned Web revision → Worker `config-zip` → Invoke-ProductionSmoke → docs refresh PR → verify → proof.
 
-Approvals required and to be requested explicitly: `MERGE AUTH GRANTED` immediately before the atomic push; Azure writes for exactly ACR `pegasusprodacr252ow37gij`, Container App `pegasus-prod-web-252ow37gij` (via `azd provision`), Function App `pegasus-prod-worker-252ow37gij` (rg `rg-pegasus-prod`, sub `e6076573-…`).
-
-## Verification
-
-- [ ] `origin/main == origin/dev == <SHA>`; main-push CI guard green
-- [ ] `/diagnostics/version` sourceSha == SHA; smoke exit 0
-- [ ] `/Upload` on production shows the two-column layout; `.app-rail-main` centred at 1920
-- [ ] operations.md release-11 row; current-architecture release sentence
-
 ## Outcome
+
+**Superseded by [[DELIV-012]] (2026-08-19).** Release 11 was prepared locally at `feda958f` and validated (Local + Artifact modes) but the operator held the `main` push and Azure writes; `dev` then moved well past that SHA. No push to main and no Azure write happened under this ticket. Release 12 carries PLAT-006 and everything since. Archived, not deleted.
