@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -11,7 +12,7 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 internal sealed class EfRetainedMailboxMessageStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
-    : IRetainedMailboxMessageStore, IRetainedMailQueries
+    : IRetainedMailboxMessageStore, IRetainedMailQueries, IRetainedMailClassificationStore
 {
     private const int ExcerptLength = 300;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -22,14 +23,10 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         ArgumentNullException.ThrowIfNull(message);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var alreadyRetained = await context.RetainedMailboxMessages
-            .AsNoTracking()
-            .AnyAsync(
-                item => item.MailboxId == message.MailboxId
-                    && item.ImmutableMessageId == message.ImmutableMessageId,
-                cancellationToken);
-        if (alreadyRetained)
+        var existing = await FindExistingAsync(context, message, cancellationToken);
+        if (existing is not null)
         {
+            VerifySameMessage(existing, message);
             return;
         }
 
@@ -46,6 +43,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             ImmutableMessageId = message.ImmutableMessageId,
             ConversationIdentity = message.Metadata.ConversationIdentity,
             InternetMessageIdentity = message.Metadata.InternetMessageIdentity,
+            CanonicalInternetMessageIdentity = CanonicalInternetMessageIdentity(message),
             ExternalReceiptToken = message.ExternalReceiptToken,
             SenderAddress = message.Metadata.SenderAddress,
             SenderDisplayName = message.Metadata.SenderDisplayName,
@@ -181,7 +179,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             ? []
             : await context.RetainedMailboxMessages
                 .AsNoTracking()
-                .Where(item => item.ConversationIdentity == entity.ConversationIdentity)
+                .Where(item => item.MailboxId == entity.MailboxId
+                    && item.FolderScope == entity.FolderScope
+                    && item.ConversationIdentity == entity.ConversationIdentity)
                 .OrderBy(item => item.ReceivedAtUtc)
                 .ThenBy(item => item.Id)
                 .Select(item => new RetainedMailThreadEntry(
@@ -228,7 +228,8 @@ internal sealed class EfRetainedMailboxMessageStore(
             receipt?.Classification is { } classification
                 ? ParseClassificationOutcome(classification)
                 : null,
-            receipt?.Route is { } route ? ParseRouteDisposition(route) : null);
+            receipt?.Route is { } route ? ParseRouteDisposition(route) : null,
+            await LoadClassificationAsync(context, id, cancellationToken));
     }
 
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
@@ -274,18 +275,255 @@ internal sealed class EfRetainedMailboxMessageStore(
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<MailClassificationDossier?> GetClassificationAsync(
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await LoadClassificationAsync(context, messageId, cancellationToken);
+    }
+
+    public async Task<MailClassificationDossier> AppendCorrectionAsync(
+        Guid messageId,
+        int expectedVersion,
+        MailClassificationResult before,
+        MailClassificationResult after,
+        string actor,
+        string reason,
+        DateTimeOffset correctedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var retained = await context.RetainedMailboxMessages
+            .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken)
+            ?? throw new InvalidOperationException("The retained message no longer exists.");
+        var decision = await context.IntakeReceipts
+            .Where(item => item.SourceChannel == "mailbox"
+                && item.ExternalReceiptToken == retained.ExternalReceiptToken)
+            .Select(item => item.MailClassificationDecision)
+            .SingleOrDefaultAsync(cancellationToken)
+            ?? throw new InvalidOperationException("The retained message has no classification decision.");
+        if (decision.Version != expectedVersion
+            || !string.Equals(
+                SerializeSnapshot(EfIntakeReceiptStore.MapMailClassificationDecision(decision)),
+                SerializeSnapshot(before),
+                StringComparison.Ordinal))
+        {
+            throw new MailClassificationConcurrencyException();
+        }
+
+        Apply(after, decision);
+        decision.Version++;
+        decision.DecidedByActor = actor;
+        decision.DecidedAtUtc = correctedAtUtc;
+        context.IntakeMailClassificationHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            IntakeReceiptId = decision.IntakeReceiptId,
+            ClassificationDecision = decision,
+            Version = decision.Version,
+            BeforeJson = SerializeSnapshot(before),
+            AfterJson = SerializeSnapshot(after),
+            Actor = actor,
+            Reason = reason,
+            CorrectedAtUtc = correctedAtUtc
+        });
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            throw new MailClassificationConcurrencyException();
+        }
+
+        return (await LoadClassificationAsync(context, messageId, cancellationToken))!;
+    }
+
+    private static async Task<MailClassificationDossier?> LoadClassificationAsync(
+        PegasusDbContext context,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        var retained = await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == messageId, cancellationToken);
+        if (retained is null)
+        {
+            return null;
+        }
+        var decision = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.SourceChannel == "mailbox"
+                && item.ExternalReceiptToken == retained.ExternalReceiptToken)
+            .Select(item => item.MailClassificationDecision)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (decision is null)
+        {
+            return null;
+        }
+        var historyRows = await context.IntakeMailClassificationHistory
+            .AsNoTracking()
+            .Where(item => item.IntakeReceiptId == decision.IntakeReceiptId)
+            .OrderBy(item => item.Version)
+            .ToListAsync(cancellationToken);
+        var history = historyRows
+            .Select(item => new MailClassificationHistoryEntry(
+                item.Version,
+                DeserializeSnapshot(item.BeforeJson),
+                DeserializeSnapshot(item.AfterJson),
+                item.Actor,
+                item.Reason,
+                item.CorrectedAtUtc))
+            .ToArray();
+        return new(
+            decision.Version,
+            EfIntakeReceiptStore.MapMailClassificationDecision(decision),
+            decision.DecidedByActor,
+            decision.DecidedAtUtc,
+            history);
+    }
+
+    private static void Apply(
+        MailClassificationResult source,
+        IntakeMailClassificationDecisionEntity target)
+    {
+        target.Outcome = source.Outcome switch
+        {
+            MailClassificationOutcome.Classified => "classified",
+            MailClassificationOutcome.Ambiguous => "ambiguous",
+            MailClassificationOutcome.Unclassified => "unclassified",
+            _ => throw new InvalidOperationException("Unknown mail classification outcome.")
+        };
+        target.Direction = source.Category?.Direction.ToString().ToLowerInvariant();
+        target.Family = source.Category is { IsOther: false } ? source.Category.Name : null;
+        target.Subtype = source.Category?.Subtype;
+        target.IsReplyContext = source.Category?.IsReplyContext ?? false;
+        target.OtherName = source.Category?.OtherName;
+        target.OtherReasoning = source.Category?.OtherReasoning;
+        target.CaseType = source.CaseType is { } caseType
+            ? EfIntakeReceiptStore.ToCode(caseType)
+            : null;
+        target.StandaloneAuditReportAssetSourceLabel = source.StandaloneAuditReport?.AssetSourceLabel;
+        target.StandaloneAuditReportAssessment = source.StandaloneAuditReport is { } report
+            ? EfIntakeReceiptStore.ToCode(report.Assessment)
+            : null;
+        target.AmbiguousCandidatesJson = EfIntakeReceiptStore.SerializeEnvelope(source.AmbiguousCandidates);
+        target.PredicatesJson = EfIntakeReceiptStore.SerializeEnvelope(source.Predicates);
+        target.Reason = source.Reason;
+        target.PolicyKey = source.PolicyKey;
+        target.PolicyVersion = source.PolicyVersion;
+    }
+
+    private static string SerializeSnapshot(MailClassificationResult value) =>
+        JsonSerializer.Serialize(ClassificationSnapshot.From(value), JsonOptions);
+
+    private static MailClassificationResult DeserializeSnapshot(string value) =>
+        JsonSerializer.Deserialize<ClassificationSnapshot>(value, JsonOptions)?.ToResult()
+        ?? throw new InvalidDataException("Classification history contains an invalid snapshot.");
+
+    private sealed record ClassificationSnapshot(
+        MailClassificationOutcome Outcome,
+        MailDirection? Direction,
+        string? Family,
+        string? Subtype,
+        bool IsReplyContext,
+        string? OtherName,
+        string? OtherReasoning,
+        IReadOnlyList<string> AmbiguousCandidates,
+        IReadOnlyList<MailClassificationPredicateResult> Predicates,
+        string Reason,
+        string PolicyKey,
+        int PolicyVersion,
+        CaseType? CaseType,
+        StandaloneAuditReportEvaluation? StandaloneAuditReport)
+    {
+        public static ClassificationSnapshot From(MailClassificationResult value) => new(
+            value.Outcome,
+            value.Category?.Direction,
+            value.Category is { IsOther: false } ? value.Category.Name : null,
+            value.Category?.Subtype,
+            value.Category?.IsReplyContext ?? false,
+            value.Category?.OtherName,
+            value.Category?.OtherReasoning,
+            value.AmbiguousCandidates,
+            value.Predicates,
+            value.Reason,
+            value.PolicyKey,
+            value.PolicyVersion,
+            value.CaseType,
+            value.StandaloneAuditReport);
+
+        public MailClassificationResult ToResult()
+        {
+            MailCategory? category = OtherName is not null
+                ? MailCategory.Other(Direction!.Value, OtherName, OtherReasoning!)
+                : Family is null
+                    ? null
+                    : Direction == MailDirection.Received
+                        ? MailCategory.Received(MailTaxonomy.ParseReceivedFamily(Family), Subtype, IsReplyContext)
+                        : MailCategory.Sent(MailTaxonomy.ParseSentFamily(Family), IsReplyContext);
+            return new(
+                Outcome,
+                category,
+                AmbiguousCandidates,
+                Predicates,
+                Reason,
+                PolicyKey,
+                PolicyVersion,
+                CaseType,
+                StandaloneAuditReport);
+        }
+    }
+
     private async Task<bool> IsAlreadyRetainedAsync(
         RetainedMailboxMessage message,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var existing = await FindExistingAsync(context, message, cancellationToken);
+        if (existing is null)
+        {
+            return false;
+        }
+
+        VerifySameMessage(existing, message);
+        return true;
+    }
+
+    private static async Task<RetainedMailboxMessageEntity?> FindExistingAsync(
+        PegasusDbContext context,
+        RetainedMailboxMessage message,
+        CancellationToken cancellationToken)
+    {
+        var canonicalIdentity = CanonicalInternetMessageIdentity(message);
         return await context.RetainedMailboxMessages
             .AsNoTracking()
-            .AnyAsync(
+            .SingleOrDefaultAsync(
                 item => item.MailboxId == message.MailboxId
-                    && item.ImmutableMessageId == message.ImmutableMessageId,
+                    && (item.CanonicalInternetMessageIdentity == canonicalIdentity
+                        || item.ImmutableMessageId == message.ImmutableMessageId),
                 cancellationToken);
     }
+
+    private static void VerifySameMessage(
+        RetainedMailboxMessageEntity existing,
+        RetainedMailboxMessage message)
+    {
+        if (!string.Equals(
+                existing.CanonicalInternetMessageIdentity,
+                CanonicalInternetMessageIdentity(message),
+                StringComparison.Ordinal)
+            || !string.Equals(existing.SourceSha256, message.SourceSha256, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The mailbox item identities contradict an already retained message.");
+        }
+    }
+
+    private static string CanonicalInternetMessageIdentity(RetainedMailboxMessage message) =>
+        MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(
+            message.Metadata.InternetMessageIdentity!);
 
     /// <summary>
     /// True where a mailbox in scope has polled successfully but this scope holds no
