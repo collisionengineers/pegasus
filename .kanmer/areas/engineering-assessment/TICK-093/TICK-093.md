@@ -39,34 +39,37 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 commits:
   - 7c238f52
-  - 3b44bd67
-  - 405dc0e4
+  - 28318bf4
+  - b0596c9b
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/420'
 deployment: not-deployed
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-19T11:17:31.308Z'
+updated: '2026-08-19T11:44:07.179Z'
 ---
 
 ## Outcome
 
-Implemented the activated ENG-01 contract as one Core-owned immutable repair-specification aggregate. Ordinary assessment has one accepted ordinary role; Audit can retain independent conservative and maximised accepted roles. Each version records ordered existing estimate lines, source route/artifact/version/hash, accepted calculation inputs, Engineer acceptance, correction lineage, and exact-version identity.
+Implemented one case-scoped canonical accepted repair specification. Each immutable version retains ordered estimate lines, source route/artifact/version/hash, accepted calculation inputs, Engineer acceptance, and correction lineage. Corrections create and accept a reasoned successor; accepted evidence is never overwritten. Exact-version and current-accepted queries support downstream snapshot binding.
 
-Legacy estimate lines migrate to explicit `LegacyUnresolved` drafts without fabricated source or acceptance. Accepted versions are corrected by reasoned supersession, never overwritten. The current assessment surface remains compatible through the ordinary draft.
+Legacy estimate lines migrate to one explicit `LegacyUnresolved` draft without fabricated provenance or acceptance.
 
 PR: https://github.com/collisionengineers/pegasus/pull/420
 
+## Operator correction
+
+[[TICK-205]] confirms that Audit does not require conservative/maximised specifications, a dual-specification aggregate, or uplift. [[PR-011]] is resolved: no Audit purpose/role vocabulary remains in Core, persistence, schema/migration, tests, or FRD-06.
+
 ## Boundaries
 
-- [[TICK-092]] owns exact accepted-version projection into the render snapshot.
-- [[TICK-098]] remains Audit-presentation deferred pending an approved representative template.
-- [[SIMPLI-014]] owns report rendering.
-- No Audit wording/uplift, provider integration, cloud write, or `main` update is included.
+- [[TICK-092]] owns render-snapshot projection of the exact accepted version.
+- Provider-specific extraction/mapping remains downstream.
+- No report/template/FRD-11, provider integration, cloud, or `main` change is included.
 
 ## Verification
 
-Locked restore and Release build pass. Core Assessment is 41/41, final focused SQL schema/lifecycle/migration is 8/8, architecture is 97/97, and merged-state Core is 639/639. The local full integration run produced no failures before its proportional 25-minute ceiling; isolated PR CI is the authoritative completion gate.
+Corrected Release build passes with zero warnings/errors. Core Assessment is 45/45, focused SQL lifecycle/schema/legacy migration is 3/3, and architecture is 97/97. The proportional full run completed Core 640/640 and architecture 97/97 with no integration failures before its local ceiling; isolated PR CI is the authoritative completion gate.
 
 ## Governing document
 
