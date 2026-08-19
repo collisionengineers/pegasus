@@ -73,6 +73,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "IntakeSubmissionGroups",
                 columns: new[] { "SourceChannel", "SubmissionToken" },
                 unique: true);
+
+            if (string.Equals(
+                    ActiveProvider,
+                    "Microsoft.EntityFrameworkCore.SqlServer",
+                    StringComparison.Ordinal))
+            {
+                // Web is the only runtime that touches these tables:
+                // EfIntakeSubmissionGroupStore (Get/Find/GetOrCreate/List) only
+                // reads and, via GetOrCreateAsync/AddMemberAsync, inserts —
+                // no update or delete. Worker never references
+                // IntakeSubmissionGroup(s) at all, so it gets no grant here.
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT ON OBJECT::[dbo].[IntakeSubmissionGroups] TO [pegasus_web_runtime_role];");
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT ON OBJECT::[dbo].[IntakeSubmissionGroupMembers] TO [pegasus_web_runtime_role];");
+            }
         }
 
         /// <inheritdoc />
