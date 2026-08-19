@@ -15,12 +15,13 @@ groups:
   - EPIC-004
 links:
   - TICK-221
-blocks: []
+blocks:
+  - DOCS-001
 refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-17T12:53:36.226Z'
+updated: '2026-08-19T08:56:29.487Z'
 ---
 
 ## What

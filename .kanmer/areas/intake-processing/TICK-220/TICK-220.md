@@ -10,12 +10,11 @@ requires: {}
 labels: []
 groups:
   - EPIC-002
-  - EPIC-004
 links:
   - SIMPLI-013
 archived: true
 created: '2026-08-13T10:57:07.562Z'
-updated: '2026-08-17T06:42:15.207Z'
+updated: '2026-08-19T08:56:55.383Z'
 ---
 
 ## Archived replacement
