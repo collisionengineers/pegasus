@@ -130,3 +130,34 @@
 - [ ] `docs/capabilities.md` MAIL-04 still reads "Allocation only" although TICK-046 delivered it (that row belongs to TICK-046)
 - [ ] Record the operator's estimate-import statement in `docs/operator-notes.md` (currently only in ENG-002 and this ticket's open questions)
 - [ ] Follow-up ticket for the SDK-bearing Playwright base image, once tooling allows a minimal base
+
+## Merge progress — 2026-08-19 evening
+
+Merged into `dev` in the planned order, each after its own review entry in
+`scratch/review` and with both gates (`-Mode Local`, `Test-MigrationGrants`)
+re-verified on the resulting `dev` head:
+
+| # | PR | Merge commit |
+|---|---|---|
+| 1 | #426 release gate + grants + guard | `2fa9c486` |
+| 2 | #425 repair-spec store caller | `91a94471` |
+| 3 | #422 TICK-045 MAIL-02 caller | `00a6787f` |
+| 4 | #427 Chromium image + 1.0 vCPU / 2 GiB | `45b25bb5` |
+| 5 | #416 INTK-005 grouped upload | `e18512a6` |
+| 6 | #417 INTK-006 grouped image routing | `df194758` |
+
+Still to merge, in order: **#423** INTK-008 (CI running on a fresh head after a
+stale-merge-ref checkout hang — same signature as #425 earlier, same remedy),
+**#428** report-draft entry point (CI running), **#424** INTK-007 (all green,
+merges last by design — it owns the vocabulary migration).
+
+`dev` history integrity checked: `main` is a strict ancestor; 18 first-parent
+commits since release 10, every one a PR merge, no direct pushes.
+
+- [x] #422 TICK-045 merged
+- [x] Wave A PRs merged (A1 via #426, A3 via #425, A4.1 via #427; A2 rode #422; A5 via #426)
+- [x] #416 merged
+- [x] #417 merged
+- [ ] #423 — CI
+- [ ] #428 — CI (A4.2)
+- [ ] #424 — green, waiting its turn
