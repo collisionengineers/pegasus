@@ -31,3 +31,5 @@
 - [x] Reconciled PRD, FRD-01/02/05/06/12, design, capabilities, index, CONTEXT, operator notes, and ADR index; added ADR-0029 and superseded ADR-0013 frontmatter.
 - [x] Core lifecycle/pairing tests pass: 40 tests.
 - [ ] VRM-keyed Box adapter invocation and custody state presentation still need final implementation/verification before PR.
+
+- [x] Added the distinct IImageIntakeCustody target and local/Box adapters using a VRM-reference binding without adding a second Box client; invocation remains behind the existing guarded custody composition boundary.
