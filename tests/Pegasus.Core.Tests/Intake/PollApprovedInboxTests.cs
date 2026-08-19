@@ -285,14 +285,14 @@ public sealed class PollApprovedInboxTests
             DisplayableMessage(
                 "provider-one",
                 "cursor-a1",
-                Metadata(internetMessageIdentity: " <Case-Message@Example.Invalid> ")));
+                Metadata(internetMessageIdentity: " <case@K.example> ")));
         await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
         harness.Source.Enqueue(
             FirstMailbox.MailboxId,
             DisplayableMessage(
                 "provider-two",
                 "cursor-a2",
-                Metadata(internetMessageIdentity: "<case-message@example.invalid>")));
+                Metadata(internetMessageIdentity: "<CASE@K.EXAMPLE>")));
 
         await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
 
@@ -300,6 +300,24 @@ public sealed class PollApprovedInboxTests
         Assert.Equal(
             harness.Retained.Retained[0].ExternalReceiptToken,
             harness.Retained.Retained[1].ExternalReceiptToken);
+    }
+
+    [Fact]
+    public async Task CanonicalIdentityExpansionBeyondThePersistenceBoundIsMalformed()
+    {
+        var harness = new Harness(FirstMailbox);
+        var expandingIdentity = $"<{new string('ﬃ', 498)}>";
+        Assert.Equal(500, expandingIdentity.Length);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "provider-one",
+                "cursor-a1",
+                Metadata(internetMessageIdentity: expandingIdentity)));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Empty(harness.Retained.Retained);
     }
 
     [Fact]
