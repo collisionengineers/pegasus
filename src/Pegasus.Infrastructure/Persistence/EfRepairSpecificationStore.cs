@@ -38,10 +38,7 @@ public sealed class EfRepairSpecificationStore(
 
         var workflow = await RequiredWorkflowAsync(context, request.CaseId, cancellationToken);
         Guard(workflow, request.ExpectedCaseVersion, request.Actor, request.EditLeaseToken, Now());
-        if (await context.CaseRepairSpecifications.AnyAsync(
-                item => item.CaseId == request.CaseId
-                    && item.State == RepairSpecificationState.Draft.ToString(),
-                cancellationToken))
+        if (await DraftQuery(context, request.CaseId).AnyAsync(cancellationToken))
         {
             throw new InvalidOperationException("A current repair-specification draft already exists for this case.");
         }
@@ -60,10 +57,7 @@ public sealed class EfRepairSpecificationStore(
                 throw new InvalidOperationException("A correction must supersede the accepted repair specification.");
             }
         }
-        else if (await context.CaseRepairSpecifications.AnyAsync(
-            item => item.CaseId == request.CaseId
-                && item.State == RepairSpecificationState.Accepted.ToString(),
-            cancellationToken))
+        else if (await AcceptedQuery(context, request.CaseId).AnyAsync(cancellationToken))
         {
             throw new InvalidOperationException(
                 "The accepted repair specification is immutable; start a reasoned correction that identifies it.");
@@ -198,11 +192,56 @@ public sealed class EfRepairSpecificationStore(
         Guid caseId, CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var entity = await context.CaseRepairSpecifications.AsNoTracking().Include(item => item.Lines)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId
-                && item.State == RepairSpecificationState.Accepted.ToString(), cancellationToken);
+        var entity = await AcceptedQuery(context, caseId).AsNoTracking().Include(item => item.Lines)
+            .SingleOrDefaultAsync(cancellationToken);
         return entity is null ? null : Map(entity);
     }
+
+    public async Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
+        Guid caseId, CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await DraftQuery(context, caseId).AsNoTracking().Include(item => item.Lines)
+            .SingleOrDefaultAsync(cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
+    /// <summary>
+    /// The current-draft and current-accepted predicates are the single
+    /// owner of "what row is the current specification for a case", shared
+    /// with <see cref="EfCaseAssessmentStore"/>'s legacy implicit-draft path
+    /// so the two stores never diverge on what "current" means.
+    /// </summary>
+    internal static IQueryable<CaseRepairSpecificationEntity> DraftQuery(
+        PegasusDbContext context, Guid caseId) => context.CaseRepairSpecifications
+        .Where(item => item.CaseId == caseId
+            && item.State == RepairSpecificationState.Draft.ToString());
+
+    internal static IQueryable<CaseRepairSpecificationEntity> AcceptedQuery(
+        PegasusDbContext context, Guid caseId) => context.CaseRepairSpecifications
+        .Where(item => item.CaseId == caseId
+            && item.State == RepairSpecificationState.Accepted.ToString());
+
+    /// <summary>
+    /// The one shape a repair specification takes when a legacy assessment
+    /// save implicitly opens it (no explicit source evidence yet, actor
+    /// authority already checked by the caller). Kept separate from
+    /// <see cref="StartDraftAsync"/>'s entity construction, which is the
+    /// explicit, source-validated, supersession-aware workflow.
+    /// </summary>
+    internal static CaseRepairSpecificationEntity NewLegacyDraft(
+        Guid caseId, CaseEntity @case, string createdBy, string operationKey, DateTimeOffset now) => new()
+    {
+        Id = Guid.NewGuid(),
+        CaseId = caseId,
+        Case = @case,
+        Version = 1,
+        State = RepairSpecificationState.Draft.ToString(),
+        SourceRoute = RepairSpecificationSourceRoute.LegacyUnresolved.ToString(),
+        CreatedBy = createdBy,
+        CreationOperationKey = operationKey,
+        CreatedAtUtc = now,
+    };
 
     private static async Task<RepairSpecificationVersion> GetRequiredVersionAsync(
         PegasusDbContext context, Guid caseId, Guid id, CancellationToken cancellationToken) =>
