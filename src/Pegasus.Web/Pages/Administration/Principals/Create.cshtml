@@ -4,7 +4,6 @@
 @{
     ViewData["Title"] = "Create principal";
     ViewData["Eyebrow"] = "Administration";
-    ViewData["Lede"] = "A principal code becomes an immutable identity. Later correction uses a linked successor rather than editing this code or moving existing cases and references.";
     var workProviders = Model.Organizations.Organizations
         .Where(organization => organization.Roles.Contains(OrganizationRole.WorkProvider))
         .ToArray();
@@ -67,5 +66,5 @@ else
 
 @if (Model.Organizations.HasMoreOrganizations)
 {
-    <p class="empty-state">The organization selector is bounded. Use the Organizations workspace to confirm an organization that is not shown.</p>
+    <p class="empty-state">Not every organization is listed; use the Organizations workspace to find one that isn't shown.</p>
 }

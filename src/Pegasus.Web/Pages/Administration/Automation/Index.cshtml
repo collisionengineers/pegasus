@@ -19,7 +19,7 @@
 
 @* What the Automation actor is and is not, kept from the lede it replaces. *@
 <aside class="notice">
-    <p>The Automation actor is not a staff account and holds no administration rights. It may call approved ordinary case, Inbox and document actions through its own authenticated machine ingress, and every action it takes is permanently recorded. Client secrets are never shown here.</p>
+    <p>The Automation actor is not a staff account, holds no administration rights, and every action it takes is permanently recorded; client secrets are never shown here.</p>
 </aside>
 
 <div asp-validation-summary="All" class="validation-summary"></div>
@@ -28,7 +28,7 @@
     <h2 id="automation-registration-heading" class="section-label">Client registration</h2>
     @if (!Model.IngressComposed)
     {
-        <p>The Automation ingress is not composed in this deployment: the configuration gate is off, no endpoint or token route exists, and no automation action is possible.</p>
+        <p>Automation is not part of this deployment: the configuration gate is off, no endpoint or token route exists, and no automation action is possible.</p>
     }
     else if (Model.Status is { } registration)
     {
@@ -68,7 +68,7 @@
                 }
             </div>
         </form>
-        <p class="section-gap">Disabling refuses new tokens immediately and rejects requests that present an already-issued token within seconds. Both changes are recorded as attributable administrator actions.</p>
+        <p class="section-gap">Disabling refuses new tokens immediately and rejects an already-issued token within seconds; both changes are recorded as attributable administrator actions.</p>
     }
 </section>
 
@@ -76,7 +76,7 @@
     <h2 id="send-to-ai-heading" class="section-label">Send to AI</h2>
     @if (!Model.SendToAiComposed)
     {
-        <p>The Send to AI hand-off is not composed in this deployment: the configuration gate is off and no outbound transport exists.</p>
+        <p>The Send to AI hand-off is not part of this deployment: the configuration gate is off and no outbound transport exists.</p>
     }
     else
     {
@@ -113,12 +113,12 @@
                 }
             </div>
         </form>
-        <p class="section-gap">Disabling refuses new hand-offs immediately. It does not touch the Automation client above: cutting the return path is that registration's own switch.</p>
+        <p class="section-gap">Disabling refuses new hand-offs immediately; it does not touch the Automation client above, which has its own switch.</p>
     }
 </section>
 
 <section class="panel section-gap" aria-labelledby="automation-activity-link-heading">
     <h2 id="automation-activity-link-heading" class="section-label">Activity</h2>
-    <p>Every Automation action and every denied automation request is recorded in permanent history with a correlation identifier.</p>
+    <p>Every Automation action and every denied automation request is recorded in permanent history.</p>
     <p><a asp-page="/Administration/Automation/Activity">Review Automation activity</a></p>
 </section>
