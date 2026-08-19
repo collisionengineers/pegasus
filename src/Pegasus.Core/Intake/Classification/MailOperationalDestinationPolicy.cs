@@ -2,7 +2,7 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Application work views are distinct from both the detailed classification and the
-/// Outlook folder recommendation. Needs sorting is an abstention, never a category.
+/// Outlook folder recommendation. Unidentified is an abstention, never a category.
 /// </summary>
 public enum MailOperationalDestination
 {
@@ -10,7 +10,7 @@ public enum MailOperationalDestination
     Queries,
     DetailedClassification,
     Other,
-    NeedsSorting,
+    Unidentified,
     Triage
 }
 
@@ -34,7 +34,7 @@ public static class MailOperationalDestinationPolicy
             || classification.Category is null)
         {
             return Result(
-                MailOperationalDestination.NeedsSorting,
+                MailOperationalDestination.Unidentified,
                 null,
                 "The classification is absent or ambiguous; no operational destination is inferred.");
         }
