@@ -84,6 +84,7 @@ public sealed class GroupedIntakeTests
         public Guid GroupId { get; } = Guid.NewGuid();
         public List<IntakeSubmissionGroupMember> Members { get; } = [];
         private string? Token { get; set; }
+        private int ExpectedMemberCount { get; set; } = 1;
         private string? Actor { get; set; }
         private DateTimeOffset ReceivedAt { get; set; }
 
@@ -93,8 +94,8 @@ public sealed class GroupedIntakeTests
         public Task<IntakeSubmissionGroup?> FindAsync(IntakeSourceChannel channel, string submissionToken, CancellationToken cancellationToken = default) =>
             Task.FromResult<IntakeSubmissionGroup?>(Token == submissionToken ? Group() : null);
 
-        public Task<IntakeSubmissionGroup> GetOrCreateAsync(Guid groupId, IntakeSourceChannel channel, string submissionToken, string actor, DateTimeOffset receivedAtUtc, CancellationToken cancellationToken = default) =>
-            Task.FromResult(EnsureGroup(channel, submissionToken, actor, receivedAtUtc));
+        public Task<IntakeSubmissionGroup> GetOrCreateAsync(Guid groupId, IntakeSourceChannel channel, string submissionToken, int expectedMemberCount, string actor, DateTimeOffset receivedAtUtc, CancellationToken cancellationToken = default) =>
+            Task.FromResult(EnsureGroup(channel, submissionToken, expectedMemberCount, actor, receivedAtUtc));
 
         public Task<IntakeSubmissionGroupMember?> FindMemberAsync(Guid groupId, int ordinal, CancellationToken cancellationToken = default) =>
             Task.FromResult<IntakeSubmissionGroupMember?>(Members.SingleOrDefault(item => item.GroupId == GroupId && item.Ordinal == ordinal));
@@ -109,15 +110,20 @@ public sealed class GroupedIntakeTests
         public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(Guid groupId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<IntakeSubmissionGroupMember>>(Members.OrderBy(item => item.Ordinal).ToArray());
 
-        private IntakeSubmissionGroup EnsureGroup(IntakeSourceChannel channel, string token, string actor, DateTimeOffset received)
+        private IntakeSubmissionGroup EnsureGroup(IntakeSourceChannel channel, string token, int expectedMemberCount, string actor, DateTimeOffset received)
         {
-            Token ??= token;
+            if (Token is null)
+            {
+                Token = token;
+                ExpectedMemberCount = expectedMemberCount;
+            }
+
             Actor ??= actor;
             ReceivedAt = received;
             return Group();
         }
 
         private IntakeSubmissionGroup Group() =>
-            new(GroupId, IntakeSourceChannel.ManualUpload, Token ?? "", Actor ?? "staff:test", ReceivedAt, Members);
+            new(GroupId, IntakeSourceChannel.ManualUpload, Token ?? "", ExpectedMemberCount, Actor ?? "staff:test", ReceivedAt, Members);
     }
 }
