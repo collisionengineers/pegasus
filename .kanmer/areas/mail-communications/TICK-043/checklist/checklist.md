@@ -29,3 +29,9 @@
 - 2026-08-19: Bounded the canonical RFC output after trim/NFKC/uppercase; expansion past 500 now becomes malformed-message handling before any receipt or database write.
 - 2026-08-19: Real poll/EF evidence now uses genuinely Unicode-equivalent Kelvin-sign/ASCII identities and asserts the first raw transport value remains verbatim beside the canonical key.
 - 2026-08-19: Verification passed: Release build 0 warnings/errors; focused Core 22/22; Unicode/distinct poll/EF 2/2; full Core 619/619; retained-mail integration 14/14; diff check clean.
+
+## PR-008 blocking-fix notes
+
+- 2026-08-19: Added the committed `20260819093019_RetainedMailboxInternetMessageIdentity` migration to the schema inventory assertion.
+- 2026-08-19: Both restart theory variants now give the independent later message its own RFC Message-ID while preserving terminal missing/changed-source assertions.
+- 2026-08-19: Verification passed: Integration build 0 warnings/errors; three previously failing cases 3/3; full affected integration classes 23/23; diff check clean.

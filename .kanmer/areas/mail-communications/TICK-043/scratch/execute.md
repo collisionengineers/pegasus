@@ -3,3 +3,5 @@ Opened PR https://github.com/collisionengineers/pegasus/pull/414 from `task/tick
 Addressed blocking [[PR-004]] in commit `195bbf62` on PR #414. Unified receipt, retained comparison, and SQL uniqueness on the shared canonical RFC identity; added real poll/EF equivalent-vs-distinct regressions. Verification: clean build; Core 618/618; retained-mail integration 14/14; diff check clean. Ticket intentionally remains in Review for independent re-review.
 
 Addressed blocking [[PR-005]] in `09dbeb6a` on PR #414: post-normalization canonical length is Core-bounded; Unicode-equivalent real poll/EF replay and raw/canonical evidence are asserted. Build clean; Core 619/619; retained-mail integration 14/14; diff check clean. Left in Review for independent re-review.
+
+Addressed blocking [[PR-008]] in `ee947826`: migration inventory updated and restart fixtures now use distinct RFC identities for independent messages. Exact former failures 3/3; affected integration classes 23/23; diff check clean. Left Review for independent re-review and CI.

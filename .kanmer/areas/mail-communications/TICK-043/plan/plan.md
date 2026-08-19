@@ -58,3 +58,9 @@ The post-implementation report will cite focused test output, Release build outp
 - **Reuse/altitude:** canonical length enforcement remains inside the existing Core canonicalizer, so every caller gets the persistence bound and Infrastructure adds no validation copy.
 - **Simplification/efficiency:** one constant owns the 500-character canonical limit; validation invokes the same canonicalizer later used for receipt hashing and persistence.
 - **Disposition:** added only the missing post-normalization bound and evidence assertions. No unapplied simplification finding remains.
+
+## PR-008 simplification re-check — 2026-08-19
+
+- **Reuse/scope:** updated the existing committed-migration list and parameterized the existing MIME fixture helper; no production path or new helper layer was added.
+- **Correctness-preserving fixture change:** the observed and later files now carry explicit distinct Message-IDs, matching the test's existing claim that they are independent messages.
+- **Disposition:** no further simplification finding; this is test/migration expectation maintenance only.

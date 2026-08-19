@@ -44,3 +44,7 @@ Verify the migration applies through the normal integration database fixture and
 ## PR-005 review-fix addendum — 2026-08-19
 
 Canonical output is now bounded in the shared Core canonicalizer after trim, NFKC normalization and uppercase folding. A raw value that fits 500 characters but expands beyond the 500-character persistence key fails closed as malformed before receipt or database writes. The real poll/EF acceptance test now uses Unicode-equivalent Kelvin-sign and ASCII-K Message-IDs, proves one staged receipt/work item/retained row, and asserts that the first raw transport value remains verbatim while the separate canonical column contains `<CASE@K.EXAMPLE>`. The distinct-canonical control remains. Verification: Release build clean; focused Core 22/22; focused real poll/EF 2/2; full Core 619/619; retained-mail integration 14/14; diff check clean.
+
+## PR-008 review-fix addendum — 2026-08-19
+
+The committed migration expectation now includes `20260819093019_RetainedMailboxInternetMessageIdentity`. The two restart/terminal-outcome theory cases retain their original missing/changed source behavior, but the later independent message now has a distinct RFC Message-ID rather than reusing the observed message's identity. No production identity rule was weakened. Verification: clean Integration build; exact former failures 3/3; full `MailboxIntakeIntegrationTests` plus `IntakePersistenceIntegrationTests` 23/23; diff check clean.
