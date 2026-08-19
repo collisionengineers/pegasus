@@ -19,7 +19,7 @@
 <section class="panel" aria-labelledby="unidentified-detail-title">
     <h2 id="unidentified-detail-title" class="section-label">Source</h2>
     <dl class="detail-list">
-        <dt>Origin</dt><dd>@Model.Item.Origin.Kind — @Model.Item.Origin.Id</dd>
+        <dt>Origin</dt><dd>@Model.OriginKindLabel — @Model.Item.Origin.Id</dd>
         <dt>Received</dt><dd>@OperatorLabels.OfficeDate(Model.Item.CreatedAtUtc) @OperatorLabels.OfficeClock(Model.Item.CreatedAtUtc)</dd>
         <dt>Reason</dt><dd>@Model.ReasonLabel</dd>
         <dt>Detail</dt><dd>@Model.Item.SafeDetail</dd>
@@ -27,12 +27,42 @@
     </dl>
 </section>
 
+@if (Model.SourceReceipt is { } receipt)
+{
+    <section class="panel" aria-labelledby="unidentified-receipt-title">
+        <h2 id="unidentified-receipt-title" class="section-label">Retained source</h2>
+        <dl class="detail-list">
+            <dt>File</dt><dd>@receipt.SourceFileName</dd>
+            <dt>Received</dt><dd><time datetime="@receipt.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(receipt.ReceivedAtUtc)</time></dd>
+        </dl>
+        @if (receipt.AssetRecords.Count > 0)
+        {
+            <ul class="plain-list">
+                @foreach (var asset in receipt.AssetRecords)
+                {
+                    <li>@asset.FileName <small>@asset.SourceLabel · @asset.Kind · @asset.MediaType</small></li>
+                }
+            </ul>
+        }
+        @if (receipt.Evidence.Count > 0)
+        {
+            <ul class="evidence-list">
+                @foreach (var item in receipt.Evidence)
+                {
+                    <li><strong>@item.Source</strong><span>@item.Detail</span></li>
+                }
+            </ul>
+        }
+        <a asp-page="/Intake/Details" asp-route-id="@receipt.Id">View the full retained receipt and custody detail</a>
+    </section>
+}
+
 <section class="panel" aria-labelledby="unidentified-history-title">
     <h2 id="unidentified-history-title" class="section-label">History</h2>
     <ol class="history-list">
         @foreach (var entry in Model.History)
         {
-            <li><strong>@entry.NewState</strong> — @entry.Reason <small>@entry.OccurredAtUtc</small></li>
+            <li><strong>@OperatorLabels.UnidentifiedState(entry.NewState)</strong> — @entry.Reason <small><time datetime="@entry.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.OccurredAtUtc)</time></small></li>
         }
     </ol>
 </section>
@@ -43,6 +73,7 @@
         <h2 id="unidentified-resolve-title" class="section-label">Resolve</h2>
         <form method="post" asp-page-handler="Resolve">
             <input type="hidden" asp-for="ExpectedVersion" />
+            <input type="hidden" asp-for="OperationKey" />
             <label asp-for="ResolutionReason">Reason</label>
             <textarea asp-for="ResolutionReason" maxlength="500" required></textarea>
             <label asp-for="TargetKind">Destination</label>

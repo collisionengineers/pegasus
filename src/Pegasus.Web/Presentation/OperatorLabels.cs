@@ -45,6 +45,13 @@ public static class OperatorLabels
         _ => Humanise(state.ToString())
     };
 
+    public static string UnidentifiedOriginKind(UnidentifiedOriginKind kind) => kind switch
+    {
+        Pegasus.Core.Intake.Unidentified.UnidentifiedOriginKind.Receipt => "Intake receipt",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedOriginKind.SubmissionGroup => "Submission group",
+        _ => Humanise(kind.ToString())
+    };
+
     public static string CaseStage(CaseLifecycleState state) => state switch
     {
         CaseLifecycleState.NotReady => "Not ready",
