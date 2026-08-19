@@ -8,6 +8,7 @@ public enum MailOperationalDestination
 {
     ReceivingWork,
     Queries,
+    DetailedClassification,
     Other,
     NeedsSorting,
     Triage
@@ -15,6 +16,7 @@ public enum MailOperationalDestination
 
 public sealed record MailOperationalDestinationResult(
     MailOperationalDestination Destination,
+    MailCategory? Classification,
     string PolicyKey,
     int PolicyVersion,
     string Reason);
@@ -33,38 +35,50 @@ public static class MailOperationalDestinationPolicy
         {
             return Result(
                 MailOperationalDestination.NeedsSorting,
+                null,
                 "The classification is absent or ambiguous; no operational destination is inferred.");
         }
 
         var category = classification.Category;
-        if (category.Direction is MailDirection.Sent || category.IsOther)
+        if (category.IsOther)
         {
             return Result(
                 MailOperationalDestination.Other,
-                "The settled classification remains visible in the Other work view.");
+                category,
+                "A reasoned novel classification uses the reserved Other destination.");
         }
 
         return category.ReceivedFamily switch
         {
             ReceivedMailFamily.NewInstructionReceived => Result(
                 MailOperationalDestination.ReceivingWork,
+                category,
                 "A confirmed new instruction enters Receiving work."),
             ReceivedMailFamily.PostReportEmails => Result(
                 MailOperationalDestination.Queries,
+                category,
                 "Post-report correspondence enters Queries."),
             ReceivedMailFamily.Billing when category.Subtype == "billing-query" => Result(
                 MailOperationalDestination.Queries,
-                "A billing query enters Queries; other billing classifications remain separately named in Other."),
+                category,
+                "A billing query enters Queries."),
             ReceivedMailFamily.PreInstructionEmails when category.Subtype == "triage-request" => Result(
-                        MailOperationalDestination.Triage,
-                        "An accepted Triage predicate routes to the separate Triage workflow."),
+                MailOperationalDestination.Triage,
+                category,
+                "An accepted Triage predicate routes to the separate Triage workflow."),
             _ => Result(
-                MailOperationalDestination.Other,
-                "The named classification remains visible in the aggregate Other work view.")
+                MailOperationalDestination.DetailedClassification,
+                category,
+                $"The known classification '{CategoryKey(category)}' retains its own operational view.")
         };
     }
 
     private static MailOperationalDestinationResult Result(
         MailOperationalDestination destination,
-        string reason) => new(destination, Key, Version, reason);
+        MailCategory? classification,
+        string reason) => new(destination, classification, Key, Version, reason);
+
+    private static string CategoryKey(MailCategory category) => category.Subtype is null
+        ? category.Name
+        : $"{category.Name}/{category.Subtype}";
 }
