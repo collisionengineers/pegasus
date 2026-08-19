@@ -261,6 +261,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
+        services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
