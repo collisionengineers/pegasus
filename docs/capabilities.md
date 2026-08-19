@@ -30,16 +30,16 @@ acceptance remain separate states.
 
 | Horizon | Capabilities | Meaning |
 | --- | ---: | --- |
-| Now | 131 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
+| Now | 132 | Current proof and QDOS-alpha outcome; activate issues only for selected work. |
 | Next | 29 | Post-alpha provider, pairing, provider-location, email, and API outcomes after named dependencies. |
-| Later | 42 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
+| Later | 41 | Retained outcomes requiring promotion conditions, contracts, callers, or direct decisions. |
 | Not planned | 29 | Permanent product boundaries; no implementation issue or placeholder. |
 
 Total: **231 capabilities; 231 unique IDs**.
 
 | Target release | Planned capabilities |
 | --- | ---: |
-| `0.1.0-alpha.1` | 131 |
+| `0.1.0-alpha.1` | 132 |
 | `0.2.0` | 5 |
 | `0.3.0` | 20 |
 | `0.4.0` | 5 |
@@ -47,7 +47,7 @@ Total: **231 capabilities; 231 unique IDs**.
 | `0.6.0` | 5 |
 | `0.7.0` | 1 |
 | `1.0.0` | 13 |
-| `1.1.0` | 6 |
+| `1.1.0` | 5 |
 | `1.2.0` | 5 |
 | `1.3.0` | 3 |
 | `1.4.0` | 3 |
@@ -261,7 +261,7 @@ callers.
 | ENG-02 | Engineer-owned final value/deductions, outcome, salvage category/value, and roadworthiness/reason drive derived figures and narratives without retyping | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Only accepted source versions and explicit named-Engineer decisions may drive outputs. |
 | UI-15 | One case-centred progressive Engineer workbench for inspection, vehicle/damage, valuation, estimate/repairer, report, media, salvage, text, and administration | Later | 1.0.0 | [Requirements](frd/frd-12-operator-experience.md#operator-experience) | Arrangement only; it does not copy EVA navigation or duplicate data/calculation owners. |
 | RPT-01 | Deterministic renderer validates accepted data, computes each figure once, and applies the fixed Collision Engineers design | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Imported renderer source is non-caller evidence until separately activated. |
-| RPT-02 | Assessment rendering covers four outcome variants and emits the fee note plus itemised repair-specification breakdown | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Allocation only; report wording and caller acceptance remain required. |
+| RPT-02 | Assessment rendering covers four outcome variants and emits the fee note plus itemised repair-specification breakdown | Now | 0.1.0-alpha.1 | [Report-draft entry point](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-draft-entry-point) | Reachable entry point delivered (DELIV-012): staff generate the draft from `/Cases/{id}/Assessment`, which projects the accepted, already-confirmed assessment into the renderer's snapshot (claimant, vehicle, findings, valuation, custody-confirmed photographs and source documents) and returns the PDF, reusing the assessment screen's own readiness rail plus the accepted engineer-signature check. Repair-cost figures are not yet derivable — no accepted rate-card or paint-materials formula exists anywhere in the domain (EXT-09, open decision D2) — so every case's readiness names "Repair cost figures" as outstanding and the control stays disabled until that formula is accepted; nothing is fabricated to work around it. |
 | RPT-03 | Audit rendering preserves conservative and maximised specifications and records their uplift | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Allocation only; both accepted specification versions are required. |
 | RPT-04 | Diminution rendering uses accepted original-case data plus the Engineer-entered percentage | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Allocation only; wording and approval evidence remain required. |
 | RPT-05 | Addenda render from accepted case data plus a versioned amendment without retyping the case | Later | 1.1.0 | [Report correction, finality, and post-report work](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#report-correction-finality-and-post-report-work) | Allocation only; amendment identity, approval, and recovery remain required. |

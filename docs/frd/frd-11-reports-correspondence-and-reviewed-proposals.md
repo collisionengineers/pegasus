@@ -68,6 +68,47 @@ issue, sending, external receipt, durable report-reference allocation, or
 correction custody. Human approval remains required before issue; the durable
 trigger, immutable reference/version and custody workflow is separately owned.
 
+### Report-draft entry point
+
+The renderer boundary above is reachable from one operator action (DELIV-012):
+a "Generate report draft" control on the case Assessment screen
+(`/Cases/{id}/Assessment`), open to the same staff roles as the rest of that
+screen (Administrator, Engineer, User). It projects the case's already-saved,
+confirmed assessment record into the accepted snapshot, renders it, and
+returns the assessment PDF to the operator's browser. Nothing is saved,
+approved, or sent by this action — it is strictly the draft-generation step
+the renderer boundary above already defines; approval and issue remain the
+separately owned human acts described below.
+
+**Readiness.** A single readiness rail decides whether the control is enabled:
+`AssessmentPolicy.EvaluateReadiness` (the same list rendered elsewhere on the
+Assessment screen) plus the few report-specific requirements the accepted
+snapshot adds beyond the assessment record — a confirmed claimant, your
+reference, an addressee, an incident date, a recognized inspection method, an
+accepted engineer signature tuple, at least one custody-confirmed photograph
+and source document, and repair-cost figures (below). A case that does not
+meet every requirement leaves the control disabled and states each
+outstanding reason by name; nothing is guessed to make the control available.
+
+**Photographs and source evidence.** `Photos` are the case's custody-confirmed
+`Image`-role documents (current, not logically removed, custody status
+Confirmed) — the same confirmation gate the EVA hand-off bundle already uses
+for its own image evidence. `Sources` are every other custody-confirmed case
+document, reported by its own file name, version and hash. Both are real
+custody facts, not curated: the Assessment screen's photograph
+curation/ordering control is separately deferred (UI-15), so every confirmed
+image on the case is offered.
+
+**Repair-cost figures are not yet derivable.** No accepted formula exists
+anywhere in the domain to convert recorded estimate lines and a chosen rate
+card into a numeric labour rate or paint-materials charge — the rate card is
+explicitly published reference data the assessment screen never stores a
+figure for, and estimate-total derivation is documented as deliberately
+absent pending its own accepted authority (EXT-09, open decision D2). The
+report draft does not fabricate one: until EXT-09 is accepted, every case's
+readiness names "Repair cost figures" as outstanding and the control stays
+disabled. This is the current, honest state of the capability, not a defect.
+
 ### Report correction, finality, and post-report work
 
 **Accepted report boundary:** an issued report has an immutable artifact/version identity and hash. A
