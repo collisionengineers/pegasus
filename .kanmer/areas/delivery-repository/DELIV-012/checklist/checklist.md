@@ -94,3 +94,39 @@
 - 2026-08-19 14:20Z — diagnosed PR #425's repeated CI failure as an unresolvable GitHub **merge ref**, not a code fault (the hang is inside `actions/checkout`'s fetch; the same job passed in 22 s on another PR). Close/reopen regenerated it and a fresh run started.
 - 2026-08-19 14:30Z — **PR #426** opened: release gate fixed, `CaseRepairSpecifications` grant, new migration for the live `EvaHandoffDownloadOperations` production defect, and `Test-MigrationGrants.ps1` guarding the whole class. I re-ran both gates myself on the branch: `-Mode Local` exit 0, guard 49 files pass.
 - 2026-08-19 14:35Z — TICK-045 lane wired `MailOperationalDestinationPolicy` into the retained mailbox viewer and **proved its tests can fail** by temporarily breaking the helper. INTK-006 and INTK-007 lanes running; INTK-008 and the report-draft entry point still in flight.
+
+## Wave A status — 2026-08-19 ~14:45Z
+
+- [x] A1 grants for `CaseRepairSpecifications` — in PR #426
+- [x] A1b **new**: `EvaHandoffDownloadOperations` grant migration — a live production defect, in PR #426
+- [x] A1c **new**: release gate `Test-AzureDeploymentPlan -Mode Local` repaired (was failing on `dev`) — PR #426
+- [x] A1d **new**: `scripts/Test-MigrationGrants.ps1` guard, wired into CI — PR #426
+- [x] A1e **new**: `Test-AzureDeploymentPlan -Mode Local` added to the always-on `changes` job, so the release route's own preflight is now a CI gate. **Verified executing in CI**, not merely configured: run `32263089802`, job `changes`, steps "Migration runtime-grant check" and "Azure deployment plan (Local)" both `success`.
+- [x] A2 `MailOperationalDestinationPolicy` has a production caller (`/Inbox/{id}`) — in PR #422
+- [x] A3 `IRepairSpecificationStore` registered and used — PR #425
+- [x] A4.1 container route for Chromium proved locally — PR #427 (`oras` layer evidence + renderer tests 6/6 against real Chromium)
+- [x] A4.1b Web container raised to 1.0 vCPU / 2 GiB on the operator's decision; `az bicep build` verified — PR #427
+- [x] A4.2 operator entry point for a report draft — branch pushed; ships reachable but disabled pending imported estimates (operator answer Q7)
+- [x] A5 `current-architecture.md` and `operations.md` drift corrected — PR #426
+
+## Wave B status
+
+- [x] INTK-005 blockers fixed, CI fully green (#416)
+- [x] INTK-005 bootstrap census entries added (by me, so INTK-006 inherits them)
+- [ ] INTK-006 — lane running, rebasing onto the updated INTK-005
+- [ ] INTK-007 — lane running; census block added and self-verified
+- [ ] INTK-008 — lane running; census requirement and CASE-005 context sent
+- [x] TICK-045 delivered a real caller and falsifiable tests (#422), CI fully green
+
+## Follow-ups filed
+
+- [x] **CASE-005** — SQL deadlock in parallel Qdos case allocation retries (pre-existing, evidenced on clean `dev`)
+- [x] **ENG-002** — import repair estimates from external systems, MCP, and drag-and-drop (operator truth, quoted verbatim)
+- [x] **CASE-003** — `/Cases/Create` without a receipt returns 500 (filed earlier)
+
+## Owed before closeout
+
+- [ ] Reconcile TICK-044's checklist — the caller its operator ruling demanded landed on TICK-045's diff
+- [ ] `docs/capabilities.md` MAIL-04 still reads "Allocation only" although TICK-046 delivered it (that row belongs to TICK-046)
+- [ ] Record the operator's estimate-import statement in `docs/operator-notes.md` (currently only in ENG-002 and this ticket's open questions)
+- [ ] Follow-up ticket for the SDK-bearing Playwright base image, once tooling allows a minimal base
