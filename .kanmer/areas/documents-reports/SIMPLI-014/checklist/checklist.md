@@ -15,3 +15,5 @@
 ## Progress notes
 
 (append with `set_ticket_doc(doc: "checklist", append: true)`)
+
+- 2026-08-19: Implementation complete through Core port/use case, closed Infrastructure renderer, application composition, workspace/host retirement, explicit resources/packages/locks, focused real-Chromium evidence, current-state docs, and two independent simplification reviews. Awaiting the final full non-corpus solution run before marking verification complete.

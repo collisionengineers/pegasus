@@ -49,3 +49,16 @@ This is implementation/local-caller evidence only. Proof of the automatic accept
 - **Visual parity:** compare representative approved fixtures and test stable structural/wording/resource invariants; do not rely only on byte equality where PDF metadata can vary.
 - **Scope creep from 12 legacy templates:** application dispatch is a closed assessment/fee-note operation; unsupported families are omitted, not dormant.
 - **No unresolved operator question:** all SIMPLI-014 questions are ticked. Audit is explicitly deferred, MCP/MCPB retired, Web is the selected existing execution boundary, normal density applies, root analyzers/locks govern, and exact supplied wording/signatures are accepted under fail-closed matching and human approval.
+
+## Simplification pass — 2026-08-19
+
+Two independent agents reviewed the branch diff through reuse, simplification, efficiency, and altitude lenses before the PR. All findings were applied:
+
+- moved the closed accepted engineer tuple and every outcome settlement/cap calculation from Infrastructure into the single Core policy owner; Infrastructure now formats an already-approved presentation only;
+- made assessment and fee-note artifacts explicit typed result slots instead of a list plus repeated magic family strings and scans;
+- made `AssessmentReportContract.TemplateVersion` the single version owner shared by Core, Infrastructure, and tests;
+- replaced template/signature wildcards with the exact active assessment/fee-note templates, stylesheet, logo, and Andy Patterson signature; Ed Mawdsley and Neil O'Reilly remain governed source assets but are not shipped or selectable while their exact qualifications remain absent;
+- restored the predecessor's immutable-resource/template caching pattern and retained one serialized reusable Chromium lifetime;
+- renamed the real-browser test to its actual application-composition evidence tier and made artifact writes opt-in through `PEGASUS_RENDER_EVIDENCE`, so ordinary CI asserts output without unrelated filesystem effects.
+
+No findings were deferred. The evidence conflict discovered during the pass was resolved fail-closed: `rendererref1` explicitly marks Ed/Neil qualifications “to be confirmed”, so no value was invented despite general operator approval.
