@@ -25,6 +25,30 @@ public sealed record RetainedMailboxAttachment(
     string MediaType,
     long ContentLength);
 
+public static class MailboxMessageIdentity
+{
+    public const int MaximumCanonicalLength = 500;
+
+    /// <summary>
+    /// One comparison representation for RFC Message-ID across Core and storage.
+    /// Message-ID transport values are retained verbatim as evidence; this key is
+    /// trimmed, Unicode-normalized and case-folded only for mailbox-scoped identity.
+    /// </summary>
+    public static string CanonicalizeInternetMessageIdentity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        var canonical = value.Trim().Normalize(NormalizationForm.FormKC).ToUpperInvariant();
+        if (canonical.Length > MaximumCanonicalLength)
+        {
+            throw new ArgumentException(
+                $"The canonical Internet Message-ID exceeds {MaximumCanonicalLength} characters.",
+                nameof(value));
+        }
+
+        return canonical;
+    }
+}
+
 /// <summary>
 /// Everything the mail workspace shows about one message, as the source read it.
 /// </summary>
@@ -680,7 +704,20 @@ public sealed class PollApprovedInbox(
                 "The approved inbox message exceeds the mailbox intake limit.");
         }
 
-        var externalReceiptToken = $"{mailboxId.Length}:{mailboxId}{message.ImmutableMessageId}";
+        if (message.RetainedMetadata is { } retainedMetadata)
+        {
+            ValidateRetainedMetadata(retainedMetadata);
+        }
+
+        // Retained mail uses the mailbox-scoped RFC identity for both intake and
+        // workspace idempotency. Graph's immutable item id remains an independent
+        // provider coordinate, so a provider-id change cannot create a second
+        // business occurrence for the same message.
+        var sourceMessageIdentity = message.RetainedMetadata?.InternetMessageIdentity is { } rfcIdentity
+            ? $"rfc:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(rfcIdentity))))}"
+            : message.ImmutableMessageId;
+        var externalReceiptToken = $"{mailboxId.Length}:{mailboxId}{sourceMessageIdentity}";
         if (externalReceiptToken.Length > MaximumExternalReceiptTokenLength)
         {
             throw new MalformedApprovedInboxMessageException(
@@ -691,7 +728,6 @@ public sealed class PollApprovedInbox(
         RetainedMailboxMessage? retainedMessage = null;
         if (message.RetainedMetadata is { } metadata)
         {
-            ValidateRetainedMetadata(metadata);
             retainedMessage = new(
                 mailboxId,
                 lease.MailboxAddress,
@@ -728,7 +764,10 @@ public sealed class PollApprovedInbox(
     {
         var valid = IsBounded(metadata.FolderIdentity, MaximumRetainedFolderIdentityLength)
             && IsOptionalBounded(metadata.ConversationIdentity, MaximumMessageIdentityLength)
-            && IsOptionalBounded(metadata.InternetMessageIdentity, MaximumMessageIdentityLength)
+            // The RFC identity is the durable, mailbox-scoped duplicate boundary.
+            // Graph's immutable item id remains separate on the envelope: neither
+            // identity is allowed to stand in for the other.
+            && IsCanonicalInternetMessageIdentity(metadata.InternetMessageIdentity)
             && IsOptionalBounded(metadata.SenderAddress, MaximumAddressLength)
             && IsOptionalBounded(metadata.SenderDisplayName, MaximumAddressLength)
             && IsOptionalBounded(metadata.Subject, MaximumSubjectLength)
@@ -758,6 +797,24 @@ public sealed class PollApprovedInbox(
 
     private static bool IsOptionalBounded(string? value, int maximumLength) =>
         value is null || IsBounded(value, maximumLength);
+
+    private static bool IsCanonicalInternetMessageIdentity(string? value)
+    {
+        if (!IsBounded(value, MaximumMessageIdentityLength))
+        {
+            return false;
+        }
+
+        try
+        {
+            _ = MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(value!);
+            return true;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
 
     private async Task VerifyRetainedArtifactAsync(
         IntakeQuarantineArtifact artifact,
