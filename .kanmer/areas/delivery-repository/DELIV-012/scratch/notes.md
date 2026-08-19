@@ -198,3 +198,19 @@ Checklist 26/41 → 30/41, every remaining item carrying a Progress note.
 Evidence: build 0/0; Core 653/653; Architecture 97/97; filtered integration 34 passed / 6 pre-existing skips / 0 failed. `-Mode Local` still fails only on the pre-existing `20260819104953` name — correctly identified as not theirs.
 
 Note its `infrastructure` CI job fails for the same pre-existing reason, which incidentally shows the gate *was* already wired into that path-gated job; what was missing is that the job does not run for every change set, which is why TICK-046's migration slipped through. The new always-on `changes` step closes that.
+
+### Q4 Sent-evidence approval — how it will actually be applied (decided before the release window)
+
+The plan's §3 assumed a SQL data write. Checking the code first changed that:
+
+- `PollSentEvidence.ExecuteAsync` (`PollSentEvidence.cs:213-219`) asks `approvedMailboxPolicy.IsApprovedAsync(mailbox, ApprovedMailboxRouteScope.SentEvidence)` and throws if false.
+- `ApprovedMailboxAdministration` (`:144-157`) **fails closed**: an `Approved` row with the `SentEvidence` scope and **no `SentFolderIdentity` is refused**. Production's row has `AllowSentEvidence=0` and `SentFolderIdentity=NULL`, so a bare `UPDATE ... SET AllowSentEvidence=1` would produce exactly the inconsistent state the policy forbids.
+- There is a **real administration surface**: `/Administration/Mailboxes` (`Pages/Administration/Mailboxes.cshtml.cs`, `OnPostUpdateAsync` with `SelectedRouteScopes` and `SentFolderIdentity`), which goes through `EfApprovedMailboxStore` with version/replay checks and writes the approval history.
+
+So the approval is applied **through the application**, as a signed-in administrator action on production during §7 verification — not by raw SQL. That keeps the change inside the product's own validation, records the actor and time in the mailbox history, and is itself a verification of the admin page on the newly deployed build. The Sent folder identity to enter is the one the Worker already runs with (`Graph__SentFolderId`, present in the Function App settings); I will read it from the live settings at the time rather than guess.
+
+Expected observable effect afterwards: the once-a-minute `UnauthorizedAccessException` from `SentEvidencePollFunction` stops, and `ApprovedSentPollStates` advances. That is the proof line for Q4.
+
+### Release worktree staged
+
+`../pegasus-worktrees/deliv-012-release-12` now carries the azd environment (`.azure/config.json`, `.azure/pegasus-prod/{.env,.env.lock,config.json}`) copied from the main checkout — **placed correctly this time** (not nested), 48 values readable via `azd env get-values`, and `git status` clean because `.azure/pegasus-prod` is ignored. It will be fast-forwarded to the final `dev` head at preflight.
