@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,6 +11,8 @@ public partial class IntakeResolutionAndAssociations : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: IntakeManualAssociations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: IntakeMutationHistory - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         migrationBuilder.AddColumn<string>(
             name: "ActorKind",
             table: "CaseIntakeLinks",
