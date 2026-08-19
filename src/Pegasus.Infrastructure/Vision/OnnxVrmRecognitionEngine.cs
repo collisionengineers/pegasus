@@ -102,7 +102,8 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
             }
 
             var candidates = new List<VrmPlateCandidate>();
-            foreach (var plate in state.Detector.Detect(bitmap, DetectionScoreThreshold))
+            var detectedPlates = state.Detector.Detect(bitmap, DetectionScoreThreshold).ToArray();
+            foreach (var plate in detectedPlates)
             {
                 var crop = Crop(bitmap, plate);
                 if (crop is null)
@@ -138,8 +139,10 @@ public sealed class OnnxVrmRecognitionEngine : IVrmRecognitionEngine, IDisposabl
                 ? Failure(
                     state,
                     VrmRecognitionOutcomeKind.NoReadableResult,
-                    null,
-                    null)
+                    detectedPlates.Length == 0 ? "detector_no_plate" : "recognizer_no_readable_text",
+                    detectedPlates.Length == 0
+                        ? "The vision detector found no registration plate in the image."
+                        : "The vision detector found a plate, but the recognizer produced no readable registration text.")
                 : new(
                     VrmRecognitionOutcomeKind.Suggested,
                     candidates.OrderByDescending(candidate => candidate.Confidence).ToArray(),

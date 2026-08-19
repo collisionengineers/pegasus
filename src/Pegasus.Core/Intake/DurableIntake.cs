@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
@@ -1051,9 +1052,10 @@ public sealed class ReevaluateIntake(
 
 public sealed class LinkIntake(
     IIntakeMutationStore store,
+    IImageIntakeCasePairing casePairing,
     TimeProvider timeProvider) : ILinkIntake
 {
-    public Task ExecuteAsync(
+    public async Task ExecuteAsync(
         LinkIntakeRequest request,
         CancellationToken cancellationToken = default)
     {
@@ -1068,7 +1070,25 @@ public sealed class LinkIntake(
             request.CaseId,
             request.ExpectedCaseVersion,
             request.EditLeaseToken);
-        return store.LinkAsync(request, timeProvider.GetUtcNow(), cancellationToken);
+        await store.LinkAsync(request, timeProvider.GetUtcNow(), cancellationToken);
+
+        // A manually linked receipt whose image-only material already
+        // registered an Image intake must move that Image-initiated Case out
+        // of Awaiting instruction too — the one lifecycle transition owner
+        // also used by the automatic pairing paths. Advisory: the manual
+        // link itself has already committed, so a sync failure here is
+        // retried the next time this receipt is linked or a case is accepted.
+        try
+        {
+            await casePairing.SyncMergeAfterLinkAsync(
+                request.ReceiptId,
+                request.CaseId,
+                request.Actor,
+                cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+        }
     }
 }
 
