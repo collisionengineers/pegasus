@@ -11,7 +11,8 @@ public enum ImageIntakeGroupRoutingDecision
     WaitingForMembers,
     WaitingForRecognition,
     AssociateExistingCase,
-    CreateImageOnlyCase,
+    HandOffToImageIntake,
+    RouteToUnidentified,
     TechnicalFailure
 }
 
@@ -84,10 +85,13 @@ public static class ImageIntakeGroupRoutingPolicy
             0 => "group_no_accepted_vrm",
             1 when eligibleCaseCount == 0 => "group_vrm_no_eligible_case",
             1 => "group_vrm_eligible_case_ambiguous",
-            _ => "group_conflicting_accepted_vrms"
+            _ => "conflicting_vrms"
         };
+        var decision = registrations.Length == 1
+            ? ImageIntakeGroupRoutingDecision.HandOffToImageIntake
+            : ImageIntakeGroupRoutingDecision.RouteToUnidentified;
         return new(
-            ImageIntakeGroupRoutingDecision.CreateImageOnlyCase,
+            decision,
             registrations.Length == 1 ? registrations[0] : null,
             reason);
     }
