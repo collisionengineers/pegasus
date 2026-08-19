@@ -214,3 +214,17 @@ Expected observable effect afterwards: the once-a-minute `UnauthorizedAccessExce
 ### Release worktree staged
 
 `../pegasus-worktrees/deliv-012-release-12` now carries the azd environment (`.azure/config.json`, `.azure/pegasus-prod/{.env,.env.lock,config.json}`) copied from the main checkout — **placed correctly this time** (not nested), 48 values readable via `azd env get-values`, and `git status` clean because `.azure/pegasus-prod` is ignored. It will be fast-forwarded to the final `dev` head at preflight.
+
+## Docs-refresh draft for release 12 (placeholders {SHA}, {SHA12}, {DIGEST}, {MSHA}, {DATE} filled at release time)
+
+**operations.md release table new row:**
+`| 12 | {DATE} | \`{SHA8}…\` | \`sha256:{DIGEST8}…\` | \`pegasus-prod-web-252ow37gij--{SHA12}\` | \`20260819093019_RetainedMailboxInternetMessageIdentity\`, \`20260819101344_GroupedIntakeSubmission\`, \`20260819104953_MailClassificationCorrectionHistory\`, \`20260819112640_VersionedRepairSpecifications\`, \`20260819112914_ImageInitiatedLifecycle\`, \`20260819115323_UnidentifiedWork\`, \`20260819140113_ImageIntakeGroupExpectedMemberCount\`, \`20260819180000_GrantEvaHandoffDownloadOperations\` |`
+(Eight migrations — re-derive the exact set at release time as `__EFMigrationsHistory` head → folder diff; the six-figure estimate from planning grew to eight with INTK-006's ExpectedMemberCount and the EvaHandoff grant migration.)
+
+**"currently serves" sentence** → release 12.
+
+**"What release 12 proved beyond smoke" bullet must include:** first release on the Playwright/dotnet Chromium base (image ~13× larger; revision start pull time observed to be recorded); Web container raised to 1.0 vCPU / 2 GiB; eight migrations applied in one bundle incl. two grant-repair migrations (one fixing a live production defect on `EvaHandoffDownloadOperations` — verified broken pre-release via sys.database_permissions, verified granted post-release); Sent-evidence approval applied through `/Administration/Mailboxes` (Q4) and the once-a-minute `UnauthorizedAccessException` stream stopping; the renderer executing in the deployed container (report-draft panel reachable; actual PDF generation blocked only by the estimate-import gap, ENG-002); Upload multi-file group flow, Unidentified queue with `U<n>` references, Image-initiated Case lifecycle pages live.
+
+**current-architecture.md:** release sentence; renderer paragraph updated from "locally verified source" to deployed-with-caller (still gated on estimate import for real output; keep the honest qualification).
+
+**runbook:** the "SentEvidencePollFunction stays disabled unless separately approved" sentence updated to record the 2026-08-19 operator approval and the applied mailbox state.

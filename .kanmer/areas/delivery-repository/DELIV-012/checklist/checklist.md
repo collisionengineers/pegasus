@@ -161,3 +161,23 @@ commits since release 10, every one a PR merge, no direct pushes.
 - [ ] #423 — CI
 - [ ] #428 — CI (A4.2)
 - [ ] #424 — green, waiting its turn
+
+## Interim hygiene — 2026-08-19 21:45Z
+
+Six more merged branches deleted remote **and** local after verifying `0` ahead
+of `origin/dev`: `intk-005-grouped-upload`, `intk-006-grouped-image-routing`,
+`task/deliv-012-grant-and-docs-fixes`, `task/deliv-012-wire-repair-spec-store`,
+`task/deliv-012-renderer-container`, `task/tick-045-shared-classification-policy`.
+Their six worktrees removed (each verified clean and 0 ahead first).
+
+Remaining worktrees: main checkout, `.worktrees/kanmer` (never touched),
+`.worktrees/intk-007`, `.worktrees/intk-008`, `../pegasus-worktrees/deliv-012-release-12`,
+`../pegasus-worktrees/deliv-012-report-draft-entry-point` — the last four all
+still carrying unmerged work or the release itself.
+
+Board: INTK-005, INTK-006 and TICK-045 moved review → verifying (their PRs are
+merged; proof waits on the deployment). **TICK-044's checklist reconciled**: the
+five caller items are ticked with explicit provenance notes recording that the
+work landed on TICK-045's diff under this ticket, and the one remaining item —
+the authenticated production mailbox-viewer check — is what keeps it in
+`verifying` until release 12 is proven.
