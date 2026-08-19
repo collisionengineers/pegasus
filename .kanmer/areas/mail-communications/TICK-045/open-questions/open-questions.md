@@ -8,5 +8,5 @@ No unresolved user-only question remains.
 
 ## Parked (explicitly deferred)
 
-- [ ] Exact automatic rule predicates, confidence thresholds, precedence, and holdout acceptance for additional provider/intermediary routes — reopen only with the source-labelled cohort and operator acceptance required by ADR-0008 and `docs/open-decisions.md`.
+- [x] **Does MAIL-03 own exact automatic predicates, confidence/precedence rules, or holdout acceptance for additional routes?** — No. Resolved with the operator on 2026-08-19. [[TICK-035]] is the clarified owner of each additional provider/intermediary route's predicates, exclusions, ambiguity/precedence, labelled cohort and untouched holdout, thresholds, activation, and rollback. [[TICK-036]], [[TICK-037]], and [[TICK-038]] own named-mailbox ingestion after that gate. MAIL-03 owns only the shared cross-mailbox classification contract; no duplicate ticket is needed.
 - [ ] Real Outlook/cloud activation and live verification — reopen only after explicit approval for exact targets and operations.
