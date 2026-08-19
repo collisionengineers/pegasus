@@ -2,14 +2,17 @@
 id: SIMPLI-014
 type: ticket
 title: Integrate CollisionRenderer behind a Core-owned render contract
-status: preparing
+status: implementing
 area: documents-reports
 order: 200
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   backlog: '2026-08-17T12:53:36.226Z'
   preparing: '2026-08-19T08:57:22.253Z'
+taken_at: '2026-08-19T09:22:15.273Z'
+branch: task/simpli-014-integrate-collision-renderer
+worktree: ../pegasus-worktrees/simpli-014-integrate-collision-renderer
 labels: []
 groups:
   - EPIC-002
@@ -24,7 +27,7 @@ refs:
   - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T09:20:24.339Z'
+updated: '2026-08-19T09:22:15.273Z'
 ---
 
 ## What
