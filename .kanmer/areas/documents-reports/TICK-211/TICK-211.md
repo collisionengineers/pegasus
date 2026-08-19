@@ -2,7 +2,7 @@
 id: TICK-211
 type: ticket
 title: Decide report-renderer analyzer strictness
-status: verifying
+status: done
 area: documents-reports
 assignee: codex-mcp-client
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-19T09:02:33.631Z'
   review: '2026-08-19T10:36:25.828Z'
   verifying: '2026-08-19T10:36:41.210Z'
+  done: '2026-08-19T10:37:25.886Z'
 taken_at: '2026-08-19T10:34:38.658Z'
 branch: task/tick-211-analyzer-strictness
 worktree: ../pegasus-worktrees/tick-211-analyzer-strictness
@@ -27,7 +28,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.743Z'
-updated: '2026-08-19T10:36:41.210Z'
+updated: '2026-08-19T10:37:25.886Z'
 ---
 
 ## What

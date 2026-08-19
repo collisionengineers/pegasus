@@ -1,0 +1,1 @@
+Verified current origin/dev `33f00220`: zero diff, effective Infrastructure analyzer policy latest-recommended + warnings-as-errors, no renderer-wide suppression/metadata enclave, retired workspace props absent, Release build 0 warnings/errors, upstream CI 32242081373 green. Decision/analyzer evidence tier only; no deployment/live claim.

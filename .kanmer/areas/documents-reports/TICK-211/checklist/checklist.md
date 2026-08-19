@@ -10,3 +10,14 @@
 - 2026-08-19: Taken on the required zero-diff branch/worktree from current `origin/dev` at `33f00220`; confirmed it contains SIMPLI-014 merge `b548b674`.
 - 2026-08-19: Root policy remains `latest-recommended` plus warnings-as-errors. Effective Infrastructure MSBuild properties confirm both values; its only inherited `NoWarn` is the SDK default `1701;1702`. The live source contains no renderer-wide override, CS1591 suppression, standalone CollisionRenderer metadata, or retired workspace props.
 - 2026-08-19: Local Release build passed with 0 warnings/errors. SIMPLI-014 CI run 32242081373 is completed/success, including unit/browser/all SQL shards/coverage. Branch remains zero-diff; no repository commit or PR is required.
+
+## Closeout — TICK-211
+
+- [x] Upstream owning PR #415 merge verified; TICK-211 correctly has no PR of its own
+- [x] proof.md finalised with upstream PR/merge and decision-tier evidence
+- [x] Moved to Done
+- [x] Outcome records zero-diff subsumption and follow-up ownership
+- [ ] Remove exact ticket worktree
+- [ ] Delete local zero-diff branch (no remote branch was pushed)
+- [ ] Fetch/prune origin and prune worktree registry
+- [ ] Release Kanmer claim

@@ -11,3 +11,14 @@
 - 2026-08-19: Confirmed `workspaces/report-renderer` is absent; exact source/build search found no `CollisionRenderer.Mcp`, `CollisionRenderer.Api`, `CollisionRenderer.Cli`, `.mcpb`, browser-install tool, or render-document tool. `src/Pegasus.Web/Mcp` contains only Automation, Assessment, Case, Document, and Intake surfaces.
 - 2026-08-19: Confirmed the only renderer boundary is `Pegasus.Core.Reports.IAssessmentReportRenderer` / `GenerateAssessmentReportDraft`, one Infrastructure `PlaywrightAssessmentReportRenderer`, and Web `AddPegasusReportRendering` composition. Focused DependencyDirectionTests passed 39/39.
 - 2026-08-19: `git diff --stat origin/dev...HEAD` and `git status --short` were empty. TICK-203 deliberately makes no repository commit or PR; no deployment, cloud, or `main` action occurred.
+
+## Closeout — TICK-203
+
+- [x] PR merge verified (owning PR #415 is MERGED at 2026-08-19T10:29:20Z)
+- [x] proof.md finalised with owning PR URL and merge date
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body with owning PR and no-code disposition
+- [ ] Removed `../pegasus-worktrees/tick-203-renderer-mcp-disposition`
+- [ ] Deleted local branch `task/tick-203-renderer-mcp-disposition`
+- [ ] Ran `git fetch --prune` and `git worktree prune`
+- [ ] Released the Kanmer claim
