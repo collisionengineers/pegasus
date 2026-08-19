@@ -116,6 +116,64 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public async Task CorrectionPreservesEvidenceAndAppendsAnAttributedBeforeAfterEntry()
+    {
+        var original = MailClassificationResult.Unclassified(
+            [new("provider-route", false, "No accepted provider route matched.")],
+            "No supported category matched.",
+            "shared-mail-policy",
+            7);
+        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []));
+        var staffId = Guid.NewGuid();
+        var sut = new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc));
+
+        var result = await sut.ExecuteAsync(
+            ActionActor.Staff(staffId, [StaffRole.User]),
+            new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"),
+                "Confirmed from the retained message."));
+
+        Assert.Equal(2, result!.Version);
+        Assert.Equal("shared-mail-policy", result.Current.PolicyKey);
+        Assert.Equal(7, result.Current.PolicyVersion);
+        Assert.Equal(original.Predicates, result.Current.Predicates);
+        var history = Assert.Single(result.History);
+        Assert.Same(original, history.Before);
+        Assert.Equal(result.Current, history.After);
+        Assert.Equal($"staff:{staffId:D}", history.Actor);
+        Assert.Equal(NowUtc, history.CorrectedAtUtc);
+    }
+
+    [Fact]
+    public async Task CorrectionFailsClosedForAStaleVersionWithoutWriting()
+    {
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var store = new ClassificationStore(new(2, original, "system-worker:poll", NowUtc.AddMinutes(-1), []));
+        var sut = new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc));
+
+        await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() => sut.ExecuteAsync(
+            Caseworker(),
+            new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.InternalCc), "Reviewed.")));
+
+        Assert.Equal(0, store.AppendCount);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task CorrectionRequiresAnAttributableReason(string reason)
+    {
+        var original = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var store = new ClassificationStore(new(1, original, "system-worker:poll", NowUtc.AddMinutes(-1), []));
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new CorrectRetainedMailClassification(store, new FixedTimeProvider(NowUtc)).ExecuteAsync(
+                Caseworker(),
+                new(Guid.NewGuid(), 1, MailCategory.Received(ReceivedMailFamily.InternalCc), reason)));
+
+        Assert.Equal(0, store.AppendCount);
+    }
+
+    [Fact]
     public void FreshnessIsUnavailableWhenNothingHasEverPolled() =>
         Assert.Equal(
             new MailFreshness(MailFreshnessState.Unavailable, null),
@@ -195,5 +253,39 @@ public sealed class RetainedMailTests
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MailPollHealth>>([]);
+    }
+
+    private sealed class ClassificationStore(MailClassificationDossier dossier)
+        : IRetainedMailClassificationStore
+    {
+        internal int AppendCount { get; private set; }
+
+        public Task<MailClassificationDossier?> GetClassificationAsync(
+            Guid messageId,
+            CancellationToken cancellationToken) => Task.FromResult<MailClassificationDossier?>(dossier);
+
+        public Task<MailClassificationDossier> AppendCorrectionAsync(
+            Guid messageId,
+            int expectedVersion,
+            MailClassificationResult before,
+            MailClassificationResult after,
+            string actor,
+            string reason,
+            DateTimeOffset correctedAtUtc,
+            CancellationToken cancellationToken)
+        {
+            AppendCount++;
+            return Task.FromResult(new MailClassificationDossier(
+                expectedVersion + 1,
+                after,
+                actor,
+                correctedAtUtc,
+                [.. dossier.History, new(expectedVersion + 1, before, after, actor, reason, correctedAtUtc)]));
+        }
+    }
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
     }
 }

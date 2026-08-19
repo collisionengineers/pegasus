@@ -186,6 +186,25 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task MessageDetailExplainsTheVersionedDecisionAndOffersExactMessageCorrection()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+
+        Assert.Contains("Classification evidence", html, StringComparison.Ordinal);
+        Assert.Contains("shared-mail-policy version 3", html, StringComparison.Ordinal);
+        Assert.Contains("sender-domain", html, StringComparison.Ordinal);
+        Assert.Contains("Permanent correction history", html, StringComparison.Ordinal);
+        Assert.Contains("Save classification correction", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"ExpectedClassificationVersion\"", html, StringComparison.Ordinal);
+        Assert.Contains("value=\"1\"", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AForwardedMessageShowsTheProvenOriginalSenderAndItsForwarder()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -375,6 +394,43 @@ public sealed class MailWorkspaceWebTests
                     [new("desk@collisionengineers.co.uk", "transport")],
                     [new("original@qdosassist.co.uk", "inline forward")],
                     new("original@qdosassist.co.uk", "inline forward"))),
+            CancellationToken.None);
+    }
+
+    private static async Task StoreClassificationAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+            new(
+                SourceFileName: "classified.eml",
+                MediaType: "message/rfc822",
+                SourceLength: 1,
+                SourceHash: new string('D', 64),
+                SourceIdentity: new(IntakeSourceChannel.Mailbox, mailboxId.Length + ":" + mailboxId + messageId),
+                ReceivedAtUtc: NowUtc,
+                ProcessedAtUtc: NowUtc,
+                Actor: "system-worker:approved-inbox-poller",
+                Decision: IntakeDecision.NeedsSorting,
+                DecisionReason: "Fixture evaluation.",
+                Evidence: [],
+                Fields: [],
+                InstructionDraft: null,
+                MissingFields: [],
+                FailureCode: null,
+                FailureReason: null,
+                SourceReaderKey: "protocol_reader",
+                SourceReaderVersion: "1",
+                ExtractionPolicyKey: "protocol_policy",
+                ExtractionPolicyVersion: 1,
+                Assets: [],
+                MailClassificationDecision: MailClassificationResult.Unclassified(
+                    [new("sender-domain", false, "The sender domain is not recognized.")],
+                    "No supported category matched.",
+                    "shared-mail-policy",
+                    3)),
             CancellationToken.None);
     }
 
