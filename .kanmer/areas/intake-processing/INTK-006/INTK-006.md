@@ -2,7 +2,7 @@
 id: INTK-006
 type: ticket
 title: Associate each vehicle-image group or create one Image-initiated Case
-status: implementing
+status: review
 area: intake-processing
 order: 30
 assignee: Codex
@@ -39,7 +39,7 @@ prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T11:20:15.164Z'
+updated: '2026-08-19T11:20:19.454Z'
 ---
 
 ## What

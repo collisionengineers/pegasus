@@ -2,10 +2,12 @@
 id: INTK-008
 type: ticket
 title: Give ImageIntake an Image-initiated Case lifecycle and merge closure
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T11:20:52.541Z'
 labels:
   - image-initiated
   - image-intake
@@ -26,7 +28,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-08-19T11:11:41.336Z'
+updated: '2026-08-19T11:20:52.541Z'
 ---
 
 ## What
