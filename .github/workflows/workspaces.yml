@@ -29,11 +29,3 @@ jobs:
           dotnet restore ./CollisionDocNet.slnx --locked-mode
           dotnet build ./CollisionDocNet.slnx --configuration Release --no-restore
           dotnet test --solution ./CollisionDocNet.slnx --configuration Release --no-build
-      - name: Validate report-renderer workspace
-        working-directory: workspaces/report-renderer
-        shell: pwsh
-        run: |
-          dotnet restore ./CollisionRenderer.sln
-          dotnet build ./CollisionRenderer.sln --configuration Release --no-restore
-          dotnet run --project src/CollisionRenderer.Cli --configuration Release --no-build -- install-browser
-          dotnet test ./CollisionRenderer.sln --configuration Release --no-build

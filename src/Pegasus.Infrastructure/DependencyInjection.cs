@@ -10,6 +10,7 @@ using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.ReferenceData;
+using Pegasus.Core.Reports;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -21,6 +22,7 @@ using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Vision;
+using Pegasus.Infrastructure.Reports;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -394,6 +396,13 @@ public static class DependencyInjection
             services.AddScoped<IGetRequestUpload>(provider =>
                 provider.GetRequiredService<UnavailableDocumentRequestStore>());
         }
+        return services;
+    }
+
+    public static IServiceCollection AddPegasusReportRendering(this IServiceCollection services)
+    {
+        services.AddSingleton<IAssessmentReportRenderer, PlaywrightAssessmentReportRenderer>();
+        services.AddScoped<GenerateAssessmentReportDraft>();
         return services;
     }
     public static IServiceCollection AddLocalApprovedInbox(
