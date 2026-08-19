@@ -6,4 +6,4 @@
 
 ## Parked (explicitly deferred)
 
-- [ ] Real Outlook/Graph/cloud activation and live verification requires exact-target approval.
+- [x] **What live Outlook/Graph/cloud verification is required?** — Resolved by the operator on 2026-08-19: after deployment, perform an authenticated, read-only production check for the currently linked mailbox that resolves and displays every configured canonical folder identity. For each of the 13 folder types, record the stable business key/label and resolved administrator-approved identity, or report it honestly as unconfigured/unavailable. Do not create, rename, move, or remap Outlook folders and do not invent fallback identities.

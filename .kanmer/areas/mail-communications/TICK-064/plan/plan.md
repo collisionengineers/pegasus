@@ -40,3 +40,7 @@ The post-implementation report will cite focused test output, Release build outp
 ## Required in-repo folder catalogue — operator decision 2026-08-19
 
 Extend FRD-08's single classification catalogue with the accepted folder types: Instructions, Audits, Diminution, New clients, Case queries, Enquiries, Billing, Pre-instructions, No action, Images, Cancellations, Case updates and Other. Each row maps a detailed classification to one operational destination and one administrator-approved folder type (or explicitly no move). Record stable business keys/labels and mailbox-specific identity resolution without copying transport IDs into policy or accepting client-selected folders.
+
+## Production folder-mapping acceptance — operator decision 2026-08-19
+
+After deployment, inspect the currently linked mailbox read-only and verify the configured resolution for Instructions, Audits, Diminution, New clients, Case queries, Enquiries, Billing, Pre-instructions, No action, Images, Cancellations, Case updates, and Other. Capture the stable business key/label and resolved administrator-approved folder identity for each configured type. Show any absent configuration as unavailable; do not create/rename folders, broaden scope, or invent a fallback mapping.

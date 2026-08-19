@@ -12,3 +12,5 @@
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
 
 - [ ] Complete FRD-08's accepted 13-folder-type mapping and prove every classification row has one explicit folder outcome or no-move outcome.
+
+- [ ] After deployment, record a read-only production resolution check for all 13 canonical folder types in the linked mailbox, preserving honest unconfigured states and causing no Outlook/cloud mutation.
