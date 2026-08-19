@@ -184,6 +184,15 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
     }
+    # 20260819101344_GroupedIntakeSubmission: the Upload page's grouped
+    # submission tables. EfIntakeSubmissionGroupStore only reads and appends
+    # (no UPDATE, no Remove) and the Worker never references either table, so
+    # the Web role gets SELECT and INSERT and the Worker gets nothing.
+    foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
+        }
+    }
     return @($expected | Sort-Object -Unique)
 }
 
