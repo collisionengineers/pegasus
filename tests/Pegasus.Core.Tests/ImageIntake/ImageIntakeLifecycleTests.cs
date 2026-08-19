@@ -101,7 +101,6 @@ public sealed class ImageIntakeLifecycleTests
         var request = new MergeImageInitiatedCaseRequest(
             Guid.NewGuid(),
             Guid.NewGuid(),
-            "QDS26001",
             ActionActor.SystemWorker("image-intake-automation"),
             "merge-op",
             "The exact VRM match is unambiguous.",

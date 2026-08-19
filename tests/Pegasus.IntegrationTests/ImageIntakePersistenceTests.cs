@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
@@ -307,6 +307,12 @@ public sealed class ImageIntakePersistenceTests
         var associated = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
         Assert.Equal(eligibleCaseId, associated!.AssociatedCaseId);
         Assert.Equal("IMG26001", associated.AssociatedCaseReference);
+        // The manual link path shares the one lifecycle transition owner with
+        // the automatic pairing paths: a staff-linked record must not stay
+        // AwaitingInstruction.
+        Assert.Equal(ImageInitiatedCaseState.MergedIntoInstructionCase, associated.State);
+        Assert.Equal(eligibleCaseId, associated.MergedIntoCaseId);
+        Assert.Equal("IMG26001", associated.MergedIntoCaseReference);
         var forCase = await queries.ListForCaseAsync(eligibleCaseId, CancellationToken.None);
         Assert.Single(forCase);
 
@@ -387,6 +393,67 @@ public sealed class ImageIntakePersistenceTests
                 $"SELECT ActorKind AS Value FROM IntakeMutationHistory WHERE OperationKey = {"image-intake-associate-test"}")
             .SingleAsync();
         Assert.Equal(nameof(ActorKind.SystemWorker), actorKind);
+    }
+
+    [Fact]
+    public async Task CloseValidatesBeforePersistingAndReplayRejectsAMismatchedCommand()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var imageReceiptId = await UploadImageAsync(factory, client);
+        var actor = StaffActor();
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        await RegisterAsync(services, imageReceiptId, "AB12CDE", "close-validate-register");
+        var store = services.GetRequiredService<IImageIntakeStore>();
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var detail = await queries.GetByOriginReceiptAsync(imageReceiptId, CancellationToken.None);
+        Assert.NotNull(detail);
+
+        // Registering an Image intake with no matching Case never inserts a
+        // formal Cases row — the Image-initiated Case is a projection, not a
+        // second allocator.
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            Assert.Equal(0, await context.Database
+                .SqlQuery<int>($"SELECT COUNT(*) AS Value FROM Cases")
+                .SingleAsync());
+        }
+
+        // A validator failure — never a raw SQL truncation error — for a
+        // reason over the 500-character bound the Core policy enforces.
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => store.CloseAsync(
+            new(
+                detail.Record.Id,
+                actor,
+                "close-over-length",
+                new string('r', 501),
+                detail.LifecycleVersion),
+            CancellationToken.None));
+
+        var reason = "Instructions never arrived for this vehicle.";
+        var operationKey = $"close-replay:{imageReceiptId:N}";
+        var closed = await store.CloseAsync(
+            new(detail.Record.Id, actor, operationKey, reason, detail.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Equal(ImageInitiatedCaseState.StaffClosed, closed.State);
+
+        // The exact same command replays (idempotent retry) ...
+        var replayed = await store.CloseAsync(
+            new(detail.Record.Id, actor, operationKey, reason, detail.LifecycleVersion),
+            CancellationToken.None);
+        Assert.Equal(ImageInitiatedCaseState.StaffClosed, replayed.State);
+
+        // ... but the same operation key with a different reason is a
+        // conflicting reuse, not a silent second success.
+        await Assert.ThrowsAsync<ImageIntakeOperationConflictException>(() => store.CloseAsync(
+            new(detail.Record.Id, actor, operationKey, "A different reason.", detail.LifecycleVersion),
+            CancellationToken.None));
     }
 
     private static async Task<Guid> UploadImageAsync(
