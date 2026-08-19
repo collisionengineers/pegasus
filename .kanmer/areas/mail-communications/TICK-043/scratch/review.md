@@ -21,3 +21,28 @@
 ## Verdict
 
 **Needs changes.** Reviewed the complete ticket folder and EPIC-006 context, open questions, plan/checklist/report, FRD-08 and design authority, PR #414 metadata and diff, Core caller, EF store/model/migration, and focused tests. The PR must not merge until [[PR-004]] is resolved and this review is rerun. CI was still in progress when this substantive verdict was recorded.
+
+# Independent re-review — 2026-08-19 — commit 195bbf62
+
+## Changes re-checked
+
+- Core now exposes one RFC identity canonicalizer: trim, Unicode Form KC, invariant uppercase; receipt-token hashing uses its output.
+- Persistence keeps the raw `InternetMessageIdentity` and adds a separate canonical column; lookup, insert, contradiction checking and race recovery use the Core canonicalizer.
+- The canonical column is binary-collated and indexed uniquely with mailbox identity. The replacement migration adds/backfills the column before creating the index.
+- FRD-08 and the post-implementation report describe the canonical/raw split.
+- New tests cover ASCII case/whitespace replay through Core and the real poll/EF path, plus a distinct canonical identity control.
+
+## Comments
+
+1. **Fixed in PR:** [[PR-004]]'s original inconsistent equality issue is structurally resolved. Receipt hashing, EF lookup/write/comparison and SQL keying now share an explicit canonical representation, and raw evidence is stored separately.
+2. **Blocking:** the implementation and FRD promise Unicode NFKC equivalence and verbatim transport evidence, but the tests use ASCII case/whitespace only and assert row counts. No test exercises a Unicode normalization-equivalent pair or proves the retained raw value remains verbatim beside its canonical key.
+3. **Blocking:** Core bounds the raw identity at 500 characters before NFKC/case expansion, while the canonical database column is also limited to 500. No validation bounds the canonical output and no accepted-domain proof or regression establishes expansion is impossible. A raw value that passes Core may therefore fail later at persistence rather than the declared fail-closed validation boundary.
+
+## Disposition
+
+1. Fixed by `195bbf62`; [[PR-004]] is archived with its outcome.
+2–3. Filed together as [[PR-005]], blocking [[TICK-043]], because both concern proof and validation of the newly introduced canonical representation.
+
+## Verdict
+
+**Needs changes.** The original blocker is repaired, but the canonicalization contract remains incompletely validated and tested. Reviewed the updated ticket plan/report/open questions, PR diff, Core canonicalizer/caller, EF model/store/migration, raw and canonical fields, FRD wording, and current CI metadata. Do not merge until [[PR-005]] lands and re-review passes.

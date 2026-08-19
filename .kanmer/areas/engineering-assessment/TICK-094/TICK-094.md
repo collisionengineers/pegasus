@@ -25,11 +25,12 @@ blocks:
   - TICK-097
   - TICK-100
   - TICK-081
+  - TICK-092
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.590Z'
-updated: '2026-08-19T09:42:36.976Z'
+updated: '2026-08-19T09:44:39.209Z'
 ---
 
 ## What

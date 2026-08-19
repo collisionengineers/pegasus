@@ -25,11 +25,12 @@ blocks:
   - TICK-097
   - TICK-100
   - TICK-081
+  - DOCS-001
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.549Z'
-updated: '2026-08-19T09:42:36.059Z'
+updated: '2026-08-19T09:44:39.240Z'
 ---
 
 ## What

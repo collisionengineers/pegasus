@@ -11,3 +11,14 @@
 - 2026-08-19: Reconciled RPT-04 as unsupported/unavailable, recorded the future activation evidence and ownership, and prohibited every dormant, generic, or inferred substitute.
 
 - 2026-08-19: Verified RPT-04 remains Later / 1.1.0 allocation-only; rendererref1 contains no diminution evidence; the workspace preset is generic/non-authoritative; dependencies remain unactivated; and `origin/dev...HEAD` is empty. Wrote the deferral-tier PIR.
+
+## Closeout — TICK-099
+
+- [x] Zero-diff independent-review disposition verified (PR merge n/a)
+- [x] proof.md finalised (PR URL + merge date n/a)
+- [x] Moved to final stage
+- [x] Outcome recorded in ticket body (deferral and future activation trigger)
+- [x] cd out of worktree; remove `../pegasus-worktrees/tick-099-diminution-deferral`
+- [x] Delete local branch `task/tick-099-diminution-deferral`
+- [x] Delete remote zero-diff branch; `git fetch --prune` + `git worktree prune`
+- [x] `take_ticket action: "release"`

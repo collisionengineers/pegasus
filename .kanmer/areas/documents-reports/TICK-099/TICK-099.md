@@ -4,18 +4,16 @@ type: ticket
 title: >-
   RPT-04 — Diminution rendering uses accepted original-case data plus the
   Engineer-entered percentage
-status: verifying
+status: done
 area: documents-reports
-order: 20
+order: 510
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:06:16.263Z'
   review: '2026-08-19T09:43:39.464Z'
   verifying: '2026-08-19T09:43:55.850Z'
-taken_at: '2026-08-19T09:41:38.677Z'
-branch: task/tick-099-diminution-deferral
-worktree: ../pegasus-worktrees/tick-099-diminution-deferral
+  done: '2026-08-19T09:44:38.366Z'
 labels:
   - capability
   - RPT-04
@@ -36,7 +34,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.703Z'
-updated: '2026-08-19T09:43:55.850Z'
+updated: '2026-08-19T09:45:16.294Z'
 ---
 
 ## What
