@@ -49,8 +49,10 @@ public sealed class EfCaseAssessmentStore(
             .Where(item => item.CaseId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
+        var specificationId = await CurrentOrdinarySpecificationIdAsync(context, caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.CaseId == caseId
+                && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToArrayAsync(cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
@@ -109,8 +111,37 @@ public sealed class EfCaseAssessmentStore(
         var fields = await context.CaseAssessmentFields
             .Where(item => item.CaseId == request.CaseId)
             .ToListAsync(cancellationToken);
+        var specification = await CurrentOrdinaryDraftAsync(context, request.CaseId, cancellationToken);
+        if (specification is null && request.EstimateLines is not null)
+        {
+            var acceptedExists = await context.CaseRepairSpecifications.AnyAsync(
+                item => item.CaseId == request.CaseId
+                    && item.Purpose == RepairSpecificationPurpose.OrdinaryAssessment.ToString()
+                    && item.Role == RepairSpecificationRole.Ordinary.ToString()
+                    && item.State == RepairSpecificationState.Accepted.ToString(),
+                cancellationToken);
+            if (acceptedExists)
+            {
+                throw new InvalidOperationException(
+                    "An accepted repair specification is immutable; start a reasoned correction draft before editing its lines.");
+            }
+            specification = new()
+            {
+                Id = Guid.NewGuid(), CaseId = request.CaseId, Case = workflow.Case, Version = 1,
+                Purpose = RepairSpecificationPurpose.OrdinaryAssessment.ToString(),
+                Role = RepairSpecificationRole.Ordinary.ToString(),
+                State = RepairSpecificationState.Draft.ToString(),
+                SourceRoute = RepairSpecificationSourceRoute.LegacyUnresolved.ToString(),
+                CreatedBy = request.Actor.SubjectId,
+                CreationOperationKey = request.OperationKey,
+                CreatedAtUtc = now,
+            };
+            context.CaseRepairSpecifications.Add(specification);
+        }
+        var specificationId = specification?.Id;
         var lines = await context.CaseEstimateLines
-            .Where(item => item.CaseId == request.CaseId)
+            .Where(item => item.CaseId == request.CaseId
+                && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToListAsync(cancellationToken);
 
@@ -209,6 +240,8 @@ public sealed class EfCaseAssessmentStore(
                     Id = Guid.NewGuid(),
                     CaseId = request.CaseId,
                     Case = workflow.Case,
+                    RepairSpecificationId = specificationId,
+                    RepairSpecification = specification,
                     Position = position,
                     LineType = line.Type,
                     GuideCode = line.GuideCode,
@@ -286,8 +319,10 @@ public sealed class EfCaseAssessmentStore(
             .Where(item => item.CaseId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
+        var specificationId = await CurrentOrdinarySpecificationIdAsync(context, caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
-            .Where(item => item.CaseId == caseId)
+            .Where(item => item.CaseId == caseId
+                && item.RepairSpecificationId == specificationId)
             .OrderBy(item => item.Position)
             .ToArrayAsync(cancellationToken);
         var caseDataFields = await context.CaseDataFields.AsNoTracking()
@@ -424,6 +459,36 @@ public sealed class EfCaseAssessmentStore(
                 item.ConfirmedAtUtc))
             .ToArray(),
         MapCaseOwned(caseDataFields));
+
+    private static Task<CaseRepairSpecificationEntity?> CurrentOrdinaryDraftAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken) => context.CaseRepairSpecifications
+        .SingleOrDefaultAsync(
+            item => item.CaseId == caseId
+                && item.Purpose == RepairSpecificationPurpose.OrdinaryAssessment.ToString()
+                && item.Role == RepairSpecificationRole.Ordinary.ToString()
+                && item.State == RepairSpecificationState.Draft.ToString(),
+            cancellationToken);
+
+    private static async Task<Guid?> CurrentOrdinarySpecificationIdAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        var draft = await CurrentOrdinaryDraftAsync(context, caseId, cancellationToken);
+        if (draft is not null)
+        {
+            return draft.Id;
+        }
+        return await context.CaseRepairSpecifications.AsNoTracking()
+            .Where(item => item.CaseId == caseId
+                && item.Purpose == RepairSpecificationPurpose.OrdinaryAssessment.ToString()
+                && item.Role == RepairSpecificationRole.Ordinary.ToString()
+                && item.State == RepairSpecificationState.Accepted.ToString())
+            .Select(item => (Guid?)item.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
 
     private static AssessmentCaseOwnedData MapCaseOwned(
         IReadOnlyList<CaseDataFieldEntity> caseDataFields)
