@@ -38,6 +38,7 @@ never renumbered or reused.
 | [0025](0025-integrate-renderer-and-extractor-into-the-application.md) | Integrate the report renderer and document extractor into the application, not into standalone packages | FRD-02, FRD-05, FRD-11 |
 | [0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | FRD-10, FRD-11 |
 | [0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | FRD-10 |
+| [0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | FRD-11 |
 
 ## Superseded and relocated
 

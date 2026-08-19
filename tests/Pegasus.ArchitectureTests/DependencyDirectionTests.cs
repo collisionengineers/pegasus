@@ -172,6 +172,21 @@ public sealed class DependencyDirectionTests
     }
 
     [Fact]
+    public void ReportRenderingHasOneCorePortAndOneInfrastructureAdapter()
+    {
+        var core = typeof(Pegasus.Core.Reports.IAssessmentReportRenderer).Assembly;
+        var infrastructure = typeof(Pegasus.Infrastructure.DependencyInjection).Assembly;
+        var port = typeof(Pegasus.Core.Reports.IAssessmentReportRenderer);
+
+        Assert.DoesNotContain(core.GetReferencedAssemblies(), x =>
+            x.Name is "Scriban" or "Microsoft.Playwright" or "PdfSharp");
+        Assert.Single(infrastructure.GetTypes(), type =>
+            !type.IsAbstract && port.IsAssignableFrom(type));
+        Assert.DoesNotContain(infrastructure.GetTypes(), type =>
+            type.FullName?.Contains("CollisionRenderer", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
     public void IntakeOrchestrationUsesOneExplicitExtractionPolicyBoundary()
     {
         var constructor = Assert.Single(typeof(ProcessIntake).GetConstructors());

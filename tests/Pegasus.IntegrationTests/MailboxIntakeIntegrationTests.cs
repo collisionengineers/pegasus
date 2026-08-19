@@ -931,7 +931,8 @@ public sealed class MailboxIntakeIntegrationTests
         Directory.CreateDirectory(inboxFolder);
         var itemPath = Path.Combine(inboxFolder, "0001-observed.eml");
         var laterPath = Path.Combine(inboxFolder, "0002-later.eml");
-        var originalContent = CreateForwardedProtocolMessage();
+        var originalContent = CreateForwardedProtocolMessage("<observed@example.invalid>");
+        var laterContent = CreateForwardedProtocolMessage("<later@example.invalid>");
         var changedContent = originalContent.ToArray();
         changedContent[^1] ^= 1;
         var originalHash = Convert.ToHexString(SHA256.HashData(originalContent));
@@ -970,7 +971,7 @@ public sealed class MailboxIntakeIntegrationTests
                 await File.WriteAllBytesAsync(itemPath, changedContent);
             }
 
-            await File.WriteAllBytesAsync(laterPath, originalContent);
+            await File.WriteAllBytesAsync(laterPath, laterContent);
             await using (var restartedScope = database.CreateAsyncScope())
             {
                 var poll = restartedScope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
@@ -1200,7 +1201,7 @@ public sealed class MailboxIntakeIntegrationTests
     private static string CreateArtifactStorageKey(string contentHash) =>
         $"sha256/{contentHash[..2]}/{contentHash}";
 
-    private static byte[] CreateForwardedProtocolMessage()
+    private static byte[] CreateForwardedProtocolMessage(string? messageId = null)
     {
         var original = new MimeMessage
         {
@@ -1231,6 +1232,10 @@ public sealed class MailboxIntakeIntegrationTests
             "Technical Forwarder",
             "technical-forwarder@collisionengineers.co.uk"));
         outer.To.Add(new MailboxAddress("Approved Inbox", "instructions@collisionengineers.co.uk"));
+        if (messageId is not null)
+        {
+            outer.MessageId = messageId;
+        }
 
         using var stream = new MemoryStream();
         outer.WriteTo(stream);
