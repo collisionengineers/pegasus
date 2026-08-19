@@ -5,6 +5,40 @@
 
 The target product covers the approved mailbox estate and full source messages; the focused alpha mailbox is only the first caller. Mailbox inventory and current-system roles remain in [operator notes](../operator-notes.md).
 
+### Inbound mailbox identity
+
+Every retained inbound message keeps separate, explicitly named identities:
+the durable Pegasus mailbox identity and mailbox address, the exact folder
+identity, the provider's immutable item identity, the RFC Internet Message-ID,
+the provider conversation identity when supplied, and the retained source
+SHA-256. None of those fields substitutes for another. Sender, recipient,
+attachment and received-time facts remain message evidence rather than identity
+keys.
+
+Mailbox identity plus RFC Internet Message-ID is the durable message and intake
+duplicate boundary. Pegasus retains the transport value verbatim as evidence
+and derives one comparison key by trimming surrounding whitespace, applying
+Unicode compatibility normalization, and invariant uppercase case folding.
+That same canonical key drives the Core intake receipt, retained-message
+comparison, and a binary-collated database uniqueness constraint; case-only,
+normalization-equivalent, or surrounding-whitespace variants are therefore one
+message, while distinct canonical values remain distinct. Both the raw value
+and its canonical output must fit the 500-character retained identity bound;
+normalization expansion beyond it fails closed before persistence. The raw
+transport value is retained verbatim as evidence beside the canonical key. The provider immutable item identity remains a separately
+retained coordinate used to read the item; a provider-coordinate change cannot
+create a second business occurrence for the same mailbox/RFC message. The same
+RFC identity may occur independently in two approved mailboxes. A retained
+message without an RFC identity, or an immutable-item/RFC/content combination
+that contradicts an already retained message, fails closed rather than being
+guessed or overwritten.
+
+Thread identity is evidence, not message or Case identity. A thread view may
+join only retained messages with the same conversation identity inside the
+same durable mailbox and folder scope. It never reaches across another mailbox
+or fetches an unretained provider item. `In-Reply-To` and `References` remain
+classification/correlation evidence and do not weaken this boundary.
+
 ### Settled mailbox taxonomy and correction
 
 The user directly confirmed this taxonomy from the retained current-tree

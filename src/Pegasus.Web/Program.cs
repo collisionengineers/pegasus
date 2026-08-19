@@ -538,6 +538,7 @@ documentStorage: productionBoxCustodyOptions is null
         // Web never provisions the container; the Worker owns that.
         static _ => false,
         productionBoxCustodyOptions)));
+builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
