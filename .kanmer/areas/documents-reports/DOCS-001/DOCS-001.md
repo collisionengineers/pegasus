@@ -26,12 +26,13 @@ blocks:
   - TICK-208
   - TICK-096
   - TICK-097
+  - TICK-100
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-19T08:56:26.089Z'
-updated: '2026-08-19T09:36:09.520Z'
+updated: '2026-08-19T09:40:05.087Z'
 ---
 
 ## What

@@ -23,13 +23,14 @@ blocks:
   - DOCS-001
   - TICK-096
   - TICK-097
+  - TICK-100
 refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T09:36:09.120Z'
+updated: '2026-08-19T09:40:05.046Z'
 ---
 
 ## What
