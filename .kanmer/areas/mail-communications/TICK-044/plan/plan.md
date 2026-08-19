@@ -52,3 +52,13 @@ Modify the existing canonical `docs/frd/frd-08-email-mailbox-and-background-proc
 - representative acceptance examples and counterexamples.
 
 Known messages never collapse into a generic Other destination. Reasoned `Other` is only the extensible new-category mechanism. Needs sorting is a fail-closed routing outcome, not a classification.
+
+## Course correction and simplification pass — 2026-08-19
+
+The catalogue confirmed that operational destination is a deterministic projection of the durable classification decision. Persisting a second destination fact would create stale state and duplicate correction history, so step 3 is replaced by pure Core derivation. The current retained-mail workspace does not yet expose the complete category needed to call this policy; UI-14 and MAIL-23 are the two concrete downstream callers and must consume this owner when their separately planned read projections land. This ticket does not introduce a premature partial caller or database migration.
+
+Four-lens pass:
+- Reuse: retained `MailCategory`, `MailClassificationResult`, route predicates, and the existing immutable taxonomy; no second taxonomy or folder mapping was added.
+- Simplification: removed a QDOS predicate-key fallback from the destination policy after the canonical `triage-request` subtype made it redundant.
+- Efficiency: mapping is a pure switch over the already-loaded decision; no persistence query, additional write, or external operation occurs.
+- Altitude: Core owns only category-to-operational-destination policy; folder identity/mutation stays with MAIL-23 and workspace filtering stays with UI-14.
