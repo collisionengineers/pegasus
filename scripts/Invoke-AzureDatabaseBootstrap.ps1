@@ -184,6 +184,12 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("pegasus_worker_runtime_role|G|$permission|$($grant.Groups['table'].Value)")
         }
     }
+    # 20260819112640_VersionedRepairSpecifications: Web owns repair-specification
+    # draft/accept writes; the Worker does not call the store, so it gets none.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|CaseRepairSpecifications")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseRepairSpecifications')
     return @($expected | Sort-Object -Unique)
 }
 
