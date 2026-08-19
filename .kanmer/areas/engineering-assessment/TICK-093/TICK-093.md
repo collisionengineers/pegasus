@@ -4,12 +4,15 @@ type: ticket
 title: >-
   ENG-01 — One canonical repair specification with route provenance for Glass's,
   Audatex PDF, or an approved AI proposal
-status: preparing
+status: implementing
 area: engineering-assessment
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:05:03.087Z'
+taken_at: '2026-08-19T09:48:52.496Z'
+branch: task/tick-093-versioned-repair-spec
+worktree: ../pegasus-worktrees/tick-093-versioned-repair-spec
 labels:
   - capability
   - ENG-01
@@ -34,7 +37,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-19T09:47:00.229Z'
+updated: '2026-08-19T09:48:52.496Z'
 ---
 
 ## What

@@ -13,6 +13,8 @@ labels:
   - production-diagnostics
   - intake
   - vehicle-image
+groups:
+  - EPIC-007
 links:
   - TICK-011
   - PLAT-006
@@ -21,7 +23,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T09:38:56.776Z'
+updated: '2026-08-19T09:48:49.320Z'
 ---
 
 ## What

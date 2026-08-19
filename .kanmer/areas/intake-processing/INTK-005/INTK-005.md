@@ -12,6 +12,8 @@ labels:
   - upload
   - ui
   - intake
+groups:
+  - EPIC-007
 links:
   - PLAT-006
 blocks:
@@ -21,7 +23,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T09:31:41.902Z'
+updated: '2026-08-19T09:48:49.232Z'
 ---
 
 ## What

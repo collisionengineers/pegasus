@@ -12,6 +12,8 @@ labels:
   - intake
   - cross-cutting
   - reference-allocation
+groups:
+  - EPIC-007
 links:
   - TICK-044
   - TICK-057
@@ -26,7 +28,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-19T09:46:59.615Z'
+updated: '2026-08-19T09:48:49.377Z'
 ---
 
 ## What
