@@ -243,7 +243,7 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
-    public async Task RepairSpecificationAcceptanceCorrectionAndAuditRolesPersistIndependently()
+    public async Task RepairSpecificationAcceptanceCorrectionAndExactVersionPersist()
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("repair-spec-accept-case");
@@ -265,9 +265,8 @@ public sealed class AssessmentPersistenceIntegrationTests
         var draftLease = await harness.AcquireLeaseAsync(
             caseId, 0, harness.EngineerActor, "repair-spec-draft-lease");
         var draftRequest = new StartRepairSpecificationDraftRequest(
-            caseId, draftLease.Version, RepairSpecificationPurpose.OrdinaryAssessment,
-            RepairSpecificationRole.Ordinary, source, harness.EngineerActor,
-            "repair-spec-draft", "Create the canonical ordinary specification.",
+            caseId, draftLease.Version, source, harness.EngineerActor,
+            "repair-spec-draft", "Create the canonical repair specification.",
             draftLease.Token, Lines: lines);
         var draft = await harness.RepairSpecifications.StartDraftAsync(draftRequest, CancellationToken.None);
         var replayedDraft = await harness.RepairSpecifications.StartDraftAsync(draftRequest, CancellationToken.None);
@@ -284,9 +283,13 @@ public sealed class AssessmentPersistenceIntegrationTests
 
         var correctionLease = await harness.AcquireLeaseAsync(
             caseId, 2, harness.EngineerActor, "repair-spec-correct-lease");
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.RepairSpecifications.StartDraftAsync(
+                new(caseId, correctionLease.Version, source, harness.EngineerActor,
+                    "repair-spec-duplicate", "Attempt a competing canonical draft.",
+                    correctionLease.Token, Lines: lines), CancellationToken.None));
         var correction = await harness.RepairSpecifications.StartDraftAsync(
-            new(caseId, correctionLease.Version, RepairSpecificationPurpose.OrdinaryAssessment,
-                RepairSpecificationRole.Ordinary, source with { SourceVersion = "source-v2" },
+            new(caseId, correctionLease.Version, source with { SourceVersion = "source-v2" },
                 harness.EngineerActor, "repair-spec-correct", "Correct the accepted mapping.",
                 correctionLease.Token, accepted.SpecificationId), CancellationToken.None);
         Assert.Equal(2, correction.Version);
@@ -301,48 +304,14 @@ public sealed class AssessmentPersistenceIntegrationTests
                 correctionAcceptLease.Token), CancellationToken.None);
         Assert.Equal(corrected.SpecificationId,
             (await harness.RepairSpecifications.GetCurrentAcceptedAsync(
-                caseId, RepairSpecificationPurpose.OrdinaryAssessment,
-                RepairSpecificationRole.Ordinary, CancellationToken.None))!.SpecificationId);
+                caseId, CancellationToken.None))!.SpecificationId);
         Assert.Equal(RepairSpecificationState.Superseded,
             (await harness.RepairSpecifications.GetVersionAsync(
                 caseId, accepted.SpecificationId, CancellationToken.None))!.State);
 
-        var conservativeLease = await harness.AcquireLeaseAsync(
-            caseId, 4, harness.EngineerActor, "audit-conservative-lease");
-        var conservative = await harness.RepairSpecifications.StartDraftAsync(
-            new(caseId, conservativeLease.Version, RepairSpecificationPurpose.Audit,
-                RepairSpecificationRole.Conservative, source, harness.EngineerActor,
-                "audit-conservative", "Create conservative Audit data.", conservativeLease.Token,
-                Lines: lines), CancellationToken.None);
-        var conservativeAcceptLease = await harness.AcquireLeaseAsync(
-            caseId, 5, harness.EngineerActor, "audit-conservative-accept-lease");
-        await harness.RepairSpecifications.AcceptAsync(
-            new(caseId, conservativeAcceptLease.Version, conservative.SpecificationId,
-                conservative.Version, source, basis, harness.EngineerActor,
-                "audit-conservative-accept", "Accept conservative Audit data.",
-                conservativeAcceptLease.Token), CancellationToken.None);
-
-        var maximisedLease = await harness.AcquireLeaseAsync(
-            caseId, 6, harness.EngineerActor, "audit-maximised-lease");
-        var maximised = await harness.RepairSpecifications.StartDraftAsync(
-            new(caseId, maximisedLease.Version, RepairSpecificationPurpose.Audit,
-                RepairSpecificationRole.Maximised, source, harness.EngineerActor,
-                "audit-maximised", "Create maximised Audit data.", maximisedLease.Token,
-                Lines: lines), CancellationToken.None);
-        var maximisedAcceptLease = await harness.AcquireLeaseAsync(
-            caseId, 7, harness.EngineerActor, "audit-maximised-accept-lease");
-        await harness.RepairSpecifications.AcceptAsync(
-            new(caseId, maximisedAcceptLease.Version, maximised.SpecificationId,
-                maximised.Version, source, basis, harness.EngineerActor,
-                "audit-maximised-accept", "Accept maximised Audit data.",
-                maximisedAcceptLease.Token), CancellationToken.None);
-
-        Assert.NotNull(await harness.RepairSpecifications.GetCurrentAcceptedAsync(
-            caseId, RepairSpecificationPurpose.Audit, RepairSpecificationRole.Conservative,
-            CancellationToken.None));
-        Assert.NotNull(await harness.RepairSpecifications.GetCurrentAcceptedAsync(
-            caseId, RepairSpecificationPurpose.Audit, RepairSpecificationRole.Maximised,
-            CancellationToken.None));
+        Assert.Equal(corrected.SpecificationId,
+            (await harness.RepairSpecifications.GetVersionAsync(
+                caseId, corrected.SpecificationId, CancellationToken.None))!.SpecificationId);
     }
 
     [Fact]

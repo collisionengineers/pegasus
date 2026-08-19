@@ -73,7 +73,7 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260814092852_AddWorkerCaseCreationGrants",
                 "20260814094632_DropBoxFileRequests",
                 "20260819093019_RetainedMailboxInternetMessageIdentity",
-                "20260819100144_VersionedRepairSpecifications"
+                "20260819112237_VersionedRepairSpecifications"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
