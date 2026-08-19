@@ -33,3 +33,48 @@ No new component, class, or pattern is introduced. The edit-panel-per-record sha
 ### Simplification pass
 
 Recorded after implementation, dated, in this document.
+
+## Simplification pass — 2026-08-20
+
+Ran `/simplify`: 4 independent review agents (reuse, simplification, efficiency,
+altitude) over `git diff origin/dev...HEAD` for the two touched page files and
+the touched test file, run in parallel.
+
+**Applied:**
+
+- **Reuse + Simplification + Altitude (independently converged on the same
+  finding).** `MailboxesModel.RouteScopeLabel` was a page-local static switch
+  duplicating `src/Pegasus.Web/Presentation/OperatorLabels.cs` — documented as
+  "the single place a persisted code becomes words an operator reads" and
+  already holding this exact shape (explicit switch per enum, falling through
+  to `Humanise`) for several other enums. Moved the switch into
+  `OperatorLabels.RouteScope(ApprovedMailboxRouteScope)`, matched its fallback
+  convention (`Humanise(...)`, not the raw enum name — the page-local version's
+  fallback was a smaller inconsistency the reviewers also caught), deleted the
+  page-local copy, and repointed all 5 call sites (table column, two edit-panel
+  checkboxes, two add-panel checkboxes) at `OperatorLabels.RouteScope`.
+  Rebuilt, reran `dotnet test tests/Pegasus.ArchitectureTests` (97/97, confirms
+  no layering violation — `OperatorLabels` stays in `Pegasus.Web`), the
+  Mailbox/Administration filter (56/56) and the full Browser category (37/37).
+
+**Skipped, with reason:**
+
+- **Reuse: "the per-mailbox panel restructure breaks with the convention Roles
+  and Access use (form stays in the table cell)."** Verified: `Roles/Index.cshtml`
+  and `Access/Index.cshtml` do keep their per-row form inside the `<td>`, same
+  as Mailboxes did before this ticket. Not applied — reverting to an in-cell
+  form is not a simplification here, it is undoing the fix. PLAT-009 exists
+  specifically because Mailboxes' in-cell form (7 fields: 4 inputs, a fieldset,
+  a select, a reason field) stretches a one-row table to ~600px in production,
+  a defect Roles/Access's much shorter forms (a checkbox fieldset plus one
+  reason field) don't trigger at their observed scale. The ticket body cites
+  the page's own "Add an approved address" panel as the pattern to follow, not
+  Roles/Access's in-cell shape. Whether Roles/Access should also move to a
+  panel pattern is a separate, unfiled question outside this ticket's scope —
+  not raised here because neither page has a reported layout defect.
+- **Efficiency: nothing flagged.** Confirmed the "Update policies" section's
+  second `foreach (var mailbox in Model.Mailboxes)` is real but negligible
+  given the estate's realistic scale (docs/runbook.md: a hand-curated,
+  admin-approved allowlist, single-digit rows); no duplicated per-mailbox
+  query was introduced (`PollStatusFor`'s `SingleOrDefault` stayed in the
+  table loop only, unchanged).
