@@ -73,7 +73,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260814092852_AddWorkerCaseCreationGrants",
                 "20260814094632_DropBoxFileRequests",
                 "20260819093019_RetainedMailboxInternetMessageIdentity",
-                "20260819104953_MailClassificationCorrectionHistory"
+                "20260819104953_MailClassificationCorrectionHistory",
+                "20260819112640_VersionedRepairSpecifications"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -81,6 +82,8 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseAssessmentFields'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseEstimateLines'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseRepairSpecifications'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'AiWorkRequests'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
