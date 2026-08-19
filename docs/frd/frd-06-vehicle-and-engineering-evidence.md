@@ -75,12 +75,31 @@ identity: the registered identity is immutable, so the completion rules
 cannot apply after registration, and a near-miss in this direction stays a
 reasoned staff suggestion.
 
+A multi-image upload evaluates this automatic registration/association rule
+once across the whole group of images rather than per image; the group
+membership, wait-for-completion, VRM aggregation, and fail-closed precedence
+rules are defined in
+[Grouped image-intake routing](frd-02-intake-and-source-identity.md#grouped-image-intake-routing).
+
 The operator surface distinguishes a suggestion from no readable result or an
 unknown result, an unavailable dependency, and a technical failure. It never
 renders an empty value as success. Record the source occurrence, task,
 engine/provider and version where applicable, time, output, supplied
 confidence, failure or unknown outcome, and later staff disposition separately
 from confirmed case data.
+
+Recognition runs two distinguishable layers in sequence — plate detection,
+then plate reading — and diagnostics must prove which layer ran and which one
+abstained without a second business-decision outcome taxonomy and without
+logging image content or raw candidate text. Detector-empty (no plate
+detected) and recognizer-empty (a plate detected but no readable registration
+recovered) both remain the single visible `NoReadableResult` outcome; they are
+distinguished only by a non-sensitive, code-level diagnostic reason attached
+to that outcome, never by adding a third terminal recognition state. A
+retained image's recognition outcome is durable once recorded: re-evaluating
+the same image (a sibling group member arriving, a replay) reuses the
+recorded outcome rather than re-running the detector or recognizer, so one
+retained image is recognised at most once.
 
 The implementation mechanism is not inferred: ordinary-image VRM reading,
 Document Intelligence extraction from scanned PDFs, and broader image/damage AI
