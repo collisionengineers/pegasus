@@ -17,7 +17,7 @@ Collision Engineers’ immutable internal reference, allocated from the accepted
 _Avoid_: Claim number, external reference
 
 **Image intake**:
-A durable Image-initiated Case projection for image-only material with a usable normalised VRM. It carries an Image Intake Reference, may merge into one eligible instructed Case, and otherwise awaits instruction or is staff-closed with a reason; it never becomes a formal Case/PO.
+A durable Image-initiated Case projection for image-only material with a usable normalised VRM. It carries an Image Intake Reference, may merge into one eligible instructed Case, and otherwise awaits definitive instruction or is staff-closed with a reason; it never becomes a formal Case/PO.
 _Avoid_: Image Case, temporary Case
 
 **Image Intake Reference**:
@@ -140,17 +140,6 @@ operator sees, not on how the code is named.
 | Blocked intake | Blocked |
 | Image intake | Vehicle images |
 | Image Intake Reference | Image reference |
-
-## Image-initiated Case reconciliation — 2026-08-19
-
-An Instruction-initiated Case remains the formal/main Case origin and may begin
-without images. An Image-initiated Case is the secondary image-first projection
-over ImageIntake: a usable VRM receives the immutable VRM-sequenced Image
-reference (for example AB12ABC-01), with no formal Case/PO. It is searchable and
-is Awaiting instruction until merged into one exact eligible Instruction-initiated
-Case or Staff-closed with a reason. Merge history is visible on both records.
-Conflicting valid VRMs and unreadable groups remain Unidentified work with their
-explicit reason, not an Image-initiated reference.
 | State (case filter) | Case stage |
 
 The word “intake” never appears in operator-facing text (operator decision

@@ -27,7 +27,6 @@ never renumbered or reused.
 | [0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | FRD-08, FRD-09 |
 | [0009](0009-adopt-pegasus-monorepo-workspaces.md) | Adopt Pegasus monorepo source workspaces | — |
 | [0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | FRD-10 |
-| [0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract (superseded by ADR-0029) | FRD-01/02/06/07/08/12 |
 | [0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | — |
 | [0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | — |
 | [0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | FRD-08 |
@@ -39,7 +38,7 @@ never renumbered or reused.
 | [0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | FRD-10, FRD-11 |
 | [0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | FRD-10 |
 | [0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | FRD-11 |
-| [0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection and VRM custody | FRD-01/02/05/06/12 |
+| [0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | FRD-01/02/05/06/12 |
 
 ## Superseded and relocated
 
@@ -47,6 +46,7 @@ never renumbered or reused.
 | --- | --- | --- |
 | [0010](0010-adopt-single-context-domain-documentation.md) | Adopt single-context domain documentation | `AGENTS.md` / [`docs/index.md`](../index.md) — governance is not an ADR |
 | [0012](0012-conservative-mot-mileage-estimation.md) | Conservative MOT mileage estimation | [FRD-06](../frd/frd-06-vehicle-and-engineering-evidence.md) |
+| [0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | [ADR-0029](0029-image-initiated-case-projection.md) — Image-initiated Case projection superseded the image-only pre-Case technical boundary |
 | [0020](0020-accepted-qdos-case-association-predicates.md) | Accepted QDOS automatic case-association predicates | [FRD-09](../frd/frd-09-provider-and-intermediary-routes.md) |
 | [0022](0022-approved-mailbox-identity-and-enablement-database-setting.md) | Approved-mailbox identity and enablement as a database setting | [ADR-0024](0024-stable-approved-mailbox-identity-and-explicit-baseline.md) — estate decision carried forward; behaviour in [FRD-08](../frd/frd-08-email-mailbox-and-background-processing.md) |
 | [0023](0023-restructure-repository-documentation-and-reference-evidence.md) | Restructure repository documentation and reference evidence | `AGENTS.md` / [`docs/index.md`](../index.md) — governance is not an ADR |

@@ -6,9 +6,9 @@ supersedes: [ADR-0013]
 superseded_by: []
 related_capabilities: [INT-17, INT-28]
 related_frd: [frd-01, frd-02, frd-05, frd-06, frd-12]
-tags: [image-initiated, image-intake, lifecycle, custody]
+tags: [image-initiated, image-intake, lifecycle]
 ---
-# ADR-0029: Image-initiated Case projection and VRM custody
+# ADR-0029: Image-initiated Case projection
 
 ## Status
 
@@ -34,10 +34,13 @@ with a reason. A unique, non-overlapping VRM match records a merge event on both
 the ImageIntake history and formal Case history; staff closure is reasoned and
 terminal.
 
-Image-initiated files use the existing approved Box root and guarded custody
-composition boundary under their VRM reference. No second Box client, runtime,
-database, or formal Case allocator is introduced. Local alpha tests use the
-existing non-mutating/fake custody profile.
+No second Box client, runtime, database, or formal Case allocator is
+introduced: Image-initiated files stay under the existing intake
+source-artifact retention until a merge makes them available for the formal
+Case's own Box custody. A dedicated VRM-keyed custody root for the
+Image-initiated Case itself is not part of this decision — it has no caller in
+this slice, so it is not built and not claimed; a future ADR covers it if a
+concrete caller needs it.
 
 ## Consequences
 
