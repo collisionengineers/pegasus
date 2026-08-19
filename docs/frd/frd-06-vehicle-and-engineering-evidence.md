@@ -52,7 +52,7 @@ confirmation, a suggestion must not create or identify a case, allocate a
 Case/PO reference, overwrite a confirmed registration, select an EVA image,
 satisfy a readiness gate, or mutate case workflow. By operator direction
 (2026-08-03), a confident unambiguous read at the current accepted recognition
-bar may automatically register the pre-Case Image intake (allocating its Image
+bar may automatically register the Image-initiated Case projection (allocating its Image
 Intake Reference) and, where exactly one eligible pre-report instructed Case
 carries that confirmed registration with no contradictory identity evidence,
 automatically associate it under the settled matching rules; both actions are

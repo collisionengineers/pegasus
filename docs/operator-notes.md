@@ -79,7 +79,7 @@ An intake may begin in either of two ways:
 
 Collision Engineers prepares sufficiently evidenced work to be passed to an Engineer.
 
-An image-only arrival may be described operationally as an “image-initiated case” and may be logged in the holding process. Technically, its immutable source occurrence and evidence remain pre-case and distinct from any accepted editable Case while the provider, instruction type, or case association is ambiguous. Images alone must not create a definitive association. They may be linked automatically only on a definitive match, or linked manually by staff. A mistaken link or merge is reasonedly reversible while both original intake origins and every prior association remain attributable.
+An image-only arrival is an Image-initiated Case projection and may be logged in the holding process. Its immutable source occurrence, evidence, and VRM reference remain distinct from any formal Instruction-initiated Case while instructions or case association are pending. Images alone do not create a formal Case/PO association. They may be linked automatically only on a definitive match, or linked manually by staff. A mistaken link or merge is reasonedly reversible while both original intake origins and every prior association remain attributable.
 
 ## Image-initiated Case clarification — 2026-08-19
 
