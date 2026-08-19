@@ -8,6 +8,39 @@ through the approved renderer boundary. Renderer source workspaces remain
 independent source imports until an accepted integration contract and real
 application caller exist.
 
+### Assessment-report outcomes
+
+Assessment rendering (RPT-02) has one closed outcome vocabulary:
+`total_loss`, `repairable`, `cash_in_lieu`, and `contract_repair`. Contract
+repair is a distinct fourth outcome; it is not a presentation alias for
+repairable. Every outcome uses the same assessment bundle: outcome and
+findings, vehicle data and the repair-cost calculation, the itemised repair
+specification, selected vehicle images, the statement and authorised
+signature, and the fee note.
+
+| Outcome | Title and badge | Headline figures | Settlement meaning |
+| --- | --- | --- | --- |
+| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x` | Pre-accident value, repair cost including VAT, salvage value, and recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value; the accepted category and its approved salvage treatment are required. |
+| `repairable` | `REPAIRABLE REPORT`; `REPAIRABLE` | Pre-accident value, labour hours, and repair cost including VAT | Recommended settlement is the calculated repair cost for the Engineer's repairable finding. |
+| `cash_in_lieu` | `CASH IN LIEU REPORT`; `CASH IN LIEU` | Pre-accident value, labour hours, and cash-in-lieu settlement | The recommended cash-in-lieu settlement is the calculated repair cost. |
+| `contract_repair` | `CONTRACT REPAIR REPORT`; `CONTRACT REPAIR` | Pre-accident value, labour hours, and repair cost including VAT | The Core-computed VAT-inclusive repair total is the agreed contract-repair cap and cannot increase. |
+
+`Pegasus.Core` selects the outcome from the accepted Engineer finding and
+owns the calculation of each derived figure once from accepted, source-labelled
+inputs. A caller or renderer cannot select an outcome, provide a precomposed
+settlement in place of those inputs, or reinterpret one outcome as another.
+Missing, unknown, conflicting, or incomplete outcome data fails closed before
+an accepted report artifact is rendered. Outcome-specific data is required
+where it affects the document, including category and salvage for total loss
+and the accepted raw cost components from which Core computes the contract-repair
+cap.
+
+Supplied template, schema, wording, design, and sample material is evidence for
+this contract, not a second policy owner. Any category treatment, recovery or
+storage paragraph, statement-of-truth wording, qualification, signature, or
+other document wording that has not been accepted remains unavailable; the
+renderer must not substitute placeholder or inferred content.
+
 ### Report correction, finality, and post-report work
 
 **Accepted report boundary:** an issued report has an immutable artifact/version identity and hash. A
