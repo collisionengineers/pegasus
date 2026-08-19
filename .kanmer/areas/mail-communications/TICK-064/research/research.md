@@ -18,3 +18,9 @@ Reuse `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs` an
 ## Acceptance direction
 
 Focused Core tests prove policy and validation; integration tests prove persistence/concurrency and the real Web caller; no deployment or external write is claimed by local evidence.
+
+## Folder hierarchy clarification — 2026-08-19
+
+The prior evidence supports more Outlook destinations than the three application queues. Recovered destination purposes are: instructions, audits, diminution, new clients, case queries, enquiries, billing, pre-instructions, no-action, images, cancellations, case updates and other. These are reference evidence, not yet canonical Pegasus folder identities or exact names.
+
+The plan must model operational queue and Outlook folder separately: a message can appear in the aggregate Other queue while receiving a specific designated folder such as Billing, Case updates or No action. MAIL-23 therefore needs an exhaustive detailed-classification → (operational destination, approved folder identity) table confirmed by the operator.

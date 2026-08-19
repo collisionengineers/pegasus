@@ -1,0 +1,1 @@
+2026-08-19 08:20Z — PR 409 merged to `dev` (`feda958f`); ticket in Verifying. Proof is written on merged `main` after the release: promotion + release 11 are [[DELIV-011]], currently **held by the operator** before the `main` push and before any Azure write. Local artifacts for `feda958f` are built and validated in `../pegasus-worktrees/deliv-011-release-11`.

@@ -92,3 +92,13 @@ Useful regression cases for the eventual MAIL-02 test suite include:
 - one central mapping result reused by UI, automation and folder recommendation callers.
 
 These examples supplement the existing Pegasus research; they do **not** resolve the outstanding product-owner requirement for the exact exhaustive mapping matrix.
+
+## Clarification from operator review — 2026-08-19
+
+The word **Other** is overloaded and must be separated in the plan:
+
+1. **Reasoned `Other` classification** is the settled taxonomy escape hatch. It is used only when no named category fits and requires a new category name plus reasoning. A recognised acknowledgement remains `Received / General / acknowledgement`, not `Other`.
+2. **Other operational queue** is an aggregate work view for successfully classified messages that do not belong to Receiving work, Queries or Triage. It may contain named classifications; it does not erase their detailed category.
+3. **Outlook folder destination** is a third, more granular fact and need not equal the operational queue.
+
+Named classifications potentially aggregated in the Other queue include General (`autoreply`, `undeliverable`, acknowledgements, `general-chase`, `case-summary`), non-client-related, internal-cc, non-query billing/remittance, in-progress correspondence, non-Triage pre-instruction correspondence, Sent families, and reasoned custom Other. Exact operational routing still requires operator confirmation per subtype.
