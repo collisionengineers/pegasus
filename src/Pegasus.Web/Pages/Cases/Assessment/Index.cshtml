@@ -218,6 +218,51 @@
                 }
             </div>
         </section>
+
+        @*
+            DELIV-012: the reachable report-draft entry point. It renders
+            from already-saved assessment values (the same store the
+            readiness list above reads), never from the unbound section
+            forms below. A case that is not ready stays visible with every
+            outstanding reason named, per docs/design/README.md's
+            absent-versus-disabled rule.
+        *@
+        <section class="panel" aria-labelledby="report-draft-title">
+            <h2 id="report-draft-title" class="section-label">Report draft</h2>
+            <p>Generates the assessment report from the values recorded on this case and returns it as a PDF. Nothing is saved or sent.</p>
+
+            @if (Model.ReportDraftPreparation is null)
+            {
+                <p class="empty-state">Not available for this case.</p>
+            }
+            else if (Model.ReportDraftPreparation.CanGenerate)
+            {
+                <form method="post" asp-page-handler="GenerateReportDraft" asp-route-id="@caseId">
+                    <input type="hidden" name="operationKey" value="@Model.ReportDraftOperationKey" />
+                    <div class="button-row">
+                        <button type="submit" class="secondary-action">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                            <span>Generate report draft</span>
+                        </button>
+                    </div>
+                </form>
+            }
+            else
+            {
+                <div class="status-card status-card--attention">
+                    <h3>Not ready</h3>
+                    <ul class="blocker-list">
+                        @foreach (var reason in Model.ReportDraftPreparation.Reasons)
+                        {
+                            <li class="blocker" data-state="not-ready">
+                                <strong>@reason.Requirement</strong>
+                                <small>@reason.Source. @reason.WhyOutstanding @reason.HowToResolve</small>
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
+        </section>
     </aside>
 
     <div>

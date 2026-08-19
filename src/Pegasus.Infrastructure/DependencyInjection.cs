@@ -406,6 +406,8 @@ public static class DependencyInjection
     {
         services.AddSingleton<IAssessmentReportRenderer, PlaywrightAssessmentReportRenderer>();
         services.AddScoped<GenerateAssessmentReportDraft>();
+        services.AddScoped<IAssessmentReportProjectionSource, EfAssessmentReportProjectionSource>();
+        services.AddScoped<GenerateCaseAssessmentReportDraft>();
         return services;
     }
     public static IServiceCollection AddLocalApprovedInbox(
