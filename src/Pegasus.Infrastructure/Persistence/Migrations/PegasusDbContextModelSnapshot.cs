@@ -3961,6 +3961,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int>("ExpectedMemberCount")
+                        .HasColumnType("int");
+
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -3979,7 +3982,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("SourceChannel", "SubmissionToken")
                         .IsUnique();
 
-                    b.ToTable("IntakeSubmissionGroups", (string)null);
+                    b.ToTable("IntakeSubmissionGroups", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IntakeSubmissionGroups_ExpectedMemberCount", "[ExpectedMemberCount] >= 1");
+                        });
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupMemberEntity", b =>
