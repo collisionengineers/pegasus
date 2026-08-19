@@ -17,3 +17,18 @@ PR #418 adds one Core correction use case and dossier/history contracts; extends
 ## Verdict
 
 **Needs changes.** Reviewed the complete ticket/group context, open questions, plan/checklist/report, governing FRD, full non-generated diff, migration/backfill/grants, Core ownership, optimistic concurrency, replay protection, exact-message UI, and focused tests. The report otherwise honestly matches the diff, the simplification record is credible, and no unauthorized Outlook/cloud mutation is present. PR #418 must not merge until [[PR-010]] is implemented and re-reviewed. CI was still running when this verdict was recorded.
+
+## Re-review — 2026-08-19 (`fe66e4bd`)
+
+### Changes checked
+
+PR-010 adds canonical enum/bounds validation beside `MailCategory`, invokes it at the Core correction boundary, rejects hostile model-bound values in Web, adds zero-write real page-pipeline coverage, and corrects the stale page remark.
+
+### Comments and disposition
+
+- **Fixed in PR:** [[PR-010]] is substantively satisfied. Undefined Received/Sent families and oversized Other fields fail closed; focused reviewer runs passed Core 19/19 and hostile Web/SQL 1/1.
+- **Blocking:** SQL shard 2 failed `IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema` because its committed migration fixture omits `20260819104953_MailClassificationCorrectionHistory`. Filed [[PR-012]] and linked it as blocking. This is branch-related, not a transient runner failure.
+
+### Verdict
+
+**Needs changes.** The implementation and PR-010 fix pass substantive re-review, and all other completed CI checks are green, but the required canonical migration/schema regression fails. Update the existing fixture, rerun the focused SQL test and full CI, then re-review before merge.
