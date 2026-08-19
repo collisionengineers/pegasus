@@ -2,12 +2,15 @@
 id: TICK-045
 type: ticket
 title: MAIL-03 — One shared classification policy across all supported mailboxes
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: Codex / execute_tick_045
 profile: feature
 stageEntered:
   preparing: '2026-08-18T15:21:22.108Z'
+taken_at: '2026-08-19T11:25:12.993Z'
+branch: task/tick-045-shared-classification-policy
+worktree: ../pegasus-worktrees/tick-045-shared-classification-policy
 labels:
   - capability
   - MAIL-03
@@ -23,7 +26,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:53.689Z'
-updated: '2026-08-19T09:16:11.399Z'
+updated: '2026-08-19T11:25:12.993Z'
 ---
 
 ## What
