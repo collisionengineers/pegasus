@@ -39,3 +39,28 @@ Then ran Wave D's worktree cleanup early for the seven merged worktrees (each ve
 | Renderer container | `task/deliv-012-renderer-container` | `ContainerBaseImage` on the Playwright .NET base, real `Build-ReleaseArtifacts` run, `oras` evidence that Chromium is in the produced image, local renderer tests, sizing recommendation (no `infra/` edit) |
 
 Still to dispatch: the report-draft operator entry point (the renderer's missing caller — there is currently **no** projection from a real case/assessment to `AssessmentReportSnapshot`, so this is genuine RPT-01/DOCS-001 scope), then INTK-006, INTK-008, INTK-007.
+
+## Lane results
+
+### Repair-specification store wiring — DONE, PR #425 opened (2026-08-19 13:35Z)
+
+Branch `task/deliv-012-wire-repair-spec-store`, head `2d410159`. Took the "register and route through the store" path rather than deleting the abstraction. The agent found — and I accept — that `StartDraftAsync` cannot be called literally from `EfCaseAssessmentStore.SaveAsync`: it requires an Engineer actor unconditionally while the implicit legacy-draft path is also exercised by the **Automation** actor (existing test `AutomationSaveIsUnconfirmedAttributedAndParityLoggedWithAStaffSave` proves it), and it opens its own transaction and bumps the workflow version, which would double-guard inside `SaveAsync`'s already-open serializable transaction. So the duplicated logic was extracted to `internal static` members (`DraftQuery`, `AcceptedQuery`, `NewLegacyDraft`) shared by both, and `EfCaseAssessmentStore` took a real `IRepairSpecificationStore` dependency for its read path. No optional parameters, no wrapper result types — the anti-patterns the repo rails name.
+
+Evidence: Release build 0/0; Core 640/640; Architecture 97/97 (dependency direction intact); `AssessmentPersistenceIntegrationTests` + `RepairSpecificationMigrationTests` **7/7 against LocalDB** — real execution, not skipped. The TICK-093 migration file was confirmed untouched, so it cannot conflict with the grants lane.
+
+### Mail destination policy — the "no caller" claim was wrong, lane redirected
+
+The TICK-045 lane reported that `MailOperationalDestinationPolicy` has no production consumer to wire, because the categorised queue UI is capability UI-14 / MAIL-02, scheduled "Next / 0.3.0". That is true of UI-14 — but TICK-044's own `open-questions` records the operator's instruction verbatim: *"the retained mailbox viewer is meant to show this information… A policy referenced only by tests is incomplete and must not pass review as delivered."* The retained mailbox viewer (`/Inbox/{id}`, `Pages/Mail/Message.cshtml`) already exists, so the caller the operator asked for is available without building UI-14. Lane redirected to surface the policy-derived destination on that page, with the label taken from `OperatorLabels` rather than new literal copy, and a test so the caller cannot silently regress. It must report the label key it used so [[INTK-007]] can complete the "Needs sorting" → "Unidentified" rename when it merges last.
+
+## Git hygiene done early (safe, all verified merged)
+
+- Deleted local **and** remote branches for the seven merged tickets: `task/plat-006-shell-upload`, `task/tick-033-request-upload-reconciliation`, `task/tick-043-mailbox-identity`, `task/tick-044-classification-catalogue`, `task/tick-046-classification-history`, `task/tick-093-versioned-repair-spec` (remote+local) and `task/deliv-011-release-11` (local only — it was never pushed). Each verified `0` commits ahead of `origin/dev` first.
+- Deleted the stray local branch `pr417check` (head `599bfe6d`, identical to INTK-006's tip, no unique commits, no ticket) — the review branch the research pass flagged.
+- Remote branches now: `main`, `dev`, `kanmer-board`, the four `intk-00N-*` PR branches and `task/tick-045-shared-classification-policy`, plus the DELIV-012 working branches as they push.
+
+## Board truthfulness corrections
+
+- **PLAT-001** → `deployment: production`. Verified: PR #397's merge commit `5ab3b773` is an ancestor of `origin/main` (`d8de29cb`), so the Claude Design shell has been live since release 10.
+- **TICK-211** → `deployment: n/a` (a zero-diff decision record).
+- **PLAT-006, TICK-033, TICK-043, TICK-044, TICK-046** → `deployment: not-deployed`, recording the state positively instead of by an empty field. All five merged after release 10 and ship with release 12.
+- **TICK-011** still to correct: its proof cites `ae6f0c2d` and `f7d99b18` as ancestors of the deployed commit, but both are unreachable from any ref — I confirmed the reachable delivery commits are `ef3eb4c7` and `ba65c1ed`, both ancestors of `origin/main`. Its `deployment: not-deployed` is also wrong: the ImageIntake source, migration, Web pages and tests are all in the deployed release-10 tree; what the ticket means is "no live caller", which is an activation fact, not a deployment one.
