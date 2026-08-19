@@ -13,24 +13,51 @@
     <h1>Upload</h1>
 </header>
 
-@* One thing happens here, so the screen is a single centred column rather than
-   a panel floating at full page width. *@
-<div class="form-column">
+@* One thing happens here, so the form is a bounded column rather than a panel
+   floating at full page width; what happens after the button sits beside it,
+   because the status page is the wrong place to learn that for the first
+   time. *@
+<div class="upload-layout">
     <section class="panel" aria-labelledby="upload-title">
         <h2 id="upload-title" class="section-label">Upload a document</h2>
         <form method="post" enctype="multipart/form-data">
             <input asp-for="ExternalReceiptToken" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="validation-summary-errors" role="alert"></div>
-            <div class="dropzone">
-                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                <label asp-for="Upload">Drag a file here, or browse</label>
+            @* The dashed area is the destination. site.js makes the whole
+               of it a drop target and gives it a real button; the native
+               input stays the control underneath and is the visible
+               control when script is off. *@
+            <div class="dropzone" data-dropzone>
+                <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
+                <label asp-for="Upload">Drag a file here, or choose one</label>
                 @* The accepted types are stated, not left in an `accept`
                    attribute the operator cannot read. *@
                 <span class="field-hint">E-mail, Word document, PDF or image — up to @Pegasus.Web.Pages.UploadModel.MaximumSizeLabel.</span>
                 <input asp-for="Upload" type="file" accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" />
+                <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose file</button>
+                <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
             </div>
             <span asp-validation-for="Upload" class="field-validation-error"></span>
             <button type="submit" class="primary-action primary-action--block">Upload</button>
         </form>
+    </section>
+
+    @* Every sentence here is the real flow: the receipt is durable before the
+       page redirects (Upload.cshtml.cs), the status page refreshes itself
+       while the state is Received or Processing (UploadStatus), and Complete
+       links to the case or the retained receipt. Nothing is promised that the
+       Worker does not do. *@
+    <section class="panel" aria-labelledby="upload-next-title">
+        <h2 id="upload-next-title" class="section-label">What happens next</h2>
+        <ol class="upload-steps">
+            <li><b>The file is kept as received.</b><span>You get a receipt the moment it is stored.</span></li>
+            <li><b>It is processed in the background.</b><span>The status page refreshes itself until processing is complete.</span></li>
+            <li><b>Open the result.</b><span>A case created from the file, or the retained receipt when no case was created; a failure is stated on the status page.</span></li>
+        </ol>
+        <h2 class="section-label section-gap">Accepted files</h2>
+        <ul class="accepted-list" aria-label="Accepted file types">
+            <li>.eml</li><li>.msg</li><li>.pdf</li><li>.doc</li><li>.docx</li><li>.jpg</li><li>.png</li>
+        </ul>
+        <p class="field-hint">Up to @Pegasus.Web.Pages.UploadModel.MaximumSizeLabel each. One file per upload.</p>
     </section>
 </div>

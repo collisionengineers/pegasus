@@ -82,6 +82,12 @@ Two consequences are recorded rather than assumed:
   invents. An absent count renders nothing at all — a shell-level `0` would be
   exactly the stale zero placeholder the operator-experience requirements
   forbid.
+- **The content region is bounded and centred** (operator decision,
+  2026-08-19). `main` is capped at 1280px, carries the 24px gutters, and sits
+  centred in the space beside the rail, so a wide monitor shows equal margins
+  either side rather than every screen pressed against the rail with the right
+  of the display empty. It is not stretched to fill: a table's far column
+  belongs within a glance of its first. Below the cap nothing moves.
 
 `_LayoutAuth` and `_LayoutExternal` are unaffected: sign-in, the signed-out
 confirmation, access denied, the error family and the one screen a third party

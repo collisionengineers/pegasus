@@ -5,6 +5,9 @@
     ViewData["Title"] = "Upload status";
 }
 
+@* The same bounded column as the Upload screen it follows: one receipt, a
+   handful of facts and two actions do not want the full width of a monitor. *@
+<div class="form-column form-column--wide">
 <header class="page-heading">
     <div>
         <p class="eyebrow">Upload status</p>
@@ -43,3 +46,4 @@
         <a class="secondary-action" asp-page="/Upload">Upload another file</a>
     </div>
 </section>
+</div>
