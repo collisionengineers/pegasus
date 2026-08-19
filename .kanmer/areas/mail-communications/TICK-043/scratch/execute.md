@@ -1,3 +1,5 @@
 Opened PR https://github.com/collisionengineers/pegasus/pull/414 from `task/tick-043-mailbox-identity` at `a795877bd6fcceaffa74c8f9de0959c18a792f1b`. Local verification: locked restore; Release build 0 warnings/errors; Core 617/617; Architecture 96/96; focused Graph + retained-mail integration 27/27; final retained-mail integration 12/12; diff check clean. No external mailbox/cloud write or deployment performed.
 
 Addressed blocking [[PR-004]] in commit `195bbf62` on PR #414. Unified receipt, retained comparison, and SQL uniqueness on the shared canonical RFC identity; added real poll/EF equivalent-vs-distinct regressions. Verification: clean build; Core 618/618; retained-mail integration 14/14; diff check clean. Ticket intentionally remains in Review for independent re-review.
+
+Addressed blocking [[PR-005]] in `09dbeb6a` on PR #414: post-normalization canonical length is Core-bounded; Unicode-equivalent real poll/EF replay and raw/canonical evidence are asserted. Build clean; Core 619/619; retained-mail integration 14/14; diff check clean. Left in Review for independent re-review.

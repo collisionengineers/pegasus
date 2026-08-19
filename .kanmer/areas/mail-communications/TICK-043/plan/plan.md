@@ -52,3 +52,9 @@ The post-implementation report will cite focused test output, Release build outp
 - **Efficiency:** normalization is computed once per store lookup; the canonical column uses a binary-collated composite unique index, so duplicate detection remains an indexed SQL query.
 - **Altitude:** canonical equality is Core policy, while collation/index mechanics remain Infrastructure. The existing poll is the real caller.
 - **Disposition:** the blocking review finding is fixed. No unapplied simplification finding remains.
+
+## PR-005 simplification re-check — 2026-08-19
+
+- **Reuse/altitude:** canonical length enforcement remains inside the existing Core canonicalizer, so every caller gets the persistence bound and Infrastructure adds no validation copy.
+- **Simplification/efficiency:** one constant owns the 500-character canonical limit; validation invokes the same canonicalizer later used for receipt hashing and persistence.
+- **Disposition:** added only the missing post-normalization bound and evidence assertions. No unapplied simplification finding remains.

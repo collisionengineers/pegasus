@@ -23,3 +23,9 @@
 - 2026-08-19: Unified receipt hashing, store lookup/comparison, and SQL uniqueness on one trimmed, NFKC-normalized, invariant-uppercase RFC Message-ID key. The raw transport value remains unchanged evidence.
 - 2026-08-19: Added real poll/EF tests proving case/whitespace-equivalent RFC variants create one staged receipt, work item and retained row, while distinct canonical RFC identities create two of each.
 - 2026-08-19: Blocking-fix verification passed: Release/Integration build 0 warnings/errors; focused Core 21/21; new real poll/EF regressions 2/2; full Core 618/618; retained-mail integration 14/14; diff check clean.
+
+## PR-005 blocking-fix notes
+
+- 2026-08-19: Bounded the canonical RFC output after trim/NFKC/uppercase; expansion past 500 now becomes malformed-message handling before any receipt or database write.
+- 2026-08-19: Real poll/EF evidence now uses genuinely Unicode-equivalent Kelvin-sign/ASCII identities and asserts the first raw transport value remains verbatim beside the canonical key.
+- 2026-08-19: Verification passed: Release build 0 warnings/errors; focused Core 22/22; Unicode/distinct poll/EF 2/2; full Core 619/619; retained-mail integration 14/14; diff check clean.
