@@ -25,6 +25,14 @@ owners.
 | `pre-instruction-emails` | Triage requests; pre-formal-instruction handling requests; images received before formal instructions |
 | `internal-cc` | internal copied correspondence |
 
+Each example is a named classification rather than material hidden in generic
+`Other`. The canonical subtype spellings are: `acknowledgement` for the General
+example; `payment-notification`, `remittance`, and `invoice-request` for the
+billing examples; `ongoing-correspondence` for the remaining in-progress
+example; `query`, `dispute`, and `amendment-request` for post-report mail; and
+`triage-request`, `pre-formal-instruction-request`, and `images-received` for
+pre-instruction mail. Families whose table entry names no subtype require none.
+
 | Sent family | Confirmed meaning |
 | --- | --- |
 | `Report sent` | Collision Engineers’ email sending the Engineer report |
@@ -37,6 +45,75 @@ Received messages mirror the underlying Received category with reply context;
 a correspondent’s replies to Sent messages mirror the underlying Sent category
 with reply context. The settled taxonomy also permits `Other`, which requires
 both a new category name and reasoning.
+
+### Classification, destination, and folder catalogue
+
+A known classification has its own typed detailed-classification destination;
+it is never collapsed into an aggregate Other queue. `Other` is only the
+reasoned taxonomy extension and destination for a genuinely new
+classification. `Needs sorting` is an operational abstention
+when evidence is missing, unsupported, contradictory, or ambiguous; it is
+never a classification.
+
+Classification may use attributable mailbox/message identity, direction,
+headers, sender/domain, fresh body text, attachment/document evidence,
+provider-route tells, reply/thread signals, and a separately produced Case
+correlation. `In-Reply-To` and `References` establish reply context; `RE:` is a
+fallback, while `FW:`/`FWD:` does not by itself establish a reply. Quoted or
+attached historic content is not fresh-work evidence. A deterministic rule
+names its policy/version and predicates; otherwise an authorised staff member
+records the decision and reason. The correction/history contract above retains
+the evidence, actor, time, policy version, and later corrections.
+
+| Classification | Positive criteria and exclusions | Method | Operational destination | Outlook folder type |
+| --- | --- | --- | --- | --- |
+| `General/autoreply` | Generated automatic-reply evidence; never quoted new-work text | route predicate or staff | Detailed: `General/autoreply` | No action |
+| `General/undeliverable` | Delivery-status/non-delivery evidence for the exact message | transport evidence or staff | Detailed: `General/undeliverable` | No action |
+| `General/acknowledgement` | Acknowledges receipt without a request, new work, dispute, amendment, or cancellation | staff until a predicate is accepted | Detailed: `General/acknowledgement` | No action |
+| `General/general-chase` | General chase, including one referring to several Cases; never one-to-many association | staff | Detailed: `General/general-chase` | Case queries |
+| `General/case-summary` | Informational summary with no new instruction or actionable request | staff | Detailed: `General/case-summary` | No action |
+| `billing/payment-notification` | Payment notification, excluding a question/request | predicate or staff | Detailed: `billing/payment-notification` | Billing |
+| `billing/remittance` | Remittance advice/evidence, excluding a billing question | predicate or staff | Detailed: `billing/remittance` | Billing |
+| `billing/invoice-request` | Requests an invoice or invoice action | predicate or staff | Detailed: `billing/invoice-request` | Billing |
+| `billing/billing-query` | Asks a billing, invoice, payment, or remittance question | predicate or staff | Queries | Billing |
+| `billing/general-billing` | Billing mail fitting no more specific billing subtype | reasoned staff decision | Detailed: `billing/general-billing` | Billing |
+| `new-instruction-received/audit` | Accepted provider Audit instruction evidence; a body keyword or quoted old instruction is insufficient | route predicate or staff | Receiving work | Audits |
+| `new-instruction-received/diminution` | Accepted provider diminution instruction evidence | route predicate or staff | Receiving work | Diminution |
+| `new-instruction-received/inspection` | Accepted provider Inspection instruction evidence | route predicate or staff | Receiving work | Instructions |
+| `new-instruction-received/new-client` | Initial work from a client not represented by an accepted route | staff | Receiving work | New clients |
+| `new-instruction-received/website-enquiry` | Website-origin evidence satisfying accepted independent fingerprints | route predicate or staff | Receiving work | Enquiries |
+| `non-client-related` | Internal/company, tool, service, or software mail unrelated to client work | sender/route evidence or staff | Detailed: `non-client-related` | Other |
+| `in-progress-cases/cancellation` | Explicit cancellation; it wins over quoted historic instructions | route predicate or staff | Detailed: `in-progress-cases/cancellation` | Cancellations |
+| `in-progress-cases/case-update` | Update on ongoing work, excluding new instruction/post-report challenge | staff | Detailed: `in-progress-cases/case-update` | Case updates |
+| `in-progress-cases/client-chasing-for-update` | Client asks for progress on ongoing work | staff | Detailed: `in-progress-cases/client-chasing-for-update` | Case updates |
+| `in-progress-cases/provider-chasing-for-update` | Provider asks for progress on ongoing work | staff | Detailed: `in-progress-cases/provider-chasing-for-update` | Case updates |
+| `in-progress-cases/ongoing-correspondence` | Other ongoing correspondence after more-specific subtypes are excluded | reasoned staff decision | Detailed: `in-progress-cases/ongoing-correspondence` | Case updates |
+| `post-report-emails/query` | Question about a delivered report | route/thread evidence or staff | Queries | Case queries |
+| `post-report-emails/dispute` | Challenge to a delivered report/finding | route/thread evidence or staff | Queries | Case queries |
+| `post-report-emails/amendment-request` | Request to amend a delivered report | route/thread evidence or staff | Queries | Case queries |
+| `pre-instruction-emails/triage-request` | Accepted Triage request; missing VRM remains Needs sorting under FRD-03 | route predicate or staff | Triage | Pre-instructions |
+| `pre-instruction-emails/pre-formal-instruction-request` | Known pre-formal handling request, excluding Triage | staff | Detailed: `pre-instruction-emails/pre-formal-instruction-request` | Pre-instructions |
+| `pre-instruction-emails/images-received` | Images before formal instruction, excluding an accepted instruction | attachment/route evidence or staff | Detailed: `pre-instruction-emails/images-received` | Images |
+| `internal-cc` | Internal copied correspondence, not the primary actionable occurrence | header/recipient evidence or staff | Detailed: `internal-cc` | Other |
+| Sent: `Report sent` | Exact sent report correspondence; classification alone does not prove delivery | immutable Sent-item evidence or staff | Detailed: Sent/`Report sent` | Other |
+| Sent: `case-rejected` | Exact outbound rejection | immutable Sent-item evidence or staff | Detailed: Sent/`case-rejected` | Other |
+| Sent: `query-sent` | Exact outbound query/information request | immutable Sent-item evidence or staff | Detailed: Sent/`query-sent` | Other |
+| Sent: `additional-image-request` | Exact outbound request for better/additional images | immutable Sent-item evidence or staff | Detailed: Sent/`additional-image-request` | Other |
+| reasoned `Other` | No registry entry fits; requires a new name/reason and may not mask a known class | authorised staff only | Other | Other |
+| `Ambiguous` / `Unclassified` | Multiple/no accepted predicates, or missing/conflicting evidence; no winner is invented | explicit abstention | Needs sorting | none automatically |
+
+The approved logical folder types are `Instructions`, `Audits`, `Diminution`,
+`New clients`, `Case queries`, `Enquiries`, `Billing`, `Pre-instructions`, `No
+action`, `Images`, `Cancellations`, `Case updates`, and `Other`. MAIL-23 binds
+these types to administrator-approved exact Outlook folder identities and owns
+the separate confirmed move. Triage and Needs sorting receive no automatic
+folder recommendation merely because they are application destinations.
+
+Acceptance examples are a single accepted Audit instruction mapping to
+Receiving work/Audits, a billing question to Queries/Billing, and an accepted
+Triage request to the separate Triage workflow. A body merely mentioning
+“audit”, a forwarded old instruction, simultaneous accepted matches, or
+incomplete route evidence must not be promoted by guesswork.
 
 A `general-chase` message may refer to several Cases but remains a single unlinked General source occurrence: Pegasus neither copies it nor creates one-to-many Case associations. A `case-summary` is likewise retained as non-actionable General correspondence and creates no intake, Triage, or Case work.
 

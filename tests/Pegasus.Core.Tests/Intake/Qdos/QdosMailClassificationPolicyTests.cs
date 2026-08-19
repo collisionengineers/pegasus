@@ -21,7 +21,7 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         var category = Assert.IsType<MailCategory>(result.Category);
         Assert.Equal(ReceivedMailFamily.PreInstructionEmails, category.ReceivedFamily);
-        Assert.Null(category.Subtype);
+        Assert.Equal("triage-request", category.Subtype);
     }
 
     [Fact]
@@ -209,7 +209,7 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Null(result.Category);
         Assert.Equal(2, result.AmbiguousCandidates.Count);
         Assert.Null(result.CaseType);
-        Assert.Contains("pre-instruction-emails", result.AmbiguousCandidates);
+        Assert.Contains("pre-instruction-emails/triage-request", result.AmbiguousCandidates);
         Assert.Contains("new-instruction-received/audit", result.AmbiguousCandidates);
     }
 
