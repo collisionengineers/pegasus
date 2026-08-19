@@ -21,7 +21,7 @@
 @* The rules that will refuse a change, stated before it is attempted rather
    than as a lede describing the screen. *@
 <aside class="notice">
-    <p>Every enabled staff member needs at least one role. Removing the final enabled Administrator is denied. Role changes invalidate existing browser sessions.</p>
+    <p>Removing the final enabled Administrator is denied, and role changes invalidate existing browser sessions.</p>
 </aside>
 
 <div asp-validation-summary="ModelOnly"></div>
@@ -29,7 +29,7 @@
 <section aria-labelledby="role-governance-heading">
     <h2 id="role-governance-heading" class="section-label">Current role assignments</h2>
     <div class="status-card status-card--attention">
-        <p>Every enabled staff member needs at least one role. Removing the final enabled Administrator is denied. Role changes invalidate existing browser sessions.</p>
+        <p>Removing the final enabled Administrator is denied, and role changes invalidate existing browser sessions.</p>
     </div>
 
     @if (Model.Accounts.Count == 0)

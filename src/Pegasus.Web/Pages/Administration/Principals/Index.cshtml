@@ -31,7 +31,7 @@
 @* Immutability is the rule an administrator is most likely to expect to be
    able to break, so it is stated where the attempt would start. *@
 <aside class="notice">
-    <p>A principal identity is immutable once created. To change one, create a replacement: the predecessor–successor chain is preserved and open cases stay with the identity they were instructed under.</p>
+    <p>A principal identity is immutable once created; change one only by creating a linked replacement, which preserves the chain and keeps open cases on their original identity.</p>
 </aside>
 
 @if (Model.Organizations.Organizations.Count == 0)
@@ -99,7 +99,7 @@ else
                 </div>
                 @if (organization.HasMorePrincipals)
                 {
-                    <p class="empty-state">The principal projection is bounded; additional principals exist.</p>
+                    <p class="empty-state">Not every principal is shown; more exist for this organization.</p>
                 }
             }
         </section>

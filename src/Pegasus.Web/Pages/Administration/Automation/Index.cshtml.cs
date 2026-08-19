@@ -53,7 +53,7 @@ public sealed class IndexModel : AdministrationPageModel
         {
             ModelState.AddModelError(
                 string.Empty,
-                "The Automation ingress is not composed in this deployment.");
+                "Automation is not part of this deployment.");
         }
         if (!IsOperationKeyValid(OperationKey))
         {
