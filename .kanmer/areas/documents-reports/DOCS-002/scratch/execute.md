@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/413 targeting dev from task/docs-002-renderer-web-boundary. New ADR refs for DOCS-002, TICK-215, SIMPLI-014 and PLAT-007 must be attached after merge because pre-merge link_doc validation resolves against current dev.
