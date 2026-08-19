@@ -298,3 +298,75 @@ duplicate-filename, partial-failure and concurrent-replay were not added.
 Checklist 7/33 → 28/38 with reasons for the rest.
 
 Verdict: pass. Merge first of the INTK set — #417 is stacked on it.
+
+## PR #423 — INTK-008 Image-initiated lifecycle after takeover — **PASS**
+
+Head `43218a85` (after my `dev` merge; conflicts in `OperatorLabels.cs` usings
+and the migration list, both resolved by union and the list verified 50/50
+against the folder).
+
+**The protected-doc question is answered the way the operator answered it.**
+The new "Two branches for a readable registration — operator ruling" section
+quotes the operator verbatim and states both outcomes: a VRM matching an
+existing Case attaches the images as **evidence**; a VRM matching no Case
+creates an **Image-initiated Case**. The existing "linked automatically only on
+a definitive match, or linked manually by staff" sentence is preserved. No
+material business statement was deleted.
+
+**The doc no longer overstates shipped behaviour.** The review found the
+rewritten operator notes promised a VRM-keyed custody root that had no caller
+(`IImageIntakeCustody.CreateOrGetRootAsync`). The lane chose **removal over
+wiring dark** — interface, both adapters and the DI registration gone, and the
+corresponding sentence removed from the protected doc — which is the honest
+option when no caller exists. Manual and automatic linking now go through one
+`SyncMergeAfterLinkAsync` owner with replay-safe retry, so staff-linked records
+actually reach `MergedIntoInstructionCase`. `MergeAsync`/`CloseAsync` now call
+the Core validators before persisting and carry a request-fingerprint replay
+check.
+
+**Independent simplifier pass was run** — 11 behaviour-preserving fixes, one of
+which caught a label-casing bug in the lane's own edit. Recorded with
+dispositions.
+
+**Evidence:** build 0/0; Core 644/644; **full** integration suite 562 passed /
+14 skipped / 0 failed (~16 min); Architecture 97/97. CASE-005 explicitly checked
+not worsened (15/15 on the class, 2/2 standalone).
+
+Verdict: pass.
+
+## PR #424 — INTK-007 Unidentified work after takeover — **PASS**
+
+Head `3356f0aa`, all 10 lanes SUCCESS. Merged `dev` twice and resolved
+`capabilities.md`, the census (×2) and the migration list (×2).
+
+**Operator confirmation applied as given.** The `AGENTS.md` invariant (CLAUDE.md
+is a symlink to it — mode `120000` — so there is one real file) now reads:
+*"`Audit`, `Triage`, and `Blocked intake` retain their settled distinct
+meanings; `Triage` is the only current term. `Needs sorting` is superseded by
+`Unidentified` for that meaning (INTK-007)"*. The three surviving operator-notes
+mentions (lines 42, 226, 415) are **reworded to "Unidentified (formerly Needs
+sorting)"**, not deleted — the protected-doc discipline. The enum member is
+renamed (`MailOperationalDestination.Unidentified`,
+`MailOperationalDestinationPolicy.cs:13,37`), closing the hand-off from
+TICK-045. Three code comments still say "Needs sorting" as historical context;
+none is operator-facing.
+
+**Least privilege survived scrutiny** — per-object grants trimmed to named
+callers (documented in the earlier review entry), migration SQL and census
+kept identical.
+
+**Three defects found beyond the assigned list, all real:** (1) four tests
+still asserting literal "Needs sorting" after the label changed — a regression
+the branch's own commit introduced; (2) TICK-045's merge referenced the
+pre-rename enum member — **would not have compiled** after the rename; (3) an
+actor-kind bug in the lane's own reconciliation code (`SystemWorker` rejected by
+`ValidateResolve`), found only because it wrote `UnidentifiedPersistenceTests.cs`,
+which had not existed. Retryable failures no longer burn a U-reference; the
+backfill reads the right column and seeds a real per-row fingerprint.
+
+**Evidence:** Core 655/655; Architecture 97/97; integration 561/576 passed, 1
+failure = the CASE-005 deadlock in an untouched test (passed on isolated
+re-run), 14 corpus-gated skips; `Test-MigrationGrants` 50 files; `-Mode Local`
+clean.
+
+Verdict: pass. Merges last, as planned — it owns the vocabulary migration.
