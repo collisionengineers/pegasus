@@ -62,3 +62,5 @@ Two independent agents reviewed the branch diff through reuse, simplification, e
 - renamed the real-browser test to its actual application-composition evidence tier and made artifact writes opt-in through `PEGASUS_RENDER_EVIDENCE`, so ordinary CI asserts output without unrelated filesystem effects.
 
 No findings were deferred. The evidence conflict discovered during the pass was resolved fail-closed: `rendererref1` explicitly marks Ed/Neil qualifications “to be confirmed”, so no value was invented despite general operator approval.
+
+A final composition check also found that registering the renderer inside the shared `AddPegasusInfrastructure` method would have composed it in Worker as well as Web. The registration was moved to the explicit `AddPegasusReportRendering` extension called only by `Pegasus.Web`, preserving ADR-0028 and leaving Worker unchanged.
