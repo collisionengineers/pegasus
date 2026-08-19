@@ -77,7 +77,7 @@ public sealed partial class OrganizationAdministrationWebTests
             $"/Administration/Principals/Create?organizationId={organizationId:D}");
         var principalHtml = await principalGet.Content.ReadAsStringAsync();
         principalGet.EnsureSuccessStatusCode();
-        Assert.Contains("immutable identity", principalHtml, StringComparison.Ordinal);
+        Assert.Contains("cannot be edited", principalHtml, StringComparison.Ordinal);
         var principalForm = new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = InputValue(

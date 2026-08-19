@@ -44,7 +44,7 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claimResponse, store.CaseId);
 
         var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Approve immutable report artifact", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("Approve immutable report", leasedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("approvedAtUtc", leasedHtml, StringComparison.Ordinal);
         var approvalId = InputValue(leasedHtml, "approvalId");
         const string approvalOperationKey = "report-approval-replay";
