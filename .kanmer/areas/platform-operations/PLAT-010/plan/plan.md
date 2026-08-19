@@ -114,3 +114,24 @@ efficiency issue found on review of the diff.
 - `dotnet test tests/Pegasus.Core.Tests -c Release` — 684/684 passed.
 
 All runs above executed to completion; nothing could not be run.
+
+## Review fix (2026-08-20)
+PR #431 review flagged three lines still violating the rule after the initial sweep:
+- `Cases/Shared/_CaseWorkflow.cshtml:583` — "custody-confirmed" (operator-facing "custody") and
+  "deterministic order" (mechanics vocabulary) → "The hand-off includes every eligible confirmed
+  vehicle image, in a fixed order; EVA owns selection from there."
+- `ImageIntake/Details.cshtml:91` — "Image intake" (superseded term; settled operator term per
+  INTK-008 is "Image-initiated Case") and "origin receipt" (mechanics) →
+  "Pre-report instructed cases whose confirmed registration matches this Image-initiated Case;
+  linking is a reasoned staff action."
+- `Intake/Details.cshtml:172` — same superseded term, and "pre-Case Image intake" contradicted
+  the settled model outright → "Image-only material with a usable registration becomes an
+  Image-initiated Case with a permanent reference; it never becomes a formal Case by itself."
+
+The two remaining grep hits the reviewer checked (`Pages.Intake.DetailsModel` fully-qualified
+namespace reference, `id="intake-resolution-title"` attribute) are not operator-visible copy —
+confirmed not to need changing.
+
+Re-ran after the fix: build 0 warnings/0 errors; WebTests 132/132 passed (0 failed, 11
+pre-existing skips); Browser category 37/37 passed. No test asserted the old text, so no test
+files needed updating this round. Commit `55fef8ef`, pushed to `task/plat-010-copy-strip`.
