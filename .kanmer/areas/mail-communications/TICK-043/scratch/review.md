@@ -46,3 +46,27 @@
 ## Verdict
 
 **Needs changes.** The original blocker is repaired, but the canonicalization contract remains incompletely validated and tested. Reviewed the updated ticket plan/report/open questions, PR diff, Core canonicalizer/caller, EF model/store/migration, raw and canonical fields, FRD wording, and current CI metadata. Do not merge until [[PR-005]] lands and re-review passes.
+
+# Independent re-review — 2026-08-19 — commit 09dbeb6a
+
+## Changes re-checked
+
+- Core bounds the final trim/NFKC/uppercase canonical value at 500 characters during retained-metadata validation, before receipt creation or persistence.
+- Core regression uses Kelvin-sign/ASCII-K normalization equivalents and covers expansion past the canonical persistence bound.
+- Real poll/EF regression proves one staged receipt, one work item and one retained row, while asserting the first raw RFC transport value verbatim and the separate canonical key.
+- Plan, FRD, report and PR-005 simplification disposition align with the implementation.
+
+## Comments
+
+1. **Fixed in PR:** [[PR-005]] is fully resolved at `09dbeb6a`.
+2. **Blocking CI / branch-related:** SQL shard 2 fails `CommittedMigrationCreatesTheSqlServerSchema` because the committed-migration expectation was not updated for the new MAIL-01 migration.
+3. **Blocking CI / branch-related:** SQL shard 3 fails both forms of `KnownSourceTerminalOutcomeSurvivesRestartAndDoesNotBlockLaterMail` (expected two processed messages, actual one). Its independent-message fixtures now collide under the new canonical RFC duplicate boundary and must carry distinct RFC identities.
+
+## Disposition
+
+1. Fixed in PR; [[PR-005]] archived with outcome.
+2–3. Filed together as [[PR-008]], blocking [[TICK-043]]. These are direct ripple effects of this branch, not unrelated flakes.
+
+## Verdict
+
+**Substantive implementation passes, but merge is blocked by required CI.** Run 32239604895: changes, documentation, reference-data, unit, browser, SQL shard 1 and SQL coverage passed; infrastructure skipped; SQL shards 2 and 3 failed for the two branch-related omissions above. Do not merge until [[PR-008]] is fixed and required CI is green.
