@@ -48,7 +48,7 @@
                 {
                     <tr>
                         <td>@mailbox.Address</td>
-                        <td>@string.Join(", ", mailbox.RouteScopes.Select(Pegasus.Web.Pages.Administration.MailboxesModel.RouteScopeLabel))</td>
+                        <td>@string.Join(", ", mailbox.RouteScopes.Select(Pegasus.Web.Presentation.OperatorLabels.RouteScope))</td>
                         <td><partial name="Shared/_StatusChip" model="@mailbox.State.ToString()" /></td>
                         <td>@Model.PollStatusFor(mailbox)</td>
                         <td class="tabular">@mailbox.Version</td>
@@ -99,11 +99,11 @@
                         <legend>Read-only route scope</legend>
                         <label class="choice">
                             <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.InboundIntake)" />
-                            <span>@MailboxesModel.RouteScopeLabel(ApprovedMailboxRouteScope.InboundIntake)</span>
+                            <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.InboundIntake)</span>
                         </label>
                         <label class="choice">
                             <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.SentEvidence)" />
-                            <span>@MailboxesModel.RouteScopeLabel(ApprovedMailboxRouteScope.SentEvidence)</span>
+                            <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.SentEvidence)</span>
                         </label>
                     </fieldset>
                     <label>
@@ -154,11 +154,11 @@
                 <legend>Read-only route scope</legend>
                 <label class="choice">
                     <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.InboundIntake)" />
-                    <span>@MailboxesModel.RouteScopeLabel(ApprovedMailboxRouteScope.InboundIntake)</span>
+                    <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.InboundIntake)</span>
                 </label>
                 <label class="choice">
                     <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.SentEvidence)" />
-                    <span>@MailboxesModel.RouteScopeLabel(ApprovedMailboxRouteScope.SentEvidence)</span>
+                    <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.SentEvidence)</span>
                 </label>
             </fieldset>
             <label>

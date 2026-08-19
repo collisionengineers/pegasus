@@ -12,17 +12,6 @@ public sealed class MailboxesModel(
     IApprovedMailboxPollStatusQueries pollStatusQueries)
     : AdministrationPageModel
 {
-    // The one place this page's route-scope labels are written, so the table
-    // column and both sets of route-scope checkboxes never drift apart. The
-    // shared OperatorLabels.Humanise fallback would render "Inbound intake",
-    // which carries the banned "intake" word (docs/design/README.md).
-    public static string RouteScopeLabel(ApprovedMailboxRouteScope routeScope) => routeScope switch
-    {
-        ApprovedMailboxRouteScope.InboundIntake => "New instructions and Triage mail (Inbox)",
-        ApprovedMailboxRouteScope.SentEvidence => "Exact report and Triage evidence (Sent Items)",
-        _ => routeScope.ToString()
-    };
-
     public IReadOnlyList<ApprovedMailbox> Mailboxes { get; private set; } = [];
 
     public Guid NewMailboxId { get; private set; }
