@@ -18,3 +18,14 @@
 - 2026-08-19 simplification: final production diff is one setting on the existing renderer; diagnostic artifact writes and every exploratory layout change were removed.
 
 - 2026-08-19: committed `f08961eaf5422474f57415355428bc189ccc16a9`, pushed the ticket branch and opened PR #419 targeting `dev`; ready for independent review.
+
+## Closeout — PR-009
+
+- [x] PR #419 merge verified (MERGED 2026-08-19T11:21:14Z)
+- [x] proof.md finalised with PR URL and merge date
+- [x] Moved to Done
+- [x] Outcome/traceability/deployment n/a recorded
+- [ ] Removed `../pegasus-worktrees/pr-009-pagination-tail`
+- [ ] Deleted local/remote `task/pr-009-pagination-tail`
+- [ ] Ran fetch/prune and worktree prune
+- [ ] Released Kanmer claim

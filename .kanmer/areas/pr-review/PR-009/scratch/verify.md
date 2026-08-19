@@ -1,0 +1,1 @@
+2026-08-19: verified exact merged dev commit 4f67a83e. Locked restore and Release build passed (0 warnings/errors); complete real-Chromium renderer class passed 6/6. Proof recorded at source/composition/Chromium tier.
