@@ -18,3 +18,7 @@
 - Verdict: **needs changes**.
 - PR comment: https://github.com/collisionengineers/pegasus/pull/420#issuecomment-5341253601
 - PR #420 was not merged and TICK-093 remains in Review.
+
+### CI completion
+
+GitHub Actions run `32245784024` completed green for every required check: changes, documentation, reference-data, unit (4m45s), browser (9m01s), SQL integration shards 1/2/3 (10m58s / 10m32s / 11m33s), and SQL integration coverage (14s); infrastructure was correctly skipped. Green CI does not resolve [[PR-011]]'s product-authority conflict, so the verdict remains needs changes.
