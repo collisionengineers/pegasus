@@ -19,7 +19,10 @@ labels:
 groups:
   - EPIC-003
   - EPIC-004
-links: []
+links:
+  - SIMPLI-014
+  - TICK-205
+  - TICK-098
 blocks:
   - TICK-096
   - TICK-097
@@ -31,7 +34,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-19T09:44:39.179Z'
+updated: '2026-08-19T09:47:00.229Z'
 ---
 
 ## What

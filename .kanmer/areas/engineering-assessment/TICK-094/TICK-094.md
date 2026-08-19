@@ -19,7 +19,10 @@ labels:
 groups:
   - EPIC-003
   - EPIC-004
-links: []
+links:
+  - TICK-092
+  - SIMPLI-014
+  - TICK-093
 blocks:
   - TICK-096
   - TICK-097
@@ -28,9 +31,12 @@ blocks:
   - TICK-092
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+  - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
+  - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.590Z'
-updated: '2026-08-19T09:44:39.209Z'
+updated: '2026-08-19T09:46:40.902Z'
 ---
 
 ## What
