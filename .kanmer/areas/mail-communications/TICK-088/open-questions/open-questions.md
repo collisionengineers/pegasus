@@ -5,4 +5,4 @@
 
 ## Parked (explicitly deferred)
 
-- [ ] Enabling or verifying a real Outlook/Graph mailbox remains an external write and requires explicit approval for exact targets and operations.
+- [x] **Is full live Outlook/Graph verification required, and which recipient is approved?** — Yes. Resolved by the operator on 2026-08-19: production acceptance must exercise the full compose, draft, reply, forward, attachment, configured-signature, explicit-confirmation, send, retry/idempotency, and Sent-evidence reconciliation journey. The approved test recipient is `digital@collisionengineers.co.uk`. Immediately before external writes, record exact approval for the sending mailbox, reply/forward source messages, attachment, subject/body/content, recipient/CC/BCC set, and permitted sends. Do not send operational correspondence or infer unspecified content authority from this decision.

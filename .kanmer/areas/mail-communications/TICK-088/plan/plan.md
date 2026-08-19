@@ -40,3 +40,9 @@ The post-implementation report will cite focused test output, Release build outp
 ## Operator decision — 2026-08-19
 
 MAIL-12 is activated for full implementation. Include approved-mailbox drafts, compose, reply, forward, recipient/CC/BCC, subject/body, attachments, configured signatures, explicit send confirmation, idempotent submission, visible retry/failure, permanent attribution and Sent evidence reconciliation. Real mailbox enablement remains separately approval-gated.
+
+## Full live outbound-mail journey — operator decision 2026-08-19
+
+Production acceptance must exercise drafts, new compose, reply, forward, recipient/CC/BCC validation, subject/body, attachment, configured signature, explicit confirmation, idempotent send/retry, permanent attribution, and Sent-evidence reconciliation. The approved test recipient is `digital@collisionengineers.co.uk`.
+
+Immediately before execution, name and obtain exact approval for the sending mailbox, reply and forward source messages, attachment, final subject/body/content, complete recipient set, and permitted sends. Capture draft state, confirmation summary, operation key/version, send result, replay behavior, immutable Sent identity/thread evidence, and permanent history. Abort on target/content mismatch; never send operational correspondence.

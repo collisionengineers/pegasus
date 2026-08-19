@@ -41,3 +41,13 @@ Current dev at 4d1bff3 has no competing TICK-093 worktree/branch and SIMPLI-014 
 - Audit scope creep: the aggregate must support two roles, but no approved Audit template exists. Mitigation: store/version/accept the pair only; leave pair selection for rendering, uplift, wording, and visual evidence to TICK-098 after its trigger.
 - Active SIMPLI-014 overlap is avoided by excluding Reports, Infrastructure/Reports, templates, FRD-11, and package locks. Recheck worktrees immediately before take.
 - No operator question remains. TICK-205 is completed decision authority, not a blocker; TICK-098 and TICK-092 are downstream consumers.
+
+## Simplification pass — 2026-08-19
+
+Independent four-lens review completed against `origin/dev`.
+
+- **Reuse/duplication:** passed. The implementation reuses `EstimateLineCodes`, `AssessmentPolicy` normalization, `CaseMutationGuard`, the existing action/history conventions, and the existing assessment persistence boundary. The three-section display switch is the single plan-approved derived mapping; no second report model or role vocabulary was introduced.
+- **Policy altitude:** one finding applied. The initial implementation inferred a specific 20% VAT formula and non-VAT-registered treatment without governing authority. That formula was removed; Core now validates non-negative recorded inputs and only the authorized arithmetic invariant `Total = Labour + Parts + PaintMaterials + SpecialistOther + Vat`, retaining VAT registration and the accepted calculation-policy version as provenance.
+- **Unnecessary abstraction:** one low finding applied. Removed the unused private `CurrentDraftAsync` helper from `EfRepairSpecificationStore`.
+- **Test/operational efficiency:** no material finding. Focused Core policy, SQL lifecycle, and pre-migration fixture coverage are proportional. No cloud or provider integration was added.
+- **Scope:** passed. No Reports, renderer, template, FRD-11, or package-lock file is changed.

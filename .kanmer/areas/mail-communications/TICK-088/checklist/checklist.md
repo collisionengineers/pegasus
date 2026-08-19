@@ -10,3 +10,6 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Immediately before live sending, record exact approval for the sender mailbox, reply/forward source messages, attachment, final content, complete recipient set, and permitted sends; approved test recipient is digital@collisionengineers.co.uk.
+- [ ] Run and evidence the full production draft/compose/reply/forward/send journey, including confirmation, signature, attachment, idempotent replay/retry, attribution, and Sent-evidence reconciliation.
