@@ -118,7 +118,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         receipt.FailureReason = draft.FailureReason;
         ApplyInstructionDraft(context, receipt, draft.InstructionDraft);
         ApplyMailRouteDecision(context, receipt, draft.MailRouteDecision);
-        ApplyMailClassificationDecision(context, receipt, draft.MailClassificationDecision);
+        ApplyMailClassificationDecision(
+            context,
+            receipt,
+            draft.MailClassificationDecision,
+            draft.Actor,
+            draft.ProcessedAtUtc);
         ApplyCaseMatchDecision(context, receipt, draft.CaseMatchDecision);
         AppendNewDerivedAssets(receipt, draft.AssetRecords);
         receipt.Version++;
@@ -457,6 +462,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         {
             receipt.MailClassificationDecision =
                 MapMailClassificationDecision(draft.MailClassificationDecision, receipt);
+            receipt.MailClassificationDecision.DecidedByActor = draft.Actor;
+            receipt.MailClassificationDecision.DecidedAtUtc = draft.ProcessedAtUtc;
         }
 
         if (draft.CaseMatchDecision is not null)
@@ -625,10 +632,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             StandaloneAuditReportAssetSourceLabel = decision.StandaloneAuditReport?.AssetSourceLabel,
             StandaloneAuditReportAssessment = decision.StandaloneAuditReport is { } report
                 ? ToCode(report.Assessment)
-                : null
+                : null,
+            DecidedByActor = string.Empty,
+            DecidedAtUtc = receipt.ProcessedAtUtc
         };
 
-    private static MailClassificationResult MapMailClassificationDecision(
+    internal static MailClassificationResult MapMailClassificationDecision(
         IntakeMailClassificationDecisionEntity entity)
     {
         MailCategory? category = null;
@@ -692,7 +701,9 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     private static void ApplyMailClassificationDecision(
         PegasusDbContext context,
         IntakeReceiptEntity receipt,
-        MailClassificationResult? decision)
+        MailClassificationResult? decision,
+        string actor,
+        DateTimeOffset decidedAtUtc)
     {
         if (decision is null)
         {
@@ -707,11 +718,19 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         var replacement = MapMailClassificationDecision(decision, receipt);
         if (receipt.MailClassificationDecision is null)
         {
+            replacement.DecidedByActor = actor;
+            replacement.DecidedAtUtc = decidedAtUtc;
             receipt.MailClassificationDecision = replacement;
             return;
         }
 
         var entity = receipt.MailClassificationDecision;
+        // A staff correction is the accepted current decision. Automated replay may
+        // still recompute evidence elsewhere, but it must not silently overwrite it.
+        if (entity.Version > 1)
+        {
+            return;
+        }
         entity.Outcome = replacement.Outcome;
         entity.Direction = replacement.Direction;
         entity.Family = replacement.Family;
@@ -727,6 +746,8 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.PolicyVersion = replacement.PolicyVersion;
         entity.StandaloneAuditReportAssetSourceLabel = replacement.StandaloneAuditReportAssetSourceLabel;
         entity.StandaloneAuditReportAssessment = replacement.StandaloneAuditReportAssessment;
+        entity.DecidedByActor = actor;
+        entity.DecidedAtUtc = decidedAtUtc;
     }
 
     private static IntakeCaseMatchDecisionEntity MapCaseMatchDecision(
@@ -1036,7 +1057,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             field.HasConflict))
         .ToArray();
 
-    private static string SerializeEnvelope<T>(T data) =>
+    internal static string SerializeEnvelope<T>(T data) =>
         JsonSerializer.Serialize(new VersionedEnvelope<T>(JsonVersion, data), JsonOptions);
 
     private static T DeserializeEnvelope<T>(string json)
@@ -1084,7 +1105,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("mail-classification outcome", value)
     };
 
-    private static string ToCode(CaseType value) => value switch
+    internal static string ToCode(CaseType value) => value switch
     {
         CaseType.Inspection => "inspection",
         CaseType.Audit => "audit",
@@ -1100,7 +1121,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("case type", value)
     };
 
-    private static string ToCode(AuditAssessment value) => value switch
+    internal static string ToCode(AuditAssessment value) => value switch
     {
         AuditAssessment.Repairable => "repairable",
         AuditAssessment.TotalLoss => "total_loss",

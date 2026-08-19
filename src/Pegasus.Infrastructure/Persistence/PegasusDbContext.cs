@@ -104,6 +104,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     internal DbSet<IntakeMailClassificationDecisionEntity> IntakeMailClassificationDecisions =>
         Set<IntakeMailClassificationDecisionEntity>();
+    internal DbSet<IntakeMailClassificationHistoryEntity> IntakeMailClassificationHistory =>
+        Set<IntakeMailClassificationHistoryEntity>();
 
     internal DbSet<CaseMatchIndexEntity> CaseMatchIndex =>
         Set<CaseMatchIndexEntity>();
