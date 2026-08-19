@@ -411,3 +411,34 @@ Evidence: Core 652/652 incl. 12 new projection tests; Architecture 97/97; new
 suites (22 + 10) and the real-Chromium renderer tests (6) unchanged and green.
 
 Verdict: pass.
+
+## PR #429 — docs refresh — review (docs-only scope check)
+
+Disclosure: I authored this PR, so this is a scope audit against the diff, not
+an independent review; the facts it records were each verified against Azure or
+the database earlier in this ticket, which is the property that matters for a
+current-state doc.
+
+Diff = 4 files, additive except two sentence replacements. Scope check per the
+docs-only rule (missing or unauthorized scope):
+
+- `operations.md`: release row matches the deployed readbacks exactly (SHA,
+  digest, revision, the 8 migration ids in apply order); the renderer paragraph
+  claims deployed-with-caller and **explicitly withholds** rendered-output
+  evidence pending ENG-002 — no overclaim.
+- `runbook.md`: records the operator's 2026-08-19 Sent-evidence approval and
+  the applied mechanism; corrects the placeholder-shape fact the release
+  discovered. Both are current-state facts, in the runbook's scope.
+- `operator-notes.md`: **addition only** — the operator's verbatim estimate
+  statement with ENG-002 as its tracker. No existing statement reworded or
+  removed; protected-doc discipline holds. The statement was given directly by
+  the operator in this session, so recording it is authorised, not a meaning
+  change requiring resolution.
+- `capabilities.md`: MAIL-04 row updated to TICK-046's delivered behaviour —
+  the row correction identified as owed during the quality review; wording
+  limited to what PR #418's merged diff and the release verification prove,
+  with live-mailbox verification still named as separate evidence.
+
+Nothing unauthorized found; nothing the release changed is left unrecorded.
+CI: documentation/changes/reference-data all SUCCESS (docs-only change set —
+build lanes correctly not triggered). Merging.
