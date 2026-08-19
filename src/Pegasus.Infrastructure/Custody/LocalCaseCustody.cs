@@ -8,30 +8,10 @@ namespace Pegasus.Infrastructure.Custody;
 
 internal sealed class LocalCaseCustody(
     string rootPath,
-    IIntakeArtifactStore intakeArtifactStore) : ICaseCustody, IImageIntakeCustody
+    IIntakeArtifactStore intakeArtifactStore) : ICaseCustody
 {
     private const string RootMetadataFileName = ".pegasus-case.json";
     private readonly string rootPath = Path.GetFullPath(rootPath);
-
-    public async Task<ImageIntakeCustodyRoot> CreateOrGetRootAsync(
-        Guid imageIntakeId,
-        string imageIntakeReference,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        ValidateIdentity(imageIntakeId, imageIntakeReference, operationKey);
-        var relativeId = $"image-intakes/{imageIntakeId:N}";
-        var directory = Resolve(relativeId);
-        Directory.CreateDirectory(directory);
-        await CreateOrValidateJsonAsync(
-            Path.Combine(directory, ".pegasus-image-intake.json"),
-            new ImageRootMetadata(imageIntakeId, imageIntakeReference, operationKey),
-            existing => existing.ImageIntakeId == imageIntakeId
-                && string.Equals(existing.Reference, imageIntakeReference, StringComparison.Ordinal)
-                && string.Equals(existing.OperationKey, operationKey, StringComparison.Ordinal),
-            cancellationToken);
-        return new(imageIntakeId, relativeId, imageIntakeReference);
-    }
 
     public Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
@@ -381,8 +361,6 @@ internal sealed class LocalCaseCustody(
 
     private sealed record CaseRootMetadata(Guid CaseId, string Reference, string OperationKey);
 
-    private sealed record ImageRootMetadata(Guid ImageIntakeId, string Reference, string OperationKey);
-
     private sealed record DocumentMetadata(
         Guid IntakeReceiptId,
         string FileName,
@@ -393,15 +371,8 @@ internal sealed class LocalCaseCustody(
     private sealed record AuditFolderMetadata(string AuditReference, string OperationKey);
 }
 
-internal sealed class UnavailableCaseCustody : ICaseCustody, IImageIntakeCustody
+internal sealed class UnavailableCaseCustody : ICaseCustody
 {
-    public Task<ImageIntakeCustodyRoot> CreateOrGetRootAsync(
-        Guid imageIntakeId,
-        string imageIntakeReference,
-        string operationKey,
-        CancellationToken cancellationToken) =>
-        Unavailable<ImageIntakeCustodyRoot>();
-
     public Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,
         string caseReference,

@@ -422,38 +422,13 @@ internal sealed class BoxContentClient(
 
 internal sealed class BoxCaseCustody(
     IIntakeArtifactStore artifactStore,
-    BoxContentClient client) : ICaseCustody, IImageIntakeCustody
+    BoxContentClient client) : ICaseCustody
 {
     private const string CaseBindingFileName = "pegasus-case-binding.json";
     private const string AuditBindingFileName = "pegasus-audit-binding.json";
     private const string AcceptedSourceBindingFileName = "pegasus-accepted-source-binding.json";
-    private const string ImageIntakeBindingFileName = "pegasus-image-intake-binding.json";
     private const string BindingMediaType = "application/json";
     private const string CreationAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-
-    public async Task<ImageIntakeCustodyRoot> CreateOrGetRootAsync(
-        Guid imageIntakeId,
-        string imageIntakeReference,
-        string operationKey,
-        CancellationToken cancellationToken)
-    {
-        ValidateCase(imageIntakeId, imageIntakeReference);
-        ValidateOperation(operationKey);
-        var folder = await GetOrCreateBoundFolderAsync(
-            client.RootFolderId,
-            CaseFolderName(imageIntakeReference),
-            ImageIntakeBindingFileName,
-            JsonSerializer.SerializeToUtf8Bytes(new
-            {
-                schemaVersion = 1,
-                imageIntakeId,
-                imageIntakeReference
-            }),
-            CustodyCreationOwner.Create(),
-            null,
-            cancellationToken);
-        return new(imageIntakeId, folder.Id, imageIntakeReference);
-    }
 
     public async Task<CaseCustodyRoot> CreateCaseRootAsync(
         Guid caseId,

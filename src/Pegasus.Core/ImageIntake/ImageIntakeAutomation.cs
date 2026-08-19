@@ -36,6 +36,7 @@ public sealed class ImageIntakeAutomation(
     IImageIntakeCaseCandidates caseCandidates,
     IIntakeMutationStore intakeMutationStore,
     IIntakeReceiptQueries receiptQueries,
+    IImageIntakeCasePairing casePairing,
     TimeProvider timeProvider) : IImageIntakeAutomation
 {
     public const string ActorId = "image-intake-automation";
@@ -343,6 +344,7 @@ public sealed class ImageIntakeAutomation(
                     $"Automatic association: the confirmed registration matches case {candidate.CaseReference} unambiguously."),
                 timeProvider.GetUtcNow(),
                 cancellationToken);
+            await casePairing.SyncMergeAfterLinkAsync(receipt.Id, candidate.CaseId, actor, cancellationToken);
             activity?.SetTag("image_intake.association", "associated");
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
