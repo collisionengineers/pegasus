@@ -216,3 +216,56 @@ Two process points worth keeping:
 - Both lanes correctly identified `20260819104953_MailClassificationCorrectionHistory`
   as somebody else's failure and did not "fix" it. That is the behaviour the
   warning in their briefs was meant to produce.
+
+## PR #426 — release gate, grants and guard — **PASS** (with a disclosure)
+
+Head `5c24e61e`. All ten lanes SUCCESS.
+
+**Disclosure of my own involvement.** I did not implement the migrations, the
+census entries or `Test-MigrationGrants.ps1` — those are the lane's work and I
+review them as an independent reader. But I authored two commits on this branch
+myself: the CI step adding `Test-AzureDeploymentPlan -Mode Local` to the
+always-on `changes` job. I cannot be an independent reviewer of my own commit,
+so I am not claiming to be; instead that commit rests on objective evidence
+rather than my judgement — GitHub's own job record for run `32263089802` shows
+the steps "Migration runtime-grant check" and "Azure deployment plan (Local)"
+both with conclusion `success`, i.e. the gate demonstrably executes and passes
+in CI rather than merely being configured.
+
+**Root cause, now pinned exactly.** I traced how a broken release gate reached
+`dev`: `Test-AzureDeploymentPlan -Mode Local` already ran in CI, as the
+"Validate infrastructure plan locally" step of the `infrastructure` job — but
+that job is path-gated on `needs.changes.outputs.infrastructure == 'true'`.
+Checking TICK-046's own PR #418, `infrastructure` is **SKIPPED**. So a
+grant-carrying migration merged without the gate ever running against it, and
+nothing surfaced until a release was attempted. That is the whole story, and it
+is why the fix is "run it unconditionally" rather than "remember to run it".
+
+**The three defects.** The `CaseRepairSpecifications` grant is justified per
+operation from the two stores, with no Worker grant because the Worker reaches
+neither. The `EvaHandoffDownloadOperations` migration mirrors its siblings'
+verified production shape and closes a defect that is live right now. The census
+additions match the SQL each migration emits — which is the property that
+matters, since divergence fails against the real database mid-release rather
+than in CI.
+
+**The guard is honest about its own limits.** It searches the whole migrations
+folder for a satisfying `GRANT` rather than only the creating file, because a
+follow-up migration is a legitimate way to close a gap — and it was self-tested
+against a synthetic ungranted table to prove it still fails when it should. 65
+tables across 16 pre-least-privilege migrations are exempted, each confirmed
+covered by `20260729199000_RuntimeRoleReconciliation`'s own grant arrays rather
+than waved through.
+
+**One observation I am deliberately not acting on now.** `Test-AzureDeploymentPlan
+-Mode Local` now runs twice on an infra-touching PR: unconditionally in `changes`
+(ubuntu) and again in `infrastructure` (windows). That is not pure duplication —
+the release itself is executed from Windows, so a Windows run of the release
+script has real value, while the ubuntu run guarantees it always runs at all.
+The cost is roughly 40 seconds on infra PRs. Recorded rather than churned,
+because editing `ci.yml` again would re-run the full ~15-minute lane set on the
+one PR every other branch is blocked behind. Worth a comment clarifying the
+intent in a later PR so a future reader does not mistake it for an accident.
+
+**Verdict: pass.** Merging first, by necessity — every other branch needs this
+`dev` baseline before it can verify its own gate.
