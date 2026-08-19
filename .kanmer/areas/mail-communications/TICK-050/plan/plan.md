@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Operator decision — 2026-08-19
+
+Suggestions are advisory, but an eligible folder recommendation may render a **Move** button. The button calls MAIL-07's confirmed move use case; it never performs an inline or client-selected mutation.

@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Operator decision — 2026-08-19
+
+MAIL-12 is activated for full implementation. Include approved-mailbox drafts, compose, reply, forward, recipient/CC/BCC, subject/body, attachments, configured signatures, explicit send confirmation, idempotent submission, visible retry/failure, permanent attribution and Sent evidence reconciliation. Real mailbox enablement remains separately approval-gated.

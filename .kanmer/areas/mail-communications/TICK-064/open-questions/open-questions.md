@@ -1,6 +1,7 @@
 # Open questions — MAIL-23
 
-- [ ] Confirm both the MAIL-02 operational matrix and the designated Outlook folder key/name for every classified category. Recommendation: one exhaustive versioned Core table; Ambiguous/Unclassified map to Needs sorting and no folder recommendation; classification, queue and folder remain separate result fields.
+- [ ] **Confirm the Other / Needs sorting distinction and exhaustive operational mapping recorded on TICK-044.**
+- [ ] **Confirm designated Outlook destinations.** Recommendation: map Receiving work, Queries and Other to exact administrator-approved folder identities of the same business names; Triage and Needs sorting receive no automatic folder recommendation. Store stable approved-folder identity, not a UI-provided name.
 
 ## Parked (explicitly deferred)
 

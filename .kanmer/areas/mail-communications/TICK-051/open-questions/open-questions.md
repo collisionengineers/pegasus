@@ -1,6 +1,6 @@
 # Open questions — MAIL-09
 
-- [ ] Confirm the activation threshold for automatic association. Recommendation: auto-link only one exact immutable Case/PO reference match with no conflicting evidence; VRM-only, thread-only, zero, multiple or conflicting candidates remain unlinked for manual review.
+- [x] **What evidence may automatically associate email with a Case?** — Case/PO references are internal and must not be used to match inbound mail. A VRM automatically matches only when exactly one Case in the system has that VRM. Thread evidence automatically matches when the exact retained mailbox thread already belongs to a Case; use mailbox-scoped durable thread identity and fail closed if the thread is associated with zero or multiple Cases or contradictory evidence.
 
 ## Parked (explicitly deferred)
 

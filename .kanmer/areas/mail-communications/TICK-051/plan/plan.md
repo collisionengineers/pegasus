@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Operator decision — 2026-08-19
+
+Do not use Case/PO references as inbound matching evidence: they are internal references. Automatic association uses (a) a VRM only when it resolves to exactly one Case system-wide, or (b) mailbox-scoped exact thread identity when that retained thread already resolves to exactly one Case. Zero, multiple, stale, or contradictory results fail closed without association.

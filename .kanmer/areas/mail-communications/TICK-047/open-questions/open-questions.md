@@ -1,6 +1,6 @@
 # Open questions — MAIL-05
 
-- [ ] Confirm the canonical designated Outlook folder mapping (stable folder key/name) for each detailed classification. Recommendation: define it once in MAIL-23, return no recommendation for Ambiguous/Unclassified, and never accept a client-supplied folder.
+- [ ] **Confirm designated Outlook destinations through MAIL-23.** Recommendation: use exact administrator-approved folder identities for Receiving work, Queries and Other; return no recommendation for Triage, Needs sorting, Ambiguous or Unclassified results; never accept a client-supplied destination.
 
 ## Parked (explicitly deferred)
 

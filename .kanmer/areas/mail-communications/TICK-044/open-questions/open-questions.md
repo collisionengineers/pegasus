@@ -1,7 +1,9 @@
-# Open questions — TICK-044
+# Open questions — MAIL-02
 
-- [ ] **Product-owner decision required:** Should MAIL-02 use this exact exhaustive operational mapping: `new-instruction-received` → **Receiving work**; `post-report-emails` plus Received `billing/billing-query` → **Queries**; accepted `pre-instruction-emails` Triage requests → the separate **Triage** workflow only when its existing registration and route predicates pass (otherwise **Needs sorting**); every remaining classified Received/Sent category, including reasoned `Other`, → **Other**; and every `Ambiguous` or `Unclassified` result → **Needs sorting**? Recommendation: accept this conservative matrix only if those category meanings match operations, retain Ambiguous/Unclassified as Needs sorting, and keep Outlook-folder mapping in MAIL-23. Also confirm whether a classified `pre-instruction-emails` item that is not a Triage request belongs in Receiving work or Other.
+- [ ] **Confirm the operational meaning of Other versus Needs sorting.** Proposed distinction: **Other** is a successful, explainable classification whose known business destination is the general Other queue; **Needs sorting** is a fail-closed exception queue for Ambiguous, Unclassified, contradictory, incomplete, or unsupported evidence where Pegasus cannot safely choose a business destination.
+- [ ] **Confirm the exhaustive mapping after accepting that distinction:** new instructions → Receiving work; post-report email and billing queries → Queries; accepted pre-instruction Triage requests → Triage; other pre-instruction email → Other; every remaining successfully classified category, including reasoned Other → Other; Ambiguous/Unclassified → Needs sorting.
 
 ## Parked (explicitly deferred)
 
-None.
+- [ ] Exact automatic predicates/confidence/holdout activation beyond the delivered routes.
+- [ ] Real Outlook/Graph/cloud activation and live verification.

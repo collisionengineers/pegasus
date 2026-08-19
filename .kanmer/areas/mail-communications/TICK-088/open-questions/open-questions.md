@@ -1,7 +1,8 @@
 # Open questions — MAIL-12
 
-- [ ] Confirm whether MAIL-12 is activated now despite its Later/0.5.0 allocation, and the required send-confirmation model. Recommendation: plan repository contracts/tests now, but do not implement or enable outbound sending until explicit recipient/CC/signature/attachment rules and exact live mailbox approval are recorded.
+- [x] **Is MAIL-12 activated despite its Later / 0.5.0 allocation?** — Yes. Activate it for full implementation in EPIC-006.
+- [x] **What level of implementation is required?** — Full authenticated compose, reply, forward and send functionality through approved mailboxes, including recipient/CC/BCC, subject/body, attachments, thread/reply semantics, signatures configured by the approved mailbox, drafts, explicit send confirmation, idempotent submission, visible failure/retry, permanent attribution and Sent evidence reconciliation. UI and Automation callers must reuse one Core implementation.
 
 ## Parked (explicitly deferred)
 
-- [ ] Real Outlook/Graph/cloud activation and live verification — requires explicit approval for exact targets and operations.
+- [ ] Enabling or verifying a real Outlook/Graph mailbox remains an external write and requires explicit approval for exact targets and operations.

@@ -1,6 +1,6 @@
 # Open questions — MAIL-13
 
-- [ ] Confirm the mutation scope and especially deletion semantics. Recommendation: implement read/unread, approved Outlook categories and flags with explicit confirmation/history, but defer delete until the operator specifies soft-delete/recovery, authorization and retention behaviour; never hard-delete through Pegasus.
+- [x] **What Outlook mutation scope is required?** — Pegasus is a full email-management system. Incorporate the message-management functionality represented by the email workspace: read/unread, approved Outlook categories, flags, folder movement, deletion to Deleted Items, restoration, and permanent deletion where Outlook permits it. Every mutation remains authorised, exact-message-scoped, version-checked, attributable, idempotent, visibly recoverable where Outlook supports recovery, and explicitly confirmed for destructive actions. Compose/reply/forward/send remains owned by MAIL-12.
 
 ## Parked (explicitly deferred)
 
