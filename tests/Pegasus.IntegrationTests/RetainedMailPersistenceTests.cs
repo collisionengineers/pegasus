@@ -314,6 +314,112 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task OneCorrectionPolicyAppliesIdenticallyAndIndependentlyAcrossMailboxes()
+    {
+        // engineers@collisionengineers.co.uk is one of the four documented
+        // mailboxes (docs/operator-notes.md); the second mailbox identity
+        // must never be a fabricated address.
+        const string secondMailboxId = "engineers";
+        const string secondMailboxAddress = "engineers@collisionengineers.co.uk";
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await SeedPollStateAsync(database, secondMailboxId, secondMailboxAddress);
+        var messages = new[]
+        {
+            Message("message-shared-policy-a"),
+            Message(
+                "message-shared-policy-b",
+                mailboxId: secondMailboxId,
+                mailboxAddress: secondMailboxAddress)
+        };
+
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        // The registered policy decides the outcome, not a literal: a Triage
+        // phrase in the body and an Audit notification title in an
+        // attachment are two of the policy's real predicates, and they
+        // legitimately match at once, so the registered QDOS policy itself
+        // produces the Ambiguous outcome exercised below. If DI ever bound a
+        // different policy, or the policy's predicate logic regressed, this
+        // call -- not a fabricated result -- would change and the
+        // assertions below would fail.
+        var policy = services.GetRequiredService<IMailClassificationPolicy>();
+        var original = policy.Classify(new(
+            IntakeSourceReadStatus.Readable,
+            [
+                new(IntakeEvidenceSource.EmailBody, "message body", "Triage Only Request. See attached."),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1, instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1")
+            ],
+            [],
+            [],
+            false));
+        Assert.Equal(MailClassificationOutcome.Ambiguous, original.Outcome);
+        Assert.Equal(QdosMailClassificationPolicy.Key, original.PolicyKey);
+        Assert.Equal(QdosMailClassificationPolicy.Version, original.PolicyVersion);
+
+        foreach (var message in messages)
+        {
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, original);
+        }
+
+        var queries = services.GetRequiredService<IRetainedMailQueries>();
+        var command = services.GetRequiredService<CorrectRetainedMailClassification>();
+        var actor = ActionActor.Staff(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            [StaffRole.User]);
+        var retained = (await queries.ListAsync(
+                new(null, MailFolderScope.Inbox),
+                1,
+                25,
+                CancellationToken.None))
+            .Items
+            .OrderBy(item => item.MailboxId, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal([secondMailboxId, MailboxId], retained.Select(item => item.MailboxId));
+        foreach (var item in retained)
+        {
+            var corrected = await command.ExecuteAsync(
+                actor,
+                new(
+                    item.Id,
+                    1,
+                    MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"),
+                    "The exact retained message is an acknowledgement."));
+
+            Assert.Equal(2, corrected!.Version);
+            Assert.Equal(policy.PolicyKey, corrected.Current.PolicyKey);
+            Assert.Equal(policy.PolicyVersion, corrected.Current.PolicyVersion);
+            Assert.Equal(original.Predicates, corrected.Current.Predicates);
+            Assert.Single(corrected.History);
+        }
+
+        await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() =>
+            command.ExecuteAsync(
+                actor,
+                new(
+                    retained[0].Id,
+                    1,
+                    MailCategory.Received(ReceivedMailFamily.InternalCc),
+                    "A stale correction must not affect either mailbox.")));
+        Assert.Null(await command.ExecuteAsync(
+            actor,
+            new(
+                Guid.NewGuid(),
+                1,
+                MailCategory.Received(ReceivedMailFamily.InternalCc),
+                "An unknown retained message must not create a decision.")));
+        Assert.Equal(
+            2L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));
+    }
+
+    [Fact]
     public async Task AForwardedMessageUsesTheProvenOriginalSenderAndRetainsTheForwarder()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();

@@ -7,5 +7,13 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Version>0.1.0-alpha.1</Version>
+    <!-- Single source of truth for the pinned Microsoft.Playwright package
+         version. Pegasus.Infrastructure's PackageReference and
+         Pegasus.Web's ContainerBaseImage both derive from this property so a
+         future Playwright bump cannot silently desynchronise the two: the
+         playwright/dotnet base image tag must match the pinned package
+         version exactly, or Playwright refuses to drive a browser build it
+         did not pin (see ADR-0028, DELIV-012). -->
+    <PlaywrightVersion>1.61.0</PlaywrightVersion>
   </PropertyGroup>
 </Project>

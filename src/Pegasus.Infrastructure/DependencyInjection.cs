@@ -58,6 +58,9 @@ public static class DependencyInjection
             evaMappingAcceptanceFactory?.Invoke(provider) ?? EvaMappingAcceptance.Unaccepted);
         services.TryAddSingleton(VehicleLookupAvailability.Unavailable);
         services.AddScoped<EfIntakeReceiptStore>();
+        services.AddScoped<EfIntakeSubmissionGroupStore>();
+        services.AddScoped<IIntakeSubmissionGroupStore>(provider =>
+            provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<EfIntakeAllocationStore>();
@@ -258,6 +261,7 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
+        services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();

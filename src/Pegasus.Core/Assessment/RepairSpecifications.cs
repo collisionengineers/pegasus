@@ -225,4 +225,8 @@ public interface IRepairSpecificationStore
     Task<RepairSpecificationVersion?> GetCurrentAcceptedAsync(
         Guid caseId,
         CancellationToken cancellationToken);
+
+    Task<RepairSpecificationVersion?> GetCurrentDraftAsync(
+        Guid caseId,
+        CancellationToken cancellationToken);
 }
