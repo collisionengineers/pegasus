@@ -2,7 +2,7 @@
 id: TICK-212
 type: ticket
 title: Add report-renderer package lock files
-status: verifying
+status: done
 area: documents-reports
 assignee: codex-mcp-client
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-19T09:02:50.835Z'
   review: '2026-08-19T10:41:28.750Z'
   verifying: '2026-08-19T10:41:47.434Z'
+  done: '2026-08-19T10:42:59.942Z'
 taken_at: '2026-08-19T10:39:19.075Z'
 branch: task/tick-212-renderer-lock-subsumption
 worktree: ../pegasus-worktrees/tick-212-renderer-lock-subsumption
@@ -30,7 +31,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.782Z'
-updated: '2026-08-19T10:41:47.434Z'
+updated: '2026-08-19T10:42:59.942Z'
 ---
 
 ## What

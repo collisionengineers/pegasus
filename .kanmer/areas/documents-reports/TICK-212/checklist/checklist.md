@@ -9,3 +9,14 @@
 
 - 2026-08-19: `git merge-base --is-ancestor b548b674 origin/dev` confirmed the owning merge is in current `origin/dev`.
 - 2026-08-19: `git status --short` and `git diff --stat origin/dev...HEAD` remained empty after verification.
+
+## Closeout — TICK-212
+
+- [x] Owning PR #415 merge verified (MERGED 2026-08-19T10:29:20Z)
+- [x] proof.md finalised with owning PR URL and merge date
+- [x] Moved to Done
+- [x] Outcome/traceability/deployment n/a recorded
+- [ ] Removed `../pegasus-worktrees/tick-212-renderer-lock-subsumption`
+- [ ] Deleted local branch `task/tick-212-renderer-lock-subsumption`
+- [ ] Ran fetch/prune and worktree prune
+- [ ] Released the Kanmer claim

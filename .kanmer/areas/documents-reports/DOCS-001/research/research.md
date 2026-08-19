@@ -46,3 +46,7 @@ Read-only inspection used merged `origin/dev` at `b548b674e31d05de6f43eeb285a25d
 - Persist the fixed assessment+fee-note pair as one report version with distinct typed artifacts and immutable hashes/content addresses.
 - Preserve every version and its provenance. Exact replay returns the existing version; a new accepted payload/template identity appends a successor.
 - Integrate later approval/Sent evidence by artifact/report-version identity without treating generation as either event.
+
+## Operator decision — report reference — 2026-08-19
+
+The human-readable reference printed on every generated report is the existing Case/PO number (`OurReference`). DOCS-001 must not create a new outward report-reference sequence or format. The durable report aggregate still needs an internal immutable report/version identity for deterministic replay, custody, provenance, corrections, approval and Sent-evidence association; that identity is not a second business-facing reference.
