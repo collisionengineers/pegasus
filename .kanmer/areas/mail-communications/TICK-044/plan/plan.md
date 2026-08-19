@@ -72,3 +72,15 @@ Simplification re-check:
 - One list: the taxonomy remains solely in `MailTaxonomy`; the policy does not duplicate a category registry.
 - Efficiency: the correction is still a pure allocation-free switch apart from the immutable result.
 - Altitude: the typed result expresses Core policy without UI view models or Outlook folder mechanics.
+
+## Operator correction — real mailbox-viewer caller — 2026-08-19
+
+The operator confirmed that the mailbox viewer is meant to show MAIL-02's classification and destination information. The implementation is incomplete while `MailOperationalDestinationPolicy.Map` is referenced only by tests.
+
+Before review can pass:
+
+- Extend the existing retained-mail Core projection to derive the operational destination from the stored classification through the one canonical policy.
+- Carry both the exact detailed classification and derived operational destination to the existing mailbox list/detail caller without persisting duplicate destination state.
+- Render both values in the retained mailbox viewer using existing display/accessibility conventions; keep Needs sorting, Triage, Receiving work, Queries, detailed classifications, and reasoned Other distinct.
+- Add Core plus integration/Web tests proving the real viewer caller consumes the policy, including QDOS classified, ambiguous/unclassified, and reasoned Other examples.
+- Refresh the post-implementation report and simplification dispositions, then rerun the locked build and focused/full tests. Do not claim MAIL-02 delivered from policy-unit tests alone.

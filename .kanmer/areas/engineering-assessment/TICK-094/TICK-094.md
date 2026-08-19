@@ -4,10 +4,12 @@ type: ticket
 title: >-
   ENG-02 — Engineer-owned final value/deductions, outcome, salvage
   category/value, and roadworthiness/reason drive derived figures…
-status: backlog
+status: preparing
 area: engineering-assessment
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:05:16.912Z'
 labels:
   - capability
   - ENG-02
@@ -22,7 +24,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.590Z'
-updated: '2026-08-19T08:57:19.721Z'
+updated: '2026-08-19T09:05:16.912Z'
 ---
 
 ## What

@@ -4,10 +4,12 @@ type: ticket
 title: >-
   RPT-03 — Audit rendering preserves conservative and maximised specifications
   and records their uplift
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:06:03.452Z'
 labels:
   - capability
   - RPT-03
@@ -25,7 +27,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.682Z'
-updated: '2026-08-19T08:57:19.765Z'
+updated: '2026-08-19T09:06:03.452Z'
 ---
 
 ## What

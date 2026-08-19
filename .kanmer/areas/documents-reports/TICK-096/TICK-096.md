@@ -4,10 +4,12 @@ type: ticket
 title: >-
   RPT-01 — Deterministic renderer validates accepted data, computes each figure
   once, and applies the fixed Collision Engineers de…
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:05:36.349Z'
 labels:
   - capability
   - RPT-01
@@ -25,7 +27,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.638Z'
-updated: '2026-08-19T08:57:19.735Z'
+updated: '2026-08-19T09:05:36.349Z'
 ---
 
 ## What

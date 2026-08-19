@@ -13,3 +13,9 @@
 - [x] Write the post-implementation report with commands, results, residual risks and deployment qualification.
 
 - [x] Address MAIL-001: preserve every known classification as a typed operational destination and reserve Other for genuinely novel classifications.
+
+- [ ] Wire `MailOperationalDestinationPolicy` into the retained-mail Core projection as the real caller.
+- [ ] Carry the exact classification and derived operational destination to the mailbox list/detail view without duplicate persistence.
+- [ ] Display both values in the retained mailbox viewer with distinct fail-closed states.
+- [ ] Add integration/Web tests proving the deployed-shaped viewer path consumes the Core policy.
+- [ ] Rerun Release build, focused/full tests, simplification pass, and update the post-implementation report after the caller lands.

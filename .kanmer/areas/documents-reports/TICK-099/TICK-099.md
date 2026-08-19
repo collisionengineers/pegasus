@@ -4,10 +4,12 @@ type: ticket
 title: >-
   RPT-04 — Diminution rendering uses accepted original-case data plus the
   Engineer-entered percentage
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:06:16.263Z'
 labels:
   - capability
   - RPT-04
@@ -25,7 +27,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.703Z'
-updated: '2026-08-19T08:57:19.781Z'
+updated: '2026-08-19T09:06:16.263Z'
 ---
 
 ## What
