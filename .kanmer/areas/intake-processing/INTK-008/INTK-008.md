@@ -31,11 +31,13 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - 2cefd942
+  - 0cd4e119
+  - fcd0a497
 prs:
   - '423'
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-08-19T11:39:29.235Z'
+updated: '2026-08-19T11:40:46.253Z'
 ---
 
 ## What
