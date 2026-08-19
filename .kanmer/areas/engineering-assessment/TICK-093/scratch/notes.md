@@ -3,3 +3,5 @@
 PR opened: https://github.com/collisionengineers/pegasus/pull/420. Current head 405dc0e4 after cleanly merging renderer dev and resolving the later mailbox migration manifest additively. PR is mergeable; repository-check CI is in progress. No self-review or merge performed.
 
 PR-011 correction started. Re-read the later TICK-205 Outcome/open questions: one shared canonical accepted repair specification; no Audit conservative/maximised roles or uplift. Older TICK-205 plan/PIR/proof are explicitly stale. TICK-093 moved back to Implementing and its research/files/questions/plan/checklist were reconciled before code changes.
+
+PR-011 independent simplification completed and all four findings applied: purpose-neutral FRD, accepted-first canonical projection, one Core Engineer policy, and one shared line factory. Corrected Release build 0 warnings/errors; Core Assessment 45/45; focused SQL lifecycle/schema/legacy migration 3/3; architecture 97/97. Full Release run active: Core 640/640 and architecture 97/97 green, integration has no failures so far.

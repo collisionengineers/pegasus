@@ -41,3 +41,14 @@ Reuse `EstimateLineCodes`, `AssessmentPolicy.NormalizeRepairSpecificationLines`,
 - Existing dual-role code can survive in generated migration/model artifacts. Mitigation: repository-wide targeted search and focused schema test.
 - Current accepted uniqueness can be weakened while removing composite keys. Mitigation: filtered unique `CaseId` index plus unique `CaseId, Version`.
 - No operator question remains.
+
+## PR-011 simplification pass — 2026-08-19
+
+Independent four-lens review completed after removing the rejected role model.
+
+- **Policy altitude:** applied. FRD-06 now describes one purpose-neutral case-scoped specification feeding the Case's report projections; it names no Audit-specific specification semantics.
+- **Canonical versus edit state:** applied. The general assessment projection now prefers the current accepted specification and falls back to a draft only before any acceptance. Correction drafts remain addressable through the explicit repair-specification version/edit operations and cannot silently displace canonical accepted data.
+- **One policy owner:** applied. Engineer authorization is exposed once by `RepairSpecificationPolicy.RequireEngineer`; Infrastructure no longer repeats the business role rule.
+- **Reuse/duplication:** applied. Initial and cloned estimate lines now share the single `NewLine` entity factory.
+- **Efficiency:** passed. Serializable mutation and the intermediate supersession save remain necessary for concurrency and the filtered one-accepted index.
+- **Scope:** passed. Targeted search found no Audit purpose/role, Conservative/Maximised, dual-specification, or uplift semantics in the corrected Core/persistence/migration/tests/FRD contract.
