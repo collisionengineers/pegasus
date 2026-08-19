@@ -1,10 +1,11 @@
 # Checklist — TICK-213
 
-- [ ] Confirm SIMPLI-014's final plan/checklist owns normal/default assessment and fee-note styling, clean page flow, no Core/caller density option, and no speculative global auto-fit.
-- [ ] After SIMPLI-014 merges, inspect its exact Core/Infrastructure/template/test diff for no density leakage, no active-family fit target, fixed rendererref1 styling, and overflow continuation rather than clipping or compaction.
-- [ ] Verify merged representative and stress Chromium evidence for normal density, long repair-list/photo continuation, stable page furniture, no clipping/placeholders, and no unnecessary multi-pass rendering.
-- [ ] Record the no-code post-implementation report/outcome with the SIMPLI-014 PR, merge commit and proof; state that TICK-213 created no repository branch, worktree, commit, PR, deployment or cloud action.
+- [x] Confirmed SIMPLI-014 owns normal/default assessment and fee-note styling, clean page flow, no Core/caller density option, and no speculative global auto-fit.
+- [x] Inspected merged Core/Infrastructure/template source: neither Core nor application callers expose density/fit; active templates use plain `<body>`; the adapter has one fixed `PdfAsync` call per artifact and no global auto-fit loop.
+- [ ] Add and pass one verification-only real-Chromium stress test with long uniquely labelled repair lists and multiple accepted photos; assert multi-page continuation, terminal content, page furniture, embedded images, and no placeholders.
+- [ ] Run the focused renderer Browser suite and proportional build/simplification pass; record exact evidence.
+- [ ] Record the post-implementation report/outcome with the SIMPLI-014 owning merge and this test-only PR; move Review.
 
 ## Progress notes
 
-(append with set_ticket_doc(doc: "checklist", append: true))
+- 2026-08-19: Existing all-four-outcome Chromium suite passed 5/5, but its representative snapshot has one item per work list and one photo. Re-planned proportionally to add the missing stress proof; no production change is authorized.

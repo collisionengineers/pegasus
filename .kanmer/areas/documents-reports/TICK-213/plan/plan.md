@@ -36,3 +36,16 @@ The final visual/mechanical acceptance cannot be proved until SIMPLI-014's migra
 - **Unnecessary render cost:** global auto-fit can cause up to three Chromium passes. Mitigation: assert no fit target for the active family and one normal render path.
 - **Future template targets:** a later capability may legitimately need fit-to-pages. Mitigation: preserve a small internal per-template seam only where useful; require accepted visual evidence before activation.
 - **Operator questions:** none remain; current evidence and the approved activation subset resolve the decision.
+
+
+## Re-plan — 2026-08-19: close the missing stress-evidence slice
+
+Merged source and the existing four-outcome Chromium test prove normal active-template markup, no caller density option, and the single `PdfAsync` path, but the existing snapshot has only one entry in each work list and one photo. It cannot prove the checklist's long-list/multi-photo continuation claim.
+
+Add one verification-only Browser test beside the existing renderer integration test. Reuse its composed application path and real supplied image fixture; create long uniquely labelled new-part/repair/operation lists and multiple independently hashed photo evidence entries. Assert the assessment spans additional pages, every terminal work-list label remains extractable, the final Statement of Truth remains present, every page retains the report reference/page furniture, multiple images are embedded, and no unresolved placeholder appears. The multi-page result is the behavioural proof that content flows normally instead of global shrink-to-fit. Source inspection remains the proportional proof that rendering calls Chromium once per fixed assessment/fee-note artifact and exposes no density selector.
+
+No production/CSS/template change is authorized. If the stress test exposes clipping or missing furniture, stop and create a blocking defect ticket rather than widening this ticket.
+
+## Simplification pass
+
+Run after the focused test change. The expected disposition is test-only reuse of the existing snapshot/composition helpers, with no new production abstraction.

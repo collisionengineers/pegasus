@@ -117,3 +117,11 @@ The INTK-005 branch is the implementation base and is not a merge prerequisite. 
 ## Parallel-branch execution note — 2026-08-19
 
 This ticket is intentionally implemented from the INTK-005 PR branch before PR merge. Record the exact base SHA in execution scratch and ticket notes. When INTK-005 is reviewed, rebase this branch onto the reviewed INTK-005 result and resolve any conflicts before its PR is finalized. INTK-005 review/merge coordination is not an execution blocker.
+
+## Execution boundary and simplification pass — 2026-08-19
+
+- Implemented from INTK-005 PR branch SHA `ed04f498`; the dependency is intentionally branch-based and not a merge blocker. Rebase onto the reviewed INTK-005 result before final merge.
+- Reused the existing `IIntakeReceiptQueries`, `IIntakeSubmissionGroupStore`, `IImageIntakeCaseCandidates`, `TryRegisterAndAssociateAsync`, and image-intake suggestion store. No duplicate candidate matcher, generic workflow abstraction, or direct EF Case mutation was introduced.
+- Group routing now aggregates all members and safely associates every member only for one accepted VRM and one eligible existing Case. Detector-empty and recognizer-empty outcomes are recorded with distinct failure codes.
+- The Image-Only Case branch is not fabricated: the existing Case acceptance owner requires a real principal and immutable Case identity. INTK-007/updated governing documents must supply that authorized contract; until then the group remains available for the documented Unidentified path. This is a review/rebase policy seam, not an INTK-005 branch dependency blocker.
+- Release build passed with 0 warnings/errors. Focused Core tests (19) and VRM integration tests (5) passed.

@@ -22,3 +22,12 @@
 - Valuation one-page auto-fit, because that family is inactive.
 - Caller-selectable density.
 - Universal page-count targets.
+
+
+## Re-plan file delta — 2026-08-19
+
+| Path | Change | Reason |
+| --- | --- | --- |
+| `tests/Pegasus.IntegrationTests/Reports/AssessmentReportRendererTests.cs` | Add one real-Chromium long-list/multi-photo continuation test, reusing the existing composed renderer and supplied image fixture | Closes the missing stress-evidence slice without changing production styling or contracts |
+
+No production, CSS, template, lock, solution, CI, or documentation file should change.
