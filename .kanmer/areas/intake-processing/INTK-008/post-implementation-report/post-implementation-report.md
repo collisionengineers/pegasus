@@ -48,3 +48,57 @@ Audit, or Unidentified reference is allocated.
   dispatch remains governed by the existing queued custody boundary.
 - INTK-007 owns durable U<n> Unidentified allocation and conflicting_vrms
   persistence; INTK-006 owns grouped recognition and routing.
+
+## Takeover correction — 2026-08-19
+
+The sections above were written before a review pass (13 Codex PR comments,
+all P1/P2) found five real defects and this takeover fixed all of them; two
+paragraphs above are now stale and are corrected here rather than rewritten
+in place, so the original implementation record stays intact.
+
+- **Custody**: the "distinct IImageIntakeCustody target" paragraph above is
+  wrong — it had no application caller anywhere (confirmed by repo-wide
+  search) and shipped dark. Removed entirely: the interface, both adapter
+  implementations, and the DI registration are gone, and the DI/custody files
+  are now byte-for-byte identical to `origin/dev` (`git diff origin/dev --
+  src/Pegasus.Core/Custody src/Pegasus.Infrastructure/Custody
+  src/Pegasus.Infrastructure/DependencyInjection.cs` is empty). The matching
+  claim was also removed from ADR-0029 and FRD-05; Image-initiated files stay
+  under the existing intake source-artifact retention until a merge makes
+  them available for the formal Case's own Box custody. The "Risks /
+  follow-ups" bullet about custody root creation is superseded by this.
+- **Migration backfill**: the migration now backfills a pre-existing
+  ImageIntake whose origin receipt already resolves to a Case (via
+  `IntakeManualAssociations`/`CaseIntakeLinks`, mirroring
+  `EfImageIntakeStore.CurrentCaseId`) to `merged_into_instruction_case` with
+  its target Case id/reference, instead of leaving it `awaiting_instruction`.
+- **Lifecycle transition ownership**: `MergeAsync`/`CloseAsync` now call
+  `ImageIntakeLifecycleRules.ValidateMerge`/`ValidateClose` before persisting,
+  and the replay path now compares a stored request fingerprint (new
+  `RequestFingerprint` column on `ImageIntakeLifecycleEvents`, same pattern as
+  `ImageIntakes.RequestFingerprint`) instead of trusting any request with a
+  reused operation key. `ImageIntakeCasePairing.SyncMergeAfterLinkAsync` is
+  now the one place that transitions an Image intake to Merged; the automatic
+  forward path (`ImageIntakeAutomation`), the reverse path
+  (`ImageIntakeCasePairing.PairAcceptedCaseAsync`), and the manual staff
+  `LinkIntake` path all call it, so a manually linked record no longer stays
+  `AwaitingInstruction` forever and a merge that fails after its association
+  already committed is retried on the next call from any of those three
+  entry points (deterministic, replay-safe operation key).
+- **Web presentation**: `OperatorLabels.ImageIntakeLifecycleState` and two new
+  `OperatorLabels.HistoryEvent` codes replace every raw enum/snake_case
+  rendering on the Index and Details pages; the exact-reference search result
+  on Index now carries the real state/closure reason instead of defaulting to
+  Awaiting; `Details.cshtml.cs` now catches `DbUpdateConcurrencyException` as
+  a normal conflict outcome instead of a 500.
+- **Verification (superseding the counts above)**: `dotnet build
+  Pegasus.slnx -c Release` — 0 warnings/errors. `dotnet test
+  tests/Pegasus.Core.Tests -c Release` — 644 passed. `dotnet test
+  tests/Pegasus.IntegrationTests -c Release --filter
+  "FullyQualifiedName~ImageIntake|FullyQualifiedName~IntakePersistenceIntegrationTests"`
+  — 17 passed. `dotnet test tests/Pegasus.ArchitectureTests -c Release` — 97
+  passed. `QdosAllocationRecoveryTests.DistinctParallelRetriesResolveToOneCaseAggregate`
+  investigated separately (see the ticket plan's dated Simplification pass /
+  QA section) — confirmed pre-existing intermittent flakiness on clean
+  `origin/dev` itself, not a regression from this branch's optional
+  `IImageIntakeStore` parameter.
