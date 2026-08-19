@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -13,6 +13,7 @@ public partial class MailboxPoisonRecovery : Migration
 
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: ApprovedInboxPoisonMessages - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         migrationBuilder.CreateTable(
             name: "ApprovedInboxPoisonMessages",
             columns: table => new

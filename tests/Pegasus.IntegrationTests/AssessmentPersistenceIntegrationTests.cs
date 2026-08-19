@@ -464,6 +464,7 @@ public sealed class AssessmentPersistenceIntegrationTests
                 await SeedAsync(factory, receiptId);
                 var acceptanceStore = new EfCaseAcceptanceStore(factory, timeProvider, []);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
+                var repairSpecifications = new EfRepairSpecificationStore(factory, timeProvider);
                 return new(
                     database,
                     factory,
@@ -473,9 +474,10 @@ public sealed class AssessmentPersistenceIntegrationTests
                         new FixedConfiguration(),
                         new EfProviderInspectionModeStore(factory)),
                     new AcquireCaseEditLease(workflowStore),
-                    new SaveAssessment(new EfCaseAssessmentStore(factory, timeProvider)),
+                    new SaveAssessment(
+                        new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
                     new EfAiWorkRequestStore(factory, timeProvider),
-                    new EfRepairSpecificationStore(factory, timeProvider),
+                    repairSpecifications,
                     timeProvider);
             }
             catch
