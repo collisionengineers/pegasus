@@ -1,17 +1,17 @@
 # Context
 
-## Goal
+## Binding direction
 
-Coordinates extractor and report-renderer decisions, integration boundaries and consolidation under the canonical renderer direction.
+CollisionRenderer is integrated into the Pegasus .NET monolith and Azure deployment. It is not a separate product, service, repository, NuGet package, API, MCP host, or independently deployed unit. `Pegasus.Core` owns report readiness, policy, immutable identity, and the render contract; Infrastructure adapts the proven rendering engine; Web/Worker remain composition roots.
 
-## Membership authority
+When a system assessment has all required accepted details, the application invokes rendering through the Core-owned workflow. `reference/rendererref1/` is supplied evidence for assessment-report templates, schema, fixed wording, design, signatures, and sample outputs; it informs implementation but does not become a second policy owner.
 
-The exact initial roster is recorded in KANMER-004 plan.md and was approved as part of the area-consolidation proposal. Membership is cross-cutting context only; each ticket's durable owner remains its area.
+Generated reports must have immutable version/reference identity and hash, retained provenance and custody, fail closed on incomplete or ambiguous required data, and use correction/addendum versioning rather than overwrite. Azure integration must use the existing deployment topology unless research proves an accepted ADR is required; no cloud write is authorised without the operator's explicit target approval.
 
 ## Governing context
 
-Repository workflow is governed by AGENTS.md. Ticket-specific PRD/FRD/ADR references remain on the member tickets and are not replaced by this group.
+ADR-0025 and FRD-11 govern the integration. Repository workflow is governed by AGENTS.md. Member tickets retain their own canonical refs and any existing group memberships.
 
-## Change control
+## Open-question rule
 
-Future membership changes require a ticket-level reason and must preserve other group memberships.
+Operator-only product choices are recorded in each ticket's `open-questions/` document and surfaced before implementation. Technical questions that existing authority or read-only evidence answers are resolved by research rather than escalated.
