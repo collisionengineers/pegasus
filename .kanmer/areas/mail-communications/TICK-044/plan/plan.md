@@ -62,3 +62,13 @@ Four-lens pass:
 - Simplification: removed a QDOS predicate-key fallback from the destination policy after the canonical `triage-request` subtype made it redundant.
 - Efficiency: mapping is a pure switch over the already-loaded decision; no persistence query, additional write, or external operation occurs.
 - Altitude: Core owns only category-to-operational-destination policy; folder identity/mutation stays with MAIL-23 and workspace filtering stays with UI-14.
+
+## Review correction — MAIL-001 — 2026-08-19
+
+Independent review found that the first implementation contradicted the checked operator decision by mapping known classifications to generic `Other`. The corrected representation adds `DetailedClassification` and carries the exact validated `MailCategory` on every classified result. Receiving work, Queries, and Triage retain their workflow destinations while also carrying the exact category. Only a reasoned novel `MailCategory.Other` maps to `MailOperationalDestination.Other`; ambiguous/unclassified results carry no category and remain Needs sorting.
+
+Simplification re-check:
+- Reuse: the result carries the existing `MailCategory` rather than introducing a second enum value for every subtype.
+- One list: the taxonomy remains solely in `MailTaxonomy`; the policy does not duplicate a category registry.
+- Efficiency: the correction is still a pure allocation-free switch apart from the immutable result.
+- Altitude: the typed result expresses Core policy without UI view models or Outlook folder mechanics.

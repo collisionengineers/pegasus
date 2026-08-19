@@ -11,3 +11,5 @@
 - [x] Run and record the four-lens simplification pass.
 - [x] Update governing/current-state documentation only to the evidence tier actually reached.
 - [x] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [x] Address MAIL-001: preserve every known classification as a typed operational destination and reserve Other for genuinely novel classifications.
