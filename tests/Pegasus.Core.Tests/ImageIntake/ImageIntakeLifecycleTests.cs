@@ -95,6 +95,35 @@ public sealed class ImageIntakeLifecycleTests
             ImageIntakeLifecycleRules.ValidateRegister(Request(reason: new string('r', 501))));
     }
 
+    [Fact]
+    public void MergeRequiresFormalCaseAndPermitsSystemWorker()
+    {
+        var request = new MergeImageInitiatedCaseRequest(
+            Guid.NewGuid(),
+            Guid.NewGuid(),
+            ActionActor.SystemWorker("image-intake-automation"),
+            "merge-op",
+            "The exact VRM match is unambiguous.",
+            0);
+
+        ImageIntakeLifecycleRules.ValidateMerge(request);
+    }
+
+    [Fact]
+    public void StaffCloseRequiresCaseworkReason()
+    {
+        var request = new CloseImageInitiatedCaseRequest(
+            Guid.NewGuid(),
+            StaffActor(),
+            "close-op",
+            "Instructions will not arrive.",
+            0);
+
+        ImageIntakeLifecycleRules.ValidateClose(request);
+        Assert.Throws<StaffAuthorizationException>(() => ImageIntakeLifecycleRules.ValidateClose(
+            request with { Actor = ActionActor.RequestLink(Guid.NewGuid()) }));
+    }
+
     public static TheoryData<CaseLifecycleState, bool, bool> EligibilityCases()
     {
         var data = new TheoryData<CaseLifecycleState, bool, bool>();

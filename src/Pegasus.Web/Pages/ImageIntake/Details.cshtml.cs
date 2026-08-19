@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 
@@ -9,11 +12,13 @@ namespace Pegasus.Web.Pages.ImageIntake;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class DetailsModel(
-    IImageIntakeQueries imageIntakeQueries,
     IVrmSuggestionStore vrmSuggestionStore,
-    IImageIntakeCaseCandidates imageIntakeCaseCandidates) : PageModel
+    IImageIntakeCaseCandidates imageIntakeCaseCandidates,
+    IImageIntakeStore imageIntakeStore) : PageModel
 {
     public ImageIntakeDetail Detail { get; private set; } = null!;
+
+    public IReadOnlyList<ImageIntakeLifecycleEvent> History { get; private set; } = [];
 
     public IReadOnlyList<ImageVrmSuggestion> Suggestions { get; private set; } = [];
 
@@ -21,13 +26,14 @@ public sealed class DetailsModel(
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
-        var detail = await imageIntakeQueries.GetAsync(id, cancellationToken);
+        var detail = await imageIntakeStore.GetAsync(id, cancellationToken);
         if (detail is null)
         {
             return NotFound();
         }
 
         Detail = detail;
+        History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
         Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
             detail.Record.Origin.ReceiptId,
             cancellationToken);
@@ -37,5 +43,50 @@ public sealed class DetailsModel(
                 cancellationToken)
             : [];
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostCloseAsync(
+        Guid id,
+        long expectedVersion,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (!StaffActorFactory.TryCreate(
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await imageIntakeStore.CloseAsync(
+                new(
+                    id,
+                    actor,
+                    $"image-intake-staff-close:{id:N}:{expectedVersion}",
+                    reason,
+                    expectedVersion),
+                cancellationToken);
+            return RedirectToPage(new { id });
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError("reason", exception.Message);
+            return await OnGetAsync(id, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "This Image-initiated Case changed while you were working. Reload and try again.");
+            return await OnGetAsync(id, cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await OnGetAsync(id, cancellationToken);
+        }
     }
 }

@@ -505,7 +505,7 @@ authority on its own.
 | `OcrRequired` | Needs text extraction | Yes | No |
 | `TechnicalFailure` | Failed | Yes | No |
 | `Unsupported` | Unsupported | Yes | No |
-| `ImageIntakeRegistered` | Vehicle images registered | Yes | No Case/PO; allocates the pre-Case image reference |
+| `ImageIntakeRegistered` | Vehicle images registered | Yes | No formal Case/PO; allocates the Image-initiated VRM reference |
 
 `CaseCreated` is the processing eligibility code; typed allocation records the
 separate attempt and the Case intake link is the only proof that a reference
@@ -513,7 +513,7 @@ exists. Ambiguous or unidentified material is `Needs sorting`.
 
 `Needs text extraction` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
 
-Validation or refusal before an accepted intake receipt must not be described as case creation. An `ImageIntakeRegistered` receipt allocates only the pre-Case Image Intake Reference.
+Validation or refusal before an accepted intake receipt must not be described as formal Case creation. An `ImageIntakeRegistered` receipt allocates the separate Image-initiated Image Intake Reference.
 
 There is no decision meaning "a human has not pressed the button yet":
 [FRD-02](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) is explicit that definitive authorised intake creates
@@ -561,7 +561,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | Page header | Eyebrow, title, lede and optional primary action, shared by the Operations, Cases, Intake, Triage and Administration surfaces | `src/Pegasus.Web/Pages/Shared/_PageHeader.cshtml` |
 | Administration workspaces | Authorised Administration entry cards; one accessible link per card with the whole card as the pointer target | `src/Pegasus.Web/Pages/Administration/Index.cshtml` |
 | Intake receipt and upload | Submit one bounded authenticated source through `ReceiveIntake`; redirect to the staged receipt status; show Received, Processing, Complete or Failed; refresh nonterminal status every two seconds with a manual refresh available; link completion to the resulting case or retained receipt; list and inspect retained receipts and download the retained source only as an authorised safe attachment | `src/Pegasus.Web/Pages/{Upload,UploadStatus}.cshtml(.cs)`, `src/Pegasus.Web/Pages/Intake/{Index,Details,Source}.cshtml(.cs)` |
-| Image intake list/detail | List image-intake receipts filtered by association state and look up an exact Image Intake Reference; the detail presents the record, its VRM suggestions and, while unassociated, registration-matched eligible-case candidates, all read-only | `src/Pegasus.Web/Pages/ImageIntake/{Index,Details}.cshtml(.cs)` |
+| Image-initiated Case list/detail | List searchable Image-initiated records by lifecycle state and exact Image Intake Reference; detail presents VRM suggestions, preserved group evidence, merge history, custody, and reasoned staff closure | `src/Pegasus.Web/Pages/ImageIntake/{Index,Details}.cshtml(.cs)` |
 | Triage queue/detail | List and filter triage records and execute the Core-owned detail commands without adding due/chaser controls | `src/Pegasus.Web/Pages/Triage/{Index,Details}.cshtml(.cs)` |
 | Anonymous request upload | Token-bound `/Uploads/{token}` form and immediate result; antiforgery, idempotent operation key, generic non-disclosing outcomes | `src/Pegasus.Web/Pages/Uploads/Request.cshtml(.cs)` |
 
@@ -982,7 +982,7 @@ An intake row always presents received date above received time and its precise 
 
 #### `0.1.0-alpha.1` surface inventory
 
-- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](../frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; pre-Case Image-intake registration with its Image Intake Reference, association/await-instruction outcome, and no Case state; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures. Each row identifies its exact outcome rather than a generic `New`.
+- Intake includes manual upload; definitive/staff-resolved paths; immutable [source occurrence/dispatch](../frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity) beside the Case projection; origin/custody; extraction and reviewed VRM suggestion; Image-initiated registration with its Image Intake Reference, lifecycle/merge/closure outcome, and no formal Case/PO state; field provenance, validation, ambiguity/conflict, association history, duplicate/retry, and missing/integrity asset/source failures. Each row identifies its exact outcome rather than a generic `New`.
 - Case identity presents the Core-owned [Inspection, standalone Audit, and Inspection + Audit](../frd/frd-01-case-identity-and-lifecycle.md#case-types) distinctions, secondary Audit identity, immutable [Case/PO and principal](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), and linked `Created in error` replacement without offering identity rewrite.
 - Case work covers Not ready, Review and Held; separate mandatory instruction-completeness, image-completeness, and staff-review decisions before Engineers-queue eligibility, with no Pegasus named-Engineer assignment in alpha; due/overdue; seven-calendar-day chasers with the Held interval preserved; the Core-owned [staff-created temporary, revocable, expiring, request-scoped in-house upload-token](../frd/frd-02-intake-and-source-identity.md#request-scoped-upload-links) isolation, non-disclosure, and request-local custody contract; [copyable manual chasers](../frd/frd-01-case-identity-and-lifecycle.md#due-work-chasing-and-action-history); tasks/reminders; manual WhatsApp material; DVLA/DVSA and MOT/mileage; provider-determined inspection mode (physical address, or exact `Image Based Assessment` autofilled from the Principal's setting with reasoned override); and successful EVA JSON/image export only as the Sent-to-Engineer proxy.
 
@@ -1133,7 +1133,7 @@ creates exactly one Case/reference. Incomplete ordinary data, images, or
 applicable progression requirements yield **Not ready**; **Review** follows
 only when the explicit route policy permits it. `Blocked intake` with a
 required reason creates no Case/reference when an identity-critical gate fails;
-fail-closed `Needs sorting` remains pre-Case. Resolve/retry re-enters the same
+fail-closed `Needs sorting` remains Unidentified work. Resolve/retry re-enters the same
 path and may create exactly one Case/reference only after it establishes the
 identity-critical facts. Manual image/instruction link and reasoned reversal
 retain original origins.
@@ -1242,3 +1242,15 @@ When implemented:
 - keyboard, screen-reader, focus/error, forced-colours, reduced-motion, 1280+ desktop, constrained desktop and 200%-zoom inspection must be recorded;
 - operator review uses approved genuine local immutable material only; generated imagery or synthetic operational material cannot prove acceptance; and
 - every UI capability allocated after `0.1.0-alpha.1` re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review before its exact target can be implemented.
+
+### Image-initiated Case surface
+
+Vehicle-image arrivals with one usable VRM use the Image-initiated Case route.
+List/detail surfaces show the immutable VRM reference, preserved group and
+filenames, and the lifecycle state — Awaiting definitive instruction, Merged
+into Instruction-initiated Case, or Staff-closed. Search accepts the exact
+reference or VRM. Merge links both histories; staff closure requires a reason
+and makes the record read-only. Conflicting or unreadable groups use
+Unidentified instead. There is no dedicated Box custody surface for the
+Image-initiated Case in this slice (see FRD-05); preserved source files remain
+reachable through the origin receipt.

@@ -48,3 +48,10 @@ index. Everything else edits an existing canonical file. Documentation rules and
 conventions themselves live in [`AGENTS.md`](../AGENTS.md), not in an ADR.
 Workspace-local documentation remains governed by its accepted integration
 contract and existing workspace tree.
+
+## Image-initiated Case authority
+
+The durable technical boundary is [ADR-0029](adr/0029-image-initiated-case-projection.md).
+Behaviour is owned by FRD-01, FRD-02, FRD-05, FRD-06, and FRD-12. The formal
+Instruction-initiated Case remains the only Case/PO allocator; Image-initiated
+records use their separate VRM reference and lifecycle history.
