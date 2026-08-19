@@ -4,4 +4,4 @@ No unresolved operator question. The detailed user-visible behaviour is already 
 
 ## Parked (explicitly deferred)
 
-- [ ] Real Outlook/Graph/cloud activation and live verification — requires explicit approval for exact targets and operations.
+- [x] **What live Outlook/Graph/cloud verification is required?** — Resolved by the operator on 2026-08-19: after deployment, run the full authenticated production browser journey through the email workspace—default list, mailbox/folder/queue/search filters, pagination, freshness/refresh, accessible preview, exact-message detail, attachments/thread, classification and operational destination, folder recommendation, suggestions, navigation context, and available action controls. Read-only behavior may be exercised directly. A mutation control may be executed only when its owning MAIL ticket separately authorizes the exact target and operation; UI-10 grants no additional write authority.

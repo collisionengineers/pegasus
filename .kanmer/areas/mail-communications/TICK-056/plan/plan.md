@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Full production workspace journey — operator decision 2026-08-19
+
+After deployment, verify the complete authenticated UI-10 browser journey against the linked production mailbox: default/refined lists, filters, pagination, freshness and refresh, accessible preview, exact-message detail, attachments and scoped thread, classification/destination, folder recommendation, suggestions, search, and navigation-state preservation. Inspect every available action control and its confirmation/error states. Execute a write only as part of the separately exact-target-approved acceptance journey owned by that MAIL capability; UI-10 must not broaden or duplicate write approval.

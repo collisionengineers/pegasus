@@ -10,3 +10,5 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] After deployment, record the full authenticated production UI-10 browser journey; execute mutations only under the separately recorded exact-target approval of each owning MAIL ticket.
