@@ -11,7 +11,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // no-runtime-grant: EvaHandoffDownloadOperations - KNOWN GAP: no runtime GRANT exists anywhere for this table though Web reads/writes it via EvaHandoffStore; flagged in DELIV-012 report for a follow-up migration, not fixed here because this migration is already applied to production
             migrationBuilder.AddColumn<string>(
                 name: "AuditFolderCreationToken",
                 table: "ExternalWorkItems",
