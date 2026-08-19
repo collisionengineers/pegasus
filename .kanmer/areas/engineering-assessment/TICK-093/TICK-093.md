@@ -4,7 +4,7 @@ type: ticket
 title: >-
   ENG-01 — One canonical repair specification with route provenance for Glass's,
   Audatex PDF, or an approved AI proposal
-status: review
+status: verifying
 area: engineering-assessment
 order: 50
 assignee: codex-mcp-client
@@ -13,6 +13,7 @@ stageEntered:
   preparing: '2026-08-19T09:05:03.087Z'
   review: '2026-08-19T11:05:25.746Z'
   implementing: '2026-08-19T11:17:31.308Z'
+  verifying: '2026-08-19T12:16:19.642Z'
 taken_at: '2026-08-19T09:48:52.496Z'
 branch: task/tick-093-versioned-repair-spec
 worktree: ../pegasus-worktrees/tick-093-versioned-repair-spec
@@ -47,7 +48,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-19T11:44:32.994Z'
+updated: '2026-08-19T12:16:19.642Z'
 ---
 
 ## Outcome
