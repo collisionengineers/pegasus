@@ -152,3 +152,29 @@ Five minutes of no progress on the fetch, then cancellation — and `Complete jo
 Fix: closed and reopened PR #425, which made GitHub recompute the merge commit (`73018a96…` → `9c2dc00a…`). A fresh run started immediately and `documentation` passed in 28 s. Re-running the failed jobs of the old run could never have worked, because that run was pinned to the unresolvable ref — worth remembering the next time a job dies inside checkout rather than inside a step we wrote.
 
 Most likely trigger: the six merged remote branches deleted earlier in this session went out while that run's merge ref was being computed. No action needed, but if it recurs on another PR, close/reopen is the remedy rather than `gh run rerun`.
+
+### A systemic gap, not a one-off: grant-carrying migrations vs the bootstrap census
+
+Fixing TICK-046's unaccounted migration was not the end of it. `Test-AzureDeploymentPlan.ps1 -Mode Local` requires **every** migration containing a `GRANT` to be named in `scripts/Invoke-AzureDatabaseBootstrap.ps1`. Checking the branches queued for this release:
+
+| Branch | Migration | Carries GRANT | Census entry |
+|---|---|---|---|
+| `intk-005` (#416) | `20260819101344_GroupedIntakeSubmission` | yes (2) | **missing** |
+| `intk-006` (#417) | shares INTK-005's | yes | inherits |
+| `intk-008` (#423) | `20260819112914_ImageInitiatedLifecycle` | yes, once its blocker is fixed | **missing** |
+| `intk-007` (#424) | `20260819115323_UnidentifiedWork` | yes, once its blocker is fixed | **missing** |
+
+So merging any of them as-is would re-break the release gate the moment it landed — each one individually, in the same way TICK-046 did. And **CI would not have caught any of it**, because CI never ran `Test-AzureDeploymentPlan` at all.
+
+Two things done about it:
+
+1. **Added `-Mode Local` to the always-on `changes` job in CI** (`ci.yml`, on the #426 branch, commit `5c24e61e`). It needs no cloud credentials — only `az bicep build` — so it belongs there. From now on a PR that adds a grant-carrying migration without its census entry fails CI instead of silently poisoning the next release. This closes the gap that let the release route's own preflight sit broken on `dev` with nobody knowing.
+2. **Added INTK-005's census entries myself** (`intk-005-grouped-upload` → `0f71ee60`): Web `SELECT`/`INSERT` on `IntakeSubmissionGroups` and `IntakeSubmissionGroupMembers`, nothing for the Worker, evidenced by `EfIntakeSubmissionGroupStore` doing no UPDATE or DELETE and no Worker reference existing. Done on that branch rather than in #426 because each PR must carry its own entries, and because INTK-006 rebases onto INTK-005 and needed it in place first.
+
+Messaged the INTK-006, INTK-007 and INTK-008 lanes with the new requirement, the exact format, and the caveat that `-Mode Local` will keep failing on the *unrelated* `20260819104953` name until #426 merges — so they do not chase someone else's defect.
+
+**Forced merge order, consequently:** #426 first. Nothing else can verify its own gate until the `dev` baseline is repaired.
+
+### CI failure triage — the same allocation test, twice more
+
+PR #426's `sql-integration (2)` failed on `QdosAllocationRecoveryTests.DistinctParallelRetriesResolveToOneCaseAggregate` with the *assertion* symptom (`1 out of 2 items did not pass`), while PR #425 failed the same test with the *deadlock* symptom. #416, #422 and #425 (on re-run) all passed it. Two symptoms, one underlying concurrency defect, and it predates every release-12 branch — filed as **CASE-005** with the run evidence. #426 touches only migrations, scripts and docs, so it cannot be implicated. Re-running rather than treating it as a blocker, and recording honestly that a re-run was needed.
