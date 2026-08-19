@@ -7,7 +7,16 @@
 
 Intake may begin through staff-forwarded email, a staff-created request-scoped upload link, provider material, manually supplied files, images, correspondence, or a future approved API route. Receipt is not case creation.
 
-Image-only material with a usable normalised VRM creates a pre-Case Image intake with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM remains `Needs sorting`. An Image intake is never allocated a Case/PO or promoted into a Case merely because images arrived.
+Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM remains `Needs sorting` and follows the Unidentified contract. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
+
+A usable registration therefore settles into one of two outcomes the operator
+sees (operator ruling, 2026-08-19): when it matches no existing Case, the
+Image-initiated Case is the visible, searchable, awaiting-instruction outcome
+until something changes it; when it matches exactly one eligible Case at
+registration time, the reference is still allocated but the automatic merge
+below runs in the same pipeline pass, so what the operator finds is the images
+already attached as evidence on that Case, with the Image-initiated reference
+retained as linked history rather than a separate open record.
 
 Every intake path must:
 
@@ -103,7 +112,9 @@ association or consolidation.
 
 The immutable source occurrence and its evidence remain distinct from the accepted, editable Case projection. Linking creates a versioned source-to-case relationship; it never converts the source into the case, rewrites source facts, or changes the original intake origin.
 
-An Image intake remains pre-Case until its retained evidence can associate with exactly one eligible pre-report instructed Case. Automatic association requires an unambiguous normalised VRM match and no explicit contradictory identity evidence; otherwise an authorised staff member makes the reasoned decision. A Case after report delivery is not eligible. Association retains both permanent identities and source histories: the instructed Case/PO remains the sole Case identity and the Image Intake Reference remains linked history. Before report delivery, authorised staff may reasonedly reverse or correct the association; the intake returns to awaiting instruction, the instructed Case recomputes readiness, and neither identity, source fact, or relationship event is reused, rewritten, or deleted.
+An Image-initiated Case remains Awaiting instruction until its retained evidence can associate with exactly one eligible pre-report instructed Case. Automatic association requires an unambiguous normalised VRM match and no explicit contradictory identity evidence; otherwise an authorised staff member makes the reasoned decision. A Case after report delivery is not eligible. Association retains both permanent identities and source histories: the instructed Case/PO remains the sole formal Case identity and the Image Intake Reference remains linked history. On a unique match the Image-initiated Case becomes Merged into Instruction-initiated Case; if instructions never arrive, staff may record a permanent Staff-closed outcome with a reason. Neither identity, source fact, or relationship event is reused, rewritten, or deleted.
+
+Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
 ### Grouped image-intake routing
 

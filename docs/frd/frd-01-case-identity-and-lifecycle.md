@@ -42,7 +42,7 @@ The lifecycle must support:
 - inspection/report preparation appropriate to desktop assessment;
 - report approval and delivery evidence without adding a separate pre-send case-review gate;
 - post-report queries, corrections, addenda, disputes, and reasoned closure where allocated;
-- four distinct instructed-Case terminal outcomes: `Post-report complete`, `Provider cancelled`, `Collision Engineers rejected`, and `Created in error`; confirmed Image-intake association is a separate pre-Case source outcome, not a fifth Case closure state;
+- four distinct instructed-Case terminal outcomes: `Post-report complete`, `Provider cancelled`, `Collision Engineers rejected`, and `Created in error`; Image-initiated merge/closure is a separate image-origin lifecycle outcome, not a fifth formal Case closure state;
 - reasoned reopen through normal destination gates, excluding `Created in error` and `Held` as a reopen destination.
 
 Each unmet progression requirement is an individual actionable blocker. The UI identifies its exact field or material, source/provenance, reason, and permitted resolution; an opaque aggregate such as “no unresolved field reviews” is prohibited. An action is enabled exactly when its current explicit prerequisites are satisfied. Saving unchanged or unrelated data must neither unlock it nor reset lifecycle, readiness, or advisory state.
@@ -54,6 +54,13 @@ The named Core workflow records the policy key and version used for every config
 Every closure selects exactly one named terminal outcome, records the authenticated actor, time, reason and prior/new state in permanent history, and leaves the Case, Case/PO, source relationships, and closure chronology intact. A closed case and its files remain application-level read-only until an authorised, reasoned reopen passes the normal destination gates. `Created in error` never reopens.
 
 Every Image-intake association, reversal, or correction records the same attributable relationship evidence without closing or creating a Case. The Case, Case/PO, Image Intake Reference, source relationships, and chronology remain intact.
+
+An Image-initiated Case is a separate image-first lifecycle projection over the
+ImageIntake record. It never allocates a Principal, Case/PO, or formal Case row.
+Its immutable VRM reference remains visible when the record is merged into one
+eligible Instruction-initiated Case. Merge and staff closure are named,
+reasoned history events; the formal Case history shows the merged reference and
+the original image record shows its formal Case target.
 
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
