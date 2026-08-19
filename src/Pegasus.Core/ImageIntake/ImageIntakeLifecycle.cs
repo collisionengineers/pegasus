@@ -25,6 +25,45 @@ public sealed class RegisterImageIntake(IImageIntakeStore store) : IRegisterImag
 
 public static class ImageIntakeLifecycleRules
 {
+    public static void ValidateMerge(MergeImageInitiatedCaseRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateActor(request.Actor, allowWorker: true);
+        RequireId(request.ImageIntakeId, nameof(request.ImageIntakeId));
+        RequireId(request.CaseId, nameof(request.CaseId));
+        RequireText(request.CaseReference, "A formal Case reference is required.", 50, nameof(request.CaseReference));
+        ValidateOperation(request.OperationKey);
+        RequireText(request.Reason, "A reason is required.", 500, nameof(request.Reason));
+        ArgumentOutOfRangeException.ThrowIfNegative(request.ExpectedVersion);
+    }
+
+    public static void ValidateClose(CloseImageInitiatedCaseRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateActor(request.Actor, allowWorker: false);
+        RequireId(request.ImageIntakeId, nameof(request.ImageIntakeId));
+        ValidateOperation(request.OperationKey);
+        RequireText(request.Reason, "A reason is required.", 500, nameof(request.Reason));
+        ArgumentOutOfRangeException.ThrowIfNegative(request.ExpectedVersion);
+    }
+
+    private static void ValidateActor(ActionActor actor, bool allowWorker)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (allowWorker && actor.Kind == ActorKind.SystemWorker)
+        {
+            return;
+        }
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+    }
+
+    private static void RequireId(Guid value, string parameterName)
+    {
+        if (value == Guid.Empty)
+        {
+            throw new ArgumentException("An identifier is required.", parameterName);
+        }
+    }
     /// <summary>
     /// A Case is eligible for Image-intake association only before report
     /// delivery: an editable pre-report workflow state and no retained

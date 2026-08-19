@@ -3,34 +3,39 @@
 @model Pegasus.Web.Pages.ImageIntake.DetailsModel
 @using Pegasus.Core.ImageIntake
 @{
-    ViewData["Title"] = $"Image intake {Model.Detail.Record.ImageIntakeReference}";
+    ViewData["Title"] = $"Image-initiated Case {Model.Detail.Record.ImageIntakeReference}";
 }
 
 <header class="page-heading">
     <div>
-        <p class="eyebrow">Image intake</p>
+        <p class="eyebrow">Image-initiated Case</p>
         <h1>@Model.Detail.Record.ImageIntakeReference</h1>
         <p class="lede">
-            @if (Model.Detail.AssociatedCaseId is not null)
+            @if (Model.Detail.State == ImageInitiatedCaseState.MergedIntoInstructionCase)
             {
-                <text>Associated with Case</text>
+                <text>Merged into the Instruction-initiated Case</text>
+            }
+            else if (Model.Detail.State == ImageInitiatedCaseState.StaffClosed)
+            {
+                <text>Staff-closed</text>
             }
             else
             {
-                <text>Image intake registered — awaiting definitive instruction</text>
+                <text>Awaiting instruction</text>
             }
         </p>
     </div>
-    <a class="secondary-action" asp-page="/ImageIntake/Index">All Image intakes</a>
+    <a class="secondary-action" asp-page="/ImageIntake/Index">All Image-initiated Cases</a>
 </header>
 
 <div class="review-grid">
     <section class="panel" aria-labelledby="image-intake-record-title">
         <h2 id="image-intake-record-title" class="section-label">Record</h2>
         <dl class="detail-list">
-            <div><dt>Image Intake Reference</dt><dd>@Model.Detail.Record.ImageIntakeReference</dd></div>
+            <div><dt>Image-initiated reference</dt><dd>@Model.Detail.Record.ImageIntakeReference</dd></div>
             <div><dt>Vehicle registration</dt><dd>@Model.Detail.Record.NormalizedVehicleRegistration</dd></div>
             <div><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(Model.Detail.RegisteredAtUtc)</dd></div>
+            <div><dt>Lifecycle state</dt><dd>@Model.Detail.State</dd></div>
             <div>
                 <dt>Case association</dt>
                 <dd>
@@ -44,6 +49,10 @@
                     }
                 </dd>
             </div>
+            @if (Model.Detail.State == ImageInitiatedCaseState.StaffClosed)
+            {
+                <div><dt>Closure reason</dt><dd>@Model.Detail.ClosureReason</dd></div>
+            }
         </dl>
     </section>
 
@@ -60,6 +69,33 @@
         <a class="secondary-action" asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">Open the origin receipt to link or unlink</a>
     </section>
 </div>
+
+@if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
+{
+    <section class="panel section-gap" aria-labelledby="image-initiated-close-title">
+        <h2 id="image-initiated-close-title" class="section-label">Close Image-initiated Case</h2>
+        <p>Use only when formal instructions will not arrive. A reason is required and the record becomes read-only.</p>
+        <form method="post" asp-page-handler="Close" asp-route-id="@Model.Detail.Record.Id">
+            <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
+            <label for="image-initiated-close-reason">Reason</label>
+            <textarea id="image-initiated-close-reason" name="reason" maxlength="500" required></textarea>
+            <button type="submit" class="secondary-action">Record staff closure</button>
+        </form>
+    </section>
+}
+
+@if (Model.Detail.LifecycleHistory.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="image-initiated-history-title">
+        <h2 id="image-initiated-history-title" class="section-label">Image-initiated Case history</h2>
+        <ol class="plain-list">
+            @foreach (var entry in Model.Detail.LifecycleHistory)
+            {
+                <li><strong>@entry.EventType</strong> · @OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</li>
+            }
+        </ol>
+    </section>
+}
 
 @if (Model.AssociationCandidates.Count > 0)
 {

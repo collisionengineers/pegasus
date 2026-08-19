@@ -71,5 +71,10 @@ public sealed class IndexModel(IImageIntakeQueries imageIntakeQueries) : PageMod
     }
 
     public static string OutcomeLabel(ImageIntakeSummary summary) =>
-        summary.AssociatedCaseId is null ? "Image intake registered" : "Associated with Case";
+        summary.State switch
+        {
+            ImageInitiatedCaseState.MergedIntoInstructionCase => "Merged into Instruction-initiated Case",
+            ImageInitiatedCaseState.StaffClosed => "Staff-closed",
+            _ => "Image-initiated Case — awaiting instruction"
+        };
 }

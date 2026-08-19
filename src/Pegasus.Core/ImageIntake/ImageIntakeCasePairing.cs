@@ -26,7 +26,8 @@ public sealed class ImageIntakeCasePairing(
     IImageIntakeQueries imageIntakeQueries,
     IImageIntakeCaseCandidates caseCandidates,
     IIntakeMutationStore intakeMutationStore,
-    TimeProvider timeProvider) : IImageIntakeCasePairing
+    TimeProvider timeProvider,
+    IImageIntakeStore? imageIntakeStore = null) : IImageIntakeCasePairing
 {
     public async Task PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -66,6 +67,24 @@ public sealed class ImageIntakeCasePairing(
                         $"Automatic association: the newly accepted case {eligible[0].CaseReference} matches this Image intake's confirmed registration unambiguously."),
                     timeProvider.GetUtcNow(),
                     cancellationToken);
+                var detail = imageIntakeStore is null
+                    ? null
+                    : await imageIntakeQueries.GetAsync(intake.Id, cancellationToken);
+                if (imageIntakeStore is not null
+                    && detail is not null
+                    && detail.State == ImageInitiatedCaseState.AwaitingInstruction)
+                {
+                    await imageIntakeStore.MergeAsync(
+                        new(
+                            intake.Id,
+                            caseId,
+                            eligible[0].CaseReference,
+                            ActionActor.SystemWorker(ImageIntakeAutomation.ActorId),
+                            $"image-intake-merge:{intake.OriginReceiptId:N}",
+                            $"The Image-initiated case {intake.ImageIntakeReference} was merged into formal Case {eligible[0].CaseReference}.",
+                            0),
+                        cancellationToken);
+                }
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {

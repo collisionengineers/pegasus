@@ -1236,3 +1236,12 @@ When implemented:
 - keyboard, screen-reader, focus/error, forced-colours, reduced-motion, 1280+ desktop, constrained desktop and 200%-zoom inspection must be recorded;
 - operator review uses approved genuine local immutable material only; generated imagery or synthetic operational material cannot prove acceptance; and
 - every UI capability allocated after `0.1.0-alpha.1` re-enters inventory, specification, alternatives, independent review, explicit approval, visual generation and manual visual review before its exact target can be implemented.
+
+### Image-initiated Case surface
+
+Vehicle-image arrivals with one usable VRM use the Image-initiated Case route.
+List/detail surfaces show the immutable VRM reference, preserved group and
+filenames, Box custody state, and Awaiting instruction, Merged into
+Instruction-initiated Case, or Staff-closed. Search accepts the exact reference
+or VRM. Merge links both histories; staff closure requires a reason and makes
+the record read-only. Conflicting or unreadable groups use Unidentified instead.
