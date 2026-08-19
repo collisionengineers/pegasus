@@ -2,12 +2,15 @@
 id: TICK-207
 type: ticket
 title: Define the missing Audit renderer template
-status: implementing
+status: verifying
 area: documents-reports
+order: 20
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:04:30.646Z'
+  review: '2026-08-19T09:37:36.335Z'
+  verifying: '2026-08-19T09:38:07.704Z'
 taken_at: '2026-08-19T09:35:39.871Z'
 branch: task/tick-207-audit-template-deferral
 worktree: ../pegasus-worktrees/tick-207-audit-template-deferral
@@ -26,7 +29,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.409Z'
-updated: '2026-08-19T09:35:50.884Z'
+updated: '2026-08-19T09:38:07.704Z'
 ---
 
 ## What
