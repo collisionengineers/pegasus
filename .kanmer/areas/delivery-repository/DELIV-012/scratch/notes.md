@@ -83,3 +83,39 @@ Branch `task/deliv-012-grant-and-docs-fixes`, head `98c8b041`.
 - **Docs drift corrected.** `current-architecture.md:85` now states the `/Inbox/{id}` POST handler and the real Web grants; line ~423 was checked and is about a different table pair, so it was correctly left alone. `operations.md:278` "min 0 max 1 — cold start accepted" → "min 1 max 1 — no scale-to-zero, no cold start", verified against `infra/modules/platform.bicep:461-462`.
 - The agent caught its own bug in self-review: a Python marker-insertion script had stripped the UTF-8 BOM from 16 migration files; restored before commit, so the diffs are comment-only.
 - Evidence: Release build 0/0; `Test-MigrationGrants`, `Test-DocumentationLinks`, `Test-CiChangeFlags` pass; Core 640/640; Architecture 97/97; `IntakePersistenceIntegrationTests` **9/9 against LocalDB**, exercising the full migration chain including the new GRANT.
+
+### RELEASE GATE BROKEN ON `dev` — found 2026-08-19 ~14:00Z
+
+The renderer-container lane hit it and I reproduced it directly in the release worktree at `560f741c`:
+
+```
+pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local
+Exception: Test-AzureDeploymentPlan.ps1:53
+  Database bootstrap must account for grant-carrying migration
+  20260819104953_MailClassificationCorrectionHistory.cs.
+EXIT=1
+```
+
+`-Mode Local` and `-Mode Artifact` are mandatory steps of the release route, so **release 12 could not have proceeded from current `dev` at all.** TICK-046 (PR #418) merged a grant-carrying migration without updating `scripts/Invoke-AzureDatabaseBootstrap.ps1`'s expected census, and `Test-AzureDeploymentPlan.ps1` asserts every such migration is accounted for. Pre-existing on `dev`, not caused by any of my lanes. Assigned to the grants lane (same file, same defect class) with instructions to also sweep every other migration containing `GRANT` so we find them all in one pass rather than one per release attempt.
+
+Worth noting what this says about the release route: the route's own preflight caught a defect that CI did not, because CI never runs `Test-AzureDeploymentPlan`. That is a gap worth a follow-up ticket after the release.
+
+### Renderer container — DONE, Chromium proven in the image
+
+Branch `task/deliv-012-renderer-container`, head `f1f439b8`.
+
+- `Directory.Build.props` gains `<PlaywrightVersion>1.61.0</PlaywrightVersion>`; the Infrastructure `PackageReference` and the new `<ContainerBaseImage>mcr.microsoft.com/playwright/dotnet:v$(PlaywrightVersion)-noble</ContainerBaseImage>` in `Pegasus.Web.csproj` both derive from it, so a Playwright bump cannot silently desynchronise the package from the base image. No `ContainerUser`/port overrides — the built image proved it inherits `User: 1654` and `ExposedPorts: 8080/tcp` correctly.
+- `Build-ReleaseArtifacts.ps1` ran end-to-end (exit 0): image digest `sha256:0772d6ee…`, `linux/amd64`, archive 1.36 GiB, total artefact footprint ≈1.9 GiB.
+- **Chromium evidence**, since no Docker exists to run the image: `oras manifest fetch --oci-layout` → 14 layers (13 base + 1 app); the config blob confirms `Entrypoint=["dotnet","/app/Pegasus.Web.dll"]`, `ExposedPorts 8080/tcp`, `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright`, `APP_UID=1654`; replaying `config.history` against `rootfs.diff_ids` identified the exact Chromium layer built by `playwright.ps1 install --with-deps` — digest `sha256:2c236c77…`, 776 MB.
+- **Renderer proven against a real Chromium locally**: `AssessmentReportRendererTests` **6/6 passed** in 29 s after `playwright.ps1 install chromium`.
+- **Sizing recommendation (bicep deliberately unchanged):** the Web Container App runs 0.5 vCPU / 1 GiB, min=max=1. The lane recommends 1.0 vCPU / 2 GiB — Container Apps hard-OOM-kills rather than throttling, and 1 GiB is tight for ASP.NET Core plus headless Chromium; ≈$15.77/month → ≈$31.54/month at UK South retail. **This is an operator cost decision and an `infra/` change that would alter the `azd provision --preview` expectations, so it is not being made unilaterally.**
+
+### INTK-005 — DONE, all four blockers plus a gap the brief missed
+
+Branch `intk-005-grouped-upload`, head `d70118b1`, PR #416 updated.
+
+- Ordinal-0 token rewrite fixed (`GroupedIntake.cs:143` — parent token verbatim for ordinal 0). One-member groups redirect to `/Upload/Status/{id}` again; only multi-file groups go to `/Upload/Group/{groupId}` (`Upload.cshtml.cs:127-141`). GRANT SELECT, INSERT added for the Web role on both new tables, evidenced from `EfIntakeSubmissionGroupStore` (no UPDATE/DELETE) and a grep showing zero Worker references. Batch limit now derives from one `MaximumBatchFileCount` constant reused in the page copy. `data-auto-refresh` added to the group status page. Retry shape copied from `EfIntakeWorkStore.ReceiveWithRetryAsync` into both `AddMemberAsync` and `GetOrCreateAsync`. All five Codex comments applied.
+- **The dev merge silently ate this branch's own migration id** — no conflict markers, because dev's newer ids landed on adjacent lines and git took dev's list wholesale. The lane caught it and re-inserted `20260819101344_GroupedIntakeSubmission`. Exactly the "nothing inadvertently overwritten" risk this ticket exists to prevent, and a warning for the remaining INTK merges.
+- **Gap found beyond the brief:** `ListMembersAsync` hardcoded `IsDuplicate=false` and the replay branch never called `IIntakeSubmission`, so the duplicate notice stayed hidden even after the redirect fix. Fixed properly by tracking `IsDuplicate` per ordinal.
+- Evidence: build 0/0; Core 644/644; Architecture 97/97; the four named integration classes 30 passed / 0 failed / 6 pre-existing QDOS-corpus skips; `GroupedIntakeWebTests` 1/1. Full-solution `dotnet test` honestly not run (~28 min) and left unticked. Checklist 7/33 → 28/38.
+- Flagged for reconciliation: `intk-006` independently fixed the same redirect symptom by bypassing the group path for single files. INTK-005 kept every upload flowing through `IGroupedIntakeSubmission`. INTK-006 must adopt INTK-005's approach on rebase, not re-apply its own.
