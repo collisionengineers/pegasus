@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Intake;
 
@@ -13,29 +16,52 @@ public sealed class ProcessIntake(
     IEnumerable<IMailClassificationPolicy> mailClassificationPolicies,
     EvaluateIntakeCaseMatch caseMatchEvaluator,
     TimeProvider timeProvider,
-    IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null)
+    IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
+    IRegisterUnidentified? registerUnidentified = null)
 {
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
     public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default) =>
-        ExecuteCoreAsync(source, retainedSourceStorageKey: null, replaceExisting: false, cancellationToken);
+        // No retry orchestration wraps this direct/manual-upload path, so a
+        // reader fault here has no later attempt to defer to: treat it as final.
+        ExecuteCoreAsync(
+            source,
+            retainedSourceStorageKey: null,
+            replaceExisting: false,
+            isFinalAttempt: true,
+            cancellationToken);
 
+    /// <param name="isFinalAttempt">
+    /// True when the caller's own retry schedule (if any) has no further
+    /// attempt left for this work item. A transient reader fault is only
+    /// converted into a terminal technical-failure receipt — and only then
+    /// registered as Unidentified — once this is true; otherwise it
+    /// propagates so the queued caller can retry and processing stays
+    /// in-flight rather than allocating a U-reference.
+    /// </param>
     internal Task<IntakeReceipt> ExecuteRetainedAsync(
         IntakeSource source,
         string retainedSourceStorageKey,
         bool replaceExisting = false,
+        bool isFinalAttempt = true,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(retainedSourceStorageKey);
-        return ExecuteCoreAsync(source, retainedSourceStorageKey, replaceExisting, cancellationToken);
+        return ExecuteCoreAsync(
+            source,
+            retainedSourceStorageKey,
+            replaceExisting,
+            isFinalAttempt,
+            cancellationToken);
     }
 
     private async Task<IntakeReceipt> ExecuteCoreAsync(
         IntakeSource source,
         string? retainedSourceStorageKey,
         bool replaceExisting,
+        bool isFinalAttempt,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
@@ -115,8 +141,16 @@ public sealed class ProcessIntake(
         {
             readResult = await sourceReader.ReadAsync(safeSource, cancellationToken);
         }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception)
+            && (isFinalAttempt || !IntakeExceptionPolicy.IsTransientFailure(exception)))
         {
+            // A non-transient reader fault is always terminal. A transient
+            // fault (I/O, timeout, database, or a dependency-unavailable
+            // adapter fault) is only terminal once the caller has no retry
+            // left; otherwise it propagates so the retained/queued caller
+            // (DurableIntake) retries it on its bounded schedule. Retryable
+            // processing must remain in processing and never allocate a
+            // U-reference; only a terminal fault after custody succeeds does.
             readResult = new(
                 IntakeSourceReadStatus.TechnicalFailure,
                 [],
@@ -236,9 +270,71 @@ public sealed class ProcessIntake(
             receipt,
             assessment.MailClassificationDecision,
             cancellationToken);
+        await RegisterUnidentifiedIfTerminalAsync(receipt, cancellationToken);
         RecordTelemetry(activity, receipt, DecisionCode(receipt.Decision), started);
         return receipt;
     }
+
+    private async Task RegisterUnidentifiedIfTerminalAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (registerUnidentified is null || !IsUnidentifiedEligible(receipt))
+        {
+            return;
+        }
+
+        await registerUnidentified.ExecuteAsync(
+            BuildUnidentifiedRegistrationRequest(receipt),
+            cancellationToken);
+    }
+
+    /// <summary>
+    /// True for a receipt this hook should register directly. Image-only
+    /// material at <see cref="IntakeDecision.NeedsSorting"/> is excluded here
+    /// because <c>ImageIntakeAutomation</c> still gets a chance to resolve it
+    /// to <see cref="IntakeDecision.ImageIntakeRegistered"/>; the queued
+    /// caller (<c>ProcessQueuedIntake</c>) registers it as Unidentified itself
+    /// once that automation runs and confirms no confident registration was
+    /// made, so that material is never silently dropped from both queues.
+    /// </summary>
+    internal static bool IsUnidentifiedEligible(IntakeReceipt receipt) =>
+        receipt.Decision is IntakeDecision.NeedsSorting
+            or IntakeDecision.Unsupported
+            or IntakeDecision.OcrRequired
+            or IntakeDecision.TechnicalFailure
+        && !(receipt.Decision == IntakeDecision.NeedsSorting
+            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+
+    internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt) =>
+        new(
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            MapUnidentifiedReason(receipt),
+            receipt.FailureReason ?? receipt.DecisionReason,
+            ActionActor.SystemWorker("intake-processing"),
+            $"intake-unidentified:{receipt.Id:N}:{receipt.Version}",
+            // The queue and detail UI order and display Unidentified work by
+            // when the source arrived, not when this processing attempt ran;
+            // a delayed or retried attempt must not misreport either.
+            receipt.ReceivedAtUtc);
+
+    /// <summary>
+    /// Selects the specific reason from evidence the assessment already
+    /// established, rather than collapsing every non-Unsupported,
+    /// non-TechnicalFailure outcome into <see cref="UnidentifiedReasonCode.NoUsableIdentification"/>.
+    /// </summary>
+    private static UnidentifiedReasonCode MapUnidentifiedReason(IntakeReceipt receipt) => receipt.Decision switch
+    {
+        IntakeDecision.Unsupported => UnidentifiedReasonCode.UnsupportedContent,
+        IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.TechnicalProcessingFailure,
+        _ when receipt.CaseMatchDecision?.Outcome == CaseMatchOutcome.Ambiguous =>
+            UnidentifiedReasonCode.ConflictingIdentification,
+        _ when receipt.MailClassificationDecision?.Outcome == MailClassificationOutcome.Ambiguous =>
+            UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
+        _ when receipt.Evidence.Any(evidence => evidence.Signal == "intake_limit_exceeded") =>
+            UnidentifiedReasonCode.UnreadableOrCorruptContent,
+        _ => UnidentifiedReasonCode.NoUsableIdentification
+    };
 
     private async Task RecordAutomaticAuditEvidenceAsync(
         IntakeReceipt receipt,

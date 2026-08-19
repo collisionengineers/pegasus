@@ -7,7 +7,7 @@ category: Record
 **Rules**
 
 - Use it one level below `Tabs` or `SectionTabs`, never as the top-level navigation of a screen.
-- Labels are the settled state names (`Needs sorting`, `Blocked`, `Not ready`, `Review`, `Held`); counts are real numbers — `0` renders as `0`.
+- Labels are the settled state names (`Unidentified`, `Blocked`, `Not ready`, `Review`, `Held`); counts are real numbers — `0` renders as `0`.
 - One current pill; the fill carries the state along with `aria-current`.
 - Keep the `end` slot to one compact `Button` (an export or filter), not a form.
 
@@ -17,7 +17,7 @@ category: Record
 <Subtabs
   label="Folders"
   tabs={[
-    { label: 'Needs sorting', href: '?folder=sorting', count: 3, current: true },
+    { label: 'Unidentified', href: '/Unidentified', count: 3, current: true },
     { label: 'Blocked', href: '?folder=blocked', count: 1 },
   ]}
   end={<Button icon="file-text">Export list</Button>}

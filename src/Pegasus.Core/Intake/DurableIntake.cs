@@ -1,9 +1,9 @@
-using System.Data.Common;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 
@@ -395,7 +395,11 @@ public sealed class ProcessQueuedIntake(
     IAutomaticCaseAssociationStore caseAssociationStore,
     IAllocateIntake allocateIntake,
     TimeProvider timeProvider,
-    Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null)
+    Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
+    IRegisterUnidentified? registerUnidentified = null,
+    IResolveUnidentified? resolveUnidentified = null,
+    IUnidentifiedStore? unidentifiedStore = null,
+    Pegasus.Core.ImageIntake.IImageIntakeQueries? imageIntakeQueries = null)
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
@@ -467,7 +471,8 @@ public sealed class ProcessQueuedIntake(
                     cancellationToken) ?? completedReceipt;
             }
 
-            await ApplyImageIntakeAutomationAsync(completedReceipt, cancellationToken);
+            completedReceipt = await ApplyImageIntakeAutomationAsync(completedReceipt, cancellationToken);
+            await SynchronizeUnidentifiedAsync(completedReceipt, cancellationToken);
             return QueuedIntakeProcessingOutcome.NoOp;
         }
 
@@ -493,6 +498,12 @@ public sealed class ProcessQueuedIntake(
                 stagedReceipt.SourceHash,
                 content,
                 cancellationToken);
+            // Mirrors the terminal check below: once this attempt is the last
+            // one the retry schedule allows, a transient reader fault must be
+            // recorded as a terminal technical-failure receipt (and registered
+            // Unidentified) here rather than deferred to a retry that will
+            // never happen.
+            var isFinalAttempt = workItem.AttemptCount >= RetryDelays.Length;
             processed = await processIntake.ExecuteRetainedAsync(
                 new(
                     stagedReceipt.SourceFileName,
@@ -503,6 +514,7 @@ public sealed class ProcessQueuedIntake(
                     stagedReceipt.SourceIdentity),
                 durableStorageKey,
                 workItem.IsReevaluation,
+                isFinalAttempt,
                 cancellationToken);
             evaluation = await workStore.CompleteProcessingAsync(
                 workItem.Id,
@@ -516,7 +528,7 @@ public sealed class ProcessQueuedIntake(
             await FailProcessingAsync(workItem, terminal: true, failureCode, cancellationToken);
             return QueuedIntakeProcessingOutcome.Failed;
         }
-        catch (Exception exception) when (IsTransientProcessingFailure(exception))
+        catch (Exception exception) when (IntakeExceptionPolicy.IsTransientFailure(exception))
         {
             var terminal = workItem.AttemptCount >= RetryDelays.Length;
             await FailProcessingAsync(
@@ -565,7 +577,8 @@ public sealed class ProcessQueuedIntake(
             processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
         }
 
-        await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+        processed = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+        await SynchronizeUnidentifiedAsync(processed, cancellationToken);
         return QueuedIntakeProcessingOutcome.Completed;
     }
 
@@ -576,23 +589,125 @@ public sealed class ProcessQueuedIntake(
     /// automation failure, and every operation key is receipt-scoped so a
     /// reprocessed receipt replays instead of duplicating.
     /// </summary>
-    private async Task ApplyImageIntakeAutomationAsync(
+    private async Task<IntakeReceipt> ApplyImageIntakeAutomationAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
         if (imageIntakeAutomation is null)
+        {
+            return receipt;
+        }
+
+        try
+        {
+            return await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            // Non-blocking by design; suggestions and receipt state carry the
+            // visible outcome.
+            return receipt;
+        }
+    }
+
+    /// <summary>
+    /// Keeps the Unidentified queue in step with a receipt's outcome after
+    /// image automation has had its chance, advisory and non-blocking like
+    /// that automation itself:
+    /// - Image-only material still at <see cref="IntakeDecision.NeedsSorting"/>
+    ///   (below the confidence bar, or no automation configured) was
+    ///   deliberately skipped by <c>ProcessIntake</c> so automation could
+    ///   resolve it first; register it now so it is never silently absent
+    ///   from both the Image Intake and Unidentified queues.
+    /// - A receipt that already carries an open Unidentified item but now
+    ///   has a different, resolved outcome (a Case now exists, or image
+    ///   automation registered an Image Intake) is stale in the open queue;
+    ///   resolve it to the destination that now exists.
+    /// </summary>
+    private async Task SynchronizeUnidentifiedAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (registerUnidentified is not null
+            && receipt.Decision == IntakeDecision.NeedsSorting
+            && Pegasus.Core.ImageIntake.ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt))
+        {
+            try
+            {
+                await registerUnidentified.ExecuteAsync(
+                    ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt),
+                    cancellationToken);
+            }
+            catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+            {
+                // Advisory registration; the receipt's own outcome stands regardless.
+            }
+
+            return;
+        }
+
+        if (unidentifiedStore is null
+            || resolveUnidentified is null
+            || ProcessIntake.IsUnidentifiedEligible(receipt))
+        {
+            return;
+        }
+
+        UnidentifiedResolutionTargetKind targetKind;
+        string targetId;
+        string? targetReference;
+        if (receipt.Decision == IntakeDecision.CaseCreated && receipt.CurrentCaseId is { } caseId)
+        {
+            targetKind = UnidentifiedResolutionTargetKind.InstructionCase;
+            targetId = caseId.ToString("N");
+            targetReference = receipt.AcceptedCaseReference ?? receipt.ManualLinkedCaseReference;
+        }
+        else if (receipt.Decision == IntakeDecision.ImageIntakeRegistered && imageIntakeQueries is not null)
+        {
+            var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
+            if (detail is null)
+            {
+                return;
+            }
+
+            targetKind = UnidentifiedResolutionTargetKind.ImageIntake;
+            targetId = detail.Record.Id.ToString("N");
+            targetReference = detail.Record.ImageIntakeReference;
+        }
+        else
         {
             return;
         }
 
         try
         {
-            _ = await imageIntakeAutomation.ApplyAsync(receipt, cancellationToken);
+            var existing = await unidentifiedStore.GetByOriginAsync(
+                UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken);
+            if (existing is not { State: UnidentifiedState.Open })
+            {
+                return;
+            }
+
+            await resolveUnidentified.ExecuteAsync(
+                new(
+                    existing.Id,
+                    existing.Version,
+                    // UnidentifiedValidation.ValidateResolve requires Staff or
+                    // Automation (unlike registration, which also accepts
+                    // SystemWorker); this automatic reconciliation is
+                    // authorised automation, not registration.
+                    ActionActor.Automation("intake-processing"),
+                    $"intake-unidentified-reconcile:{receipt.Id:N}:{receipt.Version}",
+                    $"The receipt now has a {targetKind} destination; the Unidentified item is superseded.",
+                    targetKind,
+                    targetId,
+                    targetReference,
+                    timeProvider.GetUtcNow()),
+                cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            // Non-blocking by design; suggestions and receipt state carry the
-            // visible outcome.
+            // Advisory reconciliation; the receipt's own outcome stands regardless.
         }
     }
 
@@ -716,22 +831,6 @@ public sealed class ProcessQueuedIntake(
         IntakeSourceIdentityConflictException => "source_identity_conflict",
         _ => null
     };
-
-    /// <summary>
-    /// Faults worth the bounded retry schedule: the named intake conflicts, the
-    /// dependency-unavailable fault adapters translate to, and raw I/O, timeout
-    /// and database faults, including any of those wrapped by another
-    /// exception, which is how EF surfaces a deadlock or dropped connection.
-    /// </summary>
-    private static bool IsTransientProcessingFailure(Exception exception) =>
-        exception is IntakeArtifactRetentionException
-            or IntakeOperationConflictException
-            or IntakeVersionConflictException
-            or IntakeDependencyUnavailableException
-            or IOException
-            or TimeoutException
-            or DbException
-        || (exception.InnerException is { } inner && IsTransientProcessingFailure(inner));
 
     private static string TransientFailureCode(Exception exception) =>
         exception is IntakeArtifactRetentionException

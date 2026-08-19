@@ -21,7 +21,7 @@ namespace Pegasus.Web.Pages.Triage;
 /// fourth: a separate pre-case entity with its own lifecycle, which is exactly
 /// why it needs a tab of its own rather than being folded in as a stage.
 ///
-/// "Needs sorting" is deliberately absent: it means unmatched e-mail, not a
+/// "Unidentified" is deliberately absent: it means unresolved retained material, not a
 /// case stage, and it lives in the Inbox.
 /// </remarks>
 [Authorize(

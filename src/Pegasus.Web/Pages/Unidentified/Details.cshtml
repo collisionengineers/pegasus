@@ -1,0 +1,88 @@
+@page "/Unidentified/{id:guid}"
+@model Pegasus.Web.Pages.Unidentified.DetailsModel
+@using Pegasus.Core.Intake.Unidentified
+@using Pegasus.Web.Presentation
+@{
+    ViewData["Title"] = Model.Item.Reference;
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Unidentified</p>
+        <h1>@Model.Item.Reference</h1>
+        <p class="lede">@Model.ReasonLabel</p>
+    </div>
+</header>
+
+<div asp-validation-summary="All" class="validation-summary" role="alert"></div>
+
+<section class="panel" aria-labelledby="unidentified-detail-title">
+    <h2 id="unidentified-detail-title" class="section-label">Source</h2>
+    <dl class="detail-list">
+        <dt>Origin</dt><dd>@Model.OriginKindLabel — @Model.Item.Origin.Id</dd>
+        <dt>Received</dt><dd>@OperatorLabels.OfficeDate(Model.Item.CreatedAtUtc) @OperatorLabels.OfficeClock(Model.Item.CreatedAtUtc)</dd>
+        <dt>Reason</dt><dd>@Model.ReasonLabel</dd>
+        <dt>Detail</dt><dd>@Model.Item.SafeDetail</dd>
+        <dt>State</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.UnidentifiedState(Model.Item.State)" /></dd>
+    </dl>
+</section>
+
+@if (Model.SourceReceipt is { } receipt)
+{
+    <section class="panel" aria-labelledby="unidentified-receipt-title">
+        <h2 id="unidentified-receipt-title" class="section-label">Retained source</h2>
+        <dl class="detail-list">
+            <dt>File</dt><dd>@receipt.SourceFileName</dd>
+            <dt>Received</dt><dd><time datetime="@receipt.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(receipt.ReceivedAtUtc)</time></dd>
+        </dl>
+        @if (receipt.AssetRecords.Count > 0)
+        {
+            <ul class="plain-list">
+                @foreach (var asset in receipt.AssetRecords)
+                {
+                    <li>@asset.FileName <small>@asset.SourceLabel · @asset.Kind · @asset.MediaType</small></li>
+                }
+            </ul>
+        }
+        @if (receipt.Evidence.Count > 0)
+        {
+            <ul class="evidence-list">
+                @foreach (var item in receipt.Evidence)
+                {
+                    <li><strong>@item.Source</strong><span>@item.Detail</span></li>
+                }
+            </ul>
+        }
+        <a asp-page="/Intake/Details" asp-route-id="@receipt.Id">View the full retained receipt and custody detail</a>
+    </section>
+}
+
+<section class="panel" aria-labelledby="unidentified-history-title">
+    <h2 id="unidentified-history-title" class="section-label">History</h2>
+    <ol class="history-list">
+        @foreach (var entry in Model.History)
+        {
+            <li><strong>@OperatorLabels.UnidentifiedState(entry.NewState)</strong> — @entry.Reason <small><time datetime="@entry.OccurredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.OccurredAtUtc)</time></small></li>
+        }
+    </ol>
+</section>
+
+@if (Model.Item.State == UnidentifiedState.Open)
+{
+    <section class="panel form-panel" aria-labelledby="unidentified-resolve-title">
+        <h2 id="unidentified-resolve-title" class="section-label">Resolve</h2>
+        <form method="post" asp-page-handler="Resolve">
+            <input type="hidden" asp-for="ExpectedVersion" />
+            <input type="hidden" asp-for="OperationKey" />
+            <label asp-for="ResolutionReason">Reason</label>
+            <textarea asp-for="ResolutionReason" maxlength="500" required></textarea>
+            <label asp-for="TargetKind">Destination</label>
+            <select asp-for="TargetKind" asp-items="Html.GetEnumSelectList<UnidentifiedResolutionTargetKind>()"></select>
+            <label asp-for="TargetId">Destination identifier</label>
+            <input asp-for="TargetId" maxlength="200" required />
+            <label asp-for="TargetReference">Destination reference (optional)</label>
+            <input asp-for="TargetReference" maxlength="200" />
+            <button type="submit" class="primary-action">Resolve</button>
+        </form>
+    </section>
+}

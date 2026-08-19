@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -97,6 +98,53 @@ public sealed class ProcessIntakeTests
         Assert.Empty(store.Drafts);
     }
 #pragma warning restore CA2201
+
+    [Fact]
+    public async Task FirstAttemptTransientReaderFailurePropagatesWithoutAllocatingUnidentified()
+    {
+        // Retryable processing must remain in processing: a transient reader
+        // fault (timeout, I/O, dependency-unavailable) on an attempt that the
+        // queued caller can still retry must not be persisted as a terminal
+        // receipt, and must therefore never allocate a U-reference.
+        var reader = new StubReader((_, _) => throw new TimeoutException("transient reader outage"));
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(reader, store, registerUnidentified: registerUnidentified);
+
+        await Assert.ThrowsAsync<TimeoutException>(() => sut.ExecuteRetainedAsync(
+            CreateSource(),
+            "retained-storage-key",
+            replaceExisting: false,
+            isFinalAttempt: false));
+
+        Assert.Empty(store.Drafts);
+        Assert.Empty(registerUnidentified.Requests);
+    }
+
+    [Fact]
+    public async Task FinalAttemptTransientReaderFailureIsTerminalAndAllocatesUnidentified()
+    {
+        // Once the queued caller has no retry left, the same transient reader
+        // fault must still resolve to a terminal technical-failure receipt so
+        // custody is not silently stranded, and that terminal outcome is what
+        // registers the Unidentified reference.
+        var reader = new StubReader((_, _) => throw new TimeoutException("transient reader outage"));
+        var store = new RecordingStore();
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(reader, store, registerUnidentified: registerUnidentified);
+
+        var result = await sut.ExecuteRetainedAsync(
+            CreateSource(),
+            "retained-storage-key",
+            replaceExisting: false,
+            isFinalAttempt: true);
+
+        Assert.Equal(IntakeDecision.TechnicalFailure, result.Decision);
+        var draft = Assert.Single(store.Drafts);
+        Assert.Equal(IntakeDecision.TechnicalFailure, draft.Decision);
+        var request = Assert.Single(registerUnidentified.Requests);
+        Assert.Equal(UnidentifiedReasonCode.TechnicalProcessingFailure, request.ReasonCode);
+    }
 
     [Fact]
     public async Task StoreCancellationIsPropagatedWithoutRetry()
@@ -596,6 +644,58 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task AmbiguousCaseMatchRegistersUnidentifiedWithConflictingIdentification()
+    {
+        // Competing candidate cases is a specific, evidenced reason; it must
+        // not collapse into the generic NoUsableIdentification fallback.
+        var caseA = Guid.NewGuid();
+        var caseB = Guid.NewGuid();
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: 12345/1")
+            ]);
+        var store = new RecordingStore();
+        var evaluator = new EvaluateIntakeCaseMatch(
+            [new FixedKeysMatchPolicy(new("12345/1", "AB12CDE", null, null, null))],
+            new FixedCandidatesQueries(
+            [
+                new(caseA, "QDOS", "12345/1", null, null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null),
+                new(caseB, "QDOS", null, "AB12CDE", null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null)
+            ]));
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            caseMatchEvaluator: evaluator,
+            registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            FileName = "ambiguous-match.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-ambiguous-match-2")
+        };
+
+        await sut.ExecuteAsync(source);
+
+        var request = Assert.Single(registerUnidentified.Requests);
+        Assert.Equal(UnidentifiedReasonCode.ConflictingIdentification, request.ReasonCode);
+    }
+
+    [Fact]
     public async Task ClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
     {
         // The same message processed with and without the classification
@@ -1053,14 +1153,16 @@ public sealed class ProcessIntakeTests
         IMailRoutePolicy? mailRoutePolicy = null,
         EvaluateIntakeCaseMatch? caseMatchEvaluator = null,
         IReadOnlyList<IMailClassificationPolicy>? classificationPolicies = null,
-        IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null) =>
+        IRecordAutomaticStandaloneAuditEvidence? automaticStandaloneAuditEvidence = null,
+        IRegisterUnidentified? registerUnidentified = null) =>
         new(reader, store, artifactStore ?? new RecordingArtifactStore(),
             extractionPolicy ?? new QdosInstructionExtractionPolicy(),
             mailRoutePolicy ?? new QdosMailRoutePolicy(),
             classificationPolicies ?? [new QdosMailClassificationPolicy()],
             caseMatchEvaluator ?? new EvaluateIntakeCaseMatch([], new NoCaseMatchCandidates()),
             new FixedTimeProvider(ProcessedAtUtc),
-            automaticStandaloneAuditEvidence);
+            automaticStandaloneAuditEvidence,
+            registerUnidentified);
 
     private sealed class NoCaseMatchCandidates : ICaseMatchCandidateQueries
     {
@@ -1221,6 +1323,36 @@ public sealed class ProcessIntakeTests
                 MailRouteDecision: draft.MailRouteDecision,
                 MailClassificationDecision: draft.MailClassificationDecision,
                 CaseMatchDecision: draft.CaseMatchDecision);
+    }
+
+    private sealed class RecordingRegisterUnidentified : IRegisterUnidentified
+    {
+        public List<RegisterUnidentifiedRequest> Requests { get; } = [];
+
+        public Task<UnidentifiedRegisterResult> ExecuteAsync(
+            RegisterUnidentifiedRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            Requests.Add(request);
+            var item = new UnidentifiedItem(
+                Guid.NewGuid(),
+                1,
+                "U1",
+                request.Origin,
+                request.ReasonCode,
+                request.SafeDetail,
+                UnidentifiedState.Open,
+                request.CreatedAtUtc,
+                null,
+                request.Actor,
+                null,
+                null,
+                null,
+                null,
+                null,
+                0);
+            return Task.FromResult(new UnidentifiedRegisterResult(item, IsReplay: false));
+        }
     }
 
     private sealed class RecordingArtifactStore(int failuresBeforeSuccess = 0) : IIntakeArtifactStore

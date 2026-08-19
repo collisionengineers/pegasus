@@ -53,13 +53,13 @@
             </span>
             <strong class="metric__value">@Model.MailActivity.ReceivedToday</strong>
         </a>
-        <span class="metric" data-state="needs-sorting">
+        <a class="metric" data-state="unidentified" asp-page="/Unidentified/Index">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                Needs sorting
+                Unidentified
             </span>
-            <strong class="metric__value">@Model.MailActivity.NeedsSorting</strong>
-        </span>
+            <strong class="metric__value">@Model.MailActivity.Unidentified</strong>
+        </a>
         <span class="metric" data-state="blocked">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-circle" /></svg>

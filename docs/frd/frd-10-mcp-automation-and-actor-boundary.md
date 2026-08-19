@@ -1,4 +1,12 @@
 # FRD-10: MCP automation and actor boundary
+
+## Unidentified automation contract
+
+Automation may list and look up Unidentified items by exact U reference, including
+canonical reason, origin, state, and history. Any resolution mutation uses the same
+Core command as Web and requires an authorised actor, expected version, bounded
+reason, and operation key. U references are never accepted where a Case/PO, Audit,
+Image Intake, or Principal identifier is required.
 > Owner capabilities: MCP · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## MCP automation and actor boundary

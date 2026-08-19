@@ -9,6 +9,7 @@ using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Core.ReferenceData;
 using Pegasus.Core.Reports;
 using Pegasus.Core.Lifecycle;
@@ -97,6 +98,10 @@ public static class DependencyInjection
         services.TryAddSingleton<IVrmRecognitionEngine, OnnxVrmRecognitionEngine>();
         services.AddScoped<IImageIntakeAutomation, ImageIntakeAutomation>();
         services.AddScoped<IImageIntakeCasePairing, ImageIntakeCasePairing>();
+        services.AddScoped<EfUnidentifiedStore>();
+        services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
+        services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
+        services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());
