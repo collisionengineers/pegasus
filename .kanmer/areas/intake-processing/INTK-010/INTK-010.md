@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Upload flow v2: clean per-file rows with progress, then a confirmation step
   offering attach-to-case or create-case
-status: backlog
+status: preparing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-19T23:18:29.012Z'
+branch: task/intk-010-upload-flow-v2
+worktree: ../pegasus-worktrees/intk-010-upload-flow-v2
 labels:
   - upload
   - ui
@@ -26,7 +29,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-08-19T23:17:07.323Z'
-updated: '2026-08-19T23:17:07.323Z'
+updated: '2026-08-19T23:18:29.012Z'
 ---
 
 ## What
