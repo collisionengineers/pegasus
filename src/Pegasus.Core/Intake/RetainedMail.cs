@@ -149,6 +149,7 @@ public sealed class CorrectRetainedMailClassification(
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(request.Category);
+        request.Category.ValidateCanonical();
         if (request.MessageId == Guid.Empty)
         {
             throw new ArgumentException("A retained message identifier is required.", nameof(request));

@@ -174,6 +174,23 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public void ClassificationFactoriesRejectUndefinedFamiliesAndOversizedOtherValues()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            MailCategory.Received((ReceivedMailFamily)999));
+        Assert.Throws<ArgumentOutOfRangeException>(() =>
+            MailCategory.Sent((SentMailFamily)999));
+        Assert.Throws<ArgumentException>(() => MailCategory.Other(
+            MailDirection.Received,
+            new string('n', MailCategory.OtherNameMaxLength + 1),
+            "A reason."));
+        Assert.Throws<ArgumentException>(() => MailCategory.Other(
+            MailDirection.Received,
+            "A new class",
+            new string('r', MailCategory.OtherReasoningMaxLength + 1)));
+    }
+
+    [Fact]
     public void FreshnessIsUnavailableWhenNothingHasEverPolled() =>
         Assert.Equal(
             new MailFreshness(MailFreshnessState.Unavailable, null),

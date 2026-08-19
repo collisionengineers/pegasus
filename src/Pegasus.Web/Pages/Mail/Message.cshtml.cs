@@ -11,10 +11,8 @@ namespace Pegasus.Web.Pages.Mail;
 /// One retained message.
 /// </summary>
 /// <remarks>
-/// Read-only by construction: there is no handler on this page, so there is
-/// nothing it can change. Classification, Case linking and folder moves are
-/// allocated work that has not landed, and the screen says so rather than
-/// offering a control that does nothing.
+/// Reads one retained message and exposes only the Core-owned correction command;
+/// Case linking and mailbox mutation remain separate capabilities.
 /// </remarks>
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
@@ -209,7 +207,8 @@ public sealed class MessageModel(
         category = null;
         var parts = ClassificationKey?.Split(':');
         if (parts is ["received", var received]
-            && Enum.TryParse<ReceivedMailFamily>(received, out var receivedFamily))
+            && Enum.TryParse<ReceivedMailFamily>(received, out var receivedFamily)
+            && Enum.IsDefined(receivedFamily))
         {
             category = MailCategory.Received(receivedFamily);
             return true;
@@ -228,7 +227,8 @@ public sealed class MessageModel(
             }
         }
         if (parts is ["sent", var sent]
-            && Enum.TryParse<SentMailFamily>(sent, out var sentFamily))
+            && Enum.TryParse<SentMailFamily>(sent, out var sentFamily)
+            && Enum.IsDefined(sentFamily))
         {
             category = MailCategory.Sent(sentFamily);
             return true;
@@ -241,7 +241,9 @@ public sealed class MessageModel(
         };
         if (otherDirection is null
             || string.IsNullOrWhiteSpace(OtherClassificationName)
-            || string.IsNullOrWhiteSpace(OtherClassificationReasoning))
+            || string.IsNullOrWhiteSpace(OtherClassificationReasoning)
+            || OtherClassificationName.Trim().Length > MailCategory.OtherNameMaxLength
+            || OtherClassificationReasoning.Trim().Length > MailCategory.OtherReasoningMaxLength)
         {
             return false;
         }
