@@ -18,12 +18,14 @@ groups:
   - EPIC-004
 links:
   - SIMPLI-015
+blocks:
+  - TICK-081
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:06.048Z'
-updated: '2026-08-19T08:59:06.874Z'
+updated: '2026-08-19T09:42:37.465Z'
 ---
 
 ## What
