@@ -21,11 +21,15 @@ views. Source registration is not proof of deployed or live traffic.
 The assessment renderer is currently **locally verified source**, not deployed
 or live-verified. The Core draft-generation use case is composed through
 Infrastructure in the Web host and representative assessment plus fee-note
-artifacts render through real Chromium in the Browser test lane. No automatic
-accepted-assessment trigger, durable report reference/custody workflow, Web
-container Chromium layer, Azure deployment, health/capacity result, approval,
-issue, or sending is claimed by that evidence; DOCS-001 and PLAT-007 own those
-later gates.
+artifacts render through real Chromium in the Browser test lane. The published
+Web container image now carries the pinned Chromium build through
+`ContainerBaseImage` (`mcr.microsoft.com/playwright/dotnet`, tag-locked to the
+`Microsoft.Playwright` package version) and its platform, config, exposed
+port, entrypoint, and inherited Chromium/browser layers are locally verified
+against the OCI archive with `oras` (ADR-0028, DELIV-012). No automatic
+accepted-assessment trigger, durable report reference/custody workflow, Azure
+deployment, health/capacity result, approval, issue, or sending is claimed by
+that evidence; DOCS-001 and PLAT-007 own those later gates.
 
 <a id="approved-box-integration-test-target"></a>
 

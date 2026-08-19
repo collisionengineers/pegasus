@@ -188,7 +188,13 @@ Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must 
 Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
 Assert-Text $platformBicep "targetPort:\s*8080" 'The Container App ingress must target port 8080.'
 Assert-Text $platformBicep "minReplicas:\s*1[\s\S]*?maxReplicas:\s*1" 'The Web Container App must retain exactly one always-warm replica.'
-Assert-Text $platformBicep "cpu:\s*json\('0\.5'\)[\s\S]*?memory:\s*'1Gi'" 'The Web Container App must use 0.5 vCPU and 1 GiB.'
+# Raised from 0.5 vCPU / 1 GiB on the operator's decision (2026-08-19,
+# DELIV-012) when the report renderer began running in process in this
+# container per ADR-0028: headless Chromium shares the app's CPU and memory,
+# Container Apps hard-OOM-kills rather than throttling, and the app runs a
+# single always-warm replica. The exact pair stays asserted so a later change
+# cannot drift the sizing silently.
+Assert-Text $platformBicep "cpu:\s*json\('1\.0'\)[\s\S]*?memory:\s*'2Gi'" 'The Web Container App must use 1.0 vCPU and 2 GiB.'
 Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
 Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
 if ([regex]::Matches($platformBicep, 'roleDefinitionId:\s*monitoringMetricsPublisherRole').Count -ne 2) {
