@@ -274,6 +274,15 @@ public sealed class MessageModel(
         _ => "Not yet processed"
     };
 
+    /// <summary>
+    /// The operational destination for a classification decision, computed
+    /// live from the Core policy rather than a second persisted value: the
+    /// destination is a pure function of the already-loaded decision, so
+    /// there is nothing to keep in sync.
+    /// </summary>
+    public static MailOperationalDestinationResult Destination(MailClassificationResult result) =>
+        MailOperationalDestinationPolicy.Map(result);
+
     public static string DecisionLabel(MailClassificationResult result) => result.Category is { } category
         ? $"{(category.Direction == MailDirection.Sent ? "Sent: " : string.Empty)}{category.Name}{(category.Subtype is null ? string.Empty : "/" + category.Subtype)}"
         : ClassificationLabel(result.Outcome);

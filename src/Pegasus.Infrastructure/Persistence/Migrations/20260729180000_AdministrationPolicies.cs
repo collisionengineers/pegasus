@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,6 +11,8 @@ public sealed class AdministrationPolicies : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: ApprovedMailboxes - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: WorkflowConfigurations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         migrationBuilder.CreateTable(
             name: "ApprovedMailboxes",
             columns: table => new
