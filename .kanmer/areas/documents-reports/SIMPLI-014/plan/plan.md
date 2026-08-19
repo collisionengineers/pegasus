@@ -64,3 +64,7 @@ Two independent agents reviewed the branch diff through reuse, simplification, e
 No findings were deferred. The evidence conflict discovered during the pass was resolved fail-closed: `rendererref1` explicitly marks Ed/Neil qualifications “to be confirmed”, so no value was invented despite general operator approval.
 
 A final composition check also found that registering the renderer inside the shared `AddPegasusInfrastructure` method would have composed it in Worker as well as Web. The registration was moved to the explicit `AddPegasusReportRendering` extension called only by `Pegasus.Web`, preserving ADR-0028 and leaving Worker unchanged.
+
+## Review-correction simplification pass — 2026-08-19
+
+PR-006/PR-007 were addressed without widening the activation surface. Exact fee, Statement of Truth, Category S, payment and terms content came from the supplied rendererref1 PDFs; absent wording was not inferred. Core remains the one owner of accepted outcome wording, calculations and photo-custody validation; Infrastructure only formats accepted values and bytes. The existing typed two-artifact result, cached resources/templates and single reusable Chromium lifetime remain unchanged. The representative Browser proof was extended through the same composed caller for all four outcomes, with PDF text assertions, rather than adding a second renderer test seam. Live runbook/design references were updated to the integrated project paths. No behaviour-preserving simplification finding was deferred.

@@ -1,0 +1,1 @@
+Owning correction implemented in [[SIMPLI-014]] PR #415, commit `cdb50cd2bbeb84fe69172407adaca06298a437a2`. Verification and exact scope/dispositions are recorded in the SIMPLI-014 checklist and post-implementation report. This review ticket has no separate branch/worktree.

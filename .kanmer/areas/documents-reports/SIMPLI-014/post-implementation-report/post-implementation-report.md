@@ -53,3 +53,9 @@ On the merged target branch, run:
 Local evidence PDFs:
 - `CE_100_assessment.pdf`: 334,652 bytes; SHA-256 `44BB49D40E8EEACCE2F0288456B5B9CDFD6B065DEEF4DD68D01DC54A9C9D56D1`
 - `CE_100_fee_note.pdf`: 318,430 bytes; SHA-256 `FA2B9D42C8F9077865DB9FEBC96F3A94B218446FE136ED5F8C666AF0A4336292`
+
+## PR-006 / PR-007 review corrections
+
+The assessment and fee-note renderer now carries the approved rendererref1 structure and content evidenced by the supplied PDFs: report chronology, method/impact/vehicle/cost/work-list sections, ordered custodied image bytes, Statement of Truth and signature; and fee rows, net/VAT/total, VAT registration, bank/remittance details and exact supplied payment terms. Core owns the exact accepted wording, fee arithmetic, outcome arithmetic and image custody/hash gate. Total-loss remains Category S only because no accepted wording exists for other salvage categories; Ed/Neil remain inactive because exact qualifications are absent. Real Chromium evidence now covers all four outcomes and extracts representative assessment/fee text from each PDF. `docs/runbook.md` and `docs/design/README.md` now point to the integrated Core/Infrastructure/Web composition and main Playwright test route, with no live renderer-workspace/CLI/Core/script references.
+
+Verification: Release build passed with zero warnings/errors; focused Core report tests passed 11/11; real Chromium report tests passed 5/5 across four outcomes plus resource proof. A combined local full Integration host aborted after 124 passing tests and a no-Browser rerun aborted after 28 passing tests amid concurrent dotnet workloads, without a failed assertion. The prior CI head's only failure was inspected: an unrelated LocalDB teardown lock in `ApprovedMailboxEstateIntegrationTests.SavedIdentitiesWinOverConfigurationForTheSameAddress` after the other 173 shard tests passed. The correction push reruns all CI shards.
