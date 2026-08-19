@@ -146,7 +146,21 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         Id,
         ReceivedAtUtc,
         Decision,
-        DecisionReason,
+        CASE Decision
+            WHEN 'unsupported' THEN 'UnsupportedContent'
+            WHEN 'technical_failure' THEN 'TechnicalProcessingFailure'
+            WHEN 'ocr_required' THEN 'NoUsableIdentification'
+            ELSE 'NoUsableIdentification'
+        END AS MappedReasonCode,
+        -- Mirrors ProcessIntake.RegisterUnidentifiedIfTerminalAsync's live
+        -- SafeDetail source (receipt.FailureReason ?? receipt.DecisionReason):
+        -- FailureReason carries the precise bounded explanation for
+        -- unsupported/ocr_required/technical_failure receipts, while
+        -- DecisionReason is the generic outcome text.
+        LEFT(COALESCE(
+            NULLIF(LTRIM(RTRIM(FailureReason)), ''),
+            NULLIF(LTRIM(RTRIM(DecisionReason)), ''),
+            'Migrated legacy unidentified intake.'), 1000) AS SafeDetailValue,
         ROW_NUMBER() OVER (ORDER BY ReceivedAtUtc, Id) AS AllocationSequence
     FROM IntakeReceipts
     WHERE Decision IN ('needs_sorting', 'unsupported', 'ocr_required', 'technical_failure')
@@ -166,13 +180,8 @@ SELECT
     CONCAT('U', AllocationSequence),
     'Receipt',
     Id,
-    CASE Decision
-        WHEN 'unsupported' THEN 'UnsupportedContent'
-        WHEN 'technical_failure' THEN 'TechnicalProcessingFailure'
-        WHEN 'ocr_required' THEN 'NoUsableIdentification'
-        ELSE 'NoUsableIdentification'
-    END,
-    LEFT(COALESCE(NULLIF(DecisionReason, ''), 'Migrated legacy unidentified intake.'), 1000),
+    MappedReasonCode,
+    SafeDetailValue,
     'Open',
     ReceivedAtUtc,
     NULL,
@@ -181,7 +190,21 @@ SELECT
     '[]',
     NULL, NULL, NULL, NULL, NULL, NULL, NULL,
     CONCAT('unidentified-migration:', CONVERT(varchar(36), Id)),
-    REPLICATE('0', 64),
+    -- A real per-row fingerprint, not a shared placeholder: every backfilled
+    -- row previously got the same all-zero value, so any row would collide
+    -- with the very next one on the OriginKind/OriginId uniqueness check
+    -- above, and a later reevaluation of the same receipt that reaches the
+    -- same terminal outcome would always conflict instead of replaying.
+    -- Computed the same way EfUnidentifiedStore.Fingerprint does (upper-case
+    -- SHA-256 hex of the pipe-joined identity fields), using the runtime
+    -- registration actor (SystemWorker / intake-processing, from
+    -- ActionActor.SystemWorker(""intake-processing"") in ProcessIntake) so a
+    -- live reevaluation's freshly computed fingerprint can match it -- not
+    -- this migration's own audit actor above, which only records who ran
+    -- the backfill.
+    UPPER(CONVERT(varchar(64), HASHBYTES('SHA2_256', CAST(CONCAT(
+        'Receipt', '|', CONVERT(varchar(36), Id), '|', MappedReasonCode, '|',
+        SafeDetailValue, '|', 'SystemWorker', '|', 'intake-processing') AS varchar(max))), 2)),
     0
 FROM Legacy;
 
@@ -200,11 +223,45 @@ SELECT
     item.Id,
     'Open', 'Open', 'SystemWorker', 'unidentified-migration', '[]',
     item.CreatedAtUtc,
-    item.SafeDetail,
+    -- UnidentifiedHistory.Reason is nvarchar(500) but SafeDetail can be up to
+    -- 1000 chars (see EfUnidentifiedStore.RegisterAsync's own history insert,
+    -- which truncates the same way); a longer value would fail this INSERT.
+    LEFT(item.SafeDetail, 500),
     item.RegistrationOperationKey,
     NULL, NULL, NULL
 FROM UnidentifiedItems AS item
 WHERE item.RegistrationOperationKey LIKE 'unidentified-migration:%';");
+
+            // Both composition roots reach these tables: Worker's queued
+            // DurableIntake -> ProcessIntake path registers Unidentified work
+            // automatically (SELECT/INSERT across all three tables, plus the
+            // UPDATE that allocates the next UnidentifiedSequences value), and
+            // Web's Unidentified/Details resolve action and MCP tools read and
+            // resolve it (SELECT, and the UPDATE/INSERT that ResolveUnidentified
+            // performs). UnidentifiedHistory is append-only: no caller ever
+            // updates or deletes a row once written.
+            if (string.Equals(
+                    ActiveProvider,
+                    "Microsoft.EntityFrameworkCore.SqlServer",
+                    StringComparison.Ordinal))
+            {
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedItems] TO [pegasus_web_runtime_role];");
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedItems] TO [pegasus_worker_runtime_role];");
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedSequences] TO [pegasus_web_runtime_role];");
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[UnidentifiedSequences] TO [pegasus_worker_runtime_role];");
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT ON OBJECT::[dbo].[UnidentifiedHistory] TO [pegasus_web_runtime_role];");
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT ON OBJECT::[dbo].[UnidentifiedHistory] TO [pegasus_worker_runtime_role];");
+                migrationBuilder.Sql(
+                    "DENY UPDATE, DELETE ON OBJECT::[dbo].[UnidentifiedHistory] TO [pegasus_web_runtime_role];");
+                migrationBuilder.Sql(
+                    "DENY UPDATE, DELETE ON OBJECT::[dbo].[UnidentifiedHistory] TO [pegasus_worker_runtime_role];");
+            }
         }
 
         /// <inheritdoc />
