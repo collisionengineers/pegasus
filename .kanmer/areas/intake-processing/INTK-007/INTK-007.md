@@ -2,12 +2,15 @@
 id: INTK-007
 type: ticket
 title: Replace Needs sorting with referenced Unidentified work
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: Codex
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:52:38.657Z'
+taken_at: '2026-08-19T11:47:27.623Z'
+branch: intk-007-unidentified-intake
+worktree: .worktrees/intk-007
 labels:
   - unidentified
   - queues
@@ -30,7 +33,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-19T09:52:38.657Z'
+updated: '2026-08-19T11:47:27.623Z'
 ---
 
 ## What
