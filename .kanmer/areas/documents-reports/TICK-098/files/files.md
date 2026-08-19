@@ -1,22 +1,15 @@
-# Files — Audit rendering capability
+# Files — Audit report parity
 
-| Path | Expected future change | Risk |
+| Path | Expected change | Risk |
 | --- | --- | --- |
-| `docs/frd/frd-11-*.md` | Audit behavior after template acceptance | Invented wording |
-| `src/Pegasus.Core/Assessment/**` | Dual versioned Audit specifications | Evidence integrity |
-| `src/Pegasus.Core/Reports/**` | Audit typed snapshot/calculation | Financial correctness |
-| Infrastructure templates/assets | Only after approved artifact | Legal/visual accuracy |
-| Tests/fixtures | Representative approved Audit parity | Missing evidence |
-
-## Context files
-
-| Path | Why |
-| --- | --- |
-| `TICK-205 research` | Dual-spec model |
-| `TICK-207 research` | Missing template decision |
-| `reference/rendererref1/**` | Assessment-only evidence |
+| `docs/capabilities.md` | Replace stale RPT-03 uplift/dual-spec wording with Inspection-output parity and Audit reference provenance | Retaining false product scope |
+| `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Specify shared physical report behavior | Duplicated presentation policy |
+| Existing Core report contract | Accept the Audit workflow/reference identity through the same report input | Caller invents a second model |
+| Existing integrated Inspection renderer | Reuse unchanged presentation family | Accidental Audit-only template |
+| Tests/fixtures | Prove Inspection/Audit physical parity and `a.` / `ap.` identity cases | Identity/output conflation |
 
 ## Out of scope
 
-- Implementing or activating Audit rendering now.
-- Deriving Audit wording from assessment templates.
+- Audit-only templates, wording, layouts, or report families.
+- Conservative/maximised specification comparison.
+- Monetary or percentage uplift.

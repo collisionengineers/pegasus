@@ -1,19 +1,19 @@
-# Research — Audit rendering capability
+# Research — Audit report parity
 
-## Question
+## Operator correction
 
-Can RPT-03 be implemented from current evidence?
+The earlier RPT-03 premise was wrong. Audit reports are physically identical to Inspection reports. There is no Audit-only conservative/maximised comparison or uplift output.
 
-## Findings
+## Verified reference rule
 
-1. Operator confirmed the intended Audit model: two immutable role-labelled repair specifications (conservative and maximised) with Core-computed uplift.
-2. TICK-205 research defines the versioned data gap; current assessment estimate lines cannot yet represent those two accepted versions.
-3. TICK-207 research confirms there is no approved Audit template in rendererref1 or the workspace catalogue. Generic expert-report/assessment templates cannot be used to invent Audit legal wording/layout.
-4. The operator explicitly approved deferring Audit rendering until a representative template is supplied/approved.
-5. Therefore RPT-03 behavior can be documented and its data model prepared where shared, but the render capability must remain unavailable/fail closed and cannot be claimed delivered.
+The existing case-identity authority already defines the only relevant internal distinction:
+
+- every Audit consumes the normal principal/year Case/PO sequence;
+- repairable derives `a.{Case/PO}`;
+- total loss derives `ap.{Case/PO}`;
+- missing, conflicting, or ambiguous Audit evidence fails closed;
+- the reference is immutable after allocation.
 
 ## Implications
 
-- Keep RPT-03 implementation blocked behind an approved Audit template and accepted dual-spec aggregate.
-- Do not block the independent four-variant assessment/fee-note integration.
-- When evidence arrives, map two immutable accepted spec versions and monetary uplift; percentage uplift remains undefined unless separately accepted.
+Reuse the approved Inspection report contract, template, wording, layout, and renderer. Audit workflow provenance and the applicable internal Audit reference remain typed Core data, but they do not create a different physical report. The stale RPT-03 capability/FRD wording must be reconciled by the implementation owner.

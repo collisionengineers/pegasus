@@ -2,8 +2,7 @@
 
 Resolved by the Collision Engineers operator on 2026-08-19.
 
-- [x] **Does Audit require a separate representative template/layout/wording artifact?** — No. Audit and Inspection processes differ, but their physical report output is identical. RPT-03 must reuse the approved inspection/assessment report template and presentation, populated from the accepted Audit process data. Do not create a separate Audit template or activation ticket.
+- [x] **Does Audit require a different physical report, template, wording, conservative/maximised comparison, or uplift?** — No. Audit reports are identical to Inspection reports.
+- [x] **What is different?** — Internal process and reference identity only. The normal Case/PO remains, with repairable deriving `a.{Case/PO}` and total loss deriving `ap.{Case/PO}` under the existing case-identity rules.
 
-## Parked (explicitly deferred)
-
-- Percentage uplift remains unavailable until its denominator and rounding rule are separately accepted; monetary uplift between compatible accepted totals remains the accepted Audit calculation.
+No operator question remains.

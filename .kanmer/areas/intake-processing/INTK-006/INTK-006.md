@@ -2,13 +2,14 @@
 id: INTK-006
 type: ticket
 title: Associate each vehicle-image group or create one Image-Only case
-status: review
+status: implementing
 area: intake-processing
 assignee: Codex
 profile: fix
 stageEntered:
   preparing: '2026-08-19T09:14:26.298Z'
   review: '2026-08-19T10:46:45.932Z'
+  implementing: '2026-08-19T10:49:31.628Z'
 taken_at: '2026-08-19T10:39:01.883Z'
 branch: intk-006-grouped-image-routing
 worktree: .worktrees/intk-006
@@ -31,7 +32,7 @@ prs:
   - '417'
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T10:46:45.932Z'
+updated: '2026-08-19T10:49:31.628Z'
 ---
 
 ## What

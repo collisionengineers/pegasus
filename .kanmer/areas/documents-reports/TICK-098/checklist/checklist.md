@@ -1,7 +1,8 @@
 # Checklist — TICK-098
 
-- [ ] [[TICK-207]] has closed with proof that Audit rendering is absent/unavailable and no assessment clone, generic fallback, placeholder, dormant registration, or invented wording was introduced.
-- [ ] [[TICK-093]] is merged and proves one shared versioned repair-specification aggregate can retain exactly one accepted conservative and one accepted maximised version with compatible basis, provenance, totals, and independent correction lineage.
-- [ ] A concrete representative Audit artifact has been supplied; a linked activation ticket records immutable evidence and explicit operator approval of its wording, layout, labels, fields, conditions, signatures, fee treatment, representative cases, and packaging.
-- [ ] FRD-11 and the existing Core-port/Infrastructure-adapter path implement only the approved behavior: exact-pair selection, compatible-basis validation, Core-computed monetary uplift, immutable binding/provenance, and fail-closed rejection; percentage uplift remains unavailable.
-- [ ] Focused Core/persistence/integration tests, approved representative real-Chromium PDF parity, correction/retry/version evidence, and the canonical locked restore/build/test profile are green without activating any unsupported renderer family.
+- [ ] Reconcile stale RPT-03 capability and FRD-11 wording with the operator's physical-output parity decision.
+- [ ] Reuse the existing Inspection report Core contract and integrated renderer without a second template or presentation family.
+- [ ] Bind the normal Case/PO and correct immutable `a.{Case/PO}` or `ap.{Case/PO}` internal Audit reference.
+- [ ] Fail closed on missing, conflicting, ambiguous, stale, or cross-case Audit reference evidence.
+- [ ] Prove both Audit outcomes render with the same physical report presentation as equivalent Inspection data.
+- [ ] Prove no dual-specification, monetary-uplift, or percentage-uplift field/calculation/output exists.

@@ -47,3 +47,7 @@ This proves resolution and allocation only. It does not prove the versioned aggr
 ## Operator correction — shared Audit/Inspection physical report — 2026-08-19
 
 This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.
+
+## Operator correction — no Audit uplift or dual specification — 2026-08-19
+
+This supersedes the entire earlier dual-role/uplift plan. The operator clarified that Audit reports are identical to Inspection reports and that the only difference is internal workflow/reference identity. Do not implement conservative/maximised Audit specification roles, monetary uplift, percentage uplift, an Audit-only aggregate, or related presentation. [[TICK-098]] must reconcile the stale governing capability/FRD wording and reuse the Inspection report path with the existing `a.` / `ap.` reference rule.

@@ -22,3 +22,9 @@
 - [x] Delete local and remote zero-diff ticket branch
 - [x] `git fetch --prune` + `git worktree prune`
 - [x] `take_ticket action: "release"`
+
+## Superseding correction — 2026-08-19
+
+- [x] Record that the previous dual-specification and uplift decision was based on a false premise.
+- [x] Reassign governing-wording reconciliation and shared-render-path behavior to [[TICK-098]].
+- [x] Preserve only the existing normal Case/PO plus `a.` / `ap.` internal Audit reference distinction.
