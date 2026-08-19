@@ -4,14 +4,14 @@ type: ticket
 title: Replace Needs sorting with referenced Unidentified work
 status: review
 area: intake-processing
-assignee: Codex
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:52:38.657Z'
   review: '2026-08-19T12:05:55.914Z'
-taken_at: '2026-08-19T11:47:27.623Z'
+taken_at: '2026-08-19T13:10:05.908Z'
 branch: intk-007-unidentified-intake
-worktree: .worktrees/intk-007
+worktree: ../pegasus-worktrees/intk-007
 labels:
   - unidentified
   - queues
@@ -52,7 +52,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/424'
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-19T12:05:55.914Z'
+updated: '2026-08-19T13:10:05.908Z'
 ---
 
 ## What

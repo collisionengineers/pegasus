@@ -5,14 +5,14 @@ title: Allow one Upload submission to accept and track multiple files
 status: review
 area: intake-processing
 order: 10
-assignee: Codex
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:14:26.260Z'
   review: '2026-08-19T10:29:04.017Z'
-taken_at: '2026-08-19T10:06:38.926Z'
+taken_at: '2026-08-19T13:09:59.107Z'
 branch: intk-005-grouped-upload
-worktree: .worktrees/intk-005
+worktree: ../pegasus-worktrees/intk-005
 labels:
   - upload
   - ui
@@ -31,7 +31,7 @@ prs:
   - '416'
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T11:05:25.551Z'
+updated: '2026-08-19T13:09:59.107Z'
 ---
 
 ## What

@@ -5,12 +5,12 @@ title: MAIL-03 — One shared classification policy across all supported mailbox
 status: review
 area: mail-communications
 order: 40
-assignee: Codex / execute_tick_045
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-18T15:21:22.108Z'
   review: '2026-08-19T11:34:21.837Z'
-taken_at: '2026-08-19T11:25:12.993Z'
+taken_at: '2026-08-19T13:10:13.120Z'
 branch: task/tick-045-shared-classification-policy
 worktree: ../pegasus-worktrees/tick-045-shared-classification-policy
 labels:
@@ -32,7 +32,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/422'
 archived: false
 created: '2026-08-12T15:03:53.689Z'
-updated: '2026-08-19T11:44:32.870Z'
+updated: '2026-08-19T13:10:13.120Z'
 ---
 
 ## What

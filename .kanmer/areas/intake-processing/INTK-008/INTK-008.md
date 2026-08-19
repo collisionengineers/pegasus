@@ -5,14 +5,14 @@ title: Give ImageIntake an Image-initiated Case lifecycle and merge closure
 status: review
 area: intake-processing
 order: 30
-assignee: Codex
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-19T11:20:52.541Z'
   review: '2026-08-19T11:39:29.235Z'
-taken_at: '2026-08-19T11:24:07.063Z'
+taken_at: '2026-08-19T13:10:09.500Z'
 branch: intk-008-image-initiated-lifecycle
-worktree: .worktrees/intk-008
+worktree: ../pegasus-worktrees/intk-008
 labels:
   - image-initiated
   - image-intake
@@ -39,7 +39,7 @@ prs:
   - '423'
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-08-19T11:44:32.865Z'
+updated: '2026-08-19T13:10:09.500Z'
 ---
 
 ## What
