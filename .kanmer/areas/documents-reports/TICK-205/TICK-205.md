@@ -4,12 +4,14 @@ type: ticket
 title: >-
   Resolve the canonical repair-specification versus dual-Audit-specification
   conflict
-status: implementing
+status: verifying
 area: documents-reports
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:02:10.979Z'
+  review: '2026-08-19T09:31:01.506Z'
+  verifying: '2026-08-19T09:31:14.297Z'
 taken_at: '2026-08-19T09:30:04.851Z'
 branch: task/tick-205-audit-spec-decision
 worktree: ../pegasus-worktrees/tick-205-audit-spec-decision
@@ -31,7 +33,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.306Z'
-updated: '2026-08-19T09:30:15.051Z'
+updated: '2026-08-19T09:31:14.297Z'
 ---
 
 ## What
