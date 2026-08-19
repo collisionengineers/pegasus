@@ -1,0 +1,1 @@
+Execution not started: ticket is blocked by [[INTK-005]], which is now in Review at PR #416 and must merge before this worktree can consume the durable group relation. Plan also requires kanmer-docs reconciliation because current FRD/operator notes contradict the confirmed Image-Only Case fallback. No ticket claim or code changes made.

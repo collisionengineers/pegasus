@@ -91,3 +91,11 @@ No ADR is required: the existing Core/Infrastructure/Web boundaries carry the ch
 - **Identity collision:** deterministic ordinal child tokens plus database uniqueness.
 - **PLAT-006 overlap:** require merged dependency and extend its conventions.
 - **Over-abstraction:** one group aggregate and one consumer port only; no generic batching framework.
+
+## Simplification pass — 2026-08-19
+
+- Reused the existing `IIntakeSubmission` for hashing, staging, replay, work-item creation, and per-file limits; no duplicate intake implementation was introduced.
+- Kept group persistence in one focused store and one Core orchestration use case; no generic batching framework or second queue was added.
+- Reused existing single-receipt status queries from the group result page rather than creating a second status taxonomy.
+- Extended PLAT-006's existing dropzone attributes and native input instead of replacing the Upload interaction.
+- No unapplied behavior-preserving simplification findings remain. The full integration suite was attempted; its test host crashed after 61 passed tests, while the focused grouped web test, focused Core tests, architecture suite, and Release build passed.

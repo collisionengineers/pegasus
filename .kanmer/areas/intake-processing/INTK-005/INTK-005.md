@@ -2,12 +2,13 @@
 id: INTK-005
 type: ticket
 title: Allow one Upload submission to accept and track multiple files
-status: implementing
+status: review
 area: intake-processing
 assignee: Codex
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:14:26.260Z'
+  review: '2026-08-19T10:29:04.017Z'
 taken_at: '2026-08-19T10:06:38.926Z'
 branch: intk-005-grouped-upload
 worktree: .worktrees/intk-005
@@ -24,9 +25,13 @@ blocks:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - ed04f498
+prs:
+  - '416'
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T10:06:38.926Z'
+updated: '2026-08-19T10:29:04.017Z'
 ---
 
 ## What

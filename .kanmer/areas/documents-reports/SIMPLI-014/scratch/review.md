@@ -34,3 +34,23 @@ At review time, documentation, reference-data, changes, and source-workspaces we
 **Needs changes.** [[PR-006]] and [[PR-007]] block SIMPLI-014. PR #415 must not merge or move to Verifying until both findings are resolved in the owning PR, its PIR/evidence are updated, independent re-review passes, and CI is green.
 
 GitHub traceability: formal `--request-changes` was rejected because the connected GitHub account is the PR author. Posted the same needs-changes verdict as PR comment https://github.com/collisionengineers/pegasus/pull/415#issuecomment-5340533305. This does not alter the independent Kanmer review verdict or blocker links.
+
+## Independent re-review — 2026-08-19 — head `cdb50cd2bbeb84fe69172407adaca06298a437a2`
+
+### Changes
+
+- The correction extends the Core report snapshot with hash-checked ordered image bytes, Core-computed fee net/VAT/total, exact accepted Statement of Truth/payment terms, and the VAT-inclusive contract-repair cap.
+- The Infrastructure adapter now composes the full active rendererref1 assessment/fee-note sections from the fixed embedded templates, including vehicle/cost/work-list content, photos, signature, fee rows, payment details and terms.
+- The Browser integration proof exercises all four approved outcomes through application composition and real Chromium, extracts representative assessment and fee-note text, and verifies the only active embedded engineer resource.
+- `docs/runbook.md` and `docs/design/README.md` now name the integrated Infrastructure/Web path and supported Playwright test route rather than the retired workspace/CLI/scripts.
+
+### Comments and disposition
+
+- **Blocking PR-006 — fixed-in-PR.** Core is the single arithmetic/custody/presentation-policy owner; the adapter formats accepted values and bytes. Only the assessment and fee-note resources plus Andy's complete tuple are active. All four outcomes have real-Chromium content evidence; unsupported category wording, engineers and catalogue families remain fail closed.
+- **Blocking PR-007 — fixed-in-PR.** Focused live-document searches are empty for `workspaces/report-renderer`, `CollisionRenderer.Core/Cli/Api/Mcp`, `render-starters` and `visual-regression`; current instructions point to the monolithic path.
+- **CI stability — passed.** Run 32242081373 is green: unit 3m20s, browser 7m51s, SQL shards 1/2/3 7m43s/8m55s/8m11s, SQL coverage 8s, documentation/reference/source-workspaces green; infrastructure correctly skipped by change detection. The prior shard-3 LocalDB teardown lock did not recur.
+- No new blocking or non-blocking findings.
+
+### Verdict
+
+**Pass.** The corrected diff, plan, checklist, PIR, open questions, FRD-11, ADR-0025 and ADR-0028 were checked. PR-006 and PR-007 are resolved at this head, the simplification dispositions remain honest, and every required CI lane is green. Merge to `dev` is authorized by the standing delegation for this review.
