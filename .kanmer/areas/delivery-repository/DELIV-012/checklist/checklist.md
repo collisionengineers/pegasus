@@ -81,3 +81,16 @@
 - 2026-08-19 12:40Z — read-only production SQL preflight run: no duplicate canonical Message-IDs (TICK-043's unique index is safe), `CaseEstimateLines` empty (TICK-093's backfill is a no-op in production).
 - 2026-08-19 12:45Z — CI re-run triggered for PR #422's SQL-timeout flake.
 - 2026-08-19 12:55Z — five operator decisions recorded; scope enlarged to take over the four INTK PRs, make three orphaned surfaces live, and approve Sent-evidence polling.
+
+## Progress notes — continued
+
+- 2026-08-19 13:10Z — five tickets force-taken (INTK-005/006/007/008, TICK-045). Six remediation lanes dispatched.
+- 2026-08-19 13:25Z — early git hygiene: 7 merged worktrees removed, their local+remote branches deleted, stray `pr417check` deleted. Free disk 7.0 → 28.1 GB, which the container work needed.
+- 2026-08-19 13:30Z — board truthfulness: PLAT-001 → `production` (verified ancestor of deployed `main`), TICK-211 → `n/a`, five post-release-10 tickets → `not-deployed`. TICK-011's proof corrected: two of its three cited commits are unreachable objects with no refs; `deployment` corrected `not-deployed` → `production` with the honest "shipped, no live caller" qualification, and a retrospective `open-questions` created (it had none, so its gate had passed vacuously).
+- 2026-08-19 13:35Z — **PR #425** opened: repair-specification store wired to a real caller. Independently reviewed — pass. Verified the new cross-context read happens *after* `transaction.CommitAsync`, so there is no stale read or lock contention.
+- 2026-08-19 14:00Z — **release gate found broken on `dev`**: `Test-AzureDeploymentPlan -Mode Local` failed because TICK-046's grant-carrying migration was unaccounted for in the database bootstrap. Release 12 could not have run from `dev`.
+- 2026-08-19 14:05Z — renderer container lane returned: Chromium proven in the produced image via `oras` layer analysis, renderer tests 6/6 against real Chromium locally. Sizing recommendation (0.5 vCPU/1 GiB → 1.0/2 GiB) left as an operator decision; `infra/` deliberately untouched.
+- 2026-08-19 14:10Z — INTK-005 returned: four blockers fixed, five review comments applied, plus a gap the brief missed (duplicate-replay notice never surfaced). Its `dev` merge had silently dropped its own migration id with no conflict markers — caught and restored.
+- 2026-08-19 14:20Z — diagnosed PR #425's repeated CI failure as an unresolvable GitHub **merge ref**, not a code fault (the hang is inside `actions/checkout`'s fetch; the same job passed in 22 s on another PR). Close/reopen regenerated it and a fresh run started.
+- 2026-08-19 14:30Z — **PR #426** opened: release gate fixed, `CaseRepairSpecifications` grant, new migration for the live `EvaHandoffDownloadOperations` production defect, and `Test-MigrationGrants.ps1` guarding the whole class. I re-ran both gates myself on the branch: `-Mode Local` exit 0, guard 49 files pass.
+- 2026-08-19 14:35Z — TICK-045 lane wired `MailOperationalDestinationPolicy` into the retained mailbox viewer and **proved its tests can fail** by temporarily breaking the helper. INTK-006 and INTK-007 lanes running; INTK-008 and the report-draft entry point still in flight.
