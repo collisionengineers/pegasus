@@ -9,6 +9,15 @@ Intake may begin through staff-forwarded email, a staff-created request-scoped u
 
 Image-only material with a usable normalised VRM creates a searchable Image-initiated Case projection with an Image Intake Reference; it is not `Needs sorting` merely because it lacks a formal instruction or accepted Principal. A usable normalised VRM is a staff-confirmed registration or an automatic engine read that meets the accepted recognition bar (operator-accepted 2026-08-03; [operations § dated evidence](../operations.md#dated-evidence-qualifications) owns the accepted numbers). Image material without a usable normalised VRM remains `Needs sorting` and follows the Unidentified contract. An Image-initiated Case is never allocated a formal Case/PO; it merges into one matching formal Case or is staff-closed with a reason.
 
+A usable registration therefore settles into one of two outcomes the operator
+sees (operator ruling, 2026-08-19): when it matches no existing Case, the
+Image-initiated Case is the visible, searchable, awaiting-instruction outcome
+until something changes it; when it matches exactly one eligible Case at
+registration time, the reference is still allocated but the automatic merge
+below runs in the same pipeline pass, so what the operator finds is the images
+already attached as evidence on that Case, with the Image-initiated reference
+retained as linked history rather than a separate open record.
+
 Every intake path must:
 
 - preserve original source bytes and message/file identity before deriving text or classifications;

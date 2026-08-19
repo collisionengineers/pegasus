@@ -94,6 +94,28 @@ may permanently close it with a reason when instructions never arrive.
 Conflicting valid VRMs are not a readable Image-initiated Case outcome. The
 whole group enters Unidentified with the explicit conflicting_vrms marker.
 
+### Two branches for a readable registration — operator ruling, 2026-08-19
+
+A readable vehicle registration on received images settles into exactly one of
+two outcomes, never a third:
+
+- If the registration **matches an existing Case** (by VRM), the images are
+  attached to that Case as evidence — they do not create a separate
+  Image-initiated Case.
+- If the registration **matches no existing Case**, that creates an
+  Image-initiated Case under its own VRM-sequenced reference, as described
+  above.
+
+Operator, verbatim: “It could be either an image initiated case, OR it could
+be images being received for an existing case. ie if we get images, with a
+registration that doesnt match any existing case, then that creates an image
+initiated case. If they match an existing case (by VRM), then get get
+attached as evidence to that case.” This is the same fork already described
+above (register, then either await, merge, or staff-close) restated as the
+two settled outcomes for a readable registration; it does not change the
+existing sentence that automatic linking requires a definitive match and
+manual linking remains a staff action.
+
 A required image set should ideally show:
 
 - the sustained vehicle damage; and

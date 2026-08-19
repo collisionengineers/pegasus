@@ -1247,7 +1247,10 @@ When implemented:
 
 Vehicle-image arrivals with one usable VRM use the Image-initiated Case route.
 List/detail surfaces show the immutable VRM reference, preserved group and
-filenames, Box custody state, and Awaiting instruction, Merged into
-Instruction-initiated Case, or Staff-closed. Search accepts the exact reference
-or VRM. Merge links both histories; staff closure requires a reason and makes
-the record read-only. Conflicting or unreadable groups use Unidentified instead.
+filenames, and the lifecycle state — Awaiting definitive instruction, Merged
+into Instruction-initiated Case, or Staff-closed. Search accepts the exact
+reference or VRM. Merge links both histories; staff closure requires a reason
+and makes the record read-only. Conflicting or unreadable groups use
+Unidentified instead. There is no dedicated Box custody surface for the
+Image-initiated Case in this slice (see FRD-05); preserved source files remain
+reachable through the origin receipt.
