@@ -119,3 +119,18 @@ Branch `intk-005-grouped-upload`, head `d70118b1`, PR #416 updated.
 - **Gap found beyond the brief:** `ListMembersAsync` hardcoded `IsDuplicate=false` and the replay branch never called `IIntakeSubmission`, so the duplicate notice stayed hidden even after the redirect fix. Fixed properly by tracking `IsDuplicate` per ordinal.
 - Evidence: build 0/0; Core 644/644; Architecture 97/97; the four named integration classes 30 passed / 0 failed / 6 pre-existing QDOS-corpus skips; `GroupedIntakeWebTests` 1/1. Full-solution `dotnet test` honestly not run (~28 min) and left unticked. Checklist 7/33 → 28/38.
 - Flagged for reconciliation: `intk-006` independently fixed the same redirect symptom by bypassing the group path for single files. INTK-005 kept every upload flowing through `IGroupedIntakeSubmission`. INTK-006 must adopt INTK-005's approach on rebase, not re-apply its own.
+
+### TICK-045 — the MAIL-02 caller landed, with falsifiability proven
+
+The lane wired `MailOperationalDestinationPolicy` into the retained mailbox viewer, which is the caller TICK-044's operator ruling asked for:
+
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` — thin static `Destination(MailClassificationResult) => MailOperationalDestinationPolicy.Map(result)`, called from the view inside the existing "Classification evidence" panel, rendering an "Operational destination" row and the destination policy key/version. Pure derived value from the already-loaded dossier — no new persistence, no new panel style, reusing the page's existing `<dl class="detail-list">` convention.
+- New `OperatorLabels.MailOperationalDestinationLabel(...)`. The abstention arm maps to the literal `"Needs sorting"` — deliberately the **same string the page already renders** via `QueueLabel` and `OutcomeLabel`, so no new operator-visible spelling was introduced ahead of INTK-007's vocabulary migration.
+
+**What earns confidence here:** the lane proved its own tests can fail. It temporarily made `Destination()` return a hardcoded mapping, watched both new tests fail on the exact rendered `<dt>Operational destination</dt>` string, reverted (confirmed by `git diff` returning to a 9-line net addition) and reran green. That is the opposite of the original PR #422, whose test could not fail for the reason it claimed. Release build 0/0, Core 640/640, targeted integration 31/31.
+
+**Reachability list handed to [[INTK-007]]** for the `Needs sorting` → `Unidentified` rename — `MailOperationalDestinationPolicy.cs:37` (abstention branch, pre-existing), the new `OperatorLabels.MailOperationalDestinationLabel` switch arm, the new `Message.cshtml.cs` helper, the live `Message.cshtml` row at `/Inbox/{id}`, and two test locations.
+
+**Owed to [[TICK-044]] and not yet done:** the caller landed on TICK-045's branch, not TICK-044's, so TICK-044's checklist items — "Wire MailOperationalDestinationPolicy into the retained-mail projection", "Display both values in the retained mailbox viewer", and its acceptance-test item — are now satisfied by a diff on another ticket. I must reconcile TICK-044's checklist and `open-questions` against the merged TICK-045 diff **after** #422 merges, and record where the work actually landed. Until then TICK-044 must not clear `verifying`, per its own operator bar that a policy referenced only by tests must not pass review as delivered.
+
+**Capabilities wording:** MAIL-02's row now names the real caller and the exact page and states explicitly that UI-14 (categorised queues) remains undelivered; UI-14 was not upgraded. MAIL-03's row stays limited to what its classification test proves. Note `docs/capabilities.md` is also touched by INTK-007, which merges last — expect a conflict there and resolve by keeping both rows' honest wording.
