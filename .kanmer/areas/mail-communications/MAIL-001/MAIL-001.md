@@ -13,13 +13,12 @@ labels:
 groups:
   - EPIC-006
 links: []
-blocks:
-  - TICK-044
+blocks: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
-archived: false
+archived: true
 created: '2026-08-19T08:38:20.492Z'
-updated: '2026-08-19T08:38:30.609Z'
+updated: '2026-08-19T09:03:10.186Z'
 ---
 
 ## What
@@ -28,16 +27,20 @@ Correct PR #411 so every known classification retains a distinct operational vie
 
 ## Why
 
-The operator's 2026-08-19 decision, recorded in [[TICK-057]], explicitly says known classifications must not collapse into a generic Other queue. PR #411 currently maps General, non-query Billing, Non-client-related, In-progress, non-Triage Pre-instruction, Internal CC, all Sent families, and reasoned Other to the same `Other` destination; FRD-08's added table says the same.
+The operator's 2026-08-19 decision, recorded in [[TICK-057]], explicitly says known classifications must not collapse into a generic Other queue.
 
 ## Acceptance
 
-- [ ] FRD-08 and the Core policy distinguish every known category/subtype operationally; `Other` is used only for a reasoned novel classification.
-- [ ] `Ambiguous` and `Unclassified` still fail closed to Needs sorting.
-- [ ] `pre-instruction-emails/triage-request` remains the only classification mapped to Triage; this does not change Triage workflow semantics.
-- [ ] Tests assert the operator decision without duplicating a contradictory generic-Other mapping.
-- [ ] The PR report, capabilities entry, and current architecture match the corrected behavior.
+- [x] FRD-08 and the Core policy distinguish every known category/subtype operationally; `Other` is used only for a reasoned novel classification.
+- [x] `Ambiguous` and `Unclassified` still fail closed to Needs sorting.
+- [x] `pre-instruction-emails/triage-request` remains the only classification mapped to Triage; this does not change Triage workflow semantics.
+- [x] Tests assert the operator decision without duplicating a contradictory generic-Other mapping.
+- [x] The PR report, capabilities entry, and current architecture match the corrected behavior.
 
 ## Review source
 
 Blocking finding from independent review of [[TICK-044]] / PR #411.
+
+## Outcome
+
+Resolved in commit `702148f2` on PR #411 and passed independent re-review. The blocking relation was released; this review-follow-up is archived because its correction is part of the owning ticket rather than a separate delivery unit.

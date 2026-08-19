@@ -2,10 +2,12 @@
 id: TICK-211
 type: ticket
 title: Decide report-renderer analyzer strictness
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:02:33.631Z'
 labels:
   - now
   - source-now
@@ -19,7 +21,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.743Z'
-updated: '2026-08-19T08:57:19.896Z'
+updated: '2026-08-19T09:02:33.631Z'
 ---
 
 ## What

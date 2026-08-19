@@ -2,10 +2,12 @@
 id: TICK-212
 type: ticket
 title: Add report-renderer package lock files
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:02:50.835Z'
 labels:
   - now
   - source-now
@@ -18,7 +20,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.782Z'
-updated: '2026-08-19T08:57:19.909Z'
+updated: '2026-08-19T09:02:50.835Z'
 ---
 
 ## What

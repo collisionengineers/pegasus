@@ -7,5 +7,5 @@
 
 ## Parked (explicitly deferred)
 
-- [ ] Exact automatic predicates/confidence/holdout activation beyond delivered routes requires its own accepted evidence.
+- [x] **Does MAIL-02 need to activate exact automatic predicates, confidence rules, or holdout thresholds beyond delivered routes?** — No. Resolved with the operator on 2026-08-19: MAIL-02 maps an already-existing classification to an operational destination; it does not keep that mapping dark and does not own automatic classification predicates. The delivered QDOS route and manual classifications may consume the policy through their callers. Additional provider-route activation remains owned by route-specific tickets such as [[TICK-036]], [[TICK-037]], and [[TICK-038]], under the evidence gates in `docs/open-decisions.md`; do not create a duplicate ticket here.
 - [ ] Real Outlook/Graph/cloud activation and live verification requires exact-target approval.
