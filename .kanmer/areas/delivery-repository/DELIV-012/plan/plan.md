@@ -243,3 +243,97 @@ package redeploys by config-zip. The migrations are additive; the
 
 Run per code PR over that PR's own diff before its review, with findings and
 dispositions recorded against the owning ticket. Recorded here as they complete.
+
+---
+
+## 9. Plan revisions — 2026-08-19, during execution
+
+The plan above was written before the tickets/PR-comment research finished and
+before the lanes reported. Four things changed; recorded here rather than by
+rewriting the plan, so the reasoning stays auditable.
+
+### 9.1 A new blocker, and it is already live in production
+
+`scripts/Test-MigrationGrants.ps1` (built in Wave A to stop the missing-GRANT
+class recurring) immediately caught a case nobody was looking for:
+`20260811122654_CaseCustodyEvaRecovery.cs` creates `EvaHandoffDownloadOperations`
+with no grant anywhere in the tree, while `EfHandoffStore` reads it
+(`EvaHandoffStore.cs:194`) and inserts into it (`:272`) from
+`Pages/Cases/Vehicle.cshtml.cs`.
+
+I verified this against the **production** database read-only rather than
+reasoning about it:
+
+| Table | `pegasus_web_runtime_role` | `pegasus_worker_runtime_role` |
+|---|---|---|
+| `EvaHandoffOperations` | GRANT SELECT, GRANT INSERT, DENY DELETE | DENY DELETE |
+| `EvaHandoffRevisions` | GRANT SELECT, GRANT INSERT, DENY DELETE | DENY DELETE |
+| `EvaHandoffDownloadOperations` | **no permission rows at all** | **none** |
+
+That migration is already applied (production head is the later
+`20260814094632`), so the EVA hand-off download path fails with a SQL permission
+error **in the currently deployed release 10** — this is a pre-existing live
+defect, not a release-12 risk. It cannot be fixed by editing the applied
+migration; a new follow-up migration is added on the Wave A grants branch and
+ships with release 12.
+
+### 9.2 TICK-045 is not the cheap first merge the plan assumed
+
+§4 ordered #422 first as "12/12, clean, single flake". The research showed the
+PR contains **no production code at all**: it adds one integration test that
+seeds a fabricated `MailClassificationResult` (policy key `"shared-mail-policy"`,
+version `9` — a literal no policy emits) and never invokes a classifier, plus a
+capability-note upgrade that this evidence cannot support, plus a fabricated
+mailbox address `claims@collisionengineers.co.uk` which is outside the four
+documented identities and trips the repository's "never fabricate domain emails"
+rule. Its 12/12 checklist is not earned.
+
+So #422 is no longer first. It now carries the real MAIL-02 caller work: the
+lane surfaces `MailOperationalDestinationPolicy` on the retained mailbox viewer
+(`/Inbox/{id}`), which is the caller TICK-044's own `open-questions` records the
+operator asking for — *"the retained mailbox viewer is meant to show this
+information… A policy referenced only by tests is incomplete and must not pass
+review as delivered."* The lane's first answer, that no consumer exists because
+the categorised queue UI is capability UI-14 and unscheduled, was correct about
+UI-14 and wrong about the viewer.
+
+### 9.3 Revised merge order
+
+1. **Wave A grants + CI guard + docs** (`task/deliv-012-grant-and-docs-fixes`) —
+   contains both the TICK-093 blocker and the newly found live EVA defect, and
+   the guard that stops the class recurring. Earliest, because everything else
+   inherits the guard.
+2. **PR #425 repair-specification store wiring** — reviewed, independent of the
+   above (the migration file is untouched by it).
+3. **#422 TICK-045** — once it carries a real caller and honest wording.
+4. **Renderer container** and **report-draft entry point** — the two halves of
+   the operator's "make the renderer live" decision; container first, since the
+   entry point is pointless if no route to a Chromium-capable image exists.
+5. **#416 INTK-005**, then **#417 INTK-006** (stacked on it), then **#423
+   INTK-008**, then **#424 INTK-007** last — unchanged from §4, and still last
+   for INTK-007 because it owns the `Needs sorting` → `Unidentified` vocabulary
+   migration that must land after every other branch has stopped adding
+   references to the old term.
+
+### 9.4 Vocabulary sequencing across three lanes
+
+`MailOperationalDestination.NeedsSorting` is an enum member that the TICK-045
+lane makes reachable from a real page for the first time, exactly as INTK-007
+retires that vocabulary. Resolution: TICK-045 does **not** rename it and adds no
+new operator-visible "Needs sorting" copy, taking its label from
+`OperatorLabels` instead; it reports every location it makes reachable; INTK-007,
+merging last, completes the rename against that list together with the three
+surviving literal mentions in `docs/operator-notes.md` (lines 42, 199, 388) and
+the `CLAUDE.md` product invariant. The operator confirmed the replacement, so
+`Mail/Message.cshtml.cs:114`'s mapping of `NeedsSorting` to `Unidentified` is
+correct rather than a defect.
+
+### 9.5 Git hygiene brought forward
+
+§5 placed hygiene after every merge. The seven already-merged worktrees were
+removed early instead, because the workstation had only 7.0 GB free and the
+container work in A4 needs room for a 1.32 GB base image plus an OCI archive.
+Each was verified `0` commits ahead of `origin/dev` and clean first; free space
+went to 28.1 GB. Their local and remote branches were deleted at the same time,
+along with a stray `pr417check` review branch. What remains for §5 is the five
+open-PR branches plus this ticket's own working branches.
