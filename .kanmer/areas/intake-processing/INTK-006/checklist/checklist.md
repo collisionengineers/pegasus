@@ -1,6 +1,6 @@
 # Checklist — INTK-006
 
-- [ ] Confirm INTK-005 is merged and provides durable group/member queries.
+- [ ] Create this worktree from the INTK-005 PR branch `intk-005-grouped-upload`; record the branch/base and planned post-review rebase in scratch.
 - [ ] Run kanmer-docs and reconcile operator notes, PRD, FRD-01, FRD-02, FRD-06, FRD-12, design, capabilities, and index.
 - [ ] Confirm docs explicitly define Image-Only Case reference, principal, lifecycle, and later resolution.
 - [ ] Link the updated governing docs and name the exact existing Case creation use case in the plan.
@@ -29,3 +29,8 @@
 - [ ] Run full `dotnet test`.
 - [ ] Perform and record the dated four-lens simplification pass.
 - [ ] Update checklist and post-implementation report with actual evidence.
+
+
+## Parallel-branch execution note — 2026-08-19
+
+This ticket is intentionally implemented from the INTK-005 PR branch before PR merge. Record the exact base SHA in execution scratch and ticket notes. When INTK-005 is reviewed, rebase this branch onto the reviewed INTK-005 result and resolve any conflicts before its PR is finalized. INTK-005 review/merge coordination is not an execution blocker.

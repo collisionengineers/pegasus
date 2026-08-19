@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-19T10:36:36.922Z'
   verifying: '2026-08-19T10:36:59.326Z'
   done: '2026-08-19T10:38:02.459Z'
-taken_at: '2026-08-19T10:34:41.551Z'
-branch: task/tick-203-renderer-mcp-disposition
-worktree: ../pegasus-worktrees/tick-203-renderer-mcp-disposition
 labels:
   - now
   - source-now
@@ -31,9 +28,10 @@ commits:
   - b548b674e31d05de6f43eeb285a25dedd7d2a768
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/415'
+deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.112Z'
-updated: '2026-08-19T10:38:02.459Z'
+updated: '2026-08-19T10:38:34.525Z'
 ---
 
 ## What

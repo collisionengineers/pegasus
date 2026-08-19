@@ -18,7 +18,7 @@
 - [x] proof.md finalised with owning PR URL and merge date
 - [x] Moved to final stage
 - [x] Outcome recorded in ticket body with owning PR and no-code disposition
-- [ ] Removed `../pegasus-worktrees/tick-203-renderer-mcp-disposition`
-- [ ] Deleted local branch `task/tick-203-renderer-mcp-disposition`
-- [ ] Ran `git fetch --prune` and `git worktree prune`
-- [ ] Released the Kanmer claim
+- [x] Removed `../pegasus-worktrees/tick-203-renderer-mcp-disposition`
+- [x] Deleted local branch `task/tick-203-renderer-mcp-disposition`
+- [x] Ran `git fetch --prune` and `git worktree prune`
+- [x] Released the Kanmer claim

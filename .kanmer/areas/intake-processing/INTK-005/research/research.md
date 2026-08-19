@@ -57,3 +57,8 @@ Implement a normalized, durable submission-group relation and a Core batch orche
 ## Open questions
 
 None. The user established group semantics, one-member groups, preservation of original filenames, and the downstream vehicle routing rule. Existing safety limits remain binding.
+
+
+## Parallel execution note — 2026-08-19
+
+[[INTK-006]] may consume this branch's group contract before PR merge. Its worktree is intentionally based on `intk-005-grouped-upload`; review changes will be reconciled by a later rebase.

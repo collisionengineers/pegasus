@@ -48,3 +48,8 @@
 - Vehicle recognition, case matching, Image-Only creation, U-reference allocation, public request-scoped Uploads, mailbox envelope grouping, and cloud deployment.
 - Removing transport/request limits or buffering arbitrary batches in memory.
 - A generic aggregate framework, event bus, or new runtime.
+
+
+## Parallel execution note — 2026-08-19
+
+[[INTK-006]] may consume this branch's group contract before PR merge. Its worktree is intentionally based on `intk-005-grouped-upload`; review changes will be reconciled by a later rebase.

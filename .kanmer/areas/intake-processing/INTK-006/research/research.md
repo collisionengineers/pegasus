@@ -63,3 +63,8 @@ Production Azure inventory/health, Function discovery, Application Insights, tar
 ## Open questions
 
 None for ticket planning. The governing-document step must explicitly settle the Image-Only Case's reference/principal/lifecycle semantics before code; the implementer is instructed to stop if that prerequisite is absent rather than invent it.
+
+
+## Parallel-branch execution note — 2026-08-19
+
+This ticket is intentionally implemented from the INTK-005 PR branch before PR merge. Record the exact base SHA in execution scratch and ticket notes. When INTK-005 is reviewed, rebase this branch onto the reviewed INTK-005 result and resolve any conflicts before its PR is finalized. INTK-005 review/merge coordination is not an execution blocker.

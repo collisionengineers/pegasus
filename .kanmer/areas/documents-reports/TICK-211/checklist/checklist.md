@@ -21,3 +21,10 @@
 - [ ] Delete local zero-diff branch (no remote branch was pushed)
 - [ ] Fetch/prune origin and prune worktree registry
 - [ ] Release Kanmer claim
+
+### Closeout completion — 2026-08-19
+
+- [x] Exact ticket worktree removed; a transient Windows DLL handle released on retry and absence was confirmed.
+- [x] Local zero-diff branch deleted; remote branch was never created.
+- [x] Origin fetched/pruned and worktree registry pruned.
+- [ ] Kanmer claim release is the final action.

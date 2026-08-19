@@ -2,12 +2,15 @@
 id: INTK-006
 type: ticket
 title: Associate each vehicle-image group or create one Image-Only case
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: Codex
 profile: fix
 stageEntered:
   preparing: '2026-08-19T09:14:26.298Z'
+taken_at: '2026-08-19T10:39:01.883Z'
+branch: intk-006-grouped-image-routing
+worktree: .worktrees/intk-006
 labels:
   - upload
   - production-diagnostics
@@ -23,7 +26,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T09:48:49.320Z'
+updated: '2026-08-19T10:39:01.883Z'
 ---
 
 ## What

@@ -20,8 +20,7 @@ groups:
   - EPIC-007
 links:
   - PLAT-006
-blocks:
-  - INTK-006
+blocks: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-12-operator-experience.md
@@ -31,7 +30,7 @@ prs:
   - '416'
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T10:29:04.017Z'
+updated: '2026-08-19T10:38:36.745Z'
 ---
 
 ## What

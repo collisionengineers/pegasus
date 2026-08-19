@@ -99,3 +99,8 @@ No ADR is required: the existing Core/Infrastructure/Web boundaries carry the ch
 - Reused existing single-receipt status queries from the group result page rather than creating a second status taxonomy.
 - Extended PLAT-006's existing dropzone attributes and native input instead of replacing the Upload interaction.
 - No unapplied behavior-preserving simplification findings remain. The full integration suite was attempted; its test host crashed after 61 passed tests, while the focused grouped web test, focused Core tests, architecture suite, and Release build passed.
+
+
+## Parallel-branch execution note — 2026-08-19
+
+INTK-006 is intentionally allowed to execute before this PR merges. Its implementation worktree is based on this PR branch (`intk-005-grouped-upload`), not `origin/main` or `origin/dev`. Review feedback or merge conflict resolution for INTK-005 will be reconciled by rebasing INTK-006 later; this is planned coordination, not a blocking dependency.

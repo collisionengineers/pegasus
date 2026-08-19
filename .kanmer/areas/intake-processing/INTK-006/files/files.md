@@ -42,7 +42,7 @@
 
 ## Ripple effects
 
-- INTK-005 must merge first.
+- Base the implementation worktree on the INTK-005 PR branch (`intk-005-grouped-upload`) so grouped contracts are available before merge. Rebase onto the reviewed INTK-005 result later; this is planned coordination, not a blocker.
 - INTK-007 supplies the eventual Unidentified destination for technical/unreadable material outside the completed vehicle-group rule; do not duplicate its U-reference taxonomy here.
 - If recognition has a technical failure, bounded retry/failure must finish before group routing. Do not create a fallback Case while a member is still retryable.
 - Group finalization must be transactional/idempotent so two completing workers cannot create two Cases or split associations.
@@ -54,3 +54,8 @@
 - Logging image content, crops, or raw candidates.
 - General document grouping behavior beyond the INTK-005 aggregate.
 - A parallel Case store/allocator, new runtime, generic workflow engine, or deployment.
+
+
+## Parallel-branch execution note — 2026-08-19
+
+This ticket is intentionally implemented from the INTK-005 PR branch before PR merge. Record the exact base SHA in execution scratch and ticket notes. When INTK-005 is reviewed, rebase this branch onto the reviewed INTK-005 result and resolve any conflicts before its PR is finalized. INTK-005 review/merge coordination is not an execution blocker.

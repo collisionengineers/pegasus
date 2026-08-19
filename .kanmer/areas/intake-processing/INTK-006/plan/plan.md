@@ -2,7 +2,7 @@
 
 ## Approach
 
-After [[INTK-005]] provides durable membership, make the group—not an individual image—the routing unit. Wait until every image member has terminal recognition evidence, aggregate accepted VRMs, reuse one exact eligible-case matcher, and commit one idempotent outcome: associate all members to one existing Case or create one documented Image-Only Case and attach all members.
+Using the durable membership contract from the [[INTK-005]] PR branch, make the group—not an individual image—the routing unit. Wait until every image member has terminal recognition evidence, aggregate accepted VRMs, reuse one exact eligible-case matcher, and commit one idempotent outcome: associate all members to one existing Case or create one documented Image-Only Case and attach all members.
 
 ## Governing docs
 
@@ -21,7 +21,7 @@ No code may be written until these documents define the Image-Only Case's refere
 ## Implementation steps
 
 1. **Satisfy hard prerequisites.**
-   - Confirm INTK-005 is merged into `origin/dev` and its group schema/query port is available.
+   - Confirm the INTK-005 PR branch `intk-005-grouped-upload` is available locally/remotely and use it as this ticket's worktree base. Do not wait for PR merge; review changes will be reconciled by rebasing this branch later.
    - Run kanmer-docs to apply the operator-confirmed behavior to every governing document listed above.
    - Confirm docs answer exactly: Case type/name; whether a normal Case/PO is allocated; how principal is represented without invention; initial lifecycle state; allowed later resolution/conversion; immutable group/origin preservation.
    - Link the updated governing docs to INTK-006 and update this plan with the exact existing Case creation use case to reuse.
@@ -113,3 +113,8 @@ No code may be written until these documents define the Image-Only Case's refere
 - **Premature finalization:** explicit per-member terminal recognition state.
 - **Wrong association:** one shared exact matcher; conflicts create fallback rather than attach.
 - **Sensitive telemetry:** outcome/count/version only, never image or raw candidate text.
+
+
+## Parallel-branch execution note — 2026-08-19
+
+This ticket is intentionally implemented from the INTK-005 PR branch before PR merge. Record the exact base SHA in execution scratch and ticket notes. When INTK-005 is reviewed, rebase this branch onto the reviewed INTK-005 result and resolve any conflicts before its PR is finalized. INTK-005 review/merge coordination is not an execution blocker.
