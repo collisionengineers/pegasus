@@ -40,3 +40,7 @@ The post-implementation report will cite focused test output, Release build outp
 ## Operator decision — 2026-08-19
 
 Do not collapse known classifications into a generic Other queue. UI-14 consumes FRD-08's canonical classification registry and offers detailed category/subtype views, while Needs sorting remains a distinct fail-closed work queue and Triage remains its separate workflow. A reasoned custom Other classification appears under its recorded new category name and reasoning.
+
+## Production queue acceptance — operator decision 2026-08-19
+
+After deployment, authenticate to the production mailbox workspace and verify detailed classification views plus distinct Receiving work, Queries, Needs sorting, and Triage queues against current retained mail. Capture counts, filters, paging, preserved mailbox/folder scope, and exact detailed classifications where real examples exist. Treat an empty queue as an evidenced empty state, not a failure and not licence to fabricate or mutate data.
