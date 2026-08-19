@@ -22,7 +22,8 @@ namespace Pegasus.Infrastructure.Persistence;
 /// </summary>
 public sealed class EfCaseAssessmentStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    TimeProvider timeProvider) : ICaseAssessmentStore
+    TimeProvider timeProvider,
+    IRepairSpecificationStore repairSpecifications) : ICaseAssessmentStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
@@ -49,7 +50,7 @@ public sealed class EfCaseAssessmentStore(
             .Where(item => item.CaseId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var specificationId = await CurrentSpecificationIdAsync(context, caseId, cancellationToken);
+        var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
             .Where(item => item.CaseId == caseId
                 && item.RepairSpecificationId == specificationId)
@@ -111,27 +112,19 @@ public sealed class EfCaseAssessmentStore(
         var fields = await context.CaseAssessmentFields
             .Where(item => item.CaseId == request.CaseId)
             .ToListAsync(cancellationToken);
-        var specification = await CurrentDraftAsync(context, request.CaseId, cancellationToken);
+        var specification = await EfRepairSpecificationStore.DraftQuery(context, request.CaseId)
+            .SingleOrDefaultAsync(cancellationToken);
         if (specification is null && request.EstimateLines is not null)
         {
-            var acceptedExists = await context.CaseRepairSpecifications.AnyAsync(
-                item => item.CaseId == request.CaseId
-                    && item.State == RepairSpecificationState.Accepted.ToString(),
-                cancellationToken);
+            var acceptedExists = await EfRepairSpecificationStore.AcceptedQuery(context, request.CaseId)
+                .AnyAsync(cancellationToken);
             if (acceptedExists)
             {
                 throw new InvalidOperationException(
                     "An accepted repair specification is immutable; start a reasoned correction draft before editing its lines.");
             }
-            specification = new()
-            {
-                Id = Guid.NewGuid(), CaseId = request.CaseId, Case = workflow.Case, Version = 1,
-                State = RepairSpecificationState.Draft.ToString(),
-                SourceRoute = RepairSpecificationSourceRoute.LegacyUnresolved.ToString(),
-                CreatedBy = request.Actor.SubjectId,
-                CreationOperationKey = request.OperationKey,
-                CreatedAtUtc = now,
-            };
+            specification = EfRepairSpecificationStore.NewLegacyDraft(
+                request.CaseId, workflow.Case, request.Actor.SubjectId, request.OperationKey, now);
             context.CaseRepairSpecifications.Add(specification);
         }
         var specificationId = specification?.Id;
@@ -302,7 +295,7 @@ public sealed class EfCaseAssessmentStore(
         return await GetRequiredAsync(context, request.CaseId, cancellationToken);
     }
 
-    private static async Task<CaseAssessmentProjection> GetRequiredAsync(
+    private async Task<CaseAssessmentProjection> GetRequiredAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -315,7 +308,7 @@ public sealed class EfCaseAssessmentStore(
             .Where(item => item.CaseId == caseId)
             .OrderBy(item => item.FieldPath)
             .ToArrayAsync(cancellationToken);
-        var specificationId = await CurrentSpecificationIdAsync(context, caseId, cancellationToken);
+        var specificationId = await CurrentSpecificationIdAsync(caseId, cancellationToken);
         var lines = await context.CaseEstimateLines.AsNoTracking()
             .Where(item => item.CaseId == caseId
                 && item.RepairSpecificationId == specificationId)
@@ -456,30 +449,23 @@ public sealed class EfCaseAssessmentStore(
             .ToArray(),
         MapCaseOwned(caseDataFields));
 
-    private static Task<CaseRepairSpecificationEntity?> CurrentDraftAsync(
-        PegasusDbContext context,
-        Guid caseId,
-        CancellationToken cancellationToken) => context.CaseRepairSpecifications
-        .SingleOrDefaultAsync(
-            item => item.CaseId == caseId
-                && item.State == RepairSpecificationState.Draft.ToString(),
-            cancellationToken);
-
-    private static async Task<Guid?> CurrentSpecificationIdAsync(
-        PegasusDbContext context,
+    /// <summary>
+    /// The current specification for report/read purposes is the accepted
+    /// one, or the open draft when nothing is accepted yet. <see
+    /// cref="IRepairSpecificationStore"/> is the single owner of both
+    /// queries; this store only resolves which one wins.
+    /// </summary>
+    private async Task<Guid?> CurrentSpecificationIdAsync(
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        var acceptedId = await context.CaseRepairSpecifications.AsNoTracking()
-            .Where(item => item.CaseId == caseId
-                && item.State == RepairSpecificationState.Accepted.ToString())
-            .Select(item => (Guid?)item.Id)
-            .SingleOrDefaultAsync(cancellationToken);
-        if (acceptedId is not null)
+        var accepted = await repairSpecifications.GetCurrentAcceptedAsync(caseId, cancellationToken);
+        if (accepted is not null)
         {
-            return acceptedId;
+            return accepted.SpecificationId;
         }
-        return (await CurrentDraftAsync(context, caseId, cancellationToken))?.Id;
+        var draft = await repairSpecifications.GetCurrentDraftAsync(caseId, cancellationToken);
+        return draft?.SpecificationId;
     }
 
     private static AssessmentCaseOwnedData MapCaseOwned(
