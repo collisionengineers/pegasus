@@ -2,10 +2,12 @@
 id: TICK-049
 type: ticket
 title: MAIL-07 — Move the confirmed message to the designated Outlook folder
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:37.436Z'
 labels:
   - capability
   - MAIL-07
@@ -18,10 +20,11 @@ groups:
   - EPIC-006
 links:
   - TICK-048
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.217Z'
-updated: '2026-08-18T15:20:20.992Z'
+updated: '2026-08-19T08:10:37.436Z'
 ---
 
 ## What

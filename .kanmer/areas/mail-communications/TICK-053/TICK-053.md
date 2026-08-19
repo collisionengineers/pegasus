@@ -4,10 +4,12 @@ type: ticket
 title: >-
   MAIL-11 — Browse, search, and view mailbox messages and conversation threads
   in the app, including read-only search of accepted D…
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:45.571Z'
 labels:
   - capability
   - MAIL-11
@@ -19,10 +21,11 @@ groups:
   - EPIC-003
   - EPIC-006
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-18T15:20:21.751Z'
+updated: '2026-08-19T08:10:45.571Z'
 ---
 
 ## What

@@ -2,11 +2,13 @@
 id: TICK-056
 type: ticket
 title: UI-10 — Full email-management workspace
-status: implementing
+status: preparing
 area: mail-communications
 order: 60
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:47.998Z'
 labels:
   - capability
   - UI-10
@@ -18,10 +20,11 @@ groups:
   - EPIC-006
 links: []
 blocks: []
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-18T15:20:22.419Z'
+updated: '2026-08-19T08:10:47.998Z'
 ---
 
 ## What

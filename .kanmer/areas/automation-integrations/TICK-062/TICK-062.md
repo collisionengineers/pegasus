@@ -2,10 +2,12 @@
 id: TICK-062
 type: ticket
 title: MCP-05 — Automation Actor actions for the broader classified-email workspace
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:49.381Z'
 labels:
   - capability
   - MCP-05
@@ -18,10 +20,11 @@ groups:
   - EPIC-006
 links:
   - TICK-056
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.507Z'
-updated: '2026-08-18T15:20:22.817Z'
+updated: '2026-08-19T08:10:49.381Z'
 ---
 
 ## What

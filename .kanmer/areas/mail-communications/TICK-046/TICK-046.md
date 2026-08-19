@@ -22,10 +22,9 @@ groups:
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
-docs_todo: true
 archived: false
 created: '2026-08-12T15:03:53.708Z'
-updated: '2026-08-18T15:21:25.861Z'
+updated: '2026-08-19T08:10:35.197Z'
 ---
 
 ## What

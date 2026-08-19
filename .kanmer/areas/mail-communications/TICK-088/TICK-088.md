@@ -4,10 +4,12 @@ type: ticket
 title: >-
   MAIL-12 — Authenticated staff compose, reply, forward, and send email in
   Pegasus
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:50.482Z'
 labels:
   - capability
   - MAIL-12
@@ -18,10 +20,11 @@ labels:
 groups:
   - EPIC-006
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:06:02.476Z'
-updated: '2026-08-18T15:20:23.281Z'
+updated: '2026-08-19T08:10:50.482Z'
 ---
 
 ## What

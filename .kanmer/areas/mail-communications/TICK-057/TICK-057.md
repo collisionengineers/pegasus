@@ -2,10 +2,12 @@
 id: TICK-057
 type: ticket
 title: 'UI-14 — Categorised email queues for Receiving work, Queries, and Other'
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:48.884Z'
 labels:
   - capability
   - UI-14
@@ -18,10 +20,11 @@ groups:
 links:
   - TICK-009
   - TICK-010
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-18T15:20:22.611Z'
+updated: '2026-08-19T08:10:48.884Z'
 ---
 
 ## What

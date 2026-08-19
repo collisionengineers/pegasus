@@ -4,10 +4,12 @@ type: ticket
 title: >-
   MAIL-23 — Map the detailed taxonomy to operational queues and designated
   Outlook folders
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:49.947Z'
 labels:
   - capability
   - MAIL-23
@@ -20,10 +22,11 @@ groups:
   - EPIC-006
 links:
   - TICK-044
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.554Z'
-updated: '2026-08-18T15:20:23.053Z'
+updated: '2026-08-19T08:10:49.947Z'
 ---
 
 ## What

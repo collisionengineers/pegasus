@@ -2,10 +2,12 @@
 id: TICK-047
 type: ticket
 title: MAIL-05 — Recommend the designated Outlook folder for a classified message
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:36.697Z'
 labels:
   - capability
   - MAIL-05
@@ -17,10 +19,11 @@ groups:
   - EPIC-003
   - EPIC-006
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.177Z'
-updated: '2026-08-18T15:20:20.821Z'
+updated: '2026-08-19T08:10:36.697Z'
 ---
 
 ## What

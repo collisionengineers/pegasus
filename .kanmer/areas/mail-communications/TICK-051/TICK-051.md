@@ -2,10 +2,12 @@
 id: TICK-051
 type: ticket
 title: MAIL-09 — Automatic association of related email and attachments with a case
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T08:10:44.582Z'
 labels:
   - capability
   - MAIL-09
@@ -17,10 +19,11 @@ groups:
   - EPIC-003
   - EPIC-006
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.257Z'
-updated: '2026-08-18T15:20:21.327Z'
+updated: '2026-08-19T08:10:44.582Z'
 ---
 
 ## What
