@@ -19,12 +19,7 @@ public sealed class AssessmentReportRendererTests
     [InlineData(AssessmentReportOutcome.ContractRepair, "contract repair")]
     public async Task ApplicationCompositionRendersApprovedOutcomeWithRepresentativeContent(AssessmentReportOutcome outcome, string outcomeText)
     {
-        var services = new ServiceCollection();
-        services.AddLogging();
-        services.AddPegasusInfrastructure((_, options) =>
-            options.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=renderer;Trusted_Connection=True"));
-        services.AddPegasusReportRendering();
-        await using var provider = services.BuildServiceProvider();
+        await using var provider = RendererProvider();
         await using var scope = provider.CreateAsyncScope();
 
         var result = await scope.ServiceProvider.GetRequiredService<GenerateAssessmentReportDraft>().ExecuteAsync(Snapshot(outcome));
@@ -65,6 +60,44 @@ public sealed class AssessmentReportRendererTests
     }
 
     [Fact]
+    [Trait("Category", "Browser")]
+    public async Task LongListsAndMultiplePhotosPreserveTheCompleteAssessmentTail()
+    {
+        const string reference = "CE-STRESS-PAGINATION";
+        var image = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "reference", "eva_information", "screenshots", "engineer-screens", "engineer1.png"));
+        var hash = Convert.ToHexStringLower(SHA256.HashData(image));
+        var snapshot = Snapshot(AssessmentReportOutcome.Repairable) with
+        {
+            OurReference = reference,
+            NewParts = Enumerable.Range(1, 80).Select(index => $"Stress new part {index:D3}").ToArray(),
+            Repairs = Enumerable.Range(1, 80).Select(index => $"Stress repair {index:D3}").ToArray(),
+            Operations = Enumerable.Range(1, 80).Select(index => $"Stress operation {index:D3}").ToArray(),
+            Photos = Enumerable.Range(1, 8)
+                .Select(index => new ReportImageEvidence($"stress-photo-{index:D2}", "image/png", image, hash))
+                .ToArray(),
+        };
+
+        await using var provider = RendererProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var result = await scope.ServiceProvider.GetRequiredService<GenerateAssessmentReportDraft>().ExecuteAsync(snapshot);
+
+        using var document = PdfDocument.Open(result.Assessment.Pdf);
+        var pages = document.GetPages().ToArray();
+        var text = string.Join(Environment.NewLine, pages.Select(page => page.Text));
+
+        Assert.True(pages.Length >= 8, $"Expected stress content to flow across pages; rendered {pages.Length}.");
+        Assert.All(pages, page => Assert.Contains(reference, page.Text, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("Stress new part 080", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Stress repair 080", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Stress operation 080", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Statement of Truth", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("A Patterson", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("{{", text, StringComparison.Ordinal);
+        Assert.DoesNotContain('«', text);
+        Assert.True(pages.Sum(page => page.GetImages().Count()) >= 8, "Every accepted stress photo must remain embedded in the flowed PDF.");
+    }
+
+    [Fact]
     public void OnlyActiveSignatureResourceIsEmbeddedByteForByte()
     {
         var assembly = typeof(PlaywrightAssessmentReportRenderer).Assembly;
@@ -83,6 +116,16 @@ public sealed class AssessmentReportRendererTests
         Assert.Equal(64, artifact.Sha256.Length);
         Assert.Equal(AssessmentReportContract.TemplateVersion, artifact.TemplateVersion);
         Assert.Contains("Playwright", artifact.EngineVersion, StringComparison.Ordinal);
+    }
+
+    private static ServiceProvider RendererProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddPegasusInfrastructure((_, options) =>
+            options.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=renderer;Trusted_Connection=True"));
+        services.AddPegasusReportRendering();
+        return services.BuildServiceProvider();
     }
 
     private static string PdfText(byte[] bytes)
