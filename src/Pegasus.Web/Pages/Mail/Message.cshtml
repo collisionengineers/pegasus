@@ -74,11 +74,14 @@
 
 @if (Model.Detail.Classification is { } dossier)
 {
+    var destination = Pegasus.Web.Pages.Mail.MessageModel.Destination(dossier.Current);
     <section class="panel section-gap" aria-labelledby="classification-heading">
         <h2 id="classification-heading">Classification evidence</h2>
         <dl class="detail-list">
             <div><dt>Current decision</dt><dd>@Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(dossier.Current)</dd></div>
             <div><dt>Policy</dt><dd>@dossier.Current.PolicyKey version @dossier.Current.PolicyVersion</dd></div>
+            <div><dt>Operational destination</dt><dd>@OperatorLabels.MailOperationalDestinationLabel(destination.Destination)</dd></div>
+            <div><dt>Destination policy</dt><dd>@destination.PolicyKey version @destination.PolicyVersion</dd></div>
             <div><dt>Reason</dt><dd>@dossier.Current.Reason</dd></div>
             <div><dt>Decision version</dt><dd>@dossier.Version</dd></div>
             <div><dt>Decided by</dt><dd>@dossier.CurrentActor</dd></div>

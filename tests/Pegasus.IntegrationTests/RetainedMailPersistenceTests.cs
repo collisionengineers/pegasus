@@ -316,8 +316,11 @@ public sealed class RetainedMailPersistenceTests
     [Fact]
     public async Task OneCorrectionPolicyAppliesIdenticallyAndIndependentlyAcrossMailboxes()
     {
-        const string secondMailboxId = "claims";
-        const string secondMailboxAddress = "claims@collisionengineers.co.uk";
+        // engineers@collisionengineers.co.uk is one of the four documented
+        // mailboxes (docs/operator-notes.md); the second mailbox identity
+        // must never be a fabricated address.
+        const string secondMailboxId = "engineers";
+        const string secondMailboxAddress = "engineers@collisionengineers.co.uk";
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await SeedPollStateAsync(database);
         await SeedPollStateAsync(database, secondMailboxId, secondMailboxAddress);
@@ -329,15 +332,34 @@ public sealed class RetainedMailPersistenceTests
                 mailboxId: secondMailboxId,
                 mailboxAddress: secondMailboxAddress)
         };
-        var original = MailClassificationResult.Ambiguous(
+
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        // The registered policy decides the outcome, not a literal: a Triage
+        // phrase in the body and an Audit notification title in an
+        // attachment are two of the policy's real predicates, and they
+        // legitimately match at once, so the registered QDOS policy itself
+        // produces the Ambiguous outcome exercised below. If DI ever bound a
+        // different policy, or the policy's predicate logic regressed, this
+        // call -- not a fabricated result -- would change and the
+        // assertions below would fail.
+        var policy = services.GetRequiredService<IMailClassificationPolicy>();
+        var original = policy.Classify(new(
+            IntakeSourceReadStatus.Readable,
             [
-                "received:General/acknowledgement",
-                "received:in-progress-cases/case-update"
+                new(IntakeEvidenceSource.EmailBody, "message body", "Triage Only Request. See attached."),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "message, attachment 1, instructions.pdf",
+                    "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1")
             ],
-            [new("fresh-message-evidence", true, "Two supported categories still match.")],
-            "More than one category matched.",
-            "shared-mail-policy",
-            9);
+            [],
+            [],
+            false));
+        Assert.Equal(MailClassificationOutcome.Ambiguous, original.Outcome);
+        Assert.Equal(QdosMailClassificationPolicy.Key, original.PolicyKey);
+        Assert.Equal(QdosMailClassificationPolicy.Version, original.PolicyVersion);
 
         foreach (var message in messages)
         {
@@ -345,8 +367,6 @@ public sealed class RetainedMailPersistenceTests
             await StoreClassifiedReceiptAsync(database, message, original);
         }
 
-        await using var scope = database.CreateAsyncScope();
-        var services = scope.ServiceProvider;
         var queries = services.GetRequiredService<IRetainedMailQueries>();
         var command = services.GetRequiredService<CorrectRetainedMailClassification>();
         var actor = ActionActor.Staff(
@@ -373,8 +393,8 @@ public sealed class RetainedMailPersistenceTests
                     "The exact retained message is an acknowledgement."));
 
             Assert.Equal(2, corrected!.Version);
-            Assert.Equal("shared-mail-policy", corrected.Current.PolicyKey);
-            Assert.Equal(9, corrected.Current.PolicyVersion);
+            Assert.Equal(policy.PolicyKey, corrected.Current.PolicyKey);
+            Assert.Equal(policy.PolicyVersion, corrected.Current.PolicyVersion);
             Assert.Equal(original.Predicates, corrected.Current.Predicates);
             Assert.Single(corrected.History);
         }
