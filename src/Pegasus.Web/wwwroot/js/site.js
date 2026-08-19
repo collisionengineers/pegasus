@@ -112,6 +112,74 @@
         });
     });
 
+    // Upload dropzones. The native file input is the control and keeps working
+    // on its own; this makes the whole dashed area a drop target, gives it a
+    // real button for the picker, and reads the chosen file back. Nothing here
+    // is required: without script the input is simply visible.
+    document.querySelectorAll('[data-dropzone]').forEach(function (zone) {
+        var input = zone.querySelector('input[type="file"]');
+        var browse = zone.querySelector('[data-dropzone-browse]');
+        var readout = zone.querySelector('[data-dropzone-file]');
+        if (!input || !browse || !readout) {
+            return;
+        }
+
+        var describe = function () {
+            var file = input.files && input.files[0];
+            zone.classList.toggle('has-file', Boolean(file));
+            if (!file) {
+                readout.hidden = true;
+                readout.replaceChildren();
+                browse.textContent = browse.getAttribute('data-label-choose');
+                return;
+            }
+
+            // Whole megabytes past 1 MB, kilobytes below: enough to confirm the
+            // right file was picked, not a second size policy.
+            var size = file.size >= 1048576
+                ? (file.size / 1048576).toFixed(1) + ' MB'
+                : Math.max(1, Math.round(file.size / 1024)) + ' KB';
+            var glyph = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            glyph.setAttribute('class', 'icon');
+            glyph.setAttribute('aria-hidden', 'true');
+            var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+            use.setAttribute('href', '#icon-file-text');
+            glyph.appendChild(use);
+            var name = document.createElement('span');
+            name.textContent = file.name;
+            var small = document.createElement('small');
+            small.textContent = size;
+            readout.replaceChildren(glyph, name, small);
+            readout.hidden = false;
+            browse.textContent = browse.getAttribute('data-label-change');
+        };
+
+        zone.classList.add('is-enhanced');
+        browse.hidden = false;
+        browse.addEventListener('click', function () { input.click(); });
+        input.addEventListener('change', describe);
+
+        ['dragenter', 'dragover'].forEach(function (type) {
+            zone.addEventListener(type, function (event) {
+                event.preventDefault();
+                zone.classList.add('is-dragover');
+            });
+        });
+        ['dragleave', 'dragend'].forEach(function (type) {
+            zone.addEventListener(type, function () { zone.classList.remove('is-dragover'); });
+        });
+        zone.addEventListener('drop', function (event) {
+            event.preventDefault();
+            zone.classList.remove('is-dragover');
+            if (event.dataTransfer && event.dataTransfer.files.length > 0) {
+                input.files = event.dataTransfer.files;
+                input.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        });
+
+        describe();
+    });
+
     // Live character counters for reason fields whose limit is policy.
     document.querySelectorAll('[data-counter-for]').forEach(function (counter) {
         var field = document.getElementById(counter.getAttribute('data-counter-for'));
