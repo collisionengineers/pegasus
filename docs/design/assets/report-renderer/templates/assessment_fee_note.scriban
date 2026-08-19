@@ -1,0 +1,5 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Fee Note</title><style>{{ css }}</style></head>
+<body><header class="document-header"><img class="logo" src="{{ logo }}" alt="Collision Engineers Ltd"><table class="reference-table"><tbody><tr><th>Our Ref:</th><td>{{ our_ref }}</td></tr><tr><th>Your Ref:</th><td>{{ your_ref }}</td></tr><tr><th>Date:</th><td>{{ date }}</td></tr></tbody></table></header>
+<h1 class="title red underlined">FEE NOTE</h1><p><strong>Bill to</strong><br>{{ report_for }}</p><p>{{ claimant }} — {{ registration }}</p>
+<table><thead><tr><th>Description</th><th>Amount</th></tr></thead><tbody>{{ fee_rows }}<tr><th>Total</th><th>{{ total }}</th></tr></tbody></table>
+</body></html>

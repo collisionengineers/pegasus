@@ -20,6 +20,9 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
     <PackageReference Include="OpenIddict.EntityFrameworkCore" Version="7.6.0" />
     <PackageReference Include="PdfPig" Version="0.1.15" />
+    <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <PackageReference Include="Scriban" Version="7.2.6" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
   </ItemGroup>
@@ -35,6 +38,18 @@
                       LogicalName="Pegasus.Infrastructure.Vision.Models.cct_s_v2_global_plate_config.yaml" />
     <EmbeddedResource Include="Vision\Models\vision-models-manifest.json"
                       LogicalName="Pegasus.Infrastructure.Vision.Models.vision-models-manifest.json" />
+    <EmbeddedResource Include="..\..\docs\design\assets\report-renderer\templates\assessment_report.scriban"
+                      LogicalName="Pegasus.Infrastructure.Reports.Assets.templates.assessment_report.scriban" />
+    <EmbeddedResource Include="..\..\docs\design\assets\report-renderer\templates\assessment_fee_note.scriban"
+                      LogicalName="Pegasus.Infrastructure.Reports.Assets.templates.assessment_fee_note.scriban" />
+    <EmbeddedResource Include="..\..\docs\design\assets\report-renderer\templates\report.css"
+                      LogicalName="Pegasus.Infrastructure.Reports.Assets.templates.report.css" />
+    <EmbeddedResource Include="..\..\docs\design\brand\logos\logo_no_margin.png">
+      <Link>Reports\Assets\brand\logo.png</Link>
+      <LogicalName>Pegasus.Infrastructure.Reports.Assets.brand.logo.png</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\docs\design\brand\signatures\andy_patterson.png"
+                      LogicalName="Pegasus.Infrastructure.Reports.Assets.brand.signatures.andy_patterson.png" />
   </ItemGroup>
 
   <ItemGroup>

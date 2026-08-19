@@ -1,0 +1,10 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>{{ title }}</title><style>{{ css }}</style></head>
+<body><header class="document-header"><img class="logo" src="{{ logo }}" alt="Collision Engineers Ltd"><table class="reference-table"><tbody><tr><th>Our Ref:</th><td>{{ our_ref }}</td></tr><tr><th>Your Ref:</th><td>{{ your_ref }}</td></tr><tr><th>Date:</th><td>{{ date }}</td></tr></tbody></table></header>
+<h1 class="title red underlined">{{ title }}</h1><p><strong>{{ badge }}</strong></p>
+<p>{{ report_for }}</p><p><strong>Road Traffic Accident: {{ claimant }}: {{ incident_date }}</strong></p>
+<h2>Vehicle</h2><table><tbody>{{ vehicle_rows }}</tbody></table>
+<h2>Assessment</h2><p>{{ outcome_wording }}</p><p>{{ roadworthiness }}</p><p>{{ history }}</p>{{ comments }}
+<h2>Repair specification</h2>{{ worklists }}
+<h2>Calculated figures</h2><table><tbody>{{ figure_rows }}</tbody></table>
+<section class="signature"><p class="sig-closing">Yours faithfully,</p><img class="sig-img" src="{{ signature }}" alt="Signature"><p class="sig-name">{{ engineer }}</p><p class="sig-role">Independent Automotive Engineer, {{ qualifications }}</p><p class="sig-org">Collision Engineers Ltd</p></section>
+</body></html>
