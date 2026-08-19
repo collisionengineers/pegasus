@@ -27,7 +27,7 @@ never renumbered or reused.
 | [0008](0008-separate-direct-provider-and-intermediary-email-policies.md) | Separate direct-provider and intermediary email policies | FRD-08, FRD-09 |
 | [0009](0009-adopt-pegasus-monorepo-workspaces.md) | Adopt Pegasus monorepo source workspaces | — |
 | [0011](0011-restrict-mcp-to-automation-actor.md) | Restrict MCP to a vendor-neutral Automation Actor | FRD-10 |
-| [0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract | FRD-01/02/06/07/08/12 |
+| [0013](0013-qdos-alpha-implementation-contract.md) | QDOS alpha implementation contract (superseded by ADR-0029) | FRD-01/02/06/07/08/12 |
 | [0014](0014-local-to-production-deployment.md) | Local-to-production deployment only | — |
 | [0015](0015-host-web-on-container-apps-consumption.md) | Host Pegasus Web on Azure Container Apps Consumption | — |
 | [0016](0016-standalone-desktop-email-evaluator.md) | Standalone local desktop email evaluator | FRD-08 |
@@ -38,6 +38,7 @@ never renumbered or reused.
 | [0025](0025-integrate-renderer-and-extractor-into-the-application.md) | Integrate the report renderer and document extractor into the application, not into standalone packages | FRD-02, FRD-05, FRD-11 |
 | [0026](0026-enable-automation-mcp-by-explicit-deployment-configuration.md) | Enable Automation MCP by explicit deployment configuration | FRD-10, FRD-11 |
 | [0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | FRD-10 |
+| [0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection and VRM custody | FRD-01/02/05/06/12 |
 
 ## Superseded and relocated
 

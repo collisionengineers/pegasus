@@ -2,14 +2,14 @@
 @page "/VehicleImages"
 @model Pegasus.Web.Pages.ImageIntake.IndexModel
 @{
-    ViewData["Title"] = "Image intakes";
+    ViewData["Title"] = "Image-initiated Cases";
 }
 
 <header class="page-heading">
     <div>
-        <p class="eyebrow">Image intakes</p>
-        <h1>Image intakes</h1>
-        <p class="lede">Pre-Case records for image-only material with a confirmed registration. An Image intake is never a Case; association keeps both identities permanently.</p>
+        <p class="eyebrow">Image-initiated Cases</p>
+        <h1>Image-initiated Cases</h1>
+        <p class="lede">Vehicle-image cases awaiting instructions, merged into formal Cases, or closed by staff. Their VRM references remain separate from Case/PO identity.</p>
     </div>
 </header>
 
@@ -23,16 +23,16 @@
     </form>
 </section>
 
-<nav class="queue-filters section-gap" aria-label="Image intake filters">
+<nav class="queue-filters section-gap" aria-label="Image-initiated Case filters">
     <a asp-page="/ImageIntake/Index" asp-route-query="@Model.Query">All</a>
     <a asp-page="/ImageIntake/Index" asp-route-associated="no" asp-route-query="@Model.Query">Awaiting instruction</a>
-    <a asp-page="/ImageIntake/Index" asp-route-associated="yes" asp-route-query="@Model.Query">Associated with Case</a>
+    <a asp-page="/ImageIntake/Index" asp-route-associated="yes" asp-route-query="@Model.Query">Merged into formal Case</a>
 </nav>
 
 <section class="panel">
     @if (Model.Results.Count == 0)
     {
-        <p class="empty-state">No Image intakes match this view.</p>
+        <p class="empty-state">No Image-initiated Cases match this view.</p>
     }
     else
     {
