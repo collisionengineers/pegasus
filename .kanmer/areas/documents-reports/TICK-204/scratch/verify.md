@@ -1,0 +1,1 @@
+Verified merged dev at exact merge commit 314a9b266560446d25afe4648148181fb27779b8. Exact first-parent diff is one FRD-11 file, 33 insertions; diff-check, outcome/authority/readiness checks, obsolete wording absence check, ancestry checks, and PR checks passed. No main checkout/promotion, deployment, or cloud write.

@@ -10,3 +10,6 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] Prove the shared policy against two distinct mailbox identities in local/integration tests.
+- [ ] Record a read-only production check for the currently linked mailbox only; explicitly state that multi-mailbox live evidence is deferred to TICK-036/037/038.

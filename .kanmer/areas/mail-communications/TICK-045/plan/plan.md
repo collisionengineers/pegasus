@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Evidence correction — one linked production mailbox — 2026-08-19
+
+Production currently has only one linked mailbox. Keep the two-mailbox invariant in local/integration acceptance using two distinct configured mailbox identities, but do not make a two-mailbox production check a TICK-045 gate or claim it occurred. A read-only production check may cover the currently linked mailbox only. The first real second-mailbox evidence belongs to the relevant mailbox-ingestion ticket ([[TICK-036]], [[TICK-037]], or [[TICK-038]]) when that mailbox is connected.
