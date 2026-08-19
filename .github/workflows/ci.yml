@@ -55,6 +55,9 @@ jobs:
       - name: Test SQL shard assignment
         shell: pwsh
         run: ./scripts/Test-TestShard.ps1
+      - name: Migration runtime-grant check
+        shell: pwsh
+        run: ./scripts/Test-MigrationGrants.ps1
 
   documentation:
     # The one lane every change set runs, including change sets that touch no

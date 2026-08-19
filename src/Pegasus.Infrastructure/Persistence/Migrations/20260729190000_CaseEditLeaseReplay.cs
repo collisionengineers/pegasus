@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -13,6 +13,7 @@ public sealed class CaseEditLeaseReplay : Migration
 
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: CaseEditLeaseOperations - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         RequireSqlServer();
         migrationBuilder.AddColumn<string>(
             name: "ResultJson",

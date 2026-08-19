@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,6 +11,8 @@ public partial class TypedCaseDataCompleteness : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: CaseDataSnapshots - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: CaseDataFields - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         migrationBuilder.CreateTable(
             name: "CaseDataSnapshots",
             columns: table => new
