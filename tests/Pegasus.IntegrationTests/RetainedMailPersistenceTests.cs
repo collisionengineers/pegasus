@@ -259,6 +259,61 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task CorrectionIsAtomicAppendOnlyAndProtectedFromAutomatedReevaluation()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("message-correction");
+        await RetainAsync(database, message);
+        var original = MailClassificationResult.Unclassified(
+            [new("accepted-route", false, "No accepted route matched.")],
+            "No supported category matched.",
+            "shared-mail-policy",
+            4);
+        await StoreClassifiedReceiptAsync(database, message, original);
+
+        Guid retainedId;
+        await using (var readScope = database.CreateAsyncScope())
+        {
+            retainedId = Assert.Single((await readScope.ServiceProvider
+                .GetRequiredService<IRetainedMailQueries>()
+                .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items).Id;
+            var service = readScope.ServiceProvider.GetRequiredService<CorrectRetainedMailClassification>();
+            var corrected = await service.ExecuteAsync(
+                ActionActor.Staff(Guid.Parse("11111111-1111-1111-1111-111111111111"), [StaffRole.User]),
+                new(retainedId, 1, MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"),
+                    "The retained reply is an acknowledgement."));
+            Assert.Equal(2, corrected!.Version);
+            Assert.Equal(original.Predicates, corrected.Current.Predicates);
+            Assert.Single(corrected.History);
+
+            await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() => service.ExecuteAsync(
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                new(retainedId, 1, MailCategory.Received(ReceivedMailFamily.InternalCc), "Stale correction.")));
+        }
+
+        // A later processor replay must not erase an accepted human correction.
+        await StoreClassifiedReceiptAsync(
+            database,
+            message,
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                [],
+                "Automated replay.",
+                "shared-mail-policy",
+                5));
+
+        await using var finalScope = database.CreateAsyncScope();
+        var detail = Assert.IsType<RetainedMailDetail>(await finalScope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .GetAsync(retainedId, CancellationToken.None));
+        Assert.Equal("acknowledgement", detail.Classification!.Current.Category!.Subtype);
+        Assert.Equal(4, detail.Classification.Current.PolicyVersion);
+        Assert.Single(detail.Classification.History);
+        Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));
+    }
+
+    [Fact]
     public async Task AForwardedMessageUsesTheProvenOriginalSenderAndRetainsTheForwarder()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -489,6 +544,33 @@ public sealed class RetainedMailPersistenceTests
             .GetRequiredService<EfRetainedMailboxMessageStore>()
             .RetainAsync(message, CancellationToken.None);
     }
+
+    private static Task<IntakeReceipt> StoreClassifiedReceiptAsync(
+        LocalDbTestDatabase database,
+        RetainedMailboxMessage message,
+        MailClassificationResult classification) => database.StoreAsync(new(
+            SourceFileName: "message-correction.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: new string('C', 64),
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, message.ExternalReceiptToken),
+            ReceivedAtUtc: ReceivedAtUtc,
+            ProcessedAtUtc: ReceivedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: [],
+            MailClassificationDecision: classification));
 
     private static ApprovedInboxMessage PolledMessage(
         string providerIdentity,
