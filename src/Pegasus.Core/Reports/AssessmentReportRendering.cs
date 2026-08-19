@@ -1,10 +1,23 @@
 using System.Security.Cryptography;
+using System.Globalization;
 
 namespace Pegasus.Core.Reports;
 
 public static class AssessmentReportContract
 {
     public const string TemplateVersion = "rendererref1-v1";
+    public const string VatNumber = "262 0937 10";
+    public const string AccountName = "Collision Engineers Ltd";
+    public const string BankName = "Lloyds Bank";
+    public const string SortCode = "30-12-80";
+    public const string AccountNumber = "50858868";
+    public const string RemittanceEmail = "accounts@collisionengineers.co.uk";
+    public const string FeeTerms = "As per this agreement, following which we reserve the right to claim statutory interest at 8% above the Bank of England reference rate in force on the date the debt becomes overdue and at any subsequent rate where the reference rate changes and the debt remains unpaid, in accordance with the Late Payment of Commercial Debts (Interest) Act 1998 as amended and supplemented by the Late Payment of Commercial Debts Regulations 2002. Payment is due in full within 89 days from the date of this report unless otherwise stated. In addition, for unpaid debts up to £999.99 we are allowed to claim compensation of £40.00.";
+    public const string AdditionalFeeTerms = "Any requests for addendum reports or letters, including those required for clarification, plus Counsel, Court or other meetings, will be subject to a further charge and subject to Civil Procedure Rule 35.6. The instructing party confirm to be liable for the charges of this report and any subsequent addendum reports on acceptance of this report by electronic mail. If you do not so wish to be bound by these terms you must reject the report and confirm so immediately.";
+    public const string StatementOfTruth1 = "I declare that I understand my duty in providing this report to the court and I confirm that I have complied with that duty. I understand that this duty overrides any other obligation. The report is based upon instructions received.";
+    public const string StatementOfTruth2 = "I confirm that I have made clear which facts and matters referred to in this report are within my own knowledge and which are not. Those that are within my own knowledge I confirm to be true. The opinions I have expressed represent my true and complete professional opinion on the matters to which they refer.";
+    public const string StatementOfTruth3 = "We have used Glass's Evaluator to assist with the valuation of the vehicle and Thatcham and/or manufacturer's data to compile the repair specification. Parts prices are subject to fluctuation and further damage may be found upon dismantling the vehicle. Our valuation is based on the mileage information provided and assuming that the vehicle has a valid MOT certificate (where applicable) to support such.";
+    public const string StatementOfTruth4 = "We appreciate your instructions and enclose our fee note for your kind attention, which we confirm remains payable irrespective of the outcome of this case. Please ensure this is passed to your accounts department.";
 }
 
 public enum AssessmentReportOutcome
@@ -43,7 +56,32 @@ public sealed record ReportVehicle(
     string Year,
     string VehicleType,
     string Condition,
-    string MileageDescription);
+    string MileageDescription,
+    string MileageSource = "tbc",
+    string? Vin = null,
+    string? Engine = null,
+    string? Fuel = null);
+
+public sealed record ReportImageEvidence(
+    string CustodyReference,
+    string ContentType,
+    byte[] Content,
+    string Sha256)
+{
+    public void Validate()
+    {
+        AcceptedReportSource.Required(CustodyReference, nameof(CustodyReference));
+        if (ContentType is not ("image/jpeg" or "image/png" or "image/webp") || Content.Length == 0)
+        {
+            throw new ReportRenderRejectedException("Every report image requires accepted image bytes and content type.");
+        }
+        var actual = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Content));
+        if (!actual.Equals(Sha256, StringComparison.Ordinal))
+        {
+            throw new ReportRenderRejectedException("A report image did not match its custody hash.");
+        }
+    }
+}
 
 public sealed record ReportRepairCosts(
     decimal LabourHours,
@@ -70,6 +108,8 @@ public sealed record ReportEngineer(
 public sealed record AssessmentReportPresentation(
     string Title,
     string Badge,
+    string SettlementHeading,
+    string SettlementLabel,
     string SettlementText,
     decimal? RecommendedSettlement);
 
@@ -79,11 +119,17 @@ public sealed record AssessmentReportSnapshot(
     DateOnly ReportDate,
     string ClaimantName,
     DateOnly IncidentDate,
+    DateOnly InstructionsReceived,
+    DateOnly Assessed,
     IReadOnlyList<string> ReportFor,
     ReportVehicle Vehicle,
     AssessmentReportOutcome Outcome,
     string LegalStatus,
     string? UnroadworthyReason,
+    string ImpactSeverity,
+    string ImpactLocation,
+    string AssessmentMethod,
+    string? LocationAddress,
     decimal EngineerValue,
     decimal RetailValue,
     decimal TradeValue,
@@ -98,7 +144,7 @@ public sealed record AssessmentReportSnapshot(
     ReportEngineer Engineer,
     decimal AgreedFee,
     IReadOnlyList<string> FeeDescriptionLines,
-    IReadOnlyList<string> PhotoCustodyReferences,
+    IReadOnlyList<ReportImageEvidence> Photos,
     IReadOnlyList<AcceptedReportSource> Sources,
     string PayloadVersion = AssessmentReportContract.TemplateVersion)
 {
@@ -118,7 +164,7 @@ public sealed record AssessmentReportSnapshot(
         AcceptedReportSource.Required(Engineer.Name, nameof(Engineer.Name));
         AcceptedReportSource.Required(Engineer.Qualifications, nameof(Engineer.Qualifications));
         AcceptedReportSource.Required(PayloadVersion, nameof(PayloadVersion));
-        if (ReportFor.Count == 0 || PhotoCustodyReferences.Count == 0 || Sources.Count == 0)
+        if (ReportFor.Count == 0 || Photos.Count == 0 || Sources.Count == 0)
         {
             throw new ReportRenderRejectedException("Report addressee, photo custody and accepted source evidence are required.");
         }
@@ -128,16 +174,16 @@ public sealed record AssessmentReportSnapshot(
             throw new ReportRenderRejectedException("Accepted report amounts are incomplete or invalid.");
         }
         if (Outcome == AssessmentReportOutcome.TotalLoss &&
-            (string.IsNullOrWhiteSpace(SalvageCategory) || SalvageValue is null or < 0))
+            (!string.Equals(SalvageCategory, "S", StringComparison.Ordinal) || SalvageValue is null or < 0))
         {
-            throw new ReportRenderRejectedException("Total-loss reports require accepted salvage category and value.");
+            throw new ReportRenderRejectedException("The active total-loss report requires accepted Category S wording and salvage value.");
         }
         if (LegalStatus.Equals("unroadworthy", StringComparison.OrdinalIgnoreCase) &&
             string.IsNullOrWhiteSpace(UnroadworthyReason))
         {
             throw new ReportRenderRejectedException("An accepted unroadworthy reason is required.");
         }
-        if (ReportFor.Any(string.IsNullOrWhiteSpace) || PhotoCustodyReferences.Any(string.IsNullOrWhiteSpace))
+        if (ReportFor.Any(string.IsNullOrWhiteSpace))
         {
             throw new ReportRenderRejectedException("Report inputs cannot contain blank entries.");
         }
@@ -145,6 +191,17 @@ public sealed record AssessmentReportSnapshot(
         {
             source.Validate();
         }
+        foreach (var photo in Photos)
+        {
+            photo.Validate();
+        }
+        if (AssessmentMethod is not ("image_based" or "physical") ||
+            AssessmentMethod == "physical" && string.IsNullOrWhiteSpace(LocationAddress))
+        {
+            throw new ReportRenderRejectedException("The accepted assessment method/location is incomplete.");
+        }
+        AcceptedReportSource.Required(ImpactSeverity, nameof(ImpactSeverity));
+        AcceptedReportSource.Required(ImpactLocation, nameof(ImpactLocation));
         if (!PayloadVersion.Equals(AssessmentReportContract.TemplateVersion, StringComparison.Ordinal))
         {
             throw new ReportRenderRejectedException($"Unsupported payload version '{PayloadVersion}'.");
@@ -163,22 +220,34 @@ public sealed record AssessmentReportSnapshot(
         AssessmentReportOutcome.TotalLoss => new(
             "TOTAL LOSS REPORT",
             $"TOTAL LOSS — CATEGORY {SalvageCategory}",
-            "The recommended settlement is the accepted Engineer value less salvage.",
+            "Settlement",
+            "Recommended equitable settlement (pre-accident value less salvage)",
+            $"We consider that an equitable settlement would be {Money(EngineerValue - SalvageValue!.Value)}, which represents the pre-accident engineer value of the vehicle of {Money(EngineerValue)} less the value of the salvage of {Money(SalvageValue.Value)}.",
             EngineerValue - SalvageValue!.Value),
         AssessmentReportOutcome.Repairable => new(
             "REPAIRABLE REPORT", "REPAIRABLE",
-            "The recommended settlement is the calculated repair cost for the Engineer's repairable finding.",
+            "Settlement", "Recommended settlement (calculated repair cost)",
+            $"This vehicle is considered a repairable proposition and we have calculated a repair cost of {Money(Costs.Total)}.",
             Costs.Total),
         AssessmentReportOutcome.CashInLieu => new(
             "CASH IN LIEU REPORT", "CASH IN LIEU",
-            "The recommended cash-in-lieu settlement is the calculated repair cost.",
+            "Settlement", "Cash in lieu settlement",
+            $"We recommend settlement by way of a cash in lieu payment based upon the estimated repair cost of {Money(Costs.Total)}.",
             Costs.Total),
         AssessmentReportOutcome.ContractRepair => new(
             "CONTRACT REPAIR REPORT", "CONTRACT REPAIR",
-            "The agreed contract-repair cap is the calculated VAT-inclusive repair total and cannot increase.",
+            "Contract Repair", "Agreed contract repair",
+            $"A contract repair has been agreed for the sum of {Money(Costs.Total)} including VAT. Costs cannot increase above this figure.",
             Costs.Total),
         _ => throw new ReportRenderRejectedException("Unsupported assessment outcome."),
     };
+
+    public decimal FeeNet => AgreedFee;
+    public decimal FeeVat => decimal.Round(FeeNet * 0.20m, 2, MidpointRounding.AwayFromZero);
+    public decimal FeeTotal => FeeNet + FeeVat;
+
+    private static string Money(decimal value) =>
+        value.ToString("£#,##0.00", CultureInfo.GetCultureInfo("en-GB"));
 }
 
 public sealed record RenderedReportArtifact(
