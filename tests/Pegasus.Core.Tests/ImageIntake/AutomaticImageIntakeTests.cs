@@ -244,6 +244,25 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task OneEligibleCaseAssociatesEveryGroupMember()
+    {
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        var caseId = Guid.NewGuid();
+        harness.CaseCandidates.Candidates = [new(caseId, "QDS26013", 1, "AB12CDE")];
+
+        await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.Equal(2, harness.Register.Requests.Count);
+        Assert.Equal(2, harness.MutationStore.AutoLinks.Count);
+        Assert.All(harness.MutationStore.AutoLinks, link => Assert.Equal(caseId, link.CaseId));
+        Assert.Equal(
+            harness.Receipts.Select(receipt => receipt.Id).OrderBy(id => id),
+            harness.MutationStore.AutoLinks.Select(link => link.ReceiptId).OrderBy(id => id));
+    }
+
+    [Fact]
     public async Task AmbiguousGroupEligibilityHandsOffDespiteAPerMemberExactMatch()
     {
         // Both members read the same registration, but the group holds two
