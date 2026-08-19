@@ -241,3 +241,20 @@ Resolution, by hand:
 Gates after the merge, all green: build 0 errors; `-Mode Local` pass; `Test-MigrationGrants` 53 files; `Test-DocumentationLinks` 205 files; the 142 focused Core tests (Unidentified + MailOperationalDestination + ImageIntake) pass. Pushed `b9a25a68`; #424 CI running on that head.
 
 #423 merged at `a907ecd2` after 10/10 green (its own `dev` merge earlier needed a real constructor resolution: INTK-006 added `IIntakeSubmissionGroupStore? groupStore`, INTK-008 added `IImageIntakeCasePairing casePairing` — combined with `casePairing` required and `groupStore` optional-last, one positional call site fixed, 91 image-intake Core tests green). #428 rebased onto post-423 dev cleanly and is in CI.
+
+## RELEASE 12 EXECUTION LOG — 2026-08-19 ~22:45Z onward
+
+Operator authorisations received via the question tool:
+- **"MERGE AUTH GRANTED"** for exactly `ed3be51c95bc2a055606e5210131d37de9de2dd1`.
+- **All five Azure writes approved** for the exact stated targets (ACR push; efbundle + bootstrap on `pegasus-prod-sql-252ow37gij/pegasus`; `azd provision` with exactly two expected changes; worker config-zip; the Q4 Sent-evidence approval via `/Administration/Mailboxes`).
+
+| Step | Result |
+|---|---|
+| E1 | PR #410 **11/11 SUCCESS** on `ed3be51c` |
+| E2 | `origin/dev` == PR head == `ed3be51c`; `main` strict ancestor |
+| E3 | `git push --atomic --force-with-lease=refs/heads/dev:ed3be51c origin ed3be51c:refs/heads/main ed3be51c:refs/heads/dev` → `d8de29cb..ed3be51c main`; readback **main == dev == ed3be51c** |
+| E5 | Artifacts at `ed3be51c`: digest `sha256:6dcf3ca134052ebf4f52d5062f1e28944b47615332e555e5146b2ac838626034`, manifest SHA-256 `863602260A58FA421C9150122B417721B6C03BABE7BCE3D810013DC936AFFAA7`, migrationIdentity `20260819180000_GrantEvaHandoffDownloadOperations`; web-image.tar.gz 1.36 GiB, efbundle 346 MB, web/worker zips ~101 MB. Local + Artifact modes pass |
+| E6 | `azd env refresh` OK (48 values); PreUpload pass |
+| E7 | Prod head `20260814094632` (8 pending); duplicate canonical Message-IDs 0; `CaseEstimateLines` 0; `IntakeReceipts` 12 |
+| E4 | main-push `repository-check` run `32309456172` — watching |
+| E8 | `oras cp` to `pegasusprodacr252ow37gij` — running |
