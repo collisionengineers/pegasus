@@ -77,3 +77,36 @@ The persisted `IntakeDecision.NeedsSorting` / `MailRouteDisposition.NeedsSorting
 ## Real regression found and fixed
 
 This PR's own commit (`abd8a923`) changed `Intake/Details.cshtml.cs`'s `DecisionLabel` from `"Needs sorting"` to `"Unidentified"` for `IntakeDecision.NeedsSorting`, matching `docs/design/README.md`'s canonical operator-label mapping, but left three pre-existing integration tests asserting the old literal rendered text. Confirmed by running `MultiFormatIntakeWebTests.DeferredLegacyContainersAreAcceptedIntoNeedsSortingWithoutReference` before the fix: both cases failed (the review page renders `"Unidentified"`, not `"Needs sorting"`). Fixed the three assertions in `MultiFormatIntakeWebTests.cs` and `QdosIntakeWebTests.cs`; re-ran and confirmed green (the two `QdosIntakeWebTests` cases are `[GenuineQdosCorpusFact]`-gated and skip locally without the corpus fixture, as expected).
+
+## Final verification — 2026-08-19 (takeover, claude-code)
+
+Full `dotnet test ./Pegasus.slnx -c Release` (all four test projects):
+
+| Project | Total | Passed | Failed | Skipped |
+|---|---|---|---|---|
+| Pegasus.Core.Tests | 655 | 655 | 0 | 0 |
+| Pegasus.ArchitectureTests | 97 | 97 | 0 | 0 |
+| Pegasus.IntegrationTests | 576 | 561 | 1 | 14 |
+
+The one failure, `QdosAllocationRecoveryTests.DistinctParallelRetriesResolveToOneCaseAggregate`, is a SQL Server deadlock (`Transaction ... was deadlocked on lock resources with another process and has been chosen as the deadlock victim`) inside `EfIntakeAllocationStore.BeginAsync`/`IntakeAllocation.cs` — a pre-existing concurrency-stress test for Case allocation retry, untouched by this ticket. Re-ran it alone afterward: passed. Confirmed flaky under this session's own concurrent LocalDB load (multiple parallel `dotnet build`/`dotnet test` invocations against the same LocalDB instance during the session), not a regression from any change in this ticket. The 14 skips are the `[GenuineQdosCorpusFact]`-gated tests that require the local, ignored, immutable `corpus/` fixture (per `AGENTS.md`) — expected in this environment.
+
+`tests/Pegasus.IntegrationTests/UnidentifiedPersistenceTests.cs` (new this session, added after the full run above started, so counted separately): 3/3 passed on a dedicated run against the real applied migration.
+
+`pwsh ./scripts/Test-DocumentationLinks.ps1`: all 204 Markdown files' relative links resolve — no broken references from any of this session's documentation edits (including the new `docs/operator-notes.md#unidentified-received-material` anchor references added to AGENTS.md/CLAUDE.md).
+
+## Session commits (intk-007-unidentified-intake, 2c555e8f..HEAD)
+
+1. Merge `origin/dev` (42 commits), resolve `docs/capabilities.md` conflict.
+2. Blocker 2 — stop burning a U-reference on a retryable reader failure.
+3. Blocker 1 and 3 — migration grants, real backfill fingerprint, correct column.
+4. Fix Unidentified reason mapping and timestamp; add origin lookup port.
+5. Reconcile Unidentified state around image-intake automation.
+6. Fix Unidentified/Details.cshtml(.cs) reviewer comments.
+7. Fix UnidentifiedMcpTools: default to Open, reject invalid numeric state.
+8. Complete the Needs sorting -> Unidentified replacement in governing docs.
+9. Tighten Unidentified grants to per-object least privilege.
+10. Rename MailOperationalDestination.NeedsSorting to Unidentified.
+11. Fix a real regression: rendered-text assertions still expected "Needs sorting".
+12. Add UnidentifiedWork to the committed-migration schema census test.
+13. Unidentified/Index.cshtml: route origin kind through OperatorLabels.
+14. Add EfUnidentifiedStore persistence tests; fix a real actor-kind bug they found.
