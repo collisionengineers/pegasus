@@ -1,0 +1,1 @@
+Implemented on `task/tick-045-shared-classification-policy` at `139a4571c00cb7ee3a0ac1d39d8d9d2d41129a7e`. Opened PR https://github.com/collisionengineers/pegasus/pull/422 targeting `dev`. Locked Release build and focused/relevant suites passed; no live mailbox or cloud operation was performed.
