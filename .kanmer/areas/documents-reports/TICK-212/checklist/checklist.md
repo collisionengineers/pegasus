@@ -1,10 +1,11 @@
 # Checklist — TICK-212
 
-- [ ] Confirm SIMPLI-014's final plan/checklist owns minimal renderer dependency additions, regeneration of existing Pegasus project locks, canonical locked restore, and exclusion of retired host locks/dependencies.
-- [ ] After SIMPLI-014 merges, inspect its exact project and `packages.lock.json` diff for caller-backed dependencies, deterministic corresponding lock updates, and absence of workspace renderer lock files or API/CLI/MCP-only packages.
-- [ ] Verify merged `dev` with canonical locked-restore, Release build/test, advisory, and shared build-cache evidence; explain any unrelated transitive lock movement.
-- [ ] Record the no-code post-implementation report/outcome with the SIMPLI-014 PR, merge commit and proof; state that TICK-212 created no repository branch, worktree, commit, PR, deployment or cloud action.
+- [x] Confirmed SIMPLI-014 owns the minimal renderer dependency additions, regeneration of existing Pegasus project locks, canonical locked restore, and exclusion of retired host locks/dependencies.
+- [x] Inspected the merged SIMPLI-014 project/lock diff: Infrastructure directly owns Microsoft.Playwright 1.61.0, PDFsharp 6.2.4, and Scriban 7.2.6; the existing Web, Worker, ArchitectureTests, and IntegrationTests locks receive only the caller-backed transitive graph; no renderer-workspace lock exists and no ModelContextProtocol addition appears in the SIMPLI-014 lock diff.
+- [x] Verified merged `origin/dev`: locked restore succeeded; Release solution build succeeded with 0 warnings/errors; dependency-direction tests passed 39/39; NuGet advisory scan found no vulnerable packages; the shared build action continues to hash `src/**/packages.lock.json` and `tests/**/packages.lock.json`.
+- [x] Recorded the no-code post-implementation report/outcome with SIMPLI-014 PR #415 and merge commit `b548b674e31d05de6f43eeb285a25dedd7d2a768`. TICK-212 used only an unpushed zero-diff claim branch/worktree and created no repository commit, PR, deployment, cloud action, or `main` update.
 
 ## Progress notes
 
-(append with set_ticket_doc(doc: "checklist", append: true))
+- 2026-08-19: `git merge-base --is-ancestor b548b674 origin/dev` confirmed the owning merge is in current `origin/dev`.
+- 2026-08-19: `git status --short` and `git diff --stat origin/dev...HEAD` remained empty after verification.

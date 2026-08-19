@@ -40,3 +40,7 @@ This is a separate implementation slice, but it is not ready to execute while SI
 - Duplicate readiness lists: AssessmentPolicy and the merged report snapshot may both validate fields. Mitigation: designate one Core policy path and reuse its typed results; formatting validation must not become a second business list.
 - Premature generalization: CASE-31's title names later reports/statistics, but only the assessment caller is concrete now. Mitigation: implement the concrete derived assessment snapshot and shared source identities only; extend when a second approved caller supplies real requirements.
 - No operator question remains. Implementation readiness requires merged SIMPLI-014, TICK-093, and TICK-094 plus a conflict-free file ownership check. DOCS-001 is downstream, not a blocker of CASE-31.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.

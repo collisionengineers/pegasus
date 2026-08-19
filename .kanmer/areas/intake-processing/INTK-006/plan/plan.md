@@ -16,16 +16,15 @@ Modifies:
 - `docs/design/README.md`
 - `docs/capabilities.md` and `docs/index.md` where ownership/navigation changes
 
-No code may be written until these documents define the Image-Only Case's reference, principal, lifecycle, and resolution semantics. Use kanmer-docs first. If they still say image-only evidence cannot create a Case, stop and return the ticket to Preparing; do not choose semantics in code.
+The INTK-005 branch is the implementation base and is not a merge prerequisite. Governing-document reconciliation remains an explicit parallel/review workstream: do not silently change protected or normative docs in this branch, and do not invent Case reference, principal, lifecycle, or resolution semantics. Reuse the existing Case owner and record any unresolved policy mismatch in the report for review/rebase resolution.
 
 ## Implementation steps
 
-1. **Satisfy hard prerequisites.**
+1. **Prepare the non-blocking dependency and policy seam.**
    - Confirm the INTK-005 PR branch `intk-005-grouped-upload` is available locally/remotely and use it as this ticket's worktree base. Do not wait for PR merge; review changes will be reconciled by rebasing this branch later.
-   - Run kanmer-docs to apply the operator-confirmed behavior to every governing document listed above.
-   - Confirm docs answer exactly: Case type/name; whether a normal Case/PO is allocated; how principal is represented without invention; initial lifecycle state; allowed later resolution/conversion; immutable group/origin preservation.
-   - Link the updated governing docs to INTK-006 and update this plan with the exact existing Case creation use case to reuse.
-   - If any answer is missing or contradictory, stop before implementation.
+   - Record the exact existing Case creation/acceptance owner and its supported inputs before editing. Do not call EF directly or create a second policy owner.
+   - Treat governing-document reconciliation as parallel review work: link or update only documents authorized by the ticket scope, preserve protected operator truth, and surface any semantics that cannot yet be represented by the existing Case owner.
+   - Do not stop implementation solely because INTK-005 has not merged; stop only if the existing owner cannot safely express the requested outcome without inventing product policy, and record that precise boundary in the report.
 
 2. **Define one canonical group-routing policy in Core.**
    - Add an enum/record only if needed for these mutually exclusive states: WaitingForMembers, WaitingForRecognition, AssociateExistingCase, CreateImageOnlyCase, TechnicalFailure.
@@ -108,7 +107,7 @@ No code may be written until these documents define the Image-Only Case's refere
 
 ## Risks and controls
 
-- **Current docs contradict the requested Case fallback:** mandatory docs-first stop condition.
+- **Current docs may require reconciliation for the requested Case fallback:** keep the implementation on the existing Case owner, preserve the non-blocking branch dependency, and surface any remaining policy decision explicitly for review/rebase rather than silently inventing semantics.
 - **Concurrent last-member completion:** unique group outcome plus transactional replay.
 - **Premature finalization:** explicit per-member terminal recognition state.
 - **Wrong association:** one shared exact matcher; conflicts create fallback rather than attach.

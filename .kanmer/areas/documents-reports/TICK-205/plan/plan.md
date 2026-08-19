@@ -43,3 +43,7 @@ This proves resolution and allocation only. It does not prove the versioned aggr
 - Risk: a second repair-line or Audit-only aggregate appears in SIMPLI-014. Mitigation: SIMPLI-014 stays assessment/fee-note only and must not add the deferred Audit contract.
 - No operator-only question remains. Monetary uplift means the derived difference between accepted totals. Percentage uplift stays parked until denominator and rounding are separately accepted.
 - Audit rendering stays parked under TICK-207; this is the required deferred next step, not a blocker to SIMPLI-014's assessment integration.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.

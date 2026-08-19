@@ -1,7 +1,5 @@
 # Open questions
 
-No operator-only question remains. The operator approved automatic generation from complete accepted assessment data and the rendererref1 four-variant contract. Exact readiness is derived from accepted Core data and the approved outcome-specific schema.
+No operator-only question remains.
 
-## Parked (explicitly deferred)
-
-- Audit input shape awaits the approved Audit template.
+- [x] **Does Audit require a separate output shape/template?** — No. Operator correction on 2026-08-19: Audit and Inspection processes differ, but their physical report output is identical. The accepted structured record may carry Audit-specific process data, but it feeds the same report output contract/template.

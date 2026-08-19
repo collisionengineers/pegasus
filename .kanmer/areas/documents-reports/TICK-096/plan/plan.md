@@ -44,3 +44,7 @@ Local source/composition evidence must remain qualified as not deployed until PL
 - **False determinism claim:** PDF bytes may vary across browser/font/OS environments. Mitigation: pin and record the production environment, prove repeatability/structural parity within it, store the actual hash, and avoid cross-environment byte-equality claims.
 - **Visual-only confidence:** a plausible PDF can still use stale/unaccepted data. Mitigation: pair representative artifacts with typed readiness/source-version/calculation tests and immutable result provenance.
 - **No operator question:** initial assessment/fee-note scope is resolved; Audit and inactive catalogue families remain deferred.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.

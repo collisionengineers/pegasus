@@ -37,3 +37,7 @@ TICK-081 is ready to close only when those merged proofs collectively demonstrat
 - Production proof cannot be obtained without an exact-target Azure write. PLAT-007 must stop for explicit approval immediately before that operation; read-only and local checks may proceed without it.
 - The capability registry can drift if its schedule is updated before the real caller exists. Reconcile it in the caller-owning implementation PR and verify it again after deployment.
 - No current product question remains. The only required operator interaction is the later exact-target cloud-write approval for PLAT-007.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.

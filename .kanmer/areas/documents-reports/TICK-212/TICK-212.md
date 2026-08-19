@@ -2,12 +2,15 @@
 id: TICK-212
 type: ticket
 title: Add report-renderer package lock files
-status: preparing
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:02:50.835Z'
+taken_at: '2026-08-19T10:39:19.075Z'
+branch: task/tick-212-renderer-lock-subsumption
+worktree: ../pegasus-worktrees/tick-212-renderer-lock-subsumption
 labels:
   - now
   - source-now
@@ -18,9 +21,14 @@ links:
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+commits:
+  - b548b674e31d05de6f43eeb285a25dedd7d2a768
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/415'
+deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.782Z'
-updated: '2026-08-19T09:02:50.835Z'
+updated: '2026-08-19T10:41:08.923Z'
 ---
 
 ## What
@@ -38,8 +46,8 @@ This remains an unresolved current-work item in the canonical Kanmer board; it i
 
 ## Verification
 
-- [ ] The task plan defines the owned change, failure behavior, tests, and acceptance evidence.
-- [ ] Completion is recorded only at the evidence tier actually proved.
+- [x] The task plan defines the owned no-code disposition, failure boundary, checks, and acceptance evidence.
+- [x] Completion is recorded at merged source/build/dependency-composition evidence tier only.
 
 ## Notes
 
@@ -49,3 +57,8 @@ This remains an unresolved current-work item in the canonical Kanmer board; it i
 ## Tracker migration
 
 Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.
+
+
+## Outcome
+
+Subsumed by [[SIMPLI-014]] / [PR #415](https://github.com/collisionengineers/pegasus/pull/415), merged in current `origin/dev` as `b548b674e31d05de6f43eeb285a25dedd7d2a768`. Renderer dependencies are owned by the existing `Pegasus.Infrastructure` project and canonical project-local locks; dependent Web, Worker, architecture-test and integration-test locks contain their caller-backed transitive graph. No `workspaces/report-renderer` directory or renderer-workspace lock survives. TICK-212 produced no repository diff, commit, PR, deployment, cloud action, or `main` update.

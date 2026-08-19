@@ -1,7 +1,9 @@
 # Open questions
 
-No operator-only question remains. The approved initial deterministic scope is the rendererref1 four assessment variants plus fee note, behind Core policy and the real assessment caller.
+No operator-only question remains.
+
+- [x] **Does Audit require its own deterministic presentation family?** — No. The Audit workflow supplies its accepted process data to the same inspection/assessment physical report template and deterministic renderer contract.
 
 ## Parked (explicitly deferred)
 
-- Audit and other catalogue families await accepted templates/callers.
+- Other catalogue families still await accepted templates and real callers.

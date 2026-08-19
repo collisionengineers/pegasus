@@ -36,3 +36,8 @@ The final lock graph cannot be accepted until SIMPLI-014's dependency migration 
 - **Retired dependency leakage:** host-only MCP/API/CLI packages could enter production locks during mechanical migration. Mitigation: focused negative checks for those packages and caller-based review of every new direct reference.
 - **Native/runtime assets:** Playwright/PDF dependencies may expand platform assets. Mitigation: retain SIMPLI-014's build/render tests and leave deployed runtime proof to PLAT-007.
 - **Operator questions:** none remain; existing repository locked-restore convention resolves the technical choice.
+
+
+## Simplification pass — 2026-08-19
+
+n/a — zero-diff subsumption. The independently reviewed SIMPLI-014 implementation already owns the project and lock-file changes. Creating renderer-workspace locks, a renderer-specific cache path, or a second dependency owner would recreate the retired boundary.

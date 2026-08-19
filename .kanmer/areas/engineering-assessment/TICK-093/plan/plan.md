@@ -51,3 +51,7 @@ Independent four-lens review completed against `origin/dev`.
 - **Unnecessary abstraction:** one low finding applied. Removed the unused private `CurrentDraftAsync` helper from `EfRepairSpecificationStore`.
 - **Test/operational efficiency:** no material finding. Focused Core policy, SQL lifecycle, and pre-migration fixture coverage are proportional. No cloud or provider integration was added.
 - **Scope:** passed. No Reports, renderer, template, FRD-11, or package-lock file is changed.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.

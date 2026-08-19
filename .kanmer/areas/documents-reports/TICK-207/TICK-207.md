@@ -1,7 +1,7 @@
 ---
 id: TICK-207
 type: ticket
-title: Define the missing Audit renderer template
+title: Record Audit reuse of the Inspection report template
 status: done
 area: documents-reports
 order: 500
@@ -27,33 +27,31 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.409Z'
-updated: '2026-08-19T09:39:59.388Z'
+updated: '2026-08-19T10:40:30.653Z'
 ---
 
 ## What
 
-Resolve the missing Audit renderer-template question without inventing unavailable evidence.
+Record that Audit uses the same physical report output as Inspection; no separate Audit renderer template is required.
 
 ## Why
 
-RPT-03 has an accepted data direction, but Pegasus has no supplied or approved representative Audit report/template from which to derive fixed wording, layout, fields, conditional rules, signatures, or visual acceptance.
+The operator corrected the earlier premise on 2026-08-19: Collision Engineers' Audit and Inspection processes differ internally, but the physical report they output has no differences. Waiting for or inventing a separate Audit template would create a duplicate presentation policy.
 
 ## Approach
 
-Audit rendering remains unavailable and fails closed until a concrete representative Audit artifact is supplied and explicitly approved. Assessment evidence in `reference/rendererref1/`, generic expert-report templates, and the imported renderer catalogue are not Audit authority.
+Reuse the approved inspection/assessment report template and presentation through the existing Core-owned render contract. Feed it accepted Audit-specific workflow data from the owning Core capabilities, including conservative/maximised specifications and monetary uplift where applicable. Do not create an Audit-only template, dormant descriptor, generic fallback, or separate renderer family.
 
 ## Verification
 
-- [x] The deferral, fail-closed boundary, prohibited substitutes, future activation evidence, and owners are explicit.
-- [x] Completion is recorded at the deferral/closed-boundary tier only; no Audit template, renderer action, or RPT-03 delivery is claimed.
+- [x] The operator decision and shared-template boundary are explicit.
+- [x] [[TICK-098]], [[TICK-205]], [[SIMPLI-014]], and related renderer tickets record that Audit-specific process data reuses the inspection/assessment physical output.
 
 ## Notes
 
-- Prohibited substitutes: no assessment clone, generic expert fallback, caller-authored blocks, placeholder, dormant descriptor, disabled feature, inferred legal wording, fabricated reference artifact, or guessed signature/fee treatment.
-- [[TICK-205]] supplies the accepted dual immutable conservative/maximised data decision.
-- [[TICK-098]] remains the RPT-03 capability owner and cannot claim Audit rendering until this evidence gate is satisfied.
-- [[SIMPLI-014]] remains assessment/fee-note only and must expose no Audit family.
-- When an actual representative artifact is supplied, create a new linked activation ticket to research it and obtain explicit approval of wording, layout, field rules, comparison labels, conditional behaviour, signatures, and representative minimal/long cases before modifying FRD-11, Core, or templates.
+- [[TICK-205]] owns the dual immutable conservative/maximised Audit data decision.
+- [[TICK-098]] owns RPT-03 behavior through the shared renderer contract.
+- This correction supersedes the former missing-template deferral and any request for a separate representative Audit artifact.
 
 ## Tracker migration
 
@@ -61,4 +59,4 @@ Authority references were retargeted by [[KANMER-001]] after the legacy tracker 
 
 ## Outcome
 
-The missing Audit template is explicitly **deferred**, not guessed. No approved representative Audit artifact currently exists, so Audit rendering and template registration remain absent and unavailable. TICK-207 makes no repository, FRD, Core, Infrastructure, template, reference, artifact, deployment, Azure, Worker, or `main` change. The next product action is triggered only by receipt of a concrete representative Audit artifact; that artifact requires explicit approval through a new linked activation ticket before implementation.
+The missing-template premise is closed: Audit and Inspection use the same physical report template and presentation. Their process and accepted input data may differ, but Pegasus must not create a second Audit presentation implementation.

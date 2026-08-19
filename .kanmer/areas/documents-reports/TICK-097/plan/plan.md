@@ -34,3 +34,7 @@ No separate RPT-02 Core model, renderer, template catalogue, persistence stream,
 - Dependency ownership is the main coordination risk: overlapping changes in Core assessment/report contracts must land through their owning tickets, not through TICK-097.
 - Representative evidence may establish whether fee-note presentation is a page in one artifact or a separately retained linked artifact. Whichever the approved samples prove, its identity/hash relationship must be explicit; ambiguity blocks acceptance and is resolved from supplied evidence before code changes.
 - No operator question is open. The four outcomes, active family boundary, approved wording, qualifications, and signatures are resolved.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.

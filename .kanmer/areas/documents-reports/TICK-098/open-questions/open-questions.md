@@ -1,7 +1,9 @@
-# Open questions
+# Open questions — RPT-03
 
-No current operator question remains. The operator resolved that Audit rendering is deferred until a representative Audit template is supplied or approved.
+Resolved by the Collision Engineers operator on 2026-08-19.
+
+- [x] **Does Audit require a separate representative template/layout/wording artifact?** — No. Audit and Inspection processes differ, but their physical report output is identical. RPT-03 must reuse the approved inspection/assessment report template and presentation, populated from the accepted Audit process data. Do not create a separate Audit template or activation ticket.
 
 ## Parked (explicitly deferred)
 
-- [Reason: required source artifact does not yet exist] Approve the representative Audit template/layout/wording before RPT-03 implementation.
+- Percentage uplift remains unavailable until its denominator and rounding rule are separately accepted; monetary uplift between compatible accepted totals remains the accepted Audit calculation.

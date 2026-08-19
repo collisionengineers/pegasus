@@ -35,3 +35,7 @@ This plan deliberately does not reuse rendererref1 assessment presentation, add 
 - TICK-207's completion proves deferral, not template acceptance. A new linked activation ticket is created only when the actual artifact exists.
 - Percentage uplift is explicitly outside current accepted behavior. Only monetary uplift between compatible accepted totals is authorized.
 - No current operator question is actionable. The next operator decision is triggered by receipt of the representative artifact and concerns that concrete artifact rather than hypothetical wording.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.

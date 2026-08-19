@@ -43,3 +43,7 @@ This proves the deferral and fail-closed boundary only. It does not define or de
 - Risk: a disabled placeholder is treated as shipped capability. Mitigation: no dormant template/descriptor/flag is created; Audit remains absent and unavailable.
 - No operator question is currently actionable. The future question is evidence-triggered: approve or reject the actual supplied representative artifact and its detailed rules.
 - Next step now: execute this Kanmer-only deferral reconciliation and close it through independent review/verification. Next product step: wait for the representative Audit artifact, then create a new linked activation ticket to research/approve it before any template work.
+
+## Operator correction — shared Audit/Inspection physical report — 2026-08-19
+
+This supersedes any earlier plan statement that Audit rendering requires a separate representative template, layout, wording artifact, dormant family, or future activation ticket. The operator confirmed that Audit and Inspection processes differ internally, but the physical report output has no differences. Reuse the approved inspection/assessment report template and presentation through the existing Core render contract. Preserve Audit-specific workflow/data rules in their owning Core capabilities; do not create a second renderer template or presentation policy.
