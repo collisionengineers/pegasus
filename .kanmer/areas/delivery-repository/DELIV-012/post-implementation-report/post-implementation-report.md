@@ -92,3 +92,60 @@ and the board branch never touched. Final state is recorded in the proof.
 *(appended after the deployment: browser evidence for every shipped UI change,
 endpoint/CLI evidence for every backend change, migration head, worker census,
 Sent-evidence exception stream stopped)*
+
+---
+
+## 6. Release execution (final; full transcript identities in `proof/`)
+
+Operator authorisations obtained through the question tool immediately before
+E3: **MERGE AUTH GRANTED** for `ed3be51c95bc2a055606e5210131d37de9de2dd1`, and
+all five Azure writes approved for their exact targets.
+
+| Step | Result |
+|---|---|
+| E1 | PR #410 lane set **11/11 SUCCESS** on the promotion head |
+| E3 | Atomic fast-forward `d8de29cb..ed3be51c`; readback `main == dev == ed3be51c` |
+| E4 | Main-push run `32309456172` concluded **success**; the "Require main history to be contained in dev" guard passed |
+| E5 | Artifacts at the exact SHA; digest `sha256:6dcf3ca1…`; manifest SHA-256 `86360226…`; Local + Artifact + PreUpload + PreMigration + PreProvision all pass |
+| E8 | Image pushed; ACR digest readback equals the manifest digest |
+| E9 | `efbundle` applied **all 8 migrations**; head readback `20260819180000_GrantEvaHandoffDownloadOperations`; both grant fixes verified in `sys.database_permissions` |
+| E10 | Bootstrap census: **496 catalogued permission/denial rows verified** |
+| E12 | Provision preview diffed against release 10's stored preview: **byte-identical except the revision suffix** — stop condition satisfied with evidence |
+| E13 | `azd provision` success (77 s); revision `--ed3be51c95bc`, image digest-pinned, **1.0 vCPU / 2 GiB**, Healthy, 100 % traffic |
+| E14 | Worker config-zip: new active deployment `4ac36bca` (22:44:24–22:45:32Z, success); release-10 deployment inactive |
+| E15 | `Invoke-ProductionSmoke.ps1` **exit 0** (version+SHA match, https 302, nine-function census `approved-live-worker`) |
+| W5 | Sent-evidence approval applied through `/Administration/Mailboxes` as a signed-in administrator (version 3→4, Sent folder bound, reason recorded) |
+
+Route facts surfaced and recorded in the runbook: `azd env get-value` for a
+nonexistent key returns the CLI update-notice text; the efbundle
+`Box__ConfigJson` placeholder must parse as Box JWT JSON.
+
+## 7. Verification (final)
+
+**Backend, all against production:**
+- `/diagnostics/version` → `{"version":"0.1.0-alpha.1","sourceSha":"ed3be51c…"}`; `/health/live` and `/health/ready` 200.
+- Migration head and the two repaired grant sets read back from `sys.database_permissions` — including `EvaHandoffDownloadOperations`, which had zero permission rows before this release.
+- **The Q4 defect is gone**: `ApprovedSentPollStates.LastCompletedAtUtc` advanced to `2026-08-19T22:52:15Z` (previously stuck at 7 Aug) and `LastFailureCode` cleared (was `sent_mailbox_not_approved`); the inbox poll advances on the new Worker (`22:52:45Z`). This is direct-state evidence, deliberately used instead of App Insights because the Log Analytics daily cap makes telemetry blind at this hour.
+
+**Browser (signed in to production as the seeded verification account):**
+- Dashboard at 1920: centred shell, the new **Unidentified** nav entry, and an E-mail activity card counting **5 open Unidentified items**.
+- `/Upload`: the redesigned centred page now reading "Drag files here, or choose them" with "up to 20 files per submission" — PLAT-006 + INTK-005 live.
+- `/Unidentified`: **U1–U5 allocated by the backfill from real retained receipts** (12–19 Aug), each carrying the "No usable identification" reason and its receipt identity — the operator-visible proof the reference allocator and queue work against real data.
+- Case assessment page: the **Report draft** panel present and honestly fail-closed, enumerating 22 outstanding readiness items including "Repair cost figures".
+- `/Inbox/{id}` on a real classified e-mail: **"Operational destination: Receiving work — Destination policy: mail_operational_destination version 1"** — the formerly dark MAIL-02 policy computing live.
+- `/Administration/Mailboxes`: both route scopes checked and the Sent folder identity bound for the approved mailbox.
+
+Screenshots in the session scratchpad: `release12-dashboard-1920.png`,
+`release12-upload-1920.png`, `release12-unidentified-1920.png`,
+`release12-assessment-reportdraft.png`, `release12-inbox-destination.png`,
+`release12-mailboxes-sentevidence.png`.
+
+**Docs refresh:** PR #429 (docs-only), validated by `Test-DocumentationLinks`
+(205 files); merges on green `documentation` lane.
+
+## Simplification pass — 2026-08-19
+
+Run per constituent PR over each PR's own diff before its review (dispositions
+recorded in the owning tickets and in `scratch/review`); this orchestration
+ticket's own repository diff is the docs refresh, for which the pass is
+n/a — docs-only.
