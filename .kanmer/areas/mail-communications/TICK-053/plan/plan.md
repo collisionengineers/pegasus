@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Full read-only production journey — operator decision 2026-08-19
+
+After deployment, verify MAIL-11 against the currently linked mailbox: browse/paginate; preserve explicit mailbox and folder scope; search retained bodies and supported attachment filename/content; inspect visible match locations, unsupported-attachment disclosure, detail and scoped threads; and search accepted Deleted Items only where the existing approved Graph scope permits it. Record unavailable/empty states honestly. Do not request broader permissions, backfill historical mail, or mutate Outlook/cloud state.

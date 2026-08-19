@@ -10,3 +10,5 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] After deployment, record the full authenticated read-only production browse/search/thread journey for the linked mailbox, including Deleted Items only within existing approved scope and no mutation or backfill.
