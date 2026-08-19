@@ -4045,6 +4045,80 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeStagedReceipts", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTimeOffset>("ReceivedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("SourceChannel")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("SubmissionToken")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceChannel", "SubmissionToken")
+                        .IsUnique();
+
+                    b.ToTable("IntakeSubmissionGroups", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupMemberEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("AddedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("GroupId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<string>("SourceHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<Guid>("StagedReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StagedReceiptId")
+                        .IsUnique();
+
+                    b.HasIndex("GroupId", "Ordinal")
+                        .IsUnique();
+
+                    b.ToTable("IntakeSubmissionGroupMembers", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IntakeSubmissionGroupMembers_Ordinal", "[Ordinal] >= 0");
+                        });
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeWorkItemEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6146,6 +6220,23 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupMemberEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity", "Group")
+                        .WithMany("Members")
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", null)
+                        .WithMany()
+                        .HasForeignKey("StagedReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Group");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeWorkItemEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", "StagedReceipt")
@@ -6473,6 +6564,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", b =>
                 {
                     b.Navigation("WorkItem");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity", b =>
+                {
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.OrganizationEntity", b =>
