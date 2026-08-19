@@ -279,34 +279,62 @@ public sealed class ProcessIntake(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
-        if (registerUnidentified is null
-            || receipt.Decision is not (IntakeDecision.NeedsSorting
-                or IntakeDecision.Unsupported
-                or IntakeDecision.OcrRequired
-                or IntakeDecision.TechnicalFailure)
-            || (receipt.Decision == IntakeDecision.NeedsSorting
-                && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)))
+        if (registerUnidentified is null || !IsUnidentifiedEligible(receipt))
         {
             return;
         }
 
-        var reason = receipt.Decision switch
-        {
-            IntakeDecision.Unsupported => UnidentifiedReasonCode.UnsupportedContent,
-            IntakeDecision.OcrRequired => UnidentifiedReasonCode.NoUsableIdentification,
-            IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.TechnicalProcessingFailure,
-            _ => UnidentifiedReasonCode.NoUsableIdentification
-        };
         await registerUnidentified.ExecuteAsync(
-            new(
-                UnidentifiedOrigin.Receipt(receipt.Id),
-                reason,
-                receipt.FailureReason ?? receipt.DecisionReason,
-                ActionActor.SystemWorker("intake-processing"),
-                $"intake-unidentified:{receipt.Id:N}:{receipt.Version}",
-                receipt.ProcessedAtUtc),
+            BuildUnidentifiedRegistrationRequest(receipt),
             cancellationToken);
     }
+
+    /// <summary>
+    /// True for a receipt this hook should register directly. Image-only
+    /// material at <see cref="IntakeDecision.NeedsSorting"/> is excluded here
+    /// because <c>ImageIntakeAutomation</c> still gets a chance to resolve it
+    /// to <see cref="IntakeDecision.ImageIntakeRegistered"/>; the queued
+    /// caller (<c>ProcessQueuedIntake</c>) registers it as Unidentified itself
+    /// once that automation runs and confirms no confident registration was
+    /// made, so that material is never silently dropped from both queues.
+    /// </summary>
+    internal static bool IsUnidentifiedEligible(IntakeReceipt receipt) =>
+        receipt.Decision is IntakeDecision.NeedsSorting
+            or IntakeDecision.Unsupported
+            or IntakeDecision.OcrRequired
+            or IntakeDecision.TechnicalFailure
+        && !(receipt.Decision == IntakeDecision.NeedsSorting
+            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+
+    internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt) =>
+        new(
+            UnidentifiedOrigin.Receipt(receipt.Id),
+            MapUnidentifiedReason(receipt),
+            receipt.FailureReason ?? receipt.DecisionReason,
+            ActionActor.SystemWorker("intake-processing"),
+            $"intake-unidentified:{receipt.Id:N}:{receipt.Version}",
+            // The queue and detail UI order and display Unidentified work by
+            // when the source arrived, not when this processing attempt ran;
+            // a delayed or retried attempt must not misreport either.
+            receipt.ReceivedAtUtc);
+
+    /// <summary>
+    /// Selects the specific reason from evidence the assessment already
+    /// established, rather than collapsing every non-Unsupported,
+    /// non-TechnicalFailure outcome into <see cref="UnidentifiedReasonCode.NoUsableIdentification"/>.
+    /// </summary>
+    private static UnidentifiedReasonCode MapUnidentifiedReason(IntakeReceipt receipt) => receipt.Decision switch
+    {
+        IntakeDecision.Unsupported => UnidentifiedReasonCode.UnsupportedContent,
+        IntakeDecision.TechnicalFailure => UnidentifiedReasonCode.TechnicalProcessingFailure,
+        _ when receipt.CaseMatchDecision?.Outcome == CaseMatchOutcome.Ambiguous =>
+            UnidentifiedReasonCode.ConflictingIdentification,
+        _ when receipt.MailClassificationDecision?.Outcome == MailClassificationOutcome.Ambiguous =>
+            UnidentifiedReasonCode.AmbiguousOwnershipOrDestination,
+        _ when receipt.Evidence.Any(evidence => evidence.Signal == "intake_limit_exceeded") =>
+            UnidentifiedReasonCode.UnreadableOrCorruptContent,
+        _ => UnidentifiedReasonCode.NoUsableIdentification
+    };
 
     private async Task RecordAutomaticAuditEvidenceAsync(
         IntakeReceipt receipt,
