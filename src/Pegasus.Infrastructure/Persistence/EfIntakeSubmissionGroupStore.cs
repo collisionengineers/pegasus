@@ -33,6 +33,24 @@ public sealed class EfIntakeSubmissionGroupStore(
         return entity is null ? null : await MapAsync(context, entity, cancellationToken);
     }
 
+    public Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourceIdentity);
+        var separator = sourceIdentity.ExternalReceiptToken.LastIndexOf(':');
+        if (separator <= 0
+            || !int.TryParse(
+                sourceIdentity.ExternalReceiptToken[(separator + 1)..],
+                out _))
+        {
+            return Task.FromResult<IntakeSubmissionGroup?>(null);
+        }
+
+        var parentToken = sourceIdentity.ExternalReceiptToken[..separator];
+        return FindAsync(sourceIdentity.Channel, parentToken, cancellationToken);
+    }
+
     public async Task<IntakeSubmissionGroup> GetOrCreateAsync(
         Guid groupId,
         IntakeSourceChannel channel,

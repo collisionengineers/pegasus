@@ -36,7 +36,8 @@ public sealed class ImageIntakeAutomation(
     IImageIntakeCaseCandidates caseCandidates,
     IIntakeMutationStore intakeMutationStore,
     IIntakeReceiptQueries receiptQueries,
-    TimeProvider timeProvider) : IImageIntakeAutomation
+    TimeProvider timeProvider,
+    IIntakeSubmissionGroupStore? groupStore = null) : IImageIntakeAutomation
 {
     public const string ActorId = "image-intake-automation";
 
@@ -54,6 +55,15 @@ public sealed class ImageIntakeAutomation(
 
         using var activity = Telemetry.StartActivity("image_intake_automation");
         activity?.SetTag("intake.receipt_id", receipt.Id);
+
+        if (groupStore is not null)
+        {
+            var groupUpdated = await TryApplyGroupAsync(receipt, activity, cancellationToken);
+            if (groupUpdated is not null)
+            {
+                return groupUpdated;
+            }
+        }
 
         var existing = await imageIntakeStore.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
         if (existing is not null)
@@ -99,6 +109,109 @@ public sealed class ImageIntakeAutomation(
             activity,
             cancellationToken);
         return updated ?? receipt;
+    }
+
+    private async Task<IntakeReceipt?> TryApplyGroupAsync(
+        IntakeReceipt receipt,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
+        var group = await groupStore!.FindForMemberSourceAsync(
+            receipt.SourceIdentity,
+            cancellationToken);
+        if (group is null)
+        {
+            return null;
+        }
+
+        var members = await groupStore.ListMembersAsync(group.Id, cancellationToken);
+        var receipts = new List<IntakeReceipt>(members.Count);
+        foreach (var member in members.OrderBy(member => member.Ordinal))
+        {
+            var memberReceipt = await receiptQueries.FindBySourceIdentityAsync(
+                new(
+                    group.Channel,
+                    $"{group.SubmissionToken}:{member.Ordinal}"),
+                cancellationToken);
+            if (memberReceipt is null)
+            {
+                activity?.SetTag("image_intake.group_outcome", "waiting_for_members");
+                return receipt;
+            }
+
+            receipts.Add(memberReceipt);
+        }
+
+        var recognitions = new List<ImageIntakeGroupMemberRecognition>(receipts.Count);
+        var scans = new List<(IntakeReceipt Receipt, IReadOnlyList<ImageVrmSuggestion> Suggestions)>();
+        foreach (var memberReceipt in receipts)
+        {
+            var suggestions = await ScanAsync(memberReceipt, cancellationToken);
+            scans.Add((memberReceipt, suggestions));
+            var best = suggestions
+                .Where(suggestion => suggestion.Outcome == VrmRecognitionOutcomeKind.Suggested
+                    && suggestion.SuggestedRegistration is not null)
+                .OrderByDescending(suggestion => suggestion.Confidence)
+                .FirstOrDefault();
+            recognitions.Add(new(
+                memberReceipt.Id,
+                IsTerminal(suggestions),
+                best?.Outcome ?? (suggestions.Count > 0
+                    ? suggestions[0].Outcome
+                    : VrmRecognitionOutcomeKind.NoReadableResult),
+                best?.SuggestedRegistration,
+                best?.Confidence,
+                suggestions.FirstOrDefault(suggestion => suggestion.FailureCode is not null)?.FailureCode));
+        }
+
+        var registrationCandidates = recognitions
+            .Where(recognition => recognition.Outcome == VrmRecognitionOutcomeKind.Suggested
+                && recognition.NormalizedRegistration is not null
+                && recognition.Confidence >= VrmRecognitionProvisionalBar.MinimumAutomaticConfidence)
+            .Select(recognition => recognition.NormalizedRegistration!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var eligibleCaseCount = registrationCandidates.Length == 1
+            ? (await caseCandidates.FindEligibleByRegistrationAsync(
+                registrationCandidates[0],
+                cancellationToken)).Count
+            : 0;
+        var routing = ImageIntakeGroupRoutingPolicy.Evaluate(
+            recognitions,
+            members.Count,
+            eligibleCaseCount);
+        activity?.SetTag("image_intake.group_id", group.Id);
+        activity?.SetTag("image_intake.group_outcome", routing.Decision.ToString());
+        activity?.SetTag("image_intake.group_reason", routing.ReasonCode);
+        if (routing.Decision != ImageIntakeGroupRoutingDecision.AssociateExistingCase
+            || routing.NormalizedRegistration is null)
+        {
+            // The existing Case owner deliberately requires a principal and a
+            // normal acceptance request. Until governing docs define the
+            // Image-Only Case identity, do not fabricate one here; the group
+            // remains available for the documented Unidentified fallback.
+            return receipt;
+        }
+
+        foreach (var (memberReceipt, suggestions) in scans)
+        {
+            await TryRegisterAndAssociateAsync(
+                memberReceipt,
+                routing.NormalizedRegistration,
+                suggestions,
+                activity,
+                cancellationToken);
+        }
+
+        return await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
+
+        static bool IsTerminal(IReadOnlyList<ImageVrmSuggestion> suggestions) =>
+            suggestions.Count > 0
+            && suggestions.All(suggestion => suggestion.Outcome is
+                VrmRecognitionOutcomeKind.Suggested
+                or VrmRecognitionOutcomeKind.NoReadableResult
+                or VrmRecognitionOutcomeKind.TechnicalFailure
+                or VrmRecognitionOutcomeKind.Unavailable);
     }
 
     private static bool IsImageOnly(IntakeReceipt receipt) =>

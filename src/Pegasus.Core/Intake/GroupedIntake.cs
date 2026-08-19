@@ -41,6 +41,16 @@ public interface IIntakeSubmissionGroupStore
         string submissionToken,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Finds the parent group for a processed child source token. Grouped
+    /// uploads use the stable token shape <c>{submission}:{ordinal}</c>; the
+    /// parent token is the durable group identity and is safe to use on replay.
+    /// </summary>
+    Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IntakeSubmissionGroup?>(null);
+
     Task<IntakeSubmissionGroup> GetOrCreateAsync(
         Guid groupId,
         IntakeSourceChannel channel,
