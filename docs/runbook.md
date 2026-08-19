@@ -928,7 +928,11 @@ Two route facts recorded by release 9 (details in operations):
   `Runtime__Profile=Production`, `ConnectionStrings__Pegasus`,
   `AzureIdentity__WebClientId`, the two storage account names and the custody
   service URI, `Box__BaseUri`/`Box__UploadUri`/`Box__RootFolderId`, and
-  shape-only placeholder values for `Box__ConfigJson`/`Box__ClientSecret` —
+  shape-valid placeholder values for `Box__ConfigJson`/`Box__ClientSecret`
+  (the config must parse as Box JWT JSON:
+  `{"boxAppSettings":{"clientID":…,"clientSecret":…,"appAuth":{"publicKeyID":…,"privateKey":…,"passphrase":…}},"enterpriseID":…}`
+  with placeholder strings; a bare JSON object fails host construction — found
+  at release 12) —
   the host is built, never started) and `AZURE_TOKEN_CREDENTIALS=AzureCliCredential`
   so `Authentication=Active Directory Default` uses the release operator's CLI
   sign-in. The migration bundle uses only `--connection`.
@@ -961,7 +965,12 @@ Accepted
 keeps global Worker containment but separates it from the exact individual
 Function settings and each mailbox's own enablement and activation time. It
 does not equate normal inbound operation with all nine Functions enabled:
-`SentEvidencePollFunction` stays disabled unless separately approved. The
+`SentEvidencePollFunction` requires separate approval — given by the operator
+on 2026-08-19 (release 12, DELIV-012) and applied through the
+`/Administration/Mailboxes` page, which recorded the Sent folder identity and
+enabled the SentEvidence route scope for the approved mailbox; before that
+approval the enabled function had failed once a minute against the
+unapproved mailbox. The
 implemented inbound caller path must define and test the exact supporting
 dispatch, queue, recovery, and reconciliation Function set. That contract is
 not implemented yet.

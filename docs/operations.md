@@ -18,8 +18,13 @@ authenticated `/Upload` POST through `ReceiveIntake` is the manual HTTP staging
 caller; Worker owns queued processing; `/Received` and `/Inbox` are read-only
 views. Source registration is not proof of deployed or live traffic.
 
-The assessment renderer is currently **locally verified source**, not deployed
-or live-verified. The Core draft-generation use case is composed through
+The assessment renderer is **deployed with a reachable operator caller** since
+release 12 (2026-08-19): the Web image carries the pinned Chromium build, and
+the case assessment page offers a "Report draft" action that renders and
+returns the PDF. For a live case it currently fails closed listing "Repair
+cost figures" among the outstanding readiness items, because no estimate
+import exists yet (ENG-002); rendered-output evidence in the deployed
+container therefore remains pending a case with imported costs. The Core draft-generation use case is composed through
 Infrastructure in the Web host and representative assessment plus fee-note
 artifacts render through real Chromium in the Browser test lane. The published
 Web container image now carries the pinned Chromium build through
@@ -283,7 +288,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 10**. A branch
+- **Deployed evidence:** the estate currently serves **release 12**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -301,6 +306,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 12 | 2026-08-19 | `ed3be51c…` | `sha256:6dcf3ca1…` | `pegasus-prod-web-252ow37gij--ed3be51c95bc` | `20260819093019_RetainedMailboxInternetMessageIdentity`, `20260819101344_GroupedIntakeSubmission`, `20260819104953_MailClassificationCorrectionHistory`, `20260819112640_VersionedRepairSpecifications`, `20260819112914_ImageInitiatedLifecycle`, `20260819115323_UnidentifiedWork`, `20260819140113_ImageIntakeGroupExpectedMemberCount`, `20260819180000_GrantEvaHandoffDownloadOperations` |
   | 10 | 2026-08-18 | `d8de29cb…` | `sha256:4bd50f66…` | `pegasus-prod-web-252ow37gij--d8de29cb94f3` | none |
   | 9 | 2026-08-18 | `f1e116c6…` | `sha256:63e86324…` | `pegasus-prod-web-252ow37gij--f1e116c6eb93` | `20260814092852_AddWorkerCaseCreationGrants`, `20260814094632_DropBoxFileRequests` |
   | — | 2026-08-12/14 | `dd61ac56…`, then `aecad247…` | `sha256:04d39c20…`, then tag `azd-deploy-1786687004` | `--13m13ph`, then `--azd-1786687080` | three 2026-08-11/12 migrations, then `20260813025241_StandaloneAuditReportDecision` (un-numbered `azd deploy` deployments; no immutable manifest was retained) |
@@ -314,6 +320,30 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 12** (2026-08-19, exact-SHA fast-forward, `main` = `dev` =
+    `ed3be51c`, manifest SHA-256 `86360226…`) was the first release on the
+    Chromium-carrying Web base image (`mcr.microsoft.com/playwright/dotnet`,
+    ADR-0028): the image grew to ~1.36 GiB compressed, the Web container was
+    raised to 1.0 vCPU / 2 GiB (operator decision, in-process rendering), and
+    the new revision provisioned and turned Healthy on its first pull of that
+    base. It applied eight migrations in one bundle — the largest set since
+    release 4 — including two grant repairs: `CaseRepairSpecifications`
+    (created ungranted by the same day's TICK-093 merge) and
+    `EvaHandoffDownloadOperations`, which had been created with **no
+    permission rows at all** by the already-applied 2026-08-11 migration, so
+    the EVA hand-off download path had been failing in production since then;
+    both grants were read back from `sys.database_permissions` after the
+    bundle. The database bootstrap census verified 496 catalogued rows. The
+    release also carried the grouped Upload flow (INTK-005/006), the
+    Unidentified queue with `U<n>` references replacing `Needs sorting`
+    (INTK-007), the Image-initiated Case lifecycle (INTK-008), the MAIL-02
+    destination-policy caller on `/Inbox/{id}`, the repair-specification
+    store's production caller, and the report-draft entry point (reachable;
+    produces a PDF once an estimate import exists — ENG-002). Route facts
+    recorded: `azd env get-value` for a nonexistent key returns the CLI's
+    update-notice text rather than failing, and the migration bundle's
+    `Box__ConfigJson` placeholder must be shape-valid Box JWT JSON.
 
   - **Release 10** (same day, second exact-SHA fast-forward, `main` = `dev` =
     `d8de29cb`, manifest SHA-256 `E9B28747…`) carried the release-9 docs
