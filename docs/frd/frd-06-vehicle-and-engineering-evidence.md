@@ -60,7 +60,7 @@ confirmation, a suggestion must not create or identify a case, allocate a
 Case/PO reference, overwrite a confirmed registration, select an EVA image,
 satisfy a readiness gate, or mutate case workflow. By operator direction
 (2026-08-03), a confident unambiguous read at the current accepted recognition
-bar may automatically register the pre-Case Image intake (allocating its Image
+bar may automatically register the Image-initiated Case projection (allocating its Image
 Intake Reference) and, where exactly one eligible pre-report instructed Case
 carries that confirmed registration with no contradictory identity evidence,
 automatically associate it under the settled matching rules; both actions are
@@ -83,12 +83,31 @@ identity: the registered identity is immutable, so the completion rules
 cannot apply after registration, and a near-miss in this direction stays a
 reasoned staff suggestion.
 
+A multi-image upload evaluates this automatic registration/association rule
+once across the whole group of images rather than per image; the group
+membership, wait-for-completion, VRM aggregation, and fail-closed precedence
+rules are defined in
+[Grouped image-intake routing](frd-02-intake-and-source-identity.md#grouped-image-intake-routing).
+
 The operator surface distinguishes a suggestion from no readable result or an
 unknown result, an unavailable dependency, and a technical failure. It never
 renders an empty value as success. Record the source occurrence, task,
 engine/provider and version where applicable, time, output, supplied
 confidence, failure or unknown outcome, and later staff disposition separately
 from confirmed case data.
+
+Recognition runs two distinguishable layers in sequence — plate detection,
+then plate reading — and diagnostics must prove which layer ran and which one
+abstained without a second business-decision outcome taxonomy and without
+logging image content or raw candidate text. Detector-empty (no plate
+detected) and recognizer-empty (a plate detected but no readable registration
+recovered) both remain the single visible `NoReadableResult` outcome; they are
+distinguished only by a non-sensitive, code-level diagnostic reason attached
+to that outcome, never by adding a third terminal recognition state. A
+retained image's recognition outcome is durable once recorded: re-evaluating
+the same image (a sibling group member arriving, a replay) reuses the
+recorded outcome rather than re-running the detector or recognizer, so one
+retained image is recognised at most once.
 
 The implementation mechanism is not inferred: ordinary-image VRM reading,
 Document Intelligence extraction from scanned PDFs, and broader image/damage AI
@@ -196,4 +215,10 @@ This deliberately favours a reviewable abstention or qualified range over a plau
 - **Preserved seam:** raw observations, normalized units, model/rule version, estimate/range, calibration evidence, and staff disposition remain distinct source-labelled identities.
 - **Excluded:** this creates no provider adapter, scheduled lookup, cohort dataset, automatic external call, or unreviewed Case mutation.
 - **Activation evidence:** representative chronological holdouts, contract and failure/recovery proof, a real caller, and operator acceptance are required.
+
+The accepted VRM reading bar may create an Image-initiated Case reference before
+formal instructions arrive. A readable sibling keeps a registration-free damage
+close-up in the same group. No-readable or conflicting valid VRMs do not receive
+a fabricated image reference; they enter the grouped Unidentified contract with
+the applicable reason, including conflicting_vrms.
 - **Irreversible choice:** the estimate may be derived only by this conservative algorithm; unsafe evidence yields abstention or a qualified range rather than an invented mileage value.

@@ -29,3 +29,11 @@ Receipt/staging and accepted case custody are different states.
 - A closed case and its files are application-level read-only. A new version, revision, logical removal, move, copy, share, or other mutation requires a reasoned reopen first; no Box operation bypasses that gate, and the alpha infers no general move/copy/share/delete authority.
 - Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](../operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
+
+Image-initiated Case files stay under the same intake source-artifact
+retention as every other received item; there is no separate VRM-keyed Box
+custody root for an Image-initiated Case in this slice, and none is claimed as
+delivered. Once an Image-initiated Case merges into a formal Case, its
+preserved origin evidence becomes available for retention into that Case's
+Box custody under the rules above; the Image-initiated lifecycle state and
+merge/closure history remain in SQL regardless of custody.

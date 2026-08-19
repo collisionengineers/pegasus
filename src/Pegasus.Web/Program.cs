@@ -501,7 +501,9 @@ builder.Services.AddHealthChecks()
     .AddCheck<DatabaseReadinessHealthCheck>("database", tags: ["ready"]);
 builder.Services.Configure<FormOptions>(options =>
 {
-    options.MultipartBodyLengthLimit = (10 * 1024 * 1024) + (64 * 1024);
+    // Bounded for a whole Upload batch, not one file: IntakeEnvelopeLimits
+    // enforces the per-file cap and the maximum file count independently.
+    options.MultipartBodyLengthLimit = IntakeEnvelopeLimits.MaximumBatchContentLength;
 });
 
 Func<IServiceProvider, string>? localArtifactRootFactory = developmentOfflineProfile
@@ -564,6 +566,9 @@ builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueri
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
+builder.Services.AddScoped<SubmitGroupedIntake>();
+builder.Services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
+    serviceProvider.GetRequiredService<SubmitGroupedIntake>());
 // The consolidated Automation activity read model backs the Administration
 // view in every profile; the ingress itself stays behind the composition gate.
 builder.Services.AddScoped<IAutomationActivityQueries, EfAutomationActivityStore>();

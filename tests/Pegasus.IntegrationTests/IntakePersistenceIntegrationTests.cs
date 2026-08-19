@@ -73,9 +73,12 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260814092852_AddWorkerCaseCreationGrants",
                 "20260814094632_DropBoxFileRequests",
                 "20260819093019_RetainedMailboxInternetMessageIdentity",
+                "20260819101344_GroupedIntakeSubmission",
                 "20260819104953_MailClassificationCorrectionHistory",
                 "20260819112640_VersionedRepairSpecifications",
+                "20260819112914_ImageInitiatedLifecycle",
                 "20260819115323_UnidentifiedWork",
+                "20260819140113_ImageIntakeGroupExpectedMemberCount",
                 "20260819180000_GrantEvaHandoffDownloadOperations"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());

@@ -34,6 +34,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<ImageIntakeEntity> ImageIntakes => Set<ImageIntakeEntity>();
     internal DbSet<ImageIntakeSequenceEntity> ImageIntakeSequences =>
         Set<ImageIntakeSequenceEntity>();
+    internal DbSet<ImageIntakeLifecycleEventEntity> ImageIntakeLifecycleEvents =>
+        Set<ImageIntakeLifecycleEventEntity>();
     internal DbSet<ImageVrmSuggestionEntity> ImageVrmSuggestions =>
         Set<ImageVrmSuggestionEntity>();
     internal DbSet<TriageEntity> Triage => Set<TriageEntity>();
@@ -84,6 +86,9 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     internal DbSet<IntakeReceiptEventEntity> IntakeReceiptEvents => Set<IntakeReceiptEventEntity>();
     internal DbSet<IntakeStagedReceiptEntity> IntakeStagedReceipts => Set<IntakeStagedReceiptEntity>();
+    internal DbSet<IntakeSubmissionGroupEntity> IntakeSubmissionGroups => Set<IntakeSubmissionGroupEntity>();
+    internal DbSet<IntakeSubmissionGroupMemberEntity> IntakeSubmissionGroupMembers =>
+        Set<IntakeSubmissionGroupMemberEntity>();
 
     internal DbSet<IntakeWorkItemEntity> IntakeWorkItems => Set<IntakeWorkItemEntity>();
     internal DbSet<IntakeEvaluationEntity> IntakeEvaluations => Set<IntakeEvaluationEntity>();
@@ -264,6 +269,37 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.StorageKey).HasMaxLength(200).IsRequired();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.SourceHash);
+        });
+
+        builder.Entity<IntakeSubmissionGroupEntity>(entity =>
+        {
+            entity.ToTable("IntakeSubmissionGroups", table =>
+                table.HasCheckConstraint(
+                    "CK_IntakeSubmissionGroups_ExpectedMemberCount", "[ExpectedMemberCount] >= 1"));
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SourceChannel).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.SubmissionToken).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
+            entity.HasIndex(item => new { item.SourceChannel, item.SubmissionToken }).IsUnique();
+        });
+
+        builder.Entity<IntakeSubmissionGroupMemberEntity>(entity =>
+        {
+            entity.ToTable("IntakeSubmissionGroupMembers", table =>
+                table.HasCheckConstraint("CK_IntakeSubmissionGroupMembers_Ordinal", "[Ordinal] >= 0"));
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SourceFileName).HasMaxLength(260).IsRequired();
+            entity.Property(item => item.SourceHash).HasMaxLength(64).IsRequired();
+            entity.HasIndex(item => new { item.GroupId, item.Ordinal }).IsUnique();
+            entity.HasIndex(item => item.StagedReceiptId).IsUnique();
+            entity.HasOne(item => item.Group)
+                .WithMany(item => item.Members)
+                .HasForeignKey(item => item.GroupId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne<IntakeStagedReceiptEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.StagedReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<IntakeWorkItemEntity>(entity =>
@@ -534,6 +570,26 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<ImageIntakeLifecycleEventEntity>(entity =>
+        {
+            entity.ToTable("ImageIntakeLifecycleEvents");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.EventType).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).HasMaxLength(1000).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.CaseReference).HasMaxLength(50);
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.ImageIntakeId, item.OccurredAtUtc });
+            entity.HasOne(item => item.ImageIntake)
+                .WithMany()
+                .HasForeignKey(item => item.ImageIntakeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         builder.Entity<CaseHistoryEntity>(entity =>
         {
             entity.ToTable("CaseHistory");
@@ -564,6 +620,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.LifecycleState).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.MergedIntoCaseReference).HasMaxLength(50);
+            entity.Property(item => item.ClosureReason).HasMaxLength(500);
+            entity.HasIndex(item => new { item.LifecycleState, item.CreatedAtUtc });
             entity.HasIndex(item => item.OriginReceiptId).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.ImageIntakeReference).IsUnique();
@@ -1332,6 +1392,29 @@ internal sealed class IntakeStagedReceiptEntity
     public required string StorageKey { get; set; }
     public DateTimeOffset StagedAtUtc { get; set; }
     public IntakeWorkItemEntity? WorkItem { get; set; }
+}
+
+internal sealed class IntakeSubmissionGroupEntity
+{
+    public Guid Id { get; set; }
+    public required string SourceChannel { get; set; }
+    public required string SubmissionToken { get; set; }
+    public int ExpectedMemberCount { get; set; }
+    public required string Actor { get; set; }
+    public DateTimeOffset ReceivedAtUtc { get; set; }
+    public List<IntakeSubmissionGroupMemberEntity> Members { get; set; } = [];
+}
+
+internal sealed class IntakeSubmissionGroupMemberEntity
+{
+    public Guid Id { get; set; }
+    public Guid GroupId { get; set; }
+    public IntakeSubmissionGroupEntity Group { get; set; } = null!;
+    public int Ordinal { get; set; }
+    public Guid StagedReceiptId { get; set; }
+    public required string SourceFileName { get; set; }
+    public required string SourceHash { get; set; }
+    public DateTimeOffset AddedAtUtc { get; set; }
 }
 
 internal sealed class IntakeWorkItemEntity

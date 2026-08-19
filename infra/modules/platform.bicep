@@ -428,9 +428,16 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
             { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
           ]
+          // ADR-0028: the report renderer runs in process in this container,
+          // so headless Chromium shares the app's CPU and memory. Container
+          // Apps hard-OOM-kills rather than throttling, and this app runs a
+          // single always-warm replica, so a render that exceeded 1Gi would
+          // take the site down until it restarted. Raised to the next valid
+          // Consumption combination on the operator's decision (2026-08-19,
+          // DELIV-012); CPU and memory must stay a supported pair.
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json('1.0')
+            memory: '2Gi'
           }
           probes: [
             {
