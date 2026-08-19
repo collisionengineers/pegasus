@@ -1,6 +1,6 @@
 # Open questions — MAIL-05
 
-- [ ] **Confirm designated Outlook destinations through MAIL-23.** Recommendation: use exact administrator-approved folder identities for Receiving work, Queries and Other; return no recommendation for Triage, Needs sorting, Ambiguous or Unclassified results; never accept a client-supplied destination.
+- [x] **Which designated Outlook destinations apply?** — Use the MAIL-23 canonical mapping to administrator-approved folder identities for Instructions, Audits, Diminution, New clients, Case queries, Enquiries, Billing, Pre-instructions, No action, Images, Cancellations, Case updates and Other. Needs sorting receives no automatic move recommendation; clients never supply arbitrary destinations.
 
 ## Parked (explicitly deferred)
 
