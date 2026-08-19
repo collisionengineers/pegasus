@@ -314,6 +314,92 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task OneCorrectionPolicyAppliesIdenticallyAndIndependentlyAcrossMailboxes()
+    {
+        const string secondMailboxId = "claims";
+        const string secondMailboxAddress = "claims@collisionengineers.co.uk";
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        await SeedPollStateAsync(database, secondMailboxId, secondMailboxAddress);
+        var messages = new[]
+        {
+            Message("message-shared-policy-a"),
+            Message(
+                "message-shared-policy-b",
+                mailboxId: secondMailboxId,
+                mailboxAddress: secondMailboxAddress)
+        };
+        var original = MailClassificationResult.Ambiguous(
+            [
+                "received:General/acknowledgement",
+                "received:in-progress-cases/case-update"
+            ],
+            [new("fresh-message-evidence", true, "Two supported categories still match.")],
+            "More than one category matched.",
+            "shared-mail-policy",
+            9);
+
+        foreach (var message in messages)
+        {
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, original);
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var queries = services.GetRequiredService<IRetainedMailQueries>();
+        var command = services.GetRequiredService<CorrectRetainedMailClassification>();
+        var actor = ActionActor.Staff(
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            [StaffRole.User]);
+        var retained = (await queries.ListAsync(
+                new(null, MailFolderScope.Inbox),
+                1,
+                25,
+                CancellationToken.None))
+            .Items
+            .OrderBy(item => item.MailboxId, StringComparer.Ordinal)
+            .ToArray();
+
+        Assert.Equal([secondMailboxId, MailboxId], retained.Select(item => item.MailboxId));
+        foreach (var item in retained)
+        {
+            var corrected = await command.ExecuteAsync(
+                actor,
+                new(
+                    item.Id,
+                    1,
+                    MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"),
+                    "The exact retained message is an acknowledgement."));
+
+            Assert.Equal(2, corrected!.Version);
+            Assert.Equal("shared-mail-policy", corrected.Current.PolicyKey);
+            Assert.Equal(9, corrected.Current.PolicyVersion);
+            Assert.Equal(original.Predicates, corrected.Current.Predicates);
+            Assert.Single(corrected.History);
+        }
+
+        await Assert.ThrowsAsync<MailClassificationConcurrencyException>(() =>
+            command.ExecuteAsync(
+                actor,
+                new(
+                    retained[0].Id,
+                    1,
+                    MailCategory.Received(ReceivedMailFamily.InternalCc),
+                    "A stale correction must not affect either mailbox.")));
+        Assert.Null(await command.ExecuteAsync(
+            actor,
+            new(
+                Guid.NewGuid(),
+                1,
+                MailCategory.Received(ReceivedMailFamily.InternalCc),
+                "An unknown retained message must not create a decision.")));
+        Assert.Equal(
+            2L,
+            await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeMailClassificationHistory"));
+    }
+
+    [Fact]
     public async Task AForwardedMessageUsesTheProvenOriginalSenderAndRetainsTheForwarder()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
