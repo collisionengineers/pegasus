@@ -108,7 +108,7 @@ internal sealed class PlaywrightAssessmentReportRenderer : IAssessmentReportRend
         {
             throw new InvalidOperationException(string.Join("; ", template.Messages));
         }
-        var context = new TemplateContext();
+        var context = new TemplateContext { LimitToString = 0 };
         context.PushGlobal(values);
         var html = await template.RenderAsync(context).ConfigureAwait(false);
         if (html.Contains("{{", StringComparison.Ordinal) || html.Contains('«'))
