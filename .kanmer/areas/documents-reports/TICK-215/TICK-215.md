@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-19T09:26:31.823Z'
   verifying: '2026-08-19T09:26:58.632Z'
   done: '2026-08-19T09:27:59.915Z'
-taken_at: '2026-08-19T09:25:01.208Z'
-branch: task/tick-215-renderer-execution-decision
-worktree: ../pegasus-worktrees/tick-215-renderer-execution-decision
 labels:
   - now
   - source-now
@@ -34,7 +31,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.967Z'
-updated: '2026-08-19T09:27:59.915Z'
+updated: '2026-08-19T09:28:25.963Z'
 ---
 
 ## What

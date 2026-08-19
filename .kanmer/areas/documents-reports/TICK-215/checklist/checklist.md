@@ -17,7 +17,7 @@
 - [x] proof.md finalised with PR URL and merge date
 - [x] Moved to final stage
 - [x] Outcome and traceability recorded
-- [ ] Return to main checkout and remove zero-diff ticket worktree
-- [ ] Delete local and remote zero-diff ticket branch
-- [ ] `git fetch --prune` + `git worktree prune`
-- [ ] `take_ticket action: "release"`
+- [x] Return to main checkout and remove zero-diff ticket worktree
+- [x] Delete local and remote zero-diff ticket branch
+- [x] `git fetch --prune` + `git worktree prune`
+- [x] `take_ticket action: "release"`
