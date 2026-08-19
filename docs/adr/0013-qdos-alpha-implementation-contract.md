@@ -1,9 +1,9 @@
 ---
 id: ADR-0013
-status: accepted
+status: superseded
 date: 2026-07-30
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0029]
 related_capabilities: []
 related_frd: [frd-01, frd-02, frd-06, frd-07, frd-08, frd-12]
 tags: [qdos, contract]

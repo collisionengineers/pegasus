@@ -34,6 +34,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<ImageIntakeEntity> ImageIntakes => Set<ImageIntakeEntity>();
     internal DbSet<ImageIntakeSequenceEntity> ImageIntakeSequences =>
         Set<ImageIntakeSequenceEntity>();
+    internal DbSet<ImageIntakeLifecycleEventEntity> ImageIntakeLifecycleEvents =>
+        Set<ImageIntakeLifecycleEventEntity>();
     internal DbSet<ImageVrmSuggestionEntity> ImageVrmSuggestions =>
         Set<ImageVrmSuggestionEntity>();
     internal DbSet<TriageEntity> Triage => Set<TriageEntity>();
@@ -529,6 +531,25 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
+        builder.Entity<ImageIntakeLifecycleEventEntity>(entity =>
+        {
+            entity.ToTable("ImageIntakeLifecycleEvents");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.EventType).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.ActorKind).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ActorSubjectId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.ActorRolesJson).HasMaxLength(1000).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.CaseReference).HasMaxLength(50);
+            entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => new { item.ImageIntakeId, item.OccurredAtUtc });
+            entity.HasOne(item => item.ImageIntake)
+                .WithMany()
+                .HasForeignKey(item => item.ImageIntakeId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         builder.Entity<CaseHistoryEntity>(entity =>
         {
             entity.ToTable("CaseHistory");
@@ -559,6 +580,10 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
             entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.RequestFingerprint).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.LifecycleState).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.MergedIntoCaseReference).HasMaxLength(50);
+            entity.Property(item => item.ClosureReason).HasMaxLength(500);
+            entity.HasIndex(item => new { item.LifecycleState, item.CreatedAtUtc });
             entity.HasIndex(item => item.OriginReceiptId).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
             entity.HasIndex(item => item.ImageIntakeReference).IsUnique();

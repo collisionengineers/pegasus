@@ -84,3 +84,12 @@ Evidence states remain distinct:
 6. accepted by an authorised operator or management.
 
 A lower state never implies a higher one.
+
+### Image-initiated Case origin
+
+Pegasus has two Case-origin records. Instruction-initiated Cases are the main
+formal type and may initially have no images; they alone receive Principal and
+Case/PO identity. Image-initiated Cases begin with vehicle images, receive a
+VRM-sequenced Image Intake Reference when the registration is usable, and have
+no Case/PO. They remain searchable until merged into a matching formal Case or
+staff-closed with a reason. Both origins and their history remain attributable.

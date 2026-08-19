@@ -20,7 +20,20 @@ public sealed record ImageIntakeRecord(
     Guid Id,
     ImageIntakeOrigin Origin,
     string NormalizedVehicleRegistration,
-    string ImageIntakeReference);
+    string ImageIntakeReference,
+    ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
+    Guid? MergedIntoCaseId = null,
+    string? MergedIntoCaseReference = null,
+    string? ClosureReason = null,
+    DateTimeOffset? ClosedAtUtc = null,
+    long LifecycleVersion = 0);
+
+public enum ImageInitiatedCaseState
+{
+    AwaitingInstruction,
+    MergedIntoInstructionCase,
+    StaffClosed
+}
 
 /// <summary>
 /// Formats the registration-based identity `{normalised VRM}-{sequence}` with a
@@ -79,13 +92,54 @@ public sealed record ImageIntakeSummary(
     string NormalizedVehicleRegistration,
     Guid? AssociatedCaseId,
     string? AssociatedCaseReference,
-    DateTimeOffset RegisteredAtUtc);
+    DateTimeOffset RegisteredAtUtc,
+    ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
+    string? ClosureReason = null);
+
+public sealed record ImageIntakeLifecycleEvent(
+    Guid Id,
+    Guid ImageIntakeId,
+    string EventType,
+    ActionActor Actor,
+    DateTimeOffset OccurredAtUtc,
+    string Reason,
+    string OperationKey,
+    long BeforeVersion,
+    long AfterVersion,
+    Guid? CaseId = null,
+    string? CaseReference = null);
 
 public sealed record ImageIntakeDetail(
     ImageIntakeRecord Record,
     DateTimeOffset RegisteredAtUtc,
     Guid? AssociatedCaseId,
-    string? AssociatedCaseReference);
+    string? AssociatedCaseReference,
+    ImageInitiatedCaseState State = ImageInitiatedCaseState.AwaitingInstruction,
+    Guid? MergedIntoCaseId = null,
+    string? MergedIntoCaseReference = null,
+    string? ClosureReason = null,
+    DateTimeOffset? ClosedAtUtc = null,
+    IReadOnlyList<ImageIntakeLifecycleEvent>? History = null,
+    long LifecycleVersion = 0)
+{
+    public IReadOnlyList<ImageIntakeLifecycleEvent> LifecycleHistory => History ?? [];
+}
+
+public sealed record MergeImageInitiatedCaseRequest(
+    Guid ImageIntakeId,
+    Guid CaseId,
+    string CaseReference,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    long ExpectedVersion);
+
+public sealed record CloseImageInitiatedCaseRequest(
+    Guid ImageIntakeId,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    long ExpectedVersion);
 
 public interface IImageIntakeQueries
 {
@@ -152,6 +206,21 @@ public interface IImageIntakeStore : IImageIntakeQueries
     Task EnsureRegisteredReceiptDecisionAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken);
+
+    Task<ImageIntakeRecord> MergeAsync(
+        MergeImageInitiatedCaseRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-initiated lifecycle is not available."));
+
+    Task<ImageIntakeRecord> CloseAsync(
+        CloseImageInitiatedCaseRequest request,
+        CancellationToken cancellationToken) =>
+        Task.FromException<ImageIntakeRecord>(new NotSupportedException("Image-initiated lifecycle is not available."));
+
+    Task<IReadOnlyList<ImageIntakeLifecycleEvent>> ListHistoryAsync(
+        Guid imageIntakeId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ImageIntakeLifecycleEvent>>([]);
 }
 
 /// <summary>
