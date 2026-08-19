@@ -156,7 +156,7 @@ advice, Engineer approval, or product policy merely by existing.
 
 Every accepted repair specification is an immutable, versioned Core aggregate.
 Each Case has exactly one current accepted canonical version, shared by the
-Inspection and Audit report paths.
+Case's report projections.
 
 Each version retains its stable identity, ordered technical
 lines, source route, source artifact identity/version/hash, mapping evidence,

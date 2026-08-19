@@ -18,7 +18,7 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireEngineer(request.Actor);
         var source = request.Source.Route == RepairSpecificationSourceRoute.LegacyUnresolved
             ? request.Source
             : RepairSpecificationPolicy.ValidateSource(request.Source);
@@ -120,7 +120,7 @@ public sealed class EfRepairSpecificationStore(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        RequireEngineer(request.Actor);
+        RepairSpecificationPolicy.RequireEngineer(request.Actor);
         var source = RepairSpecificationPolicy.ValidateSource(request.Source);
         var basis = RepairSpecificationPolicy.ValidateCalculationBasis(request.CalculationBasis);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -225,14 +225,6 @@ public sealed class EfRepairSpecificationStore(
         CaseMutationGuard.ClearLease(workflow);
     }
 
-    private static void RequireEngineer(ActionActor actor)
-    {
-        if (actor.Kind != ActorKind.Staff || !actor.IsInRole(StaffRole.Engineer))
-        {
-            throw new InvalidOperationException("Only an authenticated staff Engineer can change repair-specification acceptance.");
-        }
-    }
-
     private static string RequiredReason(string value) =>
         string.IsNullOrWhiteSpace(value) ? throw new ArgumentException("A reason is required.") : value.Trim();
 
@@ -265,17 +257,11 @@ public sealed class EfRepairSpecificationStore(
             System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(request, JsonOptions))));
 
     private static CaseEstimateLineEntity CloneLine(
-        CaseEstimateLineEntity line, CaseRepairSpecificationEntity target, ActionActor actor, DateTimeOffset now) => new()
-    {
-        Id = Guid.NewGuid(), CaseId = target.CaseId, Case = target.Case,
-        RepairSpecificationId = target.Id, RepairSpecification = target, Position = line.Position,
-        LineType = line.LineType, GuideCode = line.GuideCode, Description = line.Description,
-        WorkUnits = line.WorkUnits, Price = line.Price, Unpriced = line.Unpriced,
-        PartNumber = line.PartNumber, Betterment = line.Betterment, Status = line.Status,
-        EvidenceLabel = line.EvidenceLabel, Justification = line.Justification,
-        RecordedByKind = actor.Kind.ToString(), RecordedBy = actor.SubjectId, RecordedAtUtc = now,
-        ConfirmedBy = actor.SubjectId, ConfirmedAtUtc = now,
-    };
+        CaseEstimateLineEntity line, CaseRepairSpecificationEntity target, ActionActor actor, DateTimeOffset now) =>
+        NewLine(new(
+            line.LineType, line.GuideCode, line.Description, line.WorkUnits, line.Price,
+            line.Unpriced, line.PartNumber, line.Betterment, line.Status,
+            line.EvidenceLabel, line.Justification), line.Position, target, actor, now);
 
     private static CaseEstimateLineEntity NewLine(
         EstimateLineInput line, int position, CaseRepairSpecificationEntity target,

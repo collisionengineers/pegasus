@@ -66,6 +66,16 @@ public static class RepairSpecificationPolicy
     public const string PolicyKey = "repair-specification";
     public const int PolicyVersion = 1;
 
+    public static void RequireEngineer(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind != ActorKind.Staff || !actor.IsInRole(StaffRole.Engineer))
+        {
+            throw new InvalidOperationException(
+                "Only an authenticated staff Engineer can change or accept a repair specification.");
+        }
+    }
+
     public static RepairSpecificationSource ValidateSource(RepairSpecificationSource source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -112,11 +122,7 @@ public static class RepairSpecificationPolicy
     {
         ArgumentNullException.ThrowIfNull(specification);
         ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.Staff || !actor.IsInRole(StaffRole.Engineer))
-        {
-            throw new InvalidOperationException(
-                "Only an authenticated staff Engineer can accept a repair specification.");
-        }
+        RequireEngineer(actor);
         if (specification.State != RepairSpecificationState.Draft)
         {
             throw new InvalidOperationException("Only a draft repair specification can be accepted.");

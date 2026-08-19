@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    [Migration("20260819112237_VersionedRepairSpecifications")]
+    [Migration("20260819112640_VersionedRepairSpecifications")]
     partial class VersionedRepairSpecifications
     {
         /// <inheritdoc />
@@ -3430,6 +3430,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<Guid>("ConcurrencyToken")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("DecidedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DecidedByActor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<string>("Direction")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -3483,9 +3495,54 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<int>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
                     b.HasKey("IntakeReceiptId");
 
                     b.ToTable("IntakeMailClassificationDecisions", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeMailClassificationHistoryEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset>("CorrectedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<Guid>("IntakeReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntakeReceiptId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("IntakeMailClassificationHistory", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeMailRouteDecisionEntity", b =>
@@ -5918,6 +5975,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("IntakeReceipt");
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeMailClassificationHistoryEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeMailClassificationDecisionEntity", "ClassificationDecision")
+                        .WithMany("History")
+                        .HasForeignKey("IntakeReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ClassificationDecision");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeMailRouteDecisionEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
@@ -6277,6 +6345,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseWorkflowEntity", b =>
                 {
                     b.Navigation("DueWork");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeMailClassificationDecisionEntity", b =>
+                {
+                    b.Navigation("History");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", b =>
