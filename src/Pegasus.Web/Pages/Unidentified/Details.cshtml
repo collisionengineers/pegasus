@@ -7,55 +7,25 @@
 }
 
 <header class="page-heading">
-    <div>
-        <p class="eyebrow">Unidentified</p>
-        <h1>@Model.Item.Reference</h1>
-        <p class="lede">@Model.ReasonLabel</p>
-    </div>
+    <h1>@Model.Item.Reference</h1>
+    <partial name="Shared/_StatusChip" model="@OperatorLabels.UnidentifiedState(Model.Item.State)" />
 </header>
 
 <div asp-validation-summary="All" class="validation-summary" role="alert"></div>
 
 <section class="panel" aria-labelledby="unidentified-detail-title">
-    <h2 id="unidentified-detail-title" class="section-label">Source</h2>
+    <h2 id="unidentified-detail-title" class="section-label">What is going on</h2>
     <dl class="detail-list">
-        <dt>Origin</dt><dd>@Model.OriginKindLabel — @Model.Item.Origin.Id</dd>
-        <dt>Received</dt><dd>@OperatorLabels.OfficeDate(Model.Item.CreatedAtUtc) @OperatorLabels.OfficeClock(Model.Item.CreatedAtUtc)</dd>
+        <dt>Kind</dt><dd>@Model.MediaKindLabel</dd>
+        <dt>Received</dt><dd><time datetime="@Model.Item.CreatedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(Model.Item.CreatedAtUtc)</time></dd>
         <dt>Reason</dt><dd>@Model.ReasonLabel</dd>
-        <dt>Detail</dt><dd>@Model.Item.SafeDetail</dd>
-        <dt>State</dt><dd><partial name="Shared/_StatusChip" model="@OperatorLabels.UnidentifiedState(Model.Item.State)" /></dd>
+        <dt>Concerns</dt><dd>@Model.Handle</dd>
     </dl>
+    @if (Model.SourceReceipt is { } receipt)
+    {
+        <a asp-page="/Intake/Details" asp-route-id="@receipt.Id">Open the received file</a>
+    }
 </section>
-
-@if (Model.SourceReceipt is { } receipt)
-{
-    <section class="panel" aria-labelledby="unidentified-receipt-title">
-        <h2 id="unidentified-receipt-title" class="section-label">Retained source</h2>
-        <dl class="detail-list">
-            <dt>File</dt><dd>@receipt.SourceFileName</dd>
-            <dt>Received</dt><dd><time datetime="@receipt.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(receipt.ReceivedAtUtc)</time></dd>
-        </dl>
-        @if (receipt.AssetRecords.Count > 0)
-        {
-            <ul class="plain-list">
-                @foreach (var asset in receipt.AssetRecords)
-                {
-                    <li>@asset.FileName <small>@asset.SourceLabel · @asset.Kind · @asset.MediaType</small></li>
-                }
-            </ul>
-        }
-        @if (receipt.Evidence.Count > 0)
-        {
-            <ul class="evidence-list">
-                @foreach (var item in receipt.Evidence)
-                {
-                    <li><strong>@item.Source</strong><span>@item.Detail</span></li>
-                }
-            </ul>
-        }
-        <a asp-page="/Intake/Details" asp-route-id="@receipt.Id">View the full retained receipt and custody detail</a>
-    </section>
-}
 
 <section class="panel" aria-labelledby="unidentified-history-title">
     <h2 id="unidentified-history-title" class="section-label">History</h2>
