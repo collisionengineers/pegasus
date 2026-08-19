@@ -2,13 +2,14 @@
 id: PLAT-006
 type: ticket
 title: Centre the operator shell's content region and redesign the Upload screen
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-19T07:15:39.013Z'
   review: '2026-08-19T07:45:40.074Z'
+  verifying: '2026-08-19T08:08:14.794Z'
 taken_at: '2026-08-19T07:13:57.445Z'
 branch: task/plat-006-shell-upload
 worktree: ../pegasus-worktrees/plat-006-shell-upload
@@ -27,7 +28,7 @@ prs:
   - '409'
 archived: false
 created: '2026-08-19T07:13:42.039Z'
-updated: '2026-08-19T07:45:40.074Z'
+updated: '2026-08-19T08:08:14.794Z'
 ---
 
 ## What
