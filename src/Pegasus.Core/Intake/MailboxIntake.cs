@@ -680,7 +680,19 @@ public sealed class PollApprovedInbox(
                 "The approved inbox message exceeds the mailbox intake limit.");
         }
 
-        var externalReceiptToken = $"{mailboxId.Length}:{mailboxId}{message.ImmutableMessageId}";
+        if (message.RetainedMetadata is { } retainedMetadata)
+        {
+            ValidateRetainedMetadata(retainedMetadata);
+        }
+
+        // Retained mail uses the mailbox-scoped RFC identity for both intake and
+        // workspace idempotency. Graph's immutable item id remains an independent
+        // provider coordinate, so a provider-id change cannot create a second
+        // business occurrence for the same message.
+        var sourceMessageIdentity = message.RetainedMetadata?.InternetMessageIdentity is { } rfcIdentity
+            ? $"rfc:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rfcIdentity)))}"
+            : message.ImmutableMessageId;
+        var externalReceiptToken = $"{mailboxId.Length}:{mailboxId}{sourceMessageIdentity}";
         if (externalReceiptToken.Length > MaximumExternalReceiptTokenLength)
         {
             throw new MalformedApprovedInboxMessageException(
@@ -691,7 +703,6 @@ public sealed class PollApprovedInbox(
         RetainedMailboxMessage? retainedMessage = null;
         if (message.RetainedMetadata is { } metadata)
         {
-            ValidateRetainedMetadata(metadata);
             retainedMessage = new(
                 mailboxId,
                 lease.MailboxAddress,
@@ -728,7 +739,10 @@ public sealed class PollApprovedInbox(
     {
         var valid = IsBounded(metadata.FolderIdentity, MaximumRetainedFolderIdentityLength)
             && IsOptionalBounded(metadata.ConversationIdentity, MaximumMessageIdentityLength)
-            && IsOptionalBounded(metadata.InternetMessageIdentity, MaximumMessageIdentityLength)
+            // The RFC identity is the durable, mailbox-scoped duplicate boundary.
+            // Graph's immutable item id remains separate on the envelope: neither
+            // identity is allowed to stand in for the other.
+            && IsBounded(metadata.InternetMessageIdentity, MaximumMessageIdentityLength)
             && IsOptionalBounded(metadata.SenderAddress, MaximumAddressLength)
             && IsOptionalBounded(metadata.SenderDisplayName, MaximumAddressLength)
             && IsOptionalBounded(metadata.Subject, MaximumSubjectLength)

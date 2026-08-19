@@ -22,14 +22,10 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         ArgumentNullException.ThrowIfNull(message);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var alreadyRetained = await context.RetainedMailboxMessages
-            .AsNoTracking()
-            .AnyAsync(
-                item => item.MailboxId == message.MailboxId
-                    && item.ImmutableMessageId == message.ImmutableMessageId,
-                cancellationToken);
-        if (alreadyRetained)
+        var existing = await FindExistingAsync(context, message, cancellationToken);
+        if (existing is not null)
         {
+            VerifySameMessage(existing, message);
             return;
         }
 
@@ -181,7 +177,9 @@ internal sealed class EfRetainedMailboxMessageStore(
             ? []
             : await context.RetainedMailboxMessages
                 .AsNoTracking()
-                .Where(item => item.ConversationIdentity == entity.ConversationIdentity)
+                .Where(item => item.MailboxId == entity.MailboxId
+                    && item.FolderScope == entity.FolderScope
+                    && item.ConversationIdentity == entity.ConversationIdentity)
                 .OrderBy(item => item.ReceivedAtUtc)
                 .ThenBy(item => item.Id)
                 .Select(item => new RetainedMailThreadEntry(
@@ -279,12 +277,41 @@ internal sealed class EfRetainedMailboxMessageStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await context.RetainedMailboxMessages
+        var existing = await FindExistingAsync(context, message, cancellationToken);
+        if (existing is null)
+        {
+            return false;
+        }
+
+        VerifySameMessage(existing, message);
+        return true;
+    }
+
+    private static Task<RetainedMailboxMessageEntity?> FindExistingAsync(
+        PegasusDbContext context,
+        RetainedMailboxMessage message,
+        CancellationToken cancellationToken) =>
+        context.RetainedMailboxMessages
             .AsNoTracking()
-            .AnyAsync(
+            .SingleOrDefaultAsync(
                 item => item.MailboxId == message.MailboxId
-                    && item.ImmutableMessageId == message.ImmutableMessageId,
+                    && (item.InternetMessageIdentity == message.Metadata.InternetMessageIdentity
+                        || item.ImmutableMessageId == message.ImmutableMessageId),
                 cancellationToken);
+
+    private static void VerifySameMessage(
+        RetainedMailboxMessageEntity existing,
+        RetainedMailboxMessage message)
+    {
+        if (!string.Equals(
+                existing.InternetMessageIdentity,
+                message.Metadata.InternetMessageIdentity,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(existing.SourceSha256, message.SourceSha256, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException(
+                "The mailbox item identities contradict an already retained message.");
+        }
     }
 
     /// <summary>

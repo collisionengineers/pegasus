@@ -62,6 +62,9 @@ internal static class MailboxModelConfiguration
             // One row per message per mailbox: the poll inserts if absent and a
             // redelivery is refused here, not judged in application code.
             entity.HasIndex(item => new { item.MailboxId, item.ImmutableMessageId }).IsUnique();
+            entity.HasIndex(item => new { item.MailboxId, item.InternetMessageIdentity })
+                .IsUnique()
+                .HasFilter("[InternetMessageIdentity] IS NOT NULL");
             entity.HasIndex(item => new { item.ReceivedAtUtc, item.Id }).IsDescending(true, false);
             entity.HasIndex(item => new
             {
