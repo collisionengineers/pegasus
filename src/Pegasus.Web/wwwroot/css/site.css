@@ -409,6 +409,12 @@ h3 { font-size: var(--t-h3); font-weight: 600; }
   box-sizing: border-box;
   width: 100%;
   max-width: 1280px;
+  /* Bounded and centred in the space beside the rail. Left-aligned, the same
+     cap shoved every screen against the rail and left the right of a wide
+     monitor empty; letting it stretch instead would put a table's far column
+     a head-turn from its first. Under ~1520px the cap is not reached and
+     nothing moves. */
+  margin-inline: auto;
   padding: var(--sp-8) var(--sp-10) var(--sp-16);
 }
 
@@ -1034,7 +1040,9 @@ textarea:focus-visible,
   /* The rail lies down rather than hiding. Every route, count and control stays
      reachable; the current-route rule moves to the bottom edge so the non-colour
      signal survives the reflow. */
-  .app-rail-shell { grid-template-columns: minmax(0, 1fr); }
+  /* One column: the rail row takes its own height and main takes the rest, so
+     the shell's 100vh minimum never stretches a blank band under the rail. */
+  .app-rail-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
   .app-rail { position: static; height: auto; border-right: 0; border-bottom: var(--border); }
   .app-rail__nav { flex-direction: row; flex-wrap: wrap; }
   .rail-link { border-bottom: 2px solid transparent; border-left: 0; }
@@ -1900,8 +1908,9 @@ details > summary.btn::-webkit-details-marker { display: none; }
 
    The one place a file leaves someone's desk and enters a case, so it is a
    destination rather than a control tucked under a label. The native file input
-   stays visible inside it: a styled stand-in that merely opens the real picker
-   would be a second control claiming to be the first.
+   is the control: without script it is visible inside the zone; with script
+   (site.js) the zone itself takes the drop and a button opens the same input,
+   so there is never a second control claiming to be the first.
    --------------------------------------------------------------------------- */
 
 .dropzone {
@@ -1909,7 +1918,7 @@ details > summary.btn::-webkit-details-marker { display: none; }
   justify-items: center;
   gap: var(--sp-2);
   padding: var(--sp-16) var(--sp-10);
-  border: 2px dashed var(--line);
+  border: 2px dashed var(--line-strong);
   border-radius: var(--radius);
   background: var(--paper);
   text-align: center;
@@ -1920,6 +1929,82 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .dropzone > label { margin: 0; font-size: var(--t-h3); font-weight: 700; }
 .dropzone .field-hint { margin: 0; }
 .dropzone input[type="file"] { margin-top: var(--sp-2); max-width: 100%; }
+
+/* The upload glyph sits in a tinted disc so the destination reads as a
+   destination before any words are read. Decorative: aria-hidden. */
+.dropzone__glyph {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: var(--sp-1);
+  border-radius: 50%;
+  background: var(--ce-red-tint);
+  color: var(--ce-red);
+}
+
+/* Enhanced by site.js: the whole dashed area is the drop target and a real
+   button opens the picker, so the native control becomes `.sr-only` — still in
+   the tab order, still opened by its label, so keyboard and assistive users
+   lose nothing and a no-script page still shows the input. The focus ring
+   moves to the dropzone so a focused, hidden input is visible. */
+.dropzone.is-enhanced { position: relative; }
+.dropzone.is-enhanced:has(input[type="file"]:focus-visible) { outline: var(--focus-ring); outline-offset: 2px; }
+.dropzone__browse { margin-top: var(--sp-2); }
+
+/* A chosen file: a solid edge and the name. A file over the target: the
+   sanctioned active use of red, with the border change as the second signal —
+   declared last so it still shows over a zone that already holds a file. */
+.dropzone.has-file { border-style: solid; background: var(--panel); }
+.dropzone.is-dragover { border-color: var(--ce-red); border-style: solid; background: var(--ce-red-tint); }
+
+.dropzone__file {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 100%;
+  margin: var(--sp-2) 0 0;
+  color: var(--ink);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.dropzone__file .icon { flex: 0 0 auto; color: var(--muted); }
+.dropzone__file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dropzone__file small { flex: 0 0 auto; color: var(--muted); font-weight: 400; }
+
+/* The Upload screen: the form leads, and what happens after the button is
+   beside it rather than left to be discovered on the status page. One column
+   at constrained desktop widths, where the panel follows the form. */
+.upload-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--sp-10);
+  align-items: start;
+  width: 100%;
+  max-width: 1040px;
+  margin: var(--sp-10) auto 0;
+}
+
+@media (max-width: 1023px) {
+  .upload-layout { grid-template-columns: minmax(0, 1fr); }
+}
+
+.upload-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: var(--sp-3); }
+.upload-steps li::marker { color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+.upload-steps b { display: block; }
+.upload-steps span { color: var(--muted); }
+
+.accepted-list { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.accepted-list li {
+  padding: 2px var(--sp-2);
+  border: var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--charcoal);
+  font-size: var(--t-xs);
+  font-weight: 600;
+}
 
 /* A single-purpose screen is centred and narrow; a wide column would put the
    dropzone's edges further apart than the file it accepts. */

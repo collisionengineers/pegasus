@@ -1,0 +1,158 @@
+using System.Security.Cryptography;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Reports;
+using Pegasus.Infrastructure;
+using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Reports;
+using UglyToad.PdfPig;
+
+namespace Pegasus.IntegrationTests.Reports;
+
+public sealed class AssessmentReportRendererTests
+{
+    [Theory]
+    [Trait("Category", "Browser")]
+    [InlineData(AssessmentReportOutcome.TotalLoss, "equitable settlement")]
+    [InlineData(AssessmentReportOutcome.Repairable, "repairable proposition")]
+    [InlineData(AssessmentReportOutcome.CashInLieu, "cash in lieu")]
+    [InlineData(AssessmentReportOutcome.ContractRepair, "contract repair")]
+    public async Task ApplicationCompositionRendersApprovedOutcomeWithRepresentativeContent(AssessmentReportOutcome outcome, string outcomeText)
+    {
+        await using var provider = RendererProvider();
+        await using var scope = provider.CreateAsyncScope();
+
+        var result = await scope.ServiceProvider.GetRequiredService<GenerateAssessmentReportDraft>().ExecuteAsync(Snapshot(outcome));
+        AssertArtifact(result.Assessment);
+        AssertArtifact(result.FeeNote);
+
+        var assessmentText = PdfText(result.Assessment.Pdf);
+        Assert.Contains(outcome switch
+        {
+            AssessmentReportOutcome.TotalLoss => "TOTAL LOSS REPORT",
+            AssessmentReportOutcome.Repairable => "REPAIRABLE REPORT",
+            AssessmentReportOutcome.CashInLieu => "CASH IN LIEU REPORT",
+            AssessmentReportOutcome.ContractRepair => "CONTRACT REPAIR REPORT",
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome)),
+        }, assessmentText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Vehicle Images", assessmentText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Statement of Truth", assessmentText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Front bumper", assessmentText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(outcomeText, assessmentText, StringComparison.OrdinalIgnoreCase);
+
+        var feeText = PdfText(result.FeeNote.Pdf);
+        Assert.Contains("FEE NOTE", feeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Subtotal (Net)", feeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("VAT @ 20%", feeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("TOTAL DUE", feeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Lloyds Bank", feeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("30-12-80", feeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("50858868", feeText, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(AssessmentReportContract.VatNumber, feeText, StringComparison.OrdinalIgnoreCase);
+
+        var evidence = Environment.GetEnvironmentVariable("PEGASUS_RENDER_EVIDENCE");
+        if (!string.IsNullOrWhiteSpace(evidence))
+        {
+            Directory.CreateDirectory(evidence);
+            await File.WriteAllBytesAsync(Path.Combine(evidence, $"{outcome}-{result.Assessment.SuggestedFileName}"), result.Assessment.Pdf);
+            await File.WriteAllBytesAsync(Path.Combine(evidence, $"{outcome}-{result.FeeNote.SuggestedFileName}"), result.FeeNote.Pdf);
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Browser")]
+    public async Task NormalDensityFlowsLongListsAndMultiplePhotosAcrossPagesWithoutClipping()
+    {
+        const string reference = "CE-STRESS-DENSITY";
+        var image = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "reference", "eva_information", "screenshots", "engineer-screens", "engineer1.png"));
+        var hash = Convert.ToHexStringLower(SHA256.HashData(image));
+        var snapshot = Snapshot(AssessmentReportOutcome.Repairable) with
+        {
+            OurReference = reference,
+            NewParts = Enumerable.Range(1, 80).Select(index => $"Stress new part {index:D3}").ToArray(),
+            Repairs = Enumerable.Range(1, 80).Select(index => $"Stress repair {index:D3}").ToArray(),
+            Operations = Enumerable.Range(1, 80).Select(index => $"Stress operation {index:D3}").ToArray(),
+            Photos = Enumerable.Range(1, 8)
+                .Select(index => new ReportImageEvidence($"stress-photo-{index:D2}", "image/png", image, hash))
+                .ToArray(),
+        };
+
+        await using var provider = RendererProvider();
+        await using var scope = provider.CreateAsyncScope();
+        var result = await scope.ServiceProvider.GetRequiredService<GenerateAssessmentReportDraft>().ExecuteAsync(snapshot);
+
+        using var document = PdfDocument.Open(result.Assessment.Pdf);
+        var pages = document.GetPages().ToArray();
+        var text = string.Join(Environment.NewLine, pages.Select(page => page.Text));
+
+        Assert.True(pages.Length >= 8, $"Expected normal-density stress content to flow across pages; rendered {pages.Length}.");
+        Assert.All(pages, page => Assert.Contains(reference, page.Text, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("Stress new part 080", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Stress repair 080", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Stress operation 080", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Statement of Truth", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("A Patterson", text, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("{{", text, StringComparison.Ordinal);
+        Assert.DoesNotContain('«', text);
+        Assert.True(pages.Sum(page => page.GetImages().Count()) >= 8, "Every accepted stress photo must remain embedded in the flowed PDF.");
+    }
+
+    [Fact]
+    public void OnlyActiveSignatureResourceIsEmbeddedByteForByte()
+    {
+        var assembly = typeof(PlaywrightAssessmentReportRenderer).Assembly;
+        using var embedded = assembly.GetManifestResourceStream("Pegasus.Infrastructure.Reports.Assets.brand.signatures.andy_patterson.png");
+        Assert.NotNull(embedded);
+        using var memory = new MemoryStream();
+        embedded.CopyTo(memory);
+        Assert.Equal(File.ReadAllBytes(Path.Combine(RepositoryRoot(), "docs", "design", "brand", "signatures", "andy_patterson.png")), memory.ToArray());
+        Assert.DoesNotContain(assembly.GetManifestResourceNames(), name => name.Contains("ed_mawdsley", StringComparison.Ordinal) || name.Contains("neil_oreilly", StringComparison.Ordinal));
+    }
+
+    private static void AssertArtifact(RenderedReportArtifact artifact)
+    {
+        Assert.True(artifact.Pdf.AsSpan().StartsWith("%PDF"u8));
+        Assert.True(artifact.PageCount >= 1);
+        Assert.Equal(64, artifact.Sha256.Length);
+        Assert.Equal(AssessmentReportContract.TemplateVersion, artifact.TemplateVersion);
+        Assert.Contains("Playwright", artifact.EngineVersion, StringComparison.Ordinal);
+    }
+
+    private static ServiceProvider RendererProvider()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddPegasusInfrastructure((_, options) =>
+            options.UseSqlServer("Server=(localdb)\\mssqllocaldb;Database=renderer;Trusted_Connection=True"));
+        services.AddPegasusReportRendering();
+        return services.BuildServiceProvider();
+    }
+
+    private static string PdfText(byte[] bytes)
+    {
+        using var document = PdfDocument.Open(bytes);
+        return string.Join(Environment.NewLine, document.GetPages().Select(page => page.Text));
+    }
+
+    private static AssessmentReportSnapshot Snapshot(AssessmentReportOutcome outcome)
+    {
+        var image = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "reference", "eva_information", "screenshots", "engineer-screens", "engineer1.png"));
+        return new(
+            OurReference: $"CE-{outcome}", YourReference: "P-100", ReportDate: new DateOnly(2026, 8, 19), ClaimantName: "Alex Example", IncidentDate: new DateOnly(2026, 8, 1),
+            InstructionsReceived: new DateOnly(2026, 8, 2), Assessed: new DateOnly(2026, 8, 3), ReportFor: ["Approved Principal", "1 Example Street"],
+            Vehicle: new ReportVehicle("PK12 TMZ", "Ford", "Focus", "2012", "car", "good", "80,000 miles", "online_data", "VIN", "1600 cc", "Petrol"),
+            Outcome: outcome, LegalStatus: "roadworthy", UnroadworthyReason: null, ImpactSeverity: "moderate", ImpactLocation: "right_rear", AssessmentMethod: "image_based", LocationAddress: null,
+            EngineerValue: 5_000m, RetailValue: 5_000m, TradeValue: 4_000m, SalvageCategory: outcome == AssessmentReportOutcome.TotalLoss ? "S" : null, SalvageValue: outcome == AssessmentReportOutcome.TotalLoss ? 500m : null,
+            Costs: new ReportRepairCosts(5m, 30m, 50m, 20m, 5m, true), NewParts: ["Front bumper"], Repairs: ["Bonnet"], Operations: ["Paint front panels"],
+            HistoryCheck: "History clear", EngineerComments: "No further comments.", Engineer: new ReportEngineer("A Patterson", "M.Inst.IAEA", "andy_patterson"), AgreedFee: 120m, FeeDescriptionLines: ["Engineering assessment"],
+            Photos: [new ReportImageEvidence("reference/eva_information/screenshots/engineer-screens/engineer1.png", "image/png", image, Convert.ToHexStringLower(SHA256.HashData(image)))],
+            Sources: [new AcceptedReportSource("assessment", "7", new string('a', 64))]);
+    }
+
+    private static string RepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null && !File.Exists(Path.Combine(current.FullName, "Pegasus.slnx"))) current = current.Parent;
+        return current?.FullName ?? throw new InvalidOperationException("Repository root not found.");
+    }
+}

@@ -243,6 +243,78 @@ public sealed class AssessmentPersistenceIntegrationTests
     }
 
     [Fact]
+    public async Task RepairSpecificationAcceptanceCorrectionAndExactVersionPersist()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("repair-spec-accept-case");
+        var caseId = outcome.Identity.CaseId;
+        var source = new RepairSpecificationSource(
+            RepairSpecificationSourceRoute.Manual,
+            "case://repair-spec/source-1",
+            "source-v1",
+            new string('a', 64));
+        var basis = new RepairCalculationBasis(100m, 20m, 10m, 0m, true, 26m, 156m, "calc/v1");
+        var lines = new EstimateLineInput[]
+        {
+            new("new_part", null, "Door skin", null, 20m, false, null, null,
+                "confirmed", "case", "Engineer mapping"),
+            new("repair", null, "Repair door", 2m, null, false, null, null,
+                "confirmed", "judgement", "Engineer mapping"),
+        };
+
+        var draftLease = await harness.AcquireLeaseAsync(
+            caseId, 0, harness.EngineerActor, "repair-spec-draft-lease");
+        var draftRequest = new StartRepairSpecificationDraftRequest(
+            caseId, draftLease.Version, source, harness.EngineerActor,
+            "repair-spec-draft", "Create the canonical repair specification.",
+            draftLease.Token, Lines: lines);
+        var draft = await harness.RepairSpecifications.StartDraftAsync(draftRequest, CancellationToken.None);
+        var replayedDraft = await harness.RepairSpecifications.StartDraftAsync(draftRequest, CancellationToken.None);
+        Assert.Equal(draft.SpecificationId, replayedDraft.SpecificationId);
+
+        var acceptLease = await harness.AcquireLeaseAsync(
+            caseId, 1, harness.EngineerActor, "repair-spec-accept-lease");
+        var accepted = await harness.RepairSpecifications.AcceptAsync(
+            new(caseId, acceptLease.Version, draft.SpecificationId, draft.Version, source, basis,
+                harness.EngineerActor, "repair-spec-accept", "Engineer accepted the source and mapping.",
+                acceptLease.Token), CancellationToken.None);
+        Assert.Equal(RepairSpecificationState.Accepted, accepted.State);
+        Assert.Equal(["Door skin"], RepairSpecificationPolicy.ToDisplayLists(accepted).NewParts);
+
+        var correctionLease = await harness.AcquireLeaseAsync(
+            caseId, 2, harness.EngineerActor, "repair-spec-correct-lease");
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            harness.RepairSpecifications.StartDraftAsync(
+                new(caseId, correctionLease.Version, source, harness.EngineerActor,
+                    "repair-spec-duplicate", "Attempt a competing canonical draft.",
+                    correctionLease.Token, Lines: lines), CancellationToken.None));
+        var correction = await harness.RepairSpecifications.StartDraftAsync(
+            new(caseId, correctionLease.Version, source with { SourceVersion = "source-v2" },
+                harness.EngineerActor, "repair-spec-correct", "Correct the accepted mapping.",
+                correctionLease.Token, accepted.SpecificationId), CancellationToken.None);
+        Assert.Equal(2, correction.Version);
+        Assert.Equal(accepted.SpecificationId, correction.SupersedesSpecificationId);
+
+        var correctionAcceptLease = await harness.AcquireLeaseAsync(
+            caseId, 3, harness.EngineerActor, "repair-spec-correct-accept-lease");
+        var corrected = await harness.RepairSpecifications.AcceptAsync(
+            new(caseId, correctionAcceptLease.Version, correction.SpecificationId, correction.Version,
+                source with { SourceVersion = "source-v2" }, basis, harness.EngineerActor,
+                "repair-spec-correct-accept", "Engineer accepted the corrected mapping.",
+                correctionAcceptLease.Token), CancellationToken.None);
+        Assert.Equal(corrected.SpecificationId,
+            (await harness.RepairSpecifications.GetCurrentAcceptedAsync(
+                caseId, CancellationToken.None))!.SpecificationId);
+        Assert.Equal(RepairSpecificationState.Superseded,
+            (await harness.RepairSpecifications.GetVersionAsync(
+                caseId, accepted.SpecificationId, CancellationToken.None))!.State);
+
+        Assert.Equal(corrected.SpecificationId,
+            (await harness.RepairSpecifications.GetVersionAsync(
+                caseId, corrected.SpecificationId, CancellationToken.None))!.SpecificationId);
+    }
+
+    [Fact]
     public async Task TheAiWorkRequestLifecyclePersistsWithCorrelatedHistory()
     {
         await using var harness = await Harness.CreateAsync();
@@ -354,6 +426,7 @@ public sealed class AssessmentPersistenceIntegrationTests
             AcquireCaseEditLease acquireLease,
             SaveAssessment saveAssessment,
             EfAiWorkRequestStore workRequests,
+            EfRepairSpecificationStore repairSpecifications,
             CaseDataCompletenessPersistenceTests.MutableTimeProvider timeProvider)
         {
             this.database = database;
@@ -363,6 +436,7 @@ public sealed class AssessmentPersistenceIntegrationTests
             this.acquireLease = acquireLease;
             SaveAssessment = saveAssessment;
             WorkRequests = workRequests;
+            RepairSpecifications = repairSpecifications;
             this.timeProvider = timeProvider;
         }
 
@@ -370,6 +444,7 @@ public sealed class AssessmentPersistenceIntegrationTests
         public Guid ReceiptId { get; }
         public SaveAssessment SaveAssessment { get; }
         public EfAiWorkRequestStore WorkRequests { get; }
+        public EfRepairSpecificationStore RepairSpecifications { get; }
         public ActionActor AutomationActor { get; } = ActionActor.Automation("pegasus-automation");
         public ActionActor EngineerActor { get; } =
             ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
@@ -400,6 +475,7 @@ public sealed class AssessmentPersistenceIntegrationTests
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(new EfCaseAssessmentStore(factory, timeProvider)),
                     new EfAiWorkRequestStore(factory, timeProvider),
+                    new EfRepairSpecificationStore(factory, timeProvider),
                     timeProvider);
             }
             catch

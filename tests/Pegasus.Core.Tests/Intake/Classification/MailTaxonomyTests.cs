@@ -39,13 +39,13 @@ public sealed class MailTaxonomyTests
     }
 
     [Theory]
-    [InlineData(ReceivedMailFamily.General, new[] { "autoreply", "undeliverable", "general-chase", "case-summary" })]
-    [InlineData(ReceivedMailFamily.Billing, new[] { "billing-query", "general-billing" })]
+    [InlineData(ReceivedMailFamily.General, new[] { "autoreply", "undeliverable", "acknowledgement", "general-chase", "case-summary" })]
+    [InlineData(ReceivedMailFamily.Billing, new[] { "payment-notification", "remittance", "invoice-request", "billing-query", "general-billing" })]
     [InlineData(ReceivedMailFamily.NewInstructionReceived, new[] { "audit", "diminution", "inspection", "new-client", "website-enquiry" })]
     [InlineData(ReceivedMailFamily.NonClientRelated, new string[0])]
-    [InlineData(ReceivedMailFamily.InProgressCases, new[] { "cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update" })]
-    [InlineData(ReceivedMailFamily.PostReportEmails, new string[0])]
-    [InlineData(ReceivedMailFamily.PreInstructionEmails, new string[0])]
+    [InlineData(ReceivedMailFamily.InProgressCases, new[] { "cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update", "ongoing-correspondence" })]
+    [InlineData(ReceivedMailFamily.PostReportEmails, new[] { "query", "dispute", "amendment-request" })]
+    [InlineData(ReceivedMailFamily.PreInstructionEmails, new[] { "triage-request", "pre-formal-instruction-request", "images-received" })]
     [InlineData(ReceivedMailFamily.InternalCc, new string[0])]
     public void ConfirmedSubtypesMatchTheSettledTables(ReceivedMailFamily family, string[] expected)
     {
@@ -66,7 +66,7 @@ public sealed class MailTaxonomyTests
         Assert.Throws<ArgumentException>(() =>
             MailCategory.Received(ReceivedMailFamily.General, "billing-query"));
         Assert.Throws<ArgumentException>(() =>
-            MailCategory.Received(ReceivedMailFamily.PostReportEmails, "dispute"));
+            MailCategory.Received(ReceivedMailFamily.PostReportEmails, "instruction"));
     }
 
     [Fact]

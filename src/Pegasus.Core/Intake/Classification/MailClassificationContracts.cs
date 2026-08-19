@@ -40,16 +40,18 @@ public static class MailTaxonomy
         new Dictionary<ReceivedMailFamily, ImmutableArray<string>>
         {
             [ReceivedMailFamily.General] =
-                ["autoreply", "undeliverable", "general-chase", "case-summary"],
+                ["autoreply", "undeliverable", "acknowledgement", "general-chase", "case-summary"],
             [ReceivedMailFamily.Billing] =
-                ["billing-query", "general-billing"],
+                ["payment-notification", "remittance", "invoice-request", "billing-query", "general-billing"],
             [ReceivedMailFamily.NewInstructionReceived] =
                 ["audit", "diminution", "inspection", "new-client", "website-enquiry"],
             [ReceivedMailFamily.NonClientRelated] = [],
             [ReceivedMailFamily.InProgressCases] =
-                ["cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update"],
-            [ReceivedMailFamily.PostReportEmails] = [],
-            [ReceivedMailFamily.PreInstructionEmails] = [],
+                ["cancellation", "case-update", "client-chasing-for-update", "provider-chasing-for-update", "ongoing-correspondence"],
+            [ReceivedMailFamily.PostReportEmails] =
+                ["query", "dispute", "amendment-request"],
+            [ReceivedMailFamily.PreInstructionEmails] =
+                ["triage-request", "pre-formal-instruction-request", "images-received"],
             [ReceivedMailFamily.InternalCc] = []
         }.ToImmutableDictionary();
 
@@ -97,6 +99,9 @@ public static class MailTaxonomy
 /// </summary>
 public sealed record MailCategory
 {
+    public const int OtherNameMaxLength = 200;
+    public const int OtherReasoningMaxLength = 1000;
+
     private MailCategory(
         MailDirection direction,
         ReceivedMailFamily? receivedFamily,
@@ -131,11 +136,47 @@ public sealed record MailCategory
             ? MailTaxonomy.CategoryName(received)
             : MailTaxonomy.CategoryName(SentFamily!.Value));
 
+    public void ValidateCanonical()
+    {
+        if (!Enum.IsDefined(Direction))
+        {
+            throw new ArgumentOutOfRangeException(nameof(Direction), "The mail direction is not recognized.");
+        }
+        if (IsOther)
+        {
+            if (string.IsNullOrWhiteSpace(OtherName)
+                || OtherName.Length > OtherNameMaxLength
+                || string.IsNullOrWhiteSpace(OtherReasoning)
+                || OtherReasoning.Length > OtherReasoningMaxLength)
+            {
+                throw new ArgumentException("The Other classification details are outside the canonical bounds.");
+            }
+            return;
+        }
+        if (Direction == MailDirection.Received
+            && (ReceivedFamily is not { } received
+                || !Enum.IsDefined(received)
+                || (Subtype is not null
+                    && !MailTaxonomy.ConfirmedReceivedSubtypes[received].Contains(Subtype, StringComparer.Ordinal))))
+        {
+            throw new ArgumentException("The Received classification is not a registered canonical option.");
+        }
+        if (Direction == MailDirection.Sent
+            && (SentFamily is not { } sent || !Enum.IsDefined(sent) || Subtype is not null))
+        {
+            throw new ArgumentException("The Sent classification is not a registered canonical option.");
+        }
+    }
+
     public static MailCategory Received(
         ReceivedMailFamily family,
         string? subtype = null,
         bool isReplyContext = false)
     {
+        if (!Enum.IsDefined(family))
+        {
+            throw new ArgumentOutOfRangeException(nameof(family), "The Received mail family is not recognized.");
+        }
         if (subtype is not null
             && !MailTaxonomy.ConfirmedReceivedSubtypes[family].Contains(subtype, StringComparer.Ordinal))
         {
@@ -147,8 +188,15 @@ public sealed record MailCategory
         return new(MailDirection.Received, family, null, subtype, isReplyContext, null, null);
     }
 
-    public static MailCategory Sent(SentMailFamily family, bool isReplyContext = false) =>
-        new(MailDirection.Sent, null, family, null, isReplyContext, null, null);
+    public static MailCategory Sent(SentMailFamily family, bool isReplyContext = false)
+    {
+        if (!Enum.IsDefined(family))
+        {
+            throw new ArgumentOutOfRangeException(nameof(family), "The Sent mail family is not recognized.");
+        }
+
+        return new(MailDirection.Sent, null, family, null, isReplyContext, null, null);
+    }
 
     public static MailCategory Other(
         MailDirection direction,
@@ -157,7 +205,21 @@ public sealed record MailCategory
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentException.ThrowIfNullOrWhiteSpace(reasoning);
-        return new(direction, null, null, null, false, name.Trim(), reasoning.Trim());
+        if (!Enum.IsDefined(direction))
+        {
+            throw new ArgumentOutOfRangeException(nameof(direction), "The mail direction is not recognized.");
+        }
+        var canonicalName = name.Trim();
+        var canonicalReasoning = reasoning.Trim();
+        if (canonicalName.Length > OtherNameMaxLength)
+        {
+            throw new ArgumentException($"An Other classification name cannot exceed {OtherNameMaxLength} characters.", nameof(name));
+        }
+        if (canonicalReasoning.Length > OtherReasoningMaxLength)
+        {
+            throw new ArgumentException($"Other classification reasoning cannot exceed {OtherReasoningMaxLength} characters.", nameof(reasoning));
+        }
+        return new(direction, null, null, null, false, canonicalName, canonicalReasoning);
     }
 }
 

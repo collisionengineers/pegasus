@@ -8,6 +8,66 @@ through the approved renderer boundary. Renderer source workspaces remain
 independent source imports until an accepted integration contract and real
 application caller exist.
 
+### Assessment-report outcomes
+
+Assessment rendering (RPT-02) has one closed outcome vocabulary:
+`total_loss`, `repairable`, `cash_in_lieu`, and `contract_repair`. Contract
+repair is a distinct fourth outcome; it is not a presentation alias for
+repairable. Every outcome uses the same assessment bundle: outcome and
+findings, vehicle data and the repair-cost calculation, the itemised repair
+specification, selected vehicle images, the statement and authorised
+signature, and the fee note.
+
+| Outcome | Title and badge | Headline figures | Settlement meaning |
+| --- | --- | --- | --- |
+| `total_loss` | `TOTAL LOSS REPORT`; `TOTAL LOSS — CATEGORY x` | Pre-accident value, repair cost including VAT, salvage value, and recommended settlement | Recommended settlement is the accepted Engineer value less the accepted salvage value; the accepted category and its approved salvage treatment are required. |
+| `repairable` | `REPAIRABLE REPORT`; `REPAIRABLE` | Pre-accident value, labour hours, and repair cost including VAT | Recommended settlement is the calculated repair cost for the Engineer's repairable finding. |
+| `cash_in_lieu` | `CASH IN LIEU REPORT`; `CASH IN LIEU` | Pre-accident value, labour hours, and cash-in-lieu settlement | The recommended cash-in-lieu settlement is the calculated repair cost. |
+| `contract_repair` | `CONTRACT REPAIR REPORT`; `CONTRACT REPAIR` | Pre-accident value, labour hours, and repair cost including VAT | The Core-computed VAT-inclusive repair total is the agreed contract-repair cap and cannot increase. |
+
+`Pegasus.Core` selects the outcome from the accepted Engineer finding and
+owns the calculation of each derived figure once from accepted, source-labelled
+inputs. A caller or renderer cannot select an outcome, provide a precomposed
+settlement in place of those inputs, or reinterpret one outcome as another.
+Missing, unknown, conflicting, or incomplete outcome data fails closed before
+an accepted report artifact is rendered. Outcome-specific data is required
+where it affects the document, including category and salvage for total loss
+and the accepted raw cost components from which Core computes the contract-repair
+cap.
+
+Supplied template, schema, wording, design, and sample material is evidence for
+this contract, not a second policy owner. Any category treatment, recovery or
+storage paragraph, statement-of-truth wording, qualification, signature, or
+other document wording that has not been accepted remains unavailable; the
+renderer must not substitute placeholder or inferred content.
+
+### Initial renderer activation
+
+The first active renderer surface is closed to the `rendererref1` assessment
+and its fee note. Audit, diminution, addendum, valuation-evidence, generic
+letter, and every other former workspace catalogue family are unavailable;
+there is no caller-selectable template or density setting. Core accepts an
+immutable, source-labelled snapshot, validates readiness and the selected
+engineer identity, computes the figures once, and selects one of the four
+outcomes. Infrastructure renders only that selection with the governed
+template, stylesheet, logo, and signature resource.
+
+The supplied assessment wording and the named engineer/signature evidence are
+accepted only as exact matching tuples. The currently complete supplied tuple
+is `A Patterson | M.Inst.IAEA | andy_patterson`; the Ed Mawdsley and Neil
+O'Reilly signature images are governed assets, but no assessment may select
+either until an accepted qualification completes that person's tuple. Missing,
+unknown, mismatched, or substituted names, qualifications, keys, assets, source
+versions, custody references, or required values fail closed. No custom
+signature path, arbitrary local attachment path, placeholder, or wording absent
+from the accepted evidence is permitted.
+
+Generation returns draft assessment and fee-note artifacts with their bytes,
+hashes, page counts, template version, and engine version. It is not approval,
+issue, sending, external receipt, durable report-reference allocation, or
+correction custody. Human approval remains required before issue; the durable
+trigger, immutable reference/version and custody workflow is separately owned.
+
 ### Report correction, finality, and post-report work
 
 **Accepted report boundary:** an issued report has an immutable artifact/version identity and hash. A

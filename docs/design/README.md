@@ -82,6 +82,12 @@ Two consequences are recorded rather than assumed:
   invents. An absent count renders nothing at all — a shell-level `0` would be
   exactly the stale zero placeholder the operator-experience requirements
   forbid.
+- **The content region is bounded and centred** (operator decision,
+  2026-08-19). `main` is capped at 1280px, carries the 24px gutters, and sits
+  centred in the space beside the rail, so a wide monitor shows equal margins
+  either side rather than every screen pressed against the rail with the right
+  of the display empty. It is not stretched to fill: a table's far column
+  belongs within a glance of its first. Below the cap nothing moves.
 
 `_LayoutAuth` and `_LayoutExternal` are unaffected: sign-in, the signed-out
 confirmation, access denied, the error family and the one screen a third party
@@ -295,7 +301,7 @@ SHA-256: E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2
 
 Current consumers:
 
-- embedded by `workspaces/report-renderer/src/CollisionRenderer.Core`;
+- embedded by `src/Pegasus.Infrastructure` for the integrated report renderer;
 - copied byte-for-byte to the Web runtime and embedded by `src/Pegasus.Web/Pages/Shared/_Layout.cshtml` (see the source-to-runtime mapping below).
 
 Rules:
@@ -371,10 +377,10 @@ The retained comparison rasters are selection evidence only. The Operations-firs
 
 | Asset class | Approved consumer and boundary |
 | --- | --- |
-| Master logo | Renderer Core today; approved source for a reviewed future Web copy |
-| Report templates and document stylesheet | Embedded by `workspaces/report-renderer/src/CollisionRenderer.Core`; not Web shell assets |
-| Supplied engineer signatures | Embedded renderer evidence only; never Web decorative imagery |
-| Imported renderer, prompt, model, skill and AI material | Source evidence only unless a separate accepted contract provides a real Pegasus caller |
+| Master logo | Embedded by the Infrastructure report adapter and copied byte-for-byte to Web |
+| Report templates and document stylesheet | Embedded by `src/Pegasus.Infrastructure`; not Web shell assets |
+| Supplied engineer signatures | Andy Patterson's approved exact tuple is embedded by Infrastructure; other supplied assets remain governed but inactive; never Web decorative imagery |
+| Retired renderer workspace, prompt, model, skill and AI material | Historical source evidence only; not a separate runtime or policy owner |
 
 The imported renderer can exercise its own assets without proving the planned Pegasus report capability. Imported workspace material does not become UI, report or design authority by existing in the repository. See the [workspace boundary](../../workspaces/README.md).
 
@@ -900,9 +906,9 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Current dashboard | Current exercised component map | `src/Pegasus.Web/Pages/Index.cshtml` |
 | Current intake caller | Current Development pattern | `src/Pegasus.Web/Pages/Intake/` → Core `ProcessIntake` |
 | Master logo | `docs/design/brand/logos/logo_no_margin.png`, checksum above | Renderer Core and the checksummed Web copy embedded by `_Layout.cshtml` |
-| Renderer templates/style | Repository renderer asset sources | `workspaces/report-renderer/src/CollisionRenderer.Core` |
-| Engineer signatures | Repository renderer signature sources | Renderer Core only; excluded from Web decorative imagery |
-| Imported renderer/skills/AI source | [Workspaces](../../workspaces/README.md) | Non-caller evidence unless separately integrated and accepted |
+| Renderer templates/style | Repository renderer asset sources | Embedded by `src/Pegasus.Infrastructure`; Core owns report policy and accepted presentation values |
+| Engineer signatures | Repository renderer signature sources | Infrastructure embeds only the active Andy Patterson asset; excluded from Web decorative imagery |
+| Retired renderer/skills/AI source | Git history and accepted integration records | No separate caller, runtime, or policy owner |
 | Decision rationale | [Decision records](../adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
 | External reference qualification | [Reference index](../../reference/README.md) | Reference presence never creates authority |
