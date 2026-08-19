@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Identity;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
