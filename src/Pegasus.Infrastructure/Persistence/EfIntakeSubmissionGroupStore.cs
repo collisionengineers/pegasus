@@ -34,14 +34,34 @@ public sealed class EfIntakeSubmissionGroupStore(
         return entity is null ? null : await MapAsync(context, entity, cancellationToken);
     }
 
+    public Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
+        IntakeSourceIdentity sourceIdentity,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(sourceIdentity);
+        var separator = sourceIdentity.ExternalReceiptToken.LastIndexOf(':');
+        if (separator <= 0
+            || !int.TryParse(
+                sourceIdentity.ExternalReceiptToken[(separator + 1)..],
+                out _))
+        {
+            return Task.FromResult<IntakeSubmissionGroup?>(null);
+        }
+
+        var parentToken = sourceIdentity.ExternalReceiptToken[..separator];
+        return FindAsync(sourceIdentity.Channel, parentToken, cancellationToken);
+    }
+
     public Task<IntakeSubmissionGroup> GetOrCreateAsync(
         Guid groupId,
         IntakeSourceChannel channel,
         string submissionToken,
+        int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
         CancellationToken cancellationToken = default) =>
-        GetOrCreateWithRetryAsync(groupId, channel, submissionToken, actor, receivedAtUtc, cancellationToken);
+        GetOrCreateWithRetryAsync(
+            groupId, channel, submissionToken, expectedMemberCount, actor, receivedAtUtc, cancellationToken);
 
     // Same concurrent-insert window as AddMemberWithRetryAsync below: two
     // requests replaying the same (channel, token) can both read "no
@@ -51,6 +71,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         Guid groupId,
         IntakeSourceChannel channel,
         string submissionToken,
+        int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
         CancellationToken cancellationToken)
@@ -63,6 +84,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                     groupId,
                     channel,
                     submissionToken,
+                    expectedMemberCount,
                     actor,
                     receivedAtUtc,
                     cancellationToken);
@@ -82,6 +104,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         Guid groupId,
         IntakeSourceChannel channel,
         string submissionToken,
+        int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
         CancellationToken cancellationToken)
@@ -102,6 +125,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                 Id = groupId,
                 SourceChannel = ToCode(channel),
                 SubmissionToken = submissionToken,
+                ExpectedMemberCount = expectedMemberCount,
                 Actor = actor,
                 ReceivedAtUtc = receivedAtUtc
             };
@@ -251,6 +275,7 @@ public sealed class EfIntakeSubmissionGroupStore(
             entity.Id,
             ParseChannel(entity.SourceChannel),
             entity.SubmissionToken,
+            entity.ExpectedMemberCount,
             entity.Actor,
             entity.ReceivedAtUtc,
             mapped);

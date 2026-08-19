@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260819140113_ImageIntakeGroupExpectedMemberCount")]
+    partial class ImageIntakeGroupExpectedMemberCount
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2909,13 +2912,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<DateTimeOffset?>("ClosedAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("ClosureReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -2946,21 +2942,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
-
-                    b.Property<string>("LifecycleState")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<long>("LifecycleVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid?>("MergedIntoCaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("MergedIntoCaseReference")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("NormalizedVehicleRegistration")
                         .IsRequired()
@@ -3003,85 +2984,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasIndex("OriginReceiptId")
                         .IsUnique();
 
-                    b.HasIndex("LifecycleState", "CreatedAtUtc");
-
                     b.HasIndex("NormalizedVehicleRegistration", "CreatedAtUtc");
 
                     b.HasIndex("SourceChannel", "ExternalReceiptToken")
                         .IsUnique();
 
                     b.ToTable("ImageIntakes", (string)null);
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageIntakeLifecycleEventEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ActorKind")
-                        .IsRequired()
-                        .HasMaxLength(40)
-                        .HasColumnType("nvarchar(40)");
-
-                    b.Property<string>("ActorRolesJson")
-                        .IsRequired()
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("ActorSubjectId")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<long>("AfterVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("BeforeVersion")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid?>("CaseId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CaseReference")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("EventType")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("nvarchar(80)");
-
-                    b.Property<Guid>("ImageIntakeId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("OccurredAtUtc")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("OperationKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("RequestFingerprint")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .IsFixedLength()
-                        .HasColumnType("nchar(64)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OperationKey")
-                        .IsUnique();
-
-                    b.HasIndex("ImageIntakeId", "OccurredAtUtc");
-
-                    b.ToTable("ImageIntakeLifecycleEvents", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageIntakeSequenceEntity", b =>
@@ -6062,17 +5970,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("OriginReceipt");
-                });
-
-            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageIntakeLifecycleEventEntity", b =>
-                {
-                    b.HasOne("Pegasus.Infrastructure.Persistence.ImageIntakeEntity", "ImageIntake")
-                        .WithMany()
-                        .HasForeignKey("ImageIntakeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ImageIntake");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageVrmSuggestionEntity", b =>

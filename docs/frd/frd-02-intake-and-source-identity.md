@@ -116,6 +116,76 @@ An Image-initiated Case remains Awaiting instruction until its retained evidence
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
+### Grouped image-intake routing
+
+**Settled operator truth (2026-08-19):** a retained vehicle image either shows a
+readable registration that matches an existing eligible Case — in which case
+every image attaches to that Case as evidence — or it shows a readable
+registration that matches no existing Case, in which case it starts the
+Image intake's own pre-Case identity. A multi-file manual upload is one
+evidence group, not a set of independent images: a damage close-up carrying no
+registration must not detach itself from an overview image selected with it in
+the same submission, and the group — never an individual image — is the unit
+that reaches an association, a pre-Case Image intake registration, or a
+`Needs sorting` outcome.
+
+- **Membership and completeness.** A group's member count is fixed at the
+  originating submission and is never inferred from however many members
+  happen to be durably stored yet. Routing is evaluated only once every
+  declared member is present and every present member's image evidence
+  carries a terminal recognition outcome (a suggestion, no-readable-result, an
+  unavailable dependency, or a technical failure all count as terminal — an
+  empty or still-processing result does not). A group short of its declared
+  membership, or carrying any non-terminal member, reaches no decision and is
+  re-evaluated as later members complete.
+- **Non-image members are excluded.** A batch may mix vehicle images with
+  other material submitted in the same request (for example an instruction
+  document). Only members whose retained evidence is image-only material
+  contribute to recognition and to the group's routing decision; a non-image
+  member's presence still counts toward the declared membership check above,
+  but it is never scanned for a vehicle registration and never blocks the
+  image members' own decision.
+- **Distinct-VRM aggregation.** Only reads at or above the accepted automatic
+  recognition bar count. The decision inspects the distinct set of accepted,
+  normalised VRMs across every image member in the group — never one member's
+  read in isolation.
+- **Associate-or-hand-off precedence, applied in this order:**
+  1. Any image member's recognition ended in a technical failure or an
+     unavailable dependency: the group fails closed to a named technical
+     outcome. No association or registration is attempted while any member's
+     evidence is unreliable.
+  2. Exactly one distinct accepted VRM across the group, and exactly one
+     eligible pre-report instructed Case carries it: every member in the
+     group associates to that Case as evidence, under the same unambiguous
+     normalised-match rule (including its confirmed-registration completion
+     for a one-character-missing read) that governs single-image association
+     above.
+  3. Exactly one distinct accepted VRM, but zero or more than one eligible
+     instructed Case carries it: the VRM is usable but not uniquely matched.
+     Every member registers into the existing pre-Case Image intake identity
+     described above (allocating its Image Intake Reference); none associates
+     to any Case. This FRD does not re-specify the further searchable
+     lifecycle of that pre-Case identity.
+  4. Zero distinct accepted VRMs, or more than one (conflicting readable
+     VRMs): no single usable identity exists. The intact group — every member
+     together, kept as one unit — remains `Needs sorting`; no VRM-based
+     reference is fabricated for it, and no member is split off into an
+     unrelated generic outcome.
+- **Fail-closed is a group property, not a per-member one.** Case 3 and case 4
+  above ("no unique match" and "ambiguous/conflicting") are handled
+  distinctly but both withhold association. A per-member candidate search run
+  while registering that member's evidence must never resolve an ambiguity
+  the group itself did not resolve: if the group's own eligible-Case count
+  for its one accepted VRM was zero or more than one, no member of that group
+  may associate to a Case, even where a member-level search over the same
+  candidates could otherwise select one by exact match. The group's own
+  decision is the sole authority for whether association happens.
+- **Recognition is idempotent per retained image.** A group can be
+  re-evaluated more than once (a sibling member arriving, a replay). An image
+  whose recognition outcome is already durably recorded is never re-scanned;
+  the recorded outcome is reused so each retained image is recognised once
+  regardless of how many times its group is evaluated.
+
 Each direct Case datum retains its current field provenance: staff entry,
 extraction, AI prefill or proposal, provider API, or another external
 vehicle/estimate source with its applicable identity, version, and time.
