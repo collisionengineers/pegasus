@@ -174,3 +174,45 @@ caller its operator ruling demanded landed on *this* ticket's diff; (b)
 `docs/capabilities.md` MAIL-04 still reads "Allocation only; owning evidence
 still required" although TICK-046 delivered it — that row belongs to TICK-046 and
 should be corrected in the release docs refresh, not silently here.
+
+## Least-privilege scrutiny on the Unidentified census — worth recording
+
+I challenged the INTK-007 lane's first census, which granted "both roles" on all
+three Unidentified tables. Granting the Worker at all was correct — I verified
+the path myself rather than accepting it: `IntakeWorkFunction`
+(`src/Pegasus.Worker/IntakeFunctions.cs:30`) → `ProcessQueuedIntake`
+(`src/Pegasus.Core/Intake/DurableIntake.cs:388-390`, which takes `ProcessIntake`
+as a dependency) → the terminal outcomes INTK-007 routes into Unidentified. So
+the Worker really does create these rows in production.
+
+But "both roles" is not "the same permissions for both roles". Asked for a named
+caller behind every permission, the lane traced each consumer and **removed two
+grants that had no code path**:
+
+| Table | Worker | Web | Change |
+|---|---|---|---|
+| `UnidentifiedItems` | SELECT, INSERT, UPDATE | SELECT, UPDATE | **Web INSERT dropped** — nothing in `src/Pegasus.Web` calls `IRegisterUnidentified`; only `ProcessIntake`/`DurableIntake` do |
+| `UnidentifiedSequences` | SELECT, INSERT, UPDATE | *nothing* | **Web's grant dropped entirely** — `ResolveAsync` never touches the sequence table and Web never calls `RegisterAsync`, so the grant was unused |
+| `UnidentifiedHistory` | SELECT, INSERT (UPDATE/DELETE denied) | same | unchanged — both paths insert, both read, nothing updates or deletes |
+
+The Worker's `UPDATE` on items survived scrutiny with a specific justification:
+`ProcessQueuedIntake.SynchronizeUnidentifiedAsync` resolves a stale open item
+once a receipt reaches `CaseCreated`/`ImageIntakeRegistered`, and `ResolveAsync`
+mutates the entity. That is a real path, not a defensive grant.
+
+Migration SQL and census were updated **together** so the two match exactly —
+the failure mode that matters is divergence, because the bootstrap then fails
+against the real database mid-release rather than in CI. Core suite 655 passed.
+
+Two process points worth keeping:
+
+- The INTK-008 lane hit the same blocked gate and, rather than editing a tracked
+  file or importing `Test-MigrationGrants.ps1` from another branch's unmerged
+  work, copied scripts/infra/migrations to a **disposable scratch directory**,
+  stubbed only the other branch's missing name to get past the early throw,
+  proved its own assertion passed, and deleted it. Correct instinct: it answered
+  the question the blocked script could not, without touching work that was not
+  its own.
+- Both lanes correctly identified `20260819104953_MailClassificationCorrectionHistory`
+  as somebody else's failure and did not "fix" it. That is the behaviour the
+  warning in their briefs was meant to produce.
