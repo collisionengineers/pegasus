@@ -15,7 +15,8 @@ stageEntered:
 labels:
   - ui
   - design
-links: []
+links:
+  - ENG-001
 refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
@@ -36,7 +37,7 @@ prs:
   - '397'
 archived: false
 created: '2026-08-17T12:29:59.429Z'
-updated: '2026-08-19T09:39:15.297Z'
+updated: '2026-08-19T10:55:02.719Z'
 ---
 
 ## What

@@ -61,3 +61,7 @@
   it needs an inventory entry, a supplier contract and an accepted ADR.
 - Engineer queries are not allocated: raising, replying to and resolving a query
   is its own workflow, not a panel.
+
+## Operator resolution — Experian AutoCheck — 2026-08-19
+
+- [x] The vehicle-history control represents a real future capability, not markup to retire. [[ENG-001]] is the backlog owner. It remains inactive until its capability authority, exact supplier/API contract, test evidence, Core behavior, and integration boundary are accepted.
