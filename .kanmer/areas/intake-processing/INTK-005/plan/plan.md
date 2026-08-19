@@ -104,3 +104,46 @@ No ADR is required: the existing Core/Infrastructure/Web boundaries carry the ch
 ## Parallel-branch execution note — 2026-08-19
 
 INTK-006 is intentionally allowed to execute before this PR merges. Its implementation worktree is based on this PR branch (`intk-005-grouped-upload`), not `origin/main` or `origin/dev`. Review feedback or merge conflict resolution for INTK-005 will be reconciled by rebasing INTK-006 later; this is planned coordination, not a blocking dependency.
+
+## Simplification pass / review dispositions — 2026-08-19 (takeover)
+
+CI was red (9 failures: IntakeWebNegativeTests x3, InstructionDraftWebTests x2, QdosIntakeWebTests x2, IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema) and five Codex review comments were open on PR #416 when this ticket was taken over by operator decision. All five are now applied.
+
+### Codex review comments — disposition
+
+1. **`src/Pegasus.Web/Pages/Upload.cshtml:36` (P1) "Raise the request limit for multi-file batches"** — Applied. `Program.cs` derived `MultipartBodyLengthLimit` from a new `IntakeEnvelopeLimits.MaximumBatchContentLength` (`MaximumBatchFileCount * MaximumContentLength + MultipartOverhead`, `MaximumBatchFileCount = 20`). `Upload.cshtml.cs` validates the selected count against the same constant with a named error; `Upload.cshtml` reuses `UploadModel.MaximumFileCount` in its copy instead of repeating the number.
+
+2. **`src/Pegasus.Web/Pages/UploadGroupStatus.cshtml:12` (P2) "Keep the group status page refreshing"** — Applied. Added `UploadGroupStatusModel.RefreshAutomatically` (true while any member is `Received`/`Processing`, or its status has not resolved yet) and wired `data-auto-refresh="2000"` onto the panel, mirroring `UploadStatus.cshtml`.
+
+3. **`src/Pegasus.Infrastructure/Persistence/EfIntakeSubmissionGroupStore.cs:122` (P2) "Retry concurrent group-member insertion"** — Applied, and extended beyond the literal comment: the comment itself noted "the group-creation transaction has a similar concurrent-insert window", so both `AddMemberAsync` and `GetOrCreateAsync` were wrapped in the same 3-attempt retry shape as `EfIntakeWorkStore.ReceiveWithRetryAsync`/`IsRetryableConcurrencyFailure` (SqlException 1205/2601/2627), each split into a public entry point, a retry wrapper, and the original core body.
+
+4. **`src/Pegasus.Web/Pages/Upload.cshtml.cs:129` (P2) "Preserve duplicate feedback for exact replays"** — Applied for the one-member-group case (matches the ticket's explicit blocker-2 instruction: "existing single-file upload remains supported as a one-member group"). A one-member result redirects to `/Upload/Status/{stagedReceiptId}?duplicate=<flag>` exactly as before grouping. Fixing the redirect alone was not sufficient — see "Additional gap found" below. Multi-member group replay does not carry a per-member duplicate notice on `UploadGroupStatus`; that was not asked for by the ticket's blocker list and no test asserts it, so it is left as a known gap rather than expanded scope.
+
+5. **`src/Pegasus.Core/Intake/GroupedIntake.cs:128` (P1) "Preserve the submitted token for single-file occurrences"** — Applied. `ChildToken` now returns the parent token verbatim for ordinal 0; only ordinal >= 1 gets the `:n` suffix.
+
+### Additional gap found beyond the five comments
+
+Applying #4/#5 was not enough to turn the suite green. `EfIntakeSubmissionGroupStore.ListMembersAsync` hardcodes `IsDuplicate = false` for every member (it has no per-call knowledge of duplication), and `SubmitGroupedIntake.ExecuteAsync`'s replay branch (`FindMemberAsync` found an existing row → `continue`) never called `IIntakeSubmission` at all, so it never had an `IsDuplicate` value to record either. Net effect: every replay of a one-member group always reported `IsDuplicate=false` regardless of the redirect/token fixes, still hiding the "already received" notice. Found via the first integration test run: `InstructionDraftWebTests.SameManualUploadTokenReplaysOneReceiptDraftAndAssetSet` and `QdosIntakeWebTests.ReadableManualUploadStagesPendingWorkAndOpensItsStatusPage` both failed on the notice text after the redirect fix alone. Fixed by tracking `IsDuplicate` per ordinal during `SubmitGroupedIntake`'s own loop and stamping it onto the `ListMembersAsync` result before building `GroupedIntakeSubmissionResult`.
+
+Also restored singular "That file is empty." wording for a one-file submission (multi-file keeps "File N is empty."); `IntakeWebNegativeTests.EmptyUploadReturnsValidationAndDoesNotPersist` asserted the pre-grouping singular wording and was part of the original nine CI failures.
+
+### Simplification lenses applied to this takeover's own diff (11 files, ~190 lines)
+
+- **Reuse**: GRANT statements copied the exact provider-guard/GRANT convention from `20260819104953_MailClassificationCorrectionHistory.cs`. The concurrency-retry shape (3 attempts, `IsRetryableConcurrencyFailure`, `SqlException` 1205/2601/2627) was copied from `EfIntakeWorkStore.ReceiveWithRetryAsync` rather than inventing a new pattern. The batch file-count/size limit was added to the existing `IntakeEnvelopeLimits` (one list per concept) rather than a new limits type.
+- **Simplification/duplication check**: `EfIntakeSubmissionGroupStore` now carries two near-identical retry wrappers (`AddMemberWithRetryAsync`, `GetOrCreateWithRetryAsync`) sharing one `IsRetryableConcurrencyFailure`. This mirrors the codebase's existing convention of one private retry method per store (11 other stores each carry their own copy) rather than factoring a generic `WithRetryAsync<T>` helper — introducing that generic would be a new abstraction with no accepted ADR and no caller outside this file, so the existing per-store convention was kept instead of introduced.
+- **Efficiency**: retry loops are bounded (3 attempts, 25ms/attempt backoff); `MaximumBatchContentLength` is a compile-time `const long` (no runtime allocation); duplicate-flag tracking uses a `Dictionary<int,bool>` sized to the file count (<= `MaximumBatchFileCount` = 20).
+- **Altitude**: `MaximumBatchFileCount`/`MaximumBatchContentLength` are Core business policy (`Pegasus.Core.Intake.IntakeEnvelopeLimits`); `Program.cs` (Web composition root) and `Upload.cshtml.cs` only consume the constant, they do not redefine the number.
+- No unapplied findings remain from this pass.
+
+### Sibling branch note
+
+`intk-006-grouped-image-routing` (commit `866d305e`, not merged anywhere, worktree not touched) independently fixed the single-file redirect by bypassing `IGroupedIntakeSubmission` entirely for `Upload.Length == 1` and calling `IIntakeSubmission` directly from the page. That approach was not imported here — it duplicates the submission call path outside Core's one orchestration use case. This takeover's fix keeps every upload (including one-file) going through `IGroupedIntakeSubmission` and only branches the *redirect* on member count, per the operator's explicit instruction. Per this plan's existing "Parallel-branch execution note", INTK-006 is expected to rebase onto this branch later; noting here so that reconciliation is aware both branches solved the same symptom differently.
+
+### Verification evidence
+
+- `dotnet build ./Pegasus.slnx -c Release` — 0 warnings, 0 errors.
+- `dotnet test tests/Pegasus.Core.Tests -c Release` — 644/644 passed.
+- `dotnet test tests/Pegasus.ArchitectureTests -c Release` — 97/97 passed.
+- `dotnet test tests/Pegasus.IntegrationTests --filter "IntakeWebNegativeTests|InstructionDraftWebTests|QdosIntakeWebTests|IntakePersistenceIntegrationTests"` — 30 passed, 0 failed, 6 skipped (skips are pre-existing, require external QDOS corpus evidence, unrelated to this change).
+- `dotnet test tests/Pegasus.IntegrationTests --filter "GroupedIntakeWebTests"` (the multi-file group test, not in the originally-red set but directly exercises the redirect/token fix) — 1/1 passed.
+- Full `dotnet test` (whole solution) was **not** run in this takeover — the SQL-backed integration suite runs ~28 minutes end to end and only the failing/related classes plus the multi-file group test were re-verified. This is stated honestly rather than claimed as a full pass; a subsequent CI run on push is the authoritative full-suite gate.
