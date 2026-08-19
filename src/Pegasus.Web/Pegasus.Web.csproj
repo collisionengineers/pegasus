@@ -17,6 +17,15 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <NoWarn>$(NoWarn);NU1510</NoWarn>
     <UserSecretsId>63edeba7-ecac-4928-8df3-071d2cf276bf</UserSecretsId>
+    <!-- ADR-0028 / DELIV-012: the renderer runs in process inside this Web
+         container, so the published image must carry the pinned Chromium
+         build and its native Linux dependencies and fonts. The
+         playwright/dotnet base image tag tracks $(PlaywrightVersion)
+         (defined once in Directory.Build.props, shared with
+         Pegasus.Infrastructure's Microsoft.Playwright package reference) so
+         a future Playwright bump cannot silently desynchronise the base
+         image from the pinned package. -->
+    <ContainerBaseImage>mcr.microsoft.com/playwright/dotnet:v$(PlaywrightVersion)-noble</ContainerBaseImage>
   </PropertyGroup>
 
   <ItemGroup>
