@@ -1,4 +1,4 @@
-﻿using Pegasus.Core.Identity;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.ImageIntake;
