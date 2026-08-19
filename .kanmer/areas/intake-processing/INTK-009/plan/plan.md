@@ -154,3 +154,65 @@ the PR opens.
   updated in this ticket.
 - `docs/frd/frd-02-intake-and-source-identity.md` — Unidentified/receipt
   vocabulary; read, not changed (INTK-007's contracts are unchanged).
+
+## Simplification pass — 2026-08-20
+
+Ran `/simplify`: four parallel review agents (reuse, simplification,
+efficiency, altitude) over `git diff HEAD` in the task worktree, followed by
+applying the surviving findings.
+
+### Applied
+
+- **Reuse + simplification + altitude (3 agents, same finding): duplicated
+  "subject — from sender" e-mail-handle formatting** between
+  `Triage.IndexModel.UnidentifiedHandle` and `Unidentified.DetailsModel.Handle`.
+  Extracted `OperatorLabels.EmailHandle(string? subject, string? sender)`;
+  both call sites now call it instead of carrying their own copy of the
+  switch expression.
+- **Reuse: composed `OfficeDate` + `OfficeClock` instead of `OfficeTime`** in
+  the Unidentified row's received-time cell
+  (`Triage/Index.cshtml`) — a single-line surface reproducing the exact
+  format `OperatorLabels.OfficeTime` already provides. Now calls
+  `OperatorLabels.OfficeTime(row.ReceivedAtUtc)` directly.
+- **Altitude: the "no receipt → treat as Image" fallback was duplicated** in
+  `EfUnidentifiedStore.MapQueueRow` (Infrastructure) and
+  `Unidentified.DetailsModel.MediaKind` (Web) — the same business judgement
+  in two non-Core places. Moved the fallback into
+  `UnidentifiedMediaKindPolicy` itself via a new nullable-channel overload
+  (`Classify(IntakeSourceChannel? channel, string? mediaType)`); both callers
+  now call the policy and carry no judgement of their own.
+- **Simplification + efficiency (2 agents, same finding): `ListQueueAsync`
+  was called twice on every Unidentified-tab load** — once unfiltered for
+  `UnidentifiedCount` (every tab), once again filtered for `UnidentifiedRows`
+  (Unidentified tab only) — identical join, run twice. `OnGetAsync` now
+  fetches the unfiltered list once and filters it in memory for the tab's
+  media-kind selection instead of re-querying.
+- **Efficiency: the two counts every tab always fetches
+  (`GetCaseStageCountsAsync`, the unfiltered `ListQueueAsync`) ran
+  sequentially** despite using independent `DbContext` instances. Now started
+  together and awaited via `Task.WhenAll`.
+- **Altitude: `OnGetAsync`'s Not-ready branch inlined two independent
+  origin-filter gates** (deciding whether to run `SearchCases` and/or
+  `IImageIntakeQueries.ListAsync`), a level below its `ShowingTriage`/
+  `ShowingUnidentified` siblings. Extracted `LoadNotReadyAsync`, which also
+  runs its two queries concurrently via `Task.WhenAll` rather than skipping
+  that opportunity now that they were made explicit.
+
+### Skipped, with reason
+
+- **Efficiency: `EfImageIntakeStore.ListAsync`/`EfUnidentifiedStore.ListQueueAsync`
+  filter in memory after an unbounded fetch rather than pushing the
+  predicate into SQL.** `ListAsync(bool? associated)` is a pre-existing
+  method with other callers (`/VehicleImages`); widening its contract to add
+  a state predicate is a change to a shared port outside this ticket's
+  diff. `ListQueueAsync`'s in-memory media-kind filter is unavoidable without
+  a persisted/computed column, since the kind is derived in C# from two
+  joined columns — flagged by the agent itself as "a scale risk, not urgent"
+  for what is an exception queue. Left as documented trade-offs (both already
+  called out in the code comments and this plan's step 2/step 4); revisit if
+  either queue's real volume proves the assumption wrong.
+
+Full test suite re-run clean after every fix (`Pegasus.Core.Tests`: 690/690;
+the Unidentified/Triage/Dashboard/ImageIntake/Cases/Shell integration filter:
+47/48, 1 pre-existing unrelated skip; `Category=Browser`: 38/38;
+`Pegasus.ArchitectureTests`: 97/97).

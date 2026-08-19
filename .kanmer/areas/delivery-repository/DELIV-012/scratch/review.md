@@ -442,3 +442,38 @@ docs-only rule (missing or unauthorized scope):
 Nothing unauthorized found; nothing the release changed is left unrecorded.
 CI: documentation/changes/reference-data all SUCCESS (docs-only change set —
 build lanes correctly not triggered). Merging.
+
+## PR #431 — PLAT-010 estate-wide copy strip — **PASS after one round**
+
+Head `55fef8ef`, 33 files, +106/−139 net (29 pages + 3 code-behind + 2 test
+files).
+
+**Scope discipline held under three mid-flight carve-outs.** The Mailboxes,
+Unidentified and Upload/UploadStatus/site.js exclusions were honoured — I
+verified by filename over the diff — and edits already made to two carved-out
+files were reverted before any commit. `Uploads/Request.cshtml` was never
+carved out and its edit is legitimate.
+
+**The round-trip that mattered:** my added-lines grep found three genuine
+violations the sweep itself had introduced while compressing — an
+operator-facing "custody-confirmed", and two "Image intake" phrasings that were
+both the banned term and the *superseded vocabulary* (the settled term is
+"Image-initiated Case", INTK-008). Compression drifting back toward retired
+vocabulary is exactly the failure mode an independent read exists to catch.
+All three fixed in `55fef8ef`; re-grep of added lines now shows only
+non-copy hits (a namespace reference, an `id` attribute, and diff artifacts
+from `dev` having since merged PLAT-009's rewrite of the old Mailboxes markup —
+#431 never touched that file, so the merge cannot revert it; confirmed
+MERGEABLE).
+
+**Right calls preserved:** the `_PageHeader` lede slot removed at the source so
+the violation cannot silently return; the two raw-GUID identity leaks that
+require query changes were reported, not improvised — now owned by
+[[PLAT-011]]; 3 test assertions updated, each verifiably asserting deliberately
+changed text; ~28 further pages swept and honestly reported as needing nothing.
+
+**Evidence:** build 0/0; WebTests 132/132; Browser + accessibility 37/37;
+Core 684/684; simplification honestly n/a for a pure copy diff, reusing
+`_StatusChip` and the existing channel-label map.
+
+**Verdict: pass.** Merging on green CI (watcher armed, auto-merge on all-green).
