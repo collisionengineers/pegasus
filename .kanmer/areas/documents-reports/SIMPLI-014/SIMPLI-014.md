@@ -2,7 +2,7 @@
 id: SIMPLI-014
 type: ticket
 title: Integrate CollisionRenderer behind a Core-owned render contract
-status: verifying
+status: done
 area: documents-reports
 order: 200
 assignee: codex-mcp-client
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-19T08:57:22.253Z'
   review: '2026-08-19T09:56:33.525Z'
   verifying: '2026-08-19T10:29:35.071Z'
+  done: '2026-08-19T10:33:08.662Z'
 taken_at: '2026-08-19T09:22:15.273Z'
 branch: task/simpli-014-integrate-collision-renderer
 worktree: ../pegasus-worktrees/simpli-014-integrate-collision-renderer
@@ -40,7 +41,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/415'
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T10:29:35.071Z'
+updated: '2026-08-19T10:33:08.662Z'
 ---
 
 ## What
