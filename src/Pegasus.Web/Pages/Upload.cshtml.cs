@@ -35,6 +35,8 @@ public sealed partial class UploadModel(
     public static string MaximumSizeLabel =>
         OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
 
+    public static int MaximumFileCount => IntakeEnvelopeLimits.MaximumBatchFileCount;
+
     [BindProperty]
     public IFormFile[] Upload { get; set; } = [];
 
@@ -65,6 +67,13 @@ public sealed partial class UploadModel(
         if (Upload.Length == 0)
         {
             ModelState.AddModelError(nameof(Upload), "Choose a file to upload.");
+        }
+        else if (Upload.Length > IntakeEnvelopeLimits.MaximumBatchFileCount)
+        {
+            ModelState.AddModelError(
+                nameof(Upload),
+                $"You selected {Upload.Length} files. Submit {IntakeEnvelopeLimits.MaximumBatchFileCount} "
+                + "or fewer at a time.");
         }
         for (var index = 0; index < Upload.Length; index++)
         {
