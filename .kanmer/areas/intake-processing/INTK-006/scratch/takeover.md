@@ -34,3 +34,18 @@ Ran `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`: it throws `Databa
 `scripts/Test-MigrationGrants.ps1` still does not exist in this branch after the merge — skipped per the original instruction ("if present").
 
 Rebuilt (0 warnings/errors) and pushed as `038105a6`. Confirmed CI started again on this new head (`changes`/`documentation`/`reference-data` all `pending` immediately after push, run 32263442445).
+
+## Final state — 2026-08-19
+
+Pushed head: `caef9dff` (adds `OneEligibleCaseAssociatesEveryGroupMember`, the direct multi-member-association proof for the ordinal-0 token fix).
+
+Checklist updated to 30/41 (from 26/41), with an honest Progress note on every unchecked/changed item — see checklist doc.
+
+`gh pr checks 417` at report time (run `32263668308`):
+- `changes` — pass
+- `documentation` — pass
+- `reference-data` — pass
+- `infrastructure` — **fail**, but this is the exact pre-existing, unrelated `dev`-branch gap the coordinator flagged mid-session (`20260819104953_MailClassificationCorrectionHistory` missing from the database-bootstrap census; fixed on `dev` by PR #426, not yet merged there). Reproduced locally with `Test-AzureDeploymentPlan.ps1 -Mode Local` before pushing — same message. Confirmed my own new migration carries zero GRANT statements, so it needs no census entry and is not implicated.
+- `browser`, `sql-integration (1/2/3)`, `unit` — still `pending` at report time; a background poll (`until ! gh pr checks 417 | grep -q pending`) was left running to catch the final result but had not completed when this report was written. Whoever picks this ticket back up should re-run `gh pr checks 417` to see the final state of those five jobs before treating CI as fully green.
+
+Plan.md has the full 13-comment disposition table and the dated simplification pass under "Takeover remediation — 2026-08-19".
