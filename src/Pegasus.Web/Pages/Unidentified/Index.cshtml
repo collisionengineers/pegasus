@@ -34,7 +34,7 @@
             @foreach (var item in Model.Results)
             {
                 <a asp-page="/Unidentified/Details" asp-route-id="@item.Id">
-                    <span><strong>@item.Reference</strong><small>@item.Origin.Kind: @item.Origin.Id</small></span>
+                    <span><strong>@item.Reference</strong><small>@IndexModel.OriginKindLabel(item): @item.Origin.Id</small></span>
                     <span><strong>@IndexModel.ReasonLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.CreatedAtUtc) @OperatorLabels.OfficeClock(item.CreatedAtUtc)</small></span>
                 </a>
             }

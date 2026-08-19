@@ -36,4 +36,7 @@ public sealed class IndexModel(IUnidentifiedStore store) : PageModel
 
     public static string ReasonLabel(UnidentifiedItem item) =>
         OperatorLabels.UnidentifiedReason(item.ReasonCode);
+
+    public static string OriginKindLabel(UnidentifiedItem item) =>
+        OperatorLabels.UnidentifiedOriginKind(item.Origin.Kind);
 }
