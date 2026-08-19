@@ -168,7 +168,7 @@ Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control,
 - Provenance is an icon with a one-word tooltip, shown on hover **and** on keyboard focus with a matching accessible name: Staff · Extracted · AI · E-mail · Lookup · Principal · Automatic. Source labels, policy keys and provenance sentences do not appear in markup.
 - A count query and a rendered time cannot be proved locally: an empty database returns the same zero as a correct query, and a Europe/London workstation clock matches the office by accident. Both need populated test data or the deployed instance.
 
-Settled terms retain their exact meanings and casing, including `Audit`, `Triage`, `Needs sorting`, `Blocked`, `Not ready`, `Review` and `Held` (`Blocked` supersedes the earlier interface wording `Blocked intake`, operator decision 2026-08-04; the pre-case failure boundary it names is unchanged). Never substitute a generic **Close** action for a named lifecycle outcome.
+Settled terms retain their exact meanings and casing, including `Audit`, `Triage`, `Unidentified`, `Blocked`, `Not ready`, `Review` and `Held` (`Blocked` supersedes the earlier interface wording `Blocked intake`, operator decision 2026-08-04; the pre-case failure boundary it names is unchanged). Never substitute a generic **Close** action for a named lifecycle outcome.
 
 ## Tokens
 
@@ -430,7 +430,7 @@ Operations is the landing route.
 CE logo | Dashboard | Inbox | Upload | Queues | Cases | Administration | User
 Dashboard
 Not ready | Review | Held        (active cases)
-Received today | Needs sorting | Blocked        (e-mail activity)
+Received today | Unidentified | Blocked        (e-mail activity)
 New cases today | Sent to Engineer: today / week | Reports sent: today / week
 Last updated | Refresh
 ```
@@ -500,7 +500,7 @@ authority on its own.
 | Core intake decision | Exact operator label | Receipt persisted | Case/reference persisted |
 | --- | --- | --- | --- |
 | `CaseCreated` | Ready for case allocation, Creating case, Case not created, or Case created according to allocation/link state | Yes | Only when the Case intake link exists |
-| `NeedsSorting` | Needs sorting | Yes | No |
+| `NeedsSorting` | Unidentified | Yes | No |
 | `BlockedIntake` | Blocked | Yes | No |
 | `OcrRequired` | Needs text extraction | Yes | No |
 | `TechnicalFailure` | Failed | Yes | No |
@@ -509,7 +509,7 @@ authority on its own.
 
 `CaseCreated` is the processing eligibility code; typed allocation records the
 separate attempt and the Case intake link is the only proof that a reference
-exists. Ambiguous or unidentified material is `Needs sorting`.
+exists. Ambiguous or unidentified material is `Unidentified`.
 
 `Needs text extraction` records a fail-closed outcome; it does not prove that deferred OCR capability is implemented. The intake list also derives the display outcome `Associated with Case` for receipts holding an active case association.
 
@@ -519,11 +519,11 @@ There is no decision meaning "a human has not pressed the button yet":
 [FRD-02](../frd/frd-02-intake-and-source-identity.md#matching-conflicts-and-reversible-association) is explicit that definitive authorised intake creates
 exactly one instructed Case idempotently and that "the allocation decision adds no universal
 manual acceptance gate", and the [operator notes](../operator-notes.md) send only ambiguous
-provider, instruction-type, or case evidence — and any unidentified e-mail — to `Needs sorting`.
+provider, instruction-type, or case evidence — and any unidentified e-mail — to `Unidentified`.
 Every definitive typed instruction attempts allocation at processing time. An Audit is definitive
 only when its separate original report supplies one literal outcome: `repairable` or `total loss`.
 An Audit instruction with no separate report, a conflicting report, or an unclear outcome is
-`Needs sorting`; it allocates neither a Case/PO nor an Audit reference.
+`Unidentified`; it allocates neither a Case/PO nor an Audit reference and carries a U-reference.
 Incomplete ordinary detail is never a bar to allocation. A failure is retained separately and requires a reasoned staff
 retry after correction.
 `Review` and `Ready to review` denote the Case stage before the report is with an Engineer and
@@ -535,12 +535,12 @@ must never name an intake state.
 | --- | --- | --- |
 | Definitive authorised instruction with instruction and image completeness satisfied | `Review` | Create exactly one case/reference through shared fail-closed acceptance |
 | Definitive authorised instruction without both completeness requirements | `Not ready` | Create exactly one incomplete case/reference |
-| Audit instruction without a separate original report carrying one literal outcome | `Needs sorting` | No Case/PO or reference; preserve the received evidence for sorting |
+| Audit instruction without a separate original report carrying one literal outcome | `Unidentified` | No Case/PO or reference; preserve the received evidence under its U-reference |
 | Staff-resolved intake with both completeness requirements recorded | `Review` | Create exactly one case/reference |
 | Staff-resolved intake without both completeness requirements recorded | `Not ready` | Create exactly one incomplete case/reference |
 | Explicit confirmation of both requirements on an existing `Not ready` case | `Review` | Transition the existing case; do not create another case/reference |
 | `Blocked intake` | Shown as `Blocked`, with required reason | Persist pre-case intake work only; no case/reference |
-| `Needs sorting`, unsupported/incomplete source, identity-critical ambiguity, custody/integrity/replay/occurrence conflict or missing identity evidence | Needs sorting or named pre-case failure | No case/reference |
+| Unidentified, unsupported/incomplete source, identity-critical ambiguity, custody/integrity/replay/occurrence conflict or missing identity evidence | Unidentified or named pre-case failure | No case/reference |
 | Resolve/retry of blocked or failed intake | Re-enter ordinary fail-closed intake | Create exactly one case/reference only if the ordinary gates then pass |
 
 ## Component map
@@ -976,7 +976,7 @@ Case/PO, Image Intake Reference, registration, claimant, claim number, principal
 
 ### Operations and state boundaries
 
-Operations shows Not ready, Review, Held, Needs sorting, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
+Operations shows Not ready, Review, Held, Unidentified, exact `Blocked intake`, separate Triage, Due today, New cases today, Sent to Engineer today/week, and Reports sent today/week. It uses Europe/London midnight days and Monday-week boundaries. `New cases today` has the exact Case-creation definition in the [requirements](../frd/frd-12-operator-experience.md#dashboard-freshness-and-reconciliation). Counts open their exact filtered queues; zero is distinct from stale/unavailable; last updated and manual refresh are visible. Receiving work, Queries and Other are `Next / 0.3.0` in the [capability inventory](../capabilities.md#capabilities), with no `0.1.0-alpha.1` surface.
 
 An intake row always presents received date above received time and its precise processing outcome. At constrained desktop width, long Case/PO or Image Intake Reference text moves to a labelled second line; it must not overlap the received timestamp or another row field.
 
@@ -996,7 +996,7 @@ An intake row always presents received date above received time and its precise 
 | --- | --- |
 | Queries | loading; empty; success; stale/partial with last-good time; transient error/retry; unauthenticated/disabled/stale-role/denied |
 | Mutations | validation; confirmation; success; denied; stale version; lease lost; dependency unavailable; idempotent/replayed result; conflict and recovery |
-| Intake | empty/oversize; replay; retention/custody failure; Ready for case allocation; Needs sorting; Unsupported; missing/integrity asset; evidence missing/contradictory; Blocked intake reason/resolve/retry; every acceptance path; refusal with no case/reference |
+| Intake | empty/oversize; replay; retention/custody failure; Ready for case allocation; Unidentified; Unsupported; missing/integrity asset; evidence missing/contradictory; Blocked intake reason/resolve/retry; every acceptance path; refusal with no case/reference |
 | Triage | registration missing; unassigned/assigned; every named state; missing/ambiguous/unapproved/technical reply evidence; finding replacement/correction/new response; cancel/reopen/link/unlink/relink |
 | Case | Not ready/chasing; Review; Held/preserved interval; due/overdue; gate refusal; documents locked; Box/external-effect states; EVA proxy limitation; report evidence absent/ambiguous/manual/exact; every terminal outcome; archive; reopened; Created-in-error nonreopenable; lease held/expired/lost/stale |
 

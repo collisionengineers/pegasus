@@ -1,4 +1,12 @@
 # FRD-03: Triage
+
+## Boundary with Unidentified
+
+Triage remains a separate pre-Case workflow. A missing registration or route that is
+specifically a Triage request follows the Triage states and does not receive a U
+reference merely because it is awaiting information. Material that is not accepted
+as Triage, or a terminal unreadable/ambiguous source outside that workflow, enters
+Unidentified with its canonical reason.
 > Owner capabilities: TRI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Triage

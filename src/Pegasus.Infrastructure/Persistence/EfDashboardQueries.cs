@@ -100,6 +100,10 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
             .AsNoTracking()
             .CountAsync(item => item.Decision == needsSorting, cancellationToken);
 
-        return new(receivedToday, needsSortingCount);
+        var unidentifiedCount = await context.Set<UnidentifiedItemEntity>()
+            .AsNoTracking()
+            .CountAsync(item => item.State == "Open", cancellationToken);
+
+        return new(receivedToday, needsSortingCount) { Unidentified = unidentifiedCount };
     }
 }

@@ -24,7 +24,7 @@ A single row of compact `Metric` tiles (`.metric-strip`). Seven columns is the o
 <SectionLabel>E-mail activity</SectionLabel>
 <MetricStrip columns={3}>
   <Metric label="Received today" icon="file-text" value={41} href="/Mail" />
-  <Metric label="Needs sorting" icon="alert-triangle" state="needs-sorting" value={4} />
+  <Metric label="Unidentified" icon="alert-triangle" state="unidentified" value={4} />
   <Metric label="Blocked" icon="alert-circle" state="blocked" value={0} />
 </MetricStrip>
 ```

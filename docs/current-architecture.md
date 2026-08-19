@@ -1,5 +1,15 @@
 # Architecture
 
+## Unidentified intake boundary
+
+Safely retained material without a unique identity, meaning, owner, or destination is
+represented by one Core-owned Unidentified item per source occurrence or inseparable
+submission group. It has an immutable `U<n>` reference, one canonical reason, and
+open/resolved history. This is distinct from Triage, Blocked intake, Audit, Image
+Intake, and formal Case/PO identity; existing architecture notes that describe the
+former broad `Needs sorting` destination are historical compatibility descriptions and
+must not be used as current operator vocabulary.
+
 > This file is the current **as-built snapshot**: what components exist and how the running system is wired *now*. It is not the owner of rules. Product intent and invariants live in the [PRD](prd/pegasus-product.md) and [AGENTS.md](../AGENTS.md#product-invariants); required behaviour in the [FRDs](frd/README.md); durable technical decisions in the [ADRs](adr/README.md); repository governance in [AGENTS.md](../AGENTS.md); deployed/runtime state and dated evidence in [operations](operations.md); the schedule and capability IDs in [capabilities](capabilities.md). Where this file describes a rule, it is reporting how the system is wired, not competing with those owners. **Keep it current: after any deployment or release, update this file (and [operations](operations.md)) to match reality in the same task.**
 
 This document is the canonical owner for the current system architecture, caller evidence, dependency direction, and application boundaries. Requirements, capability scope, unresolved decisions, operations, and historical decisions remain with their respective canonical owners.
@@ -61,9 +71,10 @@ A new project, runtime, store, migration stream, deployment unit, or top-level a
 These invariants — `Pegasus.Core` is the single owner of business policy;
 duplicate business implementation is a stop condition; a new top-level project,
 store, runtime, migration stream, or deployment unit requires an accepted ADR
-proving the existing boundary cannot carry it; and `Audit`, `Triage`,
-`Needs sorting`, and `Blocked intake` keep their settled distinct meanings — are
-owned by [AGENTS.md § Product invariants](../AGENTS.md#product-invariants). This
+proving the existing boundary cannot carry it; and `Audit`, `Triage`, and
+`Blocked intake` keep their settled distinct meanings, with `Unidentified`
+superseding `Needs sorting` for that meaning — are owned by
+[AGENTS.md § Product invariants](../AGENTS.md#product-invariants). This
 section reports how the running system is wired to them; it does not restate or
 compete with that owner.
 
@@ -264,7 +275,8 @@ The following invariants remain in force even where their activating callers are
 - no case deletion;
 - no reference reuse;
 - no mutation of the principal after allocation;
-- no second meaning for Audit, Triage, `Needs sorting`, or Blocked intake;
+- no second meaning for Audit, Triage, or Blocked intake, and none for
+  `Unidentified`, which supersedes the former `Needs sorting` meaning;
 - no case or reference allocation until configured principal identity, durable custody, and the accepted allocation transaction are available.
 
 No rule engine may be copied into Web, Worker, a workspace, or an integration adapter.

@@ -70,14 +70,14 @@ public sealed class MailOperationalDestinationPolicyTests
     [Theory]
     [InlineData(MailClassificationOutcome.Ambiguous)]
     [InlineData(MailClassificationOutcome.Unclassified)]
-    public void AbstentionFailsClosedToNeedsSorting(MailClassificationOutcome outcome)
+    public void AbstentionFailsClosedToUnidentified(MailClassificationOutcome outcome)
     {
         var classification = outcome == MailClassificationOutcome.Ambiguous
             ? MailClassificationResult.Ambiguous(["General", "billing"], [], "conflict", "test", 1)
             : MailClassificationResult.Unclassified([], "no match", "test", 1);
         var result = MailOperationalDestinationPolicy.Map(classification);
 
-        Assert.Equal(MailOperationalDestination.NeedsSorting, result.Destination);
+        Assert.Equal(MailOperationalDestination.Unidentified, result.Destination);
         Assert.Null(result.Classification);
     }
 

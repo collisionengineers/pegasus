@@ -1,5 +1,14 @@
 # Repository runbook
 
+## Unidentified queue operations
+
+The Unidentified queue is the operator destination for safely retained material that
+cannot be read, identified, owned, or routed. Use the immutable U-reference shown in
+the queue/detail page when investigating; never allocate a Case/PO or Audit reference
+as a placeholder. Conflicting VRMs use the explicit conflicting-identification reason.
+Retryable processing is not Unidentified; terminal technical failure after custody
+is. Resolution is an authorised, version-checked action and never reuses a U number.
+
 This file owns executable setup, local development, database, testing, release,
 approval, monitoring, recovery, and maintenance procedures. Current production,
 release, evidence, monitoring, and recovery state is recorded in

@@ -202,6 +202,36 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_web_runtime_role|G|$permission|CaseRepairSpecifications")
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseRepairSpecifications')
+    # 20260819115323_UnidentifiedWork, per-object least privilege:
+    # - UnidentifiedItems: Worker (IntakeWorkFunction -> ProcessQueuedIntake ->
+    #   ProcessIntake.ExecuteRetainedAsync -> IRegisterUnidentified.RegisterAsync)
+    #   gets SELECT/INSERT/UPDATE; the UPDATE is
+    #   ProcessQueuedIntake.SynchronizeUnidentifiedAsync's reconciliation
+    #   resolve. Web never registers (no IRegisterUnidentified caller in
+    #   Pegasus.Web), so it gets SELECT/UPDATE only, the UPDATE from
+    #   Unidentified/Details.cshtml.cs's resolve handler and
+    #   UnidentifiedMcpTools.ResolveAsync.
+    # - UnidentifiedSequences: only RegisterAsync's allocation touches this
+    #   table, and that is Worker-only; Web gets nothing.
+    # - UnidentifiedHistory: append-only; both roles insert (Register's
+    #   initial row, Resolve's resolution row) and select (Resolve's own
+    #   replay check, and Details.cshtml.cs/UnidentifiedMcpTools.GetAsync's
+    #   HistoryAsync reads). No caller ever updates or deletes a row.
+    foreach ($permission in @('SELECT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|UnidentifiedItems")
+    }
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|UnidentifiedItems")
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|UnidentifiedSequences")
+    }
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("$role|G|$permission|UnidentifiedHistory")
+        }
+        foreach ($permission in @('UPDATE', 'DELETE')) {
+            $expected.Add("$role|D|$permission|UnidentifiedHistory")
+        }
+    }
     # 20260819180000_GrantEvaHandoffDownloadOperations: closes a live production
     # gap (verified against sys.database_permissions) -- the table was created
     # by 20260811122654_CaseCustodyEvaRecovery with no grant at all. Mirrors

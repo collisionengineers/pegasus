@@ -204,9 +204,9 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("name=\"ExpectedClassificationVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"1\"", html, StringComparison.Ordinal);
         // The Core operational-destination policy fails closed to the same
-        // "Needs sorting" wording the page already uses for an unmatched
+        // "Unidentified" wording the page already uses for an unmatched
         // Queue/Filed-to state, computed live from this Unclassified decision.
-        Assert.Contains("<dt>Operational destination</dt><dd>Needs sorting</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Operational destination</dt><dd>Unidentified</dd>", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Destination policy</dt><dd>mail_operational_destination version 1</dd>", html, StringComparison.Ordinal);
     }
 

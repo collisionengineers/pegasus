@@ -1,4 +1,12 @@
 # FRD-08: Email, mailbox, and background processing
+
+## Unidentified mail destination
+
+Mailbox material that is safely retained but has no unique accepted classification,
+identity, owner, or destination is registered once in Unidentified with its U
+reference and canonical reason. Retryable processing remains retryable; a terminal
+technical failure after custody uses `TechnicalProcessingFailure`. Mail projections
+link to the same Unidentified item rather than synthesising a second queue row.
 > Owner capabilities: MAIL · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## Email, mailbox, and background processing
@@ -85,9 +93,9 @@ both a new category name and reasoning.
 A known classification has its own typed detailed-classification destination;
 it is never collapsed into an aggregate Other queue. `Other` is only the
 reasoned taxonomy extension and destination for a genuinely new
-classification. `Needs sorting` is an operational abstention
-when evidence is missing, unsupported, contradictory, or ambiguous; it is
-never a classification.
+classification. `Unidentified` (formerly `Needs sorting`) is an operational
+abstention when evidence is missing, unsupported, contradictory, or
+ambiguous; it is never a classification.
 
 Classification may use attributable mailbox/message identity, direction,
 headers, sender/domain, fresh body text, attachment/document evidence,
@@ -134,13 +142,13 @@ the evidence, actor, time, policy version, and later corrections.
 | Sent: `query-sent` | Exact outbound query/information request | immutable Sent-item evidence or staff | Detailed: Sent/`query-sent` | Other |
 | Sent: `additional-image-request` | Exact outbound request for better/additional images | immutable Sent-item evidence or staff | Detailed: Sent/`additional-image-request` | Other |
 | reasoned `Other` | No registry entry fits; requires a new name/reason and may not mask a known class | authorised staff only | Other | Other |
-| `Ambiguous` / `Unclassified` | Multiple/no accepted predicates, or missing/conflicting evidence; no winner is invented | explicit abstention | Needs sorting | none automatically |
+| `Ambiguous` / `Unclassified` | Multiple/no accepted predicates, or missing/conflicting evidence; no winner is invented | explicit abstention | Unidentified | none automatically |
 
 The approved logical folder types are `Instructions`, `Audits`, `Diminution`,
 `New clients`, `Case queries`, `Enquiries`, `Billing`, `Pre-instructions`, `No
 action`, `Images`, `Cancellations`, `Case updates`, and `Other`. MAIL-23 binds
 these types to administrator-approved exact Outlook folder identities and owns
-the separate confirmed move. Triage and Needs sorting receive no automatic
+the separate confirmed move. Triage and Unidentified receive no automatic
 folder recommendation merely because they are application destinations.
 
 Acceptance examples are a single accepted Audit instruction mapping to

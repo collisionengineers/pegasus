@@ -358,7 +358,7 @@ public sealed partial class DetailsModel(
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
         IntakeDecision.CaseCreated => "Ready for case allocation",
-        IntakeDecision.NeedsSorting => "Needs sorting",
+        IntakeDecision.NeedsSorting => "Unidentified",
         // Kept identical to the list label: one decision, one name.
         IntakeDecision.BlockedIntake => "Blocked",
         IntakeDecision.Unsupported => "Unsupported",

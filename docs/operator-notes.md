@@ -39,7 +39,7 @@ Triage does not technically count as a case, but its emails must be stored. A wo
 The normal workflow is:
 
 1. retain the provider request as separate pre-case Triage work;
-2. keep it in `Needs sorting` until a vehicle registration is known, then open the Triage;
+2. keep it as **Unidentified** (formerly `Needs sorting`; see [Unidentified received material](#unidentified-received-material)) until a vehicle registration is known, then open the Triage;
 3. obtain any missing information and record at least one accepted finding;
 4. send the response on the original reply chain; and
 5. complete the Triage only when the exact approved-mailbox reply-chain Sent item is confirmed.
@@ -69,6 +69,33 @@ Triage is never:
 A case’s `has Triage` value is Boolean/reference-only. Triage findings have no bearing on the Case/PO/reference, workflow, final outcome, Engineer report, Audit suffix or allocation, or any other decision. The Engineer report remains definitive.
 
 `Completed` and `Cancelled` close only the separate Triage workflow. They do not make a Triage finding definitive or final for a later Case, and a reasoned reopen returns that Triage to `Open`.
+
+## Unidentified received material
+
+When Pegasus can safely retain a document, image, message, attachment, or inseparable
+submission group but cannot establish a usable identity, meaning, ownership, or
+destination, it must place the material in the **Unidentified** queue. Unidentified
+replaces the old broad `Needs sorting` destination for this meaning; it does not
+rename or collapse Triage, Blocked intake, incomplete Audit evidence, or Image Intake.
+
+Each item or inseparable group receives the next immutable internal tracking reference
+`U1`, `U2`, `U3`, and so on, with no fixed-width ceiling. The reference is not a
+Case/PO, Audit reference, Image Intake reference, Principal identity, or evidence that
+case allocation gates passed. A grouped submission receives one U-reference while
+each member retains its original filename, receipt identity, custody, and source
+history. Every item records one required reason and safe explanatory detail.
+
+The six reasons are: unreadable or corrupt content; unsupported content; no usable
+identification; conflicting identification; ambiguous ownership or destination; and
+terminal technical processing failure after custody succeeds. A conflicting vehicle
+registration group is explicitly recorded as conflicting identification. Retryable
+processing remains in processing and does not allocate a U-reference.
+
+Authorised staff may resolve an Unidentified item into a supported destination, but its
+U-reference and origin never change or become reusable. Resolution records the actor,
+time, reason, target, and immutable history. Open Unidentified work is searchable and
+visible in queue/count/detail surfaces; resolved work remains searchable and visible
+in history.
 
 ## Stage 1 — Receiving instructions or images
 
@@ -231,7 +258,7 @@ The sender route and the underlying work provider are related but distinct facts
    provenance. Use one proved original sender for route identification: either
    an attached original email or the one `From:`, `Sent:`, `To:`, `Subject:`
    header quartet in a normal Outlook forward. A partial, conflicting, or
-   malformed header remains `Needs sorting`.
+   malformed header remains Unidentified (formerly `Needs sorting`).
 2. Determine whether the effective sender belongs to an accepted direct-provider route or an intermediary route.
 3. Extract attachments, email body, and subject before applying the identified route’s rules.
 4. For a direct-provider route, use that provider’s rules to determine instruction type and any related case.
@@ -420,7 +447,7 @@ are additions; no statement above changes meaning.
 - File sizes are never shown in bytes. Where a size is relevant — an e-mail attachment, an upload limit — it is shown in megabytes; otherwise it is not shown.
 - A count of zero is shown as 0. Placeholder states such as “Unavailable” must not stand in for numbers, and a metric whose query does not exist must not be shown at all.
 - The interface never displays raw internal identifiers: GUIDs, hashes, storage paths, database or enum value names, event codes, or version integers.
-- “Needs sorting” refers to e-mail that cannot be matched; it is not a case stage.
+- “Unidentified” (formerly “Needs sorting”) refers to e-mail that cannot be matched; it is not a case stage.
 - Screens are screens in an application, not pages on a website. They are compact, and scrolling is minimised: the identity, the state, the available actions and the main content of a screen are visible without scrolling.
 - A screen about one record shows that record inside one container, with its actions as a bar at the top and its sections as tabs — not as separate panels stacked down the page.
 - A case's material is called **Evidence**, and covers files, images and e-mail.

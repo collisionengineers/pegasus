@@ -1,0 +1,43 @@
+@page "/Unidentified"
+@model Pegasus.Web.Pages.Unidentified.IndexModel
+@using Pegasus.Web.Presentation
+@{
+    ViewData["Title"] = "Unidentified";
+}
+
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Receiving</p>
+        <h1>Unidentified</h1>
+        <p class="lede">Material retained safely but not yet identified, owned, or routed.</p>
+    </div>
+</header>
+
+<section class="panel form-panel" aria-labelledby="unidentified-search-title">
+    <h2 id="unidentified-search-title" class="section-label">Search</h2>
+    <form method="get">
+        <label for="unidentified-query">Exact U-reference</label>
+        <input id="unidentified-query" name="Query" value="@Model.Query" maxlength="32" autocomplete="off" />
+        <button type="submit" class="primary-action">Search</button>
+    </form>
+</section>
+
+<section class="panel" aria-labelledby="unidentified-queue-title">
+    <h2 id="unidentified-queue-title" class="section-label">Open queue</h2>
+    @if (Model.Results.Count == 0)
+    {
+        <p class="empty-state">No Unidentified material matches this view.</p>
+    }
+    else
+    {
+        <div class="queue-list">
+            @foreach (var item in Model.Results)
+            {
+                <a asp-page="/Unidentified/Details" asp-route-id="@item.Id">
+                    <span><strong>@item.Reference</strong><small>@IndexModel.OriginKindLabel(item): @item.Origin.Id</small></span>
+                    <span><strong>@IndexModel.ReasonLabel(item)</strong><small>@OperatorLabels.OfficeDate(item.CreatedAtUtc) @OperatorLabels.OfficeClock(item.CreatedAtUtc)</small></span>
+                </a>
+            }
+        </div>
+    }
+</section>

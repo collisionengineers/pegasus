@@ -15,7 +15,7 @@ A queue tile (`.queue-card`): an optional Lucide icon in a tinted 34px square, t
 **Examples**
 
 ```tsx
-<QueueCard label="Needs sorting" icon="alert-triangle" state="needs-sorting" value={4} detail="Oldest 3 days" href="/Inbox?queue=needs_sorting" />
+<QueueCard label="Unidentified" icon="alert-triangle" state="unidentified" value={4} detail="Oldest 3 days" href="/Unidentified" />
 
 <QueueCard label="Held" icon="clock" state="held" value={3} href="/Triage?queue=held">
   <StatusChip state="Awaiting information" />

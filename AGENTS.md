@@ -218,8 +218,12 @@ every task carries:
   closes as `Created in error` with a reason and linked replacement; neither
   reference is reused and the original never reopens.
 - Never delete a case. Reopening needs a reason and normal destination gates.
-- `Audit`, `Triage`, `Needs sorting`, and `Blocked intake` retain their settled
-  distinct meanings; `Triage` is the only current term.
+- `Audit`, `Triage`, and `Blocked intake` retain their settled distinct
+  meanings; `Triage` is the only current term. `Needs sorting` is superseded
+  by `Unidentified` for that meaning (INTK-007) — see
+  [`docs/operator-notes.md`](docs/operator-notes.md#unidentified-received-material);
+  it does not rename or collapse Triage, Blocked intake, incomplete Audit
+  evidence, or Image Intake.
 - `Pegasus.Core` owns business policy and ports. Infrastructure depends on
   Core; Web and Worker are composition roots depending on both. Duplicate
   business implementation is a stop condition. These are also the repository's
