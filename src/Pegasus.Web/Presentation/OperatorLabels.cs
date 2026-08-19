@@ -1,7 +1,8 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
@@ -93,6 +94,31 @@ public static class OperatorLabels
         DocumentSource.Automation => "Automatic",
         _ => Humanise(source.ToString())
     };
+
+    /// <summary>
+    /// The Image-initiated Case lifecycle state, in the operator's words.
+    /// "Awaiting definitive instruction" is the established term for the open
+    /// state (see the Image intake glossary entry in CONTEXT.md); the other
+    /// two are the permanent outcomes the state can settle into.
+    /// </summary>
+    public static string ImageIntakeLifecycleState(ImageInitiatedCaseState state) => state switch
+    {
+        ImageInitiatedCaseState.AwaitingInstruction => "Awaiting definitive instruction",
+        ImageInitiatedCaseState.MergedIntoInstructionCase => "Merged into Instruction-initiated Case",
+        ImageInitiatedCaseState.StaffClosed => "Staff-closed",
+        _ => Humanise(state.ToString())
+    };
+
+    /// <summary>
+    /// The same state label where it continues a sentence ("None — awaiting
+    /// definitive instruction"). Only the first character drops case, so
+    /// "Instruction-initiated Case" survives intact.
+    /// </summary>
+    public static string ImageIntakeLifecycleStateContinuation(ImageInitiatedCaseState state)
+    {
+        var label = ImageIntakeLifecycleState(state);
+        return string.Concat(char.ToLowerInvariant(label[0]).ToString(), label.AsSpan(1));
+    }
 
     public static string CustodyState(DocumentCustodyStatus status) => status switch
     {
@@ -198,6 +224,9 @@ public static class OperatorLabels
         "intake_receipt_reevaluated" => "E-mail reprocessed",
         "image_intake_registered" => "Vehicle images registered",
         "image_intake_registration_reasserted" => "Vehicle images re-registered",
+        "merged_into_instruction_case" => "Merged into Instruction-initiated Case",
+        "staff_closed" => "Staff-closed",
+        "image_initiated_case_merged" => "Image-initiated Case merged in",
         "engineer_finding_recorded" => "Engineer finding recorded",
         "report_evidence_auto_linked" => "Sent report linked automatically",
         "standalone_audit_evidence_confirmed" => "Audit evidence confirmed",
