@@ -71,7 +71,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260812010335_ManualInspectionAuditCustody",
                 "20260813025241_StandaloneAuditReportDecision",
                 "20260814092852_AddWorkerCaseCreationGrants",
-                "20260814094632_DropBoxFileRequests"
+                "20260814094632_DropBoxFileRequests",
+                "20260819101344_GroupedIntakeSubmission"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
