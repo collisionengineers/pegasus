@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.ImageIntake;
 
@@ -58,7 +59,9 @@ public sealed class IndexModel(IImageIntakeQueries imageIntakeQueries) : PageMod
                     byReference.Record.NormalizedVehicleRegistration,
                     byReference.AssociatedCaseId,
                     byReference.AssociatedCaseReference,
-                    byReference.RegisteredAtUtc)
+                    byReference.RegisteredAtUtc,
+                    byReference.State,
+                    byReference.ClosureReason)
             ];
             return Page();
         }
@@ -70,11 +73,13 @@ public sealed class IndexModel(IImageIntakeQueries imageIntakeQueries) : PageMod
         return Page();
     }
 
+    /// <summary>
+    /// The queue-row outcome text. The state words come from
+    /// <see cref="OperatorLabels"/>; this only adds the dash-continuation
+    /// phrasing, so a second copy of the state vocabulary never grows here.
+    /// </summary>
     public static string OutcomeLabel(ImageIntakeSummary summary) =>
-        summary.State switch
-        {
-            ImageInitiatedCaseState.MergedIntoInstructionCase => "Merged into Instruction-initiated Case",
-            ImageInitiatedCaseState.StaffClosed => "Staff-closed",
-            _ => "Image-initiated Case — awaiting instruction"
-        };
+        summary.State == ImageInitiatedCaseState.AwaitingInstruction
+            ? $"Image-initiated Case — {OperatorLabels.ImageIntakeLifecycleStateContinuation(summary.State)}"
+            : OperatorLabels.ImageIntakeLifecycleState(summary.State);
 }

@@ -1,6 +1,7 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
@@ -11,12 +12,13 @@ namespace Pegasus.Web.Pages.ImageIntake;
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class DetailsModel(
-    IImageIntakeQueries imageIntakeQueries,
     IVrmSuggestionStore vrmSuggestionStore,
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
     IImageIntakeStore imageIntakeStore) : PageModel
 {
     public ImageIntakeDetail Detail { get; private set; } = null!;
+
+    public IReadOnlyList<ImageIntakeLifecycleEvent> History { get; private set; } = [];
 
     public IReadOnlyList<ImageVrmSuggestion> Suggestions { get; private set; } = [];
 
@@ -24,13 +26,14 @@ public sealed class DetailsModel(
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
-        var detail = await imageIntakeQueries.GetAsync(id, cancellationToken);
+        var detail = await imageIntakeStore.GetAsync(id, cancellationToken);
         if (detail is null)
         {
             return NotFound();
         }
 
         Detail = detail;
+        History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
         Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
             detail.Record.Origin.ReceiptId,
             cancellationToken);
@@ -71,6 +74,13 @@ public sealed class DetailsModel(
         catch (ArgumentException exception)
         {
             ModelState.AddModelError("reason", exception.Message);
+            return await OnGetAsync(id, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "This Image-initiated Case changed while you were working. Reload and try again.");
             return await OnGetAsync(id, cancellationToken);
         }
         catch (InvalidOperationException exception)

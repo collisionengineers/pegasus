@@ -1,4 +1,4 @@
-@* The folder is the internal domain name; the route is the operator's. *@
+﻿@* The folder is the internal domain name; the route is the operator's. *@
 @page "/VehicleImages/{id:guid}"
 @model Pegasus.Web.Pages.ImageIntake.DetailsModel
 @using Pegasus.Core.ImageIntake
@@ -10,20 +10,7 @@
     <div>
         <p class="eyebrow">Image-initiated Case</p>
         <h1>@Model.Detail.Record.ImageIntakeReference</h1>
-        <p class="lede">
-            @if (Model.Detail.State == ImageInitiatedCaseState.MergedIntoInstructionCase)
-            {
-                <text>Merged into the Instruction-initiated Case</text>
-            }
-            else if (Model.Detail.State == ImageInitiatedCaseState.StaffClosed)
-            {
-                <text>Staff-closed</text>
-            }
-            else
-            {
-                <text>Awaiting instruction</text>
-            }
-        </p>
+        <p class="lede">@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</p>
     </div>
     <a class="secondary-action" asp-page="/ImageIntake/Index">All Image-initiated Cases</a>
 </header>
@@ -35,7 +22,7 @@
             <div><dt>Image-initiated reference</dt><dd>@Model.Detail.Record.ImageIntakeReference</dd></div>
             <div><dt>Vehicle registration</dt><dd>@Model.Detail.Record.NormalizedVehicleRegistration</dd></div>
             <div><dt>Registered</dt><dd>@OperatorLabels.OfficeTime(Model.Detail.RegisteredAtUtc)</dd></div>
-            <div><dt>Lifecycle state</dt><dd>@Model.Detail.State</dd></div>
+            <div><dt>Lifecycle state</dt><dd>@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</dd></div>
             <div>
                 <dt>Case association</dt>
                 <dd>
@@ -45,7 +32,7 @@
                     }
                     else
                     {
-                        <text>None — awaiting instruction</text>
+                        <text>None — @OperatorLabels.ImageIntakeLifecycleStateContinuation(Model.Detail.State)</text>
                     }
                 </dd>
             </div>
@@ -84,14 +71,14 @@
     </section>
 }
 
-@if (Model.Detail.LifecycleHistory.Count > 0)
+@if (Model.History.Count > 0)
 {
     <section class="panel section-gap" aria-labelledby="image-initiated-history-title">
         <h2 id="image-initiated-history-title" class="section-label">Image-initiated Case history</h2>
         <ol class="plain-list">
-            @foreach (var entry in Model.Detail.LifecycleHistory)
+            @foreach (var entry in Model.History)
             {
-                <li><strong>@entry.EventType</strong> · @OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</li>
+                <li><strong>@OperatorLabels.HistoryEvent(entry.EventType)</strong> · @OperatorLabels.OfficeTime(entry.OccurredAtUtc) · @entry.Reason</li>
             }
         </ol>
     </section>
