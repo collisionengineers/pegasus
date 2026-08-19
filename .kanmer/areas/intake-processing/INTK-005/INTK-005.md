@@ -2,10 +2,12 @@
 id: INTK-005
 type: ticket
 title: Allow one Upload submission to accept and track multiple files
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-19T09:14:26.260Z'
 labels:
   - upload
   - ui
@@ -17,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T09:13:42.674Z'
+updated: '2026-08-19T09:14:26.260Z'
 ---
 
 ## What

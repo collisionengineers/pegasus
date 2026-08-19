@@ -2,10 +2,12 @@
 id: INTK-006
 type: ticket
 title: Diagnose and fix vehicle-image uploads that produce no case or visible outcome
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-19T09:14:26.298Z'
 labels:
   - upload
   - production-diagnostics
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T09:13:45.922Z'
+updated: '2026-08-19T09:14:26.298Z'
 ---
 
 ## What

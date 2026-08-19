@@ -2,12 +2,15 @@
 id: DOCS-002
 type: ticket
 title: Record the Web Container App as the integrated renderer execution boundary
-status: preparing
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-19T09:13:28.723Z'
+taken_at: '2026-08-19T09:14:51.544Z'
+branch: task/docs-002-renderer-web-boundary
+worktree: ../pegasus-worktrees/docs-002-renderer-web-boundary
 labels:
   - now
   - renderer-integration
@@ -21,7 +24,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-19T09:13:24.531Z'
-updated: '2026-08-19T09:13:28.723Z'
+updated: '2026-08-19T09:14:51.544Z'
 ---
 
 ## What
