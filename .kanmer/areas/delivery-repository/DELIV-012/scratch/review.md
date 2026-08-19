@@ -370,3 +370,44 @@ re-run), 14 corpus-gated skips; `Test-MigrationGrants` 50 files; `-Mode Local`
 clean.
 
 Verdict: pass. Merges last, as planned — it owns the vocabulary migration.
+
+## PR #428 — report-draft operator entry point — **PASS**
+
+Head `26ce9489` (after two `dev` merges, clean both times; `-Mode Local` 0;
+build 0 errors; the 12 projection tests re-run 12/12 after the merge).
+
+**It is reachable, and honest about when it cannot run.** The panel sits on
+`Pages/Cases/Assessment/Index.cshtml` under the page's existing authorisation
+and operation-key pattern. Markup checked against `docs/design/README.md`:
+existing `panel` / `section-label` / `status-card status-card--attention` /
+`blocker-list` classes, **no inline styles**, the not-ready state is conveyed by
+`data-state="not-ready"` plus text — not by colour alone — and the icon is a
+sprite `<use href="#icon-arrow-right">`. Amber, not green: nothing here is a
+confirmed completion. The absent-versus-disabled rule is followed: a case that
+is not ready stays visible with every outstanding reason named, rather than
+the control silently disappearing.
+
+**The readiness rail is reused, not duplicated.** The projection starts from
+`AssessmentPolicy.EvaluateReadiness` — the same rail the page already renders —
+and layers on only what `Validate()` needs beyond it. One readiness vocabulary.
+
+**The hard call was made correctly.** `Photos`/`Sources` come from the same
+custody-confirmed document gate `EvaHandoffStore` already uses, and the lane
+deliberately avoided `IGetCase`'s document projection for content reads because
+it never populates `DocumentOccurrence.Ordinal` and the Box content store
+rejects ordinal ≤ 0 — that would have thrown in production. Repair costs have
+no source of truth, the operator confirmed they are imported (ENG-002), and
+**no figures were fabricated**. The result is a real entry point that lists
+"Repair cost figures" as outstanding for every live case today, says so in
+FRD-11 and the RPT-02 row, and will start producing reports the moment an
+estimate import lands. That is the correct shape: the renderer is no longer
+dark, and nothing invented reaches an engineering report.
+
+**Scope line stated rather than hidden:** only the assessment PDF is surfaced;
+the fee note is generated but not yet offered.
+
+Evidence: Core 652/652 incl. 12 new projection tests; Architecture 97/97; new
+`AssessmentReportDraftWebTests` 2/2 on LocalDB; existing report/assessment
+suites (22 + 10) and the real-Chromium renderer tests (6) unchanged and green.
+
+Verdict: pass.
