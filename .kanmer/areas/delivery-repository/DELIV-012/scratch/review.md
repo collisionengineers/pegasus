@@ -121,3 +121,56 @@ routed it to the grants lane.
 
 **Verdict: pass.** Blocking only on the release-gate fix landing first, since
 `Build-ReleaseArtifacts` is validated by the same script.
+
+## PR #422 — TICK-045 / MAIL-03 after takeover — **PASS**
+
+Head `1d2a9ee4`, 6 files, +204/−2. Compare with what it was: 2 files, zero production lines, a fabricated classification result and a fabricated mailbox address.
+
+**The evidence problem is genuinely fixed, and I can see why.** The test no
+longer stores a `MailClassificationResult.Ambiguous(..., "shared-mail-policy", 9)`
+literal that no policy emits. It resolves `IMailClassificationPolicy` from DI and
+feeds content that makes the real `QdosMailClassificationPolicy` produce a
+genuine Ambiguous outcome (a Triage phrase and an Audit title both matching), then
+asserts `PolicyKey`/`PolicyVersion` come from the resolved policy. That is a test
+that can fail for the reason it claims — the original could not.
+
+**Falsifiability was demonstrated, not asserted.** The lane removed the DI
+registration, observed `InvalidOperationException: No service for type
+'IMailClassificationPolicy' has been registered`, reverted, and reran green; and
+did the same break/revert cycle for the two new viewer tests, confirming the
+revert with `git diff`. I weight this heavily because the defect being remediated
+was precisely a green test that proved nothing.
+
+**Fabricated mailbox removed.** `claims@collisionengineers.co.uk` — which appears
+nowhere in `docs/operator-notes.md` and trips the repository's "never fabricate
+domain emails" rule — replaced with the documented `engineers@collisionengineers.co.uk`.
+The lane also stated plainly that no approval-path helper exists in that test
+support and it used the file's existing `SeedPollStateAsync`, rather than
+implying a cleaner route than it took.
+
+**The caller is real.** `MailOperationalDestinationPolicy` was dark; it now has a
+production caller at `/Inbox/{id}` rendering the operational destination and its
+policy key/version inside the existing Classification-evidence panel, as a pure
+derivation of already-loaded data — no new persistence, no new panel style, and
+`OperatorLabels` reuses the exact "Needs sorting" string the page already renders
+so no new operator-visible copy is introduced before INTK-007 migrates that
+vocabulary.
+
+**Capability wording now matches the evidence.** MAIL-02 names the exact caller
+file and the two proving tests and states explicitly that UI-14 (categorised
+queues) remains undelivered; MAIL-03 states it is proven against the registered
+policy across the two documented mailboxes and is "Not deployed or live-mailbox
+verified". Neither overclaims.
+
+**Checklist honesty.** Item 5's "unsupported message failures" claim was never
+true and was **restated rather than quietly left ticked** — the disposition I
+care about most, since the review found this ticket's original 12/12 unearned.
+
+**Verdict: pass.** Evidence: build 0/0, Core 640/640, targeted integration 31/31
+on LocalDB.
+
+**Owed after merge, not by this PR:** (a) reconcile TICK-044's checklist — the
+caller its operator ruling demanded landed on *this* ticket's diff; (b)
+`docs/capabilities.md` MAIL-04 still reads "Allocation only; owning evidence
+still required" although TICK-046 delivered it — that row belongs to TICK-046 and
+should be corrected in the release docs refresh, not silently here.
