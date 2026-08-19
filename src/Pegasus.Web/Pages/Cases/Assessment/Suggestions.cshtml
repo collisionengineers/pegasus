@@ -18,7 +18,6 @@
 @{
     ViewData["Title"] = "Suggestions";
     ViewData["Eyebrow"] = "Assessment";
-    ViewData["Lede"] = "Decide on each suggestion. Nothing reaches the case until you apply what you have accepted.";
 
     var caseId = ViewContext.RouteData.Values["id"]?.ToString() ?? string.Empty;
 
@@ -64,14 +63,14 @@
 
         <section class="panel" aria-labelledby="suggestion-boundary-title">
             <h2 id="suggestion-boundary-title" class="section-label">What a suggestion is</h2>
-            <p>A suggestion is a proposal for you to weigh. It changes nothing on its own, and what you accept is recorded against your name.</p>
+            <p>A suggestion changes nothing on its own; what you accept is recorded against your name.</p>
         </section>
     </aside>
 
     <div>
         <section class="panel" aria-labelledby="suggestion-list-title">
             <h2 id="suggestion-list-title">Suggested changes</h2>
-            <p class="lede">Each one starts on Reject. Change only the ones you want.</p>
+            <p>Each suggestion starts on Reject; change only the ones you want.</p>
 
             @* `section` is a reserved Razor directive, so the loop variable cannot use it. *@
     @foreach (var (field, inSection, ownDecision) in suggested)

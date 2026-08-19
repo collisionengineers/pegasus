@@ -154,7 +154,7 @@
 
         <section class="panel" aria-labelledby="send-title">
             <h2 id="send-title" class="section-label">Send to Claude</h2>
-            <p>Claude works on this case directly. Every change is recorded with its author, and the values it records stay unconfirmed until you review them.</p>
+            <p>Every change Claude makes is recorded with its author and stays unconfirmed until you review it.</p>
 
             @if (Model.PanelState == "available")
             {
@@ -186,7 +186,7 @@
                 {
                     <div class="status-card" data-send-state="completed">
                         <h3>Claude has finished</h3>
-                        <p>Review the changes on this case. Every change is listed in the <a href="/Cases/@caseId">case history</a>.</p>
+                        <p>Every change is listed in the <a href="/Cases/@caseId">case history</a>.</p>
                     </div>
                 }
                 @if (Model.PanelState == "unavailable")
@@ -199,7 +199,7 @@
                         }
                         else
                         {
-                            <p>Sending is not available for this case. The readiness list above names what is outstanding.</p>
+                            <p>The readiness list above names what is outstanding.</p>
                         }
                     </div>
                 }
@@ -229,7 +229,7 @@
         *@
         <section class="panel" aria-labelledby="report-draft-title">
             <h2 id="report-draft-title" class="section-label">Report draft</h2>
-            <p>Generates the assessment report from the values recorded on this case and returns it as a PDF. Nothing is saved or sent.</p>
+            <p>Nothing is saved or sent.</p>
 
             @if (Model.ReportDraftPreparation is null)
             {
@@ -270,7 +270,6 @@
         {
             <section class="panel" aria-labelledby="vehicle-title">
                 <h2 id="vehicle-title">Vehicle</h2>
-                <p class="lede">Identity and condition of the vehicle assessed. VIN, engine, fuel and odometer are not carried by every vehicle type.</p>
                 <div class="form-grid section-gap">
                     <div>
                         <label for="vehicle-registration">Registration</label>
@@ -379,7 +378,6 @@
         {
             <section class="panel" aria-labelledby="incident-title">
                 <h2 id="incident-title">Incident and impact</h2>
-                <p class="lede">Dates for the incident and this instruction, and where and how hard the vehicle was struck.</p>
                 <div class="form-grid section-gap">
                     <div>
                         <label for="incident-date">Incident date</label>
@@ -445,11 +443,10 @@
         {
             <section class="panel" aria-labelledby="inspection-title">
                 <h2 id="inspection-title">Inspection</h2>
-                <p class="lede">How the vehicle was assessed, and where, when a physical inspection took place.</p>
 
                 <div class="status-card status-card--info">
                     <h3>The principal sets the default</h3>
-                    <p>The inspection mode comes from the principal's setting. Changing it on this case needs a reason, and address fields never imply attendance.</p>
+                    <p>Changing the inspection mode on this case needs a reason; address fields never imply attendance.</p>
                 </div>
 
                 <fieldset class="role-choices role-choices--stacked">
@@ -481,7 +478,6 @@
         {
             <section class="panel" aria-labelledby="valuation-title">
                 <h2 id="valuation-title">Valuation</h2>
-                <p class="lede">Guide evidence supports your opinion. The three figures you choose are the ones the report carries.</p>
 
                 <h3 class="section-label section-gap">Guide evidence</h3>
                 <div class="form-grid">
@@ -519,7 +515,7 @@
 
                 <div class="status-card status-card--info">
                     <h3>Guide figures stay on this screen</h3>
-                    <p>They are evidence for your opinion and are read-only here. Only the three figures below reach the report.</p>
+                    <p>Guide figures are read-only; only the three figures below reach the report.</p>
                 </div>
 
                 @{
@@ -636,7 +632,6 @@
 
             <section class="panel est-body" aria-labelledby="estimate-title">
                 <h2 id="estimate-title">Estimate</h2>
-                <p class="lede">Build the repair one line at a time. Every total below follows from the lines and the rate card, so none of them are typed in.</p>
 
                 <h3 class="section-label section-gap">Rate card</h3>
                 @* Rates are published reference data with their own dates and caveat, not a
@@ -881,7 +876,7 @@
                         <p class="empty-state">No check, paint or specialist lines yet.</p>
                     </div>
                 </div>
-                <p class="empty-state">Remove-and-refit lines are not named on the report. Their labour is carried in the hours.</p>
+                <p class="empty-state">Remove-and-refit lines are not named on the report; their labour is carried in the hours.</p>
 
                 <div class="button-row section-gap">
                     <button type="button" class="primary-action">Save estimate</button>
@@ -894,11 +889,10 @@
         {
             <section class="panel" aria-labelledby="findings-title">
                 <h2 id="findings-title">Findings</h2>
-                <p class="lede">Roadworthiness and the assessment outcome are separate professional findings.</p>
 
                 <div class="status-card status-card--attention">
                     <h3>A correction keeps the earlier finding</h3>
-                    <p>Changing a recorded finding needs a reason and keeps the version it replaces. A correction never implies a fee or invoice change.</p>
+                    <p>Changing a recorded finding needs a reason and never changes the fee or invoice.</p>
                 </div>
 
                 <div class="form-grid">
@@ -955,11 +949,9 @@
         {
             <section class="panel" aria-labelledby="report-title">
                 <h2 id="report-title">Report content</h2>
-                <p class="lede">The remaining text the report carries, plus who signs it and the agreed fee.</p>
 
                 <div class="status-card status-card--info">
                     <h3>Most of the report is written for you</h3>
-                    <p>The introduction, the mileage sentence, the pre-incident condition, and the settlement and salvage paragraphs come from the values recorded in the other sections.</p>
                 </div>
 
                 <div class="form-grid">
@@ -1049,7 +1041,7 @@
 <div id="send-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-body" hidden>
     <div class="reason-dialog">
         <h2 id="send-confirm-title">Send this case to Claude?</h2>
-        <p id="send-confirm-body">Claude reads the case and records its working values directly. Every change is attributed and stays unconfirmed until you review it; nothing is ever sent outward on your behalf.</p>
+        <p id="send-confirm-body">Claude records its working values directly on this case; every change is attributed, stays unconfirmed until you review it, and nothing is sent outward on your behalf.</p>
         <div class="button-row">
             <button type="button" class="secondary-action" data-send-cancel>Cancel</button>
             <button type="button" class="secondary-action send-action" data-send-confirm>
