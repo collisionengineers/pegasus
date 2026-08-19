@@ -16,8 +16,25 @@ namespace Pegasus.Web.Pages.Mail;
 /// allocated work that has not landed, and the screen says so rather than
 /// offering a control that does nothing.
 /// </remarks>
-public sealed class MessageModel(GetRetainedMail getRetainedMail) : PageModel
+public sealed class MessageModel(
+    GetRetainedMail getRetainedMail,
+    CorrectRetainedMailClassification correctClassification) : PageModel
 {
+    public sealed record ClassificationOption(string Value, string Label);
+
+    public static IReadOnlyList<ClassificationOption> ClassificationOptions { get; } =
+        [
+            .. Enum.GetValues<ReceivedMailFamily>().SelectMany(family =>
+                MailTaxonomy.ConfirmedReceivedSubtypes[family].Length == 0
+                    ? [new ClassificationOption($"received:{family}", MailTaxonomy.CategoryName(family))]
+                    : MailTaxonomy.ConfirmedReceivedSubtypes[family].Select(subtype =>
+                        new ClassificationOption($"received:{family}:{subtype}", $"{MailTaxonomy.CategoryName(family)}/{subtype}"))),
+            .. Enum.GetValues<SentMailFamily>().Select(family =>
+                new ClassificationOption($"sent:{family}", $"Sent: {MailTaxonomy.CategoryName(family)}")),
+            new("other-received", "Other received classification"),
+            new("other-sent", "Other sent classification")
+        ];
+
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
     /// Back reconstructs the exact position the operator left.
@@ -33,6 +50,24 @@ public sealed class MessageModel(GetRetainedMail getRetainedMail) : PageModel
 
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? Section { get; set; }
+
+    [BindProperty]
+    public int ExpectedClassificationVersion { get; set; }
+
+    [BindProperty]
+    public string? ClassificationKey { get; set; }
+
+    [BindProperty]
+    public string? OtherClassificationName { get; set; }
+
+    [BindProperty]
+    public string? OtherClassificationReasoning { get; set; }
+
+    [BindProperty]
+    public string? CorrectionReason { get; set; }
+
+    [TempData]
+    public string? ClassificationNotice { get; set; }
 
     public RetainedMailDetail Detail { get; private set; } = null!;
 
@@ -87,6 +122,136 @@ public sealed class MessageModel(GetRetainedMail getRetainedMail) : PageModel
         return Page();
     }
 
+    public async Task<IActionResult> OnPostCorrectClassificationAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!StaffActorFactory.TryCreate(
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var actor))
+        {
+            return Forbid();
+        }
+        if (!TryCategory(out var category))
+        {
+            ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification and complete any Other details.");
+        }
+        if (string.IsNullOrWhiteSpace(CorrectionReason))
+        {
+            ModelState.AddModelError(nameof(CorrectionReason), "Explain why this classification is being corrected.");
+        }
+        if (!ModelState.IsValid)
+        {
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
+        try
+        {
+            var result = await correctClassification.ExecuteAsync(
+                actor,
+                new(id, ExpectedClassificationVersion, category!, CorrectionReason!),
+                cancellationToken);
+            if (result is null)
+            {
+                return NotFound();
+            }
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (MailClassificationConcurrencyException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+
+        ClassificationNotice = "Classification corrected. The previous decision and evidence remain in permanent history.";
+        return RedirectToPage(new
+        {
+            id,
+            mailbox = MailboxFilter,
+            folder = FolderFilter,
+            pageNumber = PageNumber
+        });
+    }
+
+    private async Task<IActionResult> ReloadAsync(
+        ActionActor actor,
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!IndexModel.TryParseFolder(FolderFilter, out var listFolder))
+        {
+            return NotFound();
+        }
+        ListFolder = listFolder;
+        var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+        if (detail is null)
+        {
+            return NotFound();
+        }
+        Detail = detail;
+        OutsideListScope = detail.Folder != listFolder
+            || (MailboxFilter is { } mailbox
+                && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal));
+        return Page();
+    }
+
+    private bool TryCategory(out MailCategory? category)
+    {
+        category = null;
+        var parts = ClassificationKey?.Split(':');
+        if (parts is ["received", var received]
+            && Enum.TryParse<ReceivedMailFamily>(received, out var receivedFamily))
+        {
+            category = MailCategory.Received(receivedFamily);
+            return true;
+        }
+        if (parts is ["received", var receivedWithSubtype, var subtype]
+            && Enum.TryParse<ReceivedMailFamily>(receivedWithSubtype, out var subtypeFamily))
+        {
+            try
+            {
+                category = MailCategory.Received(subtypeFamily, subtype);
+                return true;
+            }
+            catch (ArgumentException)
+            {
+                return false;
+            }
+        }
+        if (parts is ["sent", var sent]
+            && Enum.TryParse<SentMailFamily>(sent, out var sentFamily))
+        {
+            category = MailCategory.Sent(sentFamily);
+            return true;
+        }
+        var otherDirection = ClassificationKey switch
+        {
+            "other-received" => MailDirection.Received,
+            "other-sent" => MailDirection.Sent,
+            _ => (MailDirection?)null
+        };
+        if (otherDirection is null
+            || string.IsNullOrWhiteSpace(OtherClassificationName)
+            || string.IsNullOrWhiteSpace(OtherClassificationReasoning))
+        {
+            return false;
+        }
+        category = MailCategory.Other(
+            otherDirection.Value,
+            OtherClassificationName,
+            OtherClassificationReasoning);
+        return true;
+    }
+
     public string ActiveSection => Section switch
     {
         "attachments" => "attachments",
@@ -106,6 +271,10 @@ public sealed class MessageModel(GetRetainedMail getRetainedMail) : PageModel
         MailClassificationOutcome.Unclassified => "Unclassified",
         _ => "Not yet processed"
     };
+
+    public static string DecisionLabel(MailClassificationResult result) => result.Category is { } category
+        ? $"{(category.Direction == MailDirection.Sent ? "Sent: " : string.Empty)}{category.Name}{(category.Subtype is null ? string.Empty : "/" + category.Subtype)}"
+        : ClassificationLabel(result.Outcome);
 
     public static string QueueLabel(MailRouteDisposition? disposition) => disposition switch
     {

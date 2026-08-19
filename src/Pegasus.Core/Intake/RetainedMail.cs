@@ -83,7 +83,115 @@ public sealed record RetainedMailDetail(
     IReadOnlyList<RetainedMailThreadEntry> Thread,
     MailFolderScope Folder,
     MailClassificationOutcome? ClassificationOutcome,
-    MailRouteDisposition? RouteDisposition);
+    MailRouteDisposition? RouteDisposition,
+    MailClassificationDossier? Classification = null);
+
+public sealed record MailClassificationHistoryEntry(
+    int Version,
+    MailClassificationResult Before,
+    MailClassificationResult After,
+    string Actor,
+    string Reason,
+    DateTimeOffset CorrectedAtUtc);
+
+public sealed record MailClassificationDossier(
+    int Version,
+    MailClassificationResult Current,
+    string CurrentActor,
+    DateTimeOffset CurrentDecidedAtUtc,
+    IReadOnlyList<MailClassificationHistoryEntry> History);
+
+public sealed record CorrectMailClassificationRequest(
+    Guid MessageId,
+    int ExpectedVersion,
+    MailCategory Category,
+    string Reason);
+
+public interface IRetainedMailClassificationStore
+{
+    Task<MailClassificationDossier?> GetClassificationAsync(
+        Guid messageId,
+        CancellationToken cancellationToken);
+
+    Task<MailClassificationDossier> AppendCorrectionAsync(
+        Guid messageId,
+        int expectedVersion,
+        MailClassificationResult before,
+        MailClassificationResult after,
+        string actor,
+        string reason,
+        DateTimeOffset correctedAtUtc,
+        CancellationToken cancellationToken);
+}
+
+public sealed class MailClassificationConcurrencyException()
+    : InvalidOperationException("The classification changed after this message was opened. Reload it before correcting it.");
+
+/// <summary>
+/// The sole business operation for correcting one retained message. Persistence owns
+/// the transaction; this use case owns authorization, validation and the decision that
+/// a correction preserves the policy/evidence which produced the prior result.
+/// </summary>
+public sealed class CorrectRetainedMailClassification(
+    IRetainedMailClassificationStore store,
+    TimeProvider timeProvider)
+{
+    private readonly IRetainedMailClassificationStore store =
+        store ?? throw new ArgumentNullException(nameof(store));
+    private readonly TimeProvider timeProvider =
+        timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+
+    public async Task<MailClassificationDossier?> ExecuteAsync(
+        ActionActor actor,
+        CorrectMailClassificationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.Category);
+        if (request.MessageId == Guid.Empty)
+        {
+            throw new ArgumentException("A retained message identifier is required.", nameof(request));
+        }
+        if (request.ExpectedVersion < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(request), "A positive classification version is required.");
+        }
+        var reason = request.Reason?.Trim();
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
+        {
+            throw new ArgumentException("A correction reason of 1 to 500 characters is required.", nameof(request));
+        }
+
+        var current = await store.GetClassificationAsync(request.MessageId, cancellationToken);
+        if (current is null)
+        {
+            return null;
+        }
+        if (current.Version != request.ExpectedVersion)
+        {
+            throw new MailClassificationConcurrencyException();
+        }
+
+        var after = MailClassificationResult.Classified(
+            request.Category,
+            current.Current.Predicates,
+            reason,
+            current.Current.PolicyKey,
+            current.Current.PolicyVersion,
+            current.Current.Category == request.Category ? current.Current.CaseType : null,
+            current.Current.Category == request.Category ? current.Current.StandaloneAuditReport : null);
+        return await store.AppendCorrectionAsync(
+            request.MessageId,
+            request.ExpectedVersion,
+            current.Current,
+            after,
+            $"{actor.Kind.ToString().ToLowerInvariant()}:{actor.SubjectId}",
+            reason,
+            timeProvider.GetUtcNow(),
+            cancellationToken);
+    }
+}
 
 /// <summary>
 /// One mailbox the workspace can scope to, and whether the estate still polls it.

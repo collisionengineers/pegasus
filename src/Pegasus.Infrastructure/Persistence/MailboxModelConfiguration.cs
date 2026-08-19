@@ -160,9 +160,27 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.PolicyKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.StandaloneAuditReportAssetSourceLabel).HasMaxLength(500);
             entity.Property(item => item.StandaloneAuditReportAssessment).HasMaxLength(40);
+            entity.Property(item => item.DecidedByActor).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();
             entity.HasOne(item => item.IntakeReceipt)
                 .WithOne(item => item.MailClassificationDecision)
                 .HasForeignKey<IntakeMailClassificationDecisionEntity>(item => item.IntakeReceiptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<IntakeMailClassificationHistoryEntity>(entity =>
+        {
+            entity.ToTable("IntakeMailClassificationHistory");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Reason).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.BeforeJson).IsRequired();
+            entity.Property(item => item.AfterJson).IsRequired();
+            entity.HasIndex(item => new { item.IntakeReceiptId, item.Version }).IsUnique();
+            entity.HasOne(item => item.ClassificationDecision)
+                .WithMany(item => item.History)
+                .HasForeignKey(item => item.IntakeReceiptId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

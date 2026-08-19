@@ -125,7 +125,7 @@ internal sealed class ApprovedSentPollOutcomeEntity
     public required string OperationKey { get; set; }
 }
 
-internal sealed class IntakeMailClassificationDecisionEntity
+internal sealed class IntakeMailClassificationDecisionEntity : IApplicationManagedConcurrencyToken
 {
     public Guid IntakeReceiptId { get; set; }
     public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
@@ -144,6 +144,24 @@ internal sealed class IntakeMailClassificationDecisionEntity
     public int PolicyVersion { get; set; }
     public string? StandaloneAuditReportAssetSourceLabel { get; set; }
     public string? StandaloneAuditReportAssessment { get; set; }
+    public required string DecidedByActor { get; set; }
+    public DateTimeOffset DecidedAtUtc { get; set; }
+    public int Version { get; set; } = 1;
+    public Guid ConcurrencyToken { get; set; }
+    public List<IntakeMailClassificationHistoryEntity> History { get; } = [];
+}
+
+internal sealed class IntakeMailClassificationHistoryEntity
+{
+    public Guid Id { get; set; }
+    public Guid IntakeReceiptId { get; set; }
+    public IntakeMailClassificationDecisionEntity ClassificationDecision { get; set; } = null!;
+    public int Version { get; set; }
+    public required string BeforeJson { get; set; }
+    public required string AfterJson { get; set; }
+    public required string Actor { get; set; }
+    public required string Reason { get; set; }
+    public DateTimeOffset CorrectedAtUtc { get; set; }
 }
 
 internal sealed class IntakeMailRouteDecisionEntity
