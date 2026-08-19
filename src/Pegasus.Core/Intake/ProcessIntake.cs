@@ -24,22 +24,44 @@ public sealed class ProcessIntake(
     public Task<IntakeReceipt> ExecuteAsync(
         IntakeSource source,
         CancellationToken cancellationToken = default) =>
-        ExecuteCoreAsync(source, retainedSourceStorageKey: null, replaceExisting: false, cancellationToken);
+        // No retry orchestration wraps this direct/manual-upload path, so a
+        // reader fault here has no later attempt to defer to: treat it as final.
+        ExecuteCoreAsync(
+            source,
+            retainedSourceStorageKey: null,
+            replaceExisting: false,
+            isFinalAttempt: true,
+            cancellationToken);
 
+    /// <param name="isFinalAttempt">
+    /// True when the caller's own retry schedule (if any) has no further
+    /// attempt left for this work item. A transient reader fault is only
+    /// converted into a terminal technical-failure receipt — and only then
+    /// registered as Unidentified — once this is true; otherwise it
+    /// propagates so the queued caller can retry and processing stays
+    /// in-flight rather than allocating a U-reference.
+    /// </param>
     internal Task<IntakeReceipt> ExecuteRetainedAsync(
         IntakeSource source,
         string retainedSourceStorageKey,
         bool replaceExisting = false,
+        bool isFinalAttempt = true,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(retainedSourceStorageKey);
-        return ExecuteCoreAsync(source, retainedSourceStorageKey, replaceExisting, cancellationToken);
+        return ExecuteCoreAsync(
+            source,
+            retainedSourceStorageKey,
+            replaceExisting,
+            isFinalAttempt,
+            cancellationToken);
     }
 
     private async Task<IntakeReceipt> ExecuteCoreAsync(
         IntakeSource source,
         string? retainedSourceStorageKey,
         bool replaceExisting,
+        bool isFinalAttempt,
         CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(source.FileName);
@@ -119,8 +141,16 @@ public sealed class ProcessIntake(
         {
             readResult = await sourceReader.ReadAsync(safeSource, cancellationToken);
         }
-        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception)
+            && (isFinalAttempt || !IntakeExceptionPolicy.IsTransientFailure(exception)))
         {
+            // A non-transient reader fault is always terminal. A transient
+            // fault (I/O, timeout, database, or a dependency-unavailable
+            // adapter fault) is only terminal once the caller has no retry
+            // left; otherwise it propagates so the retained/queued caller
+            // (DurableIntake) retries it on its bounded schedule. Retryable
+            // processing must remain in processing and never allocate a
+            // U-reference; only a terminal fault after custody succeeds does.
             readResult = new(
                 IntakeSourceReadStatus.TechnicalFailure,
                 [],
