@@ -31,14 +31,11 @@
                 <input asp-for="OperationKey" type="hidden" />
                 <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
                 <div class="dropzone dropzone--compact" data-dropzone>
-                    <span class="dropzone__glyph" aria-hidden="true"><svg class="icon"><use href="#icon-upload" /></svg></span>
+                    <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
                     <label asp-for="Upload">Drag a file here, or choose one</label>
                     <span class="field-hint">Up to @Model.MaximumFileSize.</span>
                     <input asp-for="Upload" type="file" accept="@Model.AcceptedMediaTypes" />
-                    <button type="button" class="btn dropzone__browse" hidden
-                            data-dropzone-browse
-                            data-label-choose="Choose file"
-                            data-label-change="Choose a different file">Choose file</button>
+                    <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose file</button>
                     <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
                 </div>
                 <span asp-validation-for="Upload" class="field-validation"></span>

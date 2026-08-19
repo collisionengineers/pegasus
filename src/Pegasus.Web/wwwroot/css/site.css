@@ -1942,33 +1942,20 @@ details > summary.btn::-webkit-details-marker { display: none; }
   color: var(--ce-red);
 }
 
-.dropzone__glyph .icon { width: 1.25rem; height: 1.25rem; }
-
 /* Enhanced by site.js: the whole dashed area is the drop target and a real
-   button opens the picker, so the native control is visually hidden — but it
-   stays in the tab order and the label still opens it, so keyboard and
-   assistive users lose nothing and a no-script page still shows the input.
-   The focus ring moves to the dropzone so a focused, hidden input is visible. */
-.dropzone.is-enhanced input[type="file"] {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
+   button opens the picker, so the native control becomes `.sr-only` — still in
+   the tab order, still opened by its label, so keyboard and assistive users
+   lose nothing and a no-script page still shows the input. The focus ring
+   moves to the dropzone so a focused, hidden input is visible. */
 .dropzone.is-enhanced { position: relative; }
 .dropzone.is-enhanced:focus-within { outline: var(--focus-ring); outline-offset: 2px; }
 .dropzone__browse { margin-top: var(--sp-2); }
 
-/* A file over the target: the sanctioned active use of red, with the border
-   change as the second signal. A chosen file: a solid edge and the name. */
+/* A chosen file: a solid edge and the name. A file over the target: the
+   sanctioned active use of red, with the border change as the second signal —
+   declared last so it still shows over a zone that already holds a file. */
+.dropzone.has-file { border-style: solid; background: var(--panel); }
 .dropzone.is-dragover { border-color: var(--ce-red); border-style: solid; background: var(--ce-red-tint); }
-.dropzone.has-file { border-style: solid; border-color: var(--line-strong); background: var(--panel); }
 
 .dropzone__file {
   display: flex;
@@ -1997,8 +1984,6 @@ details > summary.btn::-webkit-details-marker { display: none; }
   max-width: 1040px;
   margin: var(--sp-10) auto 0;
 }
-
-.upload-layout .form-column { max-width: none; margin: 0; }
 
 @media (max-width: 1023px) {
   .upload-layout { grid-template-columns: minmax(0, 1fr); }
