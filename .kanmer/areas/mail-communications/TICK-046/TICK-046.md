@@ -34,9 +34,10 @@ commits:
   - 581fee7f
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/418'
+deployment: not-deployed
 archived: false
 created: '2026-08-12T15:03:53.708Z'
-updated: '2026-08-19T11:24:00.818Z'
+updated: '2026-08-19T13:29:46.406Z'
 ---
 
 ## What
