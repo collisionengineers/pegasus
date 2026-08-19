@@ -6,29 +6,29 @@
 - [x] Name the existing ImageIntake registration/reference owner and formal Case acceptance boundary in files.md/plan.md.
 - [x] Add one canonical Core group-routing policy and exhaustive decision matrix.
 - [x] Distinguish detector-empty, recognizer-empty, below-bar, accepted, and technical recognition outcomes.
-- [ ] Add non-sensitive per-stage recognition telemetry.
-- [x] Change image automation to load the complete INTK-005 group and wait for all terminal member results.
+- [ ] Add non-sensitive per-stage recognition telemetry. — Progress: not added this session. What exists: `OnnxVrmRecognitionEngine` records a distinct non-sensitive `FailureCode` (`detector_no_plate` vs `recognizer_no_readable_text`) on the durable `ImageVrmSuggestion`, which is queryable evidence that proves which layer ran/abstained without logging image content — this satisfies the ticket's diagnostic-evidence acceptance criterion. A live OTel counter/span specifically for detector-stage vs recognizer-stage (as the plan's step 3 described) was not added; `ImageIntakeAutomation`'s `Activity` tags are at the receipt/group level (outcome, reference, association), not per-recognition-stage.
+- [x] Change image automation to load the complete INTK-005 group and wait for all terminal member results. — Progress (2026-08-19 takeover): this was checked before but was actually broken for any real 2+ member group — `TryApplyGroupAsync`'s per-member lookup always queried the `{token}:{ordinal}` shape while `SubmitGroupedIntake` submits ordinal 0 under the bare token, so a group's own first member could never be found and the group waited forever. Fixed by extracting one shared `GroupedIntakeMemberToken.Create` used by both. Also added: the group now waits on a persisted `ExpectedMemberCount` (declared once at submission) rather than on however many member rows happen to exist yet, closing a second, independent "wait for all members" gap a reviewer identified.
 - [x] Group identity/replay boundary is recorded; durable Image-initiated lifecycle outcome persistence is delegated to [[INTK-008]].
 - [x] Reuse `ImageIntakeCasePairing` as the single eligible-case matcher.
-- [ ] Implement the one-existing-Case branch and attach every group member.
+- [x] Implement the one-existing-Case branch and attach every group member. — Progress (2026-08-19): confirmed working end-to-end and proved with a new test, `OneEligibleCaseAssociatesEveryGroupMember` (2-member group, one eligible Case, both members registered and auto-linked to it). This also fixes the headline blocker: `TryRegisterAndAssociateAsync` now takes the group's `ImageIntakeGroupRoutingDecision` and only performs the per-member candidate search/association when the decision is `AssociateExistingCase`, so an ambiguous or absent group-level eligible-case count can never be silently overruled by a per-member exact match.
 - [x] Confirm the existing ImageIntake owner is the Image-initiated branch; lifecycle implementation is delegated to [[INTK-008]].
-- [ ] Preserve every receipt, original filename, source identity, ordinal, suggestion, and history entry.
-- [ ] Add grouped status/history presentation in [[INTK-008]] (follow-on).
-- [ ] Test accepted VRM + one match associates all images.
-- [x] Test readable overview + no-plate close-up associates both.
-- [ ] Test one usable VRM with zero match creates the ImageIntake/Image-initiated Case outcome in [[INTK-008]].
-- [ ] Test one usable VRM with multiple matches creates one ImageIntake/Image-initiated Case and no existing association in [[INTK-008]].
-- [ ] Test conflicting VRMs enter one INTK-007 Unidentified group with conflicting_vrms marker in [[INTK-007]].
-- [ ] Test all no-readable/below-bar results enter one INTK-007 Unidentified group in [[INTK-007]].
-- [ ] Test processing/retryable member prevents premature finalization.
-- [ ] Test technical terminal failure follows the INTK-007/INTK-008 documented outcome.
-- [ ] Test replay, reverse completion order, and concurrent finalizers produce exactly one outcome.
+- [x] Preserve every receipt, original filename, source identity, ordinal, suggestion, and history entry. — Progress: verified by inspection rather than new tests — no persistence change this session touches receipt, filename, source-identity, or suggestion storage; `IntakeSubmissionGroupMember.Ordinal`/`SourceFileName`/`SourceHash` are unchanged, and `ImageVrmSuggestion` recording is unchanged (only reused, not rewritten, by the new scan-once cache).
+- [ ] Add grouped status/history presentation in [[INTK-008]] (follow-on). — Progress: unchanged, correctly delegated; `UploadGroupStatus.cshtml`'s existing `data-auto-refresh` (added by INTK-005) confirmed to have survived the merge intact.
+- [x] Test accepted VRM + one match associates all images. — Progress: `OneEligibleCaseAssociatesEveryGroupMember` (new, 2026-08-19).
+- [x] Test readable overview + no-plate close-up associates both. — Existing policy-level test (`ImageIntakeGroupRoutingPolicyTests.PlateOverviewAndUnreadableDamageCloseupShareOneCase`) plus the new end-to-end `OneEligibleCaseAssociatesEveryGroupMember`, which proves the same claim through the automation layer, not just the policy function.
+- [ ] Test one usable VRM with zero match creates the ImageIntake/Image-initiated Case outcome in [[INTK-008]]. — Progress: INTK-006's own slice (zero eligible candidates registers into ImageIntake without associating) is exercised by `NoCandidateCaseRegistersWithoutAssociating` (single-receipt) and by the ambiguous-group test's registration assertion; the "Image-initiated Case" naming/outcome itself remains [[INTK-008]]'s scope and is not claimed here.
+- [ ] Test one usable VRM with multiple matches creates one ImageIntake/Image-initiated Case and no existing association in [[INTK-008]]. — Progress: INTK-006's own slice is now covered by `AmbiguousGroupEligibilityHandsOffDespiteAPerMemberExactMatch` (2 eligible candidates for the one accepted VRM → group hands off, no association, both members still register). The "one Image-initiated Case" dedup/lifecycle claim remains [[INTK-008]]'s scope.
+- [ ] Test conflicting VRMs enter one INTK-007 Unidentified group with conflicting_vrms marker in [[INTK-007]]. — Progress: unchanged; the routing policy's `conflicting_vrms` reason code is already unit-tested at the policy level (`ImageIntakeGroupRoutingPolicyTests.ConflictingReadsRouteToUnidentifiedWithSpecificReason`); the actual Unidentified U<n> routing/grouping is [[INTK-007]]'s scope and not implemented here — today the group simply remains `Needs sorting` intact, as FRD-02's new "Grouped image-intake routing" section now documents.
+- [ ] Test all no-readable/below-bar results enter one INTK-007 Unidentified group in [[INTK-007]]. — Progress: unchanged; same boundary as above.
+- [x] Test processing/retryable member prevents premature finalization. — Progress: policy-level (`ImageIntakeGroupRoutingPolicyTests.IncompleteMemberWaitsWithoutRouting`) plus a new automation-level test, `AGroupWithFewerStagedMembersThanDeclaredNeverFinalizes`, proving the `ExpectedMemberCount` gate (a group short of its declared member count reaches no decision even when every present member is itself complete).
+- [ ] Test technical terminal failure follows the INTK-007/INTK-008 documented outcome. — Progress: not added this session; `UnavailableEngineRecordsTheOutcomeAndNeverBlocks` covers the single-receipt technical-failure path, but no group-level technical-failure automation test was written.
+- [ ] Test replay, reverse completion order, and concurrent finalizers produce exactly one outcome. — Progress: partial. `RecognitionRunsOnceEvenWhenTheGroupIsTriggeredTwice` proves replay-safety of recognition (the engine runs once per member across two triggers). Reverse-completion-order and true concurrent-finalizer idempotency were not tested this session — there is no persisted group-level outcome record to make idempotent (that persistence is delegated to [[INTK-008]] per this plan's existing boundary); today's idempotency relies on the receipt-scoped operation keys already covering registration (`image-intake-register:{id}`) and association (`image-intake-associate:{id}`), which is unit-tested at the single-receipt level but not exercised as a genuine concurrent race in a test.
 - [x] Run `dotnet restore`.
-- [x] Run `dotnet build --configuration Release`.
-- [x] Run focused recognition and Core tests (19 Core tests, 5 VRM integration tests); persistence/web/migration/browser evidence remains for verification.
-- [ ] Run full `dotnet test`.
-- [x] Perform and record the dated four-lens simplification pass.
-- [x] Update checklist and post-implementation report with the narrowed INTK-006 scope and follow-on boundaries.
+- [x] Run `dotnet build --configuration Release`. — Re-run 2026-08-19 after the takeover's merges: 0 warnings, 0 errors.
+- [x] Run focused recognition and Core tests (19 Core tests, 5 VRM integration tests); persistence/web/migration/browser evidence remains for verification. — Superseded: `dotnet test tests/Pegasus.Core.Tests` now runs 653 tests, all passing (up from 650 pre-takeover; +3 new group-routing tests net of the +4 new tests and no removals... see plan.md simplification pass for the exact new-test list).
+- [ ] Run full `dotnet test`. — Progress: not run in full this session (the full integration suite is a ~28-minute run per prior evidence). Ran instead: full `Pegasus.Core.Tests` (653 passed), full `Pegasus.ArchitectureTests` (97 passed), and the takeover brief's specified filtered `Pegasus.IntegrationTests` subset (`ImageIntake|IntakePersistenceIntegrationTests|GroupedIntake|IntakeWebNegativeTests|QdosIntakeWebTests`: 34 passed, 6 skipped — pre-existing, unrelated to this branch — 0 failed).
+- [x] Perform and record the dated four-lens simplification pass. — Re-run 2026-08-19 over the takeover's own diff; see plan.md "Simplification pass — 2026-08-19".
+- [x] Update checklist and post-implementation report with the narrowed INTK-006 scope and follow-on boundaries. — This update.
 
 
 ## Parallel-branch execution note — 2026-08-19
@@ -49,7 +49,7 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 ## Clarification recorded — 2026-08-19
 
 - [x] Added the two Case-origin model to ticket scope: Instruction-initiated (formal/main, may lack images) and Image-initiated (secondary/pre-instruction, VRM-sequenced reference, no Case/PO).
-- [ ] Reconcile the current authoritative docs, which still describe image-only material as pre-Case only, with this clarified product model before completing the Image-initiated persistence and UI implementation.
+- [ ] Reconcile the current authoritative docs, which still describe image-only material as pre-Case only, with this clarified product model before completing the Image-initiated persistence and UI implementation. — Progress (takeover, 2026-08-19): the routing-behaviour slice of this is now done — FRD-02 gained a full "Grouped image-intake routing" subsection and FRD-06 gained the detector/recognizer diagnostic paragraph, both registered in `docs/capabilities.md`. The operator-notes/PRD/FRD-01/FRD-12/ADR-0013 terminology reconciliation (Image-initiated Case naming, lifecycle, closure/merge) remains [[INTK-008]]'s scope, per the ticket's own scope-split note and per the takeover brief ("INTK-008 is expressing the same ruling in the protected operator notes; your job is the routing behaviour and its FRD").
 
 ## Scope split and completion boundary — 2026-08-19
 
@@ -57,12 +57,12 @@ This ticket is intentionally implemented from the INTK-005 PR branch before PR m
 - [x] files.md contains the full repository conflict audit and is referenced by plan.md.
 - [x] INTK-007 owns grouped Unidentified work and the conflicting_vrms marker.
 - [x] INTK-008 owns ImageIntake-as-Image-initiated Case lifecycle, search/history, Box custody presentation, staff closure, and merge/subsumption into an Instruction-initiated Case.
-- [ ] Do not claim INTK-006 complete until its PR review is passed; INTK-008 remains a follow-on ticket, not an INTK-005 dependency blocker.
+- [ ] Do not claim INTK-006 complete until its PR review is passed; INTK-008 remains a follow-on ticket, not an INTK-005 dependency blocker. — Still pending by construction: this ticket has not yet had its independent PR review; recorded here as a live gate, not a task to check off.
 
 ## Review remediation — 2026-08-19
 
-- [x] Preserve the established single-file upload path: one file uses its original receipt token and /Upload/Status route; multi-file submissions use the durable group route.
-- [x] Preserve duplicate replay messaging on the single-file status route.
-- [x] Update the migration-schema expectation for GroupedIntakeSubmission.
-- [x] Re-run targeted integration coverage: five selected SQL/web/group tests passed after rebuild.
+- [x] Preserve the established single-file upload path: one file uses its original receipt token and /Upload/Status route; multi-file submissions use the durable group route. — Superseded (takeover, 2026-08-19): the mechanism this described (a separate bypass calling `submission.ExecuteAsync` directly for `Upload.Length == 1`) was itself a review defect — INTK-005 solved the same symptom correctly by routing every upload through `IGroupedIntakeSubmission` and redirecting a one-member group to `/Upload/Status/{stagedReceiptId}`. The bypass was removed per the takeover brief; the *observable* outcome this checklist line cared about (single-file uploads land on `/Upload/Status` with the bare, non-`:0` token, and duplicate messaging still works) is preserved and verified by the green `QdosIntakeWebTests`/`IntakeWebNegativeTests` run.
+- [x] Preserve duplicate replay messaging on the single-file status route. — Confirmed still true through the unified group path; `IsDuplicate` is tracked per ordinal in `SubmitGroupedIntake.ExecuteAsync` (INTK-005, commit `d70118b1`) and surfaces on the `/UploadStatus` redirect for a one-member group.
+- [x] Update the migration-schema expectation for GroupedIntakeSubmission. — Re-verified 2026-08-19 after the takeover's own merge: the expected-migration list in `IntakePersistenceIntegrationTests.cs` was diffed against the actual contents of `Migrations/` (not trusted from the merge alone) and matches exactly, including the new `20260819140113_ImageIntakeGroupExpectedMemberCount` migration added this session.
+- [x] Re-run targeted integration coverage: five selected SQL/web/group tests passed after rebuild. — Superseded by a larger run 2026-08-19: the takeover brief's full filtered command (`ImageIntake|IntakePersistenceIntegrationTests|GroupedIntake|IntakeWebNegativeTests|QdosIntakeWebTests`) — 34 passed, 6 pre-existing unrelated skips, 0 failed.
 - [x] Commit/push remediation as 866d305e.

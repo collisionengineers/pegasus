@@ -33,3 +33,51 @@ pipeline still allocates the Image Intake Reference and merges in the same
 pass when there is a match, so what the operator sees is images already
 attached as evidence — not a contradiction, just business outcome vs.
 mechanism).
+
+## Mid-task addition — 2026-08-19 (coordinator)
+
+Coordinator added a mandatory release-route step: `scripts/Test-AzureDeploymentPlan.ps1
+-Mode Local` now asserts every grant-carrying migration is named in
+`scripts/Invoke-AzureDatabaseBootstrap.ps1`'s expected-permission census
+(CI enforces this from PR #426 onward). My migration
+`20260819112914_ImageInitiatedLifecycle` carries a GRANT, so it needed a
+census entry.
+
+Added to `scripts/Invoke-AzureDatabaseBootstrap.ps1` (before the function's
+final `return`): four `$expected.Add(...)` lines for
+`ImageIntakeLifecycleEvents` — `pegasus_web_runtime_role` GRANT SELECT,
+GRANT INSERT, DENY UPDATE, DENY DELETE — matching the migration's SQL
+exactly (Web-only; Worker never touches this table, confirmed by
+`git grep -n ImageIntakeLifecycleEvent -- src/`).
+
+Verification:
+- `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` on the real
+  worktree throws at the pre-existing gap for
+  `20260819104953_MailClassificationCorrectionHistory` — not my migration,
+  confirmed by name; this is expected until PR #426 merges (coordinator
+  confirmed).
+- To verify my own entry regardless, copied `scripts/` + `infra/` +
+  `azure.yaml` + `src/.../Migrations/*.cs` to a disposable scratch
+  directory, added a throwaway diagnostic-only stub comment mentioning
+  `20260819104953_MailClassificationCorrectionHistory` (not committed
+  anywhere, not touching any tracked file, deleted after), and re-ran
+  `-Mode Local` there: **passed clean** ("Azure deployment plan validation
+  passed"), proving my `ImageIntakeLifecycleEvents` census entry is complete
+  and correct and nothing else in this branch regresses the check.
+- `pwsh ./scripts/Test-MigrationGrants.ps1` — **does not exist** in this
+  worktree or on `origin/dev`. `git log --all --diff-filter=A -- '**/Test-MigrationGrants.ps1'`
+  finds it only on `origin/task/deliv-012-grant-and-docs-fixes` (commit
+  2843c5b8), a different in-flight task branch. Did not import it (that
+  would be touching another task's unmerged work without authorisation).
+  Flagging this back to the coordinator rather than silently skipping it.
+
+## QdosAllocationRecoveryTests — CASE-005 (coordinator update)
+
+Coordinator confirmed `DistinctParallelRetriesResolveToOneCaseAggregate` is
+pre-existing/intermittent on clean `dev` (filed as CASE-005); no further
+bisection needed, only confirm not made worse by the optional
+`IImageIntakeStore` parameter on `ImageIntakeCasePairing`. Evidence: ran the
+full `QdosAllocationRecoveryTests` class on this branch — 15/15 passed; ran
+the specific test standalone twice more — 2/2 passed. No regression
+attributable to this branch. Referencing CASE-005 in the final report rather
+than re-investigating.
