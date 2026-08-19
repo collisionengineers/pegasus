@@ -16,7 +16,13 @@ attachment and received-time facts remain message evidence rather than identity
 keys.
 
 Mailbox identity plus RFC Internet Message-ID is the durable message and intake
-duplicate boundary. The provider immutable item identity remains a separately
+duplicate boundary. Pegasus retains the transport value verbatim as evidence
+and derives one comparison key by trimming surrounding whitespace, applying
+Unicode compatibility normalization, and invariant uppercase case folding.
+That same canonical key drives the Core intake receipt, retained-message
+comparison, and a binary-collated database uniqueness constraint; case-only,
+normalization-equivalent, or surrounding-whitespace variants are therefore one
+message, while distinct canonical values remain distinct. The provider immutable item identity remains a separately
 retained coordinate used to read the item; a provider-coordinate change cannot
 create a second business occurrence for the same mailbox/RFC message. The same
 RFC identity may occur independently in two approved mailboxes. A retained

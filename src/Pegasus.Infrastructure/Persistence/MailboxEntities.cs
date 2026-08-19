@@ -55,6 +55,7 @@ internal sealed class RetainedMailboxMessageEntity
     public required string ImmutableMessageId { get; set; }
     public string? ConversationIdentity { get; set; }
     public string? InternetMessageIdentity { get; set; }
+    public string? CanonicalInternetMessageIdentity { get; set; }
     public required string ExternalReceiptToken { get; set; }
     public string? SenderAddress { get; set; }
     public string? SenderDisplayName { get; set; }

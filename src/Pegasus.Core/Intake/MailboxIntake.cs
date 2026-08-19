@@ -25,6 +25,20 @@ public sealed record RetainedMailboxAttachment(
     string MediaType,
     long ContentLength);
 
+public static class MailboxMessageIdentity
+{
+    /// <summary>
+    /// One comparison representation for RFC Message-ID across Core and storage.
+    /// Message-ID transport values are retained verbatim as evidence; this key is
+    /// trimmed, Unicode-normalized and case-folded only for mailbox-scoped identity.
+    /// </summary>
+    public static string CanonicalizeInternetMessageIdentity(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        return value.Trim().Normalize(NormalizationForm.FormKC).ToUpperInvariant();
+    }
+}
+
 /// <summary>
 /// Everything the mail workspace shows about one message, as the source read it.
 /// </summary>
@@ -690,7 +704,8 @@ public sealed class PollApprovedInbox(
         // provider coordinate, so a provider-id change cannot create a second
         // business occurrence for the same message.
         var sourceMessageIdentity = message.RetainedMetadata?.InternetMessageIdentity is { } rfcIdentity
-            ? $"rfc:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(rfcIdentity)))}"
+            ? $"rfc:{Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+                MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(rfcIdentity))))}"
             : message.ImmutableMessageId;
         var externalReceiptToken = $"{mailboxId.Length}:{mailboxId}{sourceMessageIdentity}";
         if (externalReceiptToken.Length > MaximumExternalReceiptTokenLength)

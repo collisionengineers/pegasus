@@ -42,6 +42,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             ImmutableMessageId = message.ImmutableMessageId,
             ConversationIdentity = message.Metadata.ConversationIdentity,
             InternetMessageIdentity = message.Metadata.InternetMessageIdentity,
+            CanonicalInternetMessageIdentity = CanonicalInternetMessageIdentity(message),
             ExternalReceiptToken = message.ExternalReceiptToken,
             SenderAddress = message.Metadata.SenderAddress,
             SenderDisplayName = message.Metadata.SenderDisplayName,
@@ -287,32 +288,39 @@ internal sealed class EfRetainedMailboxMessageStore(
         return true;
     }
 
-    private static Task<RetainedMailboxMessageEntity?> FindExistingAsync(
+    private static async Task<RetainedMailboxMessageEntity?> FindExistingAsync(
         PegasusDbContext context,
         RetainedMailboxMessage message,
-        CancellationToken cancellationToken) =>
-        context.RetainedMailboxMessages
+        CancellationToken cancellationToken)
+    {
+        var canonicalIdentity = CanonicalInternetMessageIdentity(message);
+        return await context.RetainedMailboxMessages
             .AsNoTracking()
             .SingleOrDefaultAsync(
                 item => item.MailboxId == message.MailboxId
-                    && (item.InternetMessageIdentity == message.Metadata.InternetMessageIdentity
+                    && (item.CanonicalInternetMessageIdentity == canonicalIdentity
                         || item.ImmutableMessageId == message.ImmutableMessageId),
                 cancellationToken);
+    }
 
     private static void VerifySameMessage(
         RetainedMailboxMessageEntity existing,
         RetainedMailboxMessage message)
     {
         if (!string.Equals(
-                existing.InternetMessageIdentity,
-                message.Metadata.InternetMessageIdentity,
-                StringComparison.OrdinalIgnoreCase)
+                existing.CanonicalInternetMessageIdentity,
+                CanonicalInternetMessageIdentity(message),
+                StringComparison.Ordinal)
             || !string.Equals(existing.SourceSha256, message.SourceSha256, StringComparison.Ordinal))
         {
             throw new InvalidDataException(
                 "The mailbox item identities contradict an already retained message.");
         }
     }
+
+    private static string CanonicalInternetMessageIdentity(RetainedMailboxMessage message) =>
+        MailboxMessageIdentity.CanonicalizeInternetMessageIdentity(
+            message.Metadata.InternetMessageIdentity!);
 
     /// <summary>
     /// True where a mailbox in scope has polled successfully but this scope holds no

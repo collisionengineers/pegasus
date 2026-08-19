@@ -277,6 +277,32 @@ public sealed class PollApprovedInboxTests
     }
 
     [Fact]
+    public async Task EquivalentInternetMessageIdentitiesUseOneCanonicalReceiptToken()
+    {
+        var harness = new Harness(FirstMailbox);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "provider-one",
+                "cursor-a1",
+                Metadata(internetMessageIdentity: " <Case-Message@Example.Invalid> ")));
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+        harness.Source.Enqueue(
+            FirstMailbox.MailboxId,
+            DisplayableMessage(
+                "provider-two",
+                "cursor-a2",
+                Metadata(internetMessageIdentity: "<case-message@example.invalid>")));
+
+        await harness.Poll().ExecuteAsync(10, WorkerActor(), CancellationToken.None);
+
+        Assert.Equal(2, harness.Retained.Retained.Count);
+        Assert.Equal(
+            harness.Retained.Retained[0].ExternalReceiptToken,
+            harness.Retained.Retained[1].ExternalReceiptToken);
+    }
+
+    [Fact]
     public async Task AMessageWithoutDisplayMetadataIsAcceptedButNotRetained()
     {
         var harness = new Harness(FirstMailbox);
