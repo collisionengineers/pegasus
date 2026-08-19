@@ -167,6 +167,18 @@ Collision Engineers does not physically inspect vehicles. An Engineer performs a
 - whether the vehicle is repairable or a total loss; and
 - an estimated repair cost.
 
+### Repair estimates — operator statement, 2026-08-19
+
+Repair cost figures are not typed into Pegasus by hand. The operator, verbatim:
+"these are imported through other means generally ie external estimating
+systems: auxatex, glasses etc. Or an AI performs an estimate and sends via MCP
+connector. We also need to be able to drag+drop an estimate in." So the three
+intended routes are external estimating systems (Audatex, Glass's), an
+AI-produced estimate delivered through the MCP connector, and staff
+drag-and-drop of an estimate file. None of the three is built yet (tracked as
+ENG-002); until one is, report generation lists repair-cost figures as
+outstanding rather than inventing them.
+
 The Engineer report, not any earlier Triage finding, is definitive for roadworthiness and repairability or total-loss determinations.
 
 Roadworthiness and Assessment are independent professional findings. Correcting
