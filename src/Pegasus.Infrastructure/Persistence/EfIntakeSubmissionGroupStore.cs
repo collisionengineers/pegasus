@@ -34,13 +34,57 @@ public sealed class EfIntakeSubmissionGroupStore(
         return entity is null ? null : await MapAsync(context, entity, cancellationToken);
     }
 
-    public async Task<IntakeSubmissionGroup> GetOrCreateAsync(
+    public Task<IntakeSubmissionGroup> GetOrCreateAsync(
         Guid groupId,
         IntakeSourceChannel channel,
         string submissionToken,
         string actor,
         DateTimeOffset receivedAtUtc,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        GetOrCreateWithRetryAsync(groupId, channel, submissionToken, actor, receivedAtUtc, cancellationToken);
+
+    // Same concurrent-insert window as AddMemberWithRetryAsync below: two
+    // requests replaying the same (channel, token) can both read "no
+    // existing group" under Serializable isolation and race the unique
+    // (SourceChannel, SubmissionToken) index at commit.
+    private async Task<IntakeSubmissionGroup> GetOrCreateWithRetryAsync(
+        Guid groupId,
+        IntakeSourceChannel channel,
+        string submissionToken,
+        string actor,
+        DateTimeOffset receivedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            try
+            {
+                return await GetOrCreateCoreAsync(
+                    groupId,
+                    channel,
+                    submissionToken,
+                    actor,
+                    receivedAtUtc,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+                when (attempt < 3 && IsRetryableConcurrencyFailure(exception))
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt), cancellationToken);
+            }
+        }
+
+        throw new InvalidOperationException(
+            "The submission group could not be stored after the concurrency retry limit.");
+    }
+
+    private async Task<IntakeSubmissionGroup> GetOrCreateCoreAsync(
+        Guid groupId,
+        IntakeSourceChannel channel,
+        string submissionToken,
+        string actor,
+        DateTimeOffset receivedAtUtc,
+        CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
