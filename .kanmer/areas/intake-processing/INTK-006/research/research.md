@@ -59,3 +59,18 @@ The linked FRD-06 currently describes threshold-gated registration and associati
 Images selected in one Upload submission must remain associated. Recognition results are evaluated across that group so a readable registration image classifies damage close-ups that contain no registration. The outcome applies to every group member: associate all to the one unambiguous eligible case, or create one Image-Only case holding all of them.
 
 This makes [[INTK-005]] a delivery dependency: independent per-file receipts without durable group identity cannot implement the required evidence semantics safely. Conflicting distinct confident registrations are ambiguous and must never attach the group to an existing case; under the stated exhaustive rule the intact group goes to one Image-Only case for resolution.
+
+## Two-stage recognizer confirmation — 2026-08-19
+
+The recognizer is one in-process engine with two sequential ONNX layers, not two independently logged services:
+
+1. `PlateDetector.Detect` (`plate-detection`) must return a crop above the 0.35 detection floor.
+2. `PlateRecognizer.Recognize` (`plate-recognition`) runs on that crop; only a non-null normalized result is persisted as a suggestion.
+
+For the 09:09:15 WhatsApp JPEG, the persisted suggestion is `suggested=61644`, confidence `0.160449`, with pinned hashes for `plate-detection`, `plate-recognition`, and `plate-recognition-config`. By the deployed code path, this output is impossible unless both detector and reader ran. Neither layer reported a technical failure.
+
+Application Insights confirms the Worker invocation, successful Blob read, and SQL writes around 09:10:12–09:10:13, but the two ONNX stages do not emit separate spans/log entries. The durable suggestion plus code path is the stage-level evidence. This is also an observability gap: future diagnostics would benefit from non-sensitive detector/reader outcome telemetry without recording image content.
+
+A second JPEG uploaded at 09:35:09 (`license-plate-photo_AO18LXJ.jpg`) produced `no_readable_result` with the same verified model set. That proves the engine executed, but current persistence cannot distinguish “detector found no crop” from “reader ran on crops but returned no usable text.”
+
+The clipboard PNG supplied in chat is 3,263,453 bytes with a different hash from both stored JPEGs, as expected after clipboard/image transcoding; visual similarity alone cannot establish byte identity.

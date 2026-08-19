@@ -10,3 +10,5 @@
 - [ ] Run and record the four-lens simplification pass.
 - [ ] Update governing/current-state documentation only to the evidence tier actually reached.
 - [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+
+- [ ] After deployment, record an authenticated read-only production viewer check showing suggested next actions for real retained mail without invoking Move or any mutation.

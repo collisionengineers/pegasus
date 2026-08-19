@@ -4,4 +4,4 @@
 
 ## Parked (explicitly deferred)
 
-- [ ] Real Outlook/Graph/cloud activation and live verification — requires explicit approval for exact targets and operations.
+- [x] **What live Outlook/Graph/cloud verification is required?** — Resolved by the operator on 2026-08-19: after deployment, perform an authenticated, read-only production mailbox-viewer check showing the suggested next actions for a real retained message. Do not invoke Move or any other action, and do not change Outlook, Graph, mailbox configuration, or cloud state.

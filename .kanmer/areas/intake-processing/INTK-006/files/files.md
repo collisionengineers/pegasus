@@ -57,3 +57,7 @@ FRD-06 and the appropriate Case/Reference governing document need behaviour reco
 ## Group-level ripple — 2026-08-19
 
 Add the durable group relation introduced by [[INTK-005]] to the primary file map: image automation must load all retained image assets/receipts in the submission group, evaluate one group registration outcome, and apply one idempotent association-or-create operation to every member. Tests must prove that a no-VRM close-up follows a readable sibling and that replay/partial processing cannot split one group across cases.
+
+## Recognition observability note — 2026-08-19
+
+`OnnxVrmRecognitionEngine` currently collapses detector-empty and reader-empty results into `NoReadableResult`, and emits no per-stage telemetry. Planning should decide whether acceptance evidence needs non-sensitive counters/outcomes for “no plate detected” versus “plate detected, text unreadable.” Do not add a second business outcome taxonomy; any diagnostic detail belongs to the engine result/telemetry and must preserve the canonical intake decision.

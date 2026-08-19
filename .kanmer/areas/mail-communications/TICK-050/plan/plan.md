@@ -40,3 +40,7 @@ The post-implementation report will cite focused test output, Release build outp
 ## Operator decision — 2026-08-19
 
 Suggestions are advisory, but an eligible folder recommendation may render a **Move** button. The button calls MAIL-07's confirmed move use case; it never performs an inline or client-selected mutation.
+
+## Live suggestion acceptance — operator decision 2026-08-19
+
+After deployment, authenticate to the production mailbox viewer and inspect a real retained message from the currently linked mailbox. Capture read-only evidence that its suggested next actions are displayed from current canonical state. Do not click Move or invoke any action; explicitly record that no Outlook or cloud mutation occurred.
