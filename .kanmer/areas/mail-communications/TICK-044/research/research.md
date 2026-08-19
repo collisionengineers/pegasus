@@ -30,3 +30,65 @@ What policy, caller, persistence boundary, and acceptance evidence already exist
 ## Open questions
 
 - Product-owner confirmation of the exact mapping and activation boundary is recorded in `open-questions`; it must not be silently assumed by the plan.
+
+## Additional research from a previous implementation
+
+### Provenance and scope
+
+The following material comes from a **previous implementation** reviewed as operational evidence. Its taxonomy and Outlook folder tree are not Pegasus authorities. It is useful for classification criteria, ambiguity behaviour, routing separation, and acceptance examples only.
+
+### Historical detailed taxonomy and routing evidence
+
+The previous implementation used a deterministic classifier with a versioned taxonomy (`version 4`). Its top-level categories included receiving work, query, billing, non-actionable, other, case update, cancellation, pre-instruction and website enquiry. Detailed subtypes included existing-provider instruction/audit/diminution, new-client work, existing-work query, new enquiry, website enquiry, billing request, payment remittance, case summary, acknowledgement, images received, general update, cancellation and pre-instruction directions.
+
+Its Outlook destinations were more granular than Pegasus's intended `Receiving work / Query / Other / Needs sorting / Triage` model: instructions, audits, diminution, new clients, case queries, enquiries, billing, pre-instructions, no-action, images, cancellations, case updates and other each had separate folder destinations.
+
+This is evidence that Pegasus should keep **detailed classification** separate from **operational destination**. The historical folder hierarchy should not be copied into Pegasus as taxonomy truth.
+
+### Suggested Pegasus translation for product-owner review
+
+The prior operational behaviour supports the following **research recommendation**, subject to the canonical Pegasus mapping being explicitly accepted:
+
+| Pegasus destination | Detailed classifications that naturally fit |
+| --- | --- |
+| **Receiving work** | instructions, audits, diminution, new-client work; potentially case updates/images when Pegasus wants them on the principal work queue |
+| **Query** | existing-work queries, new enquiries, website/contact enquiries |
+| **Other** | acknowledgements, summaries/no-action and genuinely unidentified `Other`; billing/payment only if Pegasus intentionally has no dedicated operational lane |
+| **Needs sorting** | unresolved/ambiguous provider, unresolved or multiple case candidates, unknown classification, conflicting reference/VRM evidence |
+| **Triage** | cancellation proposals, pre-instruction directions, high-risk correlation cases and other known workflows requiring an explicit human decision rather than simple filing |
+
+The most useful distinction is: **Needs sorting = insufficient or contradictory evidence; Triage = a known workflow whose next step requires human judgement.** Keeping those meanings separate should improve queue reporting and prevent `Needs sorting` from becoming a catch-all human-work bucket.
+
+### Classification safety criteria worth carrying over
+
+The previous implementation deliberately failed closed:
+
+- weak evidence, forwarded chains, auto-replies and uncertain messages were not silently promoted into work;
+- the default abstention path was a safe `Other`-style outcome rather than guessing;
+- replies were detected from `In-Reply-To` / `References`, with leading `RE:` only as fallback;
+- `FW:` / `FWD:` was deliberately not treated as a reply because a forward can contain genuinely new work;
+- a reply without fresh-work evidence leaned toward an existing-work query, while a reply containing genuinely fresh work could still be promoted;
+- cancellation had precedence over instruction detection so quoted/attached old instructions did not turn a cancellation into new work;
+- website enquiries required multiple independent fingerprints rather than trusting a display name or one phrase.
+
+Case lookup was kept outside the pure text classifier. The text layer emitted reference/VRM candidates; database-aware orchestration decided whether those candidates matched live cases. This is a useful boundary for MAIL-02 because operational destination should consume a settled classification/correlation result, not reproduce live-case matching inside the mapping policy.
+
+### Folder movement remained a separate, gated mutation
+
+The previous implementation kept the classification-to-folder mapping in a central domain function and did not trust a browser/client to provide an arbitrary folder. Actual Outlook movement was a separate staff-initiated/gated operation with an explicit mutation kill-switch and success/failure recording.
+
+For Pegasus, MAIL-02 should therefore remain a **pure Core destination policy**. It should not perform Outlook mutation and should not accept arbitrary UI-provided destinations. Folder recommendation/movement should consume the canonical MAIL-02 result in their owning tickets.
+
+### Additional acceptance implications
+
+Useful regression cases for the eventual MAIL-02 test suite include:
+
+- ambiguous provider -> `Needs sorting` rather than arbitrary queue selection;
+- multiple/conflicting case candidates -> `Needs sorting`;
+- known cancellation/pre-instruction workflow -> `Triage` when that mapping is accepted;
+- forwarded new work remains eligible for `Receiving work`;
+- reply with no fresh-work evidence -> `Query` where taxonomy confirms that subtype;
+- classifier abstention/unknown outcome -> deterministic safe destination, not an inferred folder;
+- one central mapping result reused by UI, automation and folder recommendation callers.
+
+These examples supplement the existing Pegasus research; they do **not** resolve the outstanding product-owner requirement for the exact exhaustive mapping matrix.

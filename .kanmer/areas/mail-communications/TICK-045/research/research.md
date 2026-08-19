@@ -27,3 +27,69 @@ What “one shared classification policy across all supported mailboxes” means
 ## Open questions
 
 No unresolved user-only question remains. See `open-questions` for the explicit activation and scope disposition.
+
+## Additional research from a previous implementation
+
+### Provenance and scope
+
+The following evidence comes from a **previous implementation** and is being used only as a reference for shared-policy behaviour. Its provider list, taxonomy labels and folder names are not Pegasus authorities.
+
+### Shared policy did not mean one undifferentiated heuristic
+
+The previous implementation had a central deterministic classifier and a central routing function, but it still separated distinct evidence sources:
+
+- sender/provider recognition;
+- attachment/document provider recognition;
+- pure text classification;
+- live case correlation;
+- operational folder routing.
+
+This separation supports the current Pegasus research conclusion: one shared mailbox policy should mean **one canonical contract and one canonical implementation path**, not one monolithic rules engine that merges provider-specific predicates, live-case lookup and folder mutation.
+
+### Reusable cross-mailbox provider identity rules
+
+Sender-to-provider identification followed the same fail-closed rule set across intake:
+
+1. exact full e-mail address before domain;
+2. exact domain only, case-normalised;
+3. active providers only;
+4. multiple matches -> `Ambiguous`;
+5. no match -> `Unmatched`;
+6. no fuzzy or substring matching.
+
+This gives Pegasus a useful invariant for any shared provider-identification component: a generic domain must never be treated as enough evidence to identify a provider, and observing a new sender/domain does not by itself authorise creating a provider identity.
+
+Attachment/document recognition remained an independent provider-evidence source. A forwarded instruction is the key acceptance scenario: mailbox-specific sender identity may point to staff, while the attached document identifies the originating provider. The shared policy should preserve both evidence sources rather than branching on mailbox address or overwriting one with the other.
+
+### Shared deterministic classifier behaviours
+
+The prior classifier was explicitly versioned and deterministic. Several behaviours are strong candidates for cross-mailbox invariants:
+
+- uncertainty abstains rather than guesses;
+- `In-Reply-To` / `References` are stronger reply signals than subject prefixes;
+- `FW:` / `FWD:` is not automatically a reply because forwards can contain new work;
+- cancellation/closure intent can take precedence over quoted old instruction content;
+- the classifier emits candidate references/VRMs, while database-aware orchestration performs live case resolution;
+- ambiguity is a first-class result rather than an exception to hide.
+
+Those behaviours are mailbox-independent and therefore suitable for one shared Core contract. Provider/intermediary-specific automatic predicates can still remain route-owned, consistent with the existing Pegasus ADR and research.
+
+### Regression corpus evidence
+
+The previous implementation contained a sizeable human-labelled `.eml` evaluation corpus spanning many provider/insurer senders. Its historical labels included concepts such as new instruction, case correspondence, general query, payment/finance, automated and irrelevant.
+
+That corpus is useful as a **regression/acceptance source**, not as a taxonomy source. If reused conceptually for Pegasus tests, each example should first be remapped to the current settled Pegasus taxonomy and policy version; old labels should not be imported into the shared contract.
+
+### Additional MAIL-03 acceptance implications
+
+The shared-policy implementation should be tested with at least two approved mailbox identities and should prove:
+
+- identical taxonomy validation and evidence requirements regardless of mailbox address;
+- no duplicated category list or mailbox-specific classification table;
+- identical ambiguity/unmatched semantics across mailboxes;
+- forwarded instructions preserve sender and document identity as separate evidence;
+- route-specific automatic predicates remain isolated while producing the same shared result contract;
+- exact-message/manual correction callers reuse the same Core policy owner rather than reimplementing validation;
+- classifier/correlation boundaries remain stable: text emits candidates, orchestration resolves live business identity.
+
+This previous-implementation evidence strengthens the existing Pegasus direction but does not activate any cloud/mailbox mutation or override the current FRD/ADR ownership model.
