@@ -24,3 +24,13 @@ So: readable VRM matching exactly one existing eligible Case → images attach a
 ## Known gap left open (recorded, not fixed)
 
 "Retry incomplete group registration and association" (P1 review comment): if a recoverable failure hits registration/association for a *later* member in a group after earlier members already succeeded, the loop in `TryApplyGroupAsync` doesn't propagate that failure, and if the failing member was the *last* to complete, nothing later re-triggers the group. Registration/association are each idempotent by receipt-scoped operation key, so any later re-trigger of the same group (another member arriving, a manual reprocess) safely completes what failed — the gap is specifically "last member fails, nothing re-triggers." A real fix needs a durable per-group routing-attempt/outcome record, which the ticket's own plan.md already delegates to INTK-008 ("durable Image-initiated lifecycle outcome persistence is delegated to INTK-008"). Not fixed here to avoid inventing a second outcome/retry mechanism ahead of that design.
+
+## Coordinator update folded in — 2026-08-19 (later same session)
+
+Re-fetched and merged the moved base `origin/intk-005-grouped-upload` (now `0f71ee60`, adds the grouped-intake grant census entries to `Invoke-AzureDatabaseBootstrap.ps1`). Clean merge, no conflicts (`038105a6`).
+
+Ran `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`: it throws `Database bootstrap must account for grant-carrying migration 20260819104953_MailClassificationCorrectionHistory.cs` — exactly the pre-existing, unrelated-to-this-branch failure the coordinator said to expect (that migration belongs to the mail-classification work merged via `origin/dev`, not to INTK-005/006). Confirmed my own new migration (`20260819140113_ImageIntakeGroupExpectedMemberCount`) carries zero `GRANT` statements (`grep -c GRANT` = 0), so it is excluded from the script's grant-carrying-migration scan entirely and needs no census entry. `20260819101344_GroupedIntakeSubmission` (INTK-005's grant-carrying migration) is already accounted for and would have passed had the script reached it — it sorts before the failing one alphabetically/chronologically but the check loop still hits `20260819104953_...` before reaching my migration's timestamp, so this run never got that far; not a gap in my own work.
+
+`scripts/Test-MigrationGrants.ps1` still does not exist in this branch after the merge — skipped per the original instruction ("if present").
+
+Rebuilt (0 warnings/errors) and pushed as `038105a6`. Confirmed CI started again on this new head (`changes`/`documentation`/`reference-data` all `pending` immediately after push, run 32263442445).
