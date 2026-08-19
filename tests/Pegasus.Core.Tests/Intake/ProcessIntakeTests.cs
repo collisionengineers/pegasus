@@ -644,6 +644,58 @@ public sealed class ProcessIntakeTests
     }
 
     [Fact]
+    public async Task AmbiguousCaseMatchRegistersUnidentifiedWithConflictingIdentification()
+    {
+        // Competing candidate cases is a specific, evidenced reason; it must
+        // not collapse into the generic NoUsableIdentification fallback.
+        var caseA = Guid.NewGuid();
+        var caseB = Guid.NewGuid();
+        var readResult = Readable(
+            transportEvidence:
+            [
+                new(
+                    IntakeEvidenceSource.Sender,
+                    "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message")
+            ],
+            content:
+            [
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "QDOS instruction\nClaimant Name: Review Claimant\nClaim Number: 12345/1")
+            ]);
+        var store = new RecordingStore();
+        var evaluator = new EvaluateIntakeCaseMatch(
+            [new FixedKeysMatchPolicy(new("12345/1", "AB12CDE", null, null, null))],
+            new FixedCandidatesQueries(
+            [
+                new(caseA, "QDOS", "12345/1", null, null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null),
+                new(caseB, "QDOS", null, "AB12CDE", null, null, null,
+                    Pegasus.Core.Workflow.CaseLifecycleState.Review, null)
+            ]));
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var sut = CreateSut(
+            new StubReader(readResult),
+            store,
+            caseMatchEvaluator: evaluator,
+            registerUnidentified: registerUnidentified);
+        var source = CreateSource() with
+        {
+            FileName = "ambiguous-match.eml",
+            MediaType = "message/rfc822",
+            SourceIdentity = new(IntakeSourceChannel.Mailbox, "mailbox-ambiguous-match-2")
+        };
+
+        await sut.ExecuteAsync(source);
+
+        var request = Assert.Single(registerUnidentified.Requests);
+        Assert.Equal(UnidentifiedReasonCode.ConflictingIdentification, request.ReasonCode);
+    }
+
+    [Fact]
     public async Task ClassificationIsRecordedOnlyAndNeverChangesTheIntakeDecision()
     {
         // The same message processed with and without the classification

@@ -209,6 +209,16 @@ public interface IUnidentifiedStore
 
     Task<UnidentifiedItem?> GetByReferenceAsync(string reference, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// The item registered for this origin, if one exists, regardless of
+    /// state. Backed by the unique OriginKind/OriginId index; used to
+    /// reconcile a stale open item once its source receipt reaches a
+    /// different, non-Unidentified outcome.
+    /// </summary>
+    Task<UnidentifiedItem?> GetByOriginAsync(
+        UnidentifiedOrigin origin,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
         UnidentifiedState? state = UnidentifiedState.Open,
         CancellationToken cancellationToken = default);

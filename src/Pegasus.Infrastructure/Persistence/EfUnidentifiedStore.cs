@@ -216,6 +216,18 @@ public sealed class EfUnidentifiedStore(
         return entity is null ? null : Map(entity);
     }
 
+    public async Task<UnidentifiedItem?> GetByOriginAsync(
+        UnidentifiedOrigin origin,
+        CancellationToken cancellationToken = default)
+    {
+        UnidentifiedOrigin.Validate(origin);
+        var originKind = origin.Kind.ToString();
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Set<UnidentifiedItemEntity>().AsNoTracking().SingleOrDefaultAsync(
+            item => item.OriginKind == originKind && item.OriginId == origin.Id, cancellationToken);
+        return entity is null ? null : Map(entity);
+    }
+
     public async Task<IReadOnlyList<UnidentifiedItem>> ListAsync(UnidentifiedState? state = UnidentifiedState.Open, CancellationToken cancellationToken = default)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
