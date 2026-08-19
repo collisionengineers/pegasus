@@ -36,6 +36,11 @@
     </div>
 }
 
+@if (Model.ClassificationNotice is { } classificationNotice)
+{
+    <div class="status-card" role="status">@classificationNotice</div>
+}
+
 @* The state before any action: what processing decided, and what it became.
    These are read-only findings with a source, not counts, so they are evidence
    figures rather than metric tiles. *@
@@ -66,6 +71,85 @@
         </div>
     </div>
 </section>
+
+@if (Model.Detail.Classification is { } dossier)
+{
+    <section class="panel section-gap" aria-labelledby="classification-heading">
+        <h2 id="classification-heading">Classification evidence</h2>
+        <dl class="detail-list">
+            <div><dt>Current decision</dt><dd>@Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(dossier.Current)</dd></div>
+            <div><dt>Policy</dt><dd>@dossier.Current.PolicyKey version @dossier.Current.PolicyVersion</dd></div>
+            <div><dt>Reason</dt><dd>@dossier.Current.Reason</dd></div>
+            <div><dt>Decision version</dt><dd>@dossier.Version</dd></div>
+            <div><dt>Decided by</dt><dd>@dossier.CurrentActor</dd></div>
+            <div><dt>Decided at</dt><dd><time datetime="@dossier.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(dossier.CurrentDecidedAtUtc)</time></dd></div>
+        </dl>
+        @if (dossier.Current.Predicates.Count > 0)
+        {
+            <h3>Material evidence</h3>
+            <ul>
+                @foreach (var predicate in dossier.Current.Predicates)
+                {
+                    <li><strong>@predicate.Key:</strong> @(predicate.Matched ? "matched" : "not matched") — @predicate.Detail</li>
+                }
+            </ul>
+        }
+
+        <h3>Correct classification</h3>
+        <form method="post" asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
+              asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+              asp-route-pageNumber="@Model.PageNumber">
+            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+            <input type="hidden" asp-for="ExpectedClassificationVersion" value="@dossier.Version" />
+            <div class="field">
+                <label asp-for="ClassificationKey">Classification</label>
+                <select asp-for="ClassificationKey">
+                    <option value="">Choose classification</option>
+                    @foreach (var option in Pegasus.Web.Pages.Mail.MessageModel.ClassificationOptions)
+                    {
+                        <option value="@option.Value">@option.Label</option>
+                    }
+                </select>
+                <span asp-validation-for="ClassificationKey"></span>
+            </div>
+            <div class="field">
+                <label asp-for="OtherClassificationName">New Other category name (only when Other is selected)</label>
+                <input asp-for="OtherClassificationName" maxlength="200" />
+            </div>
+            <div class="field">
+                <label asp-for="OtherClassificationReasoning">Why no existing category fits (only when Other is selected)</label>
+                <textarea asp-for="OtherClassificationReasoning" rows="2" maxlength="1000"></textarea>
+            </div>
+            <div class="field">
+                <label asp-for="CorrectionReason">Correction reason</label>
+                <textarea asp-for="CorrectionReason" rows="3" maxlength="500" required></textarea>
+                <span asp-validation-for="CorrectionReason"></span>
+            </div>
+            <button class="btn btn--dark" type="submit">Save classification correction</button>
+        </form>
+
+        <h3>Permanent correction history</h3>
+        @if (dossier.History.Count == 0)
+        {
+            <p class="empty-state">This classification has not been corrected.</p>
+        }
+        else
+        {
+            <ol>
+                @foreach (var entry in dossier.History.OrderByDescending(item => item.Version))
+                {
+                    <li>
+                        <strong>Version @entry.Version:</strong>
+                        @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.Before)
+                        → @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.After).
+                        @entry.Reason — @entry.Actor,
+                        <time datetime="@entry.CorrectedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.CorrectedAtUtc)</time>
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+}
 
 <nav class="tabs section-gap" aria-label="Sections">
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
