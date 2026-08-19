@@ -41,6 +41,33 @@ storage paragraph, statement-of-truth wording, qualification, signature, or
 other document wording that has not been accepted remains unavailable; the
 renderer must not substitute placeholder or inferred content.
 
+### Initial renderer activation
+
+The first active renderer surface is closed to the `rendererref1` assessment
+and its fee note. Audit, diminution, addendum, valuation-evidence, generic
+letter, and every other former workspace catalogue family are unavailable;
+there is no caller-selectable template or density setting. Core accepts an
+immutable, source-labelled snapshot, validates readiness and the selected
+engineer identity, computes the figures once, and selects one of the four
+outcomes. Infrastructure renders only that selection with the governed
+template, stylesheet, logo, and signature resource.
+
+The supplied assessment wording and the named engineer/signature evidence are
+accepted only as exact matching tuples. The currently complete supplied tuple
+is `A Patterson | M.Inst.IAEA | andy_patterson`; the Ed Mawdsley and Neil
+O'Reilly signature images are governed assets, but no assessment may select
+either until an accepted qualification completes that person's tuple. Missing,
+unknown, mismatched, or substituted names, qualifications, keys, assets, source
+versions, custody references, or required values fail closed. No custom
+signature path, arbitrary local attachment path, placeholder, or wording absent
+from the accepted evidence is permitted.
+
+Generation returns draft assessment and fee-note artifacts with their bytes,
+hashes, page counts, template version, and engine version. It is not approval,
+issue, sending, external receipt, durable report-reference allocation, or
+correction custody. Human approval remains required before issue; the durable
+trigger, immutable reference/version and custody workflow is separately owned.
+
 ### Report correction, finality, and post-report work
 
 **Accepted report boundary:** an issued report has an immutable artifact/version identity and hash. A
