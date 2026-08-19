@@ -28,3 +28,14 @@ Reviewer did not implement TICK-204.
 ## Verdict
 
 **Needs changes.** Do not merge or move TICK-204 to Verifying until [[PR-003]] is resolved and the amended PR is independently re-reviewed.
+
+## Independent re-review — 2026-08-19
+
+**Verdict: PASS.**
+
+- Plan coverage: the one-file FRD-11 diff implements the planned closed four-outcome vocabulary, shared bundle, Core-owned computation/readiness, and fail-closed wording boundary without adding implementation or deployment scope.
+- Implementation coverage: Contract repair now correctly uses the Core-computed VAT-inclusive repair total from accepted raw cost components as its non-increasing agreed cap. The unsupported separate capped-amount input identified by [[PR-003]] is absent.
+- Governing documents: the change is authorised feature behaviour in FRD-11 and remains consistent with ADR-0025; no ADR or other repository file is required for this docs-only ticket.
+- Simplification: correctly recorded as n/a — docs-only; the mapping is compact and does not duplicate the renderer schema or introduce a second policy owner.
+- Evidence: PR #412 head `8124ae2abf0ccbe24f57b52703c4dc48e6e6719c`; all required GitHub checks succeeded; merge state CLEAN; `git diff --check origin/dev...HEAD` passed; worktree clean; complete diff is limited to FRD-11.
+- Disposition: [[PR-003]] is resolved by commit `8124ae2a`. No remaining review findings. PR #412 may merge to `dev`.
