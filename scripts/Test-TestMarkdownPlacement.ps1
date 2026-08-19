@@ -81,8 +81,7 @@ try {
         '.grok/skills/example/SKILL.md',
         '.stitch/DESIGN.md',
         'design/planning-and-old-designs/new.md',
-        'workspaces/document-extraction/docs/new.md',
-        'workspaces/report-renderer/new.md'
+        'workspaces/document-extraction/docs/new.md'
     )
     foreach ($path in $allowed) {
         $fullPath = Join-Path $testRoot $path
