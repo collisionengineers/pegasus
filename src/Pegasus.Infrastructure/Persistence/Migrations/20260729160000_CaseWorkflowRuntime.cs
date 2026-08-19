@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore.Infrastructure;
+﻿using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,6 +11,12 @@ public partial class CaseWorkflowRuntime : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
+        // no-runtime-grant: CaseReportApprovals - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: CaseReportSentEvidence - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: CaseWorkflows - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: CaseDueWork - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: CaseWorkflowEvents - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
+        // no-runtime-grant: CaseManualChases - granted via the consolidated 20260729199000_RuntimeRoleReconciliation least-privilege migration
         migrationBuilder.CreateTable(
             name: "CaseReportApprovals",
             columns: table => new

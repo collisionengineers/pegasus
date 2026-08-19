@@ -124,6 +124,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 principalTable: "CaseRepairSpecifications",
                 principalColumn: "Id",
                 onDelete: ReferentialAction.Restrict);
+
+            if (string.Equals(
+                    ActiveProvider,
+                    "Microsoft.EntityFrameworkCore.SqlServer",
+                    StringComparison.Ordinal))
+            {
+                migrationBuilder.Sql(
+                    "GRANT SELECT, INSERT, UPDATE ON OBJECT::[dbo].[CaseRepairSpecifications] TO [pegasus_web_runtime_role];");
+                migrationBuilder.Sql(
+                    "DENY DELETE ON OBJECT::[dbo].[CaseRepairSpecifications] TO [pegasus_web_runtime_role];");
+            }
         }
 
         /// <inheritdoc />
