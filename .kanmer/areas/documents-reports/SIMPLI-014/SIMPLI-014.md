@@ -20,9 +20,10 @@ blocks:
   - DOCS-001
 refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T08:57:22.253Z'
+updated: '2026-08-19T09:08:17.428Z'
 ---
 
 ## What
