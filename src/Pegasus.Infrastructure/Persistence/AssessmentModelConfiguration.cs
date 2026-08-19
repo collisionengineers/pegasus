@@ -79,7 +79,62 @@ internal static class AssessmentModelConfiguration
             entity.Property(item => item.RecordedByKind).HasMaxLength(20).IsRequired();
             entity.Property(item => item.RecordedBy).HasMaxLength(200).IsRequired();
             entity.Property(item => item.ConfirmedBy).HasMaxLength(200);
-            entity.HasIndex(item => new { item.CaseId, item.Position }).IsUnique();
+            entity.HasIndex(item => new { item.RepairSpecificationId, item.Position })
+                .IsUnique()
+                .HasFilter("[RepairSpecificationId] IS NOT NULL");
+            entity.HasOne(item => item.Case)
+                .WithMany()
+                .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.RepairSpecification)
+                .WithMany(item => item.Lines)
+                .HasForeignKey(item => item.RepairSpecificationId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        builder.Entity<CaseRepairSpecificationEntity>(entity =>
+        {
+            var purposes = string.Join(", ", Enum.GetNames<RepairSpecificationPurpose>().Select(SqlLiteral));
+            var roles = string.Join(", ", Enum.GetNames<RepairSpecificationRole>().Select(SqlLiteral));
+            var states = string.Join(", ", Enum.GetNames<RepairSpecificationState>().Select(SqlLiteral));
+            var routes = string.Join(", ", Enum.GetNames<RepairSpecificationSourceRoute>().Select(SqlLiteral));
+            entity.ToTable("CaseRepairSpecifications", table =>
+            {
+                table.HasCheckConstraint("CK_CaseRepairSpecifications_Purpose", $"[Purpose] IN ({purposes})");
+                table.HasCheckConstraint("CK_CaseRepairSpecifications_Role", $"[Role] IN ({roles})");
+                table.HasCheckConstraint("CK_CaseRepairSpecifications_State", $"[State] IN ({states})");
+                table.HasCheckConstraint("CK_CaseRepairSpecifications_SourceRoute", $"[SourceRoute] IN ({routes})");
+                table.HasCheckConstraint("CK_CaseRepairSpecifications_Version", "[Version] > 0");
+                table.HasCheckConstraint(
+                    "CK_CaseRepairSpecifications_Acceptance",
+                    "([State] IN ('Accepted', 'Superseded') AND [AcceptedBy] IS NOT NULL AND [AcceptedAtUtc] IS NOT NULL) OR "
+                    + "([State] = 'Draft' AND [AcceptedBy] IS NULL AND [AcceptedAtUtc] IS NULL)");
+            });
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.Id).ValueGeneratedNever();
+            entity.Property(item => item.Purpose).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.Role).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.SourceRoute).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.SourceArtifactReference).HasMaxLength(500);
+            entity.Property(item => item.SourceVersion).HasMaxLength(100);
+            entity.Property(item => item.SourceSha256).HasMaxLength(64).IsFixedLength();
+            entity.Property(item => item.CalculationLabour).HasPrecision(18, 2);
+            entity.Property(item => item.CalculationParts).HasPrecision(18, 2);
+            entity.Property(item => item.CalculationPaintMaterials).HasPrecision(18, 2);
+            entity.Property(item => item.CalculationSpecialistOther).HasPrecision(18, 2);
+            entity.Property(item => item.CalculationVat).HasPrecision(18, 2);
+            entity.Property(item => item.CalculationTotal).HasPrecision(18, 2);
+            entity.Property(item => item.CalculationPolicyVersion).HasMaxLength(100);
+            entity.Property(item => item.CreatedBy).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.CreationOperationKey).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.AcceptedBy).HasMaxLength(200);
+            entity.Property(item => item.SupersessionReason).HasMaxLength(500);
+            entity.HasIndex(item => new { item.CaseId, item.Purpose, item.Role, item.Version }).IsUnique();
+            entity.HasIndex(item => new { item.CaseId, item.CreationOperationKey }).IsUnique();
+            entity.HasIndex(item => new { item.CaseId, item.Purpose, item.Role })
+                .IsUnique()
+                .HasFilter("[State] = 'Accepted'");
             entity.HasOne(item => item.Case)
                 .WithMany()
                 .HasForeignKey(item => item.CaseId)
