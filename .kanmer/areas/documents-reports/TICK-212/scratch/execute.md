@@ -1,0 +1,1 @@
+2026-08-19 execution: verified SIMPLI-014 merge ancestry and exact lock diff on current origin/dev; locked restore, Release build, dependency-direction tests (39/39), and vulnerability scan passed. Zero repository diff. PIR/checklist/outcome reconciled for independent review.
