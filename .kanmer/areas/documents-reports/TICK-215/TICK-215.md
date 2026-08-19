@@ -2,12 +2,14 @@
 id: TICK-215
 type: ticket
 title: Decide where report rendering executes in production
-status: implementing
+status: verifying
 area: documents-reports
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:57:22.311Z'
+  review: '2026-08-19T09:26:31.823Z'
+  verifying: '2026-08-19T09:26:58.632Z'
 taken_at: '2026-08-19T09:25:01.208Z'
 branch: task/tick-215-renderer-execution-decision
 worktree: ../pegasus-worktrees/tick-215-renderer-execution-decision
@@ -31,7 +33,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.967Z'
-updated: '2026-08-19T09:25:11.682Z'
+updated: '2026-08-19T09:26:58.632Z'
 ---
 
 ## What

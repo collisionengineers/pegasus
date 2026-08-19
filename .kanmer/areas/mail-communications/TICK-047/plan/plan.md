@@ -36,3 +36,7 @@ The post-implementation report will cite focused test output, Release build outp
 - Policy duplication: one Core result consumed by Web, Worker and MCP.
 - External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
 - Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
+
+## Live recommendation acceptance — operator decision 2026-08-19
+
+After deployment, authenticate to the production mailbox viewer and inspect retained mail from the currently linked mailbox. Capture read-only evidence that a real classified message resolves and displays the policy-designated administrator-configured folder recommendation. The check must not invoke MAIL-07, move a message, or change Outlook/Graph/cloud state.
