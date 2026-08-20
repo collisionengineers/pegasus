@@ -23,3 +23,13 @@ No Azure change is required. The crash windows are inherent to provisioning (sit
 - `dotnet build ./Pegasus.slnx -c Release` zero warnings.
 - Focused: `dotnet test tests/Pegasus.IntegrationTests --filter "FullyQualifiedName~ProductionBoxCustody|FullyQualifiedName~ProductionComposition"`.
 - Post-deploy (out of this ticket's hands): exit-134 disappears from App Insights across the next release's provisioning window.
+
+## Simplification pass — 2026-08-20
+
+Lenses: reuse, simplification, efficiency, altitude over the branch diff.
+
+- **Reuse** — the deferral uses MEDI's own lazy singleton factory (`AddSingleton(provider => boxOptions(provider))`); no new wrapper type, Lazy<>, or options monad. Applied by design.
+- **Duplication check** — the `Box:*` configuration key list appears in both composition roots (Web `Program.cs`, Worker `WorkerDependencyInjection.CreateBoxCustodyOptions`). Disposition: kept. Both hosts already named these keys before this change (Web's required-keys loop, Worker's eager Create); the diff does not add a copy, and hoisting a `CreateFromConfiguration(IConfiguration)` onto the options record would couple Infrastructure's option parsing to IConfiguration for no behavioural gain — wider refactor than the fix.
+- **Simplification** — Web's `documentStorage:` guard changed from `productionBoxCustodyOptions is null` to the equivalent, more direct `!productionProfile`. Applied.
+- **Efficiency / altitude** — no findings; the guard clauses follow `Create`'s existing style, comments carry the PLAT-013 citation at the two deferral sites only.
+- Verified the other eager option parsers (`GraphApprovedMailboxOptions.Create`, `DvlaDvsaProductionOptions.Create`) cannot reproduce the abort: their KV-backed values get only non-empty/control-char checks, so an unresolved placeholder passes at startup and fails per call. No scope added.

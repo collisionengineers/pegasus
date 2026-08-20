@@ -4,10 +4,13 @@ type: ticket
 title: >-
   MCP-01 — Management/development-controlled MCP ingress for one named
   vendor-neutral Automation Actor through Pegasus Core use ca…
-status: backlog
+status: implementing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T03:48:13.904Z'
+  implementing: '2026-08-20T03:48:16.263Z'
 labels:
   - capability
   - MCP-01
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:03:53.230Z'
-updated: '2026-08-20T03:41:48.536Z'
+updated: '2026-08-20T03:48:16.263Z'
 ---
 
 ## What
