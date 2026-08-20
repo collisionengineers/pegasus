@@ -1,0 +1,10 @@
+# Plan — PLAT-017
+
+Operator-approved destructive operation on the exact targets in the ticket body (plan T9). Execution order:
+
+1. **Inventory (done, read-only)**: 57 non-empty tables recorded; `transient-intake` holds 159 blobs; all four app queues empty; `box-links`/`authentication-ring` are configuration (data-plane access deliberately closed).
+2. **SQL wipe**: on `pegasus-prod-sql-252ow37gij/pegasus` — `ALTER TABLE … NOCHECK CONSTRAINT ALL` on the data tables, `DELETE` each, re-`WITH CHECK CHECK CONSTRAINT ALL` (validates on empty tables). Data tables: ActionHistory, CaseDataFields, CaseDataSnapshots, CaseDueWork, CaseEditLeaseOperations, CaseHistory, CaseIntakeLinks, CaseMatchIndex, CaseWorkflowEvents, CaseWorkflows, Cases, ExternalWorkItems, ImageIntakes, ImageVrmSuggestions, InstructionDrafts, IntakeAllocationAttempts, IntakeAssets, IntakeCaseMatchDecisions, IntakeEvaluations, IntakeMailClassificationDecisions, IntakeMailRouteDecisions, IntakeManualAssociations, IntakeMutationHistory, IntakeReceiptEvents, IntakeReceipts, IntakeStagedReceipts, IntakeSubmissionGroupMembers, IntakeSubmissionGroups, IntakeWorkItems, RetainedMailboxAttachments, RetainedMailboxMessages, StandaloneAuditEvidence, UnidentifiedHistory, UnidentifiedItems, ApprovedSentPollOutcomes, plus any zero-row case/vehicle/assessment/mail data tables for completeness (VehicleLookupRequests, VehicleLookupObservations, VehicleConfirmations, AssessmentFields, CaseEstimateLines, CaseDocuments*, CaseTasks, CaseEvaRevisions, AiWorkRequests, RetainedMailSearchDocuments, CaseRepairSpecifications*, CaseRequestUploads*, MailboxProcessingRetries — resolved against sys.tables at run time so codex's new tables are included). Preserve list per the ticket.
+3. **Blob wipe**: `az storage blob delete-batch` on `transient-intake` (pegcustody252ow37gij).
+4. **Verify**: re-run the row-count query (data tables 0, preserved unchanged), blob count 0 — recorded in proof.
+
+Timing: executed before the release-15 deploy (T10); the live poller may land a new test mail afterward — that is fresh traffic, not residue.
