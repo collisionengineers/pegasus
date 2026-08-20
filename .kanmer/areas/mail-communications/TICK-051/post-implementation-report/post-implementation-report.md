@@ -30,7 +30,7 @@ No EF schema/store/runtime/migration, generic matcher/framework, Web mutation, M
 ## Verification
 
 - `dotnet restore Pegasus.slnx --locked-mode` — passed.
-- `dotnet build Pegasus.slnx --configuration Release --no-restore` — passed, 0 warnings/errors (final rerun pending completion at PIR write time).
+- `dotnet build Pegasus.slnx --configuration Release --no-restore` — passed, 0 warnings/errors.
 - Full `Pegasus.Core.Tests` — 860 passed.
 - Full `Pegasus.ArchitectureTests` — 98 passed.
 - Focused `AutomaticMailCaseAssociationTests` — 7 passed.

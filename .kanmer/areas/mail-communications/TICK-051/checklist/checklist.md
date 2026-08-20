@@ -8,4 +8,4 @@
 - [x] Add local Core/SQL/retained/queued-caller evidence for unique, zero/multiple, contradiction, stale, replay/history and no external write.
 - [x] Update FRD/capabilities/current architecture only to local evidence.
 - [x] Run focused/proportional verification and four simplification lenses.
-- [ ] Write PIR/traceability, push one PR to dev, move exactly to Review and hand off to kanmer-review.
+- [x] Write PIR/traceability, push one PR to dev, move exactly to Review and hand off to kanmer-review.
