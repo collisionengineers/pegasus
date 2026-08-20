@@ -14,6 +14,7 @@ using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Web.Pages;
 
 namespace Pegasus.ArchitectureTests;
 
@@ -340,6 +341,39 @@ public sealed class DependencyDirectionTests
         Assert.Contains(typeof(IRevokeRequestUploadLink), custodyPageDependencies);
         Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);
         Assert.Contains(typeof(IUploadToRequest), requestPageDependencies);
+    }
+
+    [Fact]
+    public void WebPagesHaveOneStaffActorAndOperationKeyOwnerPerConcept()
+    {
+        var pagesRoot = Path.Combine(FindRepositoryRoot(), "src", "Pegasus.Web", "Pages");
+        var sources = Directory
+            .EnumerateFiles(pagesRoot, "*.cs", SearchOption.AllDirectories)
+            .Select(path => new
+            {
+                Path = Path.GetRelativePath(pagesRoot, path).Replace('\\', '/'),
+                Content = File.ReadAllText(path)
+            })
+            .ToArray();
+
+        Assert.Equal(
+            ["StaffPageModel.cs"],
+            sources
+                .Where(source => source.Content.Contains(
+                    "StaffActorFactory.TryCreate",
+                    StringComparison.Ordinal))
+                .Select(source => source.Path)
+                .Order(StringComparer.Ordinal));
+        Assert.Equal(
+            ["StaffPageModel.cs", "Upload.cshtml.cs"],
+            sources
+                .SelectMany(source => Regex
+                    .Matches(source.Content, "Guid\\.NewGuid\\(\\)\\.ToString\\(\"N\"\\)")
+                    .Select(_ => source.Path))
+                .Order(StringComparer.Ordinal));
+        Assert.NotNull(typeof(RequestModel).GetCustomAttribute<
+            Microsoft.AspNetCore.Authorization.AllowAnonymousAttribute>());
+        Assert.False(typeof(StaffPageModel).IsAssignableFrom(typeof(RequestModel)));
     }
 
     [Fact]

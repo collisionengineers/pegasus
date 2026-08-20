@@ -1,8 +1,5 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
@@ -13,7 +10,7 @@ namespace Pegasus.Web.Pages;
 
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : PageModel
+public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : StaffPageModel
 {
     public IntakeQueueCounts Counts { get; private set; } = new(0, 0);
 
@@ -29,10 +26,7 @@ public class IndexModel(IGetOperationsSnapshot getOperationsSnapshot) : PageMode
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }

@@ -1,8 +1,4 @@
-using System.Diagnostics.CodeAnalysis;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Web.Presentation;
 
@@ -17,16 +13,10 @@ namespace Pegasus.Web.Pages;
 /// which covers these handlers, and the queries and mutations require
 /// casework access themselves.
 /// </summary>
-public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecision) : PageModel
+public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecision) : StaffPageModel
 {
     /// <summary>Back to the concrete status surface after a decision.</summary>
     protected abstract IActionResult RedirectToSurface(Guid id);
-
-    protected bool TryGetActor([NotNullWhen(true)] out ActionActor? actor) =>
-        StaffActorFactory.TryCreate(
-            User.FindFirstValue(ClaimTypes.NameIdentifier),
-            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-            out actor);
 
     public async Task<IActionResult> OnGetCaseSearchAsync(
         string? term,

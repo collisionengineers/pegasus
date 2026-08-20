@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Identity;
@@ -7,7 +6,6 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Intake;
@@ -28,7 +26,7 @@ public sealed partial class DetailsModel(
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
     ILogger<DetailsModel> logger,
     IInspectionAddressResolutionStore addressResolutionStore,
-    IProviderInspectionModeStore providerInspectionModeStore) : PageModel
+    IProviderInspectionModeStore providerInspectionModeStore) : StaffPageModel
 {
     public ImageIntakeDetail? ImageIntake { get; private set; }
 
@@ -118,10 +116,7 @@ public sealed partial class DetailsModel(
         string reason,
         CancellationToken cancellationToken = default)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -249,10 +244,7 @@ public sealed partial class DetailsModel(
         string operationKey,
         CancellationToken cancellationToken = default)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -390,10 +382,7 @@ public sealed partial class DetailsModel(
         string successMessage,
         CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -466,10 +455,7 @@ public sealed partial class DetailsModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
