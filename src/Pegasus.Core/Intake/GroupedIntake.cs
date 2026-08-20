@@ -54,8 +54,9 @@ public interface IIntakeSubmissionGroupStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Finds the parent group for a processed child source token. Grouped
-    /// uploads use the stable token shape <c>{submission}:{ordinal}</c>; the
+    /// Finds the parent group for a processed child source token, whose shape
+    /// <see cref="GroupedIntakeMemberToken"/> owns: an ordinal-zero member
+    /// carries the submission token verbatim, later ordinals suffix it. The
     /// parent token is the durable group identity and is safe to use on replay.
     /// </summary>
     Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
@@ -130,18 +131,16 @@ public static class GroupedIntakeMemberToken
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(memberToken);
         var separator = memberToken.LastIndexOf(':');
-        if (separator > 0
+        var hasOrdinalSuffix = separator > 0
             && int.TryParse(
                 memberToken[(separator + 1)..],
                 System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture,
                 out var ordinal)
-            && ordinal >= 1)
-        {
-            yield return memberToken[..separator];
-        }
-
-        yield return memberToken;
+            && ordinal >= 1;
+        return hasOrdinalSuffix
+            ? [memberToken[..separator], memberToken]
+            : [memberToken];
     }
 }
 
