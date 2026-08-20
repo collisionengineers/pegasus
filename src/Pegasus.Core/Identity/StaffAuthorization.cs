@@ -14,6 +14,7 @@ public enum StaffAccessRight
     ManageOrganizationsAndPrincipals,
     ManageWorkflowConfiguration,
     ManageApprovedMailboxes,
+    ManageApprovedOutlookCategories,
     ManageAutomationClients,
     ExecuteSystemWork,
     SubmitRequestUpload
@@ -46,6 +47,7 @@ public static class StaffAuthorization
             StaffAccessRight.ManageOrganizationsAndPrincipals or
             StaffAccessRight.ManageWorkflowConfiguration or
             StaffAccessRight.ManageApprovedMailboxes or
+            StaffAccessRight.ManageApprovedOutlookCategories or
             StaffAccessRight.ManageAutomationClients =>
                 actor.Kind == ActorKind.Staff && actor.IsInRole(StaffRole.Administrator),
 
