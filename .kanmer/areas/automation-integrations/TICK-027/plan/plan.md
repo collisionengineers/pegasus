@@ -30,3 +30,23 @@ Proof after merge names the HTTP `/mcp` + LocalDB tier. Not: live activation or 
 
 - Wait for [[TICK-026]] to leave Implementing so two agents are not mid-flight on the same MCP surface, even though the files differ.
 - Case-detail save re-opens completeness review — assert history, not a completeness policy rewrite.
+
+## Simplification pass — 2026-08-20
+
+Reviewed the branch diff (one file, `tests/Pegasus.IntegrationTests/AutomationAssessmentIngressTests.cs`,
++248 lines, tests-only). Findings:
+
+- **Reuse**: all three new tests reuse existing `AutomationMcpTestSupport` helpers
+  (`WithAutomationMcp`, `SeedAcceptedCaseAsync`, `RequestTokenAsync`, `PostMcpAsync`,
+  `ReadJsonRpcAsync`, `ToolCallPayload`) and mirror the exact structure of the sibling
+  `pegasus_assessment_update` test (lease begin → call → assert HTTP/SQL → replay). No new
+  test-support abstraction was added; none was needed.
+- **Simplification**: no dead weight found — each of the three tests exercises a distinct,
+  previously-unproven fact (scope, happy-path/replay/logging/completeness re-open, lease
+  validation refusal) rather than restating the same assertion three ways.
+- **Efficiency**: nothing changed here touches hot paths; test-only.
+- **Altitude**: correctly scoped at the tier-4 HTTP+LocalDB caller level, matching every
+  other test in the file. No production code was touched.
+
+Disposition: no findings required action. n/a beyond the above — the diff is proportional
+to the one closed gap it fixes.

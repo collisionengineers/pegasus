@@ -1,0 +1,5 @@
+- [x] Inventoried material claims in `docs/current-architecture.md` and `docs/operations.md`; identified `docs/operations.md` as the authority owner (deployed/runtime state) for the corrected claim per `docs/index.md`
+- [x] Checked claims against current operations evidence (`prod-diagnostics.md`, 2026-08-20 estate facts) and the document's own internal Secrets record
+- [x] Corrected the one unsupported/self-contradictory claim found (Box secret resolution scope) without inventing stronger evidence than the source record supports
+- [x] `docs/operator-notes.md` not touched — no material statement there was affected; no unresolved operator decision needed parking
+- [x] Documentation links (`Test-DocumentationLinks.ps1`) and markdown placement (`Test-TestMarkdownPlacement.ps1`) checks pass

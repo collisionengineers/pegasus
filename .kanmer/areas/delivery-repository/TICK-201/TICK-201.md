@@ -2,10 +2,13 @@
 id: TICK-201
 type: ticket
 title: Correct canonical documentation claims against source evidence
-status: preparing
+status: review
 area: delivery-repository
 assignee: claude-code
 profile: feature
+stageEntered:
+  implementing: '2026-08-20T04:05:35.273Z'
+  review: '2026-08-20T04:06:11.848Z'
 taken_at: '2026-08-20T04:04:50.932Z'
 branch: task/tick-201-doc-claims
 worktree: ../pegasus-worktrees/tick-201
@@ -14,9 +17,13 @@ labels:
   - source-now
 links: []
 docs_todo: true
+commits:
+  - 48413f1e
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/444'
 archived: false
 created: '2026-08-12T15:08:05.001Z'
-updated: '2026-08-20T04:04:50.932Z'
+updated: '2026-08-20T04:06:11.848Z'
 ---
 
 ## What
