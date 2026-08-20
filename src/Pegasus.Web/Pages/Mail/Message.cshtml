@@ -14,6 +14,7 @@
    asp-route-mailbox="@Model.MailboxFilter"
    asp-route-folder="@Model.FolderRouteValue"
    asp-route-search="@Model.SearchTerm"
+   asp-route-queue="@Model.QueueFilter"
    asp-route-pageNumber="@Model.PageRouteValue">
     <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
     Back to Inbox
@@ -115,7 +116,8 @@
                         mailbox = Model.MailboxFilter,
                         folder = Model.FolderFilter,
                         pageNumber = Model.PageNumber,
-                        search = Model.SearchTerm
+                        search = Model.SearchTerm,
+                        queue = Model.QueueFilter
                     });
                 var unlinkDialogData = new ViewDataDictionary(ViewData)
                 {
@@ -139,7 +141,8 @@
             {
                 <form method="post" asp-page-handler="PrepareUnlinkCase" asp-route-id="@summary.Id"
                       asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
-                      asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@Model.PageNumber">
+                      asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
+                      asp-route-pageNumber="@Model.PageNumber">
                     <input type="hidden" name="caseId" value="@currentCase.Summary.CaseId" />
                     <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
                     <input type="hidden" name="expectedCaseVersion" value="@currentCase.Workflow.Version" />
@@ -157,6 +160,7 @@
                 <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
                 <input type="hidden" name="pageNumber" value="@Model.PageRouteValue" />
                 <input type="hidden" name="search" value="@Model.SearchTerm" />
+                <input type="hidden" name="queue" value="@Model.QueueFilter" />
                 <label for="association-case-query">Search by Case/PO, registration, claimant or claim number</label>
                 <input id="association-case-query" name="caseQuery" value="@Model.CaseQuery" maxlength="300" required />
                 <button class="secondary-action" type="submit">Search cases</button>
@@ -178,6 +182,7 @@
                                 <a asp-page="/Mail/Message" asp-route-id="@summary.Id"
                                    asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
                                    asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                                   asp-route-queue="@Model.QueueFilter"
                                    asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@candidate.CaseId">
                                     Review @candidate.Reference
                                     — @(candidate.Registration ?? "registration not recorded") · @(candidate.Claimant ?? "claimant not recorded") · @candidate.Stage
@@ -217,7 +222,8 @@
                             mailbox = Model.MailboxFilter,
                             folder = Model.FolderFilter,
                             pageNumber = Model.PageNumber,
-                            search = Model.SearchTerm
+                            search = Model.SearchTerm,
+                            queue = Model.QueueFilter
                         });
                     var linkDialogData = new ViewDataDictionary(ViewData)
                     {
@@ -241,7 +247,8 @@
                 {
                     <form method="post" asp-page-handler="PrepareLinkCase" asp-route-id="@summary.Id"
                           asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
-                          asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@Model.PageNumber"
+                          asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
+                          asp-route-pageNumber="@Model.PageNumber"
                           asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@targetCase.Summary.CaseId">
                         <input type="hidden" name="caseId" value="@targetCase.Summary.CaseId" />
                         <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
@@ -296,7 +303,8 @@
         {
             <form method="post" asp-page-handler="MoveToRecommendedFolder" asp-route-id="@summary.Id"
                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
-                  asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@Model.PageNumber">
+                  asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
+                  asp-route-pageNumber="@Model.PageNumber">
                 <input type="hidden" name="ExpectedClassificationVersion" value="@recoveryClassificationVersion" />
                 <input type="hidden" name="ExpectedRecommendationPolicyKey" value="@recoveryPolicyKey" />
                 <input type="hidden" name="ExpectedRecommendationPolicyVersion" value="@recoveryPolicyVersion" />
@@ -323,6 +331,7 @@
                     folder = Model.FolderFilter,
                     pageNumber = Model.PageNumber,
                     search = Model.SearchTerm,
+                    queue = Model.QueueFilter,
                     expectedClassificationVersion = dossier.Version,
                     expectedRecommendationPolicyKey = moveRecommendation.PolicyKey,
                     expectedRecommendationPolicyVersion = moveRecommendation.PolicyVersion,
@@ -358,6 +367,7 @@
         <form method="post" asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
               asp-route-search="@Model.SearchTerm"
+              asp-route-queue="@Model.QueueFilter"
               asp-route-pageNumber="@Model.PageNumber">
             <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
             <input type="hidden" asp-for="ExpectedClassificationVersion" value="@dossier.Version" />
@@ -425,10 +435,12 @@ else if (Model.Detail.FolderRecommendation is { IsAvailable: false } unavailable
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
        asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
        asp-route-search="@Model.SearchTerm"
+       asp-route-queue="@Model.QueueFilter"
        aria-current="@(Model.ActiveSection == "message" ? "page" : null)">Message</a>
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
        asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
        asp-route-search="@Model.SearchTerm"
+       asp-route-queue="@Model.QueueFilter"
        asp-route-section="attachments"
        aria-current="@(Model.ActiveSection == "attachments" ? "page" : null)">
         @(Model.Detail.Attachments.Count > 0
@@ -438,6 +450,7 @@ else if (Model.Detail.FolderRecommendation is { IsAvailable: false } unavailable
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
        asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
        asp-route-search="@Model.SearchTerm"
+       asp-route-queue="@Model.QueueFilter"
        asp-route-section="thread"
        aria-current="@(Model.ActiveSection == "thread" ? "page" : null)">Thread</a>
 </nav>
@@ -542,6 +555,7 @@ else
                        asp-route-mailbox="@Model.MailboxFilter"
                        asp-route-folder="@Model.FolderRouteValue"
                        asp-route-search="@Model.SearchTerm"
+                       asp-route-queue="@Model.QueueFilter"
                        asp-route-pageNumber="@Model.PageRouteValue"
                        aria-current="@(entry.Id == summary.Id ? "page" : null)">
                         <span>

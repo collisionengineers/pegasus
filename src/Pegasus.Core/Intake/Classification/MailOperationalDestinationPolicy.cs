@@ -21,6 +21,20 @@ public sealed record MailOperationalDestinationResult(
     int PolicyVersion,
     string Reason);
 
+/// <summary>
+/// The SQL-facing description of one aggregate operational destination. The
+/// persistence adapter translates these facts against the classification row;
+/// it does not own another classification-to-destination table.
+/// </summary>
+public sealed record MailOperationalDestinationQuery(
+    bool IncludesUnidentified = false,
+    bool IncludesOther = false,
+    IReadOnlyList<ReceivedMailFamily>? ReceivedFamilies = null,
+    MailCategory? ExactClassification = null)
+{
+    public IReadOnlyList<ReceivedMailFamily> Families => ReceivedFamilies ?? [];
+}
+
 public static class MailOperationalDestinationPolicy
 {
     public const string Key = "mail_operational_destination";
@@ -39,30 +53,34 @@ public static class MailOperationalDestinationPolicy
                 "The classification is absent or ambiguous; no operational destination is inferred.");
         }
 
-        var category = classification.Category;
-        if (category.IsOther)
-        {
-            return Result(
-                MailOperationalDestination.Other,
-                category,
-                "A reasoned novel classification uses the reserved Other destination.");
-        }
+        return Map(classification.Category);
+    }
 
-        return category.ReceivedFamily switch
+    public static MailOperationalDestinationResult Map(MailCategory category)
+    {
+        ArgumentNullException.ThrowIfNull(category);
+        category.ValidateCanonical();
+
+        var destination = AggregateDestinations
+            .Cast<MailOperationalDestination?>()
+            .FirstOrDefault(candidate => Matches(Query(candidate!.Value), category));
+        return destination switch
         {
-            ReceivedMailFamily.NewInstructionReceived => Result(
+            MailOperationalDestination.ReceivingWork => Result(
                 MailOperationalDestination.ReceivingWork,
                 category,
                 "A confirmed new instruction enters Receiving work."),
-            ReceivedMailFamily.PostReportEmails => Result(
+            MailOperationalDestination.Queries => Result(
                 MailOperationalDestination.Queries,
                 category,
-                "Post-report correspondence enters Queries."),
-            ReceivedMailFamily.Billing when category.Subtype == "billing-query" => Result(
-                MailOperationalDestination.Queries,
+                category.ReceivedFamily == ReceivedMailFamily.Billing
+                    ? "A billing query enters Queries."
+                    : "Post-report correspondence enters Queries."),
+            MailOperationalDestination.Other => Result(
+                MailOperationalDestination.Other,
                 category,
-                "A billing query enters Queries."),
-            ReceivedMailFamily.PreInstructionEmails when category.Subtype == "triage-request" => Result(
+                "A reasoned novel classification uses the reserved Other destination."),
+            MailOperationalDestination.Triage => Result(
                 MailOperationalDestination.Triage,
                 category,
                 "An accepted Triage predicate routes to the separate Triage workflow."),
@@ -71,6 +89,55 @@ public static class MailOperationalDestinationPolicy
                 category,
                 $"The known classification '{CategoryKey(category)}' retains its own operational view.")
         };
+    }
+
+    public static MailOperationalDestinationQuery Query(MailOperationalDestination destination) =>
+        destination switch
+        {
+            MailOperationalDestination.ReceivingWork => new(
+                ReceivedFamilies: [ReceivedMailFamily.NewInstructionReceived]),
+            MailOperationalDestination.Queries => new(
+                ReceivedFamilies: [ReceivedMailFamily.PostReportEmails],
+                ExactClassification: MailCategory.Received(
+                    ReceivedMailFamily.Billing,
+                    "billing-query")),
+            MailOperationalDestination.Other => new(IncludesOther: true),
+            MailOperationalDestination.Unidentified => new(IncludesUnidentified: true),
+            MailOperationalDestination.Triage => new(
+                ExactClassification: MailCategory.Received(
+                    ReceivedMailFamily.PreInstructionEmails,
+                    "triage-request")),
+            MailOperationalDestination.DetailedClassification => throw new ArgumentException(
+                "Detailed mail views require one exact canonical classification.",
+                nameof(destination)),
+            _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
+        };
+
+    private static readonly MailOperationalDestination[] AggregateDestinations =
+    [
+        MailOperationalDestination.ReceivingWork,
+        MailOperationalDestination.Queries,
+        MailOperationalDestination.Other,
+        MailOperationalDestination.Triage
+    ];
+
+    private static bool Matches(
+        MailOperationalDestinationQuery query,
+        MailCategory category)
+    {
+        if (query.IncludesOther && category.IsOther)
+        {
+            return true;
+        }
+        if (category.ReceivedFamily is { } family && query.Families.Contains(family))
+        {
+            return true;
+        }
+        return query.ExactClassification is { } exact
+            && exact.Direction == category.Direction
+            && exact.ReceivedFamily == category.ReceivedFamily
+            && exact.SentFamily == category.SentFamily
+            && string.Equals(exact.Subtype, category.Subtype, StringComparison.Ordinal);
     }
 
     private static MailOperationalDestinationResult Result(

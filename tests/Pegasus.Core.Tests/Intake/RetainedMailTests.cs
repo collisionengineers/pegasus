@@ -173,6 +173,60 @@ public sealed class RetainedMailTests
         Assert.Equal("estimate", Assert.Single(queries.Scopes).Scope.SearchTerm);
     }
 
+    [Fact]
+    public async Task ListAcceptsOnlyOneCanonicalMailView()
+    {
+        var queries = new Queries();
+        var list = new ListRetainedMail(queries);
+        var detailed = MailCategory.Received(ReceivedMailFamily.General, "autoreply");
+
+        await list.ExecuteAsync(
+            Caseworker(),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Triage),
+            1,
+            25,
+            CancellationToken.None);
+        await list.ExecuteAsync(
+            Caseworker(),
+            new(null, MailFolderScope.Inbox, DetailedClassification: detailed),
+            1,
+            25,
+            CancellationToken.None);
+
+        Assert.Equal(2, queries.Scopes.Count);
+        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
+            Caseworker(),
+            new(
+                null,
+                MailFolderScope.Inbox,
+                Destination: MailOperationalDestination.Queries,
+                DetailedClassification: detailed),
+            1,
+            25,
+            CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
+            Caseworker(),
+            new(
+                null,
+                MailFolderScope.Inbox,
+                DetailedClassification: MailCategory.Received(
+                    ReceivedMailFamily.NewInstructionReceived,
+                    "inspection")),
+            1,
+            25,
+            CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
+            Caseworker(),
+            new(
+                null,
+                MailFolderScope.Inbox,
+                Destination: MailOperationalDestination.DetailedClassification),
+            1,
+            25,
+            CancellationToken.None));
+        Assert.Equal(2, queries.Scopes.Count);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
