@@ -18,3 +18,5 @@
 - 2026-08-20: from committed `6cb9c59a`, Offline Doctor/Initialize completed; owned run `67a53c21ebc54bcc8c3cc98d6dab7c19` reached healthy Status and passed Smoke. Exact-run Reset removed its directory and `PegasusDevelopment_67a53c21ebc54bcc8c3cc98d6dab7c19`; pre-existing `MSSQLLocalDB` remained.
 
 - 2026-08-20: committed `6cb9c59a`, pushed `task/plat-014-localdb-detection`, and opened PR #471 to `dev`: https://github.com/collisionengineers/pegasus/pull/471.
+
+- 2026-08-20: independent review filed [[PR-023]] after the first Windows CI job printed success but returned exit 1. Commit `4c7b459f` resets only the test's success-path process exit state; direct and GitHub-style local invocations pass. PR #471 re-ran and remains awaiting green CI/re-review.

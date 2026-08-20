@@ -2,14 +2,14 @@
 
 ## Summary
 
-Corrected the shared Windows LocalDB state classifier so the exact zero-exit “instance doesn't exist” diagnostic is treated as Missing, while ambiguous output remains fail-closed as Unknown. The documented Offline lifecycle now created, smokes, and exactly resets one owned LocalDB run without touching the pre-existing default instance; this unblocks [[PLAT-005]] once PLAT-014 completes independent review and enters Verifying.
+Corrected the shared Windows LocalDB state classifier so the exact zero-exit “instance doesn't exist” diagnostic is treated as Missing, while ambiguous output remains fail-closed as Unknown. A review correction also clears the focused test's intentional final native exit code after its assertion, so its GitHub Actions host exits successfully. The documented Offline lifecycle now created, smokes, and exactly resets one owned LocalDB run without touching the pre-existing default instance; this unblocks [[PLAT-005]] once PLAT-014 completes independent review and enters Verifying.
 
 ## Changes
 
 | File | Change | Why |
 |---|---|---|
 | `scripts/PegasusPlatform.ps1` | Modified the Windows `Get-PegasusDatabaseState` branch to recognize only the requested instance's line-anchored missing diagnostic, preserve Running/Stopped, and classify contradictory or other zero-exit output as Unknown. | Restores correct absence detection without weakening the existing ownership guard. |
-| `scripts/Test-PegasusPlatform.ps1` | Added a Windows-only standalone contract test using the existing `-Command` seam. | Covers the exact two-line LocalDB 2025 fixture, wrong-instance/wrapper/unrecognized/contradictory responses, state lines, and non-zero behavior without mutating LocalDB. |
+| `scripts/Test-PegasusPlatform.ps1` | Added a Windows-only standalone contract test using the existing `-Command` seam, then reset its process-global native exit status after all assertions pass. | Covers the exact two-line LocalDB 2025 fixture, wrong-instance/wrapper/unrecognized/contradictory responses, state lines, and non-zero behavior without mutating LocalDB; prevents that final intentional non-zero fixture from failing a passing GitHub Actions step. |
 | `.github/workflows/ci.yml` | Added the always-run `local-development-scripts` Windows job. | Gives the Windows-specific parser contract an explicit automated caller without conditional change-classification plumbing. |
 
 ## Governing docs
@@ -19,14 +19,17 @@ No PRD, FRD, or ADR is linked or changed: this fix restores the existing local t
 ## Risks / follow-ups
 
 - The canonical `dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"` did not return within either a 10-minute or 30-minute command window, without emitting a terminal failure. It is a timeout, not a passing result; the reviewer should inspect CI and decide whether a separate diagnostic ticket is warranted.
+- The first `local-development-scripts` job printed the passing test message but exited 1 because the final intentional fixture left `$global:LASTEXITCODE` at 1. Commit `4c7b459f` resets it only after every assertion; the re-run GitHub job remains required evidence.
 - Offline initialization's first Doctor invocation reported Azurite absent, then installed the repository-pinned packages and completed a passing final Doctor. This is bootstrap behavior, not a code change.
 - [[PLAT-005]] remains held and blocked by this ticket. Do not take over its existing worktree; resume it only after PLAT-014 independently passes review and is moved to Verifying.
 
 ## Verification hand-off
 
-Pre-merge evidence recorded on commit `6cb9c59a`:
+Pre-merge evidence recorded on commits `6cb9c59a` and `4c7b459f`:
 
 - `pwsh ./scripts/Test-PegasusPlatform.ps1` — passed.
+- `pwsh -NoProfile -Command ". './scripts/Test-PegasusPlatform.ps1'"` — passed with exit code 0 (the GitHub-style invocation).
+- `4c7b459f` resets `$global:LASTEXITCODE` to 0 only after the final intentional non-zero fixture has been asserted.
 - `pwsh ./scripts/Test-CiChangeFlags.ps1` — passed.
 - `dotnet restore ./Pegasus.slnx --locked-mode` — passed.
 - `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — passed with 0 warnings and 0 errors.
