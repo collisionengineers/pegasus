@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
@@ -145,6 +146,42 @@ public static class OperatorLabels
         MailOperationalDestination.Triage => "Triage",
         MailOperationalDestination.Unidentified => "Unidentified",
         _ => Humanise(destination.ToString())
+    };
+
+    /// <summary>
+    /// Where a repair specification's lines came from (ENG-002). The
+    /// unresolved legacy route is the fallback: rows recorded before the
+    /// product tracked a source at all.
+    /// </summary>
+    public static string RepairSpecificationRoute(RepairSpecificationSourceRoute route) => route switch
+    {
+        RepairSpecificationSourceRoute.Manual => "entered by hand",
+        RepairSpecificationSourceRoute.Glasses => "imported from Glass's",
+        RepairSpecificationSourceRoute.AudatexPdf => "imported from Audatex",
+        RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
+        _ => "recorded before source tracking"
+    };
+
+    /// <summary>
+    /// An estimate line's operation type, in the same words the line-type
+    /// choices offer. An unlisted code prints verbatim rather than being
+    /// humanised, because the persisted vocabulary is closed
+    /// (<see cref="EstimateLineCodes"/>) and an unknown value is a fault the
+    /// operator should be able to read back exactly.
+    /// </summary>
+    public static string EstimateLineType(string type) => type switch
+    {
+        "rnr" => "Remove and refit",
+        "repair" => "Repair",
+        "new_part" => "New part",
+        "check_labour" => "Check",
+        "paint_new" => "Paint — new part",
+        "paint_repair" => "Paint — repair",
+        "paint_blend" => "Paint — blend",
+        "paint_prep" => "Paint — preparation",
+        "specialist_fixed" => "Specialist, fixed price",
+        "specialist_wu" => "Specialist, by work units",
+        _ => type
     };
 
     public static string DocumentRole(DocumentSemanticRole role) => role switch
