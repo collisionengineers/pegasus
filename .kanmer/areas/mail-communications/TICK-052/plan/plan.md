@@ -74,3 +74,12 @@ FRD-08 remains the exact-message/fail-closed/history authority. No governing-doc
 5. Run four lenses and proportional verification; reconcile PIR/traceability; push and leave all tickets in Review.
 
 No new store, schema, worker, generic authorization/recovery framework or external write.
+
+## PR-051/052 correction simplification pass — 2026-08-20
+
+- **Reuse:** extended the one protected TempData authority and existing IReleaseCaseEditLease compensation; Core link/unlink fingerprinting remains the sole replay owner.
+- **Simplification:** the existing delimited payload gained message/receipt/action fields and one exact scalar comparison. Protected Peek plus explicit clear avoids a second recovery copy. No record, store, middleware, worker or generic action framework was added.
+- **Efficiency:** final POSTs reuse the required exact message→receipt lookup; transient recovery repeats only the definitive no-write refusal and existing release command.
+- **Altitude:** Web owns exact confirmation binding and request compensation. Core/EF remain the mutation, conflict, replay, lease-consumption and append-only history owners.
+- **Applied findings:** preserved authority across roleless requests by avoiding automatic TempData consumption; used server-parsed Case/token for compensation; retained exact successful authority for Core replay; made dialog rendering message/receipt/action-specific.
+- **Unapplied findings:** none.
