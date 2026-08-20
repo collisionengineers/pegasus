@@ -52,3 +52,5 @@ No blocking comments.
 ## Verdict
 
 **Pass.** Report matches diff; governing-docs claim holds; open questions resolved; code is the planned one-root consolidation without behaviour change; simplification pass is honest; no structural regression under the strict maintainability bar. Merge when `repository-check` is green, then move to verifying.
+
+Merged PR 467 into `dev` at 2026-08-20T09:33:33Z (merge commit `a3c88a7bbdb43cf4cbd9303022397f6e028d7bf9`). repository-check green (infrastructure path-skipped). Ticket moved to verifying.

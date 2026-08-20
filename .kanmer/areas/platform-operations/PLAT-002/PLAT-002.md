@@ -2,13 +2,14 @@
 id: PLAT-002
 type: ticket
 title: Give the Web pages one staff-actor root (TryGetActor / NewOperationKey)
-status: review
+status: verifying
 area: platform-operations
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-20T08:42:52.536Z'
   review: '2026-08-20T09:21:03.098Z'
+  verifying: '2026-08-20T09:33:45.453Z'
 taken_at: '2026-08-20T09:01:35.494Z'
 branch: task/plat-002-staff-page-root
 worktree: ../pegasus-worktrees/plat-002
@@ -24,7 +25,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/467'
 archived: false
 created: '2026-08-17T14:19:26.387Z'
-updated: '2026-08-20T09:21:03.098Z'
+updated: '2026-08-20T09:33:45.453Z'
 ---
 
 ## Why
