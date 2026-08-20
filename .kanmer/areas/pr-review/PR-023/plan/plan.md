@@ -28,3 +28,11 @@ No PRD, FRD, or ADR applies or changes: this is a test-host exit-status correcti
 - Resetting the status before the final assertion would hide a failed fixture. Mitigation: do it only after every `Assert-DatabaseState` call succeeds.
 - A green local result does not prove the runner behavior. Mitigation: use the Actions-style command shape locally and require the re-run GitHub job to pass.
 - No open questions remain.
+
+## Simplification pass — 2026-08-20 (review correction)
+
+- **Reuse:** Retained the existing fixture and all classifier assertions; the repair uses the same process-global status variable that the fixture deliberately exercises.
+- **Simplification:** A single success-epilogue assignment is sufficient. No wrapper, workflow change, fixture deletion, or classifier change is justified.
+- **Efficiency:** The assignment has no runtime cost beyond the standalone test and prevents a wasted failing CI run.
+- **Altitude:** The correction changes only test-host success reporting; it does not alter local lifecycle behavior, application behavior, or deployment.
+- **Disposition:** No further behavior-preserving simplification was identified.

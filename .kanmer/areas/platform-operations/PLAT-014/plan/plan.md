@@ -59,3 +59,11 @@ The focused assertions prove all classifier outcomes without state mutation, inc
 - **Efficiency:** The parser remains in-process and side-effect free. One five-minute Windows job is the smallest honest CI caller for the Windows-only contract; it avoids unrelated build or cloud work.
 - **Altitude:** The diff is limited to local tooling, its focused test, and CI registration. No application, deployment, or governing-document behavior was changed.
 - **Disposition:** No behavior-preserving simplification was identified.
+
+## Simplification pass — 2026-08-20 (review correction)
+
+- **Reuse:** Retained the existing fixture and all classifier assertions; the repair uses the same process-global status variable that the fixture deliberately exercises.
+- **Simplification:** A single success-epilogue assignment is sufficient. No wrapper, workflow change, fixture deletion, or classifier change is justified.
+- **Efficiency:** The assignment has no runtime cost beyond the standalone test and prevents a wasted failing CI run.
+- **Altitude:** The correction changes only test-host success reporting; it does not alter local lifecycle behavior, application behavior, or deployment.
+- **Disposition:** No further behavior-preserving simplification was identified.
