@@ -1,3 +1,5 @@
 2026-08-20: PR #469 landed at c025b39a; refreshed origin/dev is 8caa39a5 (also includes design PR #476). Created ../pegasus-worktrees/tick-049 on task/tick-049-mail-07-confirmed-folder-move from that head and took TICK-049. No external write performed.
 
 2026-08-20: Pushed commits `8b1e6d74` and `f60248af`, opened PR #477 to `dev` at head `f60248af4a078c1fa188a46143818d2cce2683c9`. Final local Release solution build passed with 0 warnings/errors. CI queued. No live Graph/mailbox/cloud/permission/deployment write occurred. Handoff is independent `kanmer-review`; this implementing agent will not self-review or merge.
+
+2026-08-20 CI follow-up: repository `changes` detected the grant-carrying migration was not yet enumerated in the exhaustive database-bootstrap matrix. Added exactly the migration-defined Web SELECT/INSERT/UPDATE and Web/Worker DELETE denials, with no new permission or deployment behavior. Local deployment-plan and migration-grant scripts pass. Pushed `5e8217a1`; replacement CI pending.

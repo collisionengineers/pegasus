@@ -53,3 +53,7 @@ The PR reference and final head SHA will be recorded on the ticket after the bra
 Opened PR #477 to `dev`: https://github.com/collisionengineers/pegasus/pull/477
 
 Pushed head: `f60248af4a078c1fa188a46143818d2cce2683c9`. CI was queued at handoff; independent review must wait for required checks to pass before merge.
+
+## CI follow-up
+
+The first PR run's repository `changes` job correctly reported that the grant-carrying migration was absent from the deployment bootstrap's exhaustive permission matrix. Commit `5e8217a1` adds the exact migration-defined Web SELECT/INSERT/UPDATE grants plus Web/Worker DELETE denials. `Test-AzureDeploymentPlan.ps1 -Mode Local` and `Test-MigrationGrants.ps1` both pass after the correction. The commit was pushed and replacement CI started; independent review should use the new head.
