@@ -1,0 +1,5 @@
+- [x] Trace every repository, CI, runbook, deployment, and local-tool reference to `.infisical.json`
+- [x] Identify the actual executable consumer and supported workflow, if any (none found)
+- [x] Remove the file since it is unused; no stale references existed elsewhere
+- [x] Do not read, rotate, or mutate credentials or external Infisical state
+- [x] No secret value printed, copied, or committed
