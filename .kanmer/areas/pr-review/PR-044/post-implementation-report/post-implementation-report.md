@@ -26,3 +26,8 @@ The plan records the reuse, simplification, efficiency and altitude lenses. The 
 ## Handoff
 
 Commit and PR traceability are recorded after the branch update. PR #477 remains in Review for an independent agent; this report claims only local/fake-provider and LocalDB evidence.
+
+## Commit and pull request
+
+- `1cc0927d22bc4976ecb4e8b5491658a9db3eedd3` — make cancelled folder moves durably recoverable.
+- PR #477 targets `dev`: https://github.com/collisionengineers/pegasus/pull/477

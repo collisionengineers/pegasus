@@ -69,3 +69,5 @@ Additional final evidence: exact concurrency/Uncertain set 5/5, provider-failure
 Request cancellation after the Pending reservation now performs a bounded, fresh-context, conditional Pending → Uncertain handoff before rethrowing the original cancellation. Only Uncertain can enter the existing same-key probe recovery, so the active slot remains held and a different key cannot start while the outcome is unresolved. A conditional update leaves an already committed Success unchanged.
 
 Exact evidence: focused cancellation/concurrency/recovery set 6/6; full retained-mail persistence class 26/26; Release solution build passed with 0 warnings/errors; diff check passed. Both cancellation tests recover with the original key through probes, refuse a different key until resolution and keep the provider move count at one. Only `EfRetainedMailFolderMoveStore.cs` and `RetainedMailPersistenceTests.cs` changed. No external write, migration, worker, lease or generic framework was introduced.
+
+Commit `1cc0927d22bc4976ecb4e8b5491658a9db3eedd3` delivers PR-044 on PR #477.

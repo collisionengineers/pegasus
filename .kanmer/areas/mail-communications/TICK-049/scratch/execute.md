@@ -9,3 +9,5 @@ Review-blocker implementation completed locally. Added SQL active-claim serializ
 Pushed final blocker-fix head `fc3b651eda785ad37fbe7c302aec38e2876abc20` to PR #477. GitHub confirms OPEN, non-draft, base `dev`, exact head match. Replacement repository-check run 32391719482 is in progress at handoff. No self-review or merge performed.
 
 PR-043 pushed as 83293162c3059d52b05d5139e2d1b8ee56b8d5a9. PR #477 is OPEN, non-draft, base dev, exact head match. Replacement CI run 32393959663 started. TICK-049 and PR-043 remain Review; no self-review or merge.
+
+2026-08-20 PR-044 implementation complete. Commit `1cc0927d22bc4976ecb4e8b5491658a9db3eedd3` changes only the dedicated EF move store and retained-mail persistence tests. Focused set 6/6, full retained-mail persistence 26/26, Release solution build 0 warnings/errors, diff checks passed. Pushed to existing PR #477; no live Graph/mailbox/cloud/external write. Leave Review for an independent agent.
