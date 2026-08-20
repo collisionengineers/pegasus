@@ -11,3 +11,14 @@ Branch `task/intk-022-queues-one-table` from origin/dev, worktree `../pegasus-wo
 Dispositions noted: Triage tab already lists newest-first; Unidentified stays oldest-first deliberately (exception queue — oldest is the work); top-level queue tabs remain tabs (they are pages, not filters — the operator's dropdown ask targeted the filter pills).
 
 Deviation: subagents barred — self-review recorded.
+
+## Simplification pass — 2026-08-20 (self, subagents barred)
+
+Lenses over `origin/dev...HEAD` (7 files, +385/−77):
+
+- **Reuse** — sort rides the existing `SearchCasesQuery` (new enum, default preserves today's order); the merged table reuses the two existing loads and the TICK-065 `ImageIntakeChaseSchedule` chip; dropdowns are a plain GET form on the existing query params. No new queries, stores, or migrations. ✔.
+- **Simplification** — applied mid-implementation: my first table markup dropped TICK-065's image chase chip (caught by the diff against dev, restored into the merged Chase cell); nested double-quoted Razor helper attributes converted to single-quoted (they silently mis-render). Principal dropdown options come from the loaded queue rows rather than a new principal query — an empty-queue principal is not selectable, which is the correct trade for zero new query surface.
+- **Efficiency** — Not ready fetches one 100-row page + the bounded image list (both already fetched today at 25+all); in-memory merge/sort of a bounded queue. ✔.
+- **Altitude** — ordering lives in the store switch; labels in the view; the page model maps, never owns policy. ✔.
+
+No BOM drift vs dev. All findings applied; none deferred.
