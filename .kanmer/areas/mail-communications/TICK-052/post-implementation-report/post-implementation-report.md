@@ -2,44 +2,35 @@
 
 ## Outcome
 
-Implemented the local MAIL-10 slice on the exact retained-message page. An authorized staff user can search existing cases through the landed shared upload Case-search helper, review one canonical target summary, then give a reason and explicitly confirm a link. An existing association exposes only a separately reasoned unlink for its exact current Case. A correction is therefore an honest unlink followed by a fresh search, target review, reason and replacement link; there is no direct swap.
+The exact retained-message page supports deliberate search/review/reasoned link, reasoned unlink, and a separate replacement search. PR-048..050 corrections add a lease-first confirmation boundary so exact successful final POSTs reach the existing Core fingerprint replay before any fresh-state rejection. Changed inputs under the same key still conflict. Definitive post-acquire failures release through the existing Case lease port with non-request cancellation; uncertain outcomes retain the same confirmation authority. Each Case-search result is one focusable link whose accessible name contains reference, registration, claimant and stage.
 
-Every POST reloads message→receipt and the Case on the server, compares the reviewed receipt/Case versions, rejects a missing/current/different/stale association, acquires the existing edit lease, and delegates to the existing Core link/reverse use case and serializable EF transaction.
+## Exact file inventory
 
-## Files changed
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` — prepare/final association orchestration, protected confirmation authority, direct Core replay path, and definitive-failure compensation.
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml` — two-step link/unlink confirmations and one complete accessible Case-result anchor.
+- `src/Pegasus.Web/Pages/Shared/_ReasonDialog.cshtml` — optional hidden fields used by the concrete link and unlink confirmation callers, keeping the lease token out of the URL.
+- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` — exact authenticated link/unlink replay, changed-input conflict, history cardinality, successful lease consumption, post-acquire failure release/immediate reacquisition, and accessible-name proof.
+- `docs/capabilities.md` and `docs/current-architecture.md` — unchanged from the original MAIL-10 commit; the correction does not alter capability scope or as-built boundaries.
 
-- `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` — thin search/review/link/unlink orchestration and fail-closed freshness checks.
-- `src/Pegasus.Web/Pages/Mail/Message.cshtml` — current association, bounded search results, canonical target summary, and shared reason dialogs.
-- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` — exact authenticated Web journey plus roleless/stale no-write proof.
-- `docs/capabilities.md` — local MAIL-10 implementation/evidence tier.
-- `docs/current-architecture.md` — as-built exact-message association caller.
-
-No Core, Infrastructure, schema, migration, permission, Graph/Box adapter, generic framework, or deployment file changed.
+No Core, Infrastructure, EF model/store, schema, migration, Graph/Box/cloud/deployment/permission or generic action framework changed.
 
 ## Verification
 
 - `dotnet restore ./Pegasus.slnx --locked-mode` — passed.
 - `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — passed, 0 warnings/errors.
-- Exact new Mail tests — 2/2 passed.
-- Full `MailWorkspaceWebTests` — 32/32 passed.
-- `CaseAcceptanceReplayTests|CaseMatchIntegrationTests` — 11/11 passed.
-- Full Core tests — 860/860 passed.
-- Full Architecture tests — 98/98 passed.
+- Exact replay journey — passed: exact link replay and exact unlink replay return success; changed reason under the link operation key conflicts; history counts remain one link and one unlink.
+- Post-acquire stale-state compensation — passed: no association/history, lease token cleared, immediate reacquisition succeeds.
+- Exact accessibility test — passed: one matching anchor contains the current Case reference, registration, claimant and stage.
+- Full `MailWorkspaceWebTests` — 33/33 passed.
 - `git diff --check` — passed (line-ending notices only).
 
-The exact Web journey uses an unclassified retained message, proving classification is not a link gate. It links, unlinks, then separately searches and links a replacement; the final local SQL state has one active reused association row and three immutable mutation-history records. A second test proves a roleless POST is forbidden and stale reviewed receipt state returns no-write failure.
+## Simplification and qualification
 
-## Simplification
-
-The four-lens pass is recorded in the plan. Its material correction was to reuse the landed `UploadCaseDecision.SearchAsync` helper after the execution worktree proved the earlier root-checkout symbol lookup stale. The final diff adds no business-policy owner or generic action abstraction.
-
-## Residual risk and qualification
-
-Evidence is disposable local SQL and the real local Web pipeline. No live mailbox, Graph, Box, Azure/cloud, permission, deployment, production database write, or operator live acceptance was performed or authorized. Production verification remains separately exact-target approval-gated.
+The correction four-lens pass is recorded in the plan. The result remains a Web-only orchestration correction over existing ports and one existing shared partial. Evidence is disposable local SQL and the authenticated local Web pipeline. No external or live write was performed.
 
 ## Delivery references
 
-- Commit: `d4c951f5`
+- Original commit: `d4c951f5`
+- Correction commit: `6b7c62a4`
 - Pull request: #490 — https://github.com/collisionengineers/pegasus/pull/490
-- Target: `dev`
-- Disposition: open for independent review; not self-reviewed or merged.
+- Target/disposition: `dev`, open in Review for independent re-review; not self-reviewed or merged.

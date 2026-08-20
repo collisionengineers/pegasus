@@ -51,3 +51,12 @@ FRD-08 still owns exact-message reasoned association and permanent history. `doc
 6. Run focused/proportional verification, repeat four lenses, update PIR/traceability, push the replacement head, and leave Review.
 
 No Core/EF/schema/framework/swap/external-write scope is introduced.
+
+## PR-048..050 correction simplification pass — 2026-08-20
+
+- **Reuse:** reused the existing `IAcquireCaseEditLease` / `IReleaseCaseEditLease`, Core link/reverse commands and fingerprint/history owner, Intake Details' lease-first TempData convention, and the existing shared reason dialog. The dialog's hidden-field input has two concrete callers: link and unlink.
+- **Simplification:** retained two explicit prepare/final flows because link and unlink have different current-association predicates. One protected TempData string carries the already-acquired authority; no record type, store, schema, generic command, background recovery, or second policy was added.
+- **Efficiency:** one selected Case is checked and leased during preparation; final submission resolves only the exact message→receipt binding and delegates directly to Core, allowing replay before stale-state rejection.
+- **Altitude:** Web owns confirmation orchestration and presentation. Core/EF remain the sole association, conflict, idempotency, lease-consumption and history owners.
+- **Applied findings:** removed final Web freshness/lease acquisition that pre-empted Core replay; kept the lease token out of the action URL; compensated only definitive failures with `CancellationToken.None`; preserved uncertain outcomes for same-confirmation retry; put all visible result identity inside one anchor; used one TempData payload after the default serializer rejected nullable numeric properties.
+- **Unapplied findings:** none.
