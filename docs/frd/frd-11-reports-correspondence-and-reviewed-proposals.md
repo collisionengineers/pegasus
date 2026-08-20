@@ -41,6 +41,24 @@ storage paragraph, statement-of-truth wording, qualification, signature, or
 other document wording that has not been accepted remains unavailable; the
 renderer must not substitute placeholder or inferred content.
 
+### Audit report parity
+
+When RPT-03 is activated by its own accepted caller, an Audit report uses the
+same approved Inspection report contract, template, wording, layout, and
+renderer presentation as the equivalent Inspection report. Audit is distinct
+only in its accepted workflow provenance and immutable internal reference: the
+normal Case/PO remains authoritative, with the existing `a.{Case/PO}` reference
+for a repairable Audit or `ap.{Case/PO}` for a total-loss Audit. Those identity
+facts travel through the shared Core-owned report contract; they do not select
+or create a separate physical report family.
+
+Missing, conflicting, ambiguous, stale, or cross-case Audit outcome or
+reference evidence fails closed before rendering. Audit must not introduce a
+second template, wording, layout, report model, conservative/maximised
+specification pair, or monetary or percentage uplift. This future behaviour
+does not open the current renderer surface or supply a caller; the closed
+activation boundary below remains in force.
+
 ### Initial renderer activation
 
 The first active renderer surface is closed to the `rendererref1` assessment
