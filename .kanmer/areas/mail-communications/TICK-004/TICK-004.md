@@ -4,7 +4,7 @@ type: ticket
 title: >-
   EVAL-02 — Reviewer selects from the detailed Received/Sent/Reply taxonomy and
   records required reasoning
-status: implementing
+status: review
 area: mail-communications
 assignee: claude-code
 profile: feature
@@ -26,9 +26,11 @@ groups:
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/463'
 archived: false
 created: '2026-08-12T15:03:52.841Z'
-updated: '2026-08-20T05:54:10.227Z'
+updated: '2026-08-20T06:03:53.542Z'
 ---
 
 ## What
