@@ -36,7 +36,7 @@ public sealed partial class RequestModel(
             StatusMessage = completionStatus;
             if (UploadPolicy is not null)
             {
-                OperationKey = NewOperationKey();
+                OperationKey = StaffPageModel.NewOperationKey();
             }
             return Page();
         }
@@ -45,7 +45,7 @@ public sealed partial class RequestModel(
             return NotFound();
         }
 
-        OperationKey = NewOperationKey();
+        OperationKey = StaffPageModel.NewOperationKey();
         return Page();
     }
 
@@ -158,8 +158,6 @@ public sealed partial class RequestModel(
         Level = LogLevel.Warning,
         Message = "A public document request upload failed.")]
     private static partial void LogPublicRequestUploadFailure(ILogger logger, Exception exception);
-
-    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
 }
 
 public sealed class RequestUploadAttemptLimiter(RequestUploadLimits limits, TimeProvider timeProvider)

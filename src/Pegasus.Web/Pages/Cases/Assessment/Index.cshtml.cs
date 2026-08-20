@@ -1,10 +1,7 @@
 using System.Globalization;
 using System.IO;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -40,7 +37,7 @@ public sealed class IndexModel(
     IEstimateDocumentParser estimateParser,
     IAddCaseDocument addCaseDocument,
     IAcquireCaseEditLease acquireLease,
-    TimeProvider timeProvider) : PageModel
+    TimeProvider timeProvider) : StaffPageModel
 {
     /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
     private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
@@ -583,18 +580,6 @@ public sealed class IndexModel(
         PanelState = reasons.Count == 0 ? "available" : "unavailable";
         UnavailableReasons = reasons;
     }
-
-    private bool TryGetActor(out ActionActor actor)
-    {
-        var created = StaffActorFactory.TryCreate(
-            User.FindFirstValue(ClaimTypes.NameIdentifier),
-            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-            out var resolved);
-        actor = resolved!;
-        return created;
-    }
-
-    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
 
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;

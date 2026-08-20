@@ -1,8 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Persistence;
@@ -12,7 +10,7 @@ namespace Pegasus.Web.Pages.Account;
 public sealed class PasswordChangeModel(
     IChangeStaffPassword changeStaffPassword,
     SignInManager<PegasusIdentityUser> signInManager)
-    : PageModel
+    : StaffPageModel
 {
     // Explicit messages throughout: the framework defaults print bind-property
     // names and CLR type talk at the operator — "'ConfirmPassword' and
@@ -39,7 +37,7 @@ public sealed class PasswordChangeModel(
     public string ConfirmPassword { get; set; } = string.Empty;
 
     [BindProperty]
-    public string OperationKey { get; set; } = CreateOperationKey();
+    public string OperationKey { get; set; } = NewOperationKey();
 
     /// <summary>
     /// True when the operator was sent here by the must-change-password gate
@@ -167,7 +165,7 @@ public sealed class PasswordChangeModel(
         CurrentPassword = string.Empty;
         NewPassword = string.Empty;
         ConfirmPassword = string.Empty;
-        OperationKey = CreateOperationKey();
+        OperationKey = NewOperationKey();
         ModelState.Remove(nameof(CurrentPassword));
         ModelState.Remove(nameof(NewPassword));
         ModelState.Remove(nameof(ConfirmPassword));
@@ -176,10 +174,7 @@ public sealed class PasswordChangeModel(
 
     private bool TryGetActor(out ActionActor actor, out Guid staffId)
     {
-        if (StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var resolved)
+        if (TryGetActor(out var resolved)
             && Guid.TryParse(resolved.SubjectId, out var resolvedStaffId))
         {
             staffId = resolvedStaffId;
@@ -191,6 +186,4 @@ public sealed class PasswordChangeModel(
         staffId = Guid.Empty;
         return false;
     }
-
-    private static string CreateOperationKey() => Guid.NewGuid().ToString("N");
 }

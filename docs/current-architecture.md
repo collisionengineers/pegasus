@@ -93,6 +93,14 @@ in force here:
 
 ### Staff Web callers
 
+- Staff Razor Pages resolve request claims through the metadata-free
+  `StaffPageModel`, which is the Web-owned adapter to Core
+  `StaffActorFactory` and the shared operation-key generator. Administration,
+  case-mutation, upload-confirmation, and direct staff page models inherit it;
+  endpoint authorization remains on concrete pages or the authenticated
+  fallback policy. Anonymous `/Uploads/{token}` remains outside this inheritance
+  tree and reuses only the static operation-key generator. Manual upload receipt
+  tokens remain a separate intake replay identity.
 - `GET /Inbox` calls Core `ListRetainedMail` and `GetRetainedMailFreshness` for the mail workspace: retained messages newest first, scoped by mailbox and folder through the query string alone, with an explicit manual refresh that carries that scope; it is read-only and the page carries no handler. `GET /Inbox/{id}` calls `GetRetainedMail` for one retained message, its attachments, its retained-scope thread, and its current classification, queue, processing outcome and case association; its `OnPostCorrectClassificationAsync` handler corrects a message's classification. The Web runtime role holds `SELECT` alone on the retained-mail tables, plus `SELECT, UPDATE` on `IntakeMailClassificationDecisions` and `SELECT, INSERT` on `IntakeMailClassificationHistory` (`UPDATE, DELETE` denied there).
 - `GET /Operations` calls the Core Operations projection for retryable external work and active unexpired Pegasus-generated upload links. It has no approval controls, general receipt ledger, manual/email/Automation receipt display, or Box request caller. The separately planned principal-scoped provider API is not inferred from the Automation/MCP ingress. `GET /Received/{id}` calls `GetIntake`, and its retained receipt mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Received/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
