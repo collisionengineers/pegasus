@@ -806,10 +806,11 @@ card and `/Administration/MailCategories` form. The selected design reuses the e
 Administration card, panel, labelled form, error-summary and status-notice pattern;
 alternatives rejected were a generic mailbox-rules editor and an ordinary-staff mail
 workspace. Independent PR #473 review (PR-026) required this explicit re-entry record
-and the local rendered desktop/200%-zoom inspection recorded by MAIL-004. This is
-local visual/manual-review evidence for the narrow administration control, not operator
-release acceptance, deployment, Graph permission, category synchronization, or Outlook
-message-mutation authority. MAIL-13 keeps those separate delivery gates.
+and requires MAIL-004 to record a local rendered desktop/200%-zoom inspection before
+that review clears. That inspection is local visual/manual-review evidence for the
+narrow administration control, not operator release acceptance, deployment, Graph
+permission, category synchronization, or Outlook message-mutation authority. MAIL-13
+keeps those separate delivery gates.
 
 ### Deferred casework and advanced surfaces
 
