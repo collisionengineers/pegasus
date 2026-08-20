@@ -1,8 +1,5 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
@@ -13,7 +10,8 @@ namespace Pegasus.Web.Pages;
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
 public sealed class UploadStatusModel(
     IQueuedIntakeStatusQueries queries,
-    IUploadOutcomeQueries outcomeQueries) : PageModel
+    IUploadOutcomeQueries outcomeQueries,
+    IUploadCaseDecision caseDecision) : UploadConfirmationPageModel(caseDecision)
 {
     public QueuedIntakeStatus Status { get; private set; } = null!;
     public bool IsDuplicate { get; private set; }
@@ -72,14 +70,14 @@ public sealed class UploadStatusModel(
         // The confirmation decision needs a full receipt read for a terminal
         // status; Received/Processing never reach the branch that needs one.
         if (status.Status is QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed
-            && StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+            && TryGetActor(out var actor))
         {
             Outcome = await outcomeQueries.BuildAsync(status, submissionGroupId: null, actor, cancellationToken);
         }
 
         return Page();
     }
+
+    protected override IActionResult RedirectToSurface(Guid id) =>
+        RedirectToPage("/UploadStatus", new { id });
 }

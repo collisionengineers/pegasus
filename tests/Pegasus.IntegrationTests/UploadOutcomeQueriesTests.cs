@@ -178,6 +178,100 @@ public sealed class UploadOutcomeQueriesTests
         Assert.Contains("blocked", result.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task OpenStaffDecisionsCarryTheAddToExistingCaseOffer()
+    {
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+
+        var readyToCreate = await BuildAsync(status, MakeReceipt(receiptId, IntakeDecision.OcrRequired));
+        Assert.Equal(UploadOutcomeKind.ReadyToCreate, readyToCreate.Kind);
+        Assert.NotNull(readyToCreate.Attach);
+        Assert.Equal(receiptId, readyToCreate.Attach!.ReceiptId);
+
+        var attached = await BuildAsync(
+            StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId, caseId: Guid.NewGuid()),
+            MakeReceipt(receiptId, IntakeDecision.CaseCreated, acceptedCaseId: Guid.NewGuid()));
+        Assert.Equal(UploadOutcomeKind.Attached, attached.Kind);
+        Assert.Null(attached.Attach);
+    }
+
+    [Fact]
+    public async Task AwaitingImageRegistrationOffersAttachAgainstItsOriginReceipt()
+    {
+        var receiptId = Guid.NewGuid();
+        var originReceiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(receiptId, IntakeDecision.ImageIntakeRegistered);
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(
+                Guid.NewGuid(),
+                new ImageIntakeOrigin(originReceiptId, new(IntakeSourceChannel.ManualUpload, "token"), "hash", Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01"),
+            DateTimeOffset.UtcNow,
+            null,
+            null);
+
+        var result = await BuildAsync(status, receipt, imageIntakeDetail: detail);
+
+        Assert.Equal(UploadOutcomeKind.ImageCaseRegistered, result.Kind);
+        Assert.NotNull(result.Attach);
+        // The staff decision links the registration's origin receipt so the
+        // whole registered group merges, whichever member row offered it.
+        Assert.Equal(originReceiptId, result.Attach!.ReceiptId);
+    }
+
+    [Fact]
+    public async Task MergedImageRegistrationReportsItsCaseInsteadOfTheRegistration()
+    {
+        var receiptId = Guid.NewGuid();
+        var mergedCaseId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(receiptId, IntakeDecision.ImageIntakeRegistered);
+        var detail = new ImageIntakeDetail(
+            new ImageIntakeRecord(
+                Guid.NewGuid(),
+                new ImageIntakeOrigin(Guid.NewGuid(), new(IntakeSourceChannel.ManualUpload, "token"), "hash", Guid.NewGuid()),
+                "AB12CDE",
+                "AB12CDE-01",
+                ImageInitiatedCaseState.MergedIntoInstructionCase,
+                MergedIntoCaseId: mergedCaseId,
+                MergedIntoCaseReference: "QDO31001"),
+            DateTimeOffset.UtcNow,
+            mergedCaseId,
+            "QDO31001");
+
+        var result = await BuildAsync(status, receipt, imageIntakeDetail: detail);
+
+        Assert.Equal(UploadOutcomeKind.Attached, result.Kind);
+        Assert.Contains("QDO31001", result.Message, StringComparison.Ordinal);
+        Assert.Equal($"/Cases/Details/{mergedCaseId:D}", result.PrimaryAction!.Url);
+        Assert.Null(result.Attach);
+    }
+
+    [Fact]
+    public async Task StaffLinkedCaseIsNotReportedAsAutomatic()
+    {
+        var caseId = Guid.NewGuid();
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId, caseId: caseId);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.CaseCreated,
+            manualLinkedCaseId: caseId,
+            manualLinkedCaseReference: "QDO31002",
+            manualAssociationVersion: 3,
+            manualAssociationActorKind: ActorKind.Staff);
+
+        var result = await BuildAsync(status, receipt);
+
+        Assert.Equal(UploadOutcomeKind.Attached, result.Kind);
+        Assert.Contains("added to case QDO31002", result.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("automatically", result.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(result.Attach);
+    }
+
     private static QueuedIntakeStatus StatusOf(
         QueuedIntakeStatusKind kind,
         Guid? receiptId = null,
@@ -193,7 +287,11 @@ public sealed class UploadOutcomeQueriesTests
         IntakeDecision decision,
         Guid? acceptedCaseId = null,
         string? acceptedCaseReference = null,
-        CaseMatchEvaluationResult? caseMatchDecision = null) =>
+        CaseMatchEvaluationResult? caseMatchDecision = null,
+        Guid? manualLinkedCaseId = null,
+        string? manualLinkedCaseReference = null,
+        long? manualAssociationVersion = null,
+        ActorKind? manualAssociationActorKind = null) =>
         new(
             id,
             "example.pdf",
@@ -218,7 +316,11 @@ public sealed class UploadOutcomeQueriesTests
             null,
             AcceptedCaseId: acceptedCaseId,
             AcceptedCaseReference: acceptedCaseReference,
-            CaseMatchDecision: caseMatchDecision);
+            CaseMatchDecision: caseMatchDecision,
+            ManualLinkedCaseId: manualLinkedCaseId,
+            ManualLinkedCaseReference: manualLinkedCaseReference,
+            ManualAssociationVersion: manualAssociationVersion,
+            ManualAssociationActorKind: manualAssociationActorKind);
 
     private static Task<UploadOutcomeView> BuildAsync(
         QueuedIntakeStatus status,
