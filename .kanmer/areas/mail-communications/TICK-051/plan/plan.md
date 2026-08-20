@@ -44,3 +44,7 @@ Extend that existing request with an optional evidence fingerprint. `EfIntakeMut
 - **Efficiency:** pass. Retained projection stays page-batched; thread reads exact mailbox/conversation tokens; no N+1 query, duplicate projection, table, index, or migration was added. The system-wide registration scan is the smallest correct query because stored values require the shared normalization grammar and the existing match index is provider-limited.
 - **Altitude:** pass. One focused Core policy selects or abstains; Infrastructure gathers current facts and verifies freshness inside the existing transaction; the existing queued caller invokes it. No generic mail matcher, registry, action matrix, provider adapter, or external operation was introduced.
 - **Unapplied findings:** none.
+
+## Blocking review fixes and simplification — 2026-08-20
+
+[[PR-045]]–[[PR-047]] were addressed without production-policy redesign. **Reuse:** existing QDOS recovery fixture, real processor/EF transaction, and retained-message helper. **Simplification:** one shared two-scenario method; no generic test framework. **Efficiency:** two disposable LocalDB cases plus the owning 17-test regression class. **Altitude:** production diff is unchanged by caller proof; capability edit restores one lost schedule fact; PIR owns the one exact file inventory. No unapplied findings.

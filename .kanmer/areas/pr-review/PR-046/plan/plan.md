@@ -13,3 +13,7 @@ FRD-08 behavior remains unchanged. Capabilities retains its scheduling authority
 1. Reconcile the one MAIL-09 note without changing its allocation columns.
 2. Verify documentation checks and diff scope.
 3. Record blocker/TICK traceability.
+
+## Simplification pass — 2026-08-20
+
+Reuse, simplification, efficiency and altitude reviewed proportionally. The disposition is recorded in this blocker's PIR. No unapplied findings.
