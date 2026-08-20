@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Extraction auto-adds case details and reads the real document shapes (names,
   registrations, references)
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T15:28:23.097Z'
 labels:
   - extraction
   - operator-reported
@@ -18,7 +20,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-20T14:55:06.997Z'
-updated: '2026-08-20T14:55:06.997Z'
+updated: '2026-08-20T15:28:23.097Z'
 ---
 
 ## Why
