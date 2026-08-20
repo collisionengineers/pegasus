@@ -52,3 +52,24 @@ This proof does **not** claim an automatic complete-assessment trigger, durable 
 ## Verdict
 
 PASS. The merged `dev` result satisfies SIMPLI-014 at its authorized integration evidence tier and is ready for Done/closeout.
+
+---
+
+## Addendum — 2026-08-20 (deployment status update, stage unchanged)
+
+The renderer this ticket integrated is now **deployed** — it has shipped as
+part of the Web image in both release 12 (`ed3be51c95bc2a055606e5210131d37de9de2dd1`,
+deployed 2026-08-19) and release 13 (`2325ed4a31d7dad65a00a7ae5ea0c41ca869bfa5`,
+deployed 2026-08-20). It now has a **reachable production caller**: per
+[[DELIV-012]] proof's signed-in production verification, the Case assessment
+page's **Report draft** panel is present and fail-closed with 22 enumerated
+readiness reasons (including "Repair cost figures") — the panel this
+ticket's rendererref1 assessment/fee-note contract backs.
+
+This remains **gated on estimate import (ENG-002)**: no accepted estimate
+lines exist in production yet, so the panel's fail-closed reasons list is
+the observable state, not a completed render. This addendum does not change
+this ticket's stage (`done`) or its original verdict — it records that the
+"no live user caller" qualification in the original proof has narrowed
+(a real caller now exists and is reachable) without yet being satisfied
+end-to-end.
