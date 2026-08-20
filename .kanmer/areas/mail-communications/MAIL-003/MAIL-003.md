@@ -2,13 +2,14 @@
 id: MAIL-003
 type: ticket
 title: Fix PollSentEvidence rejecting the correctly approved mailbox
-status: review
+status: verifying
 area: mail-communications
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-20T03:27:23.549Z'
   review: '2026-08-20T03:49:02.082Z'
+  verifying: '2026-08-20T04:02:55.809Z'
 taken_at: '2026-08-20T03:36:46.957Z'
 branch: task/mail-003-sent-evidence-approval
 worktree: ../pegasus-worktrees/mail-003
@@ -24,7 +25,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/439'
 archived: false
 created: '2026-08-20T03:25:25.713Z'
-updated: '2026-08-20T03:49:02.082Z'
+updated: '2026-08-20T04:02:55.809Z'
 ---
 
 ## What
