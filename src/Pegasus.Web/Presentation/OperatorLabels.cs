@@ -457,6 +457,24 @@ public static class OperatorLabels
     }
 
     /// <summary>
+    /// The Automation activity view's Subject column, resolved from the raw
+    /// subject id recorded on an Automation action or a denied automation
+    /// request (<see cref="Pegasus.Core.Identity.AutomationActivityRecord"/>).
+    /// There is exactly one Automation client per deployment (ADR-0011): a
+    /// subject matching its configured client id is that client; anything else
+    /// that is shaped like a GUID cannot be resolved to an identity and is never
+    /// shown raw. A non-GUID subject (for example "anonymous", written for a
+    /// request that carried no client identity at all) is already an honest
+    /// label and passes through unchanged.
+    /// </summary>
+    public static string AutomationActorLabel(string subjectId, string? configuredClientId) =>
+        configuredClientId is { Length: > 0 } && string.Equals(subjectId, configuredClientId, StringComparison.Ordinal)
+            ? Pegasus.Web.Mcp.AutomationMcp.ClientDisplayName
+            : Guid.TryParse(subjectId, out _)
+                ? "Unknown automation client"
+                : subjectId;
+
+    /// <summary>
     /// Where a value came from, as the one word the provenance icon announces
     /// and the approved Lucide glyph that carries it.
     /// </summary>

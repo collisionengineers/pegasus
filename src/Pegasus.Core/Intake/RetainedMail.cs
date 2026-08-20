@@ -1,3 +1,4 @@
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
@@ -92,14 +93,28 @@ public sealed record MailClassificationHistoryEntry(
     MailClassificationResult After,
     string Actor,
     string Reason,
-    DateTimeOffset CorrectedAtUtc);
+    DateTimeOffset CorrectedAtUtc)
+{
+    /// <summary>
+    /// The operator-facing name for <see cref="Actor"/> — a persisted
+    /// <c>"{kind}:{subjectId}"</c> pair, see <see cref="MailClassificationActor"/> —
+    /// resolved by <c>GetRetainedMail</c>. Defaults to the same honest fallback an
+    /// unresolvable actor gets, so a caller that forgets to populate it never
+    /// renders the raw subject id.
+    /// </summary>
+    public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
+}
 
 public sealed record MailClassificationDossier(
     int Version,
     MailClassificationResult Current,
     string CurrentActor,
     DateTimeOffset CurrentDecidedAtUtc,
-    IReadOnlyList<MailClassificationHistoryEntry> History);
+    IReadOnlyList<MailClassificationHistoryEntry> History)
+{
+    /// <summary>The operator-facing name for <see cref="CurrentActor"/>.</summary>
+    public string CurrentActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
+}
 
 public sealed record CorrectMailClassificationRequest(
     Guid MessageId,
@@ -126,6 +141,70 @@ public interface IRetainedMailClassificationStore
 
 public sealed class MailClassificationConcurrencyException()
     : InvalidOperationException("The classification changed after this message was opened. Reload it before correcting it.");
+
+/// <summary>
+/// The single format for the actor persisted alongside a mail classification
+/// correction: <c>"{kind}:{subjectId}"</c>, lowercase kind. There is no dedicated
+/// actor column for this history (unlike <c>CaseWorkflowEvents</c> or Triage
+/// history), so the pair is packed into the one <c>Actor</c> string the store
+/// writes; this is the sole place that packs and unpacks it.
+/// </summary>
+public static class MailClassificationActor
+{
+    /// <summary>
+    /// The kind prefixes as the rest of the codebase already writes them
+    /// (<c>"staff:"</c> in <c>Pages/Upload.cshtml.cs</c>, <c>"automation:"</c> in
+    /// <c>Mcp/IntakeMcpTools.cs</c>, <c>"system-worker:"</c> throughout Intake and
+    /// Triage — including the pre-PLAT-011 rows this migrates,
+    /// e.g. <c>"system-worker:legacy-intake"</c>). <see cref="ActorKind"/>'s own
+    /// <c>ToString()</c> does not hyphenate <c>SystemWorker</c>, so this map, not
+    /// the enum name, is the source of truth for the prefix.
+    /// </summary>
+    private static readonly Dictionary<ActorKind, string> Prefixes = new()
+    {
+        [ActorKind.Staff] = "staff",
+        [ActorKind.SystemWorker] = "system-worker",
+        [ActorKind.Automation] = "automation",
+        [ActorKind.RequestLink] = "request-link"
+    };
+
+    public static string Format(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return $"{Prefixes[actor.Kind]}:{actor.SubjectId}";
+    }
+
+    public static bool TryParse(string value, out ActorKind kind, out string subjectId)
+    {
+        kind = default;
+        subjectId = string.Empty;
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        var separator = value.IndexOf(':');
+        if (separator <= 0 || separator == value.Length - 1)
+        {
+            return false;
+        }
+
+        var prefix = value[..separator];
+        foreach (var (candidateKind, candidatePrefix) in Prefixes)
+        {
+            if (!string.Equals(prefix, candidatePrefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            kind = candidateKind;
+            subjectId = value[(separator + 1)..];
+            return true;
+        }
+
+        return false;
+    }
+}
 
 /// <summary>
 /// The sole business operation for correcting one retained message. Persistence owns
@@ -187,7 +266,7 @@ public sealed class CorrectRetainedMailClassification(
             request.ExpectedVersion,
             current.Current,
             after,
-            $"{actor.Kind.ToString().ToLowerInvariant()}:{actor.SubjectId}",
+            MailClassificationActor.Format(actor),
             reason,
             timeProvider.GetUtcNow(),
             cancellationToken);
@@ -300,12 +379,16 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
     }
 }
 
-public sealed class GetRetainedMail(IRetainedMailQueries queries)
+public sealed class GetRetainedMail(
+    IRetainedMailQueries queries,
+    IStaffAccountQueries staffAccountQueries)
 {
     private readonly IRetainedMailQueries queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
+    private readonly IStaffAccountQueries staffAccountQueries =
+        staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
 
-    public Task<RetainedMailDetail?> ExecuteAsync(
+    public async Task<RetainedMailDetail?> ExecuteAsync(
         ActionActor actor,
         Guid messageId,
         CancellationToken cancellationToken = default)
@@ -318,8 +401,48 @@ public sealed class GetRetainedMail(IRetainedMailQueries queries)
                 nameof(messageId));
         }
 
-        return queries.GetAsync(messageId, cancellationToken);
+        var detail = await queries.GetAsync(messageId, cancellationToken);
+        if (detail?.Classification is not { } dossier)
+        {
+            return detail;
+        }
+
+        var packedActors = new[] { dossier.CurrentActor }
+            .Concat(dossier.History.Select(entry => entry.Actor));
+        var staffIds = packedActors.Select(TryParseStaffId).OfType<Guid>();
+        var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccountQueries,
+            staffIds,
+            cancellationToken);
+
+        return detail with
+        {
+            Classification = dossier with
+            {
+                CurrentActorDisplayName = ResolveActorLabel(dossier.CurrentActor, staffNames),
+                History = dossier.History
+                    .Select(entry => entry with
+                    {
+                        ActorDisplayName = ResolveActorLabel(entry.Actor, staffNames)
+                    })
+                    .ToArray()
+            }
+        };
     }
+
+    private static string ResolveActorLabel(
+        string packedActor,
+        IReadOnlyDictionary<Guid, string> staffNames) =>
+        MailClassificationActor.TryParse(packedActor, out var kind, out var subjectId)
+            ? ActorDisplayNames.Resolve(kind, subjectId, staffNames)
+            : ActorDisplayNames.UnknownStaff;
+
+    private static Guid? TryParseStaffId(string packedActor) =>
+        MailClassificationActor.TryParse(packedActor, out var kind, out var subjectId)
+            && kind == ActorKind.Staff
+            && Guid.TryParse(subjectId, out var staffId)
+                ? staffId
+                : null;
 }
 
 public sealed class GetRetainedMailFreshness(
