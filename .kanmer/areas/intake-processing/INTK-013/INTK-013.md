@@ -2,10 +2,12 @@
 id: INTK-013
 type: ticket
 title: Make the Not ready tab count match its rows across both case origins
-status: preparing
+status: implementing
 area: intake-processing
 assignee: claude-code
 profile: fix
+stageEntered:
+  implementing: '2026-08-20T05:01:28.038Z'
 taken_at: '2026-08-20T04:58:55.284Z'
 branch: task/intk-013-notready-badge
 worktree: ../pegasus-worktrees/intk-013
@@ -20,7 +22,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-20T03:16:37.482Z'
-updated: '2026-08-20T04:58:55.284Z'
+updated: '2026-08-20T05:01:28.038Z'
 ---
 
 ## What
