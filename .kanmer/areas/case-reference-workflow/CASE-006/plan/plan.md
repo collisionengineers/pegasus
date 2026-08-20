@@ -17,3 +17,21 @@ Branch `task/case-006-image-viewing`, worktree `../pegasus-worktrees/case-006`, 
 - Image-initiated case page and case detail evidence tab show thumbnail previews that click-expand full size, served only by authorised Pegasus endpoints returning true image media types inline.
 - Non-image material can never render inline; anonymous access redirects to sign-in.
 - Browser + accessibility suites green.
+
+## Simplification pass — 2026-08-20
+
+Lenses: reuse, simplification, efficiency, altitude (`code-simplifier` agent over commit `edceb77e`; applied in `f409cb7b`).
+
+Applied:
+- The ordered receipt-id set an Image intake covers now has ONE owner — `EfImageIntakeStore.ResolveOrderedImageReceiptIdsAsync` — shared by the INTK-014 custody payload loader and the new gallery query (removed the second copy of the origin-first-then-ordinal rule).
+- `_ImageGallery` owns its empty state (the duplicated operator sentence at both call sites is gone) and builds its one URL once for both the link and the `<img>`.
+- `ImageIntakeImage` dropped the `MediaType` component — no production caller consumed it (the endpoint re-derives the type from the stored asset).
+- The SQL image filter cites `ImageIntakeLifecycleRules.ImageMediaTypePrefix` (the Core rule owner) instead of restating the string; the endpoint's defence-in-depth check now names that owner in a comment.
+- `IntakeSourceDownload.ContentType`'s new meaning documented on the contract record (consumers read the record, not the implementation).
+- Dead `.image-gallery li` CSS rule, the redundant `ImageIntakes.Count > 0` guard, a double dictionary lookup (now `TryGetValue` foreach), and a property-declaration reflow.
+
+Not applied, with reasons:
+- Evidence-tab N+1 (`ListImagesAsync` per intake, own DbContext each): a batched overload would be a new signature with one caller; recorded as a known cost — revisit if operators routinely fold many registrations into one case.
+- Thumbnails are full-resolution fetches with a full integrity re-hash and `no-store` (20-image gallery = 20 reads+hashes per view): the no-derived-thumbnail choice is deliberate scope (CSS-constrained previews); a thumbnail derivation or validator-based caching policy is follow-up work, not a behaviour-preserving edit.
+- `SourceModel.SafeFileName` vs Core's `SafeFileName` divergence is pre-existing and NOT behaviour-identical (the Web copy also strips Windows-invalid chars) — noted for a follow-up, no drive-by edit.
+- Reviewer note: `rows.ToDictionary` in `ListImagesAsync` throws on a duplicate source asset per receipt — the same condition `DownloadIntakeSource` treats as an integrity fault; failure mode differs (500 vs 409). Flagged for review.
