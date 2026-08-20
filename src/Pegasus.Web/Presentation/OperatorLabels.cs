@@ -6,6 +6,7 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Web.Presentation;
@@ -382,6 +383,19 @@ public static class OperatorLabels
             ? "under 0.1 MB"
             : string.Create(CultureInfo.InvariantCulture, $"{megabytes:0.0} MB");
     }
+
+    /// <summary>
+    /// The approved-mailbox allowlist's read-only route scope, as read on
+    /// /Administration/Mailboxes. Explicit because the mechanical
+    /// <see cref="Humanise"/> fallback would render <c>InboundIntake</c> as
+    /// "Inbound intake", which carries the banned "intake" word.
+    /// </summary>
+    public static string RouteScope(ApprovedMailboxRouteScope routeScope) => routeScope switch
+    {
+        ApprovedMailboxRouteScope.InboundIntake => "New instructions and Triage mail (Inbox)",
+        ApprovedMailboxRouteScope.SentEvidence => "Exact report and Triage evidence (Sent Items)",
+        _ => Humanise(routeScope.ToString())
+    };
 
     /// <summary>
     /// Turns a persisted code into a sentence: <c>case_returned_to_review</c>
