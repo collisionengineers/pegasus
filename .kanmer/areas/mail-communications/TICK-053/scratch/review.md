@@ -142,3 +142,73 @@ At the reviewed head, changes, documentation, reference-data, infrastructure, an
 ### Verdict
 
 **Needs changes.** Do not merge PR #469. Keep TICK-053, PR-017, and PR-018 in Review; PR-024 and PR-025 now block TICK-053 from Backlog. Re-review the shared PR only after these issues are implemented, the PIR is corrected, and replacement CI is fully green.
+
+## Final independent re-review — PR #469 at `c0fa9a9905f2808ec1e2eb03e42dbe29cfde7ae4` (2026-08-20)
+
+### Changes
+
+1. `docs/capabilities.md` records MAIL-11/UI-10 local implementation and separate deployment evidence.
+2. `docs/current-architecture.md` records the local retained/Deleted search shape without a deployed claim.
+3. `docs/design/README.md` records the approved local MAIL-11 re-entry and remaining release evidence.
+4. `scripts/Invoke-AzureDatabaseBootstrap.ps1` adds the projection table to the existing Web/Worker permission matrix.
+5. `src/Pegasus.Core/Intake/DeletedMailSearch.cs` owns authorization, the 100-message bound, paging and unavailable state.
+6. `src/Pegasus.Core/Intake/IntakeContracts.cs` adds canonical attachment descriptors and receipt search documents.
+7. `src/Pegasus.Core/Intake/IntakeSearchProjection.cs` projects existing reader output into root/attachment search documents.
+8. `src/Pegasus.Core/Intake/ProcessIntake.cs` writes the mailbox-only projection through the existing receipt draft.
+9. `src/Pegasus.Core/Intake/RetainedMail.cs` extends the existing list/detail contracts with search and match/searchability evidence.
+10. `src/Pegasus.Infrastructure/DependencyInjection.cs` composes the fallback without overriding the production Graph source.
+11. `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` adds bounded approved-estate Deleted metadata/MIME reads, canonical parsing and recoverable HTTP/timeout handling.
+12. `src/Pegasus.Infrastructure/Intake/LocalEmailDisplayReader.cs` retains nameless display attachment occurrences with deterministic labels.
+13. `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` exposes canonical attachment descriptors and ordinals.
+14. `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs` stores/replaces search documents in the existing transaction.
+15. `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` filters before count/paging and maps match/searchability evidence.
+16. The migration designer records the generated model for the new child table.
+17. The migration creates `IntakeSearchDocuments`, its FK/index and runtime grants without backfill.
+18. The model snapshot records the same current schema.
+19. `PegasusDbContext.cs` maps the receipt-owned search-document entity.
+20. `Index.cshtml` renders GET search, Deleted disclosure, labels, bounds, states and pagination.
+21. `Index.cshtml.cs` chooses retained versus Deleted sources and validates/preserves scope.
+22. `Message.cshtml` preserves scope and renders retained attachment searchability.
+23. `Message.cshtml.cs` carries search context but still checks outside-list state only by mailbox/folder.
+24. `OperatorLabels.cs` remains the one operator-wording owner for searchability.
+25. Core tests cover request validation, authorization, bounding and synthetic occurrence projection.
+26. Migration integration evidence includes the committed schema/table.
+27. Web tests cover retained states and the authenticated zero-retained-row Deleted caller with match, truncation, 25/1 paging and unavailable rendering.
+28. Production composition tests prove the real Graph source wins and fallback profiles remain unavailable.
+29. Graph tests cover exact metadata folder reads, fair cross-mailbox selection, bounds, approved mailbox listing, timeout and cancellation.
+30. Persistence tests cover SQL body/name/content matching, root-only rejection, detail disclosure, and nameless parser ordering.
+
+The TICK-053 PIR now enumerates exactly these 30 files and `git diff --check origin/dev...HEAD` is clean.
+
+### Comments and disposition
+
+- **PR-015 — fixed-in-PR.** `TryAddSingleton` plus production/default composition evidence proves the real Graph source is reachable.
+- **PR-016 — fixed-in-PR.** Candidates are bounded per mailbox, globally ordered, and MIME reads are capped after fair selection.
+- **PR-017 — fixed-in-PR.** The authenticated zero-retained-row Deleted caller now renders the approved mailbox and passes its exact ID/term/100 bound.
+- **PR-018 — blocking retained.** Nameless attachments are preserved and retained detail now discloses searchability, but attached `TextPart` entities still return before canonical descriptor creation. A displayed `text/plain` attachment before a searchable PDF shifts the PDF's canonical ordinal and can label the wrong displayed attachment. Existing tests cover nameless `MimePart`, not this current path.
+- **PR-019 — fixed-in-PR.** Blank, overlong and no-match states are supported and honest.
+- **PR-020 — fixed-in-PR.** HTTP timeout maps to unavailable without swallowing caller cancellation.
+- **PR-021 — fixed-in-PR.** Design/capability authority records local activation without claiming deployment, permissions or mailbox mutation.
+- **PR-022 — fixed-in-PR.** The corrected 30-file PIR inventory exactly matches the final diff.
+- **PR-024 — blocking retained.** Root projection admission is restricted correctly, but retained body admission still searches raw `BodyPlainText` while detail applies `StaffForwardBodyCleaner`. Wrapper text or removed `cid:` content can therefore produce a “Message body” match that is absent from the body operators see.
+- **PR-025 — fixed-in-PR.** The authenticated Web route proves the requested Deleted source and rendered states.
+- **Blocking — [[PR-029]].** Thread links preserve the search term, but `ReloadAsync` omits the active search predicate from `OutsideListScope`; a nonmatching thread member is not marked no-longer-in-view.
+- **Blocking — [[PR-030]].** MIME is fetched through a mailbox-global route after folder enumeration. A concurrent move can return content no longer in the resolved Deleted Items folder.
+- **Blocking — [[PR-031]].** Azure credential/token-acquisition failures escape the Deleted external-boundary catch policy as a 500 instead of the existing unavailable state.
+- **Won't-do — historical backfill.** The automated backfill suggestion conflicts with FRD-08 and the accepted no-reconstruction boundary. Existing mail without a projection must remain honestly unsearchable; no backfill ticket is filed.
+- **Non-blocking/pass — one-owner and simplicity.** The diff reuses the canonical reader, existing receipt transaction, retained query store, approved estate, Graph client and /Inbox route. It adds no second parser/store, generic search framework, mailbox write or hidden backfill. The two dated four-lens passes name applied fixes and honest bounded work.
+- **Release coordination.** The PR also carries the repository owner's Release-14 hold. No merge is attempted.
+
+### CI
+
+Replacement CI at the reviewed head has green changes, documentation, local-development-scripts, reference-data, infrastructure and unit jobs. Browser and all three SQL shards were still running when this substantive needs-changes verdict was recorded; their result cannot make the current head mergeable by review.
+
+### Repository review questions
+
+1. **Did the plan miss anything implied by the ticket?** Yes: binding MIME content to the folder at read time, credential failure mapping, search-aware thread membership, and using the displayed normalized retained body as the search owner.
+2. **Did implementation miss anything in the plan?** Yes: exact attachment occurrence for attached text parts, fully visible retained body match locations, exact Deleted folder membership at MIME read, and all unavailable paths.
+3. **Did the simplification pass run with honest dispositions?** Yes. The remaining issues are correctness/evidence defects, not concealed abstraction or simplification findings.
+
+### Verdict
+
+**Needs changes.** Do not merge PR #469. TICK-053 and every resolved shared-PR blocker remain in Review; PR-018 and PR-024 are retained as active blockers, and PR-029 through PR-031 newly block TICK-053. Re-review only after those five blockers land, the PIR/file inventory is refreshed, replacement CI is fully green, and the Release-14 merge hold is cleared.
