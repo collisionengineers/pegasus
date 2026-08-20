@@ -1366,7 +1366,7 @@ table tfoot th {
 /* A repair line carries eleven columns. Below this width the cells stop being
    usable, so the wrapper scrolls instead of crushing them; under 900px the
    stacked reflow takes over and the scroll never applies. */
-.line-grid { min-width: 78rem; }
+.line-grid { min-width: 56rem; }
 /* Column headers wrap here. The global `th` rule keeps headers on one line,
    which under `table-layout: fixed` makes a long header overrun its column and
    collide with the next one. */
@@ -2386,5 +2386,13 @@ th[aria-sort] a::after { content: " \2193"; }
 th[aria-sort="ascending"] a::after { content: " \2191"; }
 th a { color: inherit; text-decoration: none; }
 th a:hover { text-decoration: underline; }
+/* ENG-006: required state is visual, not a sentence. */
+label.req::after { content: " *"; color: var(--ce-red); }
+
+/* ENG-006: the damage diagram is a grid of clickable regions; one click saves. */
+.damage-grid { display: grid; grid-template-columns: repeat(3, minmax(90px, 140px)); gap: var(--sp-2); }
+.damage-region { min-height: 44px; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+.damage-region:hover { border-color: var(--charcoal); }
+.damage-region[aria-pressed="true"] { background: var(--ce-red); border-color: var(--ce-red); color: #fff; font-weight: 600; }
 /* MAIL-005: the Inbox outcome cell aligns its chip and case link on one row. */
 .outcome-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
