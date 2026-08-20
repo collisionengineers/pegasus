@@ -14,7 +14,8 @@ namespace Pegasus.Web.Pages;
 public sealed class UploadGroupStatusModel(
     IIntakeSubmissionGroupStore groups,
     IQueuedIntakeStatusQueries statuses,
-    IUploadOutcomeQueries outcomeQueries) : PageModel
+    IUploadOutcomeQueries outcomeQueries,
+    IUploadCaseDecision caseDecision) : PageModel
 {
     public IntakeSubmissionGroup Group { get; private set; } = null!;
     public IReadOnlyDictionary<Guid, QueuedIntakeStatus?> Statuses { get; private set; } =
@@ -86,5 +87,76 @@ public sealed class UploadGroupStatusModel(
         }
 
         return Page();
+    }
+
+    /// <summary>
+    /// The case-search suggestions behind the confirmation surface's
+    /// autocomplete. Staff only — the page's authorisation applies to
+    /// handlers, and the query itself requires casework access.
+    /// </summary>
+    public async Task<IActionResult> OnGetCaseSearchAsync(
+        string? term,
+        CancellationToken cancellationToken)
+    {
+        if (!StaffActorFactory.TryCreate(
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            return new JsonResult(
+                await caseDecision.SearchAsync(term ?? string.Empty, actor!, cancellationToken));
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+    }
+
+    /// <summary>
+    /// The explicit staff decision to add the uploaded material to the chosen
+    /// case, through the existing leased link path. Replays are safe: the
+    /// operation keys are deterministic per receipt and case, and a decision
+    /// that already took effect reports the same success.
+    /// </summary>
+    public async Task<IActionResult> OnPostAttachAsync(
+        Guid id,
+        Guid receiptId,
+        Guid? caseId,
+        string? reference,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (!StaffActorFactory.TryCreate(
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var actor))
+        {
+            return Forbid();
+        }
+
+        if (receiptId == Guid.Empty || string.IsNullOrWhiteSpace(reason))
+        {
+            TempData["UploadConfirmationError"] = "A reason is required to add this to a case.";
+            return RedirectToPage("/UploadGroupStatus", new { id });
+        }
+
+        try
+        {
+            var result = await caseDecision.AttachAsync(
+                receiptId, caseId, reference, reason, actor!, cancellationToken);
+            TempData[result.Succeeded ? "UploadConfirmationStatus" : "UploadConfirmationError"] =
+                result.Message;
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+
+        return RedirectToPage("/UploadGroupStatus", new { id });
     }
 }

@@ -2055,6 +2055,39 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .upload-outcome { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
 .upload-outcome__message { margin: 0; color: var(--charcoal); }
 
+/* The add-to-existing-case decision on the confirmation surface. The
+   summary reuses the secondary-action look; this hides its native marker
+   and lays out the search form and its suggestion list. The active option
+   is marked by background and an inset border, never colour alone. */
+.upload-attach > summary { list-style: none; }
+.upload-attach > summary::-webkit-details-marker { display: none; }
+.upload-attach > summary::marker { content: ""; }
+.upload-attach > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.upload-attach[open] > summary { border-color: var(--charcoal); }
+.upload-attach__form { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); max-width: 480px; }
+.case-search-list {
+  margin: 0;
+  padding: var(--sp-1);
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.case-search-list [role="option"] {
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--t-sm);
+}
+.case-search-list [role="option"]:hover { background: var(--paper); }
+.case-search-list [role="option"].is-active { background: var(--paper); border-left-color: var(--ce-red); }
+.case-search-list__empty { padding: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--t-sm); }
+
 /* A single-purpose screen is centred and narrow; a wide column would put the
    dropzone's edges further apart than the file it accepts. */
 .form-column { width: 100%; max-width: 680px; margin: var(--sp-10) auto 0; }

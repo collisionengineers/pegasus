@@ -14,7 +14,17 @@
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
         if (Number.isFinite(delay) && delay > 0) {
-            window.setTimeout(function () { window.location.reload(); }, delay);
+            // A group page can still be moving while one member's add-to-case
+            // form is open; reloading then would discard what the operator is
+            // typing, so the reload waits until no decision form is open.
+            var reload = function () {
+                if (document.querySelector('.upload-attach[open]')) {
+                    window.setTimeout(reload, delay);
+                    return;
+                }
+                window.location.reload();
+            };
+            window.setTimeout(reload, delay);
         }
     }
 
@@ -309,6 +319,151 @@
                 });
             });
         }
+    });
+
+    // Case search on the upload confirmation surface. The input is a plain
+    // required text field that the server resolves as a typed case reference,
+    // so the form keeps working without script; with script it becomes a
+    // combobox — a debounced fetch of the page's own suggestion handler, a
+    // listbox of matching cases, and a selection that fills the hidden case
+    // value. The ARIA combobox wiring is added here rather than shipped in
+    // markup, because without script there is no popup for it to describe.
+    document.querySelectorAll('[data-case-search]').forEach(function (form) {
+        var input = form.querySelector('[data-case-search-input]');
+        var list = form.querySelector('[data-case-search-list]');
+        var hidden = form.querySelector('[data-case-search-value]');
+        var url = form.getAttribute('data-case-search-url');
+        if (!input || !list || !hidden || !url || typeof fetch !== 'function') {
+            return;
+        }
+
+        input.setAttribute('role', 'combobox');
+        input.setAttribute('aria-expanded', 'false');
+        input.setAttribute('aria-controls', list.id);
+        input.setAttribute('aria-autocomplete', 'list');
+        input.setAttribute('aria-haspopup', 'listbox');
+        list.setAttribute('role', 'listbox');
+
+        var options = [];
+        var active = -1;
+        var timer = null;
+        var requestSequence = 0;
+
+        var close = function () {
+            list.hidden = true;
+            list.replaceChildren();
+            options = [];
+            active = -1;
+            input.setAttribute('aria-expanded', 'false');
+            input.removeAttribute('aria-activedescendant');
+        };
+
+        var setActive = function (index) {
+            active = index;
+            list.querySelectorAll('[role="option"]').forEach(function (option, position) {
+                option.classList.toggle('is-active', position === index);
+                option.setAttribute('aria-selected', position === index ? 'true' : 'false');
+            });
+            if (index >= 0) {
+                input.setAttribute('aria-activedescendant', list.id + '-option-' + index);
+            } else {
+                input.removeAttribute('aria-activedescendant');
+            }
+        };
+
+        var choose = function (index) {
+            var chosen = options[index];
+            if (!chosen) {
+                return;
+            }
+            hidden.value = chosen.caseId;
+            input.value = chosen.reference;
+            close();
+        };
+
+        var render = function (items) {
+            options = items;
+            var rows = items.map(function (item, index) {
+                var row = document.createElement('li');
+                row.id = list.id + '-option-' + index;
+                row.setAttribute('role', 'option');
+                row.setAttribute('aria-selected', 'false');
+                row.textContent = [item.reference, item.registration, item.claimant, item.stage]
+                    .filter(function (part) { return Boolean(part); })
+                    .join(' · ');
+                // mousedown, not click: click lands after the input's blur
+                // would have closed the list.
+                row.addEventListener('mousedown', function (event) {
+                    event.preventDefault();
+                    choose(index);
+                });
+                return row;
+            });
+            if (rows.length === 0) {
+                var empty = document.createElement('li');
+                empty.className = 'case-search-list__empty';
+                empty.textContent = 'No matching cases found';
+                rows = [empty];
+            }
+            list.replaceChildren.apply(list, rows);
+            list.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+            setActive(-1);
+        };
+
+        input.addEventListener('input', function () {
+            // Typing again always invalidates any earlier selection: the
+            // submitted case is either the one just chosen or the typed
+            // reference the server resolves — never a stale hidden value.
+            hidden.value = '';
+            var term = input.value.trim();
+            if (timer) {
+                window.clearTimeout(timer);
+            }
+            if (term.length < 2) {
+                close();
+                return;
+            }
+            timer = window.setTimeout(function () {
+                var sequence = ++requestSequence;
+                fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'term=' + encodeURIComponent(term), {
+                    headers: { Accept: 'application/json' }
+                }).then(function (response) {
+                    return response.ok ? response.json() : [];
+                }).then(function (items) {
+                    if (sequence === requestSequence) {
+                        render(items);
+                    }
+                }).catch(function () {
+                    if (sequence === requestSequence) {
+                        close();
+                    }
+                });
+            }, 250);
+        });
+
+        input.addEventListener('keydown', function (event) {
+            if (list.hidden) {
+                return;
+            }
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setActive(Math.min(active + 1, options.length - 1));
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setActive(Math.max(active - 1, 0));
+            } else if (event.key === 'Enter' && active >= 0) {
+                event.preventDefault();
+                choose(active);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                close();
+            }
+        });
+
+        input.addEventListener('blur', function () {
+            close();
+        });
     });
 
     // Live character counters for reason fields whose limit is policy.

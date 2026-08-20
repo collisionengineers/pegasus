@@ -235,7 +235,12 @@ The decision table, evaluated once per file:
    Also always automatic (a usable VRM with no unique existing-Case match);
    reported with a link to its own searchable surface, never re-offered as a
    manual creation (an Image-initiated Case's reference is VRM-keyed and
-   cannot be hand-created without one).
+   cannot be hand-created without one). While the registration is still
+   Awaiting instruction, the surface additionally offers the staff decision
+   to add the uploaded material to an existing case found by search (below);
+   that decision links the registration's origin receipt, which carries the
+   Image-initiated Case through its normal merge transition. Once merged,
+   the surface reports the destination case instead of the registration.
 3. **Routed to Unidentified.** Automation abstained (no usable/conflicting
    VRM, or no identifiable match at all); reported with a link to the
    existing Unidentified resolution surface, which is where the staff
@@ -253,11 +258,27 @@ The decision table, evaluated once per file:
    **the file itself failed to process.** Reported plainly; no offer, since
    none is genuine.
 
-Every action the confirmation surface offers routes to an existing surface
-that already performs it (case details, the received-item screen's
+Where the staff decision is genuinely open — rows 2 (still Awaiting
+instruction), 4 and 5 — the surface also carries the decision itself:
+
+- **Add to an existing case.** A case search that suggests matching cases as
+  the operator types (the existing staff case-search query; reference,
+  registration, claimant and stage shown — never an internal identifier).
+  Selecting a case and confirming, with a required reason, is an explicit
+  staff decision: it acquires the case's edit lease and links the receipt
+  through the existing staff link path, which also runs the Image-initiated
+  Case merge transition where one is registered. The decision is replay-safe
+  (deterministic per receipt and case), and fails closed — an unresolved or
+  ambiguous typed reference, a version or lease conflict, or a receipt that
+  already has a case all report an honest error and change nothing. Nothing
+  is ever attached silently beyond the automatic bar above.
+- **Cancel.** Returns to the Upload screen and changes nothing: the material
+  stays retained and its state stays honestly reported.
+
+Every other action the confirmation surface offers routes to an existing
+surface that already performs it (case details, the received-item screen's
 attach/reverse controls, the case-creation screen, the Image-initiated Case
-and Unidentified detail screens); the confirmation step itself never mutates
-anything.
+and Unidentified detail screens).
 
 ### Global vehicle and value checks
 

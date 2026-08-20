@@ -26,6 +26,15 @@
     </div>
 </header>
 
+@if (TempData["UploadConfirmationStatus"] is string confirmationStatus)
+{
+    <div class="status-card" role="status">@confirmationStatus</div>
+}
+@if (TempData["UploadConfirmationError"] is string confirmationError)
+{
+    <div class="validation-summary" role="alert">@confirmationError</div>
+}
+
 @* The refresh attribute lives on the panel, not the layout's <main>: the
    external script reads it from wherever it is, and this page must not
    nest a second main landmark inside the shared shell. *@

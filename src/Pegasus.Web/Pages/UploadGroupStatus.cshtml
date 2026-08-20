@@ -8,6 +8,15 @@
     <h1>Upload received</h1>
 </header>
 
+@if (TempData["UploadConfirmationStatus"] is string confirmationStatus)
+{
+    <div class="status-card" role="status">@confirmationStatus</div>
+}
+@if (TempData["UploadConfirmationError"] is string confirmationError)
+{
+    <div class="validation-summary" role="alert">@confirmationError</div>
+}
+
 <div class="form-column">
     <section class="panel"
              aria-labelledby="group-status-title"
