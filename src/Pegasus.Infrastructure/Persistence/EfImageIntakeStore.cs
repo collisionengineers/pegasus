@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -192,9 +193,26 @@ public sealed class EfImageIntakeStore(
             CreationOperationKey = operationKey,
             RequestFingerprint = requestFingerprint,
             LifecycleState = ToCode(ImageInitiatedCaseState.AwaitingInstruction),
-            LifecycleVersion = 0
+            LifecycleVersion = 0,
+            CustodyState = "pending"
         };
         context.ImageIntakes.Add(entity);
+
+        // Same durable outbox convention as EfCaseAcceptanceStore.AcceptAsync:
+        // the Box folder for this Image-initiated Case is created by queued
+        // external work, so an unreachable Box can never block registration.
+        context.ExternalWorkItems.Add(new ExternalWorkItemEntity
+        {
+            Id = Guid.NewGuid(),
+            ImageIntake = entity,
+            ImageIntakeId = entity.Id,
+            Kind = ExternalWorkKinds.CreateImageCaseCustody,
+            OperationKey = $"image-case-custody:{entity.Id:N}",
+            State = "pending",
+            AttemptCount = 0,
+            DueAtUtc = now,
+            CaseRootCreationToken = CustodyCreationOwner.Create()
+        });
 
         var beforeVersion = receipt.Version;
         var beforeJson = Snapshot(receipt);
@@ -543,6 +561,21 @@ public sealed class EfImageIntakeStore(
         });
         if (caseId is { } linkedCaseId)
         {
+            // Fold the image-case Box folder into the paired case through the
+            // same durable outbox that created it: the transition commits here
+            // regardless of Box availability, and the queued work moves the
+            // contents and removes the emptied folder (INTK-014).
+            context.ExternalWorkItems.Add(new ExternalWorkItemEntity
+            {
+                Id = Guid.NewGuid(),
+                ImageIntakeId = entity.Id,
+                CaseId = linkedCaseId,
+                Kind = ExternalWorkKinds.MergeImageCaseCustody,
+                OperationKey = $"image-case-custody-merge:{entity.Id:N}",
+                State = "pending",
+                AttemptCount = 0,
+                DueAtUtc = now
+            });
             context.CaseHistory.Add(new CaseHistoryEntity
             {
                 Id = Guid.NewGuid(),

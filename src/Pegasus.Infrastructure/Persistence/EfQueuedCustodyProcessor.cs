@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
 
@@ -21,7 +22,7 @@ internal sealed class EfQueuedCustodyProcessor(
         }
 
         var leaseToken = Guid.NewGuid().ToString("N");
-        WorkPayload payload;
+        object payload;
         while (true)
         {
             await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -29,7 +30,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 .AsNoTracking()
                 .SingleOrDefaultAsync(value => value.Id == workId, cancellationToken)
                 ?? throw new InvalidOperationException("The custody work item is unavailable.");
-            if (work.Kind is not ("create_case_custody" or "create_audit_reference_custody"))
+            if (work.Kind is not (ExternalWorkKinds.CreateCaseCustody
+                or ExternalWorkKinds.CreateAuditReferenceCustody
+                or ExternalWorkKinds.CreateImageCaseCustody
+                or ExternalWorkKinds.MergeImageCaseCustody))
             {
                 throw new InvalidDataException("The external work item is not a supported custody operation.");
             }
@@ -72,14 +76,29 @@ internal sealed class EfQueuedCustodyProcessor(
 
             try
             {
-                payload = await LoadPayloadAsync(
-                    context,
-                    work.Kind,
-                    work.CaseId,
-                    work.OperationKey,
-                    work.CaseRootCreationToken,
-                    work.AuditFolderCreationToken,
-                    cancellationToken);
+                payload = work.Kind switch
+                {
+                    ExternalWorkKinds.CreateImageCaseCustody => await LoadImageCreatePayloadAsync(
+                        context,
+                        RequireImageIntakeId(work),
+                        work.OperationKey,
+                        work.CaseRootCreationToken,
+                        cancellationToken),
+                    ExternalWorkKinds.MergeImageCaseCustody => await LoadImageMergePayloadAsync(
+                        context,
+                        RequireImageIntakeId(work),
+                        work.OperationKey,
+                        cancellationToken),
+                    _ => await LoadPayloadAsync(
+                        context,
+                        work.Kind,
+                        work.CaseId ?? throw new InvalidDataException(
+                            "The case custody work item has no owning case."),
+                        work.OperationKey,
+                        work.CaseRootCreationToken,
+                        work.AuditFolderCreationToken,
+                        cancellationToken)
+                };
             }
             catch (Exception exception)
             {
@@ -101,40 +120,53 @@ internal sealed class EfQueuedCustodyProcessor(
             var leaseGuard = new CustodyEffectLeaseGuard(
                 token => workStore.HoldsProcessingLeaseAsync(workId, leaseToken, token));
             await leaseGuard.RequireCurrentAsync(cancellationToken);
+            switch (payload)
+            {
+                case ImageCreatePayload imageCreate:
+                    await ProcessImageCreateAsync(
+                        workId, leaseToken, imageCreate, leaseGuard, cancellationToken);
+                    return;
+                case ImageMergePayload imageMerge:
+                    await ProcessImageMergeAsync(
+                        workId, leaseToken, imageMerge, leaseGuard, cancellationToken);
+                    return;
+            }
+
+            var casePayload = (WorkPayload)payload;
             var isAuditCustody = string.Equals(
-                payload.WorkKind,
+                casePayload.WorkKind,
                 "create_audit_reference_custody",
                 StringComparison.Ordinal);
-            var isAuditCase = string.Equals(payload.CaseType, "audit", StringComparison.Ordinal);
+            var isAuditCase = string.Equals(casePayload.CaseType, "audit", StringComparison.Ordinal);
             var rootReference = isAuditCase
-                ? payload.AuditReference ?? throw new InvalidDataException(
+                ? casePayload.AuditReference ?? throw new InvalidDataException(
                     "The Audit case has no allocated Audit reference for custody.")
-                : payload.CaseReference;
+                : casePayload.CaseReference;
             var root = isAuditCustody
                 ? await caseCustody.GetExistingCaseRootAsync(
-                    payload.CaseId,
-                    payload.CaseReference,
+                    casePayload.CaseId,
+                    casePayload.CaseReference,
                     cancellationToken)
                 : await caseCustody.CreateCaseRootAsync(
-                    payload.CaseId,
+                    casePayload.CaseId,
                     rootReference,
-                    RequireCreationOwner(payload.CaseRootCreationToken),
-                    $"{payload.OperationKey}:root",
+                    RequireCreationOwner(casePayload.CaseRootCreationToken),
+                    $"{casePayload.OperationKey}:root",
                     leaseGuard,
                     cancellationToken);
             await leaseGuard.RequireCurrentAsync(cancellationToken);
             if (isAuditCustody)
             {
-                if (string.IsNullOrWhiteSpace(payload.AuditReference))
+                if (string.IsNullOrWhiteSpace(casePayload.AuditReference))
                 {
                     throw new InvalidDataException(
                         "The later Audit custody operation has no allocated Audit identity.");
                 }
                 var auditFolderRemoteId = await caseCustody.CreateAuditReferenceFolderAsync(
                     root,
-                    payload.AuditReference,
-                    RequireCreationOwner(payload.AuditFolderCreationToken),
-                    $"{payload.OperationKey}:audit",
+                    casePayload.AuditReference,
+                    RequireCreationOwner(casePayload.AuditFolderCreationToken),
+                    $"{casePayload.OperationKey}:audit",
                     leaseGuard,
                     cancellationToken);
                 await leaseGuard.RequireCurrentAsync(cancellationToken);
@@ -150,25 +182,25 @@ internal sealed class EfQueuedCustodyProcessor(
                 var version = await caseCustody.RetainAcceptedIntakeSourceAsync(
                     root,
                     new(
-                        payload.IntakeReceiptId,
-                        payload.SourceFileName,
-                        payload.MediaType,
-                        payload.SourceHash,
-                        payload.SourceObjectKey,
-                        payload.SourceLength),
-                    $"{payload.OperationKey}:source",
+                        casePayload.IntakeReceiptId,
+                        casePayload.SourceFileName,
+                        casePayload.MediaType,
+                        casePayload.SourceHash,
+                        casePayload.SourceObjectKey,
+                        casePayload.SourceLength),
+                    $"{casePayload.OperationKey}:source",
                     leaseGuard,
                     cancellationToken);
                 await leaseGuard.RequireCurrentAsync(cancellationToken);
                 var auditFolderRemoteId = isAuditCase
                     ? root.RemoteId
-                    : string.IsNullOrWhiteSpace(payload.AuditReference)
+                    : string.IsNullOrWhiteSpace(casePayload.AuditReference)
                         ? null
                         : await caseCustody.CreateAuditReferenceFolderAsync(
                         root,
-                        payload.AuditReference,
-                        RequireCreationOwner(payload.AuditFolderCreationToken),
-                        $"{payload.OperationKey}:audit",
+                        casePayload.AuditReference,
+                        RequireCreationOwner(casePayload.AuditFolderCreationToken),
+                        $"{casePayload.OperationKey}:audit",
                         leaseGuard,
                         cancellationToken);
                 await leaseGuard.RequireCurrentAsync(cancellationToken);
@@ -500,6 +532,418 @@ internal sealed class EfQueuedCustodyProcessor(
         BoxCaseCustody.ValidateCreationOwnerToken(value);
         return value;
     }
+
+    private static Guid RequireImageIntakeId(ExternalWorkItemEntity work) =>
+        work.ImageIntakeId ?? throw new InvalidDataException(
+            "The image-case custody work item has no owning Image intake.");
+
+    private static async Task<ImageCreatePayload> LoadImageCreatePayloadAsync(
+        PegasusDbContext context,
+        Guid imageIntakeId,
+        string operationKey,
+        string? caseRootCreationToken,
+        CancellationToken cancellationToken)
+    {
+        var intake = await context.ImageIntakes
+            .AsNoTracking()
+            .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
+        var assets = await LoadImageAssetsAsync(context, intake, cancellationToken);
+        return new(
+            intake.Id,
+            intake.ImageIntakeReference,
+            operationKey,
+            caseRootCreationToken,
+            assets);
+    }
+
+    private static async Task<ImageMergePayload> LoadImageMergePayloadAsync(
+        PegasusDbContext context,
+        Guid imageIntakeId,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        var intake = await context.ImageIntakes
+            .AsNoTracking()
+            .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
+        var mergedIntoCaseId = intake.MergedIntoCaseId
+            ?? throw new InvalidDataException(
+                "The image-case fold has no merged formal Case recorded.");
+        var caseEntity = await context.Cases
+            .AsNoTracking()
+            .SingleAsync(value => value.Id == mergedIntoCaseId, cancellationToken);
+        // The case root folder is named for the same reference the create path
+        // used: the Audit reference for an Audit-type case, otherwise the Case
+        // reference.
+        var caseRootReference = string.Equals(caseEntity.Type, "audit", StringComparison.Ordinal)
+            ? caseEntity.AuditReference ?? throw new InvalidDataException(
+                "The Audit case has no allocated Audit reference for custody.")
+            : caseEntity.Reference;
+        return new(
+            intake.Id,
+            intake.ImageIntakeReference,
+            intake.CustodyState,
+            intake.CustodyRootRemoteId,
+            caseEntity.Id,
+            caseRootReference,
+            caseEntity.CustodyRootRemoteId,
+            operationKey);
+    }
+
+    /// <summary>
+    /// Resolves the retained source images this registration covers: the
+    /// origin receipt plus, for a group registration, every member receipt
+    /// that is registered against this Image intake — resolved through the
+    /// durable group membership (member → latest evaluation → processed
+    /// receipt), exactly as registration itself resolved them, and ordered by
+    /// the member ordinal so the stored numbering is stable.
+    /// </summary>
+    private static async Task<IReadOnlyList<ImageAssetPayload>> LoadImageAssetsAsync(
+        PegasusDbContext context,
+        ImageIntakeEntity intake,
+        CancellationToken cancellationToken)
+    {
+        var ordered = new List<(int Ordinal, Guid ReceiptId)>();
+        if (intake.SubmissionGroupId is { } groupId)
+        {
+            var members = await context.IntakeSubmissionGroupMembers
+                .AsNoTracking()
+                .Where(member => member.GroupId == groupId)
+                .Select(member => new { member.Ordinal, member.StagedReceiptId })
+                .ToArrayAsync(cancellationToken);
+            var stagedIds = members.Select(member => member.StagedReceiptId).ToArray();
+            var evaluations = await context.IntakeEvaluations
+                .AsNoTracking()
+                .Where(evaluation => stagedIds.Contains(evaluation.StagedReceiptId))
+                .Select(evaluation => new
+                {
+                    evaluation.StagedReceiptId,
+                    evaluation.ProcessedReceiptId,
+                    evaluation.Revision
+                })
+                .ToArrayAsync(cancellationToken);
+            var latestByStaged = evaluations
+                .GroupBy(evaluation => evaluation.StagedReceiptId)
+                .ToDictionary(
+                    grouping => grouping.Key,
+                    grouping => grouping
+                        .OrderByDescending(evaluation => evaluation.Revision)
+                        .First()
+                        .ProcessedReceiptId);
+            ordered.AddRange(members
+                .Where(member => latestByStaged.ContainsKey(member.StagedReceiptId))
+                .Select(member => (member.Ordinal, latestByStaged[member.StagedReceiptId]))
+                .OrderBy(pair => pair.Ordinal));
+        }
+        if (!ordered.Any(pair => pair.ReceiptId == intake.OriginReceiptId))
+        {
+            ordered.Insert(0, (-1, intake.OriginReceiptId));
+        }
+
+        var receiptIds = ordered.Select(pair => pair.ReceiptId).Distinct().ToArray();
+        var receipts = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(receipt => receiptIds.Contains(receipt.Id))
+            .ToDictionaryAsync(receipt => receipt.Id, cancellationToken);
+        var sources = (await context.IntakeAssets
+            .AsNoTracking()
+            .Where(asset => receiptIds.Contains(asset.IntakeReceiptId)
+                && asset.Kind == "source"
+                && asset.Disposition == "source")
+            .Select(asset => new
+            {
+                asset.IntakeReceiptId,
+                Payload = new SourcePayload(
+                    asset.FileName,
+                    asset.MediaType,
+                    asset.ContentLength,
+                    asset.ContentHash,
+                    asset.StorageKey)
+            })
+            .ToArrayAsync(cancellationToken))
+            .ToDictionary(source => source.IntakeReceiptId, source => source.Payload);
+
+        var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
+        var assets = new List<ImageAssetPayload>();
+        var seen = new HashSet<Guid>();
+        foreach (var (_, receiptId) in ordered)
+        {
+            if (!seen.Add(receiptId))
+            {
+                continue;
+            }
+            if (!receipts.TryGetValue(receiptId, out var receipt))
+            {
+                throw new InvalidDataException(
+                    "A registered group member receipt no longer exists.");
+            }
+            if (!string.Equals(receipt.Decision, registeredDecision, StringComparison.Ordinal))
+            {
+                // A mixed-batch member (or a receipt a later staff decision
+                // re-routed) is not part of this registration's image set.
+                continue;
+            }
+            if (!sources.TryGetValue(receiptId, out var source))
+            {
+                throw new InvalidDataException(
+                    "A registered image receipt has no retained source lineage.");
+            }
+            EnsureSourceMatchesReceipt(receipt, source);
+            assets.Add(new(
+                receipt.Id,
+                receipt.SourceFileName,
+                receipt.MediaType,
+                receipt.SourceHash,
+                source.StorageKey,
+                source.ContentLength));
+        }
+        if (assets.Count == 0)
+        {
+            throw new InvalidDataException(
+                "The Image intake has no registered image material to store.");
+        }
+        return assets;
+    }
+
+    private async Task ProcessImageCreateAsync(
+        Guid workId,
+        string leaseToken,
+        ImageCreatePayload payload,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        var root = await caseCustody.CreateCaseRootAsync(
+            payload.ImageIntakeId,
+            payload.ImageReference,
+            RequireCreationOwner(payload.CaseRootCreationToken),
+            $"{payload.OperationKey}:root",
+            leaseGuard,
+            cancellationToken);
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        for (var index = 0; index < payload.Assets.Count; index++)
+        {
+            var asset = payload.Assets[index];
+            await caseCustody.RetainImageCaseAssetAsync(
+                root,
+                new(
+                    asset.IntakeReceiptId,
+                    asset.SourceFileName,
+                    asset.MediaType,
+                    asset.SourceHash,
+                    asset.SourceObjectKey,
+                    asset.SourceLength),
+                index + 1,
+                $"{payload.OperationKey}:asset:{asset.IntakeReceiptId:N}",
+                leaseGuard,
+                cancellationToken);
+        }
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        await CompleteImageCreateAsync(workId, leaseToken, root, cancellationToken);
+    }
+
+    private async Task ProcessImageMergeAsync(
+        Guid workId,
+        string leaseToken,
+        ImageMergePayload payload,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(payload.ImageCustodyState, "merged", StringComparison.Ordinal))
+        {
+            await CompleteImageMergeAsync(
+                workId, leaseToken, payload.CaseId, payload.ImageReference, folded: true, cancellationToken);
+            return;
+        }
+        if (payload.ImageCustodyRootRemoteId is null)
+        {
+            if (payload.ImageCustodyState is null)
+            {
+                // Registered before image-case custody existed: there is no
+                // external folder to fold, and nothing may be invented now.
+                await CompleteImageMergeAsync(
+                    workId, leaseToken, payload.CaseId, payload.ImageReference, folded: false, cancellationToken);
+                return;
+            }
+            // The create-side work has not completed (or terminally failed and
+            // awaits a reasoned retry); the fold retries after it lands.
+            throw new IOException(
+                "The image evidence folder has not been stored yet; the fold retries after it is.");
+        }
+        if (string.IsNullOrWhiteSpace(payload.CaseCustodyRootRemoteId))
+        {
+            throw new IOException(
+                "The formal case evidence folder has not been stored yet; the fold retries after it is.");
+        }
+
+        var imageRoot = await caseCustody.GetExistingCaseRootAsync(
+            payload.ImageIntakeId,
+            payload.ImageReference,
+            cancellationToken);
+        var caseRoot = await caseCustody.GetExistingCaseRootAsync(
+            payload.CaseId,
+            payload.CaseRootReference,
+            cancellationToken);
+        await caseCustody.MergeImageCaseContentsAsync(
+            imageRoot,
+            caseRoot,
+            $"{payload.OperationKey}:fold",
+            leaseGuard,
+            cancellationToken);
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        await CompleteImageMergeAsync(
+            workId, leaseToken, payload.CaseId, payload.ImageReference, folded: true, cancellationToken);
+    }
+
+    private async Task CompleteImageCreateAsync(
+        Guid workId,
+        string leaseToken,
+        CaseCustodyRoot root,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
+        if (work is null)
+        {
+            return;
+        }
+
+        var intake = await context.ImageIntakes
+            .SingleAsync(value => value.Id == RequireImageIntakeId(work), cancellationToken);
+        intake.CustodyRootRemoteId = root.RemoteId;
+        intake.CustodyConfirmedAtUtc ??= now;
+        if (!string.Equals(intake.CustodyState, "merged", StringComparison.Ordinal))
+        {
+            intake.CustodyState = "confirmed";
+        }
+        CompleteWork(work, now, root.RemoteId);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task CompleteImageMergeAsync(
+        Guid workId,
+        string leaseToken,
+        Guid caseId,
+        string imageReference,
+        bool folded,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+        var now = timeProvider.GetUtcNow();
+        var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
+        if (work is null)
+        {
+            return;
+        }
+
+        var intake = await context.ImageIntakes
+            .SingleAsync(value => value.Id == RequireImageIntakeId(work), cancellationToken);
+        var alreadyMerged = string.Equals(intake.CustodyState, "merged", StringComparison.Ordinal);
+        if (folded && !alreadyMerged)
+        {
+            intake.CustodyState = "merged";
+            intake.CustodyMergedAtUtc ??= now;
+            var workflow = await context.CaseWorkflows
+                .SingleAsync(value => value.CaseId == caseId, cancellationToken);
+            ArchivedCaseGuard.RequireMutable(workflow);
+            var beforeVersion = workflow.Version;
+            CaseMutationGuard.Complete(workflow);
+            context.CaseHistory.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                CaseId = caseId,
+                EventType = "image_custody_merged",
+                Actor = "system",
+                Reason = $"Image evidence {imageReference} was moved into the Case evidence storage.",
+                OccurredAtUtc = now,
+                OperationKey = $"{work.OperationKey}:confirmed",
+                BeforeVersion = beforeVersion,
+                AfterVersion = workflow.Version
+            });
+        }
+        CompleteWork(work, now, intake.CustodyRootRemoteId);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Loads the work row for completion under the current processing lease.
+    /// Returns null when another completion already made it terminal; throws
+    /// when the lease was lost before the completion could be persisted.
+    /// </summary>
+    private static async Task<ExternalWorkItemEntity?> TakeCompletableWorkAsync(
+        PegasusDbContext context,
+        Guid workId,
+        string leaseToken,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var work = await context.ExternalWorkItems
+            .SingleOrDefaultAsync(
+                value => value.Id == workId
+                    && value.State == "processing"
+                    && value.LeaseToken == leaseToken
+                    && value.LeaseExpiresAtUtc > now,
+                cancellationToken);
+        if (work is not null)
+        {
+            return work;
+        }
+
+        var state = await context.ExternalWorkItems
+            .AsNoTracking()
+            .Where(value => value.Id == workId)
+            .Select(value => value.State)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (string.Equals(state, "completed", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        throw new InvalidOperationException(
+            "The custody work item lease was lost before completion could be persisted.");
+    }
+
+    private static void CompleteWork(
+        ExternalWorkItemEntity work,
+        DateTimeOffset now,
+        string? externalReceipt)
+    {
+        work.State = "completed";
+        work.CompletedAtUtc = now;
+        work.ExternalReceipt = externalReceipt;
+        work.LeaseToken = null;
+        work.LeaseExpiresAtUtc = null;
+        work.FailureCode = null;
+        work.FailureReason = null;
+    }
+
+    private sealed record ImageCreatePayload(
+        Guid ImageIntakeId,
+        string ImageReference,
+        string OperationKey,
+        string? CaseRootCreationToken,
+        IReadOnlyList<ImageAssetPayload> Assets);
+
+    private sealed record ImageAssetPayload(
+        Guid IntakeReceiptId,
+        string SourceFileName,
+        string MediaType,
+        string SourceHash,
+        string SourceObjectKey,
+        long SourceLength);
+
+    private sealed record ImageMergePayload(
+        Guid ImageIntakeId,
+        string ImageReference,
+        string? ImageCustodyState,
+        string? ImageCustodyRootRemoteId,
+        Guid CaseId,
+        string CaseRootReference,
+        string? CaseCustodyRootRemoteId,
+        string OperationKey);
 
     private sealed record WorkPayload(
         string WorkKind,
