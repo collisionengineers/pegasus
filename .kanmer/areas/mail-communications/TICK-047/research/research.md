@@ -58,3 +58,24 @@ Tests should prove the current classified message resolves to its configured exa
 ### Open questions
 
 None. MAIL-23 landing is a hard dependency, not an unresolved product choice. The plan must refresh against its actual merged contracts and may not invent substitute folder vocabulary or identities.
+
+## Merged-prerequisite refresh — 2026-08-20
+
+### Read-only checks
+
+- Fetched and inspected `origin/dev` at `fb42ce15802d6bfa35ada3d26b006ba164c595f1`, the merge of PR #468. The requested branch/worktree do not exist and no active worktree claims TICK-047.
+- MAIL-23's exact Core owners are `MailLogicalFolderPolicy.Map(MailClassificationResult)`, `MailLogicalFolderResult`, `MailLogicalFolderType`, and the single `MailLogicalFolders.All` definition list in `src/Pegasus.Core/Intake/Classification/MailLogicalFolderPolicy.cs`.
+- The existing external-boundary port is `IApprovedMailboxStore.ListAsync` in `src/Pegasus.Core/Identity/ApprovedMailboxAdministration.cs`. Each `ApprovedMailbox` carries `MailboxIdentity`, `State`, `Version`, and typed `FolderBindings`; each `ApprovedMailboxFolderBinding` carries one `FolderType` and exact `FolderIdentity`. This is sufficient and no new read port or abstraction is justified.
+- `RetainedMailSummary.MailboxId` is the exact provider mailbox identity written by the retained-mail store, so it must match `ApprovedMailbox.MailboxIdentity` using ordinal identity comparison. `ApprovedMailbox.Id` is the administration aggregate id and is not the retained-message mailbox coordinate.
+- `GetRetainedMail` is already the authorized exact-message Core caller and `RetainedMailDetail` is already shared by the staff `MessageModel` and `MailMcpTools`. Extending the detail result preserves one business owner; this ticket does not add an MCP surface.
+- The smallest result is a nullable recommendation derived after the exact detail read: current dossier → `MailLogicalFolderPolicy.Map` → current approved mailbox row → exact typed binding. Absence, Ambiguous/Unclassified, disabled or missing mailbox identity, or missing binding yields an accessible unavailable state and never a fallback. `NoAction` remains a valid non-null recommendation.
+- No persistence, transaction, migration, Graph adapter/call, operation key, actor reason, confirmation, retry, or arbitrary destination belongs to MAIL-05. Re-reading naturally observes a corrected classification or changed binding.
+- The staff production caller is `/Inbox/{id}` through `MessageModel.OnGetAsync`. The recommendation belongs in the existing Classification evidence definition list, with a labelled unavailable value visible to assistive technology.
+- Repository governance must be reconciled with activation: `docs/design/README.md` currently says MAIL-05 remains deferred and `docs/capabilities.md` says allocation-only. This implementation ticket must narrow those statements to locally implemented, read-only recommendation while leaving MAIL-06/07, deployment, and live writes deferred.
+
+### Exact overlaps and dependencies
+
+- Hard prerequisite [[TICK-064]] is merged to `origin/dev`; its board stage remains Verifying, but its exact symbols are now consumable as directed.
+- Changed code/test paths remain `RetainedMail.cs`, `Message.cshtml`, `RetainedMailTests.cs`, and `MailWorkspaceWebTests.cs`; `Message.cshtml.cs` needs no mapping logic unless a display helper proves necessary.
+- `RetainedMail.cs` overlaps [[TICK-049]], [[TICK-050]], [[TICK-053]], and [[TICK-056]]. The message page overlaps [[TICK-049]], [[TICK-050]], [[TICK-051]], [[TICK-052]], [[TICK-054]], [[TICK-057]], and [[TICK-088]]. The Web test file overlaps [[TICK-053]], [[TICK-056]], and [[TICK-057]]. None is currently claimed in the requested TICK-047 worktree.
+- `docs/design/README.md` and `docs/capabilities.md` overlap MAIL-23's merged activation record and must be edited narrowly without changing MAIL-06/07 status.

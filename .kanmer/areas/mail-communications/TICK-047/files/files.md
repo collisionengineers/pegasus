@@ -40,3 +40,16 @@
 ## Out of scope
 
 No taxonomy or operational-queue change; no approved-mailbox binding/configuration work; no recommendation persistence or migration; no correction, confirmation, operation key, concurrency write, history append, folder move, retry, Graph call, arbitrary folder input, bulk action, MCP tool, generic action framework, deployment, or live Outlook mutation.
+
+## Exact merged file map — 2026-08-20
+
+| Path | Disposition |
+|---|---|
+| `src/Pegasus.Core/Intake/RetainedMail.cs` | Add the read-only recommendation result to `RetainedMailDetail`; inject the existing `IApprovedMailboxStore` into `GetRetainedMail`; combine `MailLogicalFolderPolicy.Map(dossier.Current)` with the exact current `ApprovedMailbox.MailboxIdentity` and typed binding. |
+| `src/Pegasus.Web/Pages/Mail/Message.cshtml` | Render the Core-provided exact folder label/identity and policy/binding provenance, or an accessible unavailable value/reason. No form or client-supplied folder. |
+| `tests/Pegasus.Core.Tests/Intake/RetainedMailTests.cs` | Extend the existing fake boundary and prove configured exact identity, fail-closed outcomes, and valid No action without introducing a duplicate policy fake. |
+| `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` | Seed one approved mailbox binding and prove the real authenticated exact-message detail renders recommendation and unavailable state without a move/write action. |
+| `docs/capabilities.md` | Replace MAIL-05 allocation-only text with honest local implementation/caller evidence and preserve deployment/live-write exclusions. |
+| `docs/design/README.md` | Narrow the MAIL-23 exception paragraph so the activated MAIL-05 read projection is no longer described as deferred; MAIL-06/07 and Outlook writes remain deferred. |
+
+Consumed without edits: `MailLogicalFolderPolicy.cs`, `ApprovedMailboxAdministration.cs`, `EfApprovedMailboxStore.cs`, its migration, and Graph resolution. `Message.cshtml.cs` remains context-only unless the implementation needs a thin label helper; `MailMcpTools.cs` must continue compiling but gains no tool contract.

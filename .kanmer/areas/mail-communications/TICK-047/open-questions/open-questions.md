@@ -1,9 +1,11 @@
 # Open questions — TICK-047 / MAIL-05
 
-No unresolved product question remains. MAIL-05 is a read-only exact-message recommendation derived from the current classification and the MAIL-23 mailbox-approved binding. It accepts no destination and performs no move.
+No unresolved product or technical choice remains. MAIL-23 is merged to `origin/dev`; MAIL-05 uses its exact `MailLogicalFolderPolicy`, `IApprovedMailboxStore`, `ApprovedMailbox.MailboxIdentity`, and typed folder bindings.
 
 ## Parked (explicitly deferred)
 
-- [x] **Which designated Outlook destinations apply?** — Resolved by FRD-08 and [[TICK-064]]. MAIL-23 owns the canonical classification-to-logical-folder/no-recommendation policy and mailbox-approved bindings for Instructions, Audits, Diminution, New clients, Case queries, Enquiries, Billing, Pre-instructions, No action, Images, Cancellations, Case updates and Other. Unidentified has no automatic recommendation; Triage remains separate and does not itself infer a folder.
-- [x] **When may MAIL-05 be planned and implemented?** — [[TICK-064]] must land first and now structurally blocks this ticket. Refresh MAIL-05 against the actual merged policy and binding symbols; do not guess them in advance.
-- [x] **What live Outlook/Graph/cloud verification is required?** — Resolved by the operator on 2026-08-19. After deployment, perform an authenticated, read-only production mailbox-viewer check for the currently linked mailbox. Confirm that a real classified retained message displays the current policy-designated, administrator-configured exact folder recommendation and provenance, or an honest unavailable state. Do not confirm or move the message, create/rename folders, alter mailbox configuration, broaden Graph scope, or mutate cloud state.
+- [x] **Which folder vocabulary and mapping apply?** — The sole owners are `MailLogicalFolders.All` and `MailLogicalFolderPolicy.Map`; no list or mapping is copied.
+- [x] **How is the exact mailbox selected?** — Ordinal match of retained `Summary.MailboxId` to the current approved row's `MailboxIdentity`, not its aggregate `Id` or address.
+- [x] **What happens when a recommendation cannot be proven?** — Render an accessible unavailable state with the Core-derived reason. Never infer a fallback; `NoAction` is still a valid configured recommendation.
+- [x] **What remains outside this ticket?** — MAIL-06/07 confirmation/move, persistence, transactions, operation keys, Graph calls, retry, MCP expansion, deployment, and all mailbox/cloud writes.
+- [x] **What later live evidence is permitted?** — After deployment, only the already-approved authenticated read-only viewer check; no confirmation, folder/configuration change, Graph-scope change, or mailbox mutation.
