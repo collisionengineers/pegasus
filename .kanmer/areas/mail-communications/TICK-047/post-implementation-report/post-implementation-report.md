@@ -46,3 +46,9 @@ Completed locally on Windows / SQL Server LocalDB:
 - Canonical non-corpus selection: Core 834/834, Architecture 98/98, Integration 800/800 — 1,732 passed. The explicit re-derivation unit was added afterward; the final Release build and 27/27 focused Core rerun passed.
 
 After merge/promotion, `kanmer-verify` should rerun the locked restore, Release build, canonical non-corpus suite, and capture authenticated `/Inbox/{id}` evidence for a configured and unavailable classification. The permitted live step is read-only; do not confirm/move mail or alter mailbox/folder/cloud configuration.
+
+## PR-032 blocker resolution — 2026-08-20
+
+PR-032 corrected the null-dossier caller omission on the same branch. Message.cshtml now renders the existing Core unavailable recommendation in a semantic Folder recommendation section when Classification is null; classified/ambiguous rendering is unchanged. MailWorkspaceWebTests now has an exact authenticated null-classification case asserting the unavailable reason and no move/new POST control.
+
+Verification after the fix: Release solution build passed with 0 warnings/errors; focused MailWorkspaceWebTests passed 17/17. Four-lens disposition: reuse the existing Core result; no new mapping/query/partial; Razor-only constant work; no Core, Infrastructure, persistence, DI, MCP, Graph, operation key, or mutation change.
