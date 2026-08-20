@@ -1,0 +1,3 @@
+# Proof — PLAT-016 (command-log)
+
+On merged main `f0b01f39` (dev→main exact-SHA promotion, 2026-08-20): `docs/design/README.md` carries the binding "No explanatory copy and page economy" section (label+control only with a visual required marker; no how-it-works copy with at most one consequence sentence on destructive actions; read-only pages render only populated relevant sections; dropdown filters and newest-first sortable tables), and `AGENTS.md`/`CLAUDE.md` carry the matching Simplicity-rails bullet ("Operator-facing explanation is a defect"). Release 15 (deployed `6d04f89d`) applied the rules across the case page (CASE-007), queues (INTK-022), assessment (ENG-006) and upload/mail surfaces, each with suite evidence on its own ticket.

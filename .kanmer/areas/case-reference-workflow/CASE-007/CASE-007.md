@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Case page shows only what matters: short read-only view, operator words,
   toggle edit
-status: verifying
+status: done
 area: case-reference-workflow
 assignee: claude-code
 profile: fix
 stageEntered:
   review: '2026-08-20T18:18:42.892Z'
   verifying: '2026-08-20T19:11:42.057Z'
+  done: '2026-08-20T20:51:52.137Z'
 taken_at: '2026-08-20T17:41:25.387Z'
 branch: task/case-007-case-page
 worktree: ../pegasus-worktrees/case-007
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-20T17:39:20.825Z'
-updated: '2026-08-20T19:11:42.057Z'
+updated: '2026-08-20T20:51:52.137Z'
 ---
 
 ## Why

@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Ban explanatory copy and page bloat in the design authority and repository
   rails
-status: verifying
+status: done
 area: platform-operations
 order: 30
 assignee: claude-code
@@ -12,6 +12,7 @@ profile: chore
 stageEntered:
   review: '2026-08-20T14:16:45.504Z'
   verifying: '2026-08-20T14:16:51.517Z'
+  done: '2026-08-20T20:51:00.663Z'
 taken_at: '2026-08-20T14:07:03.826Z'
 branch: task/design-no-explanations
 worktree: ../pegasus-worktrees/t0-design-rules
@@ -23,7 +24,7 @@ links: []
 deployment: n/a
 archived: false
 created: '2026-08-20T14:06:46.148Z'
-updated: '2026-08-20T17:50:48.154Z'
+updated: '2026-08-20T20:51:00.663Z'
 ---
 
 ## Why

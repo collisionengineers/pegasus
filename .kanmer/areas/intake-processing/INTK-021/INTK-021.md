@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Extraction auto-adds case details and reads the real document shapes (names,
   registrations, references)
-status: verifying
+status: done
 area: intake-processing
 assignee: claude-code
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-20T15:28:23.097Z'
   review: '2026-08-20T16:44:51.463Z'
   verifying: '2026-08-20T18:07:40.666Z'
+  done: '2026-08-20T20:51:27.460Z'
 taken_at: '2026-08-20T15:28:32.203Z'
 branch: task/intk-021-extraction-auto-add
 worktree: ../pegasus-worktrees/intk-021
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-20T14:55:06.997Z'
-updated: '2026-08-20T18:07:40.666Z'
+updated: '2026-08-20T20:51:27.460Z'
 ---
 
 ## Why
