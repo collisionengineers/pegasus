@@ -23,3 +23,7 @@ Release build 0 warnings. Tests (exact counts): ProductionBoxCustodyTests 13 (3 
 - Group adoption after the create work already processed (rare race: single-receipt registration adopted into a group post-custody) can leave later-adopted members' images out of the Box folder; membership is resolved at processing time so the normal path includes all members. Blob custody remains authoritative.
 - A merge whose create-side work terminally failed retries with backoff to its cap, then needs the create retried (Operations page re-arm) — recorded honestly rather than inventing content.
 - Production Box verification (ticket Verification item 1) is deploy-stage: no live Box calls were made from this task; the real-path proof happens after release against api.box.com.
+
+## Addendum — 2026-08-20
+
+Commit 42dd427c (pushed to PR #462): FRD-05's staging-and-custody section disclaimed any per-Image-intake Box custody root ("none is claimed as delivered"); with INTK-014 that statement became false, so the paragraph now states the delivered behaviour — registration folder under the approved root, fold into the formal Case's custody on merge with non-recursive removal, fail-safe queued retries, blob custody authoritative throughout. Governing-doc change only; no code.

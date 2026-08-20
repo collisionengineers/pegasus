@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Create a Box folder per Image-initiated Case and fold it into the paired
   case's folder on merge
-status: review
+status: verifying
 area: intake-processing
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T05:07:21.084Z'
   review: '2026-08-20T06:02:05.365Z'
+  verifying: '2026-08-20T06:19:19.871Z'
 taken_at: '2026-08-20T04:59:15.508Z'
 branch: task/intk-014-image-case-box
 worktree: ../pegasus-worktrees/intk-014
@@ -35,7 +36,7 @@ prs:
   - '#462'
 archived: false
 created: '2026-08-20T03:16:37.511Z'
-updated: '2026-08-20T06:02:05.365Z'
+updated: '2026-08-20T06:19:19.871Z'
 ---
 
 ## What
