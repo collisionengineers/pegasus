@@ -2,10 +2,12 @@
 id: PLAT-005
 type: ticket
 title: Capture visual screenshots from a local DevelopmentOffline run
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-20T08:49:11.185Z'
 labels:
   - ui
   - design
@@ -14,7 +16,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-18T09:39:12.370Z'
-updated: '2026-08-18T09:39:12.370Z'
+updated: '2026-08-20T08:49:11.185Z'
 ---
 
 ## What
