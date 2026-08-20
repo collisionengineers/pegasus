@@ -90,3 +90,7 @@
 - Considered and rejected: giving `MailboxesModel` a second constructor/parameter set for
   "resolve mode" — the existing `ExpectedVersion == 0` new-vs-edit branch already carries this
   distinction throughout the file, reused rather than duplicated.
+
+- Browser/AccessibilityTests: playwright was in fact available locally. Ran
+  `dotnet test --filter "FullyQualifiedName~AccessibilityTests"` — 24/24 passed, including
+  `/Administration/Mailboxes` (no axe violations, exactly one `<h1>`, no inline styles).
