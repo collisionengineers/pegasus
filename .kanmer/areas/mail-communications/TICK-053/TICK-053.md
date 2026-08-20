@@ -23,11 +23,12 @@ groups:
 links: []
 blocks:
   - TICK-056
+  - TICK-057
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-20T09:41:08.178Z'
+updated: '2026-08-20T09:48:08.438Z'
 ---
 
 ## What

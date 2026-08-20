@@ -19,12 +19,13 @@ groups:
   - EPIC-003
   - EPIC-006
 links: []
-blocks: []
+blocks:
+  - TICK-052
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.257Z'
-updated: '2026-08-20T09:34:42.956Z'
+updated: '2026-08-20T09:48:08.405Z'
 ---
 
 ## What
