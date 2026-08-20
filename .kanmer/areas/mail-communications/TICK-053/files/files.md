@@ -68,3 +68,14 @@ No new taxonomy, speculative abstraction, bulk action, arbitrary client-supplied
 ## Out of scope
 
 No new taxonomy, queue mapping, Case-association policy, folder recommendation/move, message mutation, compose/send behavior, generic search service, separate search database, historical-mail reconstruction, arbitrary Graph mailbox/folder access, deployment claim or live mailbox write. Queue refinements belong to MAIL-23/UI-14; Automation exposure belongs to AUTO-003.
+
+## Implemented surface — 2026-08-20
+
+The conditional entity/configuration path resolved into the repository's actual owners: `PegasusDbContext.cs` owns the entity/model configuration and `EfIntakeReceiptStore.cs` owns atomic writes. Added/changed files beyond the refreshed map are:
+
+- `src/Pegasus.Core/Intake/IntakeContracts.cs`, `IntakeSearchProjection.cs`, `ProcessIntake.cs`, and `DeletedMailSearch.cs`: canonical reader-result projection and bounded authorized Deleted Items port/use case.
+- `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs`: exposes attachment descriptors from the existing parse.
+- `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs`, `EfIntakeReceiptStore.cs`, and migration `20260820100724_RetainedMailSearchDocuments` plus designer/snapshot: single receipt-owned projection and least-privilege grants.
+- `src/Pegasus.Infrastructure/DependencyInjection.cs`: unavailable default and production Graph source composition.
+- `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` and `IntakePersistenceIntegrationTests.cs`: exact GET-only Graph and committed migration evidence.
+- `docs/current-architecture.md`: exact local as-built shape; `docs/operations.md` remains unchanged because nothing was deployed.
