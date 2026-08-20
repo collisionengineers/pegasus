@@ -2340,3 +2340,37 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Upload/receipt thumbnail tile — the gallery treatment for a single image
+   (INTK-020): same border/card language as .image-gallery, sized for a row. */
+.upload-thumb {
+  display: inline-block;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: var(--sp-1);
+  line-height: 0;
+}
+
+.upload-thumb img {
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.upload-outcome-list > li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: start;
+}
+
+.upload-outcome-list > li > .upload-thumb {
+  grid-row: span 2;
+}
+
+.upload-outcome-list > li > :not(.upload-thumb) {
+  grid-column: 2;
+}

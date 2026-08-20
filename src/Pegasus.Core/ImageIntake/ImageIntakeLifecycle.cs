@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
@@ -165,6 +165,17 @@ public static class ImageIntakeLifecycleRules
 
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
     }
+
+    /// <summary>
+    /// The one owner for turning staff-typed registration input into the
+    /// normalized form <see cref="ValidateNormalizedRegistration"/> accepts:
+    /// uppercase ASCII letters and digits, separators removed.
+    /// </summary>
+    public static string NormalizeRegistrationInput(string? raw) =>
+        new((raw ?? string.Empty)
+            .ToUpperInvariant()
+            .Where(character => char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
+            .ToArray());
 
     internal static void ValidateNormalizedRegistration(string registration)
     {
