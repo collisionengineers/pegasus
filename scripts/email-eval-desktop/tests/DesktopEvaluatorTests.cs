@@ -1,3 +1,4 @@
+using MimeKit;
 using Pegasus.Core.Intake;
 using Pegasus.EmailEvaluation.Desktop;
 using Pegasus.Infrastructure.Intake;
@@ -9,7 +10,7 @@ public sealed class DesktopEvaluatorTests
     [Fact]
     public void CatalogParsesAllTwelveCategoriesWithoutReplyFolder()
     {
-        var catalog = CategoryCatalog.Load(RepositoryRoot());
+        var catalog = CategoryCatalog.Load();
 
         Assert.Equal(12, catalog.Categories.Count);
         Assert.Equal(
@@ -31,10 +32,10 @@ public sealed class DesktopEvaluatorTests
     public async Task FolderQueueUsesCaseInsensitiveExtensionAndOrdinalFilenameOrder()
     {
         using var folder = TemporaryFolder();
-        CopyFixture(folder.Path, "z-last.EML");
-        CopyFixture(folder.Path, "A-first.eml");
+        WriteFixture(folder.Path, "z-last.EML");
+        WriteFixture(folder.Path, "A-first.eml");
         Directory.CreateDirectory(Path.Combine(folder.Path, "nested"));
-        CopyFixture(Path.Combine(folder.Path, "nested"), "ignored.eml");
+        WriteFixture(Path.Combine(folder.Path, "nested"), "ignored.eml");
         await File.WriteAllTextAsync(Path.Combine(folder.Path, "not-email.txt"), "ignore");
 
         var workflow = CreateWorkflow();
@@ -52,12 +53,36 @@ public sealed class DesktopEvaluatorTests
     }
 
     [Fact]
+    public async Task RuleClassifiedEmailPopulatesCategorySubtypeEvidenceAndPolicyVersion()
+    {
+        using var folder = TemporaryFolder();
+        WriteFixture(
+            folder.Path,
+            "autoreply.eml",
+            subject: "Automatic reply: Case 128294.001",
+            body: "I am currently out of the office.");
+
+        var snapshot = await CreateWorkflow().SelectFolderAsync(folder.Path);
+
+        // "General/autoreply" is the settled Core taxonomy category the QDOS
+        // policy's subject.automatic-reply predicate resolves to.
+        Assert.Equal(
+            $"Suggested: Received / General/autoreply (policy {QdosMailClassificationPolicy.Key} v{QdosMailClassificationPolicy.Version})"
+                + $"{Environment.NewLine}Evidence:"
+                + $"{Environment.NewLine}  - subject.automatic-reply: The subject carries the generated 'Automatic reply:' prefix.",
+            snapshot.Suggestion);
+
+        var filed = await CreateWorkflow().SelectFolderAsync(folder.Path);
+        Assert.Equal(snapshot.Suggestion, filed.Suggestion);
+    }
+
+    [Fact]
     public async Task CompletedSourceIsFilteredAndMalformedLogBlocksSelection()
     {
         using var folder = TemporaryFolder();
-        var source = CopyFixture(folder.Path, "completed.eml");
+        var source = WriteFixture(folder.Path, "completed.eml");
         var workspace = new EvaluationWorkspace(folder.Path);
-        var catalog = CategoryCatalog.Load(RepositoryRoot());
+        var catalog = CategoryCatalog.Load();
         workspace.EnsureTaxonomyFolders(catalog);
         workspace.Commit(source, "Received", "General", null, "already reviewed", DateTimeOffset.UtcNow);
 
@@ -74,7 +99,7 @@ public sealed class DesktopEvaluatorTests
     public async Task GenuineFixtureDisplaysDecodedHeadersAndBody()
     {
         using var folder = TemporaryFolder();
-        CopyFixture(folder.Path, "fixture.eml");
+        WriteFixture(folder.Path, "fixture.eml");
 
         var snapshot = await CreateWorkflow().SelectFolderAsync(folder.Path);
 
@@ -99,7 +124,7 @@ public sealed class DesktopEvaluatorTests
     public async Task FilingCopiesSourceAndEscapesReasonInOneJsonLine()
     {
         using var folder = TemporaryFolder();
-        var source = CopyFixture(folder.Path, "file-me.eml");
+        var source = WriteFixture(folder.Path, "file-me.eml");
         var workflow = CreateWorkflow();
         var loaded = await workflow.SelectFolderAsync(folder.Path);
 
@@ -116,6 +141,7 @@ public sealed class DesktopEvaluatorTests
         Assert.Single(logLines);
         using var document = System.Text.Json.JsonDocument.Parse(logLines[0]);
         Assert.Equal("A quote: \"acknowledged\"\nwith a new line", document.RootElement.GetProperty("reason").GetString());
+        Assert.Null(document.RootElement.GetProperty("suggestedCategory").GetString());
         Assert.DoesNotContain('\n', logLines[0]);
         Assert.Equal("No unreviewed .eml files remain.", result.Snapshot.Status);
     }
@@ -124,9 +150,9 @@ public sealed class DesktopEvaluatorTests
     public void LogFailureRollsBackCopiedEmail()
     {
         using var folder = TemporaryFolder();
-        var source = CopyFixture(folder.Path, "log-failure.eml");
+        var source = WriteFixture(folder.Path, "log-failure.eml");
         var workspace = new EvaluationWorkspace(folder.Path);
-        workspace.EnsureTaxonomyFolders(CategoryCatalog.Load(RepositoryRoot()));
+        workspace.EnsureTaxonomyFolders(CategoryCatalog.Load());
         Directory.CreateDirectory(workspace.LogPath);
 
         Assert.ThrowsAny<Exception>(() =>
@@ -138,7 +164,7 @@ public sealed class DesktopEvaluatorTests
     public async Task OtherCreatesCustomFolderAndCollisionDoesNotAdvance()
     {
         using var folder = TemporaryFolder();
-        CopyFixture(folder.Path, "other.eml");
+        WriteFixture(folder.Path, "other.eml");
         var workflow = CreateWorkflow();
         await workflow.SelectFolderAsync(folder.Path);
 
@@ -154,7 +180,7 @@ public sealed class DesktopEvaluatorTests
         Assert.Single(Directory.EnumerateDirectories(Path.Combine(folder.Path, "emailevallocal", "Other")));
 
         using var second = TemporaryFolder();
-        CopyFixture(second.Path, "collision.eml");
+        WriteFixture(second.Path, "collision.eml");
         var secondWorkflow = CreateWorkflow();
         await secondWorkflow.SelectFolderAsync(second.Path);
         var destination = Path.Combine(second.Path, "emailevallocal", "Received", "General", "collision.eml");
@@ -171,33 +197,31 @@ public sealed class DesktopEvaluatorTests
         new(
             new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System),
             new QdosInstructionExtractionPolicy(),
-            CategoryCatalog.Load(RepositoryRoot()));
+            new QdosMailClassificationPolicy(),
+            CategoryCatalog.Load());
 
-    private static string CopyFixture(string destination, string fileName)
+    /// <summary>
+    /// Builds a deterministic in-memory .eml fixture and writes it under
+    /// <paramref name="destination"/>. Content is synthetic test data, never a
+    /// repository-tracked or corpus file (corpus/ is local, ignored and immutable).
+    /// </summary>
+    private static string WriteFixture(
+        string destination,
+        string fileName,
+        string subject = "Case update",
+        string body = "Please see the update below regarding the case.")
     {
-        var source = Path.Combine(
-            RepositoryRoot(),
-            "docs", "reference", "imp-docs", "requirementsdocs", "v1_docs", "my-ticket-notes-v1",
-            "email-mistags", "acknowledgement", "2", "Thank you for your email.eml");
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress("Synthetic sender", "sender@example.test"));
+        message.To.Add(new MailboxAddress("Pegasus review", "review@example.test"));
+        message.Date = DateTimeOffset.UtcNow;
+        message.Subject = subject;
+        message.Body = new TextPart("plain") { Text = body };
+
         var target = Path.Combine(destination, fileName);
-        File.Copy(source, target);
+        using var stream = File.Create(target);
+        message.WriteTo(stream);
         return target;
-    }
-
-    private static string RepositoryRoot()
-    {
-        var directory = new DirectoryInfo(Directory.GetCurrentDirectory());
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "docs", "reference", "CollisionSPikeCurrenttree.txt")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new InvalidOperationException("Repository root not found.");
     }
 
     private static TempDirectory TemporaryFolder() => new();
