@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Deterministic extraction rules populate the full case detail set from
   instruction documents
-status: backlog
+status: preparing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T03:44:15.187Z'
+branch: task/intk-017-extraction-coverage
+worktree: ../pegasus-worktrees/intk-017
 labels:
   - extraction
   - operator-reported
@@ -18,7 +21,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-20T03:16:37.667Z'
-updated: '2026-08-20T03:16:37.667Z'
+updated: '2026-08-20T03:44:15.187Z'
 ---
 
 ## What
