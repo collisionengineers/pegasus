@@ -107,12 +107,12 @@ public sealed class AutomaticImageIntakeTests
             "engine_unavailable",
             "The engine dependency could not be initialised."));
 
-        var receipt = await harness.ApplyAsync();
+        var outcome = await harness.ApplyAsync();
 
         Assert.Empty(harness.Register.Requests);
         var suggestion = Assert.Single(harness.SuggestionStore.Records);
         Assert.Equal(VrmRecognitionOutcomeKind.Unavailable, suggestion.Outcome);
-        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal(IntakeDecision.NeedsSorting, outcome.Receipt.Decision);
     }
 
     [Fact]
@@ -260,6 +260,33 @@ public sealed class AutomaticImageIntakeTests
         Assert.Equal(
             harness.Receipts.Select(receipt => receipt.Id).OrderBy(id => id),
             harness.MutationStore.AutoLinks.Select(link => link.ReceiptId).OrderBy(id => id));
+    }
+
+    [Fact]
+    public async Task MemberRegistrationFailureReportsGroupPendingInsteadOfFallingBack()
+    {
+        // INTK-011: the production race. Two members of a group both read
+        // the same VRM, but one member's registration attempt loses a
+        // transient concurrency race (simulated here as a recoverable
+        // exception from the register port, standing in for the real
+        // Serializable-isolation contention on the shared VRM-sequence row).
+        // That member must be reported back as GroupPending, never silently
+        // left to fall through to the instruction-fallback/Unidentified path
+        // with its NeedsSorting decision looking like a final outcome.
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        var failingReceiptId = harness.Receipts[1].Id;
+        harness.Register.FailForReceiptIds.Add(failingReceiptId);
+
+        var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.True(outcome.GroupPending);
+        Assert.Equal(IntakeDecision.NeedsSorting, outcome.Receipt.Decision);
+        // The sibling that did not lose the race still registers; only the
+        // losing member's own outcome is reported pending.
+        Assert.Single(harness.Register.Requests);
+        Assert.Equal(harness.Receipts[0].Id, harness.Register.Requests[0].Origin.ReceiptId);
     }
 
     [Fact]
@@ -432,7 +459,7 @@ public sealed class AutomaticImageIntakeTests
 
         private ImageIntakeAutomation Automation { get; }
 
-        public Task<IntakeReceipt> ApplyAsync()
+        public Task<ImageIntakeAutomationOutcome> ApplyAsync()
         {
             OriginResolver.Origin = new ImageIntakeOrigin(
                 Receipt.Id,
@@ -610,11 +637,25 @@ public sealed class AutomaticImageIntakeTests
     {
         public List<RegisterImageIntakeRequest> Requests { get; } = [];
 
+        /// <summary>
+        /// Simulates a member's registration losing a transient concurrency
+        /// race (e.g. the shared VRM-sequence row under Serializable
+        /// isolation) — a recoverable exception the caller is expected to
+        /// report back as pending rather than silently absorb.
+        /// </summary>
+        public HashSet<Guid> FailForReceiptIds { get; } = [];
+
         public Task<ImageIntakeRecord> ExecuteAsync(
             RegisterImageIntakeRequest request,
             CancellationToken cancellationToken)
         {
             ImageIntakeLifecycleRules.ValidateRegister(request);
+            if (FailForReceiptIds.Contains(request.Origin.ReceiptId))
+            {
+                throw new InvalidOperationException(
+                    "Simulated transient concurrency failure registering this receipt.");
+            }
+
             Requests.Add(request);
             return Task.FromResult(new ImageIntakeRecord(
                 Guid.NewGuid(),
@@ -871,7 +912,7 @@ public sealed class AutomaticImageIntakeTests
 
         public FakeGroupStore GroupStore { get; } = new();
 
-        public Task<IntakeReceipt> ApplyAsync(int triggerOrdinal) =>
+        public Task<ImageIntakeAutomationOutcome> ApplyAsync(int triggerOrdinal) =>
             automation.ApplyAsync(Receipts[triggerOrdinal], CancellationToken.None);
     }
 }

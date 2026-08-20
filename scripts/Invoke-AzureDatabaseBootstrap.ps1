@@ -245,12 +245,22 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|EvaHandoffDownloadOperations')
     # 20260819101344_GroupedIntakeSubmission: the Upload page's grouped
     # submission tables. EfIntakeSubmissionGroupStore only reads and appends
-    # (no UPDATE, no Remove) and the Worker never references either table, so
-    # the Web role gets SELECT and INSERT and the Worker gets nothing.
+    # (no UPDATE, no Remove); the Web role gets SELECT and INSERT (it creates
+    # and appends group/member rows from the Upload page).
     foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
         foreach ($permission in @('SELECT', 'INSERT')) {
             $expected.Add("pegasus_web_runtime_role|G|$permission|$table")
         }
+    }
+    # 20260819234014_GrantWorkerIntakeSubmissionGroupRead (INTK-011): the
+    # original GroupedIntakeSubmission comment above claimed "the Worker never
+    # references either table" -- that was wrong. ImageIntakeAutomation
+    # .TryApplyGroupAsync, invoked from the Worker's ProcessQueuedIntake
+    # pipeline, calls IIntakeSubmissionGroupStore.FindForMemberSourceAsync/
+    # ListMembersAsync at runtime. The Worker only ever reads; it never
+    # creates or appends a group/member row.
+    foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
+        $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
     }
     # 20260819112914_ImageInitiatedLifecycle: the Image-initiated Case
     # lifecycle event log is append-only. Web is the only caller (the

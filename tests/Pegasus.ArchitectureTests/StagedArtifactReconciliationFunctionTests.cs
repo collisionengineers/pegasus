@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Worker;
 
 namespace Pegasus.ArchitectureTests;
@@ -15,19 +16,33 @@ public sealed class StagedArtifactReconciliationFunctionTests
             new RejectingStagedArtifactAuthority(),
             new EmptyStagedArtifactStore(),
             TimeProvider.System);
+        var groupedImageReconciler = new ReconcileGroupedImageIntake(
+            new EmptyIntakeReceiptQueries(),
+            new UnreachableGroupStore(),
+            workStore,
+            new UnreachableProcessQueuedIntake(),
+            TimeProvider.System,
+            new UnreachableRegisterUnidentified());
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
-        var function = new StagedArtifactReconciliationFunction(reconciler, logger);
+        var function = new StagedArtifactReconciliationFunction(reconciler, groupedImageReconciler, logger);
 
         await function.RunAsync(null!, CancellationToken.None);
 
         Assert.Equal(50, workStore.MaximumItems);
-        var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.State);
+        Assert.Equal(2, logger.States.Count);
+        var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredLeases"]);
         Assert.Equal(0, state["Completed"]);
         Assert.Equal(0, state["Retained"]);
         Assert.Equal(0, state["Orphans"]);
         Assert.Equal(0, state["Unmatched"]);
         Assert.Equal(0, state["Failures"]);
+
+        var groupedImageState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[1]);
+        Assert.Equal(0, groupedImageState["Candidates"]);
+        Assert.Equal(0, groupedImageState["Retried"]);
+        Assert.Equal(0, groupedImageState["Escaped"]);
+        Assert.Equal(0, groupedImageState["Failures"]);
     }
 
     [Fact]
@@ -39,6 +54,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
         Assert.Equal(
             [
                 typeof(ReconcileStagedArtifacts),
+                typeof(ReconcileGroupedImageIntake),
                 typeof(ILogger<StagedArtifactReconciliationFunction>)
             ],
             constructor.GetParameters().Select(parameter => parameter.ParameterType));
@@ -134,8 +150,101 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task<Guid?> FindStagedReceiptIdForReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
         private static InvalidOperationException UnexpectedCall() =>
             new("The timer's empty reconciliation batch reached an unrelated work-store operation.");
+    }
+
+    private sealed class EmptyIntakeReceiptQueries : IIntakeReceiptQueries
+    {
+        public Task<IntakeQueueCounts> GetCountsAsync(CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The timer's grouped-image reconciliation must not query queue counts.");
+
+        public Task<IntakeListPage> ListAsync(
+            IntakeDecision? decision,
+            int page,
+            int pageSize,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new IntakeListPage([], page, pageSize, TotalCount: 0));
+
+        public Task<IntakeReceipt?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "An empty grouped-image reconciliation page must not fetch a receipt.");
+
+        public Task<IntakeAssetRecord?> GetAssetAsync(
+            Guid receiptId,
+            Guid assetId,
+            CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The timer's grouped-image reconciliation must not query an asset.");
+    }
+
+    private sealed class UnreachableGroupStore : IIntakeSubmissionGroupStore
+    {
+        public Task<IntakeSubmissionGroup?> GetAsync(
+            Guid groupId,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<IntakeSubmissionGroup?> FindAsync(
+            IntakeSourceChannel channel,
+            string submissionToken,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<IntakeSubmissionGroup> GetOrCreateAsync(
+            Guid groupId,
+            IntakeSourceChannel channel,
+            string submissionToken,
+            int expectedMemberCount,
+            string actor,
+            DateTimeOffset receivedAtUtc,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<IntakeSubmissionGroupMember?> FindMemberAsync(
+            Guid groupId,
+            int ordinal,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<IntakeSubmissionGroupMember> AddMemberAsync(
+            Guid groupId,
+            int ordinal,
+            ReceivedIntake received,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(
+            Guid groupId,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        private static InvalidOperationException UnexpectedCall() =>
+            new("An empty grouped-image reconciliation page must not reach the group store.");
+    }
+
+    private sealed class UnreachableProcessQueuedIntake : IProcessQueuedIntake
+    {
+        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException(
+                "An empty grouped-image reconciliation page must not re-drive any staged receipt.");
+    }
+
+    private sealed class UnreachableRegisterUnidentified : IRegisterUnidentified
+    {
+        public Task<UnidentifiedRegisterResult> ExecuteAsync(
+            RegisterUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException(
+                "An empty grouped-image reconciliation page must not register anything Unidentified.");
     }
 
     private sealed class RejectingStagedArtifactAuthority : IStagedArtifactAuthority
@@ -165,7 +274,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
 
     private sealed class RecordingLogger<T> : ILogger<T>
     {
-        internal IReadOnlyDictionary<string, object?>? State { get; private set; }
+        internal List<IReadOnlyDictionary<string, object?>> States { get; } = [];
 
         public IDisposable? BeginScope<TState>(TState state)
             where TState : notnull => null;
@@ -179,10 +288,10 @@ public sealed class StagedArtifactReconciliationFunctionTests
             Exception? exception,
             Func<TState, Exception?, string> formatter)
         {
-            State = state is IEnumerable<KeyValuePair<string, object?>> values
+            States.Add(state is IEnumerable<KeyValuePair<string, object?>> values
                 ? values.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
                 : throw new InvalidOperationException(
-                    "The staged-artifact reconciliation log must retain structured fields.");
+                    "The staged-artifact reconciliation log must retain structured fields."));
         }
     }
 }

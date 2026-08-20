@@ -222,6 +222,21 @@ public interface IIntakeWorkStore
         Guid stagedReceiptId,
         DateTimeOffset dueAtUtc,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The staged receipt id for a persisted intake receipt's latest
+    /// evaluation, or null when none is retained. Read-only: the
+    /// reconciliation sweep only has the receipt on hand and needs the
+    /// staged receipt id to re-drive <see cref="IProcessQueuedIntake"/>, but
+    /// must never move a completed work item back to a claimable state (that
+    /// would force a re-claim through the artifact-reading path, whose
+    /// staged copy is already deleted once a receipt has completed once).
+    /// Mirrors the join <c>EfIntakeMutationStore.ScheduleReevaluationAsync</c>
+    /// performs inline for the staff-facing reevaluation command.
+    /// </summary>
+    Task<Guid?> FindStagedReceiptIdForReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken);
 }
 
 public interface IIntakeWorkEnqueuer
@@ -386,6 +401,20 @@ public sealed class DispatchPendingIntakeWork(
     }
 }
 
+/// <summary>
+/// One staged receipt's durable processing entry point. The interface exists
+/// so <see cref="ReconcileGroupedImageIntake"/> can re-drive an
+/// already-completed receipt (the safe replay branch of
+/// <see cref="ProcessQueuedIntake.ExecuteAsync"/>) without depending on every
+/// concrete adapter <see cref="ProcessQueuedIntake"/> itself requires.
+/// </summary>
+public interface IProcessQueuedIntake
+{
+    Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed class ProcessQueuedIntake(
     IIntakeWorkStore workStore,
     IIntakeArtifactStore artifactStore,
@@ -399,7 +428,7 @@ public sealed class ProcessQueuedIntake(
     IRegisterUnidentified? registerUnidentified = null,
     IResolveUnidentified? resolveUnidentified = null,
     IUnidentifiedStore? unidentifiedStore = null,
-    Pegasus.Core.ImageIntake.IImageIntakeQueries? imageIntakeQueries = null)
+    Pegasus.Core.ImageIntake.IImageIntakeQueries? imageIntakeQueries = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
@@ -471,7 +500,15 @@ public sealed class ProcessQueuedIntake(
                     cancellationToken) ?? completedReceipt;
             }
 
-            completedReceipt = await ApplyImageIntakeAutomationAsync(completedReceipt, cancellationToken);
+            var replayImageOutcome = await ApplyImageIntakeAutomationAsync(
+                completedReceipt,
+                cancellationToken);
+            completedReceipt = replayImageOutcome.Receipt;
+            if (replayImageOutcome.GroupPending)
+            {
+                return QueuedIntakeProcessingOutcome.RetryScheduled;
+            }
+
             await SynchronizeUnidentifiedAsync(completedReceipt, cancellationToken);
             return QueuedIntakeProcessingOutcome.NoOp;
         }
@@ -577,7 +614,13 @@ public sealed class ProcessQueuedIntake(
             processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
         }
 
-        processed = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+        var imageOutcome = await ApplyImageIntakeAutomationAsync(processed, cancellationToken);
+        processed = imageOutcome.Receipt;
+        if (imageOutcome.GroupPending)
+        {
+            return QueuedIntakeProcessingOutcome.RetryScheduled;
+        }
+
         await SynchronizeUnidentifiedAsync(processed, cancellationToken);
         return QueuedIntakeProcessingOutcome.Completed;
     }
@@ -589,13 +632,34 @@ public sealed class ProcessQueuedIntake(
     /// automation failure, and every operation key is receipt-scoped so a
     /// reprocessed receipt replays instead of duplicating.
     /// </summary>
-    private async Task<IntakeReceipt> ApplyImageIntakeAutomationAsync(
+    /// <remarks>
+    /// A returned <c>GroupPending</c> says this receipt's own group outcome
+    /// did not complete this pass (its group is waiting on sibling
+    /// members/recognition, or its own registration attempt lost a transient
+    /// concurrency race). The caller then defers this pass's Unidentified
+    /// fallback instead of letting the receipt fall through to the
+    /// instruction-fallback path while the group could still resolve.
+    /// Deferral deliberately does not touch the durable work item: by that
+    /// point its evaluation is already <c>Completed</c> and its staged
+    /// artifact deleted (<see cref="TryDeleteCompletedStagingAsync"/> already
+    /// ran), so moving it back to <c>Pending</c> would force a future
+    /// re-claim through the artifact-reading path and fail with a
+    /// staged-artifact-integrity error. A completed work item is cheap and
+    /// safe to revisit instead: a later <see cref="ExecuteAsync"/> for the
+    /// same staged receipt finds nothing to claim and takes the replay
+    /// branch, which re-runs this automation without touching staging.
+    /// <see cref="ReconcileGroupedImageIntake"/> is that later call — the
+    /// durable, bounded retry this receipt gets, with registering
+    /// Unidentified as its poison-path escape once a receipt has been
+    /// pending long enough.
+    /// </remarks>
+    private async Task<Pegasus.Core.ImageIntake.ImageIntakeAutomationOutcome> ApplyImageIntakeAutomationAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
         if (imageIntakeAutomation is null)
         {
-            return receipt;
+            return new(receipt);
         }
 
         try
@@ -606,7 +670,7 @@ public sealed class ProcessQueuedIntake(
         {
             // Non-blocking by design; suggestions and receipt state carry the
             // visible outcome.
-            return receipt;
+            return new(receipt);
         }
     }
 
