@@ -2,6 +2,7 @@
 @model Pegasus.Web.Pages.Cases.Assessment.IndexModel
 @using Pegasus.Core.AiWork
 @using Pegasus.Core.Assessment
+@using Pegasus.Core.Cases
 @using Pegasus.Web.Presentation
 @*
     Engineers assessment screen.
@@ -283,13 +284,12 @@
                 <h2 id="vehicle-title">Vehicle</h2>
                 <div class="form-grid section-gap">
                     <div>
-                        <label for="vehicle-registration">Registration</label>
-                        <input type="text" id="vehicle-registration" name="vehicle.registration" aria-describedby="vehicle-registration-hint" />
-                        <small id="vehicle-registration-hint">Required.</small>
+                        <label class="req" for="vehicle-registration">Registration</label>
+                        <input type="text" aria-required="true" id="vehicle-registration" name="vehicle.registration" />
                     </div>
                     <div>
-                        <label for="vehicle-type">Vehicle type</label>
-                        <select id="vehicle-type" name="vehicle.vehicle_type" aria-describedby="vehicle-type-hint">
+                        <label class="req" for="vehicle-type">Vehicle type</label>
+                        <select aria-required="true" id="vehicle-type" name="vehicle.vehicle_type">
                             <option value=""></option>
                             <option value="car">Car</option>
                             <option value="van">Van</option>
@@ -300,37 +300,30 @@
                             <option value="caravan">Caravan</option>
                             <option value="other">Other</option>
                         </select>
-                        <small id="vehicle-type-hint">Required.</small>
                     </div>
                     <div>
-                        <label for="vehicle-make">Make</label>
-                        <input type="text" id="vehicle-make" name="vehicle.make" aria-describedby="vehicle-make-hint" value='@Model.VehiclePrefill("vehicle.make")' />
-                        <small id="vehicle-make-hint">Required.</small>
+                        <label class="req" for="vehicle-make">Make</label>
+                        <input type="text" aria-required="true" id="vehicle-make" name="vehicle.make" value='@Model.VehiclePrefill("vehicle.make")' />
                     </div>
                     <div>
-                        <label for="vehicle-model">Model</label>
-                        <input type="text" id="vehicle-model" name="vehicle.model" aria-describedby="vehicle-model-hint" value='@Model.VehiclePrefill("vehicle.model")' />
-                        <small id="vehicle-model-hint">Required.</small>
+                        <label class="req" for="vehicle-model">Model</label>
+                        <input type="text" aria-required="true" id="vehicle-model" name="vehicle.model" value='@Model.VehiclePrefill("vehicle.model")' />
                     </div>
                     <div>
-                        <label for="vehicle-year">Year</label>
-                        <input type="text" id="vehicle-year" name="vehicle.year" class="tabular" aria-describedby="vehicle-year-hint" value='@Model.VehiclePrefill("vehicle.year")' />
-                        <small id="vehicle-year-hint">Required.</small>
+                        <label class="req" for="vehicle-year">Year</label>
+                        <input type="text" aria-required="true" id="vehicle-year" name="vehicle.year" class="tabular" value='@Model.VehiclePrefill("vehicle.year")' />
                     </div>
                     <div>
                         <label for="vehicle-vin">VIN</label>
-                        <input type="text" id="vehicle-vin" name="vehicle.vin" aria-describedby="vehicle-vin-hint" />
-                        <small id="vehicle-vin-hint">Optional. No format is enforced.</small>
+                        <input type="text" id="vehicle-vin" name="vehicle.vin" />
                     </div>
                     <div>
                         <label for="vehicle-engine">Engine size</label>
-                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" aria-describedby="vehicle-engine-hint" value='@Model.VehiclePrefill("vehicle.engine_cc")' />
-                        <small id="vehicle-engine-hint">Optional. In cc.</small>
+                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" value='@Model.VehiclePrefill("vehicle.engine_cc")' />
                     </div>
                     <div>
                         <label for="vehicle-fuel">Fuel</label>
-                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" aria-describedby="vehicle-fuel-hint" value='@Model.VehiclePrefill("vehicle.fuel")' />
-                        <small id="vehicle-fuel-hint">Optional.</small>
+                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" value='@Model.VehiclePrefill("vehicle.fuel")' />
                     </div>
                     <div>
                         <label for="vehicle-odometer">Mileage</label>
@@ -349,8 +342,8 @@
                         </select>
                     </div>
                     <div>
-                        <label for="vehicle-condition">Pre-incident condition</label>
-                        <select id="vehicle-condition" name="vehicle.condition" aria-describedby="vehicle-condition-hint">
+                        <label class="req" for="vehicle-condition">Pre-incident condition</label>
+                        <select aria-required="true" id="vehicle-condition" name="vehicle.condition">
                             <option value=""></option>
                             <option value="poor">Poor</option>
                             <option value="below_average">Below average</option>
@@ -358,7 +351,6 @@
                             <option value="good">Good</option>
                             <option value="excellent">Excellent</option>
                         </select>
-                        <small id="vehicle-condition-hint">Required.</small>
                     </div>
                 </div>
                 @*
@@ -390,22 +382,19 @@
                 <div class="form-grid section-gap">
                     <div>
                         <label for="incident-date">Incident date</label>
-                        <input type="date" id="incident-date" name="incident.date" class="tabular" aria-describedby="incident-date-hint" />
-                        <small id="incident-date-hint">Optional.</small>
+                        <input type="date" id="incident-date" name="incident.date" class="tabular" />
                     </div>
                     <div>
-                        <label for="incident-instructions">Instructions received</label>
-                        <input type="date" id="incident-instructions" name="incident.instructions_received" class="tabular" aria-describedby="incident-instructions-hint" />
-                        <small id="incident-instructions-hint">Required.</small>
+                        <label class="req" for="incident-instructions">Instructions received</label>
+                        <input type="date" aria-required="true" id="incident-instructions" name="incident.instructions_received" class="tabular" />
                     </div>
                     <div>
-                        <label for="incident-assessed">Assessed</label>
-                        <input type="date" id="incident-assessed" name="incident.assessed" class="tabular" aria-describedby="incident-assessed-hint" />
-                        <small id="incident-assessed-hint">Required.</small>
+                        <label class="req" for="incident-assessed">Assessed</label>
+                        <input type="date" aria-required="true" id="incident-assessed" name="incident.assessed" class="tabular" />
                     </div>
                     <div>
-                        <label for="impact-severity">Impact severity</label>
-                        <select id="impact-severity" name="assessment.impact_severity" aria-describedby="impact-severity-hint">
+                        <label class="req" for="impact-severity">Impact severity</label>
+                        <select aria-required="true" id="impact-severity" name="assessment.impact_severity">
                             <option value=""></option>
                             <option value="light">Light</option>
                             <option value="light_to_moderate">Light to moderate</option>
@@ -413,33 +402,30 @@
                             <option value="moderate_to_heavy">Moderate to heavy</option>
                             <option value="heavy">Heavy</option>
                         </select>
-                        <small id="impact-severity-hint">Required.</small>
                     </div>
                     <div>
-                        <label for="impact-location">Impact location</label>
-                        <select id="impact-location" name="assessment.impact_location" aria-describedby="impact-location-hint">
+                        <label class="req" for="impact-location">Impact location</label>
+                        <select aria-required="true" id="impact-location" name="assessment.impact_location" data-saved="@Model.SavedImpactLocation">
                             <option value=""></option>
-                            <option value="front">Front</option>
-                            <option value="left_front">Left front</option>
-                            <option value="right_front">Right front</option>
-                            <option value="left_side">Left side</option>
-                            <option value="right_side">Right side</option>
-                            <option value="rear">Rear</option>
-                            <option value="left_rear">Left rear</option>
-                            <option value="right_rear">Right rear</option>
-                            <option value="roof">Roof</option>
-                            <option value="underside">Underside</option>
-                            <option value="wheel">Wheel</option>
-                            <option value="interior">Interior</option>
-                            <option value="mechanical">Mechanical</option>
-                            <option value="multiple">Multiple</option>
+                            <option value="front" selected='@(Model.SavedImpactLocation == "front" ? "selected" : null)'>Front</option>
+                            <option value="left_front" selected='@(Model.SavedImpactLocation == "left_front" ? "selected" : null)'>Left front</option>
+                            <option value="right_front" selected='@(Model.SavedImpactLocation == "right_front" ? "selected" : null)'>Right front</option>
+                            <option value="left_side" selected='@(Model.SavedImpactLocation == "left_side" ? "selected" : null)'>Left side</option>
+                            <option value="right_side" selected='@(Model.SavedImpactLocation == "right_side" ? "selected" : null)'>Right side</option>
+                            <option value="rear" selected='@(Model.SavedImpactLocation == "rear" ? "selected" : null)'>Rear</option>
+                            <option value="left_rear" selected='@(Model.SavedImpactLocation == "left_rear" ? "selected" : null)'>Left rear</option>
+                            <option value="right_rear" selected='@(Model.SavedImpactLocation == "right_rear" ? "selected" : null)'>Right rear</option>
+                            <option value="roof" selected='@(Model.SavedImpactLocation == "roof" ? "selected" : null)'>Roof</option>
+                            <option value="underside" selected='@(Model.SavedImpactLocation == "underside" ? "selected" : null)'>Underside</option>
+                            <option value="wheel" selected='@(Model.SavedImpactLocation == "wheel" ? "selected" : null)'>Wheel</option>
+                            <option value="interior" selected='@(Model.SavedImpactLocation == "interior" ? "selected" : null)'>Interior</option>
+                            <option value="mechanical" selected='@(Model.SavedImpactLocation == "mechanical" ? "selected" : null)'>Mechanical</option>
+                            <option value="multiple" selected='@(Model.SavedImpactLocation == "multiple" ? "selected" : null)'>Multiple</option>
                         </select>
-                        <small id="impact-location-hint">Required.</small>
                     </div>
                     <div class="field-wide">
                         <label for="incident-nature">Nature of the incident</label>
-                        <textarea id="incident-nature" name="narrative.nature_of_incident" rows="3" aria-describedby="incident-nature-hint"></textarea>
-                        <small id="incident-nature-hint">Optional. Replaces the sentence written from the impact severity and location.</small>
+                        <textarea id="incident-nature" name="narrative.nature_of_incident" rows="3"></textarea>
                     </div>
                 </div>
                 <div class="button-row section-gap">
@@ -453,28 +439,24 @@
             <section class="panel" aria-labelledby="inspection-title">
                 <h2 id="inspection-title">Inspection</h2>
 
-                <div class="status-card status-card--info">
-                    <h3>The principal sets the default</h3>
-                    <p>Changing the inspection mode on this case needs a reason; address fields never imply attendance.</p>
-                </div>
-
                 <fieldset class="role-choices role-choices--stacked">
                     <legend>Assessment method</legend>
                     <label class="choice" for="method-image">
-                        <input type="radio" id="method-image" name="assessment.method" value="image_based" />
+                        <input type="radio" id="method-image" name="assessment.method" value="image_based"
+                               checked="@(Model.RecordedInspectionMode == CaseInspectionMode.ImageBasedAssessment ? "checked" : null)" />
                         <span>Image Based Assessment</span>
                     </label>
                     <label class="choice" for="method-physical">
-                        <input type="radio" id="method-physical" name="assessment.method" value="physical" />
+                        <input type="radio" id="method-physical" name="assessment.method" value="physical"
+                               checked="@(Model.RecordedInspectionMode == CaseInspectionMode.PhysicalAddress ? "checked" : null)" />
                         <span>Physical</span>
                     </label>
                 </fieldset>
 
                 <div class="form-grid section-gap">
                     <div class="field-wide">
-                        <label for="inspection-address">Inspection address</label>
-                        <textarea id="inspection-address" name="assessment.location_address" rows="4" aria-describedby="inspection-address-hint"></textarea>
-                        <small id="inspection-address-hint">Required when the method is Physical. Leave empty for an Image Based Assessment.</small>
+                        <label class="req" for="inspection-address">Inspection address</label>
+                        <textarea aria-required="true" id="inspection-address" name="assessment.location_address" rows="4"></textarea>
                     </div>
                 </div>
                 <div class="button-row section-gap">
@@ -522,11 +504,6 @@
                     </div>
                 </div>
 
-                <div class="status-card status-card--info">
-                    <h3>Guide figures stay on this screen</h3>
-                    <p>Guide figures are read-only; only the three figures below reach the report.</p>
-                </div>
-
                 @{
                     var pavFigures = new[]
                     {
@@ -546,19 +523,16 @@
                 <h3 class="section-label">Chosen figures</h3>
                 <div class="form-grid">
                     <div>
-                        <label for="value-retail">Retail value (&#163;)</label>
-                        <input type="number" id="value-retail" name="assessment.values.retail" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="value-retail-hint" />
-                        <small id="value-retail-hint">Required. Chosen from the guide evidence above.</small>
+                        <label class="req" for="value-retail">Retail value (&#163;)</label>
+                        <input type="number" aria-required="true" id="value-retail" name="assessment.values.retail" min="0" step="0.01" inputmode="decimal" class="tabular" />
                     </div>
                     <div>
-                        <label for="value-trade">Trade value (&#163;)</label>
-                        <input type="number" id="value-trade" name="assessment.values.trade" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="value-trade-hint" />
-                        <small id="value-trade-hint">Required. Chosen from the guide evidence above.</small>
+                        <label class="req" for="value-trade">Trade value (&#163;)</label>
+                        <input type="number" aria-required="true" id="value-trade" name="assessment.values.trade" min="0" step="0.01" inputmode="decimal" class="tabular" />
                     </div>
                     <div>
-                        <label for="value-engineer">Engineer's value (&#163;)</label>
-                        <input type="number" id="value-engineer" name="assessment.values.engineer" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="value-engineer-hint" />
-                        <small id="value-engineer-hint">Required. Your opinion. Usually the retail value; it may differ.</small>
+                        <label class="req" for="value-engineer">Engineer's value (&#163;)</label>
+                        <input type="number" aria-required="true" id="value-engineer" name="assessment.values.engineer" min="0" step="0.01" inputmode="decimal" class="tabular" />
                     </div>
                 </div>
 
@@ -578,8 +552,7 @@
                         <div class="form-grid">
                             <div class="field-wide">
                                 <label for="pav-range">Pre-accident value (&#163;)</label>
-                                <input type="range" id="pav-range" min="@pavMinimum" max="@pavMaximum" step="1" value="@pavDefault" aria-describedby="pav-range-hint" />
-                                <small id="pav-range-hint">The range spans the recorded valuation figures. Nothing is saved from this control.</small>
+                                <input type="range" id="pav-range" min="@pavMinimum" max="@pavMaximum" step="1" value="@pavDefault" />
                             </div>
                             <div>
                                 <label for="pav-value">Exact figure (&#163;)</label>
@@ -671,7 +644,7 @@
                             <div class="form-grid">
                                 <div>
                                     <label for="accept-labour">Labour (&#163;)</label>
-                                    <input type="number" id="accept-labour" name="labour" min="0" step="0.01" inputmode="decimal" class="tabular" required aria-describedby="accept-basis-hint" />
+                                    <input type="number" id="accept-labour" name="labour" min="0" step="0.01" inputmode="decimal" class="tabular" required />
                                 </div>
                                 <div>
                                     <label for="accept-parts">Parts (&#163;)</label>
@@ -701,7 +674,6 @@
                                     <input type="text" id="accept-reason" name="reason" maxlength="500" />
                                 </div>
                             </div>
-                            <small id="accept-basis-hint">Type each figure from the original estimate document; acceptance records them against your name.</small>
                             <div class="button-row section-gap">
                                 <button type="submit" class="primary-action">Accept specification</button>
                             </div>
@@ -733,8 +705,7 @@
                         <div class="form-grid">
                             <div class="field-wide">
                                 <label for="import-reason">Reason</label>
-                                <input type="text" id="import-reason" name="reason" maxlength="500" aria-describedby="import-reason-hint" disabled="@(Model.ActorIsEngineer ? null : "disabled")" />
-                                <small id="import-reason-hint">@(Model.AcceptedSpecification is null ? "Optional." : "Required: this import supersedes the accepted specification.")</small>
+                                <input type="text" id="import-reason" name="reason" maxlength="500" disabled="@(Model.ActorIsEngineer ? null : "disabled")" />
                             </div>
                         </div>
                         @if (Model.ActorIsEngineer)
@@ -780,10 +751,9 @@
                 <div class="form-grid">
                     <div class="field-wide">
                         <label for="rate-card">Rate card</label>
-                        <select id="rate-card" name="rates.card" aria-describedby="rate-card-hint">
+                        <select id="rate-card" name="rates.card">
                             <option value="">Choose a rate card</option>
                         </select>
-                        <small id="rate-card-hint">A guide to charges, not a fixed tariff. The card carries its own dates.</small>
                     </div>
                     <div>
                         <fieldset class="role-choices role-choices--stacked">
@@ -818,7 +788,6 @@
                 <h3 class="section-label section-gap">Repair lines</h3>
                 <div class="table-wrap">
                     <table class="line-grid">
-                        <caption>Each line is worth its work units divided by ten, times the rate &#8212; or its price, for parts and fixed charges.</caption>
                         <thead>
                             <tr>
                                 <th scope="col">Line</th>
@@ -830,8 +799,6 @@
                                 <th scope="col">Part number</th>
                                 <th scope="col">Betterment</th>
                                 <th scope="col">Status</th>
-                                <th scope="col">Where this came from</th>
-                                <th scope="col">Why this line</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -892,20 +859,6 @@
                                             <option value="provisional">Provisional</option>
                                         </select>
                                     </td>
-                                    <td>
-                                        <label class="vh" for="line-evidence-@line">Where this came from, line @(line + 1)</label>
-                                        <select id="line-evidence-@line" name="operations[@line].evidence_label">
-                                            <option value="">Choose</option>
-                                            <option value="official">Official or live source</option>
-                                            <option value="reference">Maintained reference</option>
-                                            <option value="case">Case evidence</option>
-                                            <option value="judgement">Judgement</option>
-                                        </select>
-                                    </td>
-                                    <td>
-                                        <label class="vh" for="line-just-@line">Why this line, line @(line + 1)</label>
-                                        <input type="text" id="line-just-@line" name="operations[@line].justification" />
-                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -919,13 +872,11 @@
                 <div class="form-grid">
                     <div>
                         <label for="cost-recovery">Recovery charge (&#163;)</label>
-                        <input type="number" id="cost-recovery" name="costs.recovery_charge" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="cost-recovery-hint" />
-                        <small id="cost-recovery-hint">Optional. A recovery and storage paragraph is written when either charge is present.</small>
+                        <input type="number" id="cost-recovery" name="costs.recovery_charge" min="0" step="0.01" inputmode="decimal" class="tabular" />
                     </div>
                     <div>
                         <label for="cost-storage">Storage charge (&#163;)</label>
-                        <input type="number" id="cost-storage" name="costs.storage_charge" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="cost-storage-hint" />
-                        <small id="cost-storage-hint">Optional.</small>
+                        <input type="number" id="cost-storage" name="costs.storage_charge" min="0" step="0.01" inputmode="decimal" class="tabular" />
                     </div>
                     <div>
                         @* A required answer, so it is a two-way choice with no default. A single
@@ -933,65 +884,54 @@
                            and the two produce different VAT. *@
                         <fieldset class="role-choices role-choices--stacked">
                             <legend>Is the repairer VAT registered?</legend>
-                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="true" aria-describedby="cost-vat-hint" /> <span>Yes</span></label>
-                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="false" aria-describedby="cost-vat-hint" /> <span>No</span></label>
+                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="true" /> <span>Yes</span></label>
+                            <label class="choice"><input type="radio" name="costs.repairer_vat_registered" value="false" /> <span>No</span></label>
                         </fieldset>
-                        <small id="cost-vat-hint">Yes &#8212; VAT is added to the whole repair cost. No &#8212; VAT is added to parts and paint materials only.</small>
                     </div>
                 </div>
 
                 <h3 class="section-label section-gap">What the lines add up to</h3>
                 <div class="table-wrap">
                     <table>
-                        <caption>How the repair cost is worked out. Nothing here is typed in.</caption>
                         <thead>
                             <tr>
                                 <th scope="col">Item</th>
-                                <th scope="col">Working</th>
                                 <th scope="col">Amount</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr>
                                 <th scope="row">Body labour</th>
-                                <td class="empty-state">Work units on repair, remove-and-refit and check lines, divided by ten, times the labour rate</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                             <tr>
                                 <th scope="row">Paint labour</th>
-                                <td class="empty-state">Work units on paint lines, divided by ten, times the paint rate</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                             <tr>
                                 <th scope="row">Parts</th>
-                                <td class="empty-state">New part prices, plus the card&#8217;s sundry parts percentage</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                             <tr>
                                 <th scope="row">Paint materials</th>
-                                <td class="empty-state">The card&#8217;s material band for this size of job, plus sundry and pre-paint charges</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                             <tr>
                                 <th scope="row">Specialist and extras</th>
-                                <td class="empty-state">Fixed specialist prices, plus specialist work units at the labour rate</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                         </tbody>
                         <tfoot>
                             <tr>
                                 <th scope="row">Repair cost before VAT</th>
-                                <td class="empty-state">The five rows above</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                             <tr>
                                 <th scope="row">VAT</th>
-                                <td class="empty-state">Waiting on the VAT answer above</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                             <tr>
                                 <th scope="row">Repair cost</th>
-                                <td class="empty-state">Before VAT, plus VAT</td>
                                 <td class="tabular"><span aria-hidden="true">&#8212;</span><span class="vh">No value</span></td>
                             </tr>
                         </tfoot>
@@ -1016,7 +956,6 @@
                         <p class="empty-state">No check, paint or specialist lines yet.</p>
                     </div>
                 </div>
-                <p class="empty-state">Remove-and-refit lines are not named on the report; their labour is carried in the hours.</p>
 
                 <div class="button-row section-gap">
                     <button type="button" class="primary-action">Save estimate</button>
@@ -1037,33 +976,30 @@
 
                 <div class="form-grid">
                     <div>
-                        <label for="finding-outcome">Assessment outcome</label>
-                        <select id="finding-outcome" name="assessment.outcome" aria-describedby="finding-outcome-hint">
+                        <label class="req" for="finding-outcome">Assessment outcome</label>
+                        <select aria-required="true" id="finding-outcome" name="assessment.outcome">
                             <option value=""></option>
                             <option value="total_loss">Total loss</option>
                             <option value="repairable">Repairable</option>
                             <option value="cash_in_lieu">Cash in lieu</option>
                             <option value="contract_repair">Contract repair</option>
                         </select>
-                        <small id="finding-outcome-hint">Required.</small>
                     </div>
                     <div>
-                        <label for="finding-roadworthiness">Roadworthiness</label>
-                        <select id="finding-roadworthiness" name="assessment.legal_status" aria-describedby="finding-roadworthiness-hint">
+                        <label class="req" for="finding-roadworthiness">Roadworthiness</label>
+                        <select aria-required="true" id="finding-roadworthiness" name="assessment.legal_status">
                             <option value=""></option>
                             <option value="roadworthy">Roadworthy</option>
                             <option value="unroadworthy">Unroadworthy</option>
                         </select>
-                        <small id="finding-roadworthiness-hint">Required.</small>
                     </div>
                     <div class="field-wide">
-                        <label for="finding-unroadworthy-reason">Reason the vehicle is unroadworthy</label>
-                        <textarea id="finding-unroadworthy-reason" name="assessment.unroadworthy_reason" rows="3" aria-describedby="finding-unroadworthy-reason-hint"></textarea>
-                        <small id="finding-unroadworthy-reason-hint">Required when roadworthiness is Unroadworthy. It is written into the Engineer's comments.</small>
+                        <label class="req" for="finding-unroadworthy-reason">Reason the vehicle is unroadworthy</label>
+                        <textarea aria-required="true" id="finding-unroadworthy-reason" name="assessment.unroadworthy_reason" rows="3"></textarea>
                     </div>
                     <div>
-                        <label for="finding-category">Salvage category</label>
-                        <select id="finding-category" name="assessment.category" aria-describedby="finding-category-hint">
+                        <label class="req" for="finding-category">Salvage category</label>
+                        <select aria-required="true" id="finding-category" name="assessment.category">
                             <option value=""></option>
                             <option value="A">Category A</option>
                             <option value="B">Category B</option>
@@ -1071,12 +1007,10 @@
                             <option value="N">Category N</option>
                             <option value="N/A">Not applicable</option>
                         </select>
-                        <small id="finding-category-hint">Required when the outcome is Total loss.</small>
                     </div>
                     <div>
-                        <label for="finding-salvage-value">Salvage value (&#163;)</label>
-                        <input type="number" id="finding-salvage-value" name="assessment.salvage_value" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="finding-salvage-value-hint" />
-                        <small id="finding-salvage-value-hint">Required when the outcome is Total loss.</small>
+                        <label class="req" for="finding-salvage-value">Salvage value (&#163;)</label>
+                        <input type="number" aria-required="true" id="finding-salvage-value" name="assessment.salvage_value" min="0" step="0.01" inputmode="decimal" class="tabular" />
                     </div>
                 </div>
                 <div class="button-row section-gap">
@@ -1090,52 +1024,40 @@
             <section class="panel" aria-labelledby="report-title">
                 <h2 id="report-title">Report content</h2>
 
-                <div class="status-card status-card--info">
-                    <h3>Most of the report is written for you</h3>
-                </div>
-
                 <div class="form-grid">
                     <div class="field-wide">
-                        <label for="report-history-check">Vehicle history check</label>
-                        <textarea id="report-history-check" name="narrative.history_check" rows="4" aria-describedby="report-history-check-hint"></textarea>
-                        <small id="report-history-check-hint">Required. The result returned by the vehicle history provider.</small>
+                        <label class="req" for="report-history-check">Vehicle history check</label>
+                        <textarea aria-required="true" id="report-history-check" name="narrative.history_check" rows="4"></textarea>
                     </div>
                     <div class="field-wide">
                         <label for="report-comments">Engineer's comments</label>
-                        <textarea id="report-comments" name="narrative.engineers_comments" rows="5" aria-describedby="report-comments-hint"></textarea>
-                        <small id="report-comments-hint">Optional. Added to the comments written from the sections above.</small>
+                        <textarea id="report-comments" name="narrative.engineers_comments" rows="5"></textarea>
                     </div>
                     <div>
-                        <label for="report-engineer-name">Engineer name</label>
-                        <input type="text" id="report-engineer-name" name="engineer.name" aria-describedby="report-engineer-name-hint" />
-                        <small id="report-engineer-name-hint">Required.</small>
+                        <label class="req" for="report-engineer-name">Engineer name</label>
+                        <input type="text" aria-required="true" id="report-engineer-name" name="engineer.name" />
                     </div>
                     <div>
-                        <label for="report-engineer-qualifications">Qualifications</label>
-                        <input type="text" id="report-engineer-qualifications" name="engineer.qualifications" aria-describedby="report-engineer-qualifications-hint" />
-                        <small id="report-engineer-qualifications-hint">Required.</small>
+                        <label class="req" for="report-engineer-qualifications">Qualifications</label>
+                        <input type="text" aria-required="true" id="report-engineer-qualifications" name="engineer.qualifications" />
                     </div>
                     <div>
-                        <label for="report-signature">Signature</label>
-                        <select id="report-signature" name="engineer.signature" aria-describedby="report-signature-hint">
+                        <label class="req" for="report-signature">Signature</label>
+                        <select aria-required="true" id="report-signature" name="engineer.signature">
                             <option value=""></option>
                         </select>
-                        <small id="report-signature-hint">Required. Chosen from the approved signatories.</small>
                     </div>
                     <div>
-                        <label for="report-fee">Agreed fee (&#163;)</label>
-                        <input type="number" id="report-fee" name="fee.agreed_fee" min="0" step="0.01" inputmode="decimal" class="tabular" aria-describedby="report-fee-hint" />
-                        <small id="report-fee-hint">Required.</small>
+                        <label class="req" for="report-fee">Agreed fee (&#163;)</label>
+                        <input type="number" aria-required="true" id="report-fee" name="fee.agreed_fee" min="0" step="0.01" inputmode="decimal" class="tabular" />
                     </div>
                     <div class="field-wide">
                         <label for="report-fee-description">Fee description</label>
-                        <textarea id="report-fee-description" name="fee.description_lines" rows="3" aria-describedby="report-fee-description-hint"></textarea>
-                        <small id="report-fee-description-hint">Optional. One line per row.</small>
+                        <textarea id="report-fee-description" name="fee.description_lines" rows="3"></textarea>
                     </div>
                     <div class="field-wide">
                         <label for="report-statement-of-truth">Statement of truth</label>
-                        <textarea id="report-statement-of-truth" name="statement_of_truth" rows="4" aria-describedby="report-statement-of-truth-hint"></textarea>
-                        <small id="report-statement-of-truth-hint">Optional. Leave empty to carry the standard CPR wording.</small>
+                        <textarea id="report-statement-of-truth" name="statement_of_truth" rows="4"></textarea>
                     </div>
                 </div>
                 @*
@@ -1146,25 +1068,22 @@
                     photographs to order, and neither is stored.
                 *@
                 <h3 class="section-label section-gap">Damage locations</h3>
-                <p>Marking the vehicle records where the impact was, for the diagram the report prints.</p>
-                <div class="damage-plan">
-                    <svg viewBox="0 0 400 200" role="img" aria-label="Vehicle plan view, no damage marked">
-                        <g fill="none" stroke="var(--charcoal)" stroke-width="2">
-                            <rect x="60" y="40" width="280" height="120" rx="40" />
-                            <rect x="130" y="55" width="130" height="90" rx="18" />
-                            <line x1="150" y1="55" x2="140" y2="40" /><line x1="150" y1="145" x2="140" y2="160" />
-                            <line x1="245" y1="55" x2="255" y2="40" /><line x1="245" y1="145" x2="255" y2="160" />
-                            <rect x="88" y="28" width="44" height="12" rx="6" /><rect x="88" y="160" width="44" height="12" rx="6" />
-                            <rect x="268" y="28" width="44" height="12" rx="6" /><rect x="268" y="160" width="44" height="12" rx="6" />
-                        </g>
-                        <text x="70" y="105" font-size="11" fill="var(--muted)">Front</text>
-                        <text x="305" y="105" font-size="11" fill="var(--muted)">Rear</text>
-                    </svg>
-                </div>
-                <p class="empty-state">No damage is marked.</p>
+                <form method="post" asp-page-handler="SaveDamage" class="damage-grid" data-damage-grid>
+                    <input type="hidden" name="id" value="@Model.Case!.Summary.CaseId" />
+                    <input type="hidden" name="operationKey" value="@Model.DamageOperationKey" />
+                    @foreach (var (code, label) in new[]
+                    {
+                        ("left_front", "Left front"), ("left_side", "Left side"), ("left_rear", "Left rear"),
+                        ("front", "Front"), ("roof", "Roof"), ("rear", "Rear"),
+                        ("right_front", "Right front"), ("right_side", "Right side"), ("right_rear", "Right rear")
+                    })
+                    {
+                        <button type="submit" name="impactLocation" value="@code"
+                                class="damage-region" aria-pressed="@(Model.SavedImpactLocation == code ? "true" : "false")">@label</button>
+                    }
+                </form>
 
                 <h3 class="section-label section-gap">Report images</h3>
-                <p>Each photograph is either the overview, a close-up, included, or left out — and the order here is the order the report prints.</p>
                 <p class="empty-state">No photographs are on this case yet.</p>
 
                 <div class="button-row section-gap">
