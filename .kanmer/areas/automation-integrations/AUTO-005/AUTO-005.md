@@ -2,10 +2,12 @@
 id: AUTO-005
 type: ticket
 title: Decide the Automation Actor boundary for Triage material
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: spike
+stageEntered:
+  preparing: '2026-08-20T10:23:17.577Z'
 labels:
   - automation-actor
   - MCP
@@ -18,7 +20,7 @@ refs:
   - docs/frd/frd-03-triage.md
 archived: false
 created: '2026-08-20T10:12:42.306Z'
-updated: '2026-08-20T10:12:42.306Z'
+updated: '2026-08-20T10:23:17.577Z'
 ---
 
 ## What

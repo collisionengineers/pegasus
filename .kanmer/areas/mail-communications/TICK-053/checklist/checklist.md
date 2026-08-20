@@ -1,12 +1,12 @@
 # Checklist — TICK-053 / MAIL-11
 
-- [ ] Extend the existing Core retained-mail search/match contract and derive one canonical receipt search-document projection from the existing intake-reader result.
-- [ ] Persist/replace that projection atomically with receipts and add the focused migration/model snapshot.
-- [ ] Apply mailbox/folder/body/attachment-name/attachment-content search before SQL count/paging and project exact match/searchability evidence.
-- [ ] Add the bounded approved Deleted Items Core port/use case and GET-only Graph adapter using the existing intake reader, with explicit unavailable/truncated states.
-- [ ] Wire the authenticated `/Inbox` search and retained detail-return context with accessible pagination and honest empty/error/truncation UI.
-- [ ] Add focused Core, persistence/migration, fake-Graph and Web acceptance tests without external writes or fabricated production data.
-- [ ] Update capabilities/current-architecture only to the exact local evidence tier.
+- [x] Extend the existing Core retained-mail search/match contract and derive one canonical receipt search-document projection from the existing intake-reader result.
+- [x] Persist/replace that projection atomically with receipts and add the focused migration/model snapshot.
+- [x] Apply mailbox/folder/body/attachment-name/attachment-content search before SQL count/paging and project exact match/searchability evidence.
+- [x] Add the bounded approved Deleted Items Core port/use case and GET-only Graph adapter using the existing intake reader, with explicit unavailable/truncated states.
+- [x] Wire the authenticated `/Inbox` search and retained detail-return context with accessible pagination and honest empty/error/truncation UI.
+- [x] Add focused Core, persistence/migration, fake-Graph and Web acceptance tests without external writes or fabricated production data.
+- [x] Update capabilities/current-architecture only to the exact local evidence tier.
 - [ ] Run locked restore, Release build, focused tests and the relevant full suite.
 - [ ] Run the four-lens simplification pass and append dated findings/dispositions to the plan.
 - [ ] Write the post-implementation report, commit/push the branch, open the dev-targeting PR, record traceability and move TICK-053 to Review.
