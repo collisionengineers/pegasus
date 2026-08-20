@@ -113,6 +113,14 @@ public sealed record RetainedMailFolderRecommendation(
     public bool IsAvailable => FolderType is not null;
 }
 
+/// <summary>
+/// The optional advisory to start the separate confirmed folder-move workflow.
+/// It carries no command, transport identity or durable operation state.
+/// </summary>
+public sealed record RetainedMailSuggestedMove(
+    MailLogicalFolderType FolderType,
+    string Reason);
+
 public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
     IReadOnlyList<string> ToAddresses,
@@ -125,7 +133,8 @@ public sealed record RetainedMailDetail(
     MailRouteDisposition? RouteDisposition,
     MailClassificationDossier? Classification = null,
     RetainedMailFolderRecommendation? FolderRecommendation = null,
-    RetainedMailFolderMoveResult? LatestFolderMove = null);
+    RetainedMailFolderMoveResult? LatestFolderMove = null,
+    RetainedMailSuggestedMove? SuggestedMove = null);
 
 public sealed record MailClassificationHistoryEntry(
     int Version,
@@ -494,13 +503,18 @@ public sealed class GetRetainedMail(
 
         var recommendation = await RecommendFolderAsync(detail, cancellationToken);
         var latestMove = await folderMoveStore.GetLatestAsync(messageId, cancellationToken);
+        detail = detail with
+        {
+            FolderRecommendation = recommendation,
+            LatestFolderMove = latestMove,
+            SuggestedMove = recommendation is { CanMove: true, FolderType: { } folderType }
+                && latestMove?.Outcome is not RetainedMailFolderMoveOutcome.Uncertain
+                ? new(folderType, recommendation.Reason)
+                : null
+        };
         if (detail.Classification is not { } dossier)
         {
-            return detail with
-            {
-                FolderRecommendation = recommendation,
-                LatestFolderMove = latestMove
-            };
+            return detail;
         }
 
         var packedActors = new[] { dossier.CurrentActor }
@@ -513,8 +527,6 @@ public sealed class GetRetainedMail(
 
         return detail with
         {
-            FolderRecommendation = recommendation,
-            LatestFolderMove = latestMove,
             Classification = dossier with
             {
                 CurrentActorDisplayName = ResolveActorLabel(dossier.CurrentActor, staffNames),
