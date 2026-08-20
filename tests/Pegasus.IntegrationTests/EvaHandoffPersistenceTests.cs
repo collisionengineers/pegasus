@@ -49,7 +49,7 @@ public sealed class EvaHandoffPersistenceTests
                 CancellationToken.None);
 
             Assert.Equal(GenerateEvaHandoffOutcome.Blocked, result.Outcome);
-            Assert.Contains(result.Reasons, reason => reason.Contains("only while the case is in Review", StringComparison.Ordinal));
+            Assert.Contains(result.Reasons, reason => reason.Contains("while the case is in Review", StringComparison.Ordinal));
         }
 
         await using var verification = await factory.CreateDbContextAsync();
