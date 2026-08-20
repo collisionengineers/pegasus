@@ -77,7 +77,6 @@
             </select>
             <button class="btn btn--dark" type="submit">Show view</button>
         </div>
-        <p class="field-hint">Current view: @Model.ActiveViewLabel</p>
     </form>
 }
 
@@ -191,10 +190,6 @@ else if (Model.Results.Items.Count == 0)
     @if (Model.SearchTerm is not null)
     {
         <p class="empty-state">No retained mail in this mailbox matched “@Model.SearchTerm”.</p>
-    }
-    else if (Model.QueueFilter is not null)
-    {
-        <p class="empty-state">No retained mail is currently in @Model.ActiveViewLabel.</p>
     }
     else if (Model.Folder != MailFolderScope.Inbox)
     {

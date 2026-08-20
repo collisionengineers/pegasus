@@ -266,12 +266,6 @@ public sealed class IndexModel(
                 item.Option.Label))
             .ToArray();
 
-    public string ActiveViewLabel => DestinationFilter is { } destination
-        ? OperatorLabels.MailOperationalDestinationLabel(destination)
-        : DetailedClassificationFilter is { } category
-            ? MessageModel.DecisionLabel(category)
-            : "All retained mail";
-
     internal static bool TryParseQueue(
         string? value,
         out string? normalized,

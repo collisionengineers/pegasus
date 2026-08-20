@@ -163,11 +163,7 @@ public sealed class MessageModel(
             return Forbid();
         }
 
-        if (!IndexModel.TryParseFolder(FolderFilter, out var listFolder))
-        {
-            return NotFound();
-        }
-        if (!ParseQueueFilter(listFolder))
+        if (!TryParseListContext(out var listFolder))
         {
             return NotFound();
         }
@@ -211,6 +207,10 @@ public sealed class MessageModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
         }
 
         try
@@ -269,6 +269,10 @@ public sealed class MessageModel(
         {
             return Forbid();
         }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
 
         try
         {
@@ -324,6 +328,10 @@ public sealed class MessageModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
         }
 
         try
@@ -386,6 +394,10 @@ public sealed class MessageModel(
         {
             return Forbid();
         }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
 
         try
         {
@@ -440,6 +452,10 @@ public sealed class MessageModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
         }
         if (!TryCategory(out var category))
         {
@@ -501,6 +517,10 @@ public sealed class MessageModel(
         {
             return Forbid();
         }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
         try
         {
             var result = await moveRetainedMailFolder.ExecuteAsync(
@@ -550,11 +570,7 @@ public sealed class MessageModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!IndexModel.TryParseFolder(FolderFilter, out var listFolder))
-        {
-            return NotFound();
-        }
-        if (!ParseQueueFilter(listFolder))
+        if (!TryParseListContext(out var listFolder))
         {
             return NotFound();
         }
@@ -880,6 +896,10 @@ public sealed class MessageModel(
                 && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
             || !MatchesQueue(detail.Classification);
+
+    private bool TryParseListContext(out MailFolderScope listFolder) =>
+        IndexModel.TryParseFolder(FolderFilter, out listFolder)
+        && ParseQueueFilter(listFolder);
 
     private bool ParseQueueFilter(MailFolderScope listFolder)
     {
