@@ -2,12 +2,15 @@
 id: PLAT-002
 type: ticket
 title: Give the Web pages one staff-actor root (TryGetActor / NewOperationKey)
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-20T08:42:52.536Z'
+taken_at: '2026-08-20T09:01:35.494Z'
+branch: task/plat-002-staff-page-root
+worktree: ../pegasus-worktrees/plat-002
 labels:
   - simplify
   - web
@@ -16,7 +19,7 @@ links:
   - SIMPLI-011
 archived: false
 created: '2026-08-17T14:19:26.387Z'
-updated: '2026-08-20T08:55:03.188Z'
+updated: '2026-08-20T09:01:35.494Z'
 ---
 
 ## Why
