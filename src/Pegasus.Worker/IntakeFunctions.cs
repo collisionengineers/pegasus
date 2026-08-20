@@ -66,6 +66,7 @@ public sealed class IntakePoisonFunction(ReconcilePoisonedQueueWork reconcilePoi
 
 public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileStagedArtifacts reconcileStagedArtifacts,
+    ReconcileGroupedImageIntake reconcileGroupedImageIntake,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     [Function(nameof(StagedArtifactReconciliationFunction))]
@@ -82,6 +83,20 @@ public sealed partial class StagedArtifactReconciliationFunction(
             result.Orphans,
             result.Unmatched,
             result.Failures);
+
+        // INTK-011: recovers a grouped-image straggler that never got a
+        // registered Image intake or an Unidentified reference — re-drives
+        // its already-completed work item's safe replay branch, and
+        // registers Unidentified directly once it has been pending long
+        // enough (the poison-path escape). No manual SQL. Runs on the same
+        // existing timer trigger deliberately; this is not a new schedule.
+        var groupedImageResult = await reconcileGroupedImageIntake.ExecuteAsync(50, cancellationToken);
+        LogGroupedImageIntakeReconciliation(
+            logger,
+            groupedImageResult.Candidates,
+            groupedImageResult.Retried,
+            groupedImageResult.Escaped,
+            groupedImageResult.Failures);
     }
 
     [LoggerMessage(
@@ -94,6 +109,16 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int retained,
         int orphans,
         int unmatched,
+        int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Reconciled grouped image intake stragglers: {Candidates} candidates, {Retried} retried, {Escaped} escaped to Unidentified, {Failures} failures.")]
+    private static partial void LogGroupedImageIntakeReconciliation(
+        ILogger logger,
+        int candidates,
+        int retried,
+        int escaped,
         int failures);
 }
 
