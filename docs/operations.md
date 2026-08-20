@@ -1,4 +1,4 @@
-# Operations
+﻿# Operations
 
 This file is the current-state record for production, releases, evidence
 profiles, monitoring, and recovery. Executable setup, development, database,
@@ -292,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 13**. A branch
+- **Deployed evidence:** the estate currently serves **release 14**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 14 | 2026-08-20 | `d91fd7d7…` | `sha256:949797d4…` | `pegasus-prod-web-252ow37gij--d91fd7d7835a` | `20260820034652_ImageIntakeSubmissionGroup`, `20260820040337_SendToAiConnectorSettings`, `20260820055900_ImageCaseCustody`, `20260820100056_ApprovedMailboxLogicalFolderBindings` |
   | 13 | 2026-08-20 | `2325ed4a…` | `sha256:7efa46fd…` | `pegasus-prod-web-252ow37gij--2325ed4a31d7` | `20260819234014_GrantWorkerIntakeSubmissionGroupRead` |
   | 12 | 2026-08-19 | `ed3be51c…` | `sha256:6dcf3ca1…` | `pegasus-prod-web-252ow37gij--ed3be51c95bc` | `20260819093019_RetainedMailboxInternetMessageIdentity`, `20260819101344_GroupedIntakeSubmission`, `20260819104953_MailClassificationCorrectionHistory`, `20260819112640_VersionedRepairSpecifications`, `20260819112914_ImageInitiatedLifecycle`, `20260819115323_UnidentifiedWork`, `20260819140113_ImageIntakeGroupExpectedMemberCount`, `20260819180000_GrantEvaHandoffDownloadOperations` |
   | 10 | 2026-08-18 | `d8de29cb…` | `sha256:4bd50f66…` | `pegasus-prod-web-252ow37gij--d8de29cb94f3` | none |
@@ -326,6 +327,32 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   What each release proved beyond smoke:
 
+  - **Release 14** (2026-08-20, manifest SHA-256 `87667CB7…`) carried the
+    2026-08-20 operator-review remediations, each independently verified
+    against its ticket before the cut (PRs #437–#468, #471, #472): the
+    Not-ready count now includes image-initiated records and matches its rows;
+    the Dashboard e-mail counter counts the mailbox channel only; Unidentified
+    items resolve automatically when their receipt reaches a real destination
+    (the stale U7 closed on the first post-deploy sweep; genuinely
+    unidentified items stay open); one grouped upload registers one
+    image-initiated record with a group-scoped operation key and a 15-second
+    dispatch cadence; the post-upload page offers attach-to-case search;
+    image-initiated cases carry their own Box folder work items and fold into
+    the paired case on merge; case and vehicle images render as thumbnail
+    galleries served inline by the staff-only image route; mailbox
+    administration works by address alone with logical-folder visibility
+    (MAIL-23 read-only exception) and the Sent-evidence poll completes
+    cleanly; the Functions Worker no longer aborts during provisioning
+    windows (deferred Box option parsing — zero exit-134 events post-deploy);
+    assessment readiness collapses to one issues-count disclosure; MOT-table
+    rows can no longer pollute vehicle make/model suggestions; estimate
+    import (Audatex, fail-closed) and DVLA/DVSA vehicle data with MOT
+    chronology and classified mileage are live; legacy `.doc`/`.msg`
+    extraction runs in-process (ADR-0025); the Automation Actor gained
+    mail-workspace and assessment tools; operator copy was aligned with the
+    design authority (uncomposed capabilities render nothing). Send to AI and
+    its connector administration remain composed only outside Production
+    behind `Features:SendToAi`.
   - **Release 13** (2026-08-20, exact-SHA fast-forward, `main` = `dev` =
     `2325ed4a`, manifest SHA-256 `E40933DE…`) carried the six operator-review
     remediations of release 12, all reviewed independently before merge: the
