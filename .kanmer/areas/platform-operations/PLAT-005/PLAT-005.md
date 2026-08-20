@@ -8,9 +8,6 @@ assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-20T08:49:11.185Z'
-taken_at: '2026-08-20T08:51:00.421Z'
-branch: task/plat-005-visual-proof
-worktree: .worktrees/plat-005
 labels:
   - ui
   - design
@@ -19,7 +16,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-18T09:39:12.370Z'
-updated: '2026-08-20T08:51:00.421Z'
+updated: '2026-08-20T08:57:18.921Z'
 ---
 
 ## What

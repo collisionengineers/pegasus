@@ -12,3 +12,5 @@
 ## Progress notes
 
 (append with `set_ticket_doc(doc: "checklist", append: true)`)
+
+- [ ] **Blocked 2026-08-20:** the supported Offline Start lifecycle is unable to classify a missing Windows LocalDB instance because this LocalDB build exits 0 while reporting “doesn't exist”. Start therefore fails its ownership guard before the web application launches; Status/Smoke and browser capture cannot proceed. [[PLAT-014]] owns the fail-closed detection fix. Re-run this checklist from the first step after that ticket is verified.
