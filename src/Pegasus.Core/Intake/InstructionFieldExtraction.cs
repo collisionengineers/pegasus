@@ -13,7 +13,8 @@ internal static partial class InstructionFieldEngine
     internal sealed record FieldDefinition(
         string Name,
         string[] Labels,
-        bool IsRequired = true);
+        bool IsRequired = true,
+        Func<string, bool>? AcceptsValue = null);
 
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
@@ -106,7 +107,7 @@ internal static partial class InstructionFieldEngine
             {
                 var match = Regex.Match(
                     lines[index],
-                    $@"(?i)(?:^|\s){Regex.Escape(label)}\s*(?::|-)?\s*(?<value>.*)$",
+                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){Regex.Escape(label)}\s*(?::|-)?\s*(?<value>.*)$",
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromMilliseconds(100));
                 if (!match.Success)
@@ -125,8 +126,10 @@ internal static partial class InstructionFieldEngine
                         : string.Empty;
                 }
 
+                value = TruncateAtColumnBoundary(value);
                 value = WhitespaceRegex().Replace(value, " ").Trim();
-                if (!string.IsNullOrWhiteSpace(value))
+                if (!string.IsNullOrWhiteSpace(value)
+                    && (definition.AcceptsValue is null || definition.AcceptsValue(value)))
                 {
                     yield return new(value, fragment.Source, fragment.SourceLabel);
                 }
@@ -145,6 +148,28 @@ internal static partial class InstructionFieldEngine
                 $@"(?i)^{Regex.Escape(label)}(?:\s*(?::|-|\|)\s*|\s+|$)",
                 RegexOptions.CultureInvariant,
                 TimeSpan.FromMilliseconds(100))));
+
+    /// <summary>
+    /// Cuts a labelled value at the first column boundary left behind when a tabular
+    /// row is flattened into a single line: a tab, a pipe, a run of two or more spaces,
+    /// or a whitespace-preceded colon (a genuine label colon is attached to its label
+    /// and is consumed by the label match).
+    /// </summary>
+    private static string TruncateAtColumnBoundary(string value)
+    {
+        var boundary = ColumnBoundaryRegex().Match(value);
+        return boundary.Success ? value[..boundary.Index] : value;
+    }
+
+    /// <summary>
+    /// A vehicle make/model candidate is implausible when it carries wheel-position
+    /// tokens, MOT/brake test-result vocabulary, or characters outside the shapes real
+    /// makes and models use — the residue of a flattened test-results table row.
+    /// </summary>
+    internal static bool IsPlausibleVehicleMakeModel(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && !MotVocabularyRegex().IsMatch(value)
+        && MakeModelCharsetRegex().IsMatch(value);
 
     internal static bool ContainsLabel(string text, string label) =>
         Regex.IsMatch(
@@ -218,4 +243,15 @@ internal static partial class InstructionFieldEngine
 
     [GeneratedRegex("^[A-Z0-9]+$", RegexOptions.CultureInvariant)]
     private static partial Regex RegistrationRegex();
+
+    [GeneratedRegex(@"[\t|]|\s{2,}|\s+:", RegexOptions.CultureInvariant)]
+    private static partial Regex ColumnBoundaryRegex();
+
+    [GeneratedRegex(
+        @"\b(?:NSF|OSF|NSR|OSR|SATISFACTORY|ADVISORY|DANGEROUS|FOOTBRAKE|HANDBRAKE|PASS|FAIL|MOT)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MotVocabularyRegex();
+
+    [GeneratedRegex(@"^[\p{L}\p{N}\s\-.'&/()+]+$", RegexOptions.CultureInvariant)]
+    private static partial Regex MakeModelCharsetRegex();
 }
