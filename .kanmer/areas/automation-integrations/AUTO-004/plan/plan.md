@@ -78,3 +78,11 @@ Post-merge `proof.md` must verify the inventory and representative success/denia
 - **Content size.** Reuse the existing bounded-inline convention and integrity-checked Core download; never read the artifact store directly.
 - **Assignment semantics.** [[INTK-019]] owns the explicit named-Engineer selection contract and retirement of “Assign to me.” This PR must not preserve or extend the obsolete actor-relative shape, nor pre-empt the shared replacement contract.
 - **Deployment.** Not authorized by this planning task; source/PR work must not be described as deployed.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Kept every domain transition in its existing Core query/command. Reused the existing Automation resolver, auditor, error mapping, scopes, retained-source downloader, group store, Case leases, and HTTP harness. No second policy/state/reason vocabulary was added.
+- **Simplification:** Kept one typed adapter per domain. A small shared `IntakeSourceMcpContent` helper is justified by the two concrete Unidentified and Triage callers and owns only bounded inline formatting; it owns no business policy. The Triage-local mutation helper removes repeated actor/audit/reload choreography without creating a generic queue/action envelope.
+- **Efficiency:** Found and fixed grouped-source download loading every member receipt merely to validate one selection; it now checks the selected receipt against the already-loaded group membership. Full receipt projection remains only on detail reads where callers need it.
+- **Altitude:** MCP remains a transport adapter. Direct store use is limited to the pre-existing Unidentified aggregate and the group membership port for which no Core query exists; integrity, Triage lifecycle/evidence, replay, authorization, and Case edit authority stay below the ingress.
+- **Disposition:** Applied the efficiency fix and canonical U-reference validation. No remaining behaviour-preserving simplification finding warrants another abstraction or scope expansion.
