@@ -310,4 +310,15 @@ public sealed class IndexModel(
         UnidentifiedMediaKind.Email => OperatorLabels.EmailHandle(row.EmailSubject, row.EmailSender),
         _ => row.FileName ?? "Not available"
     };
+
+    /// <summary>
+    /// Whether an Image-initiated Case row on the Not ready tab has been
+    /// Awaiting instruction long enough to chase, per
+    /// <see cref="ImageIntakeChaseSchedule"/>. Reads the injected
+    /// <see cref="TimeProvider"/> rather than <c>DateTimeOffset.UtcNow</c> so
+    /// the same fake-clock control every other query on this page uses
+    /// applies here too.
+    /// </summary>
+    public bool IsImageIntakeChaseDue(DateTimeOffset registeredAtUtc) =>
+        ImageIntakeChaseSchedule.IsChaseDue(registeredAtUtc, _timeProvider.GetUtcNow());
 }

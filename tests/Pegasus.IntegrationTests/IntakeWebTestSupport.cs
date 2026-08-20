@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -32,6 +33,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly IInstructionExtractionPolicy? extractionPolicy;
     private readonly IMailClassificationPolicy? mailClassificationPolicy;
     private readonly IVrmRecognitionEngine? recognitionEngine;
+    private readonly IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
     private readonly LocalDbTestDatabase database;
@@ -68,7 +70,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         bool useIntegrationTestAuthentication = false,
         bool initializeDevelopmentOffline = true,
         IVrmRecognitionEngine? recognitionEngine = null,
-        IMailClassificationPolicy? mailClassificationPolicy = null)
+        IMailClassificationPolicy? mailClassificationPolicy = null,
+        IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
@@ -77,6 +80,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         this.extractionPolicy = extractionPolicy;
         this.recognitionEngine = recognitionEngine;
         this.mailClassificationPolicy = mailClassificationPolicy;
+        this.approvedMailboxIdentityResolver = approvedMailboxIdentityResolver;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
         // Restored from the per-run template rather than migrated here: this
@@ -175,6 +179,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 services.RemoveAll<IMailClassificationPolicy>();
                 services.AddSingleton(mailClassificationPolicy);
             }
+            if (approvedMailboxIdentityResolver is not null)
+            {
+                services.RemoveAll<IResolveApprovedMailboxIdentity>();
+                services.AddSingleton(approvedMailboxIdentityResolver);
+            }
         });
     }
 
@@ -249,7 +258,16 @@ internal sealed class IntegrationTestAuthenticationHandler(
             new Claim(ClaimTypes.Name, "integration-user"),
             new Claim("display_name", "Integration User")
         };
-        if (!Request.Headers.ContainsKey("X-Test-Roleless"))
+        if (Request.Headers.TryGetValue("X-Test-Roles", out var requestedRoles))
+        {
+            // ENG-002: a test that needs a specific staff role (e.g. Engineer)
+            // names it; the default identity stays Administrator-only.
+            foreach (var role in requestedRoles.ToString().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+        }
+        else if (!Request.Headers.ContainsKey("X-Test-Roleless"))
         {
             claims.Add(new Claim(ClaimTypes.Role, "Administrator"));
         }
@@ -680,6 +698,19 @@ internal static partial class IntakeWebDriver
             Guid stagedReceiptId,
             CancellationToken cancellationToken) =>
             processor.ExecuteAsync(stagedReceiptId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Advances a work item from pending to dispatched without processing it,
+    /// so a test can choose exactly which member's processing pass runs when
+    /// rather than folding dispatch and processing into one call.
+    /// </summary>
+    internal sealed class NoOpIntakeWorkEnqueuer : IIntakeWorkEnqueuer
+    {
+        public Task EnqueueAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

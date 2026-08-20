@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Worker;
@@ -23,13 +24,23 @@ public sealed class StagedArtifactReconciliationFunctionTests
             new UnreachableProcessQueuedIntake(),
             TimeProvider.System,
             new UnreachableRegisterUnidentified());
+        var unidentifiedReconciler = new ReconcileUnidentifiedDestinations(
+            new EmptyUnidentifiedStore(),
+            new UnreachableResolveUnidentified(),
+            new EmptyIntakeReceiptQueries(),
+            new UnreachableImageIntakeQueries(),
+            TimeProvider.System);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
-        var function = new StagedArtifactReconciliationFunction(reconciler, groupedImageReconciler, logger);
+        var function = new StagedArtifactReconciliationFunction(
+            reconciler,
+            groupedImageReconciler,
+            unidentifiedReconciler,
+            logger);
 
         await function.RunAsync(null!, CancellationToken.None);
 
         Assert.Equal(50, workStore.MaximumItems);
-        Assert.Equal(2, logger.States.Count);
+        Assert.Equal(3, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredLeases"]);
         Assert.Equal(0, state["Completed"]);
@@ -43,6 +54,11 @@ public sealed class StagedArtifactReconciliationFunctionTests
         Assert.Equal(0, groupedImageState["Retried"]);
         Assert.Equal(0, groupedImageState["Escaped"]);
         Assert.Equal(0, groupedImageState["Failures"]);
+
+        var unidentifiedState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[2]);
+        Assert.Equal(0, unidentifiedState["Candidates"]);
+        Assert.Equal(0, unidentifiedState["Resolved"]);
+        Assert.Equal(0, unidentifiedState["Failures"]);
     }
 
     [Fact]
@@ -55,6 +71,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
             [
                 typeof(ReconcileStagedArtifacts),
                 typeof(ReconcileGroupedImageIntake),
+                typeof(ReconcileUnidentifiedDestinations),
                 typeof(ILogger<StagedArtifactReconciliationFunction>)
             ],
             constructor.GetParameters().Select(parameter => parameter.ParameterType));
@@ -245,6 +262,108 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(
                 "An empty grouped-image reconciliation page must not register anything Unidentified.");
+    }
+
+    private sealed class EmptyUnidentifiedStore : IUnidentifiedStore
+    {
+        public Task<UnidentifiedRegisterResult> RegisterAsync(
+            RegisterUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<UnidentifiedRegisterResult?> ProbeRegisterReplayAsync(
+            RegisterUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<UnidentifiedResolveResult> ResolveAsync(
+            ResolveUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<UnidentifiedResolveResult?> ProbeResolveReplayAsync(
+            ResolveUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<UnidentifiedItem?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<UnidentifiedItem?> GetByReferenceAsync(
+            string reference,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<UnidentifiedItem?> GetByOriginAsync(
+            UnidentifiedOrigin origin,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyList<UnidentifiedItem>> ListAsync(
+            UnidentifiedState? state = UnidentifiedState.Open,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<UnidentifiedItem>>([]);
+
+        public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
+            UnidentifiedMediaKind? mediaKind,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(
+            Guid unidentifiedItemId,
+            CancellationToken cancellationToken = default) =>
+            throw UnexpectedCall();
+
+        private static InvalidOperationException UnexpectedCall() =>
+            new("An empty Unidentified reconciliation page must only list open items.");
+    }
+
+    private sealed class UnreachableResolveUnidentified : IResolveUnidentified
+    {
+        public Task<UnidentifiedResolveResult> ExecuteAsync(
+            ResolveUnidentifiedRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new InvalidOperationException(
+                "An empty Unidentified reconciliation page must not resolve anything.");
+    }
+
+    private sealed class UnreachableImageIntakeQueries : IImageIntakeQueries
+    {
+        public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
+            bool? associated,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<ImageIntakeDetail?> GetByReferenceAsync(
+            string imageIntakeReference,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<ImageIntakeDetail?> GetByOriginReceiptAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
+            IReadOnlyCollection<Guid> intakeReceiptIds,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyList<ImageIntakeSummary>> ListForCaseAsync(
+            Guid caseId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
+            string normalizedVehicleRegistration,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        private static InvalidOperationException UnexpectedCall() =>
+            new("An empty Unidentified reconciliation page must not reach image-intake queries.");
     }
 
     private sealed class RejectingStagedArtifactAuthority : IStagedArtifactAuthority

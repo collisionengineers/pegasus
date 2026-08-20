@@ -208,6 +208,10 @@ public sealed class MailWorkspaceWebTests
         // Queue/Filed-to state, computed live from this Unclassified decision.
         Assert.Contains("<dt>Operational destination</dt><dd>Unidentified</dd>", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Destination policy</dt><dd>mail_operational_destination version 1</dd>", html, StringComparison.Ordinal);
+        // PLAT-011: "Decided by" resolves the persisted "system-worker:..." actor
+        // to an operator-facing name, never the raw stored value.
+        Assert.Contains("<dt>Decided by</dt><dd>System</dd>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("system-worker:approved-inbox-poller", html, StringComparison.Ordinal);
     }
 
     [Fact]

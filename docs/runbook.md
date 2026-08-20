@@ -549,6 +549,12 @@ rights and are not executed from this repository. They remain blocked for
 production until ADR-0024's stable-ID, scope, per-mailbox fresh-start, and
 Worker-control contracts are implemented and deployed:
 
+0. (MAIL-002) Administration's "add an address" resolve step runs as the Web
+   container's own managed identity (`webIdentity`), separate from the
+   Worker's. Until that identity's service principal also holds `User.Read.All`
+   and `Mail.Read` application permissions with tenant admin consent, every
+   address resolution fails closed (no row is created) and the operator sees
+   only the honest "could not be found" outcome.
 1. Confirm the Pegasus application registration holds the `Mail.Read`
    application permission with tenant admin consent.
 2. Add the new mailbox to the Exchange Online application access policy that
@@ -1125,6 +1131,75 @@ A production recovery exercise must:
 8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
+
+#### Point-in-time restore commands
+
+These commands implement contract steps 2–7 above for the production
+database `pegasus` on server `pegasus-prod-sql-252ow37gij`
+(`rg-pegasus-prod`, subscription `e6076573-23a5-46a8-acef-7e22d264e5db`). The
+server is Entra-only (`azureAdOnlyAuthentication: true`); every step below
+authenticates with the caller's own `az` identity token, matching
+`scripts/Invoke-AzureDatabaseBootstrap.ps1`'s connection pattern — never a SQL
+login.
+
+**1. Inventory (read-only, no approval required):**
+
+```powershell
+az sql db show --resource-group rg-pegasus-prod --server pegasus-prod-sql-252ow37gij --name pegasus --query "{sku:currentServiceObjectiveName,redundancy:currentBackupStorageRedundancy,earliestRestore:earliestRestoreDate,size:maxSizeBytes}"
+az sql db str-policy show --resource-group rg-pegasus-prod --server pegasus-prod-sql-252ow37gij --name pegasus
+az sql db list-usages --resource-group rg-pegasus-prod --server pegasus-prod-sql-252ow37gij --name pegasus
+```
+
+Confirm the requested restore time is at or after `earliestRestoreDate` and
+inside the short-term retention window before proceeding.
+
+**2. Restore into a new, isolated target (write — requires exact-target
+approval per [Live-operation approval matrix](#live-operation-approval-matrix),
+row "Deploy, restore, fail over, or retire"; never overwrites `pegasus`):**
+
+```powershell
+az sql db restore `
+  --resource-group rg-pegasus-prod `
+  --server pegasus-prod-sql-252ow37gij `
+  --name pegasus `
+  --dest-name pegasus-restore-drill-<date> `
+  --time "<yyyy-MM-ddTHH:mm:ss>" `
+  --edition Standard `
+  --capacity 10 `
+  --backup-storage-redundancy Geo
+```
+
+`--time` must be UTC, within `[earliestRestoreDate, now]`. The command
+creates a brand-new database on the same server; it never touches `pegasus`.
+
+**3. Verify the restored database** (Entra access-token connection, reusing
+`Invoke-Sqlcmd -AccessToken` from `scripts/Invoke-AzureDatabaseBootstrap.ps1`):
+
+```powershell
+$accessToken = (az account get-access-token --resource https://database.windows.net/ --query accessToken --output tsv).Trim()
+Invoke-Sqlcmd -ServerInstance "tcp:pegasus-prod-sql-252ow37gij.database.windows.net,1433" -Database "pegasus-restore-drill-<date>" -AccessToken $accessToken -Query "SELECT TOP 5 MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC"
+Invoke-Sqlcmd -ServerInstance "tcp:pegasus-prod-sql-252ow37gij.database.windows.net,1433" -Database "pegasus-restore-drill-<date>" -AccessToken $accessToken -Query "SELECT COUNT(*) AS RowCount FROM Cases"
+```
+
+- `__EFMigrationsHistory` head must match the migration identity recorded for
+  the deployed application package at the restore point (contract step 2).
+- Row counts on `Cases` (and any other representative tables named by the
+  exercise) must be consistent with the source database's activity up to the
+  restore point, within the RPO's expected data-loss window.
+- Point the deployed application's connection string at the restored database
+  in a disposable/isolated configuration only, and run the named real-caller
+  smoke journey (contract step 6) — never point production traffic at the
+  restore target.
+
+**4. Record and retain.** Capture wall-clock time from restore command start
+to `status: Online`, the restored database's row counts/`__EFMigrationsHistory`
+head, and any data-loss window versus the requested restore time (contract
+step 7). Retain the restore target until diagnosis is complete (contract step
+8); do not delete it as part of the same exercise.
+
+**5. Reclaim.** Dropping `pegasus-restore-drill-<date>` is itself an Azure
+write requiring the same exact-target approval as the restore. It is not
+implied by completing verification.
 
 The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
 

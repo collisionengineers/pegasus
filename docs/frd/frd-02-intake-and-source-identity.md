@@ -34,8 +34,14 @@ not allocate a reference.
 Unidentified is open or resolved. Authorised staff resolution requires an operation
 key, expected version, reason, and one supported destination; it appends immutable
 history with actor, time, target, and before/after state. Replays return the original
-result; conflicting operation reuse fails closed. The U-reference is never accepted
-as a Case/PO, Audit, Image Intake, or principal identity.
+result; conflicting operation reuse fails closed. An open item whose origin receipt
+subsequently reaches a real destination — a formal Case, or a registered Image
+intake — is resolved automatically to that destination by the product's own
+reconciliation (in the receipt's own processing pass, and by a sweep for receipts
+promoted outside their own pass), with the destination recorded in the item's
+history; a receipt that is still legitimately unidentified is never force-closed.
+The U-reference is never accepted as a Case/PO, Audit, Image Intake, or principal
+identity.
 
 Every intake path must:
 
@@ -134,6 +140,8 @@ The immutable source occurrence and its evidence remain distinct from the accept
 An Image-initiated Case remains Awaiting instruction until its retained evidence can associate with exactly one eligible pre-report instructed Case. Automatic association requires an unambiguous normalised VRM match and no explicit contradictory identity evidence; otherwise an authorised staff member makes the reasoned decision. A Case after report delivery is not eligible. Association retains both permanent identities and source histories: the instructed Case/PO remains the sole formal Case identity and the Image Intake Reference remains linked history. On a unique match the Image-initiated Case becomes Merged into Instruction-initiated Case; if instructions never arrive, staff may record a permanent Staff-closed outcome with a reason. Neither identity, source fact, or relationship event is reused, rewritten, or deleted.
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
+
+**Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same seven-calendar-day interval a Not-ready formal Case's first chase falls due at, and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
 
 ### Grouped image-intake routing
 

@@ -85,7 +85,7 @@ internal sealed class EfVehicleLookupWorkStore(
             {
                 return new(
                     work.Id,
-                    work.CaseId,
+                    work.CaseId!.Value,
                     request.Registration,
                     request.OperationKey,
                     VehicleLookupWorkState.Processing,
@@ -225,7 +225,7 @@ internal sealed class EfVehicleLookupWorkStore(
         context.CaseWorkflowEvents.Add(new()
         {
             Id = Guid.NewGuid(),
-            CaseId = work.CaseId,
+            CaseId = workflow.CaseId,
             Workflow = workflow,
             EventType = $"vehicle_lookup_{ToCode(result.Outcome)}",
             OperationKey = outcomeOperationKey,
@@ -246,7 +246,7 @@ internal sealed class EfVehicleLookupWorkStore(
         {
             Id = Guid.NewGuid(),
             AggregateType = "case",
-            AggregateId = work.CaseId.ToString("D"),
+            AggregateId = workflow.CaseId.ToString("D"),
             EventKind = $"vehicle_lookup_{ToCode(result.Outcome)}",
             ActorKind = "SystemWorker",
             ActorSubjectId = "vehicle-lookup",
