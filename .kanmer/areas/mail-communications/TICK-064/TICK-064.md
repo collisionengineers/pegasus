@@ -29,9 +29,15 @@ blocks:
   - TICK-047
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - a1ae9608
+  - f23f7e0e
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/468'
+deployment: not-deployed
 archived: false
 created: '2026-08-12T15:05:19.554Z'
-updated: '2026-08-20T09:54:49.769Z'
+updated: '2026-08-20T10:38:11.696Z'
 ---
 
 ## What
