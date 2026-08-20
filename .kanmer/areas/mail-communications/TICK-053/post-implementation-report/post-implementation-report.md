@@ -198,3 +198,7 @@ Updated rationales for the nine already-inventoried files changed by this pass:
 - `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` — proves explicit Content-ID attachment/display ordinals through a later searchable PDF.
 
 `git diff --name-only origin/dev...fc684036` reports exactly 31 files.
+
+### Current-dev reconciliation
+
+Merged current `origin/dev` (including PR #474 / [[TICK-047]]) in `eaf2f9f4eac577242ed301dd917f0682d4a77729`. The resolved Core path preserves MAIL-11 search context and then derives TICK-047's folder recommendation; both test fakes remain. Post-merge Release build passed with 0 warnings/errors, Core retained-mail tests passed 34/34, and the three new attachment/Web/SQL proofs passed 3/3. The PR is conflict-free and still reports exactly 31 files against current `origin/dev`; CI is queued at the merge head.

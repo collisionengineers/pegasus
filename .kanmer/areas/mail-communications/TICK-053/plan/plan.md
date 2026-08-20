@@ -71,3 +71,7 @@ The post-implementation report will cite the migration/model validation, focused
 - **Simplification:** The pass adds only the missing exception cases, explicit-attachment precedence, one reload catch, and removes one unsupported permission. It adds no retry, validator, attachment identity layer, permission framework, migration, parser, store, or backfill.
 - **Efficiency:** Normal Graph and MIME bounds are unchanged; invalid input stops early; attachment processing remains single-pass; SQL runtime behavior is unchanged while the Worker loses an unused verb.
 - **Altitude:** Provider failures and MIME classification remain Infrastructure concerns, request-error presentation remains Web, and schema permissions stay in migration/bootstrap/current-state owners. All findings were applied; there are no deferred simplification findings.
+
+## Current-dev reconciliation — 2026-08-20
+
+After PR #474 / [[TICK-047]] landed, `origin/dev` was merged in `eaf2f9f4eac577242ed301dd917f0682d4a77729`. The two conflicts preserved both capabilities: `GetRetainedMail` now applies MAIL-11 search normalization/query context before TICK-047's folder recommendation, and Core tests retain both the Deleted-source fake and approved-mailbox store fake. This reuses both landed owners and adds no bridge abstraction. Release build passed with 0 warnings/errors, the reconciled Core retained-mail class passed 34/34, and the three new exact integration proofs passed 3/3. The final diff remains exactly 31 files against current `origin/dev`.
