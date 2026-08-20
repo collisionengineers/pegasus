@@ -697,7 +697,7 @@ public sealed partial class CaseDetailsWebTests
         var refusedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
 
         Assert.Contains("Some values were too long to keep in full", refusedHtml, StringComparison.Ordinal);
-        Assert.Contains("Re-enter those in full", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("re-enter those in full", refusedHtml, StringComparison.Ordinal);
     }
 
     [Fact]

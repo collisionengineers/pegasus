@@ -10,7 +10,7 @@
     <div>
         <p class="eyebrow">Image-initiated Case</p>
         <h1>@Model.Detail.Record.ImageIntakeReference</h1>
-        <p class="lede">@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)</p>
+        <partial name="Shared/_StatusChip" model="@OperatorLabels.ImageIntakeLifecycleState(Model.Detail.State)" />
     </div>
     <a class="secondary-action" asp-page="/ImageIntake/Index">All Image-initiated Cases</a>
 </header>
@@ -45,12 +45,12 @@
 
     <section class="panel" aria-labelledby="image-intake-origin-title">
         <h2 id="image-intake-origin-title" class="section-label">Preserved origin</h2>
+        @* The receipt identifier, source-receipt token, source hash and
+           evaluation revision are internal handles, not operator identity —
+           design README :168. The link below is the operator's route to the
+           origin receipt; nothing here needs to show its raw identifiers. *@
         <dl class="detail-list">
-            <div><dt>Origin receipt</dt><dd><a asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">@Model.Detail.Record.Origin.ReceiptId</a></dd></div>
-            <div><dt>Source channel</dt><dd>@Model.Detail.Record.Origin.SourceIdentity.Channel</dd></div>
-            <div><dt>Source receipt token</dt><dd>@Model.Detail.Record.Origin.SourceIdentity.ExternalReceiptToken</dd></div>
-            <div><dt>Source hash</dt><dd>@Model.Detail.Record.Origin.SourceHash</dd></div>
-            <div><dt>Evaluation revision</dt><dd>@Model.Detail.Record.Origin.EvaluationRevisionId</dd></div>
+            <div><dt>Source channel</dt><dd>@Pegasus.Web.Pages.Intake.DetailsModel.SourceChannelLabel(Model.Detail.Record.Origin.SourceIdentity.Channel)</dd></div>
         </dl>
         <p>Association, reversal and re-linking are reasoned actions on the origin receipt; the reference above is permanent either way.</p>
         <a class="secondary-action" asp-page="/Intake/Details" asp-route-id="@Model.Detail.Record.Origin.ReceiptId">Open the origin receipt to link or unlink</a>
@@ -61,7 +61,7 @@
 {
     <section class="panel section-gap" aria-labelledby="image-initiated-close-title">
         <h2 id="image-initiated-close-title" class="section-label">Close Image-initiated Case</h2>
-        <p>Use only when formal instructions will not arrive. A reason is required and the record becomes read-only.</p>
+        <p>Use only when formal instructions will not arrive; a reason is required and the record becomes read-only.</p>
         <form method="post" asp-page-handler="Close" asp-route-id="@Model.Detail.Record.Id">
             <input type="hidden" name="expectedVersion" value="@Model.Detail.LifecycleVersion" />
             <label for="image-initiated-close-reason">Reason</label>
@@ -88,7 +88,7 @@
 {
     <section class="panel section-gap" aria-labelledby="image-intake-candidates-title">
         <h2 id="image-intake-candidates-title" class="section-label">Eligible case candidates</h2>
-        <p>Pre-report instructed cases whose confirmed registration matches this Image intake. Linking remains a reasoned staff action on the origin receipt.</p>
+        <p>Pre-report instructed cases whose confirmed registration matches this Image-initiated Case; linking is a reasoned staff action.</p>
         <ul class="plain-list">
             @foreach (var candidate in Model.AssociationCandidates)
             {
