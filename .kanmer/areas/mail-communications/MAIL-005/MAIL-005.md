@@ -2,10 +2,15 @@
 id: MAIL-005
 type: ticket
 title: 'Inbox: resolve allocated cases on mail tiles and tidy the outcome cell'
-status: backlog
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: claude-code
 profile: fix
+stageEntered:
+  preparing: '2026-08-20T19:05:11.282Z'
+taken_at: '2026-08-20T19:05:14.913Z'
+branch: task/mail-005-inbox-case-links
+worktree: ../pegasus-worktrees/mail-tiles
 labels:
   - ui
   - mail
@@ -16,7 +21,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T19:04:50.916Z'
-updated: '2026-08-20T19:04:50.916Z'
+updated: '2026-08-20T19:05:14.913Z'
 ---
 
 ## Why
