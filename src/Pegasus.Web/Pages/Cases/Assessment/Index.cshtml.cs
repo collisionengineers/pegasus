@@ -8,6 +8,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases.Assessment;
@@ -37,6 +38,7 @@ public sealed class IndexModel(
     IEstimateDocumentParser estimateParser,
     IAddCaseDocument addCaseDocument,
     IAcquireCaseEditLease acquireLease,
+    IVehicleEvidenceQueries vehicleEvidence,
     TimeProvider timeProvider) : StaffPageModel
 {
     /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
@@ -88,6 +90,61 @@ public sealed class IndexModel(
 
     public string AcceptOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>The case's vehicle-lookup evidence, for prefilling the vehicle section.</summary>
+    public CaseVehicleEvidence? VehicleEvidence { get; private set; }
+
+    /// <summary>A saved assessment value for one vocabulary path, or null.</summary>
+    public string? SavedValue(string path) => Assessment?.Field(path)?.Value;
+
+    /// <summary>
+    /// The Mileage prefill: the saved assessment value, else confirmed vehicle
+    /// evidence, else the DVSA estimate (miles only) — CASE-008.
+    /// </summary>
+    public string? MileagePrefill
+    {
+        get
+        {
+            if (SavedValue("vehicle.odometer_miles") is { Length: > 0 } saved)
+            {
+                return saved;
+            }
+            if (VehicleEvidence?.Confirmed?.Mileage is { } confirmed
+                && VehicleEvidence.Confirmed.MileageUnit?.Value is null or VehicleMileageUnit.Miles)
+            {
+                return confirmed.Value.ToString(CultureInfo.InvariantCulture);
+            }
+            return VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles } estimate
+                ? estimate.Value.ToString(CultureInfo.InvariantCulture)
+                : null;
+        }
+    }
+
+    /// <summary>The Source prefill: saved, else online data when the mileage came from evidence.</summary>
+    public string? MileageSourcePrefill =>
+        SavedValue("vehicle.mileage_source") is { Length: > 0 } saved
+            ? saved
+            : MileagePrefill is null ? null : "online_data";
+
+    /// <summary>A vehicle-detail prefill: the saved assessment value, else lookup evidence.</summary>
+    public string? VehiclePrefill(string path)
+    {
+        if (SavedValue(path) is { Length: > 0 } saved)
+        {
+            return saved;
+        }
+
+        var details = VehicleEvidence?.LatestObservation?.Vehicle;
+        return path switch
+        {
+            "vehicle.make" => VehicleEvidence?.Confirmed?.Make?.Value ?? details?.Make,
+            "vehicle.model" => VehicleEvidence?.Confirmed?.Model?.Value ?? details?.Model,
+            "vehicle.year" => details?.ManufactureYear?.ToString(CultureInfo.InvariantCulture),
+            "vehicle.engine_cc" => details?.EngineCapacityCc?.ToString(CultureInfo.InvariantCulture),
+            "vehicle.fuel" => details?.FuelType,
+            _ => null
+        };
+    }
+
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -104,6 +161,7 @@ public sealed class IndexModel(
         }
 
         Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
+        VehicleEvidence = await vehicleEvidence.GetAsync(id, cancellationToken);
         DraftSpecification = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
         AcceptedSpecification = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
         ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);

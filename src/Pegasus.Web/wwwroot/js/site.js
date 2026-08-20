@@ -494,6 +494,44 @@
 }());
 
 
+// CASE-007: finishing edit mode with unsaved changes asks first. Dirty means
+// any input inside a lease-carrying form changed since load; Save submits the
+// form that changed, Discard releases the lease as posted.
+(function () {
+    var toggle = document.querySelector('[data-edit-toggle-off]');
+    var dialog = document.getElementById('edit-finish-confirm');
+    if (!toggle || !dialog) {
+        return;
+    }
+    var dirtyForm = null;
+    document.querySelectorAll('form').forEach(function (form) {
+        if (form === toggle || !form.querySelector('input[name="editLeaseToken"]')) {
+            return;
+        }
+        form.addEventListener('input', function () { dirtyForm = form; });
+        form.addEventListener('submit', function () { dirtyForm = null; });
+    });
+    var allowed = false;
+    toggle.addEventListener('submit', function (event) {
+        if (allowed || !dirtyForm) {
+            return;
+        }
+        event.preventDefault();
+        dialog.hidden = false;
+    });
+    dialog.querySelector('[data-edit-finish-keep]').addEventListener('click', function () {
+        dialog.hidden = true;
+    });
+    dialog.querySelector('[data-edit-finish-discard]').addEventListener('click', function () {
+        dialog.hidden = true;
+        allowed = true;
+        toggle.requestSubmit();
+    });
+    dialog.querySelector('[data-edit-finish-save]').addEventListener('click', function () {
+        dialog.hidden = true;
+        if (dirtyForm) {
+            dirtyForm.requestSubmit();
+        }
 // INTK-022: a filter form marked data-auto-submit submits itself when any of
 // its selects change; the noscript Apply button covers the rest.
 (function () {
