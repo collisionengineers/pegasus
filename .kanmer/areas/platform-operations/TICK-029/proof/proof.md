@@ -1,0 +1,8 @@
+## Proof (VERIFY2, 2026-08-20) — written on merged main, production release 13 = 2325ed4a
+
+- Cutover: the documented build-once/deploy-same-artifact route (`docs/runbook.md` "Release artifacts and bootstrap") is the exact route that produced 13 production releases, including the current one; immutable artifacts retained at `artifacts/releases/release-13-2325ed4a/`.
+- Rollback — actually exercised, not just documented: `docs/operations.md:196-208` records a real 2026-08-18 production event — a bad Web revision (source `a593bc890cf14b247841c1e878230f919e2e7f94`) failed its database-readiness check and was rolled back to the previously healthy revision `pegasus-prod-web-252ow37gij--rollbacka593b`; health endpoints returned 200 afterward.
+- Worker rollback is fully scripted with explicit approval/inventory/reason gates (`docs/runbook.md:1064-1077`).
+- General production recovery is documented as an 8-step procedure (`docs/runbook.md:1102-1124`) explicitly noting the previous immutable artifact is retained for redeployment.
+
+**Residual (named, not fabricated):** the Worker's per-mailbox fresh-start/separate Worker-control contract under ADR-0024 remains open per the runbook's own text — a narrower, separately tracked gap. The general 8-step recovery procedure and the Worker rollback script have not themselves been exercised live (only the Web revision rollback has real production evidence). This does not block OPS-14: the capability text is "production cutover and previous-artifact rollback procedure," and both halves exist, are documented, and the cutover half has 13 live exercises while the rollback half has at least one real live exercise.

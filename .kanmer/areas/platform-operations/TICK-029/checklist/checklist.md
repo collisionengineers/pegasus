@@ -1,0 +1,2 @@
+- [x] A task-level plan records the exact feature contract, caller, failure behavior, and required tests — recorded in `research.md` against the runbook's exact commands and script names.
+- [x] The activation criteria have been satisfied or explicitly accepted before implementation begins — the procedure is already the live production route (13 releases) and rollback has a real recorded production exercise (2026-08-18 Web revision rollback).
