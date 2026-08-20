@@ -4,10 +4,12 @@ type: ticket
 title: >-
   EVAL-05 — Display the rule-generated category and evidence beside the human
   review once rules exist
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T05:38:49.143Z'
 labels:
   - capability
   - EVAL-05
@@ -15,9 +17,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:52.910Z'
-updated: '2026-08-17T06:43:38.503Z'
+updated: '2026-08-20T05:38:49.143Z'
 ---
 
 ## What

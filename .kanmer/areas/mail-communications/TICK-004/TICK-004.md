@@ -4,10 +4,12 @@ type: ticket
 title: >-
   EVAL-02 — Reviewer selects from the detailed Received/Sent/Reply taxonomy and
   records required reasoning
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T05:38:48.459Z'
 labels:
   - capability
   - EVAL-02
@@ -15,9 +17,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:52.841Z'
-updated: '2026-08-17T06:41:33.968Z'
+updated: '2026-08-20T05:38:48.459Z'
 ---
 
 ## What

@@ -2,10 +2,12 @@
 id: TICK-029
 type: ticket
 title: OPS-14 — Production cutover and previous-artifact rollback procedure
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T05:38:47.790Z'
 labels:
   - capability
   - OPS-14
@@ -14,9 +16,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-12T15:03:53.369Z'
-updated: '2026-08-17T06:41:38.144Z'
+updated: '2026-08-20T05:38:47.790Z'
 ---
 
 ## What
