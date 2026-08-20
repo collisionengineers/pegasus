@@ -9,3 +9,14 @@ Branch `task/box-custody` from origin/dev (0857f7b9), worktree `../pegasus-workt
 5. **Tests**: update custody suites that assert binding files; add — new folder has no binding JSONs; attachments land beside the source; legacy fold with a binding file still folds. Suites: CustodyOutboxIntegrationTests, local custody durability, QdosCustodialWebTests; Release build 0/0.
 
 Deviation: subagents barred — self-review recorded.
+
+## Simplification pass — 2026-08-20 (self, subagents barred)
+
+Lenses over `origin/dev...HEAD` (7 files, +262/−206):
+
+- **Reuse** — the attachment method reuses `ReadVerifiedSourceAsync`, `GetOrCreateFolderAsync`, `UploadOrVerifyFileAsync`, the ordinal-name convention and the fail-closed default-interface pattern the image-asset method set; the processor reads assets the intake reader already retained. ✔.
+- **Simplification** — net −60 lines in the Box adapter: `GetOrCreateBoundFolderAsync`'s binding upload/verify collapsed into `GetOrCreateOwnedFolderAsync` (staging promote kept); five dead helpers and two constants deleted; the managed-content store's case-binding read removed rather than re-pointed. ✔.
+- **Efficiency** — one extra query per custody work item (the receipt's attachment assets), only on the case path. ✔.
+- **Altitude** — folder identity authority is the DB remote id (`ValidateRootAsync` id equality untouched); the adapters carry no policy. The occurrence/version binding JSONs inside managed-content revision folders are a separate mechanism (rollback verification) and stay — noted as visible-file debt if the operator wants them gone too. ✔.
+
+No BOM drift. Nothing else deferred.
