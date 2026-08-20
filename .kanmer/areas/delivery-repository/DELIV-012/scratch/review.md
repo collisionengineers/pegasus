@@ -477,3 +477,49 @@ Core 684/684; simplification honestly n/a for a pure copy diff, reusing
 `_StatusChip` and the existing channel-label map.
 
 **Verdict: pass.** Merging on green CI (watcher armed, auto-merge on all-green).
+
+## PR #432 — INTK-009 Queues restructure — **PASS**
+
+Head `b758b457`; the branch's own diff (vs its fork point `9df158d8`) is 17
+files — the Mailboxes entries in a naive dev-diff are reverse-diff artifacts
+(verified: the branch never touched them), so no collision with PLAT-009.
+
+**The operator's three directions are each delivered by the right owner:**
+- *Tab within Queues*: `Triage/Index` extends the existing `queue=` convention;
+  the rail entry is gone; the dashboard card points at the tab; `/Unidentified`
+  survives as a permanent redirect (no precedent existed — a redirect-only page
+  is the minimal new pattern, and kinder than a 404 to the dashboard link
+  release 12 shipped).
+- *Image/e-mail filters*: media kind is a **pure Core policy**
+  (`UnidentifiedMediaKindPolicy`) — mailbox channel → E-mail, `image/*` →
+  Image, else Document — with the no-receipt fallback owned by the policy, not
+  scattered in callers. One list per concept.
+- *Not-ready origin filters*: reuses `ISearchCases` and `IImageIntakeQueries`
+  — no new query owner.
+- *No slop rows*: `U42 | Document | unreadable-document.pdf | 20 Aug 2026
+  09:14 | Unreadable or corrupt content`, one line, one link. The banned
+  "Intake receipt" label method was **removed** (`UnidentifiedOriginKind`), not
+  merely bypassed.
+
+**Guarded, not promised:** `TriageQueuesWebTests` asserts the rendered markup
+carries no "intake" and no GUID, and that the origin filters do not cross-leak
+(instruction-only view lacks the image reference and vice versa). That converts
+the operator's complaint into a permanent regression check.
+
+**Reuse discipline:** `ReadSubject`/`ParseSourceChannel` widened
+private→internal and reused rather than duplicated; simplification pass applied
+five findings (shared `EmailHandle`, `OfficeTime` reuse, fallback into the
+policy, dropped a duplicate query call, `Task.WhenAll`) and skipped one with a
+recorded reason (SQL-side filtering would touch a shared port outside this
+diff — acceptable for bounded exception queues; noted, and worth revisiting if
+these queues grow).
+
+**Evidence:** build 0/0; Core 690/690; focused integration 47/48 (1
+pre-existing corpus-gated skip); Browser 38/38 incl. the new tab in the
+accessibility scan; Architecture 97/97. Honest gap: no manual 1920px visual
+pass — stated, and covered instead by the release-13 production verification.
+
+**FRD-12** updated to the tabs-and-filters structure in the same PR.
+
+**Verdict: pass.** Needs a `dev` merge (fork predates #430/#431) before CI +
+merge — doing that now.
