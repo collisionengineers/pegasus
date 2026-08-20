@@ -10,5 +10,5 @@
 - [x] `dotnet build -c Release` zero warnings
 - [x] Focused `dotnet test` for the new/changed tests green
 - [x] Simplification pass run over the branch diff, findings recorded in plan.md
-- [ ] Post-implementation report written
-- [ ] PR opened against `dev`
+- [x] Post-implementation report written
+- [x] PR opened against `dev` (#461)
