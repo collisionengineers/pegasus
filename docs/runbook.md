@@ -371,13 +371,11 @@ These commands prove repository compilation and the selected non-corpus tests on
 
 ### Imported source workspaces
 
-Source workspaces validate independently and are not part of the application solution:
-
-```powershell
-Push-Location ./workspaces/document-extraction; dotnet test --solution ./CollisionDocNet.slnx --configuration Release; Pop-Location
-```
-
-These checks prove only the imported source snapshots. They do not activate an application reference, model, skill, external call, or deployment. Workspace ownership is indexed in [workspaces](../workspaces/README.md).
+No live source workspace currently exists; both imported snapshots were
+integrated and retired under ADR-0025 (see
+[workspaces](../workspaces/README.md) for the provenance records). A future
+workspace validates independently with its own solution and is never part of
+the application solution.
 
 Report rendering is part of the application solution. After a Release build,
 install its pinned Playwright Chromium and run the Browser-tagged integration proof:

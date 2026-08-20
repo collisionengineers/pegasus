@@ -51,6 +51,7 @@ public sealed class EfImageIntakeStore(
             IsolationLevel.Serializable,
             cancellationToken);
 
+        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var replay = await context.ImageIntakes
             .AsNoTracking()
             .SingleOrDefaultAsync(
@@ -62,7 +63,27 @@ public sealed class EfImageIntakeStore(
             return Map(replay);
         }
 
-        var existing = await context.ImageIntakes.AsNoTracking().SingleOrDefaultAsync(
+        if (request.SubmissionGroupId is { } replayGroupId)
+        {
+            // One ImageIntake per submission group: a row already stamped
+            // with this group is this registration, however it was keyed.
+            var groupExisting = await context.ImageIntakes.AsNoTracking().SingleOrDefaultAsync(
+                item => item.SubmissionGroupId == replayGroupId,
+                cancellationToken);
+            if (groupExisting is not null)
+            {
+                if (!string.Equals(groupExisting.NormalizedVehicleRegistration, vrm, StringComparison.Ordinal))
+                {
+                    throw new ImageIntakeOperationConflictException(
+                        groupExisting.OriginReceiptId,
+                        operationKey);
+                }
+
+                return Map(groupExisting);
+            }
+        }
+
+        var existing = await context.ImageIntakes.SingleOrDefaultAsync(
             item => item.OriginReceiptId == request.Origin.ReceiptId
                 || (item.SourceChannel == sourceChannel && item.ExternalReceiptToken == sourceToken),
             cancellationToken);
@@ -75,6 +96,28 @@ public sealed class EfImageIntakeStore(
                 || !string.Equals(existing.NormalizedVehicleRegistration, vrm, StringComparison.Ordinal))
             {
                 throw new IntakeSourceIdentityConflictException();
+            }
+
+            if (request.SubmissionGroupId is { } adoptGroupId && existing.SubmissionGroupId is null)
+            {
+                // The same identity was registered through the single-receipt
+                // path (an ordinal-zero member whose group lookup missed)
+                // before the group-scoped registration ran. Adopt the row
+                // into the group so the sibling members converge on it
+                // instead of staying stranded at Needs sorting.
+                existing.SubmissionGroupId = adoptGroupId;
+                await RegisterGroupMemberReceiptsAsync(
+                    context,
+                    adoptGroupId,
+                    existing.OriginReceiptId,
+                    existing.ImageIntakeReference,
+                    request,
+                    operationKey,
+                    requestFingerprint,
+                    now,
+                    cancellationToken);
+                await context.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
             }
 
             return Map(existing);
@@ -131,7 +174,6 @@ public sealed class EfImageIntakeStore(
         // instead of exhausting, and a sequence value is never reused.
         var allocatedSequence = checked(++sequence.LastAllocatedSequence);
         var reference = ImageIntakeReferenceFormat.Create(vrm, allocatedSequence);
-        var now = timeProvider?.GetUtcNow() ?? TimeProvider.System.GetUtcNow();
         var entity = new ImageIntakeEntity
         {
             Id = Guid.NewGuid(),
@@ -140,6 +182,7 @@ public sealed class EfImageIntakeStore(
             ExternalReceiptToken = sourceToken,
             SourceHash = sourceHash,
             EvaluationRevisionId = request.Origin.EvaluationRevisionId,
+            SubmissionGroupId = request.SubmissionGroupId,
             NormalizedVehicleRegistration = vrm,
             ImageIntakeReference = reference,
             CreatedAtUtc = now,
@@ -181,6 +224,25 @@ public sealed class EfImageIntakeStore(
             AfterJson = Snapshot(receipt)
         });
 
+        if (request.SubmissionGroupId is { } submissionGroupId)
+        {
+            // The group is the registration unit: every image-only member
+            // receipt still awaiting sorting moves to the registered decision
+            // against the one reference, in this same transaction, so no
+            // member is ever left looking unresolved after its group
+            // resolved.
+            await RegisterGroupMemberReceiptsAsync(
+                context,
+                submissionGroupId,
+                request.Origin.ReceiptId,
+                reference,
+                request,
+                operationKey,
+                requestFingerprint,
+                now,
+                cancellationToken);
+        }
+
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -194,6 +256,107 @@ public sealed class EfImageIntakeStore(
         return Map(entity);
     }
 
+    /// <summary>
+    /// Moves every image-only member receipt of the registered submission
+    /// group that is still awaiting sorting to `ImageIntakeRegistered`
+    /// against the group's one reference, each with its own mutation-history
+    /// row. Members are resolved through the durable membership itself
+    /// (group members → their staged receipts' latest evaluation → the
+    /// processed receipt), never a caller-supplied list. A member that is
+    /// not image-only (a mixed batch's instruction document) or already
+    /// carries another decision stands untouched.
+    /// </summary>
+    private static async Task RegisterGroupMemberReceiptsAsync(
+        PegasusDbContext context,
+        Guid submissionGroupId,
+        Guid originReceiptId,
+        string imageIntakeReference,
+        RegisterImageIntakeRequest request,
+        string operationKey,
+        string requestFingerprint,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        var memberStagedIds = await context.IntakeSubmissionGroupMembers
+            .AsNoTracking()
+            .Where(member => member.GroupId == submissionGroupId)
+            .Select(member => member.StagedReceiptId)
+            .ToArrayAsync(cancellationToken);
+        if (memberStagedIds.Length == 0)
+        {
+            return;
+        }
+
+        var evaluations = await context.IntakeEvaluations
+            .AsNoTracking()
+            .Where(evaluation => memberStagedIds.Contains(evaluation.StagedReceiptId))
+            .Select(evaluation => new
+            {
+                evaluation.StagedReceiptId,
+                evaluation.ProcessedReceiptId,
+                evaluation.Revision
+            })
+            .ToArrayAsync(cancellationToken);
+        var memberReceiptIds = evaluations
+            .GroupBy(evaluation => evaluation.StagedReceiptId)
+            .Select(grouping => grouping
+                .OrderByDescending(evaluation => evaluation.Revision)
+                .First()
+                .ProcessedReceiptId)
+            .Where(receiptId => receiptId != originReceiptId)
+            .Distinct()
+            .ToArray();
+        if (memberReceiptIds.Length == 0)
+        {
+            return;
+        }
+
+        var receipts = await context.IntakeReceipts
+            .Include(item => item.InstructionDraft)
+            .Include(item => item.Assets)
+            .Where(item => memberReceiptIds.Contains(item.Id))
+            .ToArrayAsync(cancellationToken);
+        foreach (var receipt in receipts)
+        {
+            if (receipt.Decision != EfIntakeReceiptStore.ToCode(IntakeDecision.NeedsSorting)
+                || !ImageIntakeLifecycleRules.IsImageOnlyMaterial(
+                    receipt.InstructionDraft is not null,
+                    EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson).Length,
+                    receipt.Assets.Select(asset => asset.MediaType)))
+            {
+                continue;
+            }
+
+            var beforeVersion = receipt.Version;
+            var beforeJson = Snapshot(receipt);
+            receipt.Decision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
+            receipt.DecisionReason =
+                $"Image intake {imageIntakeReference} was registered for this image-only material.";
+            receipt.FailureCode = null;
+            receipt.FailureReason = null;
+            receipt.Version++;
+            context.IntakeMutationHistory.Add(new IntakeMutationHistoryEntity
+            {
+                Id = Guid.NewGuid(),
+                IntakeReceiptId = receipt.Id,
+                IntakeReceipt = receipt,
+                EventType = "image_intake_registered",
+                ActorKind = request.Actor.Kind.ToString(),
+                ActorSubjectId = request.Actor.SubjectId,
+                ActorRolesJson = JsonSerializer.Serialize(request.Actor.Roles.OrderBy(role => role)),
+                Reason = request.Reason.Trim(),
+                OperationKey = $"{operationKey}:{receipt.Id:N}",
+                RequestFingerprint = requestFingerprint,
+                OccurredAtUtc = now,
+                ExpectedIntakeVersion = beforeVersion,
+                BeforeIntakeVersion = beforeVersion,
+                AfterIntakeVersion = receipt.Version,
+                BeforeJson = beforeJson,
+                AfterJson = Snapshot(receipt)
+            });
+        }
+    }
+
     public async Task EnsureRegisteredReceiptDecisionAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken)
@@ -202,11 +365,7 @@ public sealed class EfImageIntakeStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        var registration = await context.ImageIntakes
-            .AsNoTracking()
-            .SingleOrDefaultAsync(
-                item => item.OriginReceiptId == intakeReceiptId,
-                cancellationToken);
+        var registration = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
         if (registration is null)
         {
             return;
@@ -445,10 +604,42 @@ public sealed class EfImageIntakeStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        return await GetDetailAsync(
-            context,
-            item => item.OriginReceiptId == intakeReceiptId,
-            cancellationToken);
+        var entity = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
+        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
+    }
+
+    /// <summary>
+    /// Resolves the ImageIntake a receipt belongs to: its own origin
+    /// registration, or — when the receipt is a member of a submission group
+    /// registered as one unit — the group's single registration, reached
+    /// through the durable membership itself (the receipt's evaluations name
+    /// its staged receipt, the staged receipt names its group member row,
+    /// and the group id names the group-stamped intake).
+    /// </summary>
+    private static async Task<ImageIntakeEntity?> FindForReceiptAsync(
+        PegasusDbContext context,
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await context.ImageIntakes
+            .AsNoTracking()
+            .SingleOrDefaultAsync(
+                item => item.OriginReceiptId == intakeReceiptId,
+                cancellationToken);
+        if (entity is not null)
+        {
+            return entity;
+        }
+
+        return await (
+            from evaluation in context.IntakeEvaluations.AsNoTracking()
+            where evaluation.ProcessedReceiptId == intakeReceiptId
+            join member in context.IntakeSubmissionGroupMembers.AsNoTracking()
+                on evaluation.StagedReceiptId equals member.StagedReceiptId
+            join intake in context.ImageIntakes.AsNoTracking()
+                on (Guid?)member.GroupId equals intake.SubmissionGroupId
+            select intake)
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListByOriginReceiptsAsync(
@@ -509,11 +700,14 @@ public sealed class EfImageIntakeStore(
         var entity = await context.ImageIntakes
             .AsNoTracking()
             .SingleOrDefaultAsync(predicate, cancellationToken);
-        if (entity is null)
-        {
-            return null;
-        }
+        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
+    }
 
+    private static async Task<ImageIntakeDetail> ToDetailAsync(
+        PegasusDbContext context,
+        ImageIntakeEntity entity,
+        CancellationToken cancellationToken)
+    {
         var association = await AssociationAsync(context, entity.OriginReceiptId, cancellationToken);
         return new ImageIntakeDetail(
             Map(entity),
@@ -661,7 +855,10 @@ public sealed class EfImageIntakeStore(
             vrm,
             request.Actor.Kind.ToString(),
             request.Actor.SubjectId,
-            request.Reason.Trim()));
+            request.Reason.Trim())
+            // Appended only when a group is present so every fingerprint
+            // recorded before group registration existed stays replayable.
+            + (request.SubmissionGroupId is { } groupId ? $"|group:{groupId:N}" : string.Empty));
 
     /// <summary>
     /// Mirrors <see cref="RegisterFingerprint"/> for a lifecycle transition: a
@@ -767,7 +964,8 @@ public sealed class EfImageIntakeStore(
         entity.MergedIntoCaseReference,
         entity.ClosureReason,
         entity.ClosedAtUtc,
-        entity.LifecycleVersion);
+        entity.LifecycleVersion,
+        entity.SubmissionGroupId);
 }
 
 public sealed class EfImageIntakeOriginResolver(

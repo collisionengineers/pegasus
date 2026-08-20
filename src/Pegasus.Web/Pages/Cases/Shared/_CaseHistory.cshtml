@@ -23,11 +23,11 @@
                         <td>
                             @if (entry.ActorKind == nameof(Pegasus.Core.Identity.ActorKind.Automation))
                             {
-                                <span class="status-chip status-chip--review" title="@entry.Actor">Automation</span>
+                                <span class="status-chip status-chip--review">@entry.ActorDisplayName</span>
                             }
                             else
                             {
-                                @entry.Actor
+                                @entry.ActorDisplayName
                             }
                         </td>
                         <td>@entry.Reason</td>

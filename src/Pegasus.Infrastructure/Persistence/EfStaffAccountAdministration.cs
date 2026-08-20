@@ -10,102 +10,11 @@ public sealed class EfStaffAccountAdministration(
     PegasusDbContext context,
     UserManager<PegasusIdentityUser> userManager,
     TimeProvider timeProvider)
-    : IStaffAccountQueries,
-      ICreateStaffAccountStore,
+    : ICreateStaffAccountStore,
       IDisableStaffAccountStore,
       IAssignStaffRolesStore,
       IReviewStaffAccessStore
 {
-    public async Task<StaffAccountQuerySlice> ListAsync(
-        int offset,
-        int limit,
-        CancellationToken cancellationToken)
-    {
-        var users = await context.Users
-            .AsNoTracking()
-            .OrderBy(item => item.UserName)
-            .ThenBy(item => item.Id)
-            .Skip(offset)
-            .Take(limit + 1)
-            .ToListAsync(cancellationToken);
-        var hasMoreAccounts = users.Count > limit;
-        if (hasMoreAccounts)
-        {
-            users.RemoveAt(users.Count - 1);
-        }
-
-        if (users.Count == 0)
-        {
-            return new([], hasMoreAccounts);
-        }
-
-        var userIds = users.Select(user => user.Id).ToArray();
-        var roleRows = await (
-            from userRole in context.UserRoles.AsNoTracking()
-            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where userIds.Contains(userRole.UserId)
-            select new { userRole.UserId, RoleName = role.Name! })
-            .ToListAsync(cancellationToken);
-        var aggregateIds = userIds.Select(id => id.ToString("D")).ToArray();
-        var reviews = await context.ActionHistory
-            .AsNoTracking()
-            .Where(item => item.AggregateType == "staff_account"
-                && item.EventKind == "access_reviewed"
-                && aggregateIds.Contains(item.AggregateId))
-            .GroupBy(item => item.AggregateId)
-            .Select(group => new
-            {
-                AggregateId = group.Key,
-                OccurredAtUtc = group.Max(item => item.OccurredAtUtc)
-            })
-            .ToDictionaryAsync(
-                item => item.AggregateId,
-                item => item.OccurredAtUtc,
-                cancellationToken);
-        var rolesByUser = roleRows.ToLookup(
-            item => item.UserId,
-            item => ParseRole(item.RoleName));
-
-        return new(
-            users.Select(user => Summary(
-                    user,
-                    rolesByUser[user.Id].OrderBy(role => role).ToArray(),
-                    reviews.GetValueOrDefault(user.Id.ToString("D"))))
-                .ToArray(),
-            hasMoreAccounts);
-    }
-
-    public async Task<StaffAccountSummary?> GetAsync(
-        Guid staffId,
-        CancellationToken cancellationToken)
-    {
-        var user = await context.Users
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == staffId, cancellationToken);
-        if (user is null)
-        {
-            return null;
-        }
-
-        var roles = await (
-            from userRole in context.UserRoles.AsNoTracking()
-            join role in context.Roles.AsNoTracking() on userRole.RoleId equals role.Id
-            where userRole.UserId == staffId
-            select role.Name!)
-            .ToListAsync(cancellationToken);
-        var lastReviewAtUtc = await context.ActionHistory
-            .AsNoTracking()
-            .Where(item => item.AggregateType == "staff_account"
-                && item.AggregateId == staffId.ToString("D")
-                && item.EventKind == "access_reviewed")
-            .Select(item => (DateTimeOffset?)item.OccurredAtUtc)
-            .MaxAsync(cancellationToken);
-        return Summary(
-            user,
-            roles.Select(ParseRole).OrderBy(role => role).ToArray(),
-            lastReviewAtUtc);
-    }
-
     public async Task<CreateStaffAccountResult> CreateAsync(
         CreateStaffAccountRequest request,
         CancellationToken cancellationToken)
@@ -139,7 +48,7 @@ public sealed class EfStaffAccountAdministration(
                 cancellationToken);
             await transaction.CommitAsync(cancellationToken);
             return new(
-                Summary(replayUser, replayRoles, replayReviewAtUtc),
+                EfStaffAccountQueries.Summary(replayUser, replayRoles, replayReviewAtUtc),
                 WasReplay: true);
         }
 
@@ -187,7 +96,7 @@ public sealed class EfStaffAccountAdministration(
             var replayCounts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
             return new(
-                Summary(
+                EfStaffAccountQueries.Summary(
                     replayUser,
                     replayRoles,
                     await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
@@ -233,7 +142,7 @@ public sealed class EfStaffAccountAdministration(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
-            Summary(
+            EfStaffAccountQueries.Summary(
                 user,
                 roles,
                 await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
@@ -265,7 +174,7 @@ public sealed class EfStaffAccountAdministration(
             var replayCounts = ParseRevocationCounts(replay.AfterJson);
             await transaction.CommitAsync(cancellationToken);
             return new(
-                Summary(
+                EfStaffAccountQueries.Summary(
                     replayUser,
                     await GetRolesAsync(replayUser),
                     await GetLastReviewAtUtcAsync(request.StaffId, cancellationToken)),
@@ -322,7 +231,7 @@ public sealed class EfStaffAccountAdministration(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return new(
-            Summary(
+            EfStaffAccountQueries.Summary(
                 user,
                 requestedRoles,
                 await GetLastReviewAtUtcAsync(user.Id, cancellationToken)),
@@ -415,7 +324,7 @@ public sealed class EfStaffAccountAdministration(
             Snapshot(user, roles),
             timeProvider.GetUtcNow(),
             reason);
-        return Summary(user, roles.OrderBy(role => role).ToArray(), lastAccessReviewAtUtc: null);
+        return EfStaffAccountQueries.Summary(user, roles.OrderBy(role => role).ToArray(), lastAccessReviewAtUtc: null);
     }
 
     private Task<ActionHistoryEntity?> FindOperationAsync(
@@ -450,7 +359,7 @@ public sealed class EfStaffAccountAdministration(
     private async Task<StaffRole[]> GetRolesAsync(PegasusIdentityUser user)
     {
         var roleNames = await userManager.GetRolesAsync(user);
-        return roleNames.Select(ParseRole).OrderBy(role => role).ToArray();
+        return roleNames.Select(EfStaffAccountQueries.ParseRole).OrderBy(role => role).ToArray();
     }
 
     private Task<DateTimeOffset?> GetLastReviewAtUtcAsync(
@@ -511,19 +420,6 @@ public sealed class EfStaffAccountAdministration(
         });
     }
 
-    private static StaffAccountSummary Summary(
-        PegasusIdentityUser user,
-        IReadOnlyCollection<StaffRole> roles,
-        DateTimeOffset? lastAccessReviewAtUtc) =>
-        new(
-            user.Id,
-            user.UserName ?? throw new InvalidOperationException(
-                "A staff account has no username."),
-            user.IsEnabled,
-            user.MustChangePassword,
-            roles.OrderBy(role => role).ToArray(),
-            lastAccessReviewAtUtc);
-
     private static string Snapshot(
         PegasusIdentityUser user,
         IReadOnlyCollection<StaffRole> roles,
@@ -557,7 +453,7 @@ public sealed class EfStaffAccountAdministration(
         }
 
         var recordedRoles = roleElement.EnumerateArray()
-            .Select(item => ParseRole(item.GetString() ?? string.Empty))
+            .Select(item => EfStaffAccountQueries.ParseRole(item.GetString() ?? string.Empty))
             .OrderBy(role => role);
         return recordedRoles.SequenceEqual(requestedRoles.OrderBy(role => role));
     }
@@ -593,15 +489,6 @@ public sealed class EfStaffAccountAdministration(
 
     private static StaffAccountAdministrationException OperationConflict() =>
         new(StaffAccountAdministrationError.OperationConflict);
-
-    private static StaffRole ParseRole(string roleName) => roleName switch
-    {
-        StaffRoleNames.Administrator => StaffRole.Administrator,
-        StaffRoleNames.Engineer => StaffRole.Engineer,
-        StaffRoleNames.User => StaffRole.User,
-        _ => throw new InvalidOperationException(
-            "A staff account has an unrecognized role.")
-    };
 
     private static string RoleName(StaffRole role) => role switch
     {

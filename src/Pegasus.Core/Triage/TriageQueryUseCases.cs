@@ -1,3 +1,4 @@
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -78,7 +79,8 @@ public sealed class ListTriage(ITriageQueries queries) : IListTriage
 public sealed class GetTriage(
     ITriageQueries queries,
     ITriageResponseEvidenceCandidateQueries candidateQueries,
-    ISentEvidencePollOutcomeQueries pollOutcomeQueries) : IGetTriage
+    ISentEvidencePollOutcomeQueries pollOutcomeQueries,
+    IStaffAccountQueries staffAccountQueries) : IGetTriage
 {
     private const int MaximumReplyChainIdentities = 100;
     private const int MaximumResponseEvidenceCandidates = 20;
@@ -89,6 +91,8 @@ public sealed class GetTriage(
         candidateQueries ?? throw new ArgumentNullException(nameof(candidateQueries));
     private readonly ISentEvidencePollOutcomeQueries pollOutcomeQueries =
         pollOutcomeQueries ?? throw new ArgumentNullException(nameof(pollOutcomeQueries));
+    private readonly IStaffAccountQueries staffAccountQueries =
+        staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
 
     public async Task<TriageDetail?> ExecuteAsync(
         GetTriageQuery query,
@@ -108,6 +112,23 @@ public sealed class GetTriage(
         {
             return null;
         }
+
+        var staffIds = detail.History
+            .Where(entry => Guid.TryParse(entry.Actor, out _))
+            .Select(entry => Guid.Parse(entry.Actor));
+        var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccountQueries,
+            staffIds,
+            cancellationToken);
+        detail = detail with
+        {
+            History = detail.History
+                .Select(entry => entry with
+                {
+                    ActorDisplayName = ActorDisplayNames.Resolve(ActorKind.Staff, entry.Actor, staffNames)
+                })
+                .ToArray()
+        };
 
         var sentEvidence = await candidateQueries.ListSentEvidenceReferencesAsync(
             query.TriageId,

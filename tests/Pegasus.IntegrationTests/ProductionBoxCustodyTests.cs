@@ -57,6 +57,29 @@ public sealed class ProductionBoxCustodyTests
     }
 
     [Fact]
+    public void ConfigurationNamesAnUnresolvedKeyVaultReferenceDirectly()
+    {
+        // PLAT-013: during provisioning App Service can pass the literal
+        // @Microsoft.KeyVault(...) placeholder. That state must be named, not
+        // reported as a malformed Box JWT configuration.
+        var unresolvedConfig = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
+            "client-secret"));
+        var unresolvedSecret = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            BoxConfigJson,
+            "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-client-secret)"));
+
+        Assert.Contains("Box:ConfigJson is an unresolved Key Vault reference", unresolvedConfig.Message, StringComparison.Ordinal);
+        Assert.Contains("Box:ClientSecret is an unresolved Key Vault reference", unresolvedSecret.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExistingCaseRootIsReturnedOnlyAfterAncestryReachesTheApprovedRoot()
     {
         var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");

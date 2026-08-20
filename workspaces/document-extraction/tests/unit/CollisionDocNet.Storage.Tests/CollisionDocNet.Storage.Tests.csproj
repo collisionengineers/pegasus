@@ -1,9 +1,0 @@
-<Project Sdk="MSTest.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\..\..\src\CollisionDocNet.Storage\CollisionDocNet.Storage.csproj" />
-  </ItemGroup>
-</Project>
