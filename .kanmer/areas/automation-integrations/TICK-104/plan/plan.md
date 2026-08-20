@@ -30,3 +30,16 @@ Rejected: a new secrets table/page family (second store for one concept); Key Va
 ## Dependencies and sequencing
 
 AI-09 code is on `dev` (verified in research); no ticket blocks this work. Live/production activation of Send-to-AI itself remains AI-09's separate transport decision — this ticket claims local evidence only.
+
+## Simplification pass — 2026-08-20 (reuse, simplification, efficiency, altitude)
+
+- Reuse: connector fields live on the existing `SendToAiControl` singleton (no new table, existing grants); `EfAiChannelConnectorStore` follows the switch store's transaction/history conventions; the admin section follows the page's existing form pattern; integration facts are a second partial of `SendToAiIntegrationTests` reusing its fake channel and form helpers. Applied.
+- Simplification: the three page handlers repeat the page's existing preamble (actor, store, operation key) rather than extracting a helper — the existing convention on this page wins; extraction not applied, reason recorded.
+- Efficiency: one extra singleton-row read per hand-off (runtime settings), negligible beside the outbound HTTP call. No finding.
+- Altitude: bounds live once in Core (`AiChannelConnectorRules`) and are consumed by composition options, the page, and the store; the HTML `minlength` hint was switched to the Core constant so no literal copy remains. Applied.
+- Not applied (named): a connector "health ping" — deliberately out of scope; no caller exists for an outbound validation call and none is invented.
+
+## Implementation notes — 2026-08-20
+
+- Migration `20260820040337_SendToAiConnectorSettings`: four nullable columns on `SendToAiControl`; no new table, so the existing object-level grants cover it — `scripts/Test-MigrationGrants.ps1` passes (55 files checked).
+- `Features:SendToAi` still composes the whole surface (DevelopmentOffline only, ADR-0021); with the gate off the connector section states there is nothing to configure, and with no administration values set behaviour is byte-for-byte the configuration-driven behaviour (existing suite green).
