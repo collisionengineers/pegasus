@@ -116,18 +116,21 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     }
 
     [Fact]
-    public async Task ThePageStatesThatApprovalGrantsNoExchangeAccess()
+    public async Task ThePageDoesNotDuplicateTheRunbooksTenantPermissionNarration()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var page = await GetPageAsync(client);
 
-        Assert.Contains(
-            "does not grant Exchange access",
-            page,
-            StringComparison.Ordinal);
-        Assert.Contains("mailbox_access_denied", page, StringComparison.Ordinal);
+        // The Exchange-tenant-permission explanation and mailbox_access_denied
+        // failure mode are operational documentation, owned by docs/runbook.md's
+        // "Approved mailbox estate" section, not UI copy (design authority:
+        // docs/design/README.md line 160, no lede/subtitle narration).
+        Assert.DoesNotContain("does not grant Exchange access", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("mailbox_access_denied", page, StringComparison.Ordinal);
+        // The one consequential fact stays, beside the identity fields it governs.
+        Assert.Contains("cannot be changed once saved", page, StringComparison.Ordinal);
         // The per-mailbox polling column is present for the seeded mailbox.
         Assert.Contains("Not yet polled.", page, StringComparison.Ordinal);
     }

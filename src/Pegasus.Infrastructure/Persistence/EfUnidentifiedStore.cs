@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -239,6 +240,69 @@ public sealed class EfUnidentifiedStore(
 
         var rows = await query.OrderBy(item => item.CreatedAtUtc).ThenBy(item => item.Sequence).ToArrayAsync(cancellationToken);
         return rows.Select(Map).ToArray();
+    }
+
+    public async Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
+        UnidentifiedMediaKind? mediaKind,
+        CancellationToken cancellationToken = default)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var openState = UnidentifiedState.Open.ToString();
+
+        // No foreign key is modelled between an Unidentified item and its
+        // origin receipt (the origin can be a receipt or, for INTK-007's
+        // grouped-VRM-conflict case, a submission group), so this is a plain
+        // left join rather than a navigation property.
+        var joined = await (
+            from item in context.Set<UnidentifiedItemEntity>().AsNoTracking()
+            where item.State == openState
+            join receipt in context.Set<IntakeReceiptEntity>().AsNoTracking().Include(entity => entity.MailRouteDecision)
+                on item.OriginId equals receipt.Id into receiptGroup
+            from receipt in receiptGroup.DefaultIfEmpty()
+            orderby item.CreatedAtUtc, item.Sequence
+            select new { item, receipt })
+            .ToArrayAsync(cancellationToken);
+
+        var rows = joined.Select(row => MapQueueRow(row.item, row.receipt)).ToArray();
+        return mediaKind is null
+            ? rows
+            : rows.Where(row => row.MediaKind == mediaKind.Value).ToArray();
+    }
+
+    private static UnidentifiedQueueRow MapQueueRow(UnidentifiedItemEntity item, IntakeReceiptEntity? receipt)
+    {
+        // The nullable overload owns the no-receipt fallback (a
+        // submission-group origin with nothing to classify against); this
+        // mapper carries no business judgement of its own.
+        var mediaKind = UnidentifiedMediaKindPolicy.Classify(
+            receipt is null ? null : EfIntakeReceiptStore.ParseSourceChannel(receipt.SourceChannel),
+            receipt?.MediaType);
+
+        string? fileName = null;
+        string? emailSubject = null;
+        string? emailSender = null;
+        if (receipt is not null)
+        {
+            if (mediaKind == UnidentifiedMediaKind.Email)
+            {
+                emailSubject = EfIntakeReceiptStore.ReadSubject(receipt.EvidenceJson);
+                emailSender = receipt.MailRouteDecision?.EffectiveSenderAddress;
+            }
+            else
+            {
+                fileName = receipt.SourceFileName;
+            }
+        }
+
+        return new(
+            item.Id,
+            item.Reference,
+            mediaKind,
+            fileName,
+            emailSubject,
+            emailSender,
+            item.CreatedAtUtc,
+            Enum.Parse<UnidentifiedReasonCode>(item.ReasonCode));
     }
 
     public async Task<IReadOnlyList<UnidentifiedHistoryEntry>> HistoryAsync(Guid unidentifiedItemId, CancellationToken cancellationToken = default)
