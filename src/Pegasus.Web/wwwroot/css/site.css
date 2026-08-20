@@ -2274,8 +2274,6 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   padding: 0;
 }
 
-.image-gallery li { margin: 0; }
-
 .image-gallery a {
   display: grid;
   gap: var(--sp-1);

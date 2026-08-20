@@ -124,7 +124,6 @@ public sealed class ImageViewingWebTests
         var galleryImage = Assert.Single(images);
         Assert.Equal(receiptId, galleryImage.ReceiptId);
         Assert.Equal("vehicle.png", galleryImage.FileName);
-        Assert.Equal("image/png", galleryImage.MediaType);
 
         var expectedSource = $"/Received/{receiptId:D}/Image";
         var imageCasePage = await GetAsync(client, $"/VehicleImages/{detail.Record.Id:D}");

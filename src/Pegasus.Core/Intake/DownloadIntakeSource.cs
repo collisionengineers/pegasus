@@ -46,9 +46,6 @@ public sealed class DownloadIntakeSource(
             throw new IntakeArtifactIntegrityException();
         }
 
-        // The stored media type travels with the bytes; each endpoint decides
-        // presentation (the Source download still forces an octet-stream
-        // attachment, the image view serves image/* inline).
         return new(
             content,
             SafeFileName(receipt.SourceFileName),

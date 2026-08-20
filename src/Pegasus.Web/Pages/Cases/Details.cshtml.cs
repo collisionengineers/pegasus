@@ -32,8 +32,8 @@ public sealed partial class DetailsModel(
     /// The gallery entries for each associated Image-initiated Case, loaded
     /// only when the Evidence tab is the one being rendered.
     /// </summary>
-    public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake
-    { get; private set; } = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+    public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
+        new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
     /// <summary>
     /// Which section of the case container is open.
@@ -118,7 +118,7 @@ public sealed partial class DetailsModel(
                 return NotFound();
             }
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
-            if (Tab == "evidence" && ImageIntakes.Count > 0)
+            if (Tab == "evidence")
             {
                 var imagesByIntake = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
                 foreach (var intake in ImageIntakes)

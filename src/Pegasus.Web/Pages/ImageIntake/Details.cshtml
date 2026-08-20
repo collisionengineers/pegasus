@@ -59,14 +59,7 @@
 
 <section class="panel section-gap" aria-labelledby="image-initiated-images-title">
     <h2 id="image-initiated-images-title" class="section-label">Images</h2>
-    @if (Model.Images.Count == 0)
-    {
-        <p class="empty-state">No images are available to display for this record.</p>
-    }
-    else
-    {
-        <partial name="Shared/_ImageGallery" model="Model.Images" />
-    }
+    <partial name="Shared/_ImageGallery" model="Model.Images" />
 </section>
 
 @if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
