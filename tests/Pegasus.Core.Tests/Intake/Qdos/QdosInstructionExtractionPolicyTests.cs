@@ -147,6 +147,178 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void RepeatedIdenticalValueAcrossFragmentsIsNotAConflict()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Claim Number: Q-777"),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "instruction attachment",
+                    "Claim Number: Q-777")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Claim number");
+        Assert.False(field.HasConflict);
+        Assert.Equal("Q-777", field.SuggestedValue);
+    }
+
+    [Fact]
+    public void DifferingValuesAcrossFragmentsPreferTheEarliestFragment()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "instruction attachment",
+                    "Claimant Name: First Person"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: bodyshop report, page 1",
+                    "Claimant Name: Second Person")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Claimant name");
+        Assert.False(field.HasConflict);
+        Assert.Equal("First Person", field.SuggestedValue);
+        Assert.Equal(2, field.Candidates.Count);
+        Assert.Equal(
+            "First Person",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).ClaimantName);
+    }
+
+    [Fact]
+    public void ParsingCandidateBeatsEarlierUnparsableCandidate()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Vehicle Mileage: unknown pending review"),
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "instruction attachment",
+                    "Vehicle Mileage: 42,000 miles")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Vehicle mileage");
+        Assert.False(field.HasConflict);
+        Assert.Equal("42,000 miles", field.SuggestedValue);
+        Assert.Equal(2, field.Candidates.Count);
+        Assert.Equal(
+            42000L,
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleMileage);
+    }
+
+    [Fact]
+    public void SameFragmentDistinctDatesRemainConflicting()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.DocumentContent,
+                "instruction attachment",
+                "Date of Incident: 04/03/2031\nDate of Incident: 05/03/2031")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Date of incident");
+        Assert.True(field.HasConflict);
+        Assert.Null(field.SuggestedValue);
+        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).DateOfIncident);
+    }
+
+    [Fact]
+    public void SoleCurrentFormatRegistrationIsSuggestedWithoutALabel()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "instruction attachment",
+                    "Please inspect the vehicle AU17 SEO at the address below.\nClaim Number: Q-901"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 2: photos summary, page 1",
+                    "Photographs of AU17SEO showing rear damage.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Vehicle registration");
+        Assert.False(field.HasConflict);
+        Assert.Equal("AU17 SEO", field.SuggestedValue);
+        Assert.DoesNotContain("Vehicle registration", result.MissingFields);
+        Assert.Equal(
+            "AU17SEO",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+    }
+
+    [Fact]
+    public void MultipleDistinctUnlabelledRegistrationsStayAbsent()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.DocumentContent,
+                "instruction attachment",
+                "Vehicle AU17 SEO collided with third party vehicle BD51 SMR.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Vehicle registration");
+        Assert.Null(field.SuggestedValue);
+        Assert.Empty(field.Candidates);
+        Assert.Contains("Vehicle registration", result.MissingFields);
+    }
+
+    [Theory]
+    [InlineData("Registration Number: AB12 CDE")]
+    [InlineData("Registration No: AB12 CDE")]
+    [InlineData("Reg No: AB12 CDE")]
+    [InlineData("Vehicle Reg: AB12 CDE")]
+    public void RegistrationLabelSynonymsAreRecognised(string line)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.DocumentContent,
+                "instruction attachment",
+                line)),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "AB12 CDE",
+            Assert.Single(result.Fields, item => item.Name == "Vehicle registration").SuggestedValue);
+        Assert.Equal(
+            "AB12CDE",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+    }
+
+    [Fact]
+    public void FlattenedLineWithTwoLabelledFieldsSplitsAtTheSecondLabel()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.DocumentContent,
+                "instruction attachment",
+                "Vehicle Make: Audi Vehicle Model: A4 Avant")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Audi",
+            Assert.Single(result.Fields, item => item.Name == "Vehicle make").SuggestedValue);
+        Assert.Equal(
+            "A4 Avant",
+            Assert.Single(result.Fields, item => item.Name == "Vehicle model").SuggestedValue);
+    }
+
+    [Fact]
     public void QdosTextDoesNotBecomePrincipalEvidence()
     {
         var result = new QdosInstructionExtractionPolicy().Extract(
