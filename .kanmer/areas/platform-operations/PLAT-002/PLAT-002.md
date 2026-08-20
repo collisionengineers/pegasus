@@ -2,10 +2,12 @@
 id: PLAT-002
 type: ticket
 title: Give the Web pages one staff-actor root (TryGetActor / NewOperationKey)
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-20T08:42:52.536Z'
 labels:
   - simplify
   - web
@@ -15,7 +17,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-17T14:19:26.387Z'
-updated: '2026-08-17T14:19:26.387Z'
+updated: '2026-08-20T08:42:52.536Z'
 ---
 
 ## Why
