@@ -1,0 +1,1 @@
+Read PR #477 head 83293162, PR-043 Pending/Uncertain behavior, filtered index, LocalDB service configuration, SaveChangesInterceptor conventions, EPIC-006 context and FRD-08. A conditional fresh-context Pending→Uncertain update is the smallest cancellation handoff.
