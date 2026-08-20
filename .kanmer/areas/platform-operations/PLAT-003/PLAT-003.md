@@ -2,10 +2,13 @@
 id: PLAT-003
 type: ticket
 title: Wire real outstanding counts into the operator rail
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T05:11:05.968Z'
+branch: task/plat-003-rail-counts
+worktree: ../pegasus-worktrees/plat-003
 labels:
   - ui
   - design
@@ -14,7 +17,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-18T09:39:12.271Z'
-updated: '2026-08-18T09:39:12.271Z'
+updated: '2026-08-20T05:11:05.968Z'
 ---
 
 ## What

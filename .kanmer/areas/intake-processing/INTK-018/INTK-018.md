@@ -2,13 +2,14 @@
 id: INTK-018
 type: ticket
 title: Resolve Unidentified items when their receipt reaches a real destination
-status: review
+status: verifying
 area: intake-processing
 assignee: group-lane
 profile: fix
 stageEntered:
   implementing: '2026-08-20T04:20:13.751Z'
   review: '2026-08-20T04:43:23.616Z'
+  verifying: '2026-08-20T05:10:28.317Z'
 taken_at: '2026-08-20T04:16:43.894Z'
 branch: task/intk-018-unidentified-resolution
 worktree: ../pegasus-worktrees/intk-018
@@ -29,7 +30,7 @@ prs:
   - '#453'
 archived: false
 created: '2026-08-20T03:25:25.736Z'
-updated: '2026-08-20T04:43:23.616Z'
+updated: '2026-08-20T05:10:28.317Z'
 ---
 
 ## What
