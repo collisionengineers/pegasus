@@ -2,12 +2,13 @@
 id: PLAT-003
 type: ticket
 title: Wire real outstanding counts into the operator rail
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T05:16:13.327Z'
+  review: '2026-08-20T05:25:12.132Z'
 taken_at: '2026-08-20T05:11:05.968Z'
 branch: task/plat-003-rail-counts
 worktree: ../pegasus-worktrees/plat-003
@@ -17,9 +18,11 @@ labels:
 links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/458'
 archived: false
 created: '2026-08-18T09:39:12.271Z'
-updated: '2026-08-20T05:16:13.327Z'
+updated: '2026-08-20T05:25:12.132Z'
 ---
 
 ## What

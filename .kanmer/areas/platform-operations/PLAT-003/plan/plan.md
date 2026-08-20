@@ -71,3 +71,29 @@ CS1061). The global filter is registered through the underlying
 — same effect (a global filter applied to every Razor Page request), just
 the correct API surface. `files`/step 2 above described `RazorPagesOptions.
 Filters`, which does not exist; this is the as-built correction.
+
+## Simplification pass — 2026-08-20
+
+Reviewed the branch diff (1 new filter, 1 new test file, 1-line `Program.cs`
+change) against the four lenses:
+
+- **Reuse**: confirmed — `RailCountsPageFilter` reuses
+  `IDashboardQueries.GetCaseStageCountsAsync` verbatim (no new Core/
+  Infrastructure query written); the test fixture reuses the exact shape
+  already established by `TriageQueuesWebTests` (copied, not shared, since
+  the originals are `private` to their class — matching the existing
+  `ImageIntakePersistenceTests.SeedCaseAsync` precedent for this trade-off).
+- **Simplification**: considered wiring Inbox/Cases too by inventing
+  definitions for them; rejected per the design-authority rule ("never one
+  the shell invents") and recorded the reasoning in `research` rather than
+  guessing. The filter itself does exactly one thing: one conditional, one
+  query, one dictionary entry.
+- **Efficiency**: the added query only runs when
+  `HttpContext.User.Identity.IsAuthenticated` is true (skips sign-in/error/
+  external-upload requests, which never render the rail anyway), and reuses
+  the class's own documented cheap, no-row-projection aggregate query.
+- **Altitude**: the filter's remarks explain the scope decision (why only
+  Queues) so a future reader does not "fix" the missing Inbox/Cases badges
+  without re-deriving the same design-authority constraint.
+
+No findings requiring disposition.
