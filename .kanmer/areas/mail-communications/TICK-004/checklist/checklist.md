@@ -1,0 +1,2 @@
+- [x] A task-level plan records the exact feature contract, caller, failure behavior, and required tests — recorded in `research.md` against `CategoryCatalog.cs`, `EmailEvaluationWorkflow.cs`, `MainForm.cs`, `DesktopEvaluatorTests.cs`.
+- [x] The activation criteria have been satisfied or explicitly accepted before implementation begins — ADR-0016 already accepted this as the correct standalone artifact; implementation matches it exactly.

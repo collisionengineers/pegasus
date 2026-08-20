@@ -1,29 +1,16 @@
-# Research — EVAL-02 taxonomy selection + required reasoning (retrospective backfill, VERIFY2 lane, 2026-08-20)
+## Backfill research (VERIFY2, 2026-08-20)
 
-**Read-only verification backfill.** Verdict: **PARTIAL — ticket stays at preparing.** The owning surface exists and enforces the core behaviour, but it is broken against the current repo and lacks the Reply limb.
+**Important correction to an earlier hypothesis in this run's capability survey:** EVAL-02 is NOT satisfied by the in-app `MailClassificationSelection` panel (`src/Pegasus.Web/Presentation/MailClassificationSelection.cs`, MAIL-21/22 work). `docs/capabilities.md`'s own EVAL-02 row states the canonical owner is the "QDOS-alpha evaluation boundary" and explicitly notes: *"Separately owned prerequisite; not QDOS delivery."* Per ADR-0016 (accepted 2026-07-29), EVAL-01 through EVAL-05 are entirely about a standalone, non-production, Windows-only WinForms desktop tool at `scripts/email-eval-desktop/`, deliberately excluded from `Pegasus.slnx` and never referenced by Pegasus.Web or Pegasus.Worker. This is a completely different artifact from the shipped mail classification panel.
 
-## Ownership (settled by FRD text)
+**Capability text (`docs/capabilities.md:76`):** "Reviewer selects from the detailed Received/Sent/Reply taxonomy and records required reasoning."
 
-`docs/frd/frd-08-email-mailbox-and-background-processing.md#qdos-alpha-evaluation-boundary` states the evaluator is "a separately delivered evidence harness and is not a QDOS-alpha product surface". EVAL-02 is owned by the **standalone desktop evaluator** (ADR-0016, `docs/adr/0016-standalone-desktop-email-evaluator.md`, on origin/main), *not* by the shipped Mail classification UI. The Mail UI (MAIL-21/22, `src/Pegasus.Web/Pages/Mail/Message.cshtml` + `MailClassificationSelection`) happens to also implement taxonomy selection with a required `CorrectionReason` — but that is MAIL-22's delivery, not EVAL-02's.
+**Code evidence, `scripts/email-eval-desktop/`:**
+- Taxonomy: `CategoryCatalog.cs` loads exactly 12 categories (8 `Received`, 4 `Sent`) from `docs/reference/CollisionSPikeCurrenttree.txt`, throwing `InvalidDataException` if the count doesn't match — a hard structural guarantee, not just a convention.
+- Reply as taxonomy context, not a third family: ADR-0016 states explicitly "Reply remains context on its underlying Received or Sent category and does not create a standalone folder" — this is the accepted design answer to "Reply", not a gap.
+- Required reasoning: `EmailEvaluationWorkflow.cs:135,149-150` — `TryFileAsync(..., string reasoning, ...)` trims the input and rejects empty reasoning before filing. `MainForm.cs:18,94,129` wires a `reasoningText` `TextBox` into the same call.
+- Persistence: `EvaluationWorkspace.cs` copies the reviewed `.eml` into the local `emailevallocal` tree and appends a JSONL adjudication record including the reason (`tests/DesktopEvaluatorTests.cs:99-118` `FilingCopiesSourceAndEscapesReasonInOneJsonLine` proves the reason is escaped correctly into one JSON line).
+- Tests: `scripts/email-eval-desktop/tests/DesktopEvaluatorTests.cs` — 9 `[Fact]` tests covering folder selection, reasoning validation, custom `Other` category naming, and idempotent re-filing.
 
-## What exists (verified on origin/dev; also present on origin/main = 2325ed4a ancestor path)
+**File presence at 2325ed4a (production `main` ancestor):** confirmed present via `git show 2325ed4a:scripts/email-eval-desktop/EmailEvaluationWorkflow.cs`. This is not meaningful as "production deployment" evidence, though — the tool is by design never deployed to any Azure environment; it is a local reviewer utility restored and run independently. No `deployment` value applies (leaving it unset is the honest state, per the runbook's own rule: "no local result is relabelled deployed, live verified, or accepted").
 
-- `scripts/email-eval-desktop/` (8 files incl. tests) — WinForms evaluator.
-- Required reasoning enforced: `EmailEvaluationWorkflow.cs:135-150` rejects empty reasoning.
-- Taxonomy enforced: `CategoryCatalog.cs` requires exactly 8 Received + 4 Sent categories, hard `InvalidDataException` otherwise.
-- Tests: `scripts/email-eval-desktop/tests/DesktopEvaluatorTests.cs`.
-
-## The gaps (why this is not done)
-
-1. **The evaluator can no longer start.** `CategoryCatalog.Load` reads `docs/reference/CollisionSPikeCurrenttree.txt` and throws `FileNotFoundException` if missing — and that file was **deleted** from the repo (commit `4e084ca2` "Delete superseded planning material; migrate surviving content first"). Verified: the path does not exist on origin/dev or origin/main. The tool as shipped fails at load.
-2. **No Reply limb.** The capability text is "Received/Sent/**Reply** taxonomy". The evaluator catalog is Received(8)+Sent(4) only; `EmailEvaluationWorkflow.cs` contains no reply handling. (Core's shipped taxonomy models reply as an `IsReplyContext` flag on `MailCategory` — `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs` — a second, diverging list-owner situation.)
-3. **One list per concept violated by drift.** The canonical taxonomy now lives in Core (`ReceivedMailFamily`/`SentMailFamily`, MAIL-21/22); the evaluator's file-parsed catalog is a stale second copy keyed to a deleted file. Remediation should point the evaluator at the Core taxonomy (or a retained export of it), not resurrect the deleted txt.
-4. No evidence any evaluation campaign has ever been run with it.
-
-## What implementation needs
-
-- Re-source the evaluator's catalog from the Core-owned taxonomy (single list owner), restoring startability.
-- Decide the Reply representation (separate limb vs `IsReplyContext` mirror) consistently with Core.
-- Acceptance evidence: one real evaluation session producing a reasoned classification record.
-
-Premises verified read-only: file presence/absence via `git ls-tree`/`git show` on origin/dev and origin/main; deletion commit located via `git log --diff-filter=D`. Assumed: no other copy of the taxonomy txt exists outside the repo.
+**Verdict:** EVAL-02 is fully implemented and tested against its own capability text, in the correct (standalone desktop) artifact.

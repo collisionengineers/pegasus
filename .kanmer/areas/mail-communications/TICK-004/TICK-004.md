@@ -4,12 +4,15 @@ type: ticket
 title: >-
   EVAL-02 — Reviewer selects from the detailed Received/Sent/Reply taxonomy and
   records required reasoning
-status: preparing
+status: verifying
 area: mail-communications
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-20T05:38:48.459Z'
+  implementing: '2026-08-20T05:43:17.905Z'
+  review: '2026-08-20T05:43:21.138Z'
+  verifying: '2026-08-20T05:43:24.616Z'
 labels:
   - capability
   - EVAL-02
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:52.841Z'
-updated: '2026-08-20T05:38:48.459Z'
+updated: '2026-08-20T05:43:24.616Z'
 ---
 
 ## What

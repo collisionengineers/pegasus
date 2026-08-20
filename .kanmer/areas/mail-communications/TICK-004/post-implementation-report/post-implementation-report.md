@@ -1,0 +1,3 @@
+## Backfill post-implementation report (VERIFY2, 2026-08-20)
+
+No implementation occurred under this ticket. EVAL-02 was already implemented under ADR-0016 in the standalone `scripts/email-eval-desktop/` tool, matching the capability text exactly (8 Received + 4 Sent taxonomy, Reply as context, required reasoning, JSONL adjudication log). Corrected an earlier hypothesis (in this run's capability-survey document) that the in-app `MailClassificationSelection` panel might satisfy this — `docs/capabilities.md`'s own EVAL-02 row and ADR-0016 both make clear this is a separately owned, non-production prerequisite tool.
