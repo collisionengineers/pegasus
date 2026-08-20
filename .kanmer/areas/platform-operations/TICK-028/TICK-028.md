@@ -2,10 +2,13 @@
 id: TICK-028
 type: ticket
 title: 'Establish database backup, restore, RPO, and RTO capability'
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T05:34:06.267Z'
+branch: task/tick-028-ops-09-backup
+worktree: ../pegasus-worktrees/tick-028
 labels:
   - capability
   - OPS-09
@@ -14,9 +17,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/prd/pegasus-product.md
 archived: false
 created: '2026-08-12T15:03:53.347Z'
-updated: '2026-08-17T06:43:40.921Z'
+updated: '2026-08-20T05:34:06.267Z'
 ---
 
 ## What
