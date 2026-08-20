@@ -128,34 +128,15 @@ public sealed class MailboxesModel(
                         OperationKey,
                         resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
                         resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
-                        resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity),
+                        resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity,
+                        resolution?.FolderBindings),
                     cancellationToken);
                 TempData["AdministrationStatus"] = $"The mailbox policy for {updated.Address} was saved.";
                 return RedirectToPage();
             }
             catch (ApprovedMailboxUpdateException exception)
             {
-                ModelState.AddModelError(string.Empty, exception.Error switch
-                {
-                    ApprovedMailboxUpdateError.NotFound =>
-                        "The mailbox policy no longer exists. Your change was not applied.",
-                    ApprovedMailboxUpdateError.DuplicateAddress =>
-                        "That mailbox address already has a policy. Update the existing row instead.",
-                    ApprovedMailboxUpdateError.VersionConflict =>
-                        "The mailbox policy changed after this form was loaded. " +
-                        "Your change was not applied; review the current row and retry.",
-                    ApprovedMailboxUpdateError.OperationConflict =>
-                        "This form was already used for another mailbox change. Review the current row and retry.",
-                    ApprovedMailboxUpdateError.MissingMailboxIdentity =>
-                        "This mailbox cannot be approved for that route scope yet.",
-                    ApprovedMailboxUpdateError.InvalidMailboxIdentity =>
-                        "The resolved identity for this mailbox was not valid. Try again.",
-                    ApprovedMailboxUpdateError.MailboxIdentityImmutable =>
-                        "This mailbox's address cannot be changed once saved. Disable it and add a new one.",
-                    ApprovedMailboxUpdateError.DuplicateMailboxIdentity =>
-                        "That address already resolves to a mailbox approved under another row.",
-                    _ => "The approved-mailbox change was not accepted."
-                });
+                ModelState.AddModelError(string.Empty, MailboxErrorMessage(exception));
             }
             catch (ArgumentException)
             {
@@ -179,6 +160,79 @@ public sealed class MailboxesModel(
         NewMailboxId = ExpectedVersion == 0 && MailboxId != Guid.Empty
             ? MailboxId
             : Guid.NewGuid();
+        OperationKey = NewOperationKey();
+        return Page();
+    }
+
+    public async Task<IActionResult> OnPostResolveFoldersAsync(CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
+        await LoadAsync(actor, cancellationToken);
+        var mailbox = Mailboxes.SingleOrDefault(item => item.Id == MailboxId);
+        if (mailbox is null
+            || mailbox.MailboxIdentity is null
+            || ExpectedVersion != mailbox.Version
+            || !IsOperationKeyValid(OperationKey))
+        {
+            ModelState.AddModelError(
+                string.Empty,
+                "The mailbox policy changed after this form was loaded. Review it and retry.");
+        }
+
+        ApprovedMailboxIdentityResolution? resolution = null;
+        if (ModelState.IsValid)
+        {
+            resolution = await resolveApprovedMailboxIdentity.ResolveAsync(
+                mailbox!.Address,
+                cancellationToken);
+            if (resolution is null
+                || !string.Equals(
+                    resolution.MailboxIdentity,
+                    mailbox.MailboxIdentity,
+                    StringComparison.Ordinal))
+            {
+                ModelState.AddModelError(
+                    string.Empty,
+                    "The logical folders could not be resolved for this exact mailbox.");
+            }
+        }
+
+        if (ModelState.IsValid)
+        {
+            try
+            {
+                var updated = await updateApprovedMailbox.ExecuteAsync(
+                    new(
+                        mailbox!.Id,
+                        mailbox.Address,
+                        mailbox.RouteScopes,
+                        mailbox.State,
+                        mailbox.Version,
+                        actor,
+                        "Refresh approved logical folder bindings from the mail system.",
+                        OperationKey,
+                        mailbox.MailboxIdentity,
+                        mailbox.InboxFolderIdentity,
+                        mailbox.SentFolderIdentity,
+                        resolution!.FolderBindings ?? []),
+                    cancellationToken);
+                TempData["AdministrationStatus"] =
+                    $"{updated.FolderBindings.Count} logical folder bindings were saved for {updated.Address}.";
+                return RedirectToPage();
+            }
+            catch (ApprovedMailboxUpdateException exception)
+            {
+                ModelState.AddModelError(string.Empty, MailboxErrorMessage(exception));
+            }
+        }
+
+        await LoadAsync(actor, cancellationToken);
+        NewMailboxId = Guid.NewGuid();
         OperationKey = NewOperationKey();
         return Page();
     }
@@ -282,4 +336,27 @@ public sealed class MailboxesModel(
         Mailboxes = await listApprovedMailboxes.ExecuteAsync(actor, cancellationToken);
         PollStatuses = await pollStatusQueries.ListAsync(cancellationToken);
     }
+
+    private static string MailboxErrorMessage(ApprovedMailboxUpdateException exception) =>
+        exception.Error switch
+        {
+            ApprovedMailboxUpdateError.NotFound =>
+                "The mailbox policy no longer exists. Your change was not applied.",
+            ApprovedMailboxUpdateError.DuplicateAddress =>
+                "That mailbox address already has a policy. Update the existing row instead.",
+            ApprovedMailboxUpdateError.VersionConflict =>
+                "The mailbox policy changed after this form was loaded. " +
+                "Your change was not applied; review the current row and retry.",
+            ApprovedMailboxUpdateError.OperationConflict =>
+                "This form was already used for another mailbox change. Review the current row and retry.",
+            ApprovedMailboxUpdateError.MissingMailboxIdentity =>
+                "This mailbox cannot be approved for that route scope yet.",
+            ApprovedMailboxUpdateError.InvalidMailboxIdentity =>
+                "The resolved identity for this mailbox was not valid. Try again.",
+            ApprovedMailboxUpdateError.MailboxIdentityImmutable =>
+                "This mailbox's address cannot be changed once saved. Disable it and add a new one.",
+            ApprovedMailboxUpdateError.DuplicateMailboxIdentity =>
+                "That address already resolves to a mailbox approved under another row.",
+            _ => "The approved-mailbox change was not accepted."
+        };
 }

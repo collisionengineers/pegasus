@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Persistence;
 
@@ -70,7 +71,12 @@ public sealed class AdministrationPolicyPersistenceTests
             // Approving a row now requires the exact tenant identities its routes read.
             "instructions-mailbox",
             "instructions-inbox",
-            "instructions-sent");
+            "instructions-sent",
+            [
+                new(MailLogicalFolderType.Instructions, "folder-instructions"),
+                new(MailLogicalFolderType.Audits, "folder-audits"),
+                new(MailLogicalFolderType.Billing, "folder-billing")
+            ]);
 
         var updated = await command.ExecuteAsync(request, default);
         var replay = await command.ExecuteAsync(request, default);
@@ -84,6 +90,7 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Equal("instructions-mailbox", updated.MailboxIdentity);
         Assert.Equal("instructions-inbox", updated.InboxFolderIdentity);
         Assert.Equal("instructions-sent", updated.SentFolderIdentity);
+        Assert.Equal(request.FolderBindings, updated.FolderBindings);
         Assert.True(updated.IdentityIsBound);
         Assert.Equal(updated.MailboxIdentity, replay.MailboxIdentity);
         Assert.True(await policy.IsApprovedAsync(
@@ -99,16 +106,41 @@ public sealed class AdministrationPolicyPersistenceTests
                 request with { OperationKey = "approved-mailbox-stale-1" },
                 default));
 
+        var refreshed = await command.ExecuteAsync(
+            request with
+            {
+                ExpectedVersion = updated.Version,
+                FolderBindings =
+                [
+                    new(MailLogicalFolderType.Instructions, "folder-instructions-refreshed"),
+                    new(MailLogicalFolderType.Billing, "folder-billing"),
+                    new(MailLogicalFolderType.Other, "folder-other")
+                ],
+                Reason = "Refresh exact logical folder identities",
+                OperationKey = "approved-mailbox-refresh-1"
+            },
+            default);
+        Assert.Equal(updated.Version + 1, refreshed.Version);
+        Assert.Equal(
+            [
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Instructions, "folder-instructions-refreshed"),
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Billing, "folder-billing"),
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Other, "folder-other")
+            ],
+            refreshed.FolderBindings);
+
         var disabled = await command.ExecuteAsync(
             request with
             {
                 State = ApprovedMailboxState.Disabled,
-                ExpectedVersion = updated.Version,
+                ExpectedVersion = refreshed.Version,
+                FolderBindings = null,
                 Reason = "Disable both approved read routes",
                 OperationKey = "approved-mailbox-disable-1"
             },
             default);
         Assert.Equal(ApprovedMailboxState.Disabled, disabled.State);
+        Assert.Equal(refreshed.FolderBindings, disabled.FolderBindings);
         Assert.False(await policy.IsApprovedAsync(
             initial.Address,
             ApprovedMailboxRouteScope.InboundIntake,
@@ -135,5 +167,14 @@ public sealed class AdministrationPolicyPersistenceTests
         Assert.Equal(
             "instructions-mailbox",
             Assert.Single(await list.ExecuteAsync(actor, default)).MailboxIdentity);
+
+        var replayConflict = await Assert.ThrowsAsync<ApprovedMailboxUpdateException>(
+            () => command.ExecuteAsync(
+                request with
+                {
+                    FolderBindings = [new(MailLogicalFolderType.Other, "folder-other")]
+                },
+                default));
+        Assert.Equal(ApprovedMailboxUpdateError.OperationConflict, replayConflict.Error);
     }
 }
