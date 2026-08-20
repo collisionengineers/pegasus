@@ -4846,8 +4846,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<string>("ChannelBaseUrl")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ChannelTokenProtected")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<bool>("Enabled")
                         .HasColumnType("bit");
+
+                    b.Property<double?>("TimeoutSeconds")
+                        .HasColumnType("float");
+
+                    b.Property<DateTimeOffset?>("TokenRotatedAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("Version")
                         .IsConcurrencyToken()

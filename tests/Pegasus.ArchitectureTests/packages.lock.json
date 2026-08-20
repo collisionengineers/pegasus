@@ -1550,6 +1550,7 @@
           "Azure.Storage.Blobs": "[12.26.0, )",
           "Box.Sdk.Gen": "[1.12.0, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
+          "Microsoft.AspNetCore.DataProtection.Abstractions": "[10.0.10, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.10, )",
           "Microsoft.Graph": "[6.2.0, )",

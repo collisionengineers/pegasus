@@ -9,6 +9,11 @@ namespace Pegasus.Core.Operations;
 /// string "Unavailable" for Not ready and Held, and backed the Review tile with
 /// an intake-receipt count — a different entity entirely, and one that was
 /// cumulative for all time.
+///
+/// <see cref="NotReady"/> spans both Not ready case origins (INTK-013): a
+/// formal Case in CaseWorkflows (instruction-initiated) and an unmerged Image
+/// Intake still awaiting instruction (image-initiated), matching the rows the
+/// Queues page's Not ready tab lists for both origins combined.
 /// </remarks>
 public sealed record CaseStageCounts(int NotReady, int Review, int Held);
 
@@ -32,6 +37,11 @@ public sealed record CaseActivityCounts(
 /// <summary>
 /// What arrived, and what is waiting for a person.
 /// </summary>
+/// <remarks>
+/// <see cref="ReceivedToday"/> counts mailbox-channel intake only (PLAT-012):
+/// it backs the Dashboard's E-mail activity tile, so a manual upload — a
+/// different intake channel entirely — must not move it.
+/// </remarks>
 public sealed record MailActivityCounts(int ReceivedToday, int NeedsSorting)
 {
     /// <summary>Open Unidentified items; NeedsSorting remains read-only compatibility during rollout.</summary>

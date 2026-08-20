@@ -179,6 +179,39 @@ public sealed class AiWorkTests
         Assert.Equal("No longer needed", cancelled.ClosureReason);
     }
 
+    [Theory]
+    [InlineData("http://127.0.0.1:8629", true)]
+    [InlineData("http://localhost:9000/", true)]
+    [InlineData("https://127.0.0.1:8629", false)]
+    [InlineData("http://example.com/", false)]
+    [InlineData("http://127.0.0.1:8629/path", false)]
+    [InlineData("http://127.0.0.1:8629/?query=1", false)]
+    [InlineData("not-a-url", false)]
+    [InlineData(null, false)]
+    public void TheConnectorBaseUrlRuleAcceptsOnlyLoopbackHttpOrigins(
+        string? candidate,
+        bool expected)
+    {
+        Assert.Equal(expected, AiChannelConnectorRules.TryParseBaseUrl(candidate, out var parsed));
+        Assert.Equal(expected, parsed is not null);
+    }
+
+    [Theory]
+    [InlineData(0.5, false)]
+    [InlineData(1, true)]
+    [InlineData(60, true)]
+    [InlineData(61, false)]
+    public void TheConnectorTimeoutRuleBoundsSeconds(double seconds, bool expected) =>
+        Assert.Equal(expected, AiChannelConnectorRules.IsValidTimeoutSeconds(seconds));
+
+    [Fact]
+    public void TheConnectorTokenRuleRequiresThirtyTwoCharacters()
+    {
+        Assert.False(AiChannelConnectorRules.IsValidToken(null));
+        Assert.False(AiChannelConnectorRules.IsValidToken(new string('t', 31)));
+        Assert.True(AiChannelConnectorRules.IsValidToken(new string('t', 32)));
+    }
+
     private sealed class Harness
     {
         public FakeStore Store { get; } = new();

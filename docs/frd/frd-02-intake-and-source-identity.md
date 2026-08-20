@@ -34,8 +34,14 @@ not allocate a reference.
 Unidentified is open or resolved. Authorised staff resolution requires an operation
 key, expected version, reason, and one supported destination; it appends immutable
 history with actor, time, target, and before/after state. Replays return the original
-result; conflicting operation reuse fails closed. The U-reference is never accepted
-as a Case/PO, Audit, Image Intake, or principal identity.
+result; conflicting operation reuse fails closed. An open item whose origin receipt
+subsequently reaches a real destination — a formal Case, or a registered Image
+intake — is resolved automatically to that destination by the product's own
+reconciliation (in the receipt's own processing pass, and by a sweep for receipts
+promoted outside their own pass), with the destination recorded in the item's
+history; a receipt that is still legitimately unidentified is never force-closed.
+The U-reference is never accepted as a Case/PO, Audit, Image Intake, or principal
+identity.
 
 Every intake path must:
 
