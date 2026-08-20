@@ -19,3 +19,12 @@ Keep the existing dedicated operation state vocabulary and filtered index. A mat
 
 - A Pending row left by a process crash cannot be safely distinguished from a live call without a lease. This ticket deliberately refuses it rather than guessing; provider exceptions now transition to Uncertain before recovery, covering the known result path without adding a lease framework.
 - Concurrent Uncertain probes may duplicate reads but never the external move; this is unchanged and outside the blocker.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Kept the existing Pending/Uncertain outcomes, filtered active index, operation row, exception surface, probe recovery and BlockingFolderMover fixture.
+- **Simplification:** Split one combined replay condition and added one durable outcome save; no lease, timer, worker, wrapper, flag, new state, endpoint or generic framework.
+- **Efficiency:** Pending replay now performs zero provider reads/writes. Only the original call moves; Uncertain recovery remains a parent probe only.
+- **Altitude:** Infrastructure owns external-operation lifecycle; Core/Web contracts remain unchanged.
+- **Applied findings:** Pending is refused as still processing; provider exception persists Uncertain before recovery; exact overlap evidence covers same-key, new-key and completed replay.
+- **Unapplied findings:** none.
