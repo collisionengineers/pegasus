@@ -166,6 +166,147 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task OperationalAndDetailedViewsUseTheCurrentClassificationProjection()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var fixtures = new[]
+        {
+            ("receiving", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"), [], "fixture", "test", 1)),
+            ("queries", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"), [], "fixture", "test", 1)),
+            ("other", MailClassificationResult.Classified(
+                MailCategory.Other(MailDirection.Received, "supplier-newsletter", "No known class fits."), [], "fixture", "test", 1)),
+            ("unidentified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
+            ("triage", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, "triage-request"), [], "fixture", "test", 1)),
+            ("detailed", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.General, "autoreply"), [], "fixture", "test", 1))
+        };
+        foreach (var (key, classification) in fixtures)
+        {
+            var message = Message(key, subject: key);
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, classification);
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        foreach (var (key, destination) in new[]
+        {
+            ("receiving", MailOperationalDestination.ReceivingWork),
+            ("queries", MailOperationalDestination.Queries),
+            ("other", MailOperationalDestination.Other),
+            ("unidentified", MailOperationalDestination.Unidentified),
+            ("triage", MailOperationalDestination.Triage)
+        })
+        {
+            var item = Assert.Single((await queries.ListAsync(
+                new(null, MailFolderScope.Inbox, Destination: destination),
+                1,
+                25,
+                CancellationToken.None)).Items);
+            Assert.Equal(key, item.Subject);
+            Assert.Equal(destination, item.OperationalDestination?.Destination);
+            Assert.NotNull(item.Classification);
+        }
+
+        var detailed = Assert.Single((await queries.ListAsync(
+            new(
+                null,
+                MailFolderScope.Inbox,
+                DetailedClassification: MailCategory.Received(
+                    ReceivedMailFamily.General,
+                    "autoreply")),
+            1,
+            25,
+            CancellationToken.None)).Items);
+        Assert.Equal("detailed", detailed.Subject);
+        Assert.Equal(
+            MailOperationalDestination.DetailedClassification,
+            detailed.OperationalDestination?.Destination);
+    }
+
+    [Fact]
+    public async Task OperationalViewFiltersBeforeSqlCountAndPagingAndUsesCorrections()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var instruction = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            [],
+            "fixture",
+            "test",
+            1);
+        for (var index = 0; index < 6; index++)
+        {
+            var message = Message(
+                $"instruction-{index}",
+                subject: $"instruction-{index}",
+                receivedAtUtc: ReceivedAtUtc.AddMinutes(index));
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, instruction);
+        }
+        var correctedMessage = Message(
+            "corrected",
+            subject: "corrected",
+            receivedAtUtc: ReceivedAtUtc.AddMinutes(10));
+        await RetainAsync(database, correctedMessage);
+        var before = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.General, "autoreply"),
+            [],
+            "fixture",
+            "test",
+            1);
+        await StoreClassifiedReceiptAsync(database, correctedMessage, before);
+        var unrelated = Message("unrelated", subject: "unrelated");
+        await RetainAsync(database, unrelated);
+        await StoreClassifiedReceiptAsync(database, unrelated, before);
+
+        await using (var correctionScope = database.CreateAsyncScope())
+        {
+            var queries = correctionScope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+            var messageId = (await queries.ListAsync(
+                new(null, MailFolderScope.Inbox),
+                1,
+                25,
+                CancellationToken.None)).Items.Single(item => item.Subject == "corrected").Id;
+            await correctionScope.ServiceProvider
+                .GetRequiredService<IRetainedMailClassificationStore>()
+                .AppendCorrectionAsync(
+                    messageId,
+                    1,
+                    before,
+                    instruction,
+                    "staff:fixture",
+                    "Corrected fixture.",
+                    ReceivedAtUtc.AddMinutes(20),
+                    CancellationToken.None);
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var retained = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var first = await retained.ListAsync(
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.ReceivingWork),
+            1,
+            3,
+            CancellationToken.None);
+        var third = await retained.ListAsync(
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.ReceivingWork),
+            3,
+            3,
+            CancellationToken.None);
+
+        Assert.Equal(7, first.TotalCount);
+        Assert.Equal(3, first.TotalPages);
+        Assert.Equal(3, first.Items.Count);
+        Assert.Contains(first.Items, item => item.Subject == "corrected");
+        Assert.Single(third.Items);
+        Assert.DoesNotContain(first.Items.Concat(third.Items), item => item.Subject == "unrelated");
+    }
+
+    [Fact]
     public async Task SearchFiltersBeforePagingAndIdentifiesBodyFileNameAndProjectedContentMatches()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();

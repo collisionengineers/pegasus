@@ -44,6 +44,13 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "search")]
     public string? SearchTerm { get; set; }
 
+    [BindProperty(SupportsGet = true, Name = "queue")]
+    public string? QueueFilter { get; set; }
+
+    public MailOperationalDestination? DestinationFilter { get; private set; }
+
+    public MailCategory? DetailedClassificationFilter { get; private set; }
+
     public MailFolderScope Folder { get; private set; } = MailFolderScope.Inbox;
 
     public RetainedMailPage Results { get; private set; } =
@@ -71,6 +78,18 @@ public sealed class IndexModel(
         }
 
         Folder = folder;
+        if (!TryParseQueue(
+                QueueFilter,
+                out var normalizedQueue,
+                out var destination,
+                out var detailedClassification)
+            || (folder == MailFolderScope.DeletedItems && normalizedQueue is not null))
+        {
+            return NotFound();
+        }
+        QueueFilter = normalizedQueue;
+        DestinationFilter = destination;
+        DetailedClassificationFilter = detailedClassification;
         var mailbox = string.IsNullOrWhiteSpace(MailboxFilter) ? null : MailboxFilter.Trim();
         MailboxFilter = mailbox;
         var page = Math.Clamp(PageNumber ?? 1, 1, 10_000);
@@ -111,7 +130,12 @@ public sealed class IndexModel(
             {
                 Results = await listRetainedMail.ExecuteAsync(
                     actor,
-                    new(mailbox, folder, SearchTerm),
+                    new(
+                        mailbox,
+                        folder,
+                        SearchTerm,
+                        DestinationFilter,
+                        DetailedClassificationFilter),
                     page,
                     PageSize,
                     cancellationToken);
@@ -199,11 +223,105 @@ public sealed class IndexModel(
         ["mailbox"] = MailboxFilter,
         ["folder"] = FolderRouteValue,
         ["search"] = SearchTerm,
+        ["queue"] = QueueFilter,
         ["pageNumber"] = Results.Page > 1
             ? Results.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : DeletedResults?.Page > 1
                 ? DeletedResults.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : null
+    };
+
+    public sealed record MailViewOption(
+        string Value,
+        string Label,
+        MailOperationalDestination? Destination = null);
+
+    public static IReadOnlyList<MailViewOption> AggregateViews { get; } =
+        Enum.GetValues<MailOperationalDestination>()
+            .Where(destination => destination != MailOperationalDestination.DetailedClassification)
+            .Select(destination => new MailViewOption(
+                DestinationKey(destination),
+                OperatorLabels.MailOperationalDestinationLabel(destination),
+                destination))
+            .ToArray();
+
+    public static IReadOnlyList<MailViewOption> DetailedViews { get; } =
+        MailClassificationSelection.Options
+            .Select(option => new
+            {
+                Option = option,
+                Parsed = MailClassificationSelection.TryParse(
+                    option.Value,
+                    otherName: null,
+                    otherReasoning: null,
+                    out var category)
+                    ? category
+                    : null
+            })
+            .Where(item => item.Parsed is not null
+                && MailOperationalDestinationPolicy.Map(item.Parsed).Destination
+                    == MailOperationalDestination.DetailedClassification)
+            .Select(item => new MailViewOption(
+                $"classification:{item.Option.Value}",
+                item.Option.Label))
+            .ToArray();
+
+    internal static bool TryParseQueue(
+        string? value,
+        out string? normalized,
+        out MailOperationalDestination? destination,
+        out MailCategory? detailedClassification)
+    {
+        normalized = null;
+        destination = null;
+        detailedClassification = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        var candidate = value.Trim();
+        foreach (var option in AggregateViews)
+        {
+            if (!string.Equals(option.Value, candidate, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            normalized = option.Value;
+            destination = option.Destination;
+            return true;
+        }
+
+        const string prefix = "classification:";
+        if (!candidate.StartsWith(prefix, StringComparison.Ordinal)
+            || !MailClassificationSelection.TryParse(
+                candidate[prefix.Length..],
+                otherName: null,
+                otherReasoning: null,
+                out var category)
+            || category is null
+            || MailOperationalDestinationPolicy.Map(category).Destination
+                != MailOperationalDestination.DetailedClassification)
+        {
+            return false;
+        }
+
+        normalized = $"{prefix}{candidate[prefix.Length..]}";
+        detailedClassification = category;
+        return true;
+    }
+
+    private static string DestinationKey(MailOperationalDestination destination) => destination switch
+    {
+        MailOperationalDestination.ReceivingWork => "receiving-work",
+        MailOperationalDestination.Queries => "queries",
+        MailOperationalDestination.Other => "other",
+        MailOperationalDestination.Unidentified => "unidentified",
+        MailOperationalDestination.Triage => "triage",
+        MailOperationalDestination.DetailedClassification => throw new ArgumentException(
+            "Detailed views use a canonical classification key.",
+            nameof(destination)),
+        _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
     };
 
     public static string MatchLabel(RetainedMailSearchMatch match) => match.Kind switch

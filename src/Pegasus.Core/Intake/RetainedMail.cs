@@ -23,7 +23,9 @@ public enum MailFolderScope
 public sealed record MailWorkspaceScope(
     string? MailboxId,
     MailFolderScope Folder,
-    string? SearchTerm = null);
+    string? SearchTerm = null,
+    MailOperationalDestination? Destination = null,
+    MailCategory? DetailedClassification = null);
 
 public enum MailSearchMatchKind
 {
@@ -56,7 +58,9 @@ public sealed record RetainedMailSummary(
     string? CaseReference,
     IntakeAllocationState? AllocationState = null,
     IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,
-    MailLogicalFolderType? CurrentFolderType = null)
+    MailLogicalFolderType? CurrentFolderType = null,
+    MailClassificationResult? Classification = null,
+    MailOperationalDestinationResult? OperationalDestination = null)
 {
     public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
 }
@@ -410,6 +414,27 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
             throw new ArgumentOutOfRangeException(
                 nameof(scope),
                 "The mail folder scope is not recognized.");
+        }
+        if (scope.Destination is not null && scope.DetailedClassification is not null)
+        {
+            throw new ArgumentException(
+                "Choose either an operational destination or one detailed classification.",
+                nameof(scope));
+        }
+        if (scope.Destination is { } destination)
+        {
+            _ = MailOperationalDestinationPolicy.Query(destination);
+        }
+        if (scope.DetailedClassification is { } detailedClassification)
+        {
+            detailedClassification.ValidateCanonical();
+            if (MailOperationalDestinationPolicy.Map(detailedClassification).Destination
+                != MailOperationalDestination.DetailedClassification)
+            {
+                throw new ArgumentException(
+                    "The selected classification does not have its own detailed mail view.",
+                    nameof(scope));
+            }
         }
         var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
         if (scope.MailboxId is { } mailboxId

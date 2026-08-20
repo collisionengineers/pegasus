@@ -1177,7 +1177,8 @@ creates exactly one Case/reference. Incomplete ordinary data, images, or
 applicable progression requirements yield **Not ready**; **Review** follows
 only when the explicit route policy permits it. `Blocked intake` with a
 required reason creates no Case/reference when an identity-critical gate fails;
-fail-closed `Needs sorting` remains Unidentified work. Resolve/retry re-enters the same
+unmatched received mail remains Unidentified, while Triage, Blocked intake, and
+incomplete Audit evidence retain their distinct meanings. Resolve/retry re-enters the same
 path and may create exactly one Case/reference only after it establishes the
 identity-critical facts. Manual image/instruction link and reasoned reversal
 retain original origins.
