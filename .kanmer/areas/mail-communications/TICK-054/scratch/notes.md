@@ -1,0 +1,7 @@
+## Research refresh — 2026-08-20
+
+Inspected `origin/dev` at `b36c66662288adb0727299276f675337442a1e22`, TICK-054's full document set, TICK-049/MAIL-07 research and files, TICK-053/UI-10/AUTO overlap maps, both epic contexts, FRD-04/08, operator notes, design, runbook, capabilities, current Graph reader, retained-mail entities/query/Web caller, and focused tests. Confirmed current Graph client is GET-only and production documents Mail.Read only. Confirmed retained `IsRead` is a write-once arrival fact; categories, flag and current Graph change/version are not persisted.
+
+Official Graph v1 evidence checked: message PATCH supports `isRead`, `categories` and `flag` and requires Mail.ReadWrite; move to `deleteditems` is the reversible delete shape and returns a message; `permanentDelete` is a separate POST returning 204 and places the item in Purges, where ordinary clients cannot access it; immutable message IDs remain stable for moves inside the same mailbox only when every relevant request uses `Prefer: IdType="ImmutableId"`.
+
+Found two unresolved product-authority blockers. The ticket's 2026-08-19 decision requests permanent deletion, but protected `docs/operator-notes.md`, FRD-04, accepted ADR-0004 and design all say no application surface permits permanent deletion. Also no canonical list/owner for “approved Outlook categories” exists. Added both as open questions rather than silently choosing behavior.
