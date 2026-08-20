@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Resolve actor display names for the Automation activity and case summary
   surfaces
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-20T03:27:58.836Z'
+branch: task/plat-011-actor-display-names
+worktree: ../pegasus-worktrees/plat-011
 labels:
   - ui
   - design
@@ -19,7 +22,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-19T23:48:17.177Z'
-updated: '2026-08-19T23:48:17.177Z'
+updated: '2026-08-20T03:27:58.836Z'
 ---
 
 ## What

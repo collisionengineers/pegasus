@@ -2,10 +2,13 @@
 id: PLAT-013
 type: ticket
 title: Stop the Functions worker SIGABRT crash loop (dotnet exit 134)
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-20T03:27:48.861Z'
+branch: task/plat-013-worker-sigabrt
+worktree: ../pegasus-worktrees/plat-013
 labels:
   - defect
   - worker
@@ -16,7 +19,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-20T03:25:25.690Z'
-updated: '2026-08-20T03:25:25.690Z'
+updated: '2026-08-20T03:27:48.861Z'
 ---
 
 ## What

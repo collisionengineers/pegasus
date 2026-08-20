@@ -2,10 +2,12 @@
 id: MAIL-003
 type: ticket
 title: Fix PollSentEvidence rejecting the correctly approved mailbox
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-20T03:27:23.549Z'
 labels:
   - defect
   - sent-evidence
@@ -16,7 +18,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-20T03:25:25.713Z'
-updated: '2026-08-20T03:25:25.713Z'
+updated: '2026-08-20T03:27:23.549Z'
 ---
 
 ## What
