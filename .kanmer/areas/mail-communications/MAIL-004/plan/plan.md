@@ -24,3 +24,12 @@ No Graph master-category read/write/sync, ids/colors, message mutation, search/f
 ## Simplification pass
 
 To be recorded after implementation.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** reused the existing StaffAuthorization management-right pattern, serializable ActionHistory/replay shape, administration page/index/form conventions, EF administration model, runtime-grant matrix, route inventory and browser accessibility lane.
+- **Simplification:** kept one global two-state catalogue and one narrow management store; separated the Active-only resolver port so MAIL-13 cannot receive list/update authority. No generic settings/rules framework or mailbox-category join.
+- **Efficiency:** list/order and exact-id Active lookup are direct indexed EF queries; duplicate enforcement uses one normalized unique index. Catalogue size is operator-bounded and no Graph polling/sync exists.
+- **Altitude:** Core owns validation/authorization/Active reload; Infrastructure owns EF/history; Web owns thin Administrator forms. No retained-mail, search, association, Graph, Automation or message-action code changed.
+
+Applied finding: added the new route to the existing canonical authorization, antiforgery and browser axe inventories rather than adding parallel page-only accessibility machinery. No unapplied findings.
