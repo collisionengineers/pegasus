@@ -60,3 +60,7 @@ Implementation confirmed two internal inconsistencies in linked FRD-08: the tria
 - **Altitude:** one finding applied. A focused hostile-`@odata.nextLink` test now proves the Infrastructure adapter fails closed before leaving the exact approved-mailbox path. Business vocabulary/mapping/validation remain in Core, transport traversal and EF persistence in Infrastructure, and Web only composes the approved action.
 
 No unapplied simplification findings. The final handwritten change remains within the estimated 500–800 lines; generated migration metadata is mechanical.
+
+### Delivery-gate follow-up — 2026-08-20
+
+The first PR `changes` gate found one additional altitude/reuse requirement: the new grant-carrying migration must extend the existing exhaustive Azure bootstrap permission matrix. Added the exact Web-only `SELECT`, `INSERT`, and `DELETE` entries to `scripts/Invoke-AzureDatabaseBootstrap.ps1`; no Worker grant was added because there is no Worker caller. `Test-AzureDeploymentPlan.ps1 -Mode Local` and `Test-MigrationGrants.ps1` both pass. This is an applied finding; none remains unapplied.

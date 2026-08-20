@@ -52,3 +52,7 @@ On merged `dev`/release candidate, run:
 - focused Integration `GraphApprovedMailboxResolverTests`, `LocalApprovedMailboxIdentityResolverTests`, `AdministrationPolicyPersistenceTests`, `ApprovedMailboxAdministrationWebTests`, and `CommittedMigrationCreatesTheSqlServerSchema`
 
 For UI evidence, use the offline/local resolver and capture the Mailboxes administration page showing canonical configured/unconfigured labels and the administrator refresh action. Do not use a live Outlook mailbox without separate exact-target approval. Expected result: no folder identity is rendered, refresh accepts no client-supplied folder id, and Graph fakes observe GET only.
+
+## Delivery-gate addendum — 2026-08-20
+
+The first PR repository check identified the existing exhaustive Azure bootstrap permission matrix as an additional changed file. `scripts/Invoke-AzureDatabaseBootstrap.ps1` now accounts for migration `20260820100056_ApprovedMailboxLogicalFolderBindings` with the exact Web-only `SELECT`, `INSERT`, and `DELETE` grants; the Worker has no caller and no grant. Commit `b6754dd8` contains the correction. Local `Test-AzureDeploymentPlan.ps1 -Mode Local` passes, and `Test-MigrationGrants.ps1` passes across 58 migration files. The initial shard-coverage check failed only because the failed changes gate skipped its producer shards; the new push reruns the workflow.
