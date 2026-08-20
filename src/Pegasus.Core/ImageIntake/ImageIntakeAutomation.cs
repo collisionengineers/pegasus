@@ -257,7 +257,7 @@ public sealed class ImageIntakeAutomation(
         // Unidentified path while the group could still resolve.
         var registered = await TryRegisterGroupAsync(
             group,
-            imageReceipts,
+            imageReceipts[0],
             scans,
             routing,
             eligibleCases,
@@ -301,7 +301,7 @@ public sealed class ImageIntakeAutomation(
     /// </remarks>
     private async Task<bool> TryRegisterGroupAsync(
         IntakeSubmissionGroup group,
-        IntakeReceipt[] imageReceipts,
+        IntakeReceipt primary,
         IReadOnlyList<(IntakeReceipt Receipt, IReadOnlyList<ImageVrmSuggestion> Suggestions)> scans,
         ImageIntakeGroupRoutingResult routing,
         IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases,
@@ -314,7 +314,6 @@ public sealed class ImageIntakeAutomation(
             routing.Decision == ImageIntakeGroupRoutingDecision.AssociateExistingCase;
         try
         {
-            var primary = imageReceipts[0];
             var origin = await originResolver.ResolveOriginAsync(primary.Id, cancellationToken);
             if (origin is null)
             {
@@ -322,25 +321,12 @@ public sealed class ImageIntakeAutomation(
                 return false;
             }
 
-            // Candidate selection mirrors the single-receipt path: an exact
-            // confirmed registration wins; otherwise the single one-missing-
-            // character candidate completes the truncated read with its
-            // confirmed value. The group's routing decision already fixed
-            // WHETHER association happens; this only fixes WHICH value is
-            // registered.
-            IReadOnlyList<ImageIntakeCaseCandidate> candidates =
-                associationAllowed ? eligibleCases : [];
-            var exactMatches = candidates
-                .Where(candidate => string.Equals(
-                    candidate.ConfirmedRegistration,
-                    read,
-                    StringComparison.Ordinal))
-                .ToArray();
-            var target = exactMatches.Length == 1
-                ? exactMatches[0]
-                : exactMatches.Length == 0 && candidates.Count == 1
-                    ? candidates[0]
-                    : null;
+            // The group's routing decision already fixed WHETHER
+            // association happens; the selection below only fixes WHICH
+            // value is registered.
+            var target = SelectAssociationTarget(
+                associationAllowed ? eligibleCases : [],
+                read);
             var registration = target?.ConfirmedRegistration ?? read;
             var reason = target is not null
                 && !string.Equals(registration, read, StringComparison.Ordinal)
@@ -388,6 +374,30 @@ public sealed class ImageIntakeAutomation(
             activity?.SetTag("image_intake.outcome", "registration_failed");
             return false;
         }
+    }
+
+    /// <summary>
+    /// The one Case a confident read may register and associate against: an
+    /// exact confirmed registration wins; otherwise a lone candidate
+    /// completes a truncated read with its confirmed value. Ambiguity of any
+    /// kind resolves to none.
+    /// </summary>
+    private static ImageIntakeCaseCandidate? SelectAssociationTarget(
+        IReadOnlyList<ImageIntakeCaseCandidate> candidates,
+        string read)
+    {
+        var exactMatches = candidates
+            .Where(candidate => string.Equals(
+                candidate.ConfirmedRegistration,
+                read,
+                StringComparison.Ordinal))
+            .ToArray();
+        if (exactMatches.Length == 1)
+        {
+            return exactMatches[0];
+        }
+
+        return exactMatches.Length == 0 && candidates.Count == 1 ? candidates[0] : null;
     }
 
     private static bool IsImageOnly(IntakeReceipt receipt) =>
@@ -529,28 +539,14 @@ public sealed class ImageIntakeAutomation(
                 return null;
             }
 
-            // Candidate selection before registration: an exact confirmed
-            // registration wins; otherwise a single one-missing-character
-            // candidate completes the truncated read with its confirmed
-            // value (operator-directed 2026-08-03) — the case's
+            // Candidate selection before registration: the case's
             // instruction-supplied registration is the registered identity,
-            // never the incomplete read. Ambiguity of any kind means no
-            // automatic association.
+            // never the incomplete read (operator-directed 2026-08-03).
             var candidates = receipt.CurrentCaseId is null
                 ? await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken)
                 : [];
             activity?.SetTag("image_intake.case_candidates", candidates.Count);
-            var exactMatches = candidates
-                .Where(candidate => string.Equals(
-                    candidate.ConfirmedRegistration,
-                    read,
-                    StringComparison.Ordinal))
-                .ToArray();
-            var target = exactMatches.Length == 1
-                ? exactMatches[0]
-                : exactMatches.Length == 0 && candidates.Count == 1
-                    ? candidates[0]
-                    : null;
+            var target = SelectAssociationTarget(candidates, read);
             var registration = target?.ConfirmedRegistration ?? read;
             var reason = target is not null
                 && !string.Equals(registration, read, StringComparison.Ordinal)
