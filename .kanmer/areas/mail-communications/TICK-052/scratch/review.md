@@ -46,3 +46,23 @@ Repository run `32416440980`: changes, documentation, local-development-scripts,
 ### Verdict
 
 **Needs changes; do not merge.** [[PR-048]] and [[PR-050]] are resolved at this head. [[PR-049]]'s normal compensation path is resolved but its release-failure edge is now [[PR-052]]. [[PR-051]] must bind preparation authority to the exact message/receipt and exact action. Replacement CI run `32419589093` was still running when this behaviorally blocking verdict was recorded; green CI cannot resolve these findings.
+
+## Final independent re-review — 2026-08-20 — PASS
+
+Reviewed PR #490 at exact head `563bb2ecfbbcb5070080d6d9c5b08791abe08b2b` against the complete TICK-052 and group documents, plan, checklist, PIR, full six-file diff, and simplicity rails.
+
+### Changes and dispositions
+
+- PR-048 — fixed in PR: prepared confirmations are replay-safe and fingerprint-conflicting changes are refused; exact successful replays do not duplicate history.
+- PR-049 — fixed in PR: definitive association failures compensate the existing lease without changing uncertain-outcome retry behaviour.
+- PR-050 — fixed in PR: an exactly-one search result is one accessible link whose name includes the case identity.
+- PR-051 — fixed in PR: protected authority is bound to the exact message, server-derived receipt, Link/Unlink action, case, versions, lease token, and operation key. Cross-message and cross-action substitutions fail before Core mutation and compensate the prepared lease.
+- PR-052 — fixed in PR: transient release failure preserves the protected exact confirmation for retry; roleless requests are forbidden before consuming it; confirmed or definitive compensation clears it.
+- Existing stale-version, role/auth, replay, and history behaviour remains covered.
+- The Mail page remains a thin caller over canonical bounded UploadCaseDecision suggestions and existing IGetCase/IGetIntake, lease, LinkIntake, and ReverseIntakeLink ports. The workflow is exact unassociated link, reasoned unlink, then separate search/summarize/confirm/reason replacement link; no active-to-active swap was introduced.
+- Scope is exact: Razor/page-model/tests plus capability and current-architecture updates. No Core, EF, schema, migration, permission-provider, or generic framework growth.
+- PIR matches the six-file diff. The dated four-lens simplification pass is proportionate and records no unapplied findings.
+
+CI run `32421520046` passed in full at this SHA: changes, documentation, local-development-scripts, reference-data, unit, browser, all three SQL integration shards, and SQL integration coverage. Infrastructure was correctly skipped by path classification.
+
+Verdict: PASS; no blocking findings remain.
