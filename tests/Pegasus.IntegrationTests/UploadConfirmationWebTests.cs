@@ -155,6 +155,10 @@ public sealed class UploadConfirmationWebTests
         Guid originReceiptId;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
+            // The members' drain order can leave one member's group outcome
+            // pending for the Worker's reconcile sweep; run it as the Worker
+            // would so the test observes the group's settled state.
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(scope.ServiceProvider);
             var detail = await scope.ServiceProvider
                 .GetRequiredService<IImageIntakeQueries>()
                 .GetByOriginReceiptAsync(memberReceiptId, CancellationToken.None);
@@ -218,7 +222,7 @@ public sealed class UploadConfirmationWebTests
         // surface carries no add-to-case decision for this file.
         Assert.DoesNotContain("Add to an existing case", statusPage, StringComparison.Ordinal);
         Assert.Contains("Not the right case?", statusPage, StringComparison.Ordinal);
-        _ = caseId;
+        Assert.Contains($"/Cases/Details/{caseId:D}", statusPage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
