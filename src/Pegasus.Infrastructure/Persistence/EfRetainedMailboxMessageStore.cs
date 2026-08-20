@@ -118,7 +118,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                     receipt.SourceChannel == "mailbox"
                     && receipt.ExternalReceiptToken == item.ExternalReceiptToken
                     && receipt.SearchDocuments.Any(document =>
-                        document.Text != null && document.Text.Contains(searchTerm))));
+                        document.AttachmentFileName != null
+                        && document.Text != null
+                        && document.Text.Contains(searchTerm))));
         }
 
         // Counted and paged in SQL. Reading every row to take twenty-five of them

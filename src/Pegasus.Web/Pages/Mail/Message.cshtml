@@ -236,6 +236,7 @@ else if (Model.ActiveSection == "attachments")
                             <th scope="col">File</th>
                             <th scope="col">Type</th>
                             <th scope="col">Size</th>
+                            <th scope="col">Search content</th>
                             <th scope="col">Custody</th>
                         </tr>
                     </thead>
@@ -246,6 +247,7 @@ else if (Model.ActiveSection == "attachments")
                             <td>@attachment.FileName</td>
                             <td>@attachment.MediaType</td>
                             <td class="tabular">@OperatorLabels.FileSize(attachment.ContentLength)</td>
+                            <td>@OperatorLabels.AttachmentSearchability(attachment.IsSearchable)</td>
                             @* The row exists because the attachment was kept, so
                                custody is a fact of the row rather than a lookup. *@
                             <td><partial name="Shared/_StatusChip" model="@("Retained")" /></td>
