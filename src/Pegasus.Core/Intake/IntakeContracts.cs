@@ -386,7 +386,8 @@ public sealed record IntakeReceipt(
     CaseMatchEvaluationResult? CaseMatchDecision = null,
     IntakeAllocationState? AllocationState = null,
     string? AcceptedCaseReference = null,
-    string? ManualLinkedCaseReference = null)
+    string? ManualLinkedCaseReference = null,
+    ActorKind? ManualAssociationActorKind = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 

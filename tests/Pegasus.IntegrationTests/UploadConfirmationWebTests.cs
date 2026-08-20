@@ -93,7 +93,7 @@ public sealed class UploadConfirmationWebTests
         var receiptId = IntakeWebDriver.ReceiptId(processed);
 
         var statusPage = await GetAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
-        Assert.Contains("No matching case found", statusPage, StringComparison.Ordinal);
+        Assert.Contains("No existing case matched this", statusPage, StringComparison.Ordinal);
         Assert.Contains("Add to an existing case", statusPage, StringComparison.Ordinal);
         Assert.Contains("Cancel", statusPage, StringComparison.Ordinal);
 
@@ -164,7 +164,7 @@ public sealed class UploadConfirmationWebTests
         }
 
         var groupPage = await GetAsync(client, $"/Upload/Group/{groupId:D}");
-        Assert.Contains("Registered as a new vehicle-image case", groupPage, StringComparison.Ordinal);
+        Assert.Contains("registered as a new vehicle-image case", groupPage, StringComparison.Ordinal);
         Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
 
         // The typed-reference route: the form works without script, so the

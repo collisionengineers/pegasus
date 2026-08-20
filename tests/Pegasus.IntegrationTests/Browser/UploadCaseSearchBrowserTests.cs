@@ -40,6 +40,10 @@ public sealed class UploadCaseSearchBrowserTests
 
         var stagedReceiptId = Guid.Parse(
             new Uri(support.Page.Url).AbsolutePath.Split('/').Last());
+        // Park the tab: the still-working status page reloads itself every
+        // two seconds, and that self-reload can race the deliberate
+        // navigation below into a dropped response.
+        await support.Page.GotoAsync("about:blank");
         await using (var scope = support.Services.CreateAsyncScope())
         {
             await IntakeWebDriver.DrainStagedAsync(scope.ServiceProvider, stagedReceiptId);
