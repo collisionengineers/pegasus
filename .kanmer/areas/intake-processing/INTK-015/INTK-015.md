@@ -4,10 +4,13 @@ type: ticket
 title: >-
   One grouped upload yields one Image-initiated Case, promptly, without a
   per-image case explosion
-status: backlog
+status: preparing
 area: intake-processing
-assignee: ''
+assignee: group-lane
 profile: fix
+taken_at: '2026-08-20T03:27:07.899Z'
+branch: task/intk-015-group-registration-unit
+worktree: ../pegasus-worktrees/intk-015
 labels:
   - defect
   - grouped-upload
@@ -23,7 +26,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-20T03:16:37.547Z'
-updated: '2026-08-20T03:16:37.547Z'
+updated: '2026-08-20T03:27:07.899Z'
 ---
 
 ## What
