@@ -62,3 +62,11 @@ The complete replacement CI run is green: changes, documentation, reference-data
 ### Verdict
 
 **Pass.** Both prior blockers are resolved, evidence is green, and PR #468 may merge to `dev`. TICK-064 then moves one stage to Verifying; proof, main promotion, live verification, and closeout remain out of scope.
+
+Independent post-merge review (claude-code, release-14 orchestrator, 2026-08-20 ~11:55Z) — PR #468 at fb42ce15:
+- Scope matches MAIL-23's narrow local-configuration exception: read-only logical-folder binding display + Administrator-initiated resolve on the existing Mailboxes surface. No Outlook write path exists (zero move/mutation calls in MailLogicalFolderPolicy or GraphApprovedSources); the mailbox-mutation invariant holds.
+- docs/design/README.md exception text is conservative and self-limiting (explicitly not a deployment claim or live-write authority; MAIL-05/06/07 stay gated). Note: it cites an operator programme review on 2026-08-20 — I could not independently verify that citation; flagged to the operator in the release report.
+- Migration 20260820100056_ApprovedMailboxLogicalFolderBindings carries the runtime grant; migration census 58/58 exact; bootstrap census updated; Test-MigrationGrants passes.
+- New markup shows labels + Configured/Not configured only — no identifiers (MAIL-002 compliance preserved).
+- One convention regression found and fixed on the release branch (PR #472): the refresh form inlined Guid.NewGuid().ToString("N") instead of StaffPageModel.NewOperationKey (view files escape the architecture guard, which scans page models only).
+- Included in release 14 as part of the dev head; ticket lifecycle remains with its owner.
