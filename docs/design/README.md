@@ -793,6 +793,13 @@ There is no alpha control, route or placeholder for:
 
 Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.
 
+The narrow MAIL-23 local configuration exception activated after operator programme
+review on 2026-08-20 is the existing Administrator Mailboxes surface: it may resolve
+and display configured/unconfigured logical-folder bindings read-only for an already
+approved mailbox. It is not an ordinary staff mailbox workspace, message-level folder
+recommendation/confirmation/move control, deployment claim, or authority for a live
+Outlook write; MAIL-05, MAIL-06, and MAIL-07 remain deferred to their own gates.
+
 ### Deferred casework and advanced surfaces
 
 There is no alpha control, route or placeholder for:
@@ -1041,7 +1048,9 @@ Production email allocated `Next / 0.3.0` appears only after its gates; every
 deferred `Next` or `Later` capability carries its exact target in the [capability
 inventory](../capabilities.md#capabilities). Deferred capabilities have no alpha
 placeholder route or control — except the recorded routeless UI-15/AI-09 review
-artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces).
+artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces),
+and the explicitly activated local administrator-only MAIL-23 binding configuration
+described in [Deferred integration and intake surfaces](README.md#deferred-integration-and-intake-surfaces).
 
 The Development/local email evaluator is separately owned and has no QDOS-alpha
 route, navigation, control, `unchecked`/`checked` workbench, review-report
