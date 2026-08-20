@@ -1,30 +1,15 @@
-# Research — EVAL-05 rule-generated category beside human review (retrospective backfill, VERIFY2 lane, 2026-08-20)
+## Research (VERIFY2, 2026-08-20) — genuinely PARTIAL, stopping here
 
-**Read-only verification backfill.** Verdict: **NOT built in its owning surface — ticket stays at preparing.**
+**Correction to an earlier hypothesis (this run's capability-survey doc):** EVAL-05 is NOT satisfied by the in-app `MailClassificationSelection` panel. Per `docs/capabilities.md`'s own EVAL-05 row and ADR-0016, this belongs to the standalone `scripts/email-eval-desktop/` desktop evaluator (see [[TICK-004]]'s research for the shared background).
 
-## Ownership
+**Capability text (`docs/capabilities.md:79`):** "Display the rule-generated category and evidence beside the human review once rules exist" — explicitly conditional on rules existing.
 
-Same as EVAL-02 ([[TICK-004]]): the FRD's "QDOS-alpha evaluation boundary" section assigns EVAL-05 to the **standalone desktop evaluator** (ADR-0016), explicitly *not* the shipped Mail UI. Capability text: "Display the rule-generated category and evidence beside the human review **once rules exist**".
+**What exists:** the desktop evaluator has a display slot for a rule-generated suggestion — `EmailEvaluationWorkflow.EvaluationSnapshot.Suggestion` (`EmailEvaluationWorkflow.cs:16,55`: `"Suggested: {suggestion}"`), rendered in `MainForm.cs`, and the workflow is constructed with an `IInstructionExtractionPolicy extractionPolicy` dependency (`EmailEvaluationWorkflow.cs:26,39,46`) evidently intended to supply that suggestion.
 
-## What exists
+**What is genuinely missing:** `suggestion` is assigned `null` at every call site in `EmailEvaluationWorkflow.cs` (lines 66, 120, 195, 231) and is never assigned from `extractionPolicy` or any other rule engine in `LoadCurrentAsync` (`:191-220`) — the field that is meant to carry evidence is coded but never populated. The UI always shows `"Suggested: No category"` (confirmed by `tests/DesktopEvaluatorTests.cs:46`, which asserts exactly that string). The injected `extractionPolicy` is unused for this purpose.
 
-- The evaluator has the display slot wired: `EvaluationSnapshot.Suggestion` (`scripts/email-eval-desktop/EmailEvaluationWorkflow.cs:16-18,53-59`) renders as "Suggested: …" in the UI.
-- But `suggestion` is **only ever assigned `null`** (lines 66, 120, 195, 231) — the UI always shows "Suggested: No category". No rule engine feeds it.
+**Is this excused by "once rules exist"?** No, not cleanly. QDOS-direct classification predicates now exist elsewhere in Pegasus.Core (ADR-0020, MAIL-21/22, `MailClassificationSelection`) — rules of the relevant kind DO exist in the application today. But EVAL-05's own scope is specifically the standalone desktop evaluator surfacing "the rule-generated category and evidence" beside the human review inside that tool, and nothing wires the desktop tool to any rule source (Core's classification predicates or otherwise). The gap is real: the display mechanism is present but inert.
 
-## Adjacent but not this capability
+**This matches the ticket's own pre-existing `checklist.md`** (migrated from TICK-008), which already has the exact unchecked item: "Record the rule-generated category and evidence beside the human review." — unaltered.
 
-The shipped Mail message page *does* display rule-generated classification evidence beside the human correction form — `src/Pegasus.Web/Pages/Mail/Message.cshtml:78-99` ("Classification evidence": Policy/PolicyVersion/Reason/Predicates from `MailClassificationResult`, `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs:230-244`) directly above the "Correct classification" form (`:101-131`). That satisfies EVAL-05's *words* but on the wrong surface — it is MAIL-21/22 (QDOS) delivery, and the FRD forbids counting QDOS surfaces as evaluator evidence.
-
-## The gap
-
-1. No rule engine exists in the evaluator; the suggestion slot is permanently null. The capability's own condition "once rules exist" is unmet — arguably EVAL-05 is not yet *due*, but it is certainly not *done*.
-2. Any implementation should reuse the Core mail classification policy (`MailClassificationResult` with Predicates/PolicyKey/PolicyVersion) as the rule source rather than inventing a second rules engine (one Core owner) — the evaluator would call shared Core policy and populate `Suggestion` from it.
-3. Blocked in practice by the same startability defect as EVAL-02 (deleted taxonomy source file — see [[TICK-004]] research).
-
-## What implementation needs
-
-- Wire `EvaluationSnapshot.Suggestion` to the shared Core mail classification policy output, including evidence (predicates + policy version) beside the human decision.
-- Depends on [[TICK-004]]'s catalog re-sourcing fix.
-- Acceptance evidence: an evaluation session showing a rule-suggested category with evidence rendered beside a recorded human review.
-
-Premises verified read-only: all code quotes from origin/dev via `git show`; null-assignment claim from full read of `EmailEvaluationWorkflow.cs`.
+**Verdict: genuinely PARTIAL.** Per this run's operating instructions, the ticket stays at `preparing` with the gap named here, rather than being walked further. What activation would need: wire `EmailEvaluationWorkflow.LoadCurrentAsync` to call a rule/predicate source (most naturally the same `IInstructionExtractionPolicy`/QDOS predicate surface already injected but unused) and populate `suggestion` with its result plus supporting evidence text before the reviewer sees the message.

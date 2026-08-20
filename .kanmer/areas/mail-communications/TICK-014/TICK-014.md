@@ -2,10 +2,12 @@
 id: TICK-014
 type: ticket
 title: MAIL-16 — Automatically match the exact report Sent item to its case
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T05:43:44.941Z'
 labels:
   - capability
   - MAIL-16
@@ -14,9 +16,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:53.047Z'
-updated: '2026-08-17T06:41:35.662Z'
+updated: '2026-08-20T05:43:44.941Z'
 ---
 
 ## What
