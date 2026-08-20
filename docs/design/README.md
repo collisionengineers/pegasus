@@ -793,12 +793,13 @@ There is no alpha control, route or placeholder for:
 
 Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.
 
-The narrow MAIL-23 local configuration exception activated after operator programme
-review on 2026-08-20 is the existing Administrator Mailboxes surface: it may resolve
-and display configured/unconfigured logical-folder bindings read-only for an already
-approved mailbox. It is not an ordinary staff mailbox workspace, message-level folder
-recommendation/confirmation/move control, deployment claim, or authority for a live
-Outlook write; MAIL-05, MAIL-06, and MAIL-07 remain deferred to their own gates.
+The narrow MAIL-23/MAIL-05 local exception activated after operator programme
+review on 2026-08-20 keeps the existing Administrator Mailboxes surface as the
+configured/unconfigured logical-folder binding owner, and lets authenticated staff
+message detail display the current policy-designated logical folder read-only. The
+opaque Outlook folder identity remains hidden. This is not a confirmation/move
+control, deployment claim, or authority for a live Outlook write; MAIL-06 and MAIL-07
+remain deferred to their own gates.
 
 ### Deferred casework and advanced surfaces
 
