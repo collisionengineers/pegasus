@@ -25,3 +25,5 @@ The PIR's 13-path inventory exactly matches the PR diff and its no-schema/no-sto
 ### Verdict
 
 **Needs changes.** Do not merge at 4b851ded. Re-review after PR-053 and PR-054 land on PR #491 and replacement full CI is green.
+
+CI state at needs-changes handoff: on run 32425757561 for reviewed head 4b851ded, changes, documentation, local-development-scripts, reference-data and unit were green; infrastructure was skipped; three SQL shards and browser were still running. The run was not treated as merge evidence because PR-053/PR-054 require a replacement head and replacement full CI.
