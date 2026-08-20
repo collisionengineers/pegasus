@@ -504,9 +504,6 @@ internal sealed class BoxCaseCustody(
     BoxContentClient client) : ICaseCustody
 {
     private const string CaseBindingFileName = "pegasus-case-binding.json";
-    private const string AuditBindingFileName = "pegasus-audit-binding.json";
-    private const string AcceptedSourceBindingFileName = "pegasus-accepted-source-binding.json";
-    private const string BindingMediaType = "application/json";
     private const string CreationAlphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
     public async Task<CaseCustodyRoot> CreateCaseRootAsync(
@@ -538,13 +535,9 @@ internal sealed class BoxCaseCustody(
     {
         ValidateCase(caseId, caseReference);
         ValidateOperation(operationKey);
-        var folderName = CaseFolderName(caseReference);
-        var binding = CaseBinding(caseId, caseReference);
-        var folder = await GetOrCreateBoundFolderAsync(
+        var folder = await GetOrCreateOwnedFolderAsync(
             client.RootFolderId,
-            folderName,
-            CaseBindingFileName,
-            binding,
+            CaseFolderName(caseReference),
             creationOwnerToken,
             leaseGuard,
             cancellationToken);
@@ -563,12 +556,7 @@ internal sealed class BoxCaseCustody(
             "folder",
             cancellationToken)
             ?? throw new InvalidOperationException("The case custody root has not been created.");
-        await VerifyBoundFolderAsync(
-            folder,
-            client.RootFolderId,
-            CaseBindingFileName,
-            CaseBinding(caseId, caseReference),
-            cancellationToken);
+        await VerifyFolderIdentityAsync(folder, client.RootFolderId, folder.Name, cancellationToken);
         return new(caseId, folder.Id, caseReference);
     }
 
@@ -606,30 +594,51 @@ internal sealed class BoxCaseCustody(
         var instruction = await GetOrCreateFolderAsync(
             evidence.Id, "Original instruction", leaseGuard, cancellationToken);
         var fileName = $"001 {SafeName(source.SourceFileName)}";
-        var sourceBinding = AcceptedSourceBinding(root, source, actualHash, content.Length);
-        var bindingFile = await client.FindChildAsync(
-            instruction.Id, AcceptedSourceBindingFileName, "file", cancellationToken);
-        if (bindingFile is null)
-        {
-            await RequireLeaseAsync(leaseGuard, cancellationToken);
-            await client.UploadAsync(
-                instruction.Id,
-                AcceptedSourceBindingFileName,
-                sourceBinding,
-                BindingMediaType,
-                cancellationToken);
-        }
-        else
-        {
-            await VerifyFileAsync(
-                bindingFile,
-                instruction.Id,
-                BindingMediaType,
-                sourceBinding,
-                cancellationToken);
-        }
         var file = await UploadOrVerifyFileAsync(
             instruction.Id, fileName, content, source.MediaType, leaseGuard, cancellationToken);
+        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+    }
+
+    public async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference attachment,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken)
+        => await RetainAcceptedIntakeAttachmentCoreAsync(
+            root, attachment, ordinal, operationKey, null, cancellationToken);
+
+    public async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference attachment,
+        int ordinal,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+        => await RetainAcceptedIntakeAttachmentCoreAsync(
+            root, attachment, ordinal, operationKey, leaseGuard, cancellationToken);
+
+    private async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentCoreAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference attachment,
+        int ordinal,
+        string operationKey,
+        CustodyEffectLeaseGuard? leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(attachment);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 2);
+        ValidateOperation(operationKey);
+        await ValidateRootAsync(root, cancellationToken);
+        var (content, actualHash) = await ReadVerifiedSourceAsync(attachment, cancellationToken);
+
+        var evidence = await GetOrCreateFolderAsync(root.RemoteId, "Evidence", leaseGuard, cancellationToken);
+        var instruction = await GetOrCreateFolderAsync(
+            evidence.Id, "Original instruction", leaseGuard, cancellationToken);
+        var fileName = $"{ordinal:D3} {SafeName(attachment.SourceFileName)}";
+        var file = await UploadOrVerifyFileAsync(
+            instruction.Id, fileName, content, attachment.MediaType, leaseGuard, cancellationToken);
         return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
     }
 
@@ -717,12 +726,6 @@ internal sealed class BoxCaseCustody(
         {
             throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
         }
-        await VerifyBoundFolderAsync(
-            imageFolder,
-            client.RootFolderId,
-            CaseBindingFileName,
-            CaseBinding(imageRoot.CaseId, imageRoot.Reference),
-            cancellationToken);
         await ValidateRootAsync(caseRoot, cancellationToken);
 
         var evidence = await GetOrCreateFolderAsync(
@@ -805,11 +808,9 @@ internal sealed class BoxCaseCustody(
         ArgumentException.ThrowIfNullOrWhiteSpace(auditReference);
         ValidateOperation(operationKey);
         await ValidateRootAsync(root, cancellationToken);
-        var folder = await GetOrCreateBoundFolderAsync(
+        var folder = await GetOrCreateOwnedFolderAsync(
             root.RemoteId,
             CustodyNames.SafeName(auditReference),
-            AuditBindingFileName,
-            AuditBinding(root.CaseId, root.Reference, auditReference),
             creationOwnerToken,
             leaseGuard,
             cancellationToken);
@@ -829,12 +830,6 @@ internal sealed class BoxCaseCustody(
         {
             throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
         }
-        await VerifyBoundFolderAsync(
-            expected,
-            client.RootFolderId,
-            CaseBindingFileName,
-            CaseBinding(root.CaseId, root.Reference),
-            cancellationToken);
     }
 
     private async Task<(ReadOnlyMemory<byte> Content, string Hash)> ReadVerifiedSourceAsync(
@@ -873,11 +868,16 @@ internal sealed class BoxCaseCustody(
         return await client.UploadAsync(parentId, fileName, content, mediaType, cancellationToken);
     }
 
-    private async Task<BoxContentClient.BoxItem> GetOrCreateBoundFolderAsync(
+    /// <summary>
+    /// The staged two-phase folder create: a crash between create and rename
+    /// leaves an owner-token staging folder the same replay resumes, and a
+    /// same-name folder created by anything else is accepted as the case's —
+    /// the durable folder identity lives in the database (DOCS-005), not in a
+    /// marker file inside the folder.
+    /// </summary>
+    private async Task<BoxContentClient.BoxItem> GetOrCreateOwnedFolderAsync(
         string parentId,
         string finalName,
-        string bindingFileName,
-        byte[] binding,
         string creationOwnerToken,
         CustodyEffectLeaseGuard? leaseGuard,
         CancellationToken cancellationToken)
@@ -886,12 +886,7 @@ internal sealed class BoxCaseCustody(
         var existing = await client.FindChildAsync(parentId, finalName, "folder", cancellationToken);
         if (existing is not null)
         {
-            await VerifyBoundFolderAsync(
-                existing,
-                parentId,
-                bindingFileName,
-                binding,
-                cancellationToken);
+            await VerifyFolderIdentityAsync(existing, parentId, finalName, cancellationToken);
             return existing;
         }
 
@@ -904,37 +899,11 @@ internal sealed class BoxCaseCustody(
         }
         await VerifyFolderIdentityAsync(staging, parentId, stagingName, cancellationToken);
 
-        var bindingFile = await client.FindChildAsync(
-            staging.Id,
-            bindingFileName,
-            "file",
-            cancellationToken);
-        if (bindingFile is null)
-        {
-            await RequireLeaseAsync(leaseGuard, cancellationToken);
-            await client.UploadAsync(
-                staging.Id,
-                bindingFileName,
-                binding,
-                BindingMediaType,
-                cancellationToken);
-        }
-        else
-        {
-            await VerifyFileBytesAsync(bindingFile, binding, cancellationToken);
-        }
-
         var finalConflict = await client.FindChildAsync(parentId, finalName, "folder", cancellationToken);
         if (finalConflict is not null)
         {
             if (string.Equals(finalConflict.Id, staging.Id, StringComparison.Ordinal))
             {
-                await VerifyBoundFolderAsync(
-                    finalConflict,
-                    parentId,
-                    bindingFileName,
-                    binding,
-                    cancellationToken);
                 return finalConflict;
             }
             throw new InvalidDataException(
@@ -952,12 +921,6 @@ internal sealed class BoxCaseCustody(
         {
             throw new InvalidDataException("Box changed the custody folder identity during promotion.");
         }
-        await VerifyBoundFolderAsync(
-            promoted,
-            parentId,
-            bindingFileName,
-            binding,
-            cancellationToken);
         return promoted;
     }
 
@@ -981,23 +944,6 @@ internal sealed class BoxCaseCustody(
         CancellationToken cancellationToken) =>
         leaseGuard?.RequireCurrentAsync(cancellationToken) ?? Task.CompletedTask;
 
-    private async Task VerifyBoundFolderAsync(
-        BoxContentClient.BoxItem folder,
-        string parentId,
-        string bindingFileName,
-        byte[] binding,
-        CancellationToken cancellationToken)
-    {
-        await VerifyFolderIdentityAsync(folder, parentId, folder.Name, cancellationToken);
-        var bindingFile = await client.FindChildAsync(
-            folder.Id,
-            bindingFileName,
-            "file",
-            cancellationToken)
-            ?? throw new InvalidDataException(
-                "The Box custody folder is missing its immutable Pegasus binding.");
-        await VerifyFileBytesAsync(bindingFile, binding, cancellationToken);
-    }
 
     private async Task VerifyFolderIdentityAsync(
         BoxContentClient.BoxItem folder,
@@ -1018,18 +964,6 @@ internal sealed class BoxCaseCustody(
         }
     }
 
-    private async Task VerifyFileBytesAsync(
-        BoxContentClient.BoxItem file,
-        ReadOnlyMemory<byte> expected,
-        CancellationToken cancellationToken)
-    {
-        await client.EnsureDescendantAsync(file.Id, cancellationToken, isFile: true);
-        var actual = await client.DownloadAsync(file.Id, cancellationToken);
-        if (!actual.AsSpan().SequenceEqual(expected.Span))
-        {
-            throw new InvalidDataException("A Box custody binding has different immutable content.");
-        }
-    }
 
     private async Task VerifyFileAsync(
         BoxContentClient.BoxItem file,
@@ -1052,41 +986,6 @@ internal sealed class BoxCaseCustody(
             throw new InvalidDataException("A Box custody file has different immutable content.");
         }
     }
-
-    internal static byte[] CaseBinding(Guid caseId, string caseReference) =>
-        JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            schemaVersion = 1,
-            caseId,
-            caseReference
-        });
-
-    internal static byte[] AuditBinding(
-        Guid caseId,
-        string caseReference,
-        string auditReference) => JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            schemaVersion = 1,
-            caseId,
-            caseReference,
-            auditReference
-        });
-
-    internal static byte[] AcceptedSourceBinding(
-        CaseCustodyRoot root,
-        IntakeSourceCustodyReference source,
-        string sourceHash,
-        long sourceLength) => JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            schemaVersion = 1,
-            caseId = root.CaseId,
-            caseReference = root.Reference,
-            intakeReceiptId = source.IntakeReceiptId,
-            sourceFileName = source.SourceFileName,
-            mediaType = source.MediaType,
-            sourceLength,
-            sha256 = sourceHash.ToLowerInvariant()
-        });
 
     private static void ValidateCase(Guid caseId, string reference)
     {

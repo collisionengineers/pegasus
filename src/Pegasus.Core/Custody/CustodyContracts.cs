@@ -120,6 +120,34 @@ public interface ICaseCustody
         return await RetainAcceptedIntakeSourceAsync(root, source, operationKey, cancellationToken);
     }
 
+    /// <summary>
+    /// Retains one attachment of the accepted instruction as its own file
+    /// beside the retained source, at the given ordinal (the source is 1).
+    /// Idempotent: an existing file must match the retained content exactly.
+    /// Defaults fail closed for adapters that do not support attachment custody.
+    /// </summary>
+    Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference attachment,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        throw new NotSupportedException(
+            "This custody adapter does not retain instruction attachments.");
+
+    async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference attachment,
+        int ordinal,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await RetainAcceptedIntakeAttachmentAsync(
+            root, attachment, ordinal, operationKey, cancellationToken);
+    }
+
     Task<string> CreateAuditReferenceFolderAsync(
         CaseCustodyRoot root,
         string auditReference,
