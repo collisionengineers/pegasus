@@ -1030,6 +1030,69 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(2, work.AttemptCount);
     }
 
+    /// <summary>
+    /// DOCS-005: an accepted instruction's attachments land beside the retained
+    /// source as their own custody files, and no binding JSON accompanies them.
+    /// </summary>
+    [Fact]
+    public async Task AcceptedCaseRetainsInstructionAttachmentsBesideTheSource()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var attachmentBytes = "%PDF-1.4 synthetic estimate body"u8.ToArray();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Attachment Test {fixtureId}\r\nClaim Number: ATT-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "estimate.pdf", attachmentBytes, MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+        var content = output.ToArray();
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-attachment-{fixtureId}.eml",
+                "message/rfc822",
+                content,
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-attachment:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.Contains(receipt.Assets ?? [], asset => asset.Kind == IntakeAssetKind.Attachment);
+        var outcome = await AcceptAsync(services, receipt.Id);
+
+        var processor = services.GetRequiredService<IProcessQueuedCustody>();
+        await processor.ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+        var attachmentHash = Convert.ToHexString(SHA256.HashData(attachmentBytes)).ToLowerInvariant();
+        var attachmentPath = Path.Combine(
+            factory.ArtifactDirectory,
+            "custody",
+            "cases",
+            outcome.Identity.CaseId.ToString("N"),
+            "documents",
+            receipt.Id.ToString("N"),
+            "attachments",
+            $"002-{attachmentHash}",
+            "content");
+        Assert.Equal(attachmentBytes, await File.ReadAllBytesAsync(attachmentPath));
+    }
+
     private static async Task<AcceptedSource> AcceptDirectSourceAsync(IServiceProvider services)
     {
         var source = CreateSource();

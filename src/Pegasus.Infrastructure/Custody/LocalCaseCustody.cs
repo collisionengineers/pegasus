@@ -96,6 +96,41 @@ internal sealed class LocalCaseCustody(
         return new(root.CaseId, relativeId, expectedHash, expectedHash);
     }
 
+    public async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference attachment,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(attachment);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 2);
+        ValidateOperationKey(operationKey);
+        await ValidateRootAsync(root, cancellationToken);
+        var (content, expectedHash) = await ReadVerifiedSourceAsync(attachment, cancellationToken);
+        var relativeId =
+            $"{root.RemoteId}/documents/{attachment.IntakeReceiptId:N}/attachments/{ordinal:D3}-{expectedHash}";
+        var directory = Resolve(relativeId);
+        Directory.CreateDirectory(directory);
+        var contentPath = Path.Combine(directory, "content");
+        await CreateOrVerifyContentAsync(contentPath, content, expectedHash, cancellationToken);
+
+        var metadata = new DocumentMetadata(
+            attachment.IntakeReceiptId,
+            attachment.SourceFileName,
+            attachment.MediaType,
+            expectedHash,
+            operationKey);
+        await CreateOrValidateJsonAsync(
+            Path.Combine(directory, "metadata.json"),
+            metadata,
+            existing => existing == metadata,
+            cancellationToken);
+
+        return new(root.CaseId, relativeId, expectedHash, expectedHash);
+    }
+
     public async Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
         CaseCustodyRoot root,
         IntakeSourceCustodyReference source,
