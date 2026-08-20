@@ -275,3 +275,81 @@ Replacement CI run `32370485614` at the reviewed head has green changes, documen
 ### Verdict
 
 **Needs changes.** Do not merge PR #469. Keep TICK-053 and all shared-PR blocker tickets in Review; [[PR-033]] through [[PR-036]] now block TICK-053 from Backlog. Re-review only after those four tickets land, PR-018's exact-identity claim is genuinely complete, the PIR remains exact, and full replacement CI is green.
+
+## Independent re-review — PR #469 at `eaf2f9f4eac577242ed301dd917f0682d4a77729` (2026-08-20)
+
+### Changes
+
+1. `docs/capabilities.md` records the activated local MAIL-11 search capability and retains deployment/live-evidence qualifications.
+2. `docs/current-architecture.md` records the receipt-owned search projection, bounded Deleted Items reader, and exact Web/Worker projection grants.
+3. `docs/design/README.md` records the narrow operator-approved MAIL-11 re-entry while keeping deployment/manual visual acceptance separate.
+4. `scripts/Invoke-AzureDatabaseBootstrap.ps1` adds the projection table to the existing exact runtime-permission census.
+5. `src/Pegasus.Core/Intake/DeletedMailSearch.cs` owns staff authorization, the fixed 100-message request bound, ordering/paging, and explicit unavailable state.
+6. `src/Pegasus.Core/Intake/IntakeContracts.cs` carries canonical attachment occurrences and one receipt-owned search-document contract.
+7. `src/Pegasus.Core/Intake/IntakeSearchProjection.cs` derives normalized visible root and per-attachment documents from the existing canonical reader result and route evidence.
+8. `src/Pegasus.Core/Intake/ProcessIntake.cs` supplies that projection only for mailbox receipts through the existing receipt draft.
+9. `src/Pegasus.Core/Intake/RetainedMail.cs` extends existing list/detail contracts with normalized search context, match locations, and attachment searchability while preserving TICK-047 folder recommendation.
+10. `src/Pegasus.Infrastructure/DependencyInjection.cs` composes the unavailable default and production Graph source with TryAdd fallback semantics.
+11. `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` adds exact-folder GET-only Deleted metadata/MIME reads, fair global newest selection, canonical parsing, and established unavailable mappings.
+12. `src/Pegasus.Infrastructure/Intake/LocalEmailDisplayReader.cs` preserves nameless displayed attachment occurrences.
+13. `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` emits canonical attachment descriptors, including attached text and explicitly attached Content-ID images.
+14. `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs` inserts/replaces search documents in the existing receipt transaction.
+15. `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` applies retained search before SQL count/paging and maps exact visible matches/detail searchability.
+16. `20260820100724_RetainedMailSearchDocuments.Designer.cs` is the generated model for the single new child table.
+17. `20260820100724_RetainedMailSearchDocuments.cs` creates that table/FK/index without backfill and grants Web SELECT plus Worker SELECT/INSERT/DELETE.
+18. `PegasusDbContextModelSnapshot.cs` records the same current schema.
+19. `PegasusDbContext.cs` maps the receipt-owned child entity/navigation.
+20. `Index.cshtml` renders GET search, exact match locations, Deleted result disclosure, bounds, unavailable/no-match states, and pagination.
+21. `Index.cshtml.cs` selects retained versus Deleted owners, validates query state, and preserves scope/refresh context.
+22. `Message.cshtml` preserves search/list context and renders retained attachment searchability.
+23. `Message.cshtml.cs` carries normalized search into detail/thread membership and supported correction reload.
+24. `OperatorLabels.cs` remains the single operator-facing owner for searchability wording.
+25. `RetainedMailTests.cs` proves Core validation, authorization, projection normalization, bounding, and coexistence with the merged MAIL-05 recommendation.
+26. `AzureSqlRuntimeRoleMigrationTests.cs` proves exact Web and Worker projection verbs, including absent UPDATE.
+27. `IntakePersistenceIntegrationTests.cs` includes the new committed migration/table in repository schema evidence.
+28. `MailWorkspaceWebTests.cs` proves authenticated retained and Deleted caller states, context preservation, thread membership, invalid correction search, and credential unavailability.
+29. `ProductionCompositionTests.cs` proves production Graph composition wins while unconfigured profiles retain the unavailable fallback.
+30. `ProductionGraphSourceTests.cs` proves exact-folder GETs, fair bounds, approved mailbox listing, failure mapping, cancellation, and concurrent moves.
+31. `RetainedMailPersistenceTests.cs` proves SQL-first body/name/content search, normalized visible body equality, and exact attachment occurrence/searchability.
+
+The PIR's 31-file inventory exactly matches `gh pr diff 469 --name-only` and `git diff --name-only origin/dev...HEAD`. `git diff --check` is clean. The head has current `origin/dev` commit `a1775841` as its second parent; the resolved Core path applies MAIL-11 search context before TICK-047's existing recommendation and both owning test fakes remain.
+
+### Prior blocker reconciliation
+
+- **PR-015 — fixed-in-PR.** Explicit production Graph composition survives the TryAdd unavailable fallback.
+- **PR-016 — fixed-in-PR.** Bounded candidates are collected per selected mailbox, globally ordered newest-first, and MIME reads are capped after selection.
+- **PR-017 — fixed-in-PR.** Deleted mailbox refinements come from the approved estate and the authenticated caller proves a zero-retained-row mailbox.
+- **PR-018 / PR-034 — fixed-in-PR.** Nameless, attached-text, and explicitly attached Content-ID occurrences remain in the canonical/display ordinal domain; retained detail discloses per-occurrence searchability.
+- **PR-019 — fixed-in-PR.** Blank, overlong, and no-match retained searches render supported, honest states.
+- **PR-020 — fixed-in-PR.** Provider timeout maps to unavailable without swallowing caller cancellation.
+- **PR-021 — fixed-in-PR.** Canonical design/capability owners record local activation without claiming deployment, permission changes, mailbox writes, or manual visual acceptance.
+- **PR-022 — fixed-in-PR.** The final 31-file PIR inventory is exact.
+- **PR-024 — fixed-in-PR.** One route-aware normalized receipt root owns retained body admission, match evidence, and visible detail; no backfill was introduced.
+- **PR-025 — fixed-in-PR.** The authenticated Web route proves approved mailbox selection, exact request bound, matches, truncation, paging, and unavailable rendering.
+- **PR-029 — fixed-in-PR.** Detail reuses the active term and marks nonmatching thread members outside the originating view.
+- **PR-030 — fixed-in-PR.** Deleted MIME is fetched through the resolved folder path, so a concurrent move becomes unavailable.
+- **PR-031 — fixed-in-PR.** Azure token-acquisition failure maps to unavailable while caller cancellation propagates.
+- **PR-033 — incomplete due to the remaining shape case filed as [[PR-037]].** The established catch now handles malformed JSON, missing item identities/time, foreign folders, and escaped absolute page links, but the Graph client does not normalize all malformed successful response shapes.
+- **PR-035 — fixed-in-PR.** Invalid correction POST search context returns the established supported response without a history write.
+- **PR-036 — fixed-in-PR.** Worker UPDATE is removed from migration/bootstrap/current-state claims and exact migrated permission evidence proves its absence.
+
+### Comments and disposition
+
+- **Blocking — [[PR-037]].** `ReadFolderMessagesAsync` uses `root.GetProperty("value").EnumerateArray()` and direct absolute-`Uri` construction. A successful response with missing/non-array `value` or an invalid/non-absolute `@odata.nextLink` throws `KeyNotFoundException`, `InvalidOperationException`, or `UriFormatException`, outside the Deleted-source unavailable policy. A non-object successful folder-resolution root has the same `InvalidOperationException` path through `RequiredString`. The authenticated route can therefore still return 500 for a malformed provider response despite the FRD/PIR fail-closed claim. Filed as PR-037; fix should validate in the existing Graph client and translate to its existing `InvalidDataException`, not broaden the outer catch to swallow application errors.
+- **Won't-do — historical projection backfill.** FRD-08 explicitly prohibits backlog reconstruction. Existing rows without the projection remain honestly unsearchable; no backfill ticket is warranted.
+- **Pass — governing scope.** FRD-08 and the adopted design re-entry authorize this local read-only slice. No deployment, Graph permission change, mailbox mutation, or live tenant evidence is claimed.
+- **Pass — simplicity and least privilege.** The diff reuses the existing Core retained-mail port, canonical intake reader, receipt transaction/store, approved estate, Graph client, and `/Inbox` pages. It adds one child projection and one narrow external read source, not a generic search/action framework, second parser/store, runtime, or backfill. The four dated simplification passes have concrete applied dispositions. Web receives SELECT only; Worker receives only the SELECT/DELETE/INSERT operations used by replacement writes.
+
+### CI
+
+Replacement CI at exact head `eaf2f9f4` currently has green changes, documentation, local-development-scripts, reference-data, infrastructure, and unit jobs. Browser and SQL shards 1–3 remain in progress. The substantive PR-037 blocker makes the head non-mergeable by review regardless of those pending results, so no merge is attempted.
+
+### Repository review questions
+
+1. **Did the plan miss anything implied by the ticket?** Yes: it required an honest unavailable state for provider failures but did not enumerate malformed successful Graph page envelopes/URI construction.
+2. **Did implementation miss anything in the plan?** Yes: the invalid-response policy remains incomplete for missing/wrong-shaped page collections and invalid next-link URI strings.
+3. **Did the simplification pass run with honest dispositions?** Yes. Reuse, one-owner, bounded-work, altitude, and least-privilege claims hold; PR-037 is a narrow correctness gap, not an undisclosed abstraction or scope issue.
+
+### Verdict
+
+**Needs changes.** Do not merge PR #469. Keep TICK-053 and every shared-PR blocker in Review; [[PR-037]] now blocks TICK-053. Re-review after that narrow validation fix lands, the PIR remains exact, and replacement CI is fully green.
