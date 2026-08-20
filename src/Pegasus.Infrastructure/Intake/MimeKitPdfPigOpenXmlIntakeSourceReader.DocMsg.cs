@@ -1,3 +1,4 @@
+using System.Globalization;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake.DocumentExtraction;
 using Pegasus.Infrastructure.Intake.DocumentExtraction.Msg;
@@ -148,11 +149,14 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
         cancellationToken.ThrowIfCancellationRequested();
         if (senderIdentityKind is { } identityKind)
         {
-            message.Projection.Fields.TryGetValue("senderAddress", out var senderAddress);
-            if (!string.IsNullOrWhiteSpace(senderAddress)
-                && TryGetMailboxDomain(SanitizeText(senderAddress), out _))
+            if (message.Projection.Fields.TryGetValue("senderAddress", out var senderAddress)
+                && !string.IsNullOrWhiteSpace(senderAddress))
             {
-                AddSenderTransportEvidence(SanitizeText(senderAddress), identityKind, sourceLabel, result);
+                var sanitizedSenderAddress = SanitizeText(senderAddress);
+                if (TryGetMailboxDomain(sanitizedSenderAddress, out _))
+                {
+                    AddSenderTransportEvidence(sanitizedSenderAddress, identityKind, sourceLabel, result);
+                }
             }
 
             if (identityKind == IntakeSenderIdentityKind.Transport
@@ -212,7 +216,7 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader
             var fileName = SanitizeText(
                 attachment.FileName
                 ?? attachment.DisplayName
-                ?? $"attachment-{attachment.SourceOrder.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+                ?? $"attachment-{attachment.SourceOrder.ToString(CultureInfo.InvariantCulture)}");
             var mediaType = attachment.MediaType ?? "application/octet-stream";
             var format = DetectFormat(fileName, mediaType);
             var shouldRetain = format is not SourceFormat.Unsupported;
