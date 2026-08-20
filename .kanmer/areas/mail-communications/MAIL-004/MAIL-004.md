@@ -2,10 +2,12 @@
 id: MAIL-004
 type: ticket
 title: Configure the approved Outlook category catalogue in email administration
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T09:52:23.990Z'
 labels:
   - mail-workspace
   - administration
@@ -24,7 +26,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T09:47:32.793Z'
-updated: '2026-08-20T09:47:44.805Z'
+updated: '2026-08-20T09:52:23.990Z'
 ---
 
 ## What
