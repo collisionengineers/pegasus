@@ -23,3 +23,26 @@
 ### CI state at handoff
 
 Repository run `32416440980`: changes, documentation, local-development-scripts, reference-data, and unit passed; infrastructure was correctly skipped; browser and SQL integration shards 1–3 were still running. Review handoff was finalized without waiting because the blocking verdict is independent of CI and the blocker implementation has begun.
+
+## Independent re-review — 2026-08-20 — exact head `6b7c62a4c87096e52a183f4d6e73aca2a4495c0f`
+
+### Changes since the first review
+
+- Split link and unlink into explicit prepare/final POSTs so the Case lease token and one association operation key survive into the final shared reason dialog.
+- Final association POSTs now delegate directly to the existing Core commands, allowing their operation-fingerprint replay check to run before current-state rejection.
+- Added definitive-failure release compensation through the existing `IReleaseCaseEditLease`; non-definitive outcomes retain the same confirmation authority.
+- Extended the existing shared reason dialog with hidden fields for the concrete link and unlink callers.
+- Moved every visible Case-result identity fact inside the one selection link.
+- Added SQL/Web coverage for exact link/unlink replay, same-key changed-reason conflict, successful lease consumption, stale-state release/reacquisition, and accessible result identity.
+
+### Blocker dispositions
+
+1. [[PR-048]] **fixed-in-PR.** Exact final link and unlink POST replays reach the canonical Core fingerprint/history owner and succeed without extra history; changed reason under the same operation key conflicts.
+2. [[PR-049]] **partially fixed, superseded by a narrower remaining blocker.** Successful definitive-failure compensation releases the lease and permits immediate reacquisition. However a recoverable failure of the release call is swallowed and the only retained lease token is unconditionally cleared, recreating the five-minute stranded lease with no compensation retry. Filed [[PR-052]].
+3. [[PR-050]] **fixed-in-PR.** Each result now has exactly one focusable link and its accessible name includes reference, registration, claimant and stage.
+4. **New blocking — prepared authority is not exact-message/action bound.** `AssociationLeaseState` omits message/receipt identity and Link-versus-Unlink intent. The retained protected state can be carried to another message targeting the same Case, or repurposed across actions, and the final handler resolves/mutates that other receipt using the valid Case lease and new operation fingerprint. Filed [[PR-051]].
+5. **Pass — scope/simplicity/PIR.** The correction changes only Web orchestration, the existing shared partial and focused tests. No Core, Infrastructure, EF/schema/migration, permission, external write, second policy/store, generic action framework or active-to-active swap was added. The correction plan and PIR accurately name the six-file total PR inventory and the repeated four-lens pass is proportionate.
+
+### Verdict
+
+**Needs changes; do not merge.** [[PR-048]] and [[PR-050]] are resolved at this head. [[PR-049]]'s normal compensation path is resolved but its release-failure edge is now [[PR-052]]. [[PR-051]] must bind preparation authority to the exact message/receipt and exact action. Replacement CI run `32419589093` was still running when this behaviorally blocking verdict was recorded; green CI cannot resolve these findings.
