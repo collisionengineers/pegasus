@@ -26,11 +26,13 @@ using Pegasus.Core.Identity;
 using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Uploads;
+using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Email;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -132,6 +134,7 @@ if (productionProfile)
         "TransportStorage:AccountName",
         "CustodyStorage:AccountName",
         "CustodyStorage:ServiceUri",
+        "Graph:BaseUri",
         "Box:BaseUri",
         "Box:UploadUri",
         "Box:RootFolderId",
@@ -174,6 +177,11 @@ if (productionProfile)
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
+    // The mailbox-administration "add an address" resolve port alone (AddPegasusInfrastructure
+    // below always composes ListApprovedMailboxes/UpdateApprovedMailbox; Web never composes
+    // the Worker-only pollers that go with AddProductionExternalAdapters).
+    builder.Services.AddSingleton<TokenCredential>(credential);
+    builder.Services.AddProductionApprovedMailboxResolver(builder.Configuration["Graph:BaseUri"]);
     productionBoxCustodyOptions = BoxCustodyOptions.Create(
         builder.Configuration["Box:BaseUri"],
         builder.Configuration["Box:UploadUri"],
@@ -544,6 +552,7 @@ builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
+    builder.Services.AddSingleton<IResolveApprovedMailboxIdentity, LocalApprovedMailboxIdentityResolver>();
 }
 builder.Services.AddScoped<EfIdentityAuditStore>();
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>

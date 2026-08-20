@@ -551,6 +551,12 @@ rights and are not executed from this repository. They remain blocked for
 production until ADR-0024's stable-ID, scope, per-mailbox fresh-start, and
 Worker-control contracts are implemented and deployed:
 
+0. (MAIL-002) Administration's "add an address" resolve step runs as the Web
+   container's own managed identity (`webIdentity`), separate from the
+   Worker's. Until that identity's service principal also holds `User.Read.All`
+   and `Mail.Read` application permissions with tenant admin consent, every
+   address resolution fails closed (no row is created) and the operator sees
+   only the honest "could not be found" outcome.
 1. Confirm the Pegasus application registration holds the `Mail.Read`
    application permission with tenant admin consent.
 2. Add the new mailbox to the Exchange Online application access policy that
