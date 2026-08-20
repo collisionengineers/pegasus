@@ -276,6 +276,109 @@ public sealed class TriageQueuesWebTests
     private static readonly byte[] TinyPng = Convert.FromBase64String(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=");
 
+    /// <summary>
+    /// INTK-022: the Not ready tab is one merged table across both case
+    /// origins, with dropdown filters instead of pills and dash cells where a
+    /// field does not apply to an image-initiated row.
+    /// </summary>
+    [Fact]
+    public async Task NotReadyRendersOneMergedTableAcrossOrigins()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var instructionReceiptId = await StoreMinimalReceiptAsync(services, "instruction-source.pdf");
+        var instructionCaseReference = "QDOS" + DateTime.UtcNow.Ticks % 1_000_000;
+        await SeedNotReadyCaseAsync(services, instructionReceiptId, instructionCaseReference);
+
+        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            TinyPng,
+            Guid.NewGuid().ToString("N"));
+        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
+        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
+        var register = services.GetRequiredService<IRegisterImageIntake>();
+        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
+        var imageIntake = await register.ExecuteAsync(
+            new(
+                origin!,
+                "EF56GHJ",
+                StaffActor(),
+                $"image-intake-register:{Guid.NewGuid():N}",
+                "Staff confirmed the registration from the retained image."),
+            CancellationToken.None);
+
+        using var response = await client.GetAsync("/Triage?queue=not_ready");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(instructionCaseReference, html, StringComparison.Ordinal);
+        Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+        // One table, not one per origin.
+        Assert.Equal(1, Regex.Count(html, "<table"));
+        // Dropdown filters replaced the origin pills.
+        Assert.Contains("name=\"origin\"", html, StringComparison.Ordinal);
+        Assert.Contains("name=\"principal\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("subtabs", html, StringComparison.Ordinal);
+        // The image row fills inapplicable cells with a dash and keeps its
+        // TICK-065 derived chase chip.
+        Assert.Contains("Awaiting definitive instruction", html, StringComparison.Ordinal);
+        Assert.Contains("Not yet due", html, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// INTK-022: the Received header sorts newest-first by default and its
+    /// link flips the direction.
+    /// </summary>
+    [Fact]
+    public async Task NotReadySortDefaultsNewestFirstAndHeaderTogglesDirection()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var olderReceiptId = await StoreMinimalReceiptAsync(services, "older-source.pdf");
+        var newerReceiptId = await StoreMinimalReceiptAsync(services, "newer-source.pdf");
+        var ticks = DateTime.UtcNow.Ticks % 1_000_000;
+        var olderReference = $"QDOSA{ticks}";
+        var newerReference = $"QDOSB{ticks}";
+        await SeedNotReadyCaseAsync(services, olderReceiptId, olderReference);
+        await SeedNotReadyCaseAsync(services, newerReceiptId, newerReference);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE IntakeReceipts SET ReceivedAtUtc = {new DateTimeOffset(2031, 5, 1, 9, 0, 0, TimeSpan.Zero)} WHERE Id = {olderReceiptId}");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE IntakeReceipts SET ReceivedAtUtc = {new DateTimeOffset(2031, 5, 6, 9, 0, 0, TimeSpan.Zero)} WHERE Id = {newerReceiptId}");
+        }
+
+        using var newestFirst = await client.GetAsync("/Triage?queue=not_ready");
+        var newestFirstHtml = await newestFirst.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, newestFirst.StatusCode);
+        Assert.True(
+            newestFirstHtml.IndexOf($">{newerReference}</a>", StringComparison.Ordinal)
+                < newestFirstHtml.IndexOf($">{olderReference}</a>", StringComparison.Ordinal),
+            "The default order must put the newest received case first.");
+
+        using var oldestFirst = await client.GetAsync("/Triage?queue=not_ready&sort=received_asc");
+        var oldestFirstHtml = await oldestFirst.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, oldestFirst.StatusCode);
+        Assert.True(
+            oldestFirstHtml.IndexOf($">{olderReference}</a>", StringComparison.Ordinal)
+                < oldestFirstHtml.IndexOf($">{newerReference}</a>", StringComparison.Ordinal),
+            "sort=received_asc must put the oldest received case first.");
+    }
+
     private static async Task<Guid> StoreMinimalReceiptAsync(IServiceProvider services, string sourceFileName)
     {
         var receiptStore = services.GetRequiredService<IIntakeReceiptStore>();
