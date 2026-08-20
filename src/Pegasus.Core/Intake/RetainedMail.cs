@@ -20,7 +20,22 @@ public enum MailFolderScope
 /// Which slice of retained mail the operator is looking at. A null
 /// <paramref name="MailboxId"/> is the default all-mailboxes view.
 /// </summary>
-public sealed record MailWorkspaceScope(string? MailboxId, MailFolderScope Folder);
+public sealed record MailWorkspaceScope(
+    string? MailboxId,
+    MailFolderScope Folder,
+    string? SearchTerm = null);
+
+public enum MailSearchMatchKind
+{
+    MessageBody,
+    AttachmentFileName,
+    AttachmentContent
+}
+
+public sealed record RetainedMailSearchMatch(
+    MailSearchMatchKind Kind,
+    string? AttachmentFileName = null,
+    int? AttachmentOrdinal = null);
 
 public sealed record RetainedMailSummary(
     Guid Id,
@@ -39,7 +54,11 @@ public sealed record RetainedMailSummary(
     Guid? IntakeReceiptId,
     Guid? CaseId,
     string? CaseReference,
-    IntakeAllocationState? AllocationState = null);
+    IntakeAllocationState? AllocationState = null,
+    IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null)
+{
+    public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
+}
 
 /// <summary>
 /// One page of retained mail.
@@ -66,7 +85,8 @@ public sealed record RetainedMailPage(
 public sealed record RetainedMailAttachment(
     string FileName,
     string MediaType,
-    long ContentLength);
+    long ContentLength,
+    bool IsSearchable = false);
 
 public sealed record RetainedMailThreadEntry(
     Guid Id,
@@ -334,7 +354,10 @@ public interface IRetainedMailQueries
         int pageSize,
         CancellationToken cancellationToken);
 
-    Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<RetainedMailDetail?> GetAsync(
+        Guid id,
+        CancellationToken cancellationToken,
+        string? searchTerm = null);
 
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
@@ -375,6 +398,7 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope),
                 "The mail folder scope is not recognized.");
         }
+        var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
         if (scope.MailboxId is { } mailboxId
             && (string.IsNullOrWhiteSpace(mailboxId) || mailboxId.Length > 100))
         {
@@ -383,7 +407,27 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope));
         }
 
-        return await queries.ListAsync(scope, page, pageSize, cancellationToken);
+        var normalizedScope = scope with
+        {
+            SearchTerm = searchTerm
+        };
+        return await queries.ListAsync(normalizedScope, page, pageSize, cancellationToken);
+    }
+
+    internal static string? NormalizeSearchTerm(string? value, string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        var term = value.Trim();
+        if (term.Length is 0 or > 200)
+        {
+            throw new ArgumentException(
+                "A mail search term must contain 1 to 200 characters.",
+                parameterName);
+        }
+        return term;
     }
 
     public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
@@ -411,6 +455,13 @@ public sealed class GetRetainedMail(
         ActionActor actor,
         Guid messageId,
         CancellationToken cancellationToken = default)
+        => await ExecuteAsync(actor, messageId, searchTerm: null, cancellationToken);
+
+    public async Task<RetainedMailDetail?> ExecuteAsync(
+        ActionActor actor,
+        Guid messageId,
+        string? searchTerm,
+        CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         if (messageId == Guid.Empty)
@@ -420,7 +471,13 @@ public sealed class GetRetainedMail(
                 nameof(messageId));
         }
 
-        var detail = await queries.GetAsync(messageId, cancellationToken);
+        var normalizedSearchTerm = ListRetainedMail.NormalizeSearchTerm(
+            searchTerm,
+            nameof(searchTerm));
+        var detail = await queries.GetAsync(
+            messageId,
+            cancellationToken,
+            normalizedSearchTerm);
         if (detail is null)
         {
             return null;

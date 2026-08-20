@@ -18,11 +18,13 @@
 {
     <nav class="tabs" aria-label="Mailbox">
         <a asp-page="/Mail/Index" asp-route-folder="@Model.FolderRouteValue"
+           asp-route-search="@Model.SearchTerm"
            aria-current="@(Model.MailboxFilter is null ? "page" : null)">All mailboxes</a>
         @foreach (var mailbox in Model.Mailboxes)
         {
             <a asp-page="/Mail/Index" asp-route-mailbox="@mailbox.MailboxId"
                asp-route-folder="@Model.FolderRouteValue"
+               asp-route-search="@Model.SearchTerm"
                aria-current="@(Model.MailboxFilter == mailbox.MailboxId ? "page" : null)">@mailbox.MailboxAddress</a>
         }
     </nav>
@@ -32,15 +34,103 @@
     @foreach (var folder in new[] { MailFolderScope.Inbox, MailFolderScope.Sent, MailFolderScope.DeletedItems })
     {
         <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-search="@Model.SearchTerm"
            asp-route-folder="@(folder == MailFolderScope.Inbox ? null : Pegasus.Web.Pages.Mail.IndexModel.FolderCode(folder))"
            aria-current="@(Model.Folder == folder ? "page" : null)">@Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(folder)</a>
     }
 </nav>
 
+<form method="get" class="panel filterbar section-gap" role="search">
+    @if (Model.MailboxFilter is not null)
+    {
+        <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
+    }
+    @if (Model.FolderRouteValue is not null)
+    {
+        <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
+    }
+    <div class="filterbar__line">
+        <label for="mail-search" class="vh">Search this mailbox and folder</label>
+        <input id="mail-search" name="search" value="@Model.SearchTerm" maxlength="200"
+               placeholder="Message body or attachment" />
+        <button class="btn btn--dark" type="submit">Search</button>
+        @if (Model.SearchTerm is not null)
+        {
+            <a class="btn" asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
+               asp-route-folder="@Model.FolderRouteValue">Clear</a>
+        }
+    </div>
+</form>
+
 @* The mail list is a table: an operator scanning a morning's post compares
    sender, subject, outcome and time down columns, which a stack of rows
    cannot line up. *@
-@if (Model.Results.Items.Count == 0)
+@if (Model.SearchValidationMessage is not null)
+{
+    <div class="status-card" role="alert">@Model.SearchValidationMessage</div>
+}
+else if (Model.Folder == MailFolderScope.DeletedItems && Model.SearchTerm is null)
+{
+    <p class="empty-state">Enter a search term to read accepted Deleted Items within the selected approved mailbox scope.</p>
+}
+else if (Model.DeletedResults is { State: DeletedMailSearchState.Unavailable })
+{
+    <div class="status-card" role="status">Deleted Items search is unavailable. Retained Inbox mail remains available.</div>
+}
+else if (Model.DeletedResults is { } deleted)
+{
+    @if (deleted.IsTruncated)
+    {
+        <div class="status-card" role="status">This read-only search checked the 100 newest Deleted Items in the approved scope. Older items were not scanned.</div>
+    }
+    @if (deleted.Items.Count == 0)
+    {
+        <p class="empty-state">No Deleted Items in the bounded approved scope matched “@Model.SearchTerm”.</p>
+    }
+    else
+    {
+        <div class="table-wrap">
+            <table>
+                <caption class="vh">Deleted Items search results, most recent first</caption>
+                <thead><tr><th scope="col">From</th><th scope="col">Message</th><th scope="col">Matched in</th><th scope="col">Received</th></tr></thead>
+                <tbody>
+                @foreach (var item in deleted.Items)
+                {
+                    <tr data-state="@(item.IsRead ? "read" : "unread")">
+                        <td>@(item.SenderDisplayName ?? item.SenderAddress ?? "Sender not recorded")</td>
+                        <td>
+                            <details>
+                                <summary>@(string.IsNullOrWhiteSpace(item.Subject) ? "No subject" : item.Subject)</summary>
+                                <p><strong>Mailbox:</strong> @item.MailboxAddress</p>
+                                @if (string.IsNullOrWhiteSpace(item.BodyPlainText))
+                                {
+                                    <p class="empty-state">This message has no readable text body.</p>
+                                }
+                                else
+                                {
+                                    <pre class="mail-body">@item.BodyPlainText</pre>
+                                }
+                                @if (item.Attachments.Count > 0)
+                                {
+                                    <ul>
+                                    @foreach (var attachment in item.Attachments)
+                                    {
+                                        <li>@attachment.FileName — @OperatorLabels.AttachmentSearchability(attachment.IsSearchable)</li>
+                                    }
+                                    </ul>
+                                }
+                            </details>
+                        </td>
+                        <td><ul>@foreach (var match in item.Matches) { <li>@Pegasus.Web.Pages.Mail.IndexModel.MatchLabel(match)</li> }</ul></td>
+                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(item.ReceivedAtUtc)</time></td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+else if (Model.Results.Items.Count == 0)
 {
     @* An empty scope says which of the three reasons it is empty for. A blank
        list that could equally mean "nothing arrived", "nothing is kept here"
@@ -48,7 +138,11 @@
        mark names the surface; the sentence carries the meaning. *@
     <div class="mark-empty">
     <img class="mark mark--md" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" aria-hidden="true" />
-    @if (Model.Folder != MailFolderScope.Inbox)
+    @if (Model.SearchTerm is not null)
+    {
+        <p class="empty-state">No retained mail in this mailbox and folder matched “@Model.SearchTerm”.</p>
+    }
+    else if (Model.Folder != MailFolderScope.Inbox)
     {
         <p class="empty-state">
             @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.
@@ -108,6 +202,7 @@ else
                             <a asp-page="/Mail/Message" asp-route-id="@item.Id"
                                asp-route-mailbox="@Model.MailboxFilter"
                                asp-route-folder="@Model.FolderRouteValue"
+                               asp-route-search="@Model.SearchTerm"
                                asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
                                title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
                             @{
@@ -130,6 +225,10 @@ else
                             @if (subline.Length > 0)
                             {
                                 <small>@subline</small>
+                            }
+                            @if (item.Matches.Count > 0)
+                            {
+                                <small>Matched in: @string.Join("; ", item.Matches.Select(Pegasus.Web.Pages.Mail.IndexModel.MatchLabel))</small>
                             }
                         </span>
                     </td>
@@ -162,22 +261,28 @@ else
     </div>
 }
 
-@if (Model.Results.TotalPages > 1)
+@{
+    var currentPage = Model.DeletedResults?.Page ?? Model.Results.Page;
+    var totalPages = Model.DeletedResults?.TotalPages ?? Model.Results.TotalPages;
+}
+@if (totalPages > 1)
 {
     @* Accessible pagination, never infinite scrolling. *@
     <nav class="pager" aria-label="Pages">
-        @if (Model.Results.Page > 1)
+        @if (currentPage > 1)
         {
             <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
                asp-route-folder="@Model.FolderRouteValue"
-               asp-route-pageNumber="@(Model.Results.Page - 1)">Previous</a>
+               asp-route-search="@Model.SearchTerm"
+               asp-route-pageNumber="@(currentPage - 1)">Previous</a>
         }
-        <span class="pager__context">Page @Model.Results.Page of @Model.Results.TotalPages</span>
-        @if (Model.Results.Page < Model.Results.TotalPages)
+        <span class="pager__context">Page @currentPage of @totalPages</span>
+        @if (currentPage < totalPages)
         {
             <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
                asp-route-folder="@Model.FolderRouteValue"
-               asp-route-pageNumber="@(Model.Results.Page + 1)">Next</a>
+               asp-route-search="@Model.SearchTerm"
+               asp-route-pageNumber="@(currentPage + 1)">Next</a>
         }
     </nav>
 }

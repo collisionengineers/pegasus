@@ -23,6 +23,111 @@ public sealed class RetainedMailPersistenceTests
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
+    {
+        var message = new MimeMessage();
+        message.From.Add(MimeKit.MailboxAddress.Parse("sender@example.invalid"));
+        message.To.Add(MimeKit.MailboxAddress.Parse(MailboxAddress));
+        message.Subject = "Nameless attachment occurrence";
+        message.MessageId = "<nameless@example.invalid>";
+
+        var nameless = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream([1, 2, 3])),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64
+        };
+        var named = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream([4, 5, 6])),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = "named.bin"
+        };
+        var attachedText = new TextPart("plain")
+        {
+            Text = "Attached notes",
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            FileName = "notes.txt"
+        };
+        var contentIdImage = new MimePart("image", "png")
+        {
+            Content = new MimeContent(new MemoryStream(Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nXQAAAAASUVORK5CYII="))),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            ContentId = "attached-image@example.invalid",
+            FileName = "attached.png"
+        };
+        var searchablePdf = new MimePart("application", "pdf")
+        {
+            Content = new MimeContent(new MemoryStream(AudatexEstimateFixture.Build())),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = "searchable.pdf"
+        };
+        message.Body = new Multipart("mixed")
+        {
+            new TextPart("plain") { Text = "Body" },
+            nameless,
+            attachedText,
+            contentIdImage,
+            searchablePdf,
+            named
+        };
+
+        await using var stream = new MemoryStream();
+        await message.WriteToAsync(stream);
+        var bytes = stream.ToArray();
+        await using var displayStream = new MemoryStream(bytes);
+        var display = await LocalEmailDisplayReader.ReadAsync(displayStream, CancellationToken.None);
+        var canonical = await new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System)
+            .ReadAsync(
+                new(
+                    "message.eml",
+                    "message/rfc822",
+                    bytes,
+                    ReceivedAtUtc,
+                    "test",
+                    new(IntakeSourceChannel.Mailbox, "mailbox:test")),
+                CancellationToken.None);
+
+        Assert.Collection(
+            Assert.IsAssignableFrom<IReadOnlyList<RetainedMailboxAttachment>>(display.Attachments),
+            first => Assert.Equal("Unnamed attachment 1", first.FileName),
+            second => Assert.Equal("notes.txt", second.FileName),
+            third => Assert.Equal("attached.png", third.FileName),
+            fourth => Assert.Equal("searchable.pdf", fourth.FileName),
+            fifth => Assert.Equal("named.bin", fifth.FileName));
+        Assert.Collection(
+            canonical.AttachmentRecords,
+            first => Assert.Equal(0, first.Ordinal),
+            second =>
+            {
+                Assert.Equal(1, second.Ordinal);
+                Assert.Equal("notes.txt", second.FileName);
+            },
+            third =>
+            {
+                Assert.Equal(2, third.Ordinal);
+                Assert.Equal("attached.png", third.FileName);
+            },
+            fourth =>
+            {
+                Assert.Equal(3, fourth.Ordinal);
+                Assert.Equal("searchable.pdf", fourth.FileName);
+            },
+            fifth =>
+            {
+                Assert.Equal(4, fifth.Ordinal);
+                Assert.Equal("named.bin", fifth.FileName);
+            });
+        Assert.Contains(
+            IntakeSearchProjection.Create(canonical, routeDecision: null),
+            document => document.AttachmentOrdinal == 3 && document.IsSearchable);
+    }
+
+    [Fact]
     public async Task ARetainedMessageRoundTripsThroughTheMigration()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -57,6 +162,74 @@ public sealed class RetainedMailPersistenceTests
         var attachment = Assert.Single(detail.Attachments);
         Assert.Equal("estimate.pdf", attachment.FileName);
         Assert.Equal(2048, attachment.ContentLength);
+    }
+
+    [Fact]
+    public async Task SearchFiltersBeforePagingAndIdentifiesBodyFileNameAndProjectedContentMatches()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message(
+            "message-search",
+            bodyPlainText: "Canonical wrapper only. Please inspect the vehicle.");
+        await RetainAsync(database, message);
+        await database.StoreAsync(new(
+            SourceFileName: "message-search.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: new string('D', 64),
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, message.ExternalReceiptToken),
+            ReceivedAtUtc: ReceivedAtUtc,
+            ProcessedAtUtc: ReceivedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: [],
+            SearchDocuments:
+            [
+                new("message body", null, "Please inspect the vehicle."),
+                new("message, attachment 1", "estimate.pdf", "Repair estimate for replacement wing", 0)
+            ]));
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+
+        var body = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "inspect"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(body.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
+
+        var fileName = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(fileName.Matches, match =>
+            match.Kind == MailSearchMatchKind.AttachmentFileName
+            && match.AttachmentFileName == "estimate.pdf");
+
+        var content = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "replacement"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(content.Matches, match =>
+            match.Kind == MailSearchMatchKind.AttachmentContent
+            && match.AttachmentFileName == "estimate.pdf");
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "not present"), 1, 25, CancellationToken.None)).Items);
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "Canonical wrapper only"), 1, 25, CancellationToken.None)).Items);
+
+        var detail = Assert.IsType<RetainedMailDetail>(
+            await queries.GetAsync(content.Id, CancellationToken.None, "inspect"));
+        Assert.Equal("Please inspect the vehicle.", detail.BodyPlainText);
+        Assert.Contains(detail.Summary.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
+        Assert.True(Assert.Single(detail.Attachments).IsSearchable);
+        Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeSearchDocuments"));
     }
 
     [Fact]
@@ -619,7 +792,8 @@ public sealed class RetainedMailPersistenceTests
         string? senderDisplayName = "A Sender",
         string? internetMessageIdentity = null,
         string mailboxId = MailboxId,
-        string mailboxAddress = MailboxAddress) => new(
+        string mailboxAddress = MailboxAddress,
+        string? bodyPlainText = "Please inspect the vehicle.") => new(
         mailboxId,
         mailboxAddress,
         immutableMessageId,
@@ -636,7 +810,7 @@ public sealed class RetainedMailPersistenceTests
             ["intake@collisionengineers.co.uk"],
             ["copied@collisionengineers.co.uk"],
             subject,
-            "Please inspect the vehicle.",
+            bodyPlainText,
             [new("estimate.pdf", "application/pdf", 2048)],
             IsRead: false),
         receivedAtUtc ?? ReceivedAtUtc);

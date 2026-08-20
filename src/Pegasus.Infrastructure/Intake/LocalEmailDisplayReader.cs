@@ -75,6 +75,7 @@ public static partial class LocalEmailDisplayReader
         body = StaffForwardBodyCleaner.Clean(body ?? string.Empty, isStaffForward);
 
         var sender = message.From.Mailboxes.FirstOrDefault();
+        var attachments = Attachments(message);
         return new LocalEmailDisplay(
             message.From.ToString(),
             message.To.ToString(),
@@ -82,16 +83,12 @@ public static partial class LocalEmailDisplayReader
             message.Date == DateTimeOffset.MinValue ? string.Empty : message.Date.ToString("u"),
             message.Subject ?? string.Empty,
             body ?? string.Empty,
-            message.Attachments
-                .Select(part => part.ContentDisposition?.FileName ?? part.ContentType.Name)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name!)
-                .ToArray(),
+            attachments.Select(item => item.FileName).ToArray(),
             sender?.Address,
             string.IsNullOrWhiteSpace(sender?.Name) ? null : sender!.Name,
             Addresses(message.To),
             Addresses(message.Cc),
-            Attachments(message),
+            attachments,
             NullIfBlank(message.MessageId),
             // The conversation this message belongs to, as the MIME can express it:
             // the root of its References chain, or itself where it starts one.
@@ -155,7 +152,7 @@ public static partial class LocalEmailDisplayReader
             var fileName = part.ContentDisposition?.FileName ?? part.ContentType.Name;
             if (string.IsNullOrWhiteSpace(fileName))
             {
-                continue;
+                fileName = $"Unnamed attachment {attachments.Count + 1}";
             }
 
             attachments.Add(new(

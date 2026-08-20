@@ -232,6 +232,12 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$role|D|$permission|UnidentifiedHistory")
         }
     }
+    # 20260820100724_RetainedMailSearchDocuments: Web searches the immutable
+    # projection; Worker creates/replaces it in the existing receipt transaction.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|IntakeSearchDocuments')
+    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|IntakeSearchDocuments")
+    }
     # 20260819180000_GrantEvaHandoffDownloadOperations: closes a live production
     # gap (verified against sys.database_permissions) -- the table was created
     # by 20260811122654_CaseCustodyEvaRecovery with no grant at all. Mirrors

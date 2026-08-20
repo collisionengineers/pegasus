@@ -813,6 +813,12 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             var nestedFileName = messagePart.ContentDisposition?.FileName
                 ?? messagePart.ContentType.Name
                 ?? $"attached-email-{nestedNumber}.eml";
+            result.Attachments.Add(new(
+                nestedFileName,
+                "message/rfc822",
+                nestedPayload.Length,
+                result.Attachments.Count,
+                nestedLabel));
             result.Assets.Add(new(
                 nestedLabel,
                 nestedFileName,
@@ -844,16 +850,20 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return;
         }
 
-        if (entity is not MimePart part || entity is TextPart)
+        if (entity is not MimePart part
+            || (entity is TextPart && !entity.IsAttachment))
         {
             return;
         }
 
         var fileName = part.FileName ?? InferFileName(part, limits);
         var format = DetectFormat(fileName, part.ContentType.MimeType);
+        var isExplicitAttachment = part.ContentDisposition?.IsAttachment == true;
         var isInlineImage = format == SourceFormat.Image
+            && !isExplicitAttachment
             && (part.ContentDisposition?.Disposition.Equals("inline", StringComparison.OrdinalIgnoreCase) == true
                 || !string.IsNullOrWhiteSpace(part.ContentId));
+        var descriptorOrdinal = result.Attachments.Count;
         var shouldRetain = format is SourceFormat.Pdf
             or SourceFormat.Email
             or SourceFormat.Docx
@@ -862,7 +872,27 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             or SourceFormat.Msg;
         if (!shouldRetain || part.Content is null)
         {
+            if (!isInlineImage)
+            {
+                result.Attachments.Add(new(
+                    fileName,
+                    part.ContentType.MimeType,
+                    part.Content?.Stream?.CanSeek == true ? part.Content.Stream.Length : null,
+                    descriptorOrdinal));
+            }
             return;
+        }
+
+        var attachmentNumber = ++limits.AttachmentCount;
+        var attachmentLabel = $"{sourceLabel}, attachment {attachmentNumber}: {fileName}";
+        if (!isInlineImage)
+        {
+            result.Attachments.Add(new(
+                fileName,
+                part.ContentType.MimeType,
+                part.Content.Stream?.CanSeek == true ? part.Content.Stream.Length : null,
+                descriptorOrdinal,
+                attachmentLabel));
         }
 
         await using var decoded = new MemoryStream();
@@ -885,8 +915,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return;
         }
 
-        var attachmentNumber = ++limits.AttachmentCount;
-        var attachmentLabel = $"{sourceLabel}, attachment {attachmentNumber}: {fileName}";
         result.Assets.Add(new(
             attachmentLabel,
             fileName,
@@ -1041,6 +1069,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         public List<IntakeAssetCandidate> Assets { get; } = [];
 
+        public List<IntakeAttachmentDescriptor> Attachments { get; } = [];
+
         public List<ScannedPdfOcrCandidate> OcrCandidates { get; } = [];
 
         public MimeLimitState? MimeLimits { get; set; }
@@ -1068,7 +1098,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 OcrCandidates,
                 IsIncomplete,
                 ReaderKey,
-                ReaderVersion);
+                ReaderVersion,
+                Attachments);
     }
 
     private sealed class MimeLimitState

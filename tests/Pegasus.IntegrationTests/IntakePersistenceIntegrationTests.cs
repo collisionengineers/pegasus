@@ -84,7 +84,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260820034652_ImageIntakeSubmissionGroup",
                 "20260820040337_SendToAiConnectorSettings",
                 "20260820055900_ImageCaseCustody",
-                "20260820100056_ApprovedMailboxLogicalFolderBindings"
+                "20260820100056_ApprovedMailboxLogicalFolderBindings",
+                "20260820100724_RetainedMailSearchDocuments"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
@@ -116,6 +117,8 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageVrmSuggestions'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceipts'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeSearchDocuments'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeAssets'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
