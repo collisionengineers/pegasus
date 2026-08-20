@@ -17,9 +17,11 @@ groups:
   - EPIC-005
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:03:53.286Z'
-updated: '2026-08-17T06:43:40.575Z'
+updated: '2026-08-20T03:41:50.047Z'
 ---
 
 ## What

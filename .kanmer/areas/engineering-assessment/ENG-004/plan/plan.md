@@ -29,3 +29,15 @@ All currently-passing extraction fixtures keep their exact behaviour (verified b
 ## Verification note on the ticket's first checkbox
 
 Re-extracting QDOS26002's real document is a production action (the real PDF is not available to this task); the fixture reproduces the exact flattened line shape recorded in the production CaseDataFields suggestion rows. Prod re-extraction belongs to verify/closeout after merge.
+
+## Simplification pass — 2026-08-20
+
+Lenses applied over the branch diff (reuse / simplification / efficiency / altitude):
+
+- **Reuse:** no new types or files — extended the existing `FieldDefinition` record with an optional parameter and added three `[GeneratedRegex]` methods beside the file's existing ones; validator lives in `InstructionFieldEngine` beside `NormalizeRegistration`/`ParseMileage`/`ParseDate`. Applied by construction.
+- **Abstraction check:** `AcceptsValue` is an optional predicate with today one concrete function wired to two field rows. Disposition: kept — it is the ticket's required mechanism ("per-field validators"), sits on an existing record rather than a new wrapper, and [[INTK-017]] adds further callers (registration/mileage candidate validation) immediately after.
+- **Efficiency:** candidate discovery is unchanged in shape (one regex per label per line, 100 ms timeouts); the boundary truncation is one additional generated-regex match per candidate. No finding.
+- **Altitude:** MOT vocabulary and the column-boundary rule each live in exactly one place (one list per concept). Rejected candidates are dropped silently rather than emitting new evidence signals — the existing missing-field evidence already fires when nothing remains; adding a new signal would be scope.
+- **Findings applied:** none outstanding; no behaviour-affecting simplifications deferred.
+
+Verification run: `dotnet build ./Pegasus.slnx -c Release` — 0 warnings, 0 errors; `dotnet test tests/Pegasus.Core.Tests` — 695 passed / 0 failed (includes the 4 new fixtures, red-first: they failed with the exact production value "AUDI NSF : Footbrake : SATISFACTORY" before the fix).
