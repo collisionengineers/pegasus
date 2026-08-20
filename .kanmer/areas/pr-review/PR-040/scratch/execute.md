@@ -1,0 +1,1 @@
+Implemented latest-success destination as current source and exact binding comparison for CanMove. Reclassification test proves source chaining, successful second move, preserved arrival folder and unchanged first classification until the explicit correction.

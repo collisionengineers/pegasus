@@ -14,3 +14,11 @@ FRD-08’s failure and preservation behavior requires executable evidence. This 
 ## Risks
 
 Avoid test proliferation by covering one behavior per material branch and reusing existing LocalDB/Web fixtures.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Extended existing LocalDB, authenticated Web and fake-provider fixtures.
+- **Simplification:** Tests cover material branches by behavior rather than introducing a new harness.
+- **Efficiency:** Focused filters prove blocker paths; proportional suites cover regression risk.
+- **Altitude:** Evidence distinguishes database claims, provider calls, Web semantics and immutable business state.
+- **Unapplied findings:** none.

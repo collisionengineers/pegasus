@@ -1,0 +1,1 @@
+Implemented filtered unique active-per-message claim plus post-reservation current-source guard. Exact overlapping LocalDB test proves one provider move and one operation row; schema assertion proves the named index is unique and filtered.

@@ -1,0 +1,1 @@
+Kept moved messages out of ordinary Inbox browse but included them in the existing non-empty retained search. SQL evidence covers inclusion once, mailbox scope, count/paging/current type; authenticated Web evidence now covers the visible search route/status.

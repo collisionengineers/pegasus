@@ -14,3 +14,11 @@
 ## Risks
 
 SQL/provider split remains; uncertain operations deliberately retain the active slot until same-key recovery resolves them.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Extended the existing dedicated operation table and EF claim path.
+- **Simplification:** A single filtered unique index is the only new serialization mechanism; no lock service or generic operation framework.
+- **Efficiency:** The database rejects overlapping active claims and the reserved operation probes exact current location before any provider move.
+- **Altitude:** SQL owns concurrency; the provider adapter remains unaware of claims.
+- **Unapplied findings:** none.

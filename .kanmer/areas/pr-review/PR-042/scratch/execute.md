@@ -1,0 +1,1 @@
+Added exact tests for stale classification/policy/mailbox refusals, wrong current location, provider failure/new-key retry with preserved classification/history, concurrent claims, reclassification, search and same-key Web recovery. Corrected the canonical category-code assertion and replaced overclaiming evidence with observed named results.

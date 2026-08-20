@@ -50,3 +50,12 @@ TICK-064 and TICK-047 are merged into `origin/dev` at or before `a1775841`. TICK
 - **Altitude:** Core owns authorization/input/freshness policy, Infrastructure owns exact coordinates/durable recovery, and Razor only confirms the server-derived recommendation. The default provider remains unavailable and the control stays absent until an explicitly composed writer exists.
 - **Applied findings:** preserve actor roles in durable history; suppress duplicate history when an uncertain replay remains unchanged; render the durable result reason; remove the accidental duplicate `ApprovedMailboxFolderBindings` creation from the generated migration after the post-merge snapshot divergence.
 - **Unapplied findings:** none.
+
+## Review-blocker simplification pass — 2026-08-20
+
+- **Reuse:** The corrections continue to use the existing dedicated MAIL-07 operation, MAIL-05 recommendation, MAIL-11 retained search, typed approved-mailbox bindings, Graph mover/probe, EF store and shared reason dialog. No second category list, search implementation, destination policy or command framework was added.
+- **Simplification:** One filtered active-operation index and one latest-success current-location rule replace the earlier process-local assumptions. Same-key recovery carries only the original safe freshness material required to recreate the existing request; transport identities remain server-side.
+- **Efficiency:** Serialization is enforced at the SQL claim boundary. Current-location verification occurs after reservation, search inclusion remains in the canonical SQL query before count/paging, and recovery probes without issuing another move.
+- **Altitude:** Core still owns authorization/freshness and the read-only recommendation; Infrastructure owns durable coordinates/recovery; Web only confirms or checks status. Retained arrival evidence remains immutable.
+- **Applied findings:** database-enforced per-message active claim; reachable same-key uncertain status check; reclassification-aware current source/destination; moved-message findability through existing retained search; exact negative/preservation evidence and corrected reporting.
+- **Unapplied findings:** none.
