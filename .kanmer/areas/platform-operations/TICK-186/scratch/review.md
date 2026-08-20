@@ -1,0 +1,3 @@
+## Independent review — no PR (local artifacts only) (orchestrator, 2026-08-20)
+
+Verdict: **pass**. The split is deterministic without a seed to lose (content-digest ordering), rerun-verified byte-identical, duplicate-content groups checked against boundary leakage, and the 80:20 ratio follows the accepted precedent. The holdout fence is documented as the manifest's split column with the enforcement gap named as follow-on rather than claimed. TICK-217's migrated acceptance items are correctly parked — they need a labelled ground-truth tree absent on this machine plus an operator decision. Nothing tracked changed, so no PR is right.

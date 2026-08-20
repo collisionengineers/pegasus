@@ -4,10 +4,14 @@ type: ticket
 title: >-
   AI-09 — Staff Send to AI creates one durable idempotent capability-scoped work
   request bound to an immutable case/version stamp…
-status: backlog
+status: review
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T05:39:28.583Z'
+  implementing: '2026-08-20T05:40:03.231Z'
+  review: '2026-08-20T05:40:10.234Z'
 labels:
   - capability
   - AI-09
@@ -17,9 +21,11 @@ groups:
   - EPIC-005
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.768Z'
-updated: '2026-08-17T06:41:52.249Z'
+updated: '2026-08-20T05:40:10.234Z'
 ---
 
 ## What
