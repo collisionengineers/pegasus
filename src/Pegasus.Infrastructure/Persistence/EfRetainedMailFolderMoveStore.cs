@@ -56,7 +56,11 @@ internal sealed class EfRetainedMailFolderMoveStore(
             {
                 throw new RetainedMailFolderMoveException("The operation key was already used for different move inputs.");
             }
-            if (replay.Outcome is "pending" or "uncertain")
+            if (replay.Outcome == "pending")
+            {
+                throw new RetainedMailFolderMoveException("The folder move is still being processed.");
+            }
+            if (replay.Outcome == "uncertain")
             {
                 await RecoverAsync(context, replay, cancellationToken);
             }
@@ -189,7 +193,9 @@ internal sealed class EfRetainedMailFolderMoveStore(
         }
         catch (Exception exception)
         {
+            operation.Outcome = "uncertain";
             operation.FailureReason = exception.Message;
+            await context.SaveChangesAsync(cancellationToken);
             await RecoverAsync(context, operation, cancellationToken);
         }
         return Map(operation, false);
