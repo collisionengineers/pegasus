@@ -2,10 +2,13 @@
 id: INTK-012
 type: ticket
 title: Fix the ordinal-0 member-token ambiguity in FindForMemberSourceAsync
-status: backlog
+status: preparing
 area: intake-processing
-assignee: ''
+assignee: group-lane
 profile: fix
+taken_at: '2026-08-20T04:43:32.490Z'
+branch: task/intk-012-ordinal-token
+worktree: ../pegasus-worktrees/intk-012
 labels:
   - defect
   - grouped-upload
@@ -17,7 +20,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-20T00:42:19.151Z'
-updated: '2026-08-20T00:42:19.151Z'
+updated: '2026-08-20T04:43:32.490Z'
 ---
 
 ## What
