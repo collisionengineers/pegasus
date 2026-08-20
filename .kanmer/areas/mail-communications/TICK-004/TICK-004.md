@@ -4,7 +4,7 @@ type: ticket
 title: >-
   EVAL-02 — Reviewer selects from the detailed Received/Sent/Reply taxonomy and
   records required reasoning
-status: review
+status: verifying
 area: mail-communications
 assignee: claude-code
 profile: feature
@@ -30,7 +30,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/463'
 archived: false
 created: '2026-08-12T15:03:52.841Z'
-updated: '2026-08-20T06:03:53.542Z'
+updated: '2026-08-20T06:04:48.756Z'
 ---
 
 ## What

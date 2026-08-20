@@ -4,13 +4,14 @@ type: ticket
 title: >-
   EVAL-05 — Display the rule-generated category and evidence beside the human
   review once rules exist
-status: review
+status: verifying
 area: mail-communications
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-20T05:38:49.143Z'
   review: '2026-08-20T06:03:53.363Z'
+  verifying: '2026-08-20T06:04:48.351Z'
 taken_at: '2026-08-20T05:54:09.299Z'
 branch: task/tick-007-eval-05-rule-suggestion
 worktree: ../pegasus-worktrees/tick-007
@@ -27,7 +28,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/463'
 archived: false
 created: '2026-08-12T15:03:52.910Z'
-updated: '2026-08-20T06:03:53.363Z'
+updated: '2026-08-20T06:04:48.351Z'
 ---
 
 ## What
