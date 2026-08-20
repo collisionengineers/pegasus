@@ -39,12 +39,24 @@ public enum UploadOutcomeKind
 
 public sealed record UploadOutcomeAction(string Label, string Url);
 
+/// <summary>
+/// The staff decision to add the uploaded material to an existing case, found
+/// by the confirmation surface's case search. Carried only where that
+/// decision is genuinely open (no case located, or automation abstained short
+/// of its bar) — an association automation already made at the accepted bar
+/// is reported, never re-offered. The receipt named here is the one the link
+/// applies to: for a registered Image-initiated Case that is its origin
+/// receipt, so the existing link path also runs the merge transition.
+/// </summary>
+public sealed record UploadOutcomeAttach(Guid ReceiptId);
+
 public sealed record UploadOutcomeView(
     UploadOutcomeKind Kind,
     string StateLabel,
     string Message,
     UploadOutcomeAction? PrimaryAction,
-    UploadOutcomeAction? SecondaryAction)
+    UploadOutcomeAction? SecondaryAction,
+    UploadOutcomeAttach? Attach = null)
 {
     /// <summary>Whether this state is worth polling again — mirrors the existing Received/Processing refresh rule.</summary>
     public bool IsStillWorking => Kind == UploadOutcomeKind.Working;
@@ -161,12 +173,21 @@ public sealed class UploadOutcomeQueries(
         if (status.CaseId is { } caseId)
         {
             var reference = receipt.CurrentCaseReference;
+            // A staff link (the confirmation surface's own add-to-case
+            // decision, or the received-item screen) must not be reported as
+            // automation's doing — the report-not-reoffer rule cuts both
+            // ways: what it says happened automatically really did.
+            var byStaff = receipt.ManualAssociationVersion is not null;
             return new(
                 UploadOutcomeKind.Attached,
                 "Associated with a case",
-                reference is null
-                    ? "This was automatically associated with a case."
-                    : $"This was automatically associated with case {reference}.",
+                (byStaff, reference) switch
+                {
+                    (true, null) => "This was added to a case.",
+                    (true, { } linked) => $"This was added to case {linked}.",
+                    (false, null) => "This was automatically associated with a case.",
+                    (false, { } matched) => $"This was automatically associated with case {matched}."
+                },
                 new("Open case", $"/Cases/Details/{caseId:D}"),
                 new("Not the right case?", $"/Received/{receiptId:D}"));
         }
@@ -174,6 +195,21 @@ public sealed class UploadOutcomeQueries(
         if (receipt.Decision == IntakeDecision.ImageIntakeRegistered)
         {
             var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
+            if (detail is { State: ImageInitiatedCaseState.MergedIntoInstructionCase, MergedIntoCaseId: { } mergedCaseId })
+            {
+                // A group member whose own receipt carries no case link still
+                // reflects the group's settled destination once its
+                // registered vehicle-image case has been merged into a Case
+                // — reporting "registered as new" here would be stale.
+                return new(
+                    UploadOutcomeKind.Attached,
+                    "Associated with a case",
+                    detail.MergedIntoCaseReference is { } mergedReference
+                        ? $"This was added to case {mergedReference}."
+                        : "This was added to a case.",
+                    new("Open case", $"/Cases/Details/{mergedCaseId:D}"),
+                    null);
+            }
             if (detail is not null)
             {
                 return new(
@@ -181,7 +217,10 @@ public sealed class UploadOutcomeQueries(
                     "Registered as a new vehicle-image case",
                     $"No matching case was found, so this was registered as a new vehicle-image case, {detail.Record.ImageIntakeReference}.",
                     new("View", $"/VehicleImages/{detail.Record.Id:D}"),
-                    null);
+                    null,
+                    detail.State == ImageInitiatedCaseState.AwaitingInstruction
+                        ? new UploadOutcomeAttach(detail.Record.Origin.ReceiptId)
+                        : null);
             }
         }
 
@@ -209,7 +248,8 @@ public sealed class UploadOutcomeQueries(
                 "Possible matching cases found",
                 "More than one case could match this. Review the candidates and choose where it belongs.",
                 new("Review and attach", $"/Received/{receipt.Id:D}"),
-                null);
+                null,
+                new UploadOutcomeAttach(receipt.Id));
         }
 
         // Mirrors Cases/Create.cshtml.cs's own eligibility check exactly:
@@ -225,7 +265,8 @@ public sealed class UploadOutcomeQueries(
                 "No matching case found",
                 "No existing case matched this. Create one from what was uploaded.",
                 new("Create a case", $"/Cases/Create?receiptId={receipt.Id:D}"),
-                null);
+                null,
+                new UploadOutcomeAttach(receipt.Id));
         }
 
         return new(
