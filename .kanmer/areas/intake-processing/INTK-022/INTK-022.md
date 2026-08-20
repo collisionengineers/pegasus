@@ -2,10 +2,15 @@
 id: INTK-022
 type: ticket
 title: 'Queues: one Not-ready table, dropdown filters, sortable newest-first columns'
-status: backlog
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: fix
+stageEntered:
+  preparing: '2026-08-20T18:44:57.055Z'
+taken_at: '2026-08-20T18:45:00.465Z'
+branch: task/intk-022-queues-one-table
+worktree: ../pegasus-worktrees/intk-022
 labels:
   - ui
   - design
@@ -17,7 +22,7 @@ refs:
   - docs/frd/frd-03-triage.md
 archived: false
 created: '2026-08-20T18:44:30.327Z'
-updated: '2026-08-20T18:44:30.327Z'
+updated: '2026-08-20T18:45:00.465Z'
 ---
 
 ## Why
