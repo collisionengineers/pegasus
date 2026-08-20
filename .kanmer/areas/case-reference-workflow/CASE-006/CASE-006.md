@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Case images are viewable in Pegasus: thumbnail preview, click to expand,
   Box-backed storage
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T06:07:05.668Z'
   review: '2026-08-20T06:34:44.383Z'
+  verifying: '2026-08-20T08:22:51.129Z'
 taken_at: '2026-08-20T06:02:14.163Z'
 branch: task/case-006-image-viewing
 worktree: ../pegasus-worktrees/case-006
@@ -34,7 +35,7 @@ prs:
   - '#464'
 archived: false
 created: '2026-08-20T03:16:37.709Z'
-updated: '2026-08-20T06:34:44.383Z'
+updated: '2026-08-20T08:22:51.129Z'
 ---
 
 ## What
