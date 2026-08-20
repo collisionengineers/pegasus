@@ -42,6 +42,11 @@
     <div class="status-card" role="status">@classificationNotice</div>
 }
 
+@if (Model.FolderMoveNotice is { } folderMoveNotice)
+{
+    <div class="status-card" role="status">@folderMoveNotice</div>
+}
+
 @* The state before any action: what processing decided, and what it became.
    These are read-only findings with a source, not counts, so they are evidence
    figures rather than metric tiles. *@
@@ -87,6 +92,10 @@
             {
                 <div><dt>Recommended Outlook folder</dt><dd>@Pegasus.Core.Intake.MailLogicalFolders.Definition(folderType).Label</dd></div>
                 <div><dt>Folder recommendation policy</dt><dd>@recommendation.PolicyKey version @recommendation.PolicyVersion</dd></div>
+                @if (Model.Detail.LatestFolderMove is { } latestMove)
+                {
+                    <div><dt>Latest folder move</dt><dd>@latestMove.Outcome — @latestMove.Reason</dd></div>
+                }
             }
             else if (Model.Detail.FolderRecommendation is { } unavailableRecommendation)
             {
@@ -98,6 +107,43 @@
             <div><dt>Decided by</dt><dd>@dossier.CurrentActorDisplayName</dd></div>
             <div><dt>Decided at</dt><dd><time datetime="@dossier.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(dossier.CurrentDecidedAtUtc)</time></dd></div>
         </dl>
+        @if (Model.Detail.FolderRecommendation is
+            {
+                IsAvailable: true,
+                CanMove: true,
+                MailboxVersion: { } mailboxVersion
+            } moveRecommendation
+            && Model.Detail.LatestFolderMove?.Outcome != Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Succeeded)
+        {
+            var moveOperationKey = Guid.NewGuid().ToString("D");
+            var moveAction = Url.Page(
+                "/Mail/Message",
+                "MoveToRecommendedFolder",
+                new
+                {
+                    id = summary.Id,
+                    mailbox = Model.MailboxFilter,
+                    folder = Model.FolderFilter,
+                    pageNumber = Model.PageNumber,
+                    search = Model.SearchTerm,
+                    expectedClassificationVersion = dossier.Version,
+                    expectedRecommendationPolicyKey = moveRecommendation.PolicyKey,
+                    expectedRecommendationPolicyVersion = moveRecommendation.PolicyVersion,
+                    expectedMailboxVersion = mailboxVersion,
+                    moveOperationKey
+                });
+            var moveDialogData = new ViewDataDictionary(ViewData)
+            {
+                ["DialogId"] = "moveRecommendedFolderDialog",
+                ["DialogTitle"] = "Confirm Outlook folder move",
+                ["DialogActionUrl"] = moveAction,
+                ["DialogConsequence"] = "This moves the message to the current designated Outlook folder."
+            };
+            <button class="btn btn--dark" type="button" data-dialog-open="moveRecommendedFolderDialog">
+                Move to @Pegasus.Core.Intake.MailLogicalFolders.Definition(moveRecommendation.FolderType!.Value).Label
+            </button>
+            <partial name="Shared/_ReasonDialog" view-data="moveDialogData" />
+        }
         @if (dossier.Current.Predicates.Count > 0)
         {
             <h3>Material evidence</h3>
