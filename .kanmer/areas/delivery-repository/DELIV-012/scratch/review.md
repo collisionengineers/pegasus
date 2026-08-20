@@ -523,3 +523,77 @@ pass — stated, and covered instead by the release-13 production verification.
 
 **Verdict: pass.** Needs a `dev` merge (fork predates #430/#431) before CI +
 merge — doing that now.
+
+## PR #433 — INTK-010 upload flow v2 — **PASS**
+
+Head `bbd9413b` (after my `dev` merge: one FRD-12 conflict resolved by keeping
+the new Upload section and INTK-009's "Queues: tabs and filters" heading, and
+one cross-branch build break — INTK-009 widened `IUnidentifiedStore` with
+`ListQueueAsync` after this branch's test fake was written; fake widened, 9/9
+`UploadOutcomeQueries` tests green, 0 build errors, docs links 205/205).
+
+**The per-file state design is honest, and that matters more than literal
+spec compliance.** The operator asked for spinner→tick per file; the server
+contract is one synchronous POST that stores the whole batch, so per-file
+progress *during* the POST does not exist to observe. The lane refused to fake
+it: rows spin together for the POST's duration and tick together on the proven
+response — every tick backed by real evidence. FRD-12 now records exactly this
+and why. If the operator wants true per-file streaming, that is an endpoint
+change to ask for explicitly, not a UI illusion.
+
+**The confirmation decision table respects the invariants:** automation's
+completed actions are *reported* (case associated at the accepted bar;
+VRM-keyed Image-initiated registration; Unidentified routing) and never
+re-offered; the genuinely open staff decisions are offered (review-and-attach
+via the existing candidate-review page = the override; create-a-case via
+`/Cases/Create?receiptId=`). Per-file, not per-group — deliberately, with
+INTK-011 awareness, so a split group is shown honestly. Every action routes to
+an existing page; the new `UploadOutcomeQueries` never mutates.
+
+**CASE-003 fixed** with a guard + 404 and a test — the create offer depends on
+that path, so it belonged here.
+
+**Evidence:** Core 684/684; Architecture 97/97; integration filter 93 passed /
+6 pre-existing skips; Browser 43/43 (incl. the red-then-green drag-drop tests).
+Honest gap: no manual 1920 visual pass (no interactive browser in the lane's
+environment) — covered by release-13 production verification instead.
+
+Verdict: pass. Merge on green.
+
+## PR #434 — INTK-011 atomic group outcome — **PASS**
+
+Head `777d2762`. This is the strongest root-cause work of the set.
+
+**The verified mechanism beats the ticket's hypothesis** (and mine): the group
+routing and per-receipt decisions were correct; the failure is that each
+member's work item redundantly re-applies the whole group's registration, the
+two attempts contend on the shared `ImageIntakeSequences` row under
+Serializable, SQL kills the loser, and the loser's exception is **swallowed**
+(`IsRecoverable` caught, return value discarded) with its work item already
+`Completed` — so nothing ever revisits it. The same swallow shape in the
+Unidentified fallback explains the missing U-reference. Hypothesis corrected
+with file:line citations, exactly as briefed.
+
+**Design honesty:** the first fix (re-arming the work item) was built and then
+**disproven by its own integration test** — re-claiming routes through the
+artifact-reading branch whose staged copy is already deleted, a reproducible
+`staged_artifact_integrity_failure`. The corrected design defers the fallback
+when the group is pending and lets the existing reconciliation timer re-drive
+strays through the safe replay branch, escalating to Unidentified after 2h
+(the poison escape). Building the wrong thing, catching it with a test, and
+saying so is the behaviour the process is meant to produce.
+
+**The Worker grant gap was real** — the group-table grants said "the Worker
+never references either table" while the Worker's pipeline reads both; a
+grant-only migration + census entry closes it (tracked-gap, correctly not
+claimed as the proximate cause since the PNG registered).
+
+**Race evidence:** 12 fresh 2-member groups × `Task.WhenAll` × 3 runs = 36
+trials, 0 splits, on real LocalDB. Migration guard 54 files; `-Mode Local`
+pass. The simplifier caught a real null-counter bug (optional dependency made
+required). The one discovered out-of-scope gap is now [[INTK-012]], not
+silence. Not run: Browser suite (outside its surface — Web untouched) and the
+production-straggler recovery, which is explicitly a post-deploy verification
+item for release 13.
+
+Verdict: pass. Needs a `dev` merge (forked before #430–#433), then CI + merge.
