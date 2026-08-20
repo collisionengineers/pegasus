@@ -401,6 +401,33 @@ public sealed class EfImageIntakeStore(
             .ToArray();
     }
 
+    /// <summary>
+    /// The one owner of the ordered receipt-id set an Image intake covers:
+    /// the group members by submission ordinal (when the group is the
+    /// registration unit) with the origin receipt first when it is not
+    /// already among them. The custody payload loader and the gallery query
+    /// both compose from this.
+    /// </summary>
+    internal static async Task<IReadOnlyList<Guid>> ResolveOrderedImageReceiptIdsAsync(
+        PegasusDbContext context,
+        Guid originReceiptId,
+        Guid? submissionGroupId,
+        CancellationToken cancellationToken)
+    {
+        var ordered = new List<Guid>();
+        if (submissionGroupId is { } groupId)
+        {
+            ordered.AddRange(
+                (await ResolveGroupMemberReceiptsAsync(context, groupId, cancellationToken))
+                .Select(pair => pair.ProcessedReceiptId));
+        }
+        if (!ordered.Contains(originReceiptId))
+        {
+            ordered.Insert(0, originReceiptId);
+        }
+        return ordered.Distinct().ToArray();
+    }
+
     public async Task EnsureRegisteredReceiptDecisionAsync(
         Guid intakeReceiptId,
         CancellationToken cancellationToken)
@@ -730,6 +757,54 @@ public sealed class EfImageIntakeStore(
             context,
             cancellationToken);
         return rows.Where(row => row.AssociatedCaseId == caseId).ToArray();
+    }
+
+    public async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
+        Guid imageIntakeId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var intake = await context.ImageIntakes
+            .AsNoTracking()
+            .Where(item => item.Id == imageIntakeId)
+            .Select(item => new { item.OriginReceiptId, item.SubmissionGroupId })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (intake is null)
+        {
+            return [];
+        }
+
+        var receiptIds = await ResolveOrderedImageReceiptIdsAsync(
+            context,
+            intake.OriginReceiptId,
+            intake.SubmissionGroupId,
+            cancellationToken);
+        var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
+        // The image rule's owner is ImageIntakeLifecycle.IsImageOnlyMaterial;
+        // this projection cites its prefix because SQL cannot run it.
+        var rows = await context.IntakeAssets
+            .AsNoTracking()
+            .Where(asset => receiptIds.Contains(asset.IntakeReceiptId)
+                && asset.Kind == "source"
+                && asset.Disposition == "source"
+                && asset.MediaType.StartsWith(ImageIntakeLifecycleRules.ImageMediaTypePrefix))
+            .Join(
+                context.IntakeReceipts.AsNoTracking()
+                    .Where(receipt => receipt.Decision == registeredDecision),
+                asset => asset.IntakeReceiptId,
+                receipt => receipt.Id,
+                (asset, receipt) => new { asset.IntakeReceiptId, asset.FileName })
+            .ToArrayAsync(cancellationToken);
+        var byReceipt = rows.ToDictionary(row => row.IntakeReceiptId, row => row.FileName);
+        var images = new List<ImageIntakeImage>(rows.Length);
+        foreach (var receiptId in receiptIds)
+        {
+            if (byReceipt.TryGetValue(receiptId, out var fileName))
+            {
+                images.Add(new(receiptId, fileName));
+            }
+        }
+        return images;
     }
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(

@@ -110,6 +110,14 @@ public static class ImageIntakeLifecycleRules
             receipt.AssetRecords.Select(asset => asset.MediaType));
     }
 
+    /// <summary>
+    /// The media-type prefix that makes retained material an image. Query
+    /// layers that cannot run <see cref="IsImageOnlyMaterial(bool, int, IEnumerable{string})"/>
+    /// (a SQL projection, an endpoint gate) cite this constant instead of
+    /// restating the string.
+    /// </summary>
+    public const string ImageMediaTypePrefix = "image/";
+
     public static bool IsImageOnlyMaterial(
         bool hasInstructionDraft,
         int extractedFieldCount,
@@ -119,7 +127,7 @@ public static class ImageIntakeLifecycleRules
         var sawAsset = false;
         foreach (var mediaType in retainedAssetMediaTypes)
         {
-            if (!mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            if (!mediaType.StartsWith(ImageMediaTypePrefix, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
