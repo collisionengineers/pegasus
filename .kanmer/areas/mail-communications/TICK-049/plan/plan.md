@@ -41,3 +41,12 @@ TICK-064 and TICK-047 are merged into `origin/dev` at or before `a1775841`. TICK
 - **Silent binding drift:** expose only `ApprovedMailbox.Version` as freshness; re-resolve the exact binding server-side.
 - **SQL/Graph split:** durable reservation plus exact destination/source probe; never blind-retry an uncertain operation.
 - **Scope growth:** keep one folder-move operation, one adapter extension and one Web caller; defer every other mail action and Automation exposure.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Kept one Core move owner, the existing `MailLogicalFolderPolicy`, typed approved-mailbox binding/version, retained-mail query, `GraphMailClient`, shared reason dialog, EF concurrency and ActionHistory shapes. No duplicate taxonomy, authorization table, Graph client or destination list was introduced.
+- **Simplification:** Removed an unused move-reason bound property; the shared dialog's existing `Reason` field binds directly to the handler. Kept the operation/current-location owner concrete to MAIL-07 and did not introduce a generic mail-command/result framework.
+- **Efficiency:** Inbox exclusion is a SQL `NOT EXISTS` against successful operations before count/paging. The command performs one exact current-location probe, one folder-scoped move, and probes again only after an uncertain response; replay does not issue a second move.
+- **Altitude:** Core owns authorization/input/freshness policy, Infrastructure owns exact coordinates/durable recovery, and Razor only confirms the server-derived recommendation. The default provider remains unavailable and the control stays absent until an explicitly composed writer exists.
+- **Applied findings:** preserve actor roles in durable history; suppress duplicate history when an uncertain replay remains unchanged; render the durable result reason; remove the accidental duplicate `ApprovedMailboxFolderBindings` creation from the generated migration after the post-merge snapshot divergence.
+- **Unapplied findings:** none.
