@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 using Pegasus.Core.Identity;
@@ -845,6 +846,41 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task CancellationDuringProviderMoveLeavesAnUncertainSameKeyRecovery()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new CancellationRecoveryFolderMover(cancellation.Cancel);
+        await using var scope = database.CreateAsyncScope();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            FolderMoveCommand(scope, mover).ExecuteAsync(seed.Actor, seed.Request, cancellation.Token));
+
+        Assert.True(cancellation.IsCancellationRequested);
+        await AssertUncertainBlocksNewKeyAndRecoversAsync(database, seed, mover);
+    }
+
+    [Fact]
+    public async Task CancellationDuringSuccessSaveLeavesAnUncertainSameKeyRecovery()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var interceptor = new CancelFolderMoveSuccessSaveInterceptor();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(interceptor));
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new CancellationRecoveryFolderMover(static () => { });
+        interceptor.CancelNextSuccessSave(cancellation);
+        await using var scope = database.CreateAsyncScope();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            FolderMoveCommand(scope, mover).ExecuteAsync(seed.Actor, seed.Request, cancellation.Token));
+
+        Assert.True(cancellation.IsCancellationRequested);
+        await AssertUncertainBlocksNewKeyAndRecoversAsync(database, seed, mover);
+    }
+
+    [Fact]
     public async Task FreshnessAndCurrentLocationRefusalsNeverIssueTheMove()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -1273,6 +1309,31 @@ public sealed class RetainedMailPersistenceTests
             mover,
             TimeProvider.System));
 
+    private static async Task AssertUncertainBlocksNewKeyAndRecoversAsync(
+        LocalDbTestDatabase database,
+        FolderMoveSeed seed,
+        CancellationRecoveryFolderMover mover)
+    {
+        await using (var verification = await database.CreateContextAsync())
+        {
+            var operation = Assert.Single(await verification.RetainedMailFolderMoves.ToListAsync());
+            Assert.Equal("uncertain", operation.Outcome);
+        }
+
+        await using var newKeyScope = database.CreateAsyncScope();
+        await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+            FolderMoveCommand(newKeyScope, mover).ExecuteAsync(
+                seed.Actor,
+                seed.Request with { OperationKey = Guid.NewGuid().ToString("D") }));
+
+        await using var replayScope = database.CreateAsyncScope();
+        var replay = await FolderMoveCommand(replayScope, mover).ExecuteAsync(seed.Actor, seed.Request);
+        Assert.True(replay!.IsReplay);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, replay.Outcome);
+        Assert.Equal(1, mover.MoveCalls);
+        Assert.Equal(2, mover.ParentCalls);
+    }
+
     private sealed record FolderMoveSeed(
         Guid MessageId,
         string ExternalReceiptToken,
@@ -1344,6 +1405,58 @@ public sealed class RetainedMailPersistenceTests
 
         public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
             Task.FromResult<string?>(currentFolder);
+    }
+
+    private sealed class CancellationRecoveryFolderMover(Action afterMove) : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+        public int ParentCalls { get; private set; }
+        private string currentFolder = "inbox";
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            currentFolder = coordinates.DestinationFolderId;
+            afterMove();
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
+        {
+            ParentCalls++;
+            return Task.FromResult<string?>(currentFolder);
+        }
+    }
+
+    private sealed class CancelFolderMoveSuccessSaveInterceptor : SaveChangesInterceptor
+    {
+        private CancellationTokenSource? cancellation;
+
+        public void CancelNextSuccessSave(CancellationTokenSource source) =>
+            cancellation = source;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context is not null
+                && eventData.Context.ChangeTracker.Entries<RetainedMailFolderMoveEntity>()
+                    .Any(entry => entry.State == EntityState.Modified
+                        && entry.Entity.Outcome == "succeeded"))
+            {
+                var source = Interlocked.Exchange(ref cancellation, null);
+                if (source is not null)
+                {
+                    source.Cancel();
+                    throw new OperationCanceledException(source.Token);
+                }
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
     }
 
     private sealed class SequenceInboxSource(params ApprovedInboxMessage[] messages)

@@ -13,6 +13,8 @@ internal sealed class EfRetainedMailFolderMoveStore(
     IRetainedMailFolderMover mover,
     TimeProvider timeProvider) : IRetainedMailFolderMoveStore
 {
+    private static readonly TimeSpan CancellationHandoffTimeout = TimeSpan.FromSeconds(30);
+
     public async Task<RetainedMailFolderMoveResult?> GetLatestAsync(
         Guid messageId,
         CancellationToken cancellationToken)
@@ -169,6 +171,7 @@ internal sealed class EfRetainedMailFolderMoveStore(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            await MarkUncertainAfterCancellationAsync(operation.Id);
             throw;
         }
         catch
@@ -189,6 +192,7 @@ internal sealed class EfRetainedMailFolderMoveStore(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            await MarkUncertainAfterCancellationAsync(operation.Id);
             throw;
         }
         catch (Exception exception)
@@ -199,6 +203,21 @@ internal sealed class EfRetainedMailFolderMoveStore(
             await RecoverAsync(context, operation, cancellationToken);
         }
         return Map(operation, false);
+    }
+
+    private async Task MarkUncertainAfterCancellationAsync(Guid operationId)
+    {
+        using var handoff = new CancellationTokenSource(CancellationHandoffTimeout);
+        await using var context = await contextFactory.CreateDbContextAsync(handoff.Token);
+        await context.RetainedMailFolderMoves
+            .Where(item => item.Id == operationId && item.Outcome == "pending")
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(item => item.Outcome, "uncertain")
+                    .SetProperty(
+                        item => item.FailureReason,
+                        "The request ended before the Outlook move outcome was recorded."),
+                handoff.Token);
     }
 
     private async Task RecoverAsync(
