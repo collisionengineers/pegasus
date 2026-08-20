@@ -1958,20 +1958,43 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .dropzone.has-file { border-style: solid; background: var(--panel); }
 .dropzone.is-dragover { border-color: var(--ce-red); border-style: solid; background: var(--ce-red-tint); }
 
+/* Selected files: one row each, not one run-on line — a row is a flex line
+   of its own (name, size, state), and the list stacks them. The per-row
+   state icon reuses the product's one animation (.is-refreshing .icon--spin,
+   declared once above) rather than a second spinner rule. */
 .dropzone__file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-1);
+  max-width: 100%;
+  margin: var(--sp-2) 0 0;
+}
+
+.dropzone__file-row {
   display: flex;
   align-items: center;
   gap: var(--sp-2);
-  max-width: 100%;
-  margin: var(--sp-2) 0 0;
+  min-width: 0;
   color: var(--ink);
   font-size: var(--t-sm);
   font-weight: 600;
 }
 
-.dropzone__file .icon { flex: 0 0 auto; color: var(--muted); }
-.dropzone__file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dropzone__file small { flex: 0 0 auto; color: var(--muted); font-weight: 400; }
+.dropzone__file-row .icon { flex: 0 0 auto; color: var(--muted); }
+.dropzone__file-row__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.dropzone__file-row__size { flex: 0 0 auto; color: var(--muted); font-weight: 400; }
+
+.dropzone__file-row__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-weight: 400;
+}
+
+.dropzone__file-row__status[data-state="stored"] { color: var(--success); }
+.dropzone__file-row__status[data-state="failed"] { color: var(--ce-red); }
 
 /* The Upload screen: the form leads, and what happens after the button is
    beside it rather than left to be discovered on the status page. One column
@@ -2005,6 +2028,16 @@ details > summary.btn::-webkit-details-marker { display: none; }
   font-size: var(--t-xs);
   font-weight: 600;
 }
+
+/* The upload confirmation: what already happened automatically, or the
+   staff decision that is genuinely open. One block per file in a grouped
+   submission; the single-file status page renders exactly one. */
+.upload-outcome-list { display: grid; gap: var(--sp-6); margin: 0; padding: 0; list-style: none; }
+.upload-outcome-list > li { padding-top: var(--sp-4); border-top: var(--border); }
+.upload-outcome-list > li:first-child { padding-top: 0; border-top: 0; }
+.upload-outcome__file { margin: 0 0 var(--sp-2); font-weight: 700; }
+.upload-outcome { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
+.upload-outcome__message { margin: 0; color: var(--charcoal); }
 
 /* A single-purpose screen is centred and narrow; a wide column would put the
    dropzone's edges further apart than the file it accepts. */
