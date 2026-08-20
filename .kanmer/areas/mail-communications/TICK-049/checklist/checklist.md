@@ -1,6 +1,6 @@
 # Checklist — MAIL-07
 
-- [ ] After PR #469 merges/releases, fetch its `origin/dev` merge, re-read every overlapping file, create `task/tick-049-mail-07-confirmed-folder-move` in `../pegasus-worktrees/tick-049`, and take TICK-049.
+- [x] After PR #469 merges/releases, fetch its `origin/dev` merge, re-read every overlapping file, create `task/tick-049-mail-07-confirmed-folder-move` in `../pegasus-worktrees/tick-049`, and take TICK-049.
 - [ ] Add the focused Core move request/result/use case and ports, reusing staff authorization, classification/recommendation policy and approved-mailbox versions/bindings with no browser transport identity.
 - [ ] Add the dedicated durable operation/current-location entity, EF configuration/store and migration while preserving retained arrival evidence.
 - [ ] Extend the existing Graph client with only the exact folder-scoped move and immutable-id parent-folder probe; prove it solely with a fake HTTP handler.

@@ -1,0 +1,1 @@
+2026-08-20: PR #469 landed at c025b39a; refreshed origin/dev is 8caa39a5 (also includes design PR #476). Created ../pegasus-worktrees/tick-049 on task/tick-049-mail-07-confirmed-folder-move from that head and took TICK-049. No external write performed.
