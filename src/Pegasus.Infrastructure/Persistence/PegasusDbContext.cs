@@ -1377,6 +1377,7 @@ internal sealed class IntakeSearchDocumentEntity
     public Guid IntakeReceiptId { get; set; }
     public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
     public int Ordinal { get; set; }
+    public int? AttachmentOrdinal { get; set; }
     public required string SourceLabel { get; set; }
     public string? AttachmentFileName { get; set; }
     public string? Text { get; set; }

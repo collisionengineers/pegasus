@@ -309,7 +309,9 @@ public sealed record IntakeSourceReadResult(
 public sealed record IntakeAttachmentDescriptor(
     string FileName,
     string MediaType,
-    long? ContentLength);
+    long? ContentLength,
+    int Ordinal = 0,
+    string? SourceLabel = null);
 
 public sealed record IntakeAssetRecord(
     Guid Id,
@@ -463,7 +465,8 @@ public sealed record IntakeReceiptDraft(
 public sealed record IntakeSearchDocument(
     string SourceLabel,
     string? AttachmentFileName,
-    string? Text)
+    string? Text,
+    int? AttachmentOrdinal = null)
 {
     public bool IsSearchable => !string.IsNullOrWhiteSpace(Text);
 }

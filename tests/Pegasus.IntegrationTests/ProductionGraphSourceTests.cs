@@ -89,6 +89,91 @@ public sealed class ProductionGraphSourceTests
     }
 
     [Fact]
+    public async Task DeletedSearchChoosesTheNewestBoundedMessagesAcrossApprovedMailboxes()
+    {
+        var mimePaths = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, path.Contains("mailbox-two", StringComparison.Ordinal)
+                    ? """{"id":"deleted-two"}"""
+                    : """{"id":"deleted-one"}""");
+            }
+            if (path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimePaths.Add(path);
+                return Response(HttpStatusCode.OK, "Subject: Match\r\n\r\nneedle", "message/rfc822");
+            }
+            var second = path.Contains("mailbox-two", StringComparison.Ordinal);
+            return Response(HttpStatusCode.OK, second
+                ? """{"value":[{"id":"newer","parentFolderId":"deleted-two","receivedDateTime":"2026-08-20T11:00:00Z","isRead":false}]}"""
+                : """{"value":[{"id":"older","parentFolderId":"deleted-one","receivedDateTime":"2026-08-20T10:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([
+                new("mailbox-id", "one@example.test", "inbox-one"),
+                new("mailbox-two", "two@example.test", "inbox-two")]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 1, CancellationToken.None);
+
+        Assert.Equal("newer", Assert.Single(result.Items).ImmutableMessageId);
+        Assert.Single(mimePaths);
+        Assert.Contains("mailbox-two/messages/newer", mimePaths[0], StringComparison.Ordinal);
+        Assert.True(result.IsTruncated);
+    }
+
+    [Fact]
+    public async Task DeletedSearchListsApprovedMailboxesWithoutRetainedRows()
+    {
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(new DelegateHandler(_ => Response(HttpStatusCode.OK, "{}")))),
+            new MailboxEstate([new("mailbox-zero", "zero@example.test", "inbox-zero")]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var mailbox = Assert.Single(await source.ListMailboxesAsync(CancellationToken.None));
+
+        Assert.Equal("mailbox-zero", mailbox.MailboxId);
+        Assert.True(mailbox.IsPolled);
+    }
+
+    [Fact]
+    public async Task DeletedSearchTurnsHttpTimeoutIntoUnavailable()
+    {
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(
+                new DelegateHandler(_ => throw new TaskCanceledException("timeout")))),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+    }
+
+    [Fact]
+    public async Task DeletedSearchDoesNotTurnCallerCancellationIntoUnavailable()
+    {
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(
+                new DelegateHandler(_ => throw new TaskCanceledException("cancelled")))),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<TaskCanceledException>(() =>
+            source.SearchAsync(null, "needle", 100, cancellation.Token));
+    }
+
+    [Fact]
     public async Task InboxUsesImmutableIdsAndContinuesWithDeltaCursorWithoutMutation()
     {
         var requests = new List<(HttpMethod Method, string Uri, string? Prefer)>();

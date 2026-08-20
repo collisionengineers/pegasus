@@ -574,6 +574,13 @@ internal sealed class GraphDeletedMailSearchSource(
     IApprovedIntakeMailboxes approvedMailboxes,
     IIntakeSourceReader sourceReader) : IDeletedMailSearchSource
 {
+    public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+        CancellationToken cancellationToken) =>
+        (await approvedMailboxes.ListPollableAsync(cancellationToken))
+            .Select(item => new RetainedMailMailbox(item.MailboxId, item.Address, true))
+            .OrderBy(item => item.MailboxAddress, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
     public async Task<DeletedMailSourceResult> SearchAsync(
         string? mailboxId,
         string searchTerm,
@@ -589,11 +596,11 @@ internal sealed class GraphDeletedMailSearchSource(
             return new([], false, DeletedMailSearchState.Unavailable);
         }
 
-        var scanned = 0;
         var truncated = false;
         var matches = new List<DeletedMailSearchItem>();
         try
         {
+            var candidates = new List<(ApprovedIntakeMailbox Mailbox, GraphDeltaItem Message)>();
             foreach (var mailbox in selected)
             {
                 var folderId = await client.ResolveDeletedItemsFolderAsync(
@@ -603,7 +610,8 @@ internal sealed class GraphDeletedMailSearchSource(
                     mailbox.MailboxId,
                     folderId,
                     Math.Min(maximumMessages + 1, 1000));
-                while (pageUri is not null && scanned <= maximumMessages)
+                var mailboxCount = 0;
+                while (pageUri is not null && mailboxCount <= maximumMessages)
                 {
                     var page = await client.ReadFolderMessagesAsync(
                         pageUri,
@@ -612,63 +620,70 @@ internal sealed class GraphDeletedMailSearchSource(
                         cancellationToken);
                     foreach (var item in page.Items)
                     {
-                        if (scanned++ >= maximumMessages)
+                        if (mailboxCount++ >= maximumMessages)
                         {
                             truncated = true;
                             break;
                         }
-                        var mime = await client.ReadMimeAsync(
-                            mailbox.MailboxId,
-                            item.Id,
-                            cancellationToken);
-                        var read = await sourceReader.ReadAsync(
-                            new(
-                                $"{item.Id}.eml",
-                                "message/rfc822",
-                                mime,
-                                item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
-                                "system-worker:deleted-mail-search",
-                                new(IntakeSourceChannel.Mailbox, $"deleted:{mailbox.MailboxId}:{item.Id}")),
-                            cancellationToken);
-                        if (Match(read, searchTerm) is not { Length: > 0 } found)
-                        {
-                            continue;
-                        }
-                        var documents = IntakeSearchProjection.Create(read);
-                        var searchableNames = documents
-                            .Where(document => document.AttachmentFileName is not null && document.IsSearchable)
-                            .Select(document => document.AttachmentFileName!)
-                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-                        matches.Add(new(
-                            mailbox.MailboxId,
-                            mailbox.Address,
-                            item.Id,
-                            Sender(read),
-                            null,
-                            Subject(read),
-                            documents.FirstOrDefault(document => document.AttachmentFileName is null)?.Text,
-                            item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
-                            item.IsRead,
-                            read.AttachmentRecords.Select(attachment => new RetainedMailAttachment(
-                                attachment.FileName,
-                                attachment.MediaType,
-                                attachment.ContentLength ?? 0,
-                                searchableNames.Contains(attachment.FileName))).ToArray(),
-                            found));
+                        candidates.Add((mailbox, item));
                     }
                     pageUri = page.NextUri;
                 }
                 truncated |= pageUri is not null;
-                if (scanned >= maximumMessages)
+            }
+
+            var selectedCandidates = candidates
+                .OrderByDescending(candidate => candidate.Message.ReceivedAtUtc)
+                .ThenBy(candidate => candidate.Message.Id, StringComparer.Ordinal)
+                .Take(maximumMessages)
+                .ToArray();
+            truncated |= candidates.Count > maximumMessages;
+            foreach (var candidate in selectedCandidates)
+            {
+                var mailbox = candidate.Mailbox;
+                var item = candidate.Message;
+                var mime = await client.ReadMimeAsync(mailbox.MailboxId, item.Id, cancellationToken);
+                var read = await sourceReader.ReadAsync(
+                    new(
+                        $"{item.Id}.eml",
+                        "message/rfc822",
+                        mime,
+                        item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
+                        "system-worker:deleted-mail-search",
+                        new(IntakeSourceChannel.Mailbox, $"deleted:{mailbox.MailboxId}:{item.Id}")),
+                    cancellationToken);
+                if (Match(read, searchTerm) is not { Length: > 0 } found)
                 {
-                    truncated |= selected.Count > 1;
-                    break;
+                    continue;
                 }
+                var documents = IntakeSearchProjection.Create(read);
+                var searchableOrdinals = documents
+                    .Where(document => document.AttachmentOrdinal is not null && document.IsSearchable)
+                    .Select(document => document.AttachmentOrdinal!.Value)
+                    .ToHashSet();
+                matches.Add(new(
+                    mailbox.MailboxId,
+                    mailbox.Address,
+                    item.Id,
+                    Sender(read),
+                    null,
+                    Subject(read),
+                    documents.FirstOrDefault(document => document.AttachmentOrdinal is null)?.Text,
+                    item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
+                    item.IsRead,
+                    read.AttachmentRecords.Select(attachment => new RetainedMailAttachment(
+                        attachment.FileName,
+                        attachment.MediaType,
+                        attachment.ContentLength ?? 0,
+                        searchableOrdinals.Contains(attachment.Ordinal))).ToArray(),
+                    found));
             }
         }
-        catch (Exception exception) when (exception is ApprovedMailboxAccessDeniedException
-            or ApprovedSentSourceThrottledException
-            or HttpRequestException)
+        catch (Exception exception) when (
+            exception is ApprovedMailboxAccessDeniedException
+                or ApprovedSentSourceThrottledException
+                or HttpRequestException
+            || (exception is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
             return new([], false, DeletedMailSearchState.Unavailable);
         }
@@ -690,13 +705,15 @@ internal sealed class GraphDeletedMailSearchSource(
             .Where(attachment => attachment.FileName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
             .Select(attachment => new RetainedMailSearchMatch(
                 MailSearchMatchKind.AttachmentFileName,
-                attachment.FileName)));
+                attachment.FileName,
+                attachment.Ordinal)));
         found.AddRange(documents
             .Where(document => document.AttachmentFileName is not null
                 && document.Text?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true)
             .Select(document => new RetainedMailSearchMatch(
                 MailSearchMatchKind.AttachmentContent,
-                document.AttachmentFileName)));
+                document.AttachmentFileName,
+                document.AttachmentOrdinal)));
         return found.Distinct().ToArray();
     }
 

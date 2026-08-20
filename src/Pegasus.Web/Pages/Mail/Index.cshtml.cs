@@ -56,6 +56,8 @@ public sealed class IndexModel(
 
     public DeletedMailSearchPage? DeletedResults { get; private set; }
 
+    public string? SearchValidationMessage { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -73,12 +75,29 @@ public sealed class IndexModel(
         MailboxFilter = mailbox;
         var page = Math.Clamp(PageNumber ?? 1, 1, 10_000);
         PageNumber = page;
-        SearchTerm = string.IsNullOrWhiteSpace(SearchTerm) ? null : SearchTerm.Trim();
+        if (SearchTerm is not null)
+        {
+            SearchTerm = SearchTerm.Trim();
+            SearchValidationMessage = SearchTerm.Length switch
+            {
+                0 => "Enter a search term.",
+                > 200 => "Search terms must be 200 characters or fewer.",
+                _ => null
+            };
+            if (SearchTerm.Length == 0)
+            {
+                SearchTerm = null;
+            }
+        }
 
         try
         {
-            Mailboxes = await listRetainedMail.ListMailboxesAsync(actor, cancellationToken);
-            if (folder == MailFolderScope.DeletedItems && SearchTerm is not null)
+            Mailboxes = folder == MailFolderScope.DeletedItems
+                ? await searchDeletedMail.ListMailboxesAsync(actor, cancellationToken)
+                : await listRetainedMail.ListMailboxesAsync(actor, cancellationToken);
+            if (SearchValidationMessage is null
+                && folder == MailFolderScope.DeletedItems
+                && SearchTerm is not null)
             {
                 DeletedResults = await searchDeletedMail.ExecuteAsync(
                     actor,
@@ -88,7 +107,7 @@ public sealed class IndexModel(
                     PageSize,
                     cancellationToken);
             }
-            else
+            else if (SearchValidationMessage is null)
             {
                 Results = await listRetainedMail.ExecuteAsync(
                     actor,
@@ -190,10 +209,17 @@ public sealed class IndexModel(
     public static string MatchLabel(RetainedMailSearchMatch match) => match.Kind switch
     {
         MailSearchMatchKind.MessageBody => "Message body",
-        MailSearchMatchKind.AttachmentFileName => $"Attachment name: {match.AttachmentFileName}",
-        MailSearchMatchKind.AttachmentContent => $"Attachment content: {match.AttachmentFileName}",
+        MailSearchMatchKind.AttachmentFileName =>
+            $"Attachment name: {AttachmentLabel(match)}",
+        MailSearchMatchKind.AttachmentContent =>
+            $"Attachment content: {AttachmentLabel(match)}",
         _ => "Message"
     };
+
+    private static string AttachmentLabel(RetainedMailSearchMatch match) =>
+        match.AttachmentOrdinal is { } ordinal
+            ? $"{match.AttachmentFileName} (attachment {ordinal + 1})"
+            : match.AttachmentFileName ?? "Attachment";
 
     public static string MailFailureSentence(string? failureCode, long? sourceLength = null)
     {

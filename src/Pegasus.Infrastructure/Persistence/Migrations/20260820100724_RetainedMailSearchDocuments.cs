@@ -18,6 +18,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     IntakeReceiptId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     Ordinal = table.Column<int>(type: "int", nullable: false),
+                    AttachmentOrdinal = table.Column<int>(type: "int", nullable: true),
                     SourceLabel = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     AttachmentFileName = table.Column<string>(type: "nvarchar(260)", maxLength: 260, nullable: true),
                     Text = table.Column<string>(type: "nvarchar(max)", nullable: true)

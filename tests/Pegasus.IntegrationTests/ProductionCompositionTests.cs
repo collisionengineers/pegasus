@@ -1,4 +1,5 @@
 using Azure.Storage.Blobs;
+using Azure.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
@@ -9,6 +10,7 @@ using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Email;
 
 namespace Pegasus.IntegrationTests;
 
@@ -129,6 +131,26 @@ public sealed class ProductionCompositionTests
             scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>());
         Assert.Null(scope.ServiceProvider.GetService<IDocumentContentStore>());
         Assert.Null(scope.ServiceProvider.GetService<IAddCaseDocument>());
+        Assert.IsType<UnavailableDeletedMailSearchSource>(
+            scope.ServiceProvider.GetRequiredService<IDeletedMailSearchSource>());
+    }
+
+    [Fact]
+    public void ProductionGraphRegistrationSurvivesTheInfrastructureFallback()
+    {
+        var services = NewServices();
+        services.AddSingleton<TokenCredential>(new CompositionCredential());
+        services.AddSingleton<IIntakeSourceReader>(
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+        services.AddLogging();
+        services.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
+        services.AddPegasusInfrastructure(ConfigureDatabase);
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<GraphDeletedMailSearchSource>(
+            scope.ServiceProvider.GetRequiredService<IDeletedMailSearchSource>());
+        Assert.Single(scope.ServiceProvider.GetServices<IDeletedMailSearchSource>());
     }
 
     [Fact]
@@ -195,4 +217,13 @@ public sealed class ProductionCompositionTests
         "405543781910",
         BoxConfigJson,
         "client-secret");
+
+    private sealed class CompositionCredential : TokenCredential
+    {
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            new("unused", DateTimeOffset.MaxValue);
+
+        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(GetToken(requestContext, cancellationToken));
+    }
 }

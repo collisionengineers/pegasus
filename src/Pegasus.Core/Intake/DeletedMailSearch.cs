@@ -28,6 +28,9 @@ public sealed record DeletedMailSourceResult(
 
 public interface IDeletedMailSearchSource
 {
+    Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+        CancellationToken cancellationToken);
+
     Task<DeletedMailSourceResult> SearchAsync(
         string? mailboxId,
         string searchTerm,
@@ -51,6 +54,14 @@ public sealed record DeletedMailSearchPage(
 public sealed class SearchDeletedMail(IDeletedMailSearchSource source)
 {
     internal const int MaximumMessages = 100;
+
+    public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+        return await source.ListMailboxesAsync(cancellationToken);
+    }
 
     public async Task<DeletedMailSearchPage> ExecuteAsync(
         ActionActor actor,
@@ -98,6 +109,9 @@ public sealed class SearchDeletedMail(IDeletedMailSearchSource source)
 
 public sealed class UnavailableDeletedMailSearchSource : IDeletedMailSearchSource
 {
+    public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+        CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
+
     public Task<DeletedMailSourceResult> SearchAsync(
         string? mailboxId,
         string searchTerm,

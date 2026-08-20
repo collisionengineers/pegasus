@@ -65,7 +65,11 @@
 @* The mail list is a table: an operator scanning a morning's post compares
    sender, subject, outcome and time down columns, which a stack of rows
    cannot line up. *@
-@if (Model.Folder == MailFolderScope.DeletedItems && Model.SearchTerm is null)
+@if (Model.SearchValidationMessage is not null)
+{
+    <div class="status-card" role="alert">@Model.SearchValidationMessage</div>
+}
+else if (Model.Folder == MailFolderScope.DeletedItems && Model.SearchTerm is null)
 {
     <p class="empty-state">Enter a search term to read accepted Deleted Items within the selected approved mailbox scope.</p>
 }
@@ -134,7 +138,11 @@ else if (Model.Results.Items.Count == 0)
        mark names the surface; the sentence carries the meaning. *@
     <div class="mark-empty">
     <img class="mark mark--md" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" aria-hidden="true" />
-    @if (Model.Folder != MailFolderScope.Inbox)
+    @if (Model.SearchTerm is not null)
+    {
+        <p class="empty-state">No retained mail in this mailbox and folder matched “@Model.SearchTerm”.</p>
+    }
+    else if (Model.Folder != MailFolderScope.Inbox)
     {
         <p class="empty-state">
             @Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Folder) messages are not kept in Pegasus yet.

@@ -91,7 +91,7 @@ public sealed class RetainedMailPersistenceTests
             SearchDocuments:
             [
                 new("message body", null, "Please inspect the vehicle."),
-                new("message, attachment 1", "estimate.pdf", "Repair estimate for replacement wing")
+                new("message, attachment 1", "estimate.pdf", "Repair estimate for replacement wing", 0)
             ]));
 
         await using var scope = database.CreateAsyncScope();

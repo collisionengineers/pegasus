@@ -10,6 +10,34 @@ namespace Pegasus.Core.Tests.Intake;
 /// </summary>
 public sealed class RetainedMailTests
 {
+    [Fact]
+    public void SearchProjectionKeepsDuplicateAttachmentNamesAsDistinctOccurrences()
+    {
+        const string readableLabel = "message, attachment 1: estimate.pdf";
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent, readableLabel, "searchable text")],
+            [],
+            [],
+            false,
+            Assets: [new(readableLabel, "estimate.pdf", "application/pdf", ReadOnlyMemory<byte>.Empty,
+                IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment)],
+            Attachments:
+            [
+                new("estimate.pdf", "application/pdf", 10, 0, readableLabel),
+                new("estimate.pdf", "application/octet-stream", 10, 1)
+            ]);
+
+        var attachments = IntakeSearchProjection.Create(read)
+            .Where(item => item.AttachmentOrdinal is not null)
+            .OrderBy(item => item.AttachmentOrdinal)
+            .ToArray();
+
+        Assert.True(attachments[0].IsSearchable);
+        Assert.False(attachments[1].IsSearchable);
+        Assert.Equal([0, 1], attachments.Select(item => item.AttachmentOrdinal));
+    }
+
     private static readonly DateTimeOffset NowUtc = new(2031, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
     [Theory]
@@ -406,6 +434,10 @@ public sealed class RetainedMailTests
         internal string? MailboxId { get; private set; }
         internal string? SearchTerm { get; private set; }
         internal int MaximumMessages { get; private set; }
+
+        public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
 
         public Task<DeletedMailSourceResult> SearchAsync(
             string? mailboxId,

@@ -34,13 +34,18 @@ public static class IntakeSearchProjection
         {
             documents.Add(new("message body", null, CombineSearchText(rootFragments)));
         }
-        foreach (var attachment in attachments.OrderBy(item => item.SourceLabel, StringComparer.Ordinal))
+        foreach (var descriptor in readResult.AttachmentRecords.OrderBy(item => item.Ordinal))
         {
-            grouped.TryGetValue(attachment.SourceLabel, out var fragments);
+            List<IntakeContentFragment>? fragments = null;
+            if (descriptor.SourceLabel is not null)
+            {
+                grouped.TryGetValue(descriptor.SourceLabel, out fragments);
+            }
             documents.Add(new(
-                attachment.SourceLabel,
-                attachment.FileName,
-                fragments is null ? null : CombineSearchText(fragments)));
+                descriptor.SourceLabel ?? $"attachment {descriptor.Ordinal + 1}",
+                descriptor.FileName,
+                fragments is null ? null : CombineSearchText(fragments),
+                descriptor.Ordinal));
         }
         return documents;
     }

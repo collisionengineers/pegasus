@@ -4024,6 +4024,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
 
+                    b.Property<int?>("AttachmentOrdinal")
+                        .HasColumnType("int");
+
                     b.Property<Guid>("IntakeReceiptId")
                         .HasColumnType("uniqueidentifier");
 
