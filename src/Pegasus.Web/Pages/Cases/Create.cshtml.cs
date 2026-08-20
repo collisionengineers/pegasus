@@ -214,6 +214,15 @@ public sealed partial class CreateModel(
         Guid receiptId,
         CancellationToken cancellationToken = default)
     {
+        // A typed URL or a stale bookmark can reach this handler with no
+        // receiptId at all. Without this guard LoadAsync passes Guid.Empty
+        // straight to IGetIntake, which throws (CASE-003) instead of the
+        // designed not-found page.
+        if (receiptId == Guid.Empty)
+        {
+            return NotFound();
+        }
+
         var loadResult = await LoadAsync(receiptId, cancellationToken);
         if (loadResult is not null)
         {
@@ -594,17 +603,7 @@ public sealed partial class CreateModel(
             return null;
         }
 
-        return Receipt.Decision switch
-        {
-            IntakeDecision.BlockedIntake =>
-                "This item was blocked, with the reason recorded. It cannot become a case until it is corrected on the received item.",
-            IntakeDecision.ImageIntakeRegistered =>
-                "This item was registered as vehicle images. Image material never becomes a case on its own.",
-            IntakeDecision.Unsupported =>
-                "This file could not be read, so there is nothing to create a case from.",
-            _ =>
-                "This file failed while it was being processed, so there is nothing to create a case from."
-        };
+        return OperatorLabels.IntakeCannotBecomeCaseReason(Receipt.Decision);
     }
 
     private async Task<IActionResult?> LoadAsync(Guid receiptId, CancellationToken cancellationToken)
