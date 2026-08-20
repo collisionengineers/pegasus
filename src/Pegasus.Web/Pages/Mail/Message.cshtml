@@ -163,6 +163,16 @@
         }
     </section>
 }
+else if (Model.Detail.FolderRecommendation is { IsAvailable: false } unavailableRecommendation)
+{
+    <section class="panel section-gap" aria-labelledby="folder-recommendation-heading">
+        <h2 id="folder-recommendation-heading">Folder recommendation</h2>
+        <dl class="detail-list">
+            <div><dt>Recommended Outlook folder</dt><dd>Unavailable — @unavailableRecommendation.Reason</dd></div>
+            <div><dt>Folder recommendation policy</dt><dd>@unavailableRecommendation.PolicyKey version @unavailableRecommendation.PolicyVersion</dd></div>
+        </dl>
+    </section>
+}
 
 <nav class="tabs section-gap" aria-label="Sections">
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"

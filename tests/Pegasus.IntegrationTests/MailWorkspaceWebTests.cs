@@ -187,6 +187,22 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task MessageDetailShowsUnavailableFolderRecommendationBeforeClassificationExists()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+
+        Assert.Contains("<h2 id=\"folder-recommendation-heading\">Folder recommendation</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Unavailable —", html, StringComparison.Ordinal);
+        Assert.Contains("no current classification decision", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
+    }
+
+    [Fact]
     public async Task MessageDetailExplainsTheVersionedDecisionAndOffersExactMessageCorrection()
     {
         using var factory = new IntakeWebApplicationFactory();
