@@ -1,6 +1,6 @@
 # Checklist — PR-017
 
-- [ ] Expose canonical approved mailbox refinements for Deleted scope.
-- [ ] Add zero-retained-row mailbox evidence.
-- [ ] Run focused checks and record simplification.
-- [ ] Write PIR/traceability and move to Review.
+- [x] Expose canonical approved mailbox refinements for Deleted scope.
+- [x] Add zero-retained-row mailbox evidence.
+- [x] Run focused checks and record simplification.
+- [x] Write PIR/traceability and move to Review.

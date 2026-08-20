@@ -9,3 +9,10 @@ FRD-08's per-attachment searchable/unsupported disclosure becomes exact without 
 ## Steps
 1. Carry and persist ordinal in the existing projection/migration.
 2. Correlate retained/Deleted searchability by ordinal and prove duplicate filenames; simplify.
+
+## Simplification pass — 2026-08-20
+
+- Reuse: applied — canonical reader attachment descriptors, the single search projection, existing retained attachment ordinals, and the unmerged migration are extended.
+- Simplification: one nullable ordinal carries exact identity; no second parser, projection, table, or backfill.
+- Efficiency: ordinal sets replace filename sets and preserve the existing query shape.
+- Altitude: identity is produced by Core's projection contract, persisted by Infrastructure, and only labelled by Web.

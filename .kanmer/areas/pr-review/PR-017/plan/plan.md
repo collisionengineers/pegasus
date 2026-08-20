@@ -9,3 +9,10 @@ FRD-08 mailbox refinement is supplied from the canonical approved estate; retain
 ## Steps
 1. Extend the narrow existing port/use case and page caller.
 2. Prove a zero-retained-row approved mailbox is selectable; simplify.
+
+## Simplification pass — 2026-08-20
+
+- Reuse: applied — mailbox choices come from the existing `IApprovedIntakeMailboxes` owner through the existing Deleted source port.
+- Simplification: no second mailbox query service or persisted list.
+- Efficiency: one approved-estate read for Deleted tabs.
+- Altitude: Web selects the correct existing source by folder; authorization remains in Core.

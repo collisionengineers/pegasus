@@ -9,3 +9,10 @@ FRD-08's unavailable state covers provider failure; caller cancellation remains 
 ## Steps
 1. Add the narrow catch filter.
 2. Prove timeout versus caller cancellation and simplify.
+
+## Simplification pass — 2026-08-20
+
+- Reuse: applied — existing unavailable state and HttpClient cancellation semantics are used.
+- Simplification: one filtered catch; no retry wrapper or new exception taxonomy.
+- Efficiency: timeout returns immediately as unavailable.
+- Altitude: transport timeout mapping stays in the Graph adapter; caller cancellation still propagates.

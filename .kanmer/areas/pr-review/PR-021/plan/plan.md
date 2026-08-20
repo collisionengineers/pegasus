@@ -10,3 +10,7 @@ Estimated diff: two short documentation edits, under 20 lines.
 ## Governing docs
 
 This ticket intentionally updates `docs/design/README.md` and the capability registry. FRD-08 behaviour is unchanged.
+
+## Simplification pass — 2026-08-20
+
+n/a — docs-only. The two canonical owners received one narrow activation paragraph/row update; no new document or duplicate authority was created.
