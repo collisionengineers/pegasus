@@ -7,10 +7,13 @@ title: >-
 status: preparing
 area: automation-integrations
 order: 20
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-17T13:24:20.304Z'
+taken_at: '2026-08-20T03:55:11.805Z'
+branch: task/tick-027-mcp06-update-details-tests
+worktree: ../pegasus-worktrees/tick-027
 labels:
   - capability
   - MCP-06
@@ -24,7 +27,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:03:53.326Z'
-updated: '2026-08-18T08:01:11.843Z'
+updated: '2026-08-20T03:55:11.806Z'
 ---
 
 ## What
