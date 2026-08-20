@@ -288,7 +288,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 12**. A branch
+- **Deployed evidence:** the estate currently serves **release 13**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -306,6 +306,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 13 | 2026-08-20 | `2325ed4a…` | `sha256:7efa46fd…` | `pegasus-prod-web-252ow37gij--2325ed4a31d7` | `20260819234014_GrantWorkerIntakeSubmissionGroupRead` |
   | 12 | 2026-08-19 | `ed3be51c…` | `sha256:6dcf3ca1…` | `pegasus-prod-web-252ow37gij--ed3be51c95bc` | `20260819093019_RetainedMailboxInternetMessageIdentity`, `20260819101344_GroupedIntakeSubmission`, `20260819104953_MailClassificationCorrectionHistory`, `20260819112640_VersionedRepairSpecifications`, `20260819112914_ImageInitiatedLifecycle`, `20260819115323_UnidentifiedWork`, `20260819140113_ImageIntakeGroupExpectedMemberCount`, `20260819180000_GrantEvaHandoffDownloadOperations` |
   | 10 | 2026-08-18 | `d8de29cb…` | `sha256:4bd50f66…` | `pegasus-prod-web-252ow37gij--d8de29cb94f3` | none |
   | 9 | 2026-08-18 | `f1e116c6…` | `sha256:63e86324…` | `pegasus-prod-web-252ow37gij--f1e116c6eb93` | `20260814092852_AddWorkerCaseCreationGrants`, `20260814094632_DropBoxFileRequests` |
@@ -320,6 +321,25 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 13** (2026-08-20, exact-SHA fast-forward, `main` = `dev` =
+    `2325ed4a`, manifest SHA-256 `E40933DE…`) carried the six operator-review
+    remediations of release 12, all reviewed independently before merge: the
+    Approved-mailboxes layout rebuilt out of its table cell; the estate-wide
+    UI-narration strip to the design rule (29 pages, lede slot removed at the
+    source); Unidentified re-homed as a Queues tab with Image/E-mail filters
+    and Not-ready origin filters, GUID- and "intake"-free by regression test;
+    the upload flow's per-file rows, panel-wide drag target and post-upload
+    confirmation step (CASE-003's 500 fixed with it); and the atomic
+    image-group outcome fix for the swallowed sequence-contention race a real
+    production upload exposed within hours of release 12, with the Worker's
+    missing group-table SELECT granted (verified in
+    `sys.database_permissions`) and a reconciliation that recovered the
+    stranded production member into `U6` through the product's own escalation
+    path — visible, referenced and staff-resolvable, where it had been
+    invisible. Provision preview was byte-identical to release 12's except the
+    revision suffix; smoke passed with `approved-live-worker`; the Sent and
+    inbox polls advanced on the new Worker within minutes.
 
   - **Release 12** (2026-08-19, exact-SHA fast-forward, `main` = `dev` =
     `ed3be51c`, manifest SHA-256 `86360226…`) was the first release on the
