@@ -1,0 +1,1 @@
+2026-08-20 source survey: ticket moved Backlog → Preparing. The actor factory occurs in 20 Web page-model files, so the ticket's one-root verification conflicts with its named scope. Uploads/Request is explicitly anonymous; Cases/Documents/Download is explicitly staff-authorized. No Azure/cloud state is involved; no live check or write performed.
