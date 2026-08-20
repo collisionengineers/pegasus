@@ -82,6 +82,16 @@
             <div><dt>Policy</dt><dd>@dossier.Current.PolicyKey version @dossier.Current.PolicyVersion</dd></div>
             <div><dt>Operational destination</dt><dd>@OperatorLabels.MailOperationalDestinationLabel(destination.Destination)</dd></div>
             <div><dt>Destination policy</dt><dd>@destination.PolicyKey version @destination.PolicyVersion</dd></div>
+            @if (Model.Detail.FolderRecommendation is { IsAvailable: true, FolderType: { } folderType } recommendation)
+            {
+                <div><dt>Recommended Outlook folder</dt><dd>@Pegasus.Core.Intake.MailLogicalFolders.Definition(folderType).Label</dd></div>
+                <div><dt>Folder recommendation policy</dt><dd>@recommendation.PolicyKey version @recommendation.PolicyVersion</dd></div>
+            }
+            else if (Model.Detail.FolderRecommendation is { } unavailableRecommendation)
+            {
+                <div><dt>Recommended Outlook folder</dt><dd>Unavailable — @unavailableRecommendation.Reason</dd></div>
+                <div><dt>Folder recommendation policy</dt><dd>@unavailableRecommendation.PolicyKey version @unavailableRecommendation.PolicyVersion</dd></div>
+            }
             <div><dt>Reason</dt><dd>@dossier.Current.Reason</dd></div>
             <div><dt>Decision version</dt><dd>@dossier.Version</dd></div>
             <div><dt>Decided by</dt><dd>@dossier.CurrentActorDisplayName</dd></div>
