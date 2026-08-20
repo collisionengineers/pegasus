@@ -4,12 +4,15 @@ type: ticket
 title: >-
   MAIL-11 — Browse, search, and view mailbox messages and conversation threads
   in the app, including read-only search of accepted D…
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:45.571Z'
+taken_at: '2026-08-20T09:58:24.766Z'
+branch: task/tick-053-mail-browse-search
+worktree: ../pegasus-worktrees/tick-053
 labels:
   - capability
   - MAIL-11
@@ -28,7 +31,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-20T09:48:08.438Z'
+updated: '2026-08-20T09:58:24.766Z'
 ---
 
 ## What

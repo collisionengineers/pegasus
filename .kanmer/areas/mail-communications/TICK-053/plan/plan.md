@@ -1,42 +1,45 @@
-# Plan — MAIL-11
+# Plan — TICK-053 / MAIL-11
 
 ## Chosen approach
 
-extend retained-mail browsing with scoped search, Deleted Items and accessible detail/thread navigation. Reuse `src/Pegasus.Core/Intake/RetainedMail.cs`, keep Web/MCP callers thin, and place persistence or external mechanics only in `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs`. This follows the repository's one-Core-owner rule and the existing convention rather than adding a workspace-specific policy copy.
+Extend the existing retained-mail request/result rather than add a search service. Inbox/Sent search remains SQL-paged in `EfRetainedMailboxMessageStore`; attachment-content matching consumes one normalized child projection stored atomically with the intake receipt from the canonical `IIntakeSourceReader` output. No attachment is parsed twice and no second store is introduced.
 
-A parallel UI-owned implementation was rejected because UI-10, Automation MCP and background processing would diverge. A generic mail-action framework was rejected because each action already has a concrete Core boundary and no second abstraction caller is proven.
+Deleted Items remains a separate, explicitly bounded read boundary: a Core use case authorizes the request, and one Graph adapter enumerates only the well-known Deleted Items folder of the approved mailbox estate, up to a fixed maximum per explicit search, reads MIME through the existing intake reader, returns exact match locations/full read-only result evidence, and reports truncation/unavailability honestly. It persists nothing, follows no history cursor, creates no intake receipt, and performs no Graph write or backfill.
+
+A JSON-only search blob was rejected because SQL matching would hit property names/escaped text and could not disclose exact match locations reliably. A second parser/search database was rejected by the one-owner rule. Persisting Deleted Items as retained Inbox rows was rejected because it would conflate source custody and create a hidden backlog import.
+
+## Diff estimate and proportionality
+
+Expected implementation: approximately 15–20 existing files plus one focused migration/designer and model snapshot, roughly 700–1,000 production/test lines. Most files receive narrow contract, mapping, query, route-state or test changes; no new project, runtime, top-level directory, generic action framework or repository Markdown file. Six implementation steps are proportional to the cross-layer schema/query/external-read slice.
 
 ## Governing docs
 
-- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: implement its exact-message, fail-closed, durable-history and workspace behaviour. Any unresolved mapping/mutation behaviour remains conditional on the checked operator answer; do not silently amend the FRD.
-- `docs/design/README.md`: apply the established confirmation, error, focus, navigation and accessibility conventions.
-- No new ADR is planned: the existing Core/Infrastructure/Web boundary carries the change.
+- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: implement individual-message body/attachment-name/attachment-content search, visible match locations, unsupported/unsearchable disclosure, explicit mailbox/folder scope, accessible pagination, preserved context, bounded read-only Deleted Items access, and no reconstruction or mutation. The FRD is not modified.
+- `docs/design/README.md`: reuse current tabs, fields, table, status, focus, empty/error, constrained-desktop and 200%-zoom conventions. This ticket adds no quick preview or action UI.
+- EPIC-006 context: Web and later Automation consume the same Core search contracts; Outlook access is read-only and exact-scope. No ADR is needed because the existing Core port, Infrastructure adapter and Web composition boundaries carry both the persisted projection and external read.
 
 ## Ordered implementation
 
-1. Re-read the current target files after prerequisite branches land and name the exact existing contracts/helpers/tests being reused.
-2. Add or extend the smallest Core contract/policy required to extend retained-mail browsing with scoped search, Deleted Items and accessible detail/thread navigation; validate identity, actor, reason, state and version before any write.
-3. Implement the Infrastructure projection/transaction/adapter in src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs; preserve mailbox scope, idempotency, optimistic concurrency and append-only evidence.
-4. Wire the real caller (/Inbox list/detail) through the Core use case with no duplicated taxonomy, mapping or authorization logic.
-5. Add focused Core and integration/Web tests for body/filename/content match location, folder/mailbox scoping, pagination, unsupported attachments and state preservation.
-6. Run the locked restore/build and focused tests, then the relevant full suite; perform the four-lens simplification pass and record honest dispositions.
-7. Update FRD/capabilities only where the delivered behaviour/evidence warrants it; do not claim deployment, live Outlook verification or operator acceptance from local tests.
+1. **Core request/result and canonical projection.** Extend `MailWorkspaceScope` with a validated optional search term and add typed body/attachment-name/attachment-content match disclosure. Add one `IntakeSearchDocument` list to `IntakeReceiptDraft`; in `ProcessIntake`, derive it only from `IntakeSourceReadResult.Content` plus the reader-produced attachment assets/source labels. Root content becomes message body; each retained attachment gets one combined searchable/unsearchable document. Preserve existing constructors and MCP list behavior when search is absent.
+2. **Atomic persistence and SQL search.** Add one receipt-owned search-document entity/table and migration. Store/replace it in the existing `EfIntakeReceiptStore` transaction. Extend `EfRetainedMailboxMessageStore.ListAsync` so mailbox/folder/body/filename/content filtering happens before SQL count/paging, then project exact match kinds/named attachments and detail attachment searchability. Add no full-text engine, JSON search, separate repository or historical backfill.
+3. **Bounded Deleted Items read source.** Add a narrow Core port/use case returning a paged, full read-only deleted-message result and explicit unavailable/truncated state. Extend `GraphMailClient` with a GET-only, host/path-validated well-known `deleteditems` listing and MIME reads; implement the source over `IApprovedIntakeMailboxes` and the existing `IIntakeSourceReader`, with a fixed scan bound and no cursor persistence. Add a no-source implementation for local/unconfigured hosts and compose the production Web adapter without adding write permissions.
+4. **Real Web caller and context preservation.** Extend `/Inbox` query-string search, visible scope, match-location labels, accessible pagination, refresh fields and honest empty/unavailable/truncated states. For bounded Deleted Items results, render the exact full body and attachment/searchability evidence read-only in the result disclosure; add no mutation or “View in Outlook”. Preserve search through mailbox/folder changes and `/Inbox/{id}` detail/back links for retained results.
+5. **Focused evidence and documentation.** Add Core validation/projection tests, receipt/persistence migration tests, SQL scope/count/page/match tests, fake-HTTP Graph boundary tests, and authenticated Web tests. Update `docs/capabilities.md` and `docs/current-architecture.md` only with the exact local caller/evidence and bounded Deleted Items qualification; do not claim deployment or live-mailbox proof.
+6. **Locked verification and simplification.** Run locked restore, Release build, focused Core and integration suites, then the full relevant tests. Review the branch diff independently through reuse, simplification, efficiency and altitude lenses; apply behavior-preserving fixes and append dated findings/dispositions here. Write the post-implementation report with exact commands, evidence and residual live-verification qualification.
 
 ## Dependencies and sequencing
 
-MAIL-01 identity.
+MAIL-01/02/03/04 and the retained browse/detail caller are already delivered. TICK-064 remains separate folder-policy work and has no source dependency in this reduced diff. This ticket blocks [[TICK-056]] and overlaps [[TICK-057]]; they must consume the final merged request/result and file shapes. Action/association tickets touching message detail must rebase after this work rather than race it.
 
 ## Proof
 
-The post-implementation report will cite focused test output, Release build output, real-caller integration evidence and simplification findings. External-mailbox behaviour requires separately approved live verification and cannot be inferred from adapter tests.
+The post-implementation report will cite the migration/model validation, focused Core/persistence/Graph/Web results, Release build, relevant full suite and recorded four-lens simplification dispositions. Production verification is the previously approved authenticated read-only journey only; local fake-HTTP tests do not prove tenant access or deployed Deleted Items data.
 
 ## Risks and mitigations
 
-- Identity or stale-state mistakes: exact mailbox/message keys plus optimistic concurrency and fail-closed validation.
-- Policy duplication: one Core result consumed by Web, Worker and MCP.
-- External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
-- Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
-
-## Full read-only production journey — operator decision 2026-08-19
-
-After deployment, verify MAIL-11 against the currently linked mailbox: browse/paginate; preserve explicit mailbox and folder scope; search retained bodies and supported attachment filename/content; inspect visible match locations, unsupported-attachment disclosure, detail and scoped threads; and search accepted Deleted Items only where the existing approved Graph scope permits it. Record unavailable/empty states honestly. Do not request broader permissions, backfill historical mail, or mutate Outlook/cloud state.
+- **Search drift or duplicate parsing:** project only the canonical reader result inside `ProcessIntake`; one receipt-owned representation.
+- **False paging/counts:** apply every retained filter in SQL before count/skip/take.
+- **Unbounded mailbox reads:** Deleted Items runs only for an explicit nonblank search, exact approved mailboxes, fixed maximum items and visible truncation.
+- **Identity escape:** validate Graph host, mailbox, well-known folder path, next links and returned parent folder; never accept a client folder identity.
+- **Existing caller breakage:** keep absent-search defaults and prove Web/MCP browse/detail callers.
+- **Scope inflation:** no queue policy, quick preview, Case actions, mailbox mutation, generic search framework, deployment or backfill.
