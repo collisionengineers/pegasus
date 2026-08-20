@@ -4,13 +4,14 @@ type: ticket
 title: >-
   One grouped upload yields one Image-initiated Case, promptly, without a
   per-image case explosion
-status: review
+status: verifying
 area: intake-processing
 assignee: group-lane
 profile: fix
 stageEntered:
   implementing: '2026-08-20T03:35:13.660Z'
   review: '2026-08-20T04:16:01.270Z'
+  verifying: '2026-08-20T04:40:05.491Z'
 taken_at: '2026-08-20T03:27:07.899Z'
 branch: task/intk-015-group-registration-unit
 worktree: ../pegasus-worktrees/intk-015
@@ -37,7 +38,7 @@ prs:
   - '#447'
 archived: false
 created: '2026-08-20T03:16:37.547Z'
-updated: '2026-08-20T04:16:01.270Z'
+updated: '2026-08-20T04:40:05.491Z'
 ---
 
 ## What
