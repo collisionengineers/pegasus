@@ -214,13 +214,23 @@ public sealed class ProductionGraphSourceTests
     [InlineData("missing-received-time")]
     [InlineData("foreign-parent")]
     [InlineData("escaped-next-link")]
+    [InlineData("non-object-folder-root")]
+    [InlineData("non-object-page-root")]
+    [InlineData("missing-value")]
+    [InlineData("non-array-value")]
+    [InlineData("invalid-next-link")]
+    [InlineData("relative-next-link")]
     public async Task DeletedSearchTurnsInvalidGraphResponsesIntoUnavailable(string responseCase)
     {
         var handler = new DelegateHandler(request =>
         {
             if (request.RequestUri!.AbsolutePath.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
             {
-                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+                return Response(
+                    HttpStatusCode.OK,
+                    responseCase == "non-object-folder-root"
+                        ? "[]"
+                        : """{"id":"deleted-folder"}""");
             }
 
             var body = responseCase switch
@@ -230,6 +240,11 @@ public sealed class ProductionGraphSourceTests
                 "missing-received-time" => """{"value":[{"id":"deleted-1","parentFolderId":"deleted-folder"}]}""",
                 "foreign-parent" => """{"value":[{"id":"deleted-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}]}""",
                 "escaped-next-link" => """{"value":[],"@odata.nextLink":"https://graph.microsoft.com/v1.0/users/other-mailbox/mailFolders/deleted-folder/messages?$top=100"}""",
+                "non-object-page-root" => "[]",
+                "missing-value" => "{}",
+                "non-array-value" => """{"value":{}}""",
+                "invalid-next-link" => """{"value":[],"@odata.nextLink":"not a URI"}""",
+                "relative-next-link" => """{"value":[],"@odata.nextLink":"/v1.0/users/mailbox-id/mailFolders/deleted-folder/messages?$top=100"}""",
                 _ => throw new InvalidOperationException("Unknown Graph response case.")
             };
             return Response(HttpStatusCode.OK, body);

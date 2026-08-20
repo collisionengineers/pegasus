@@ -343,6 +343,11 @@ internal sealed class GraphMailClient(
         await ThrowForFailureAsync(response, cancellationToken);
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        if (document.RootElement.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidDataException(
+                "Microsoft Graph returned an invalid Deleted Items folder response.");
+        }
         return RequiredString(document.RootElement, "id");
     }
 
@@ -366,7 +371,14 @@ internal sealed class GraphMailClient(
         await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
         var root = document.RootElement;
-        var items = root.GetProperty("value").EnumerateArray().Select(ParseItem).ToArray();
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("value", out var value)
+            || value.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException(
+                "Microsoft Graph returned an invalid Deleted Items message page.");
+        }
+        var items = value.EnumerateArray().Select(ParseItem).ToArray();
         if (items.Any(item => item.Removed
             || !string.Equals(item.ParentFolderId, folderId, StringComparison.Ordinal)))
         {
@@ -379,10 +391,14 @@ internal sealed class GraphMailClient(
                 "Microsoft Graph returned a Deleted Items message without its received time.");
         }
         Uri? next = null;
-        if (root.TryGetProperty("@odata.nextLink", out var nextValue)
-            && nextValue.ValueKind == JsonValueKind.String)
+        if (root.TryGetProperty("@odata.nextLink", out var nextValue))
         {
-            next = new Uri(nextValue.GetString()!, UriKind.Absolute);
+            if (nextValue.ValueKind != JsonValueKind.String
+                || !Uri.TryCreate(nextValue.GetString(), UriKind.Absolute, out next))
+            {
+                throw new InvalidDataException(
+                    "Microsoft Graph returned an invalid Deleted Items next link.");
+            }
             ValidateFolderMessagesUri(next, mailboxId, folderId);
         }
         return new(items, next);
