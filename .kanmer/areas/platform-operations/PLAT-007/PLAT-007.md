@@ -4,10 +4,16 @@ type: ticket
 title: >-
   Deploy integrated report rendering through the existing Azure application
   topology
-status: backlog
+status: done
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T03:50:43.739Z'
+  implementing: '2026-08-20T03:50:47.610Z'
+  review: '2026-08-20T03:51:10.778Z'
+  verifying: '2026-08-20T03:51:11.665Z'
+  done: '2026-08-20T03:51:14.553Z'
 labels:
   - now
   - renderer-integration
@@ -23,9 +29,10 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
   - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
+deployment: production
 archived: false
 created: '2026-08-19T08:56:26.248Z'
-updated: '2026-08-19T09:42:35.751Z'
+updated: '2026-08-20T03:51:17.015Z'
 ---
 
 ## What

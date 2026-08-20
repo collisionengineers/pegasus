@@ -1,0 +1,3 @@
+## Plan — PLAT-007 — retrospective backfill
+
+Reconcile the board with the already-deployed integrated renderer. Confirmed: no standalone service exists (single DI registration), Chromium dependency is baked into the Web container image and locally verified with `oras` against the OCI archive, resource sizing (1.0 vCPU/2Gi) and health probes are in `platform.bicep`, and release 12's new revision provisioned Healthy. Named the durable-persistence/retry-fail-closed residual honestly as DOCS-001's scope, not fabricated as proven here. No governing document modified; FRD-11/ADR-0025/ADR-0028 already own this.
