@@ -17,13 +17,18 @@ labels:
   - extraction
   - operator-reported
   - QDO26002
-links: []
+links:
+  - ENG-004
 refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+commits:
+  - da86502f
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/443'
 archived: false
 created: '2026-08-20T03:16:37.667Z'
-updated: '2026-08-20T03:50:41.880Z'
+updated: '2026-08-20T04:00:10.177Z'
 ---
 
 ## What
