@@ -12,6 +12,52 @@ namespace Pegasus.IntegrationTests;
 public sealed class ProductionGraphSourceTests
 {
     [Fact]
+    public async Task FolderMoveUsesExactScopedPostAndImmutableIdHeader()
+    {
+        HttpRequestMessage? observed = null;
+        string? body = null;
+        var handler = new DelegateHandler(request =>
+        {
+            observed = request;
+            body = request.Content!.ReadAsStringAsync().GetAwaiter().GetResult();
+            return Response(HttpStatusCode.Created, "{\"id\":\"moved-message\"}");
+        });
+        var options = Options();
+        var mover = new GraphRetainedMailFolderMover(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        await mover.MoveAsync(
+            new("mailbox-id", "source-folder", "immutable-message", "destination-folder"),
+            CancellationToken.None);
+
+        Assert.Equal(HttpMethod.Post, observed!.Method);
+        Assert.Equal(
+            "/v1.0/users/mailbox-id/mailFolders/source-folder/messages/immutable-message/move",
+            observed.RequestUri!.AbsolutePath);
+        Assert.Equal("IdType=\"ImmutableId\"", observed.Headers.GetValues("Prefer").Single());
+        Assert.Equal("{\"destinationId\":\"destination-folder\"}", body);
+    }
+
+    [Fact]
+    public async Task FolderMoveProbeReadsTheImmutableMessageParent()
+    {
+        var handler = new DelegateHandler(request =>
+        {
+            Assert.Equal(HttpMethod.Get, request.Method);
+            Assert.Equal("IdType=\"ImmutableId\"", request.Headers.GetValues("Prefer").Single());
+            return Response(HttpStatusCode.OK, "{\"parentFolderId\":\"destination-folder\"}");
+        });
+        var options = Options();
+        var mover = new GraphRetainedMailFolderMover(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)));
+
+        var parent = await mover.GetParentFolderIdAsync(
+            "mailbox-id", "immutable-message", CancellationToken.None);
+
+        Assert.Equal("destination-folder", parent);
+    }
+
+    [Fact]
     public async Task DeletedSearchReadsOnlyTheResolvedFolderAndPassesMimeThroughTheCanonicalReader()
     {
         var requests = new List<(HttpMethod Method, string Path, string? Prefer)>();

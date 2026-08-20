@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -747,56 +747,54 @@ public sealed class QdosAllocationRecoveryTests
     [Fact]
     public async Task DistinctParallelRetriesResolveToOneCaseAggregate()
     {
+        // Convergence under contention, repeatedly — not merely no-throw once
+        // (CASE-005). The per-receipt allocation lock makes the previously
+        // deadlocking interleaving queue instead, so no round may fail or
+        // fork a second aggregate.
         using var factory = new IntakeWebApplicationFactory();
-        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
-            factory.Services,
-            CaseType.Inspection,
-            "PARALLEL");
-        IntakeAllocationResult? failed;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            failed = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
-        }
-        await AllocationTestData.SeedPrincipalAsync(factory.Services, "PARALLEL");
         var actor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
+        string[] principals = ["PARA", "PARB", "PARC", "PARD", "PARE"];
 
-        async Task<IntakeAllocationResult> RetryAsync(string key)
+        for (var round = 0; round < principals.Length; round++)
         {
-            const int maximumAttempts = 3;
-            for (var attempt = 1; ; attempt++)
+            var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+                factory.Services,
+                CaseType.Inspection,
+                principals[round]);
+            IntakeAllocationResult? failed;
+            await using (var scope = factory.Services.CreateAsyncScope())
             {
-                try
-                {
-                    await using var scope = factory.Services.CreateAsyncScope();
-                    return await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
-                        receipt.Id,
-                        receipt.Version,
-                        failed!.State.AttemptId,
-                        actor,
-                        key,
-                        "Parallel reasoned retry."));
-                }
-                catch (SqlException exception) when (exception.Number == 1205 && attempt < maximumAttempts)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt));
-                }
+                failed = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                    .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
             }
+            await AllocationTestData.SeedPrincipalAsync(factory.Services, principals[round]);
+
+            async Task<IntakeAllocationResult> RetryAsync(string key)
+            {
+                await using var scope = factory.Services.CreateAsyncScope();
+                return await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                    receipt.Id,
+                    receipt.Version,
+                    failed!.State.AttemptId,
+                    actor,
+                    key,
+                    "Parallel reasoned retry."));
+            }
+
+            var results = await Task.WhenAll(
+                RetryAsync($"parallel-a:{Guid.NewGuid():N}"),
+                RetryAsync($"parallel-b:{Guid.NewGuid():N}"));
+
+            Assert.All(results, result =>
+                Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result.State.Status));
+            Assert.Single(results.Select(result => result.State.CaseId).Distinct());
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
         }
-
-        var results = await Task.WhenAll(
-            RetryAsync($"parallel-a:{Guid.NewGuid():N}"),
-            RetryAsync($"parallel-b:{Guid.NewGuid():N}"));
-
-        Assert.All(results, result =>
-            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result.State.Status));
-        Assert.Single(results.Select(result => result.State.CaseId).Distinct());
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
     }
 
     private sealed class AfterCommitAcceptIntake(IAcceptIntake inner, bool cancel) : IAcceptIntake
