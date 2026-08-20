@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
@@ -144,14 +144,14 @@ internal static partial class InstructionFieldEngine
                 // an explicit ':' or '-' is a label wherever it sits on the line.
                 var match = Regex.Match(
                     lines[index],
-                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){Regex.Escape(label)}\s*(?::|-)?\s*(?<value>.*)$",
+                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){Regex.Escape(label)}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromMilliseconds(100));
                 if (!match.Success)
                 {
                     match = Regex.Match(
                         lines[index],
-                        $@"(?i)(?:^|\s){Regex.Escape(label)}\s*(?::|-)\s*(?<value>.*)$",
+                        $@"(?i)(?:^|\s){Regex.Escape(label)}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
                         RegexOptions.CultureInvariant,
                         TimeSpan.FromMilliseconds(100));
                 }
@@ -323,6 +323,20 @@ internal static partial class InstructionFieldEngine
             Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
                 .ToUpperInvariant());
 
+    /// <summary>
+    /// Whether a value is a plausible UK registration in the current
+    /// (AB12 CDE), prefix (L100 YDR), or suffix (ABC 123L) format once
+    /// spacing and hyphens are removed. Labelled registration fields and the
+    /// vehicle-description split accept all three; the unlabelled sole-VRM
+    /// fallback stays current-format-only, where a false positive is far
+    /// more likely.
+    /// </summary>
+    internal static bool IsUkRegistration(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && UkRegistrationRegex().IsMatch(
+            Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
+                .ToUpperInvariant());
+
     internal static bool ContainsLabel(string text, string label) =>
         Regex.IsMatch(
             text,
@@ -412,4 +426,7 @@ internal static partial class InstructionFieldEngine
 
     [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z]{3}$", RegexOptions.CultureInvariant)]
     private static partial Regex CurrentFormatRegistrationRegex();
+
+    [GeneratedRegex("^(?:[A-Z]{2}[0-9]{2}[A-Z]{3}|[A-Z][0-9]{1,3}[A-Z]{3}|[A-Z]{3}[0-9]{1,3}[A-Z])$", RegexOptions.CultureInvariant)]
+    private static partial Regex UkRegistrationRegex();
 }

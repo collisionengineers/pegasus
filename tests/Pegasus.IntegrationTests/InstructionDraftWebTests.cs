@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Security.Cryptography;
 using Pegasus.Core.Workflow;
@@ -148,7 +148,8 @@ public sealed class InstructionDraftWebTests
         Assert.Equal(new DateOnly(2031, 3, 4), typed.DateOfIncident);
         Assert.Equal(new DateOnly(2031, 3, 5), typed.InstructionDate);
         Assert.Equal("Image Based Assessment", typed.InspectionAddress);
-        Assert.Equal(11, receipt.Fields.Count);
+        // 12 since INTK-021 added the combined vehicle-description field.
+        Assert.Equal(12, receipt.Fields.Count);
 
         using var review = await client.GetAsync(upload.Location);
         var html = await review.Content.ReadAsStringAsync();

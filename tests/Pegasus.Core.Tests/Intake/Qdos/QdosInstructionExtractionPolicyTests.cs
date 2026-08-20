@@ -1,4 +1,4 @@
-using Pegasus.Core.Intake;
+﻿using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Tests.Intake.Qdos;
 
@@ -356,6 +356,110 @@ public sealed class QdosInstructionExtractionPolicyTests
                 ProcessedAtUtc,
                 QdosContext));
     }
+
+    [Fact]
+    public void PossessiveVehicleLineNeverFeedsTheClaimantLabel()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Our Client:  Mrs Caroline Reynolds\nOur Client's Vehicle: PEUGEOT RCZ GT THP 156\nRegistration:  L100 YDR\nDate of Accident: 3 July 2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Mrs Caroline Reynolds", draft.ClaimantName);
+        Assert.Equal("PEUGEOT", draft.VehicleMake);
+        Assert.Equal("RCZ GT THP 156", draft.VehicleModel);
+        Assert.Equal("L100YDR", draft.VehicleRegistration);
+        Assert.Equal(new DateOnly(2026, 7, 3), draft.DateOfIncident);
+        var claimant = Assert.Single(result.Fields, field => field.Name == "Claimant name");
+        Assert.False(claimant.HasConflict);
+    }
+
+    [Fact]
+    public void SubjectFactsFillFieldsTheBodyLacks()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "RTA on 03_07_2026  Mrs Jane Smith (Our Ref SAB_46737_1, Vehicle L100 YDR)",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached instruction.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Mrs Jane Smith", draft.ClaimantName);
+        Assert.Equal("SAB_46737_1", draft.ClaimNumber);
+        Assert.Equal("L100YDR", draft.VehicleRegistration);
+        Assert.Equal(new DateOnly(2026, 7, 3), draft.DateOfIncident);
+    }
+
+    [Fact]
+    public void BodyStatementsBeatSubjectFacts()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "Client Mr Subject Person (Our Ref SUBJ_1)",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.DocumentContent,
+                    "instruction attachment",
+                    "Claimant Name: Body Person\nClaim Number: BODY-1")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Body Person", draft.ClaimantName);
+        Assert.Equal("BODY-1", draft.ClaimNumber);
+    }
+
+    [Fact]
+    public void TwoWordMakesSplitTheVehicleDescriptionOnTheRightBoundary()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Our Client's Vehicle: LAND ROVER R ROVER EVOQUE SE LK17 NHT")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("LAND ROVER", draft.VehicleMake);
+        Assert.Equal("R ROVER EVOQUE SE", draft.VehicleModel);
+        Assert.Equal("LK17NHT", draft.VehicleRegistration);
+    }
+
+    [Fact]
+    public void ExplicitVehicleFieldsBeatTheDescriptionDerivation()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Vehicle Make: AUDI\nOur Client's Vehicle: PEUGEOT RCZ")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("AUDI", draft.VehicleMake);
+    }
+
+    private static IntakeSourceReadResult ReadableWithSubject(
+        string subject,
+        params IntakeContentFragment[] content) =>
+        new(
+            IntakeSourceReadStatus.Readable,
+            content,
+            [new(IntakeEvidenceSource.Subject, subject)],
+            [],
+            false);
 
     private static IntakeSourceReadResult Readable(params IntakeContentFragment[] content) =>
         new(
