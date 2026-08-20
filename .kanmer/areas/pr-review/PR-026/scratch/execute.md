@@ -1,0 +1,1 @@
+Design/capability reconciliation pushed to shared PR #473. Manual desktop/200%-zoom review remains blocked because Browser reports no available instance; dedicated local app/database was prepared, then stopped/removed without claiming visual evidence.
