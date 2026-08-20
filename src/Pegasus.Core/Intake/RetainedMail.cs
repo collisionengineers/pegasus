@@ -95,6 +95,21 @@ public sealed record RetainedMailThreadEntry(
     string? Subject,
     DateTimeOffset ReceivedAtUtc);
 
+/// <summary>
+/// The current read-only Outlook-folder recommendation for one retained message.
+/// A missing <see cref="FolderType"/> is an honest unavailable result, not a
+/// destination the caller may fill in. A later move command must re-read the exact
+/// current binding rather than carry an opaque identity forward from this view.
+/// </summary>
+public sealed record RetainedMailFolderRecommendation(
+    MailLogicalFolderType? FolderType,
+    string PolicyKey,
+    int PolicyVersion,
+    string Reason)
+{
+    public bool IsAvailable => FolderType is not null;
+}
+
 public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
     IReadOnlyList<string> ToAddresses,
@@ -105,7 +120,8 @@ public sealed record RetainedMailDetail(
     MailFolderScope Folder,
     MailClassificationOutcome? ClassificationOutcome,
     MailRouteDisposition? RouteDisposition,
-    MailClassificationDossier? Classification = null);
+    MailClassificationDossier? Classification = null,
+    RetainedMailFolderRecommendation? FolderRecommendation = null);
 
 public sealed record MailClassificationHistoryEntry(
     int Version,
@@ -425,12 +441,15 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
 
 public sealed class GetRetainedMail(
     IRetainedMailQueries queries,
-    IStaffAccountQueries staffAccountQueries)
+    IStaffAccountQueries staffAccountQueries,
+    IApprovedMailboxStore approvedMailboxStore)
 {
     private readonly IRetainedMailQueries queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
     private readonly IStaffAccountQueries staffAccountQueries =
         staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
+    private readonly IApprovedMailboxStore approvedMailboxStore =
+        approvedMailboxStore ?? throw new ArgumentNullException(nameof(approvedMailboxStore));
 
     public async Task<RetainedMailDetail?> ExecuteAsync(
         ActionActor actor,
@@ -459,9 +478,15 @@ public sealed class GetRetainedMail(
             messageId,
             cancellationToken,
             normalizedSearchTerm);
-        if (detail?.Classification is not { } dossier)
+        if (detail is null)
         {
-            return detail;
+            return null;
+        }
+
+        var recommendation = await RecommendFolderAsync(detail, cancellationToken);
+        if (detail.Classification is not { } dossier)
+        {
+            return detail with { FolderRecommendation = recommendation };
         }
 
         var packedActors = new[] { dossier.CurrentActor }
@@ -474,6 +499,7 @@ public sealed class GetRetainedMail(
 
         return detail with
         {
+            FolderRecommendation = recommendation,
             Classification = dossier with
             {
                 CurrentActorDisplayName = ResolveActorLabel(dossier.CurrentActor, staffNames),
@@ -486,6 +512,58 @@ public sealed class GetRetainedMail(
             }
         };
     }
+
+    private async Task<RetainedMailFolderRecommendation> RecommendFolderAsync(
+        RetainedMailDetail detail,
+        CancellationToken cancellationToken)
+    {
+        if (detail.Classification is not { } dossier)
+        {
+            return Unavailable(
+                null,
+                "This message has no current classification decision, so no Outlook folder can be recommended.");
+        }
+
+        var policy = MailLogicalFolderPolicy.Map(dossier.Current);
+        if (policy.FolderType is not { } folderType)
+        {
+            return Unavailable(policy, policy.Reason);
+        }
+
+        var mailboxes = await approvedMailboxStore.ListAsync(cancellationToken);
+        var mailbox = mailboxes.SingleOrDefault(item =>
+            item.MailboxIdentity is { } identity
+            && string.Equals(identity, detail.Summary.MailboxId, StringComparison.Ordinal));
+        if (mailbox is null || mailbox.State != ApprovedMailboxState.Approved)
+        {
+            return Unavailable(
+                policy,
+                "This message's mailbox is not currently approved, so its designated Outlook folder is unavailable.");
+        }
+
+        var binding = mailbox.FolderBindings.SingleOrDefault(item => item.FolderType == folderType);
+        if (binding is null)
+        {
+            var label = MailLogicalFolders.Definition(folderType).Label;
+            return Unavailable(
+                policy,
+                $"The designated {label} folder is not configured for this mailbox.");
+        }
+
+        return new(
+            folderType,
+            policy.PolicyKey,
+            policy.PolicyVersion,
+            policy.Reason);
+    }
+
+    private static RetainedMailFolderRecommendation Unavailable(
+        MailLogicalFolderResult? policy,
+        string reason) => new(
+            null,
+            policy?.PolicyKey ?? MailLogicalFolderPolicy.Key,
+            policy?.PolicyVersion ?? MailLogicalFolderPolicy.Version,
+            reason);
 
     private static string ResolveActorLabel(
         string packedActor,
