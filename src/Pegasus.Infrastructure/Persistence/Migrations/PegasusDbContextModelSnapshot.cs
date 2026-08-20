@@ -698,6 +698,25 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxFolderBindingEntity", b =>
+                {
+                    b.Property<Guid>("ApprovedMailboxId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FolderType")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("FolderIdentity")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("ApprovedMailboxId", "FolderType");
+
+                    b.ToTable("ApprovedMailboxFolderBindings", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedSentPollOutcomeEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5911,6 +5930,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxFolderBindingEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", "ApprovedMailbox")
+                        .WithMany("FolderBindings")
+                        .HasForeignKey("ApprovedMailboxId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedMailbox");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedSentPollOutcomeEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedSentPollStateEntity", null)
@@ -6838,6 +6868,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("OpenIddict.EntityFrameworkCore.Models.OpenIddictEntityFrameworkCoreAuthorization", b =>
                 {
                     b.Navigation("Tokens");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", b =>
+                {
+                    b.Navigation("FolderBindings");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.CaseDataSnapshotEntity", b =>

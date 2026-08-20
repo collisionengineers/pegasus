@@ -133,7 +133,7 @@ the evidence, actor, time, policy version, and later corrections.
 | `post-report-emails/query` | Question about a delivered report | route/thread evidence or staff | Queries | Case queries |
 | `post-report-emails/dispute` | Challenge to a delivered report/finding | route/thread evidence or staff | Queries | Case queries |
 | `post-report-emails/amendment-request` | Request to amend a delivered report | route/thread evidence or staff | Queries | Case queries |
-| `pre-instruction-emails/triage-request` | Accepted Triage request; missing VRM remains Needs sorting under FRD-03 | route predicate or staff | Triage | Pre-instructions |
+| `pre-instruction-emails/triage-request` | Accepted Triage request; missing VRM remains Unidentified under FRD-03 | route predicate or staff | Triage | Pre-instructions |
 | `pre-instruction-emails/pre-formal-instruction-request` | Known pre-formal handling request, excluding Triage | staff | Detailed: `pre-instruction-emails/pre-formal-instruction-request` | Pre-instructions |
 | `pre-instruction-emails/images-received` | Images before formal instruction, excluding an accepted instruction | attachment/route evidence or staff | Detailed: `pre-instruction-emails/images-received` | Images |
 | `internal-cc` | Internal copied correspondence, not the primary actionable occurrence | header/recipient evidence or staff | Detailed: `internal-cc` | Other |
@@ -148,8 +148,9 @@ The approved logical folder types are `Instructions`, `Audits`, `Diminution`,
 `New clients`, `Case queries`, `Enquiries`, `Billing`, `Pre-instructions`, `No
 action`, `Images`, `Cancellations`, `Case updates`, and `Other`. MAIL-23 binds
 these types to administrator-approved exact Outlook folder identities and owns
-the separate confirmed move. Triage and Unidentified receive no automatic
-folder recommendation merely because they are application destinations.
+the mailbox-scoped binding. MAIL-05 derives the message-level recommendation;
+MAIL-07 owns the separate confirmed move. Triage and Unidentified receive no
+automatic folder recommendation merely because they are application destinations.
 
 Acceptance examples are a single accepted Audit instruction mapping to
 Receiving work/Audits, a billing question to Queries/Billing, and an accepted
