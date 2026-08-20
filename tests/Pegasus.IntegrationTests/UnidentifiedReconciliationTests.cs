@@ -125,7 +125,7 @@ public sealed class UnidentifiedReconciliationTests
         {
             var dispatcher = new DispatchPendingIntakeWork(
                 dispatchScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>(),
-                new NoOpEnqueuer(),
+                new IntakeWebDriver.NoOpIntakeWorkEnqueuer(),
                 dispatchScope.ServiceProvider.GetRequiredService<TimeProvider>());
             await dispatcher.ExecuteAsync(10);
         }
@@ -158,16 +158,5 @@ public sealed class UnidentifiedReconciliationTests
             .GetRequiredService<IUnidentifiedStore>()
             .ListAsync(UnidentifiedState.Open);
         Assert.Empty(openAfterResolution);
-    }
-
-    /// <summary>
-    /// Advances work items from pending to dispatched without processing —
-    /// the same shape the grouped-image concurrency tests use, so a test can
-    /// choose exactly which member's pass runs when.
-    /// </summary>
-    private sealed class NoOpEnqueuer : IIntakeWorkEnqueuer
-    {
-        public Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
     }
 }

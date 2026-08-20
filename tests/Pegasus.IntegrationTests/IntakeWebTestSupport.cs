@@ -654,6 +654,19 @@ internal static partial class IntakeWebDriver
             processor.ExecuteAsync(stagedReceiptId, cancellationToken);
     }
 
+    /// <summary>
+    /// Advances a work item from pending to dispatched without processing it,
+    /// so a test can choose exactly which member's processing pass runs when
+    /// rather than folding dispatch and processing into one call.
+    /// </summary>
+    internal sealed class NoOpIntakeWorkEnqueuer : IIntakeWorkEnqueuer
+    {
+        public Task EnqueueAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+    }
+
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AntiforgeryTagRegex();
 
