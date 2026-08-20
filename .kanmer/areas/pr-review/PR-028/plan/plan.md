@@ -22,3 +22,12 @@ Compare PIR rows to the final Git path list one-for-one; rerun `git diff --check
 ## Risks
 
 The inventory can become stale if another fix changes the branch; generate it last.
+
+## Simplification pass — 2026-08-20
+
+- Reuse: Git's final `origin/dev...HEAD` path list is the single inventory source.
+- Simplification: one row per path; no duplicate evidence document in the repository.
+- Efficiency: verification claims name only commands actually run.
+- Altitude: product behavior remains in FRD/design; this ticket corrects Kanmer review evidence.
+- Applied finding: the final count is 24, not the original 23, because PR-027 added the canonical runtime-role migration test file.
+- No unapplied findings.

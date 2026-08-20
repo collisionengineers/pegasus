@@ -25,3 +25,12 @@ Focused Core filter; focused catalogue persistence/Web/runtime-role tests; locke
 ## Risks
 
 Relational concurrency can deadlock under shared LocalDB. Run the focused lane without another full suite and assert the stable business outcome rather than provider timing.
+
+## Simplification pass — 2026-08-20
+
+- Reuse: extended the existing Core fake, LocalDB factory, authenticated Web driver, ActionHistory queries and runtime-role permission reader.
+- Simplification: added no test framework or operation table. One row-scoped SQL Server lock fixes the race exposed by the concurrency test.
+- Efficiency: the lock is scoped to one category id; all verification filters are catalogue-specific.
+- Altitude: authorization/validation remain Core, transaction serialization remains Infrastructure, and Web tests exercise the thin page.
+- Applied finding: simplified the Web form helper to accept parsed values directly instead of manufacturing an HTML tag.
+- No unapplied findings.
