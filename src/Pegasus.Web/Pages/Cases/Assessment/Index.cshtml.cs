@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -540,10 +540,15 @@ public sealed class IndexModel(
 
     private async Task EvaluatePanelStateAsync(CancellationToken cancellationToken)
     {
-        // The composition gate decides first. With Features:SendToAi off
-        // there is no reconcile handler to post to, so a persisted request
-        // must not render as an actionable Sent/Completed/Failed state.
-        if (SendComposed && LatestRequest is { } request)
+        // The composition gate decides first: an uncomposed capability is
+        // absent from the page entirely (docs/design/README.md), and with
+        // Features:SendToAi off there is no reconcile handler to post to.
+        if (!SendComposed)
+        {
+            return;
+        }
+
+        if (LatestRequest is { } request)
         {
             var expired = request.ExpiresAtUtc <= timeProvider.GetUtcNow();
             switch (request.State)
@@ -562,11 +567,7 @@ public sealed class IndexModel(
         }
 
         var reasons = new List<string>();
-        if (!SendComposed)
-        {
-            reasons.Add("Sending to AI is not part of this deployment.");
-        }
-        else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
+        if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
         {
             reasons.Add("Sending to AI is disabled by an Administrator.");
         }

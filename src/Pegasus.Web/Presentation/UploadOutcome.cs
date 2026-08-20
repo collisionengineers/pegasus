@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -75,7 +75,7 @@ public sealed record UploadOutcomeView(
     {
         UploadOutcomeKind.Working => null,
         UploadOutcomeKind.Attached or UploadOutcomeKind.ImageCaseRegistered => "Success",
-        UploadOutcomeKind.NeedsReview => "Needs sorting",
+        UploadOutcomeKind.NeedsReview => "Unidentified",
         UploadOutcomeKind.PossibleMatch or UploadOutcomeKind.ReadyToCreate => "Pending",
         UploadOutcomeKind.CannotBecomeCase or UploadOutcomeKind.Failed => "Failed",
         _ => null

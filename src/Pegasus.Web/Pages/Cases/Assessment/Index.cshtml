@@ -1,4 +1,4 @@
-@page "/Cases/{id:guid}/Assessment"
+﻿@page "/Cases/{id:guid}/Assessment"
 @model Pegasus.Web.Pages.Cases.Assessment.IndexModel
 @using Pegasus.Core.AiWork
 @using Pegasus.Core.Assessment
@@ -165,6 +165,8 @@
             }
         </section>
 
+        @if (Model.SendComposed)
+        {
         <section class="panel" aria-labelledby="send-title">
             <h2 id="send-title" class="section-label">Send to Claude</h2>
             <p>Every change Claude makes is recorded with its author and stays unconfirmed until you review it.</p>
@@ -231,6 +233,7 @@
                 }
             </div>
         </section>
+        }
 
         @*
             DELIV-012: the reachable report-draft entry point. It renders
@@ -633,7 +636,7 @@
                 @if (Model.AcceptedSpecification is { } acceptedSpec)
                 {
                     <div class="status-card" role="status">
-                        Version @acceptedSpec.Version, @OperatorLabels.RepairSpecificationRoute(acceptedSpec.Source.Route), accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt ? $" {acceptedAt:d MMM yyyy}" : "").
+                        Accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt ? $" {OperatorLabels.OfficeDate(acceptedAt)}" : "") — @OperatorLabels.RepairSpecificationRoute(acceptedSpec.Source.Route).
                     </div>
                     @if (acceptedSpec.CalculationBasis is { } basis)
                     {
@@ -652,7 +655,7 @@
                 @if (Model.DraftSpecification is { } draftSpec)
                 {
                     <div class="status-card status-card--attention" role="status">
-                        Version @draftSpec.Version, @OperatorLabels.RepairSpecificationRoute(draftSpec.Source.Route), awaiting an Engineer&#8217;s acceptance.
+                        Awaiting an Engineer&#8217;s acceptance — @OperatorLabels.RepairSpecificationRoute(draftSpec.Source.Route).
                     </div>
                     RenderSpecificationLines(draftSpec, "draft");
 
@@ -1177,6 +1180,8 @@
     </div>
 </article>
 
+@if (Model.SendComposed)
+{
 <div id="send-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title" aria-describedby="send-confirm-body" hidden>
     <div class="reason-dialog">
         <h2 id="send-confirm-title">Send this case to Claude?</h2>
@@ -1190,6 +1195,7 @@
         </div>
     </div>
 </div>
+}
 
 @section Scripts {
     <script>

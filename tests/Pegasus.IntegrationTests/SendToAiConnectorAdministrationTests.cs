@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.AiWork;
@@ -32,7 +32,7 @@ public sealed partial class SendToAiIntegrationTests
         // Before any administration entry the section states the fallback.
         var adminHtml = await GetHtmlAsync(client, "/Administration/Automation");
         Assert.Contains("Send to AI connector", adminHtml, StringComparison.Ordinal);
-        Assert.Contains("From deployment configuration", adminHtml, StringComparison.Ordinal);
+        Assert.Contains("Standard setting", adminHtml, StringComparison.Ordinal);
 
         using (var response = await client.PostAsync(
             "/Administration/Automation?handler=UpdateConnector",
