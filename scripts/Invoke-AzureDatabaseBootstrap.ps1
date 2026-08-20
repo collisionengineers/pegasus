@@ -235,7 +235,7 @@ function Get-MigrationPermissionMatrix {
     # 20260820100724_RetainedMailSearchDocuments: Web searches the immutable
     # projection; Worker creates/replaces it in the existing receipt transaction.
     $expected.Add('pegasus_web_runtime_role|G|SELECT|IntakeSearchDocuments')
-    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE', 'DELETE')) {
+    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|IntakeSearchDocuments")
     }
     # 20260819180000_GrantEvaHandoffDownloadOperations: closes a live production

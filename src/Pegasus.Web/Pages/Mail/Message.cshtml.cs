@@ -177,7 +177,15 @@ public sealed class MessageModel(
             return NotFound();
         }
         ListFolder = listFolder;
-        var detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+        RetainedMailDetail? detail;
+        try
+        {
+            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
         if (detail is null)
         {
             return NotFound();

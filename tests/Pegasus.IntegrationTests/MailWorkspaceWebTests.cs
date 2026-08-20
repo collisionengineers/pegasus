@@ -397,6 +397,42 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task InvalidSearchContextOnACorrectionReloadReturnsASupportedResponseWithoutWrites()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        foreach (var (search, expectedStatus) in new[]
+        {
+            ("   ", HttpStatusCode.OK),
+            (new string('s', 201), HttpStatusCode.NotFound)
+        })
+        {
+            var page = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+            var form = new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(page),
+                ["ExpectedClassificationVersion"] = "1",
+                ["ClassificationKey"] = "received:999",
+                ["CorrectionReason"] = "Reviewed retained evidence."
+            };
+            var route = $"/Inbox/{ids[0]:D}?handler=CorrectClassification&search={Uri.EscapeDataString(search)}";
+
+            using var response = await client.PostAsync(route, new FormUrlEncodedContent(form));
+
+            Assert.Equal(expectedStatus, response.StatusCode);
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(1, await context.IntakeMailClassificationDecisions.Select(item => item.Version).SingleAsync());
+        Assert.Empty(await context.IntakeMailClassificationHistory.ToListAsync());
+    }
+
+    [Fact]
     public async Task AForwardedMessageShowsTheProvenOriginalSenderAndItsForwarder()
     {
         using var factory = new IntakeWebApplicationFactory();

@@ -208,6 +208,44 @@ public sealed class ProductionGraphSourceTests
             source.SearchAsync(null, "needle", 100, cancellation.Token));
     }
 
+    [Theory]
+    [InlineData("malformed-json")]
+    [InlineData("missing-id")]
+    [InlineData("missing-received-time")]
+    [InlineData("foreign-parent")]
+    [InlineData("escaped-next-link")]
+    public async Task DeletedSearchTurnsInvalidGraphResponsesIntoUnavailable(string responseCase)
+    {
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+            }
+
+            var body = responseCase switch
+            {
+                "malformed-json" => "{",
+                "missing-id" => """{"value":[{"parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z"}]}""",
+                "missing-received-time" => """{"value":[{"id":"deleted-1","parentFolderId":"deleted-folder"}]}""",
+                "foreign-parent" => """{"value":[{"id":"deleted-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}]}""",
+                "escaped-next-link" => """{"value":[],"@odata.nextLink":"https://graph.microsoft.com/v1.0/users/other-mailbox/mailFolders/deleted-folder/messages?$top=100"}""",
+                _ => throw new InvalidOperationException("Unknown Graph response case.")
+            };
+            return Response(HttpStatusCode.OK, body);
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+        Assert.Empty(result.Items);
+    }
+
     [Fact]
     public async Task InboxUsesImmutableIdsAndContinuesWithDeltaCursorWithoutMutation()
     {

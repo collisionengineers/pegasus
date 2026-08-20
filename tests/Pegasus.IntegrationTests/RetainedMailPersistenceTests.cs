@@ -50,11 +50,29 @@ public sealed class RetainedMailPersistenceTests
             ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
             FileName = "notes.txt"
         };
+        var contentIdImage = new MimePart("image", "png")
+        {
+            Content = new MimeContent(new MemoryStream(Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nXQAAAAASUVORK5CYII="))),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            ContentId = "attached-image@example.invalid",
+            FileName = "attached.png"
+        };
+        var searchablePdf = new MimePart("application", "pdf")
+        {
+            Content = new MimeContent(new MemoryStream(AudatexEstimateFixture.Build())),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = "searchable.pdf"
+        };
         message.Body = new Multipart("mixed")
         {
             new TextPart("plain") { Text = "Body" },
             nameless,
             attachedText,
+            contentIdImage,
+            searchablePdf,
             named
         };
 
@@ -78,7 +96,9 @@ public sealed class RetainedMailPersistenceTests
             Assert.IsAssignableFrom<IReadOnlyList<RetainedMailboxAttachment>>(display.Attachments),
             first => Assert.Equal("Unnamed attachment 1", first.FileName),
             second => Assert.Equal("notes.txt", second.FileName),
-            third => Assert.Equal("named.bin", third.FileName));
+            third => Assert.Equal("attached.png", third.FileName),
+            fourth => Assert.Equal("searchable.pdf", fourth.FileName),
+            fifth => Assert.Equal("named.bin", fifth.FileName));
         Assert.Collection(
             canonical.AttachmentRecords,
             first => Assert.Equal(0, first.Ordinal),
@@ -90,8 +110,21 @@ public sealed class RetainedMailPersistenceTests
             third =>
             {
                 Assert.Equal(2, third.Ordinal);
-                Assert.Equal("named.bin", third.FileName);
+                Assert.Equal("attached.png", third.FileName);
+            },
+            fourth =>
+            {
+                Assert.Equal(3, fourth.Ordinal);
+                Assert.Equal("searchable.pdf", fourth.FileName);
+            },
+            fifth =>
+            {
+                Assert.Equal(4, fifth.Ordinal);
+                Assert.Equal("named.bin", fifth.FileName);
             });
+        Assert.Contains(
+            IntakeSearchProjection.Create(canonical, routeDecision: null),
+            document => document.AttachmentOrdinal == 3 && document.IsSearchable);
     }
 
     [Fact]

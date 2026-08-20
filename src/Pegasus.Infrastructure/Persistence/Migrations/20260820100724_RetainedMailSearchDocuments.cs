@@ -45,7 +45,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 IF DATABASE_PRINCIPAL_ID(N'pegasus_web_runtime_role') IS NOT NULL
                     GRANT SELECT ON OBJECT::[dbo].[IntakeSearchDocuments] TO [pegasus_web_runtime_role];
                 IF DATABASE_PRINCIPAL_ID(N'pegasus_worker_runtime_role') IS NOT NULL
-                    GRANT SELECT, INSERT, UPDATE, DELETE ON OBJECT::[dbo].[IntakeSearchDocuments] TO [pegasus_worker_runtime_role];
+                    GRANT SELECT, INSERT, DELETE ON OBJECT::[dbo].[IntakeSearchDocuments] TO [pegasus_worker_runtime_role];
                 """);
         }
 
@@ -57,7 +57,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 IF DATABASE_PRINCIPAL_ID(N'pegasus_web_runtime_role') IS NOT NULL
                     REVOKE SELECT ON OBJECT::[dbo].[IntakeSearchDocuments] FROM [pegasus_web_runtime_role];
                 IF DATABASE_PRINCIPAL_ID(N'pegasus_worker_runtime_role') IS NOT NULL
-                    REVOKE SELECT, INSERT, UPDATE, DELETE ON OBJECT::[dbo].[IntakeSearchDocuments] FROM [pegasus_worker_runtime_role];
+                    REVOKE SELECT, INSERT, DELETE ON OBJECT::[dbo].[IntakeSearchDocuments] FROM [pegasus_worker_runtime_role];
                 """);
 
             migrationBuilder.DropTable(
