@@ -80,7 +80,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260819115323_UnidentifiedWork",
                 "20260819140113_ImageIntakeGroupExpectedMemberCount",
                 "20260819180000_GrantEvaHandoffDownloadOperations",
-                "20260819234014_GrantWorkerIntakeSubmissionGroupRead"
+                "20260819234014_GrantWorkerIntakeSubmissionGroupRead",
+                "20260820040337_SendToAiConnectorSettings"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
