@@ -1,6 +1,6 @@
 # Checklist
 
-- [ ] Map malformed/scope-invalid provider responses to unavailable.
-- [ ] Add the four focused response-shape/scope cases.
-- [ ] Run focused verification and Release build.
-- [ ] Record simplification dispositions and PIR.
+- [x] Map malformed/scope-invalid provider responses to unavailable.
+- [x] Add the four required response-shape/scope categories (five exact cases: malformed, missing ID, missing time, foreign parent, escaped link).
+- [x] Run focused verification and Release build.
+- [x] Record simplification dispositions and PIR.

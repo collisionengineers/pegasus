@@ -9,3 +9,10 @@ Estimated diff: about 4 migration/bootstrap edits, 35–50 focused SQL-test line
 5. Record four-lens dispositions and PIR.
 
 Reuse: the existing migration stream, bootstrap permission census, SQL test harness, and current architecture snapshot. No follow-up migration or permission framework.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Reused the unmerged feature migration, bootstrap permission census, established SQL permission reader, and current architecture snapshot.
+- **Simplification:** Removed the unsupported verb directly; no follow-up migration or permission abstraction is necessary before merge.
+- **Efficiency:** Runtime store behavior is unchanged; the Worker keeps only the SELECT/DELETE/INSERT operations its replacement path performs.
+- **Altitude:** Schema permissions remain in the migration/bootstrap owners and current-state truth remains in `docs/current-architecture.md`. No unapplied findings.
