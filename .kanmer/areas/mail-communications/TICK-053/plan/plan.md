@@ -43,3 +43,10 @@ The post-implementation report will cite the migration/model validation, focused
 - **Identity escape:** validate Graph host, mailbox, well-known folder path, next links and returned parent folder; never accept a client folder identity.
 - **Existing caller breakage:** keep absent-search defaults and prove Web/MCP browse/detail callers.
 - **Scope inflation:** no queue policy, quick preview, Case actions, mailbox mutation, generic search framework, deployment or backfill.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Reused the existing `ListRetainedMail` query port, receipt transaction, `IIntakeSourceReader`, `GraphMailClient`, approved-mailbox estate, and Mail page/filterbar conventions. No second parser, search repository, mailbox client, or duplicated scope taxonomy was added.
+- **Simplification:** Removed the temporary partial-class split by moving the pure projection into `IntakeSearchProjection.cs`; reused the existing `filterbar` CSS instead of introducing a new UI convention; removed two unnecessary search-document eager loads from ordinary receipt reads. Applied.
+- **Efficiency:** Retained filters execute in SQL before count/paging, match evidence is loaded in bounded page-sized batches, projection rows are written in the existing receipt transaction, and Deleted Items stops after 100 newest messages without persistence/backfill. The remaining page-sized in-memory match grouping is bounded to 25 rows and was kept rather than adding another abstraction.
+- **Altitude:** The change stays inside existing Core policy/port, Infrastructure persistence/Graph adapter, and Web composition boundaries. No project, runtime, top-level directory, generic search framework, feature flag, or ADR was introduced. No further findings.
