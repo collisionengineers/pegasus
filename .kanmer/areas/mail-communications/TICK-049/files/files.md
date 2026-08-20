@@ -43,3 +43,11 @@ Do not take or create TICK-049's worktree until TICK-053 / PR #469 merges and re
 ## Out of scope
 
 Reviving TICK-048; arbitrary/bulk destinations; a generic mail-action framework; read/category/flag/delete/send work; background retry or a new runtime; rewriting retained arrival evidence; MCP/Automation callers; Graph permission/RBAC changes; deployment/activation; any real Outlook or cloud write; or claims of live-mutation verification.
+
+## Review-blocker changed-file refresh — 2026-08-20
+
+- `src/Pegasus.Core/Intake/RetainedMail.cs` and `RetainedMailFolderMove.cs`: exact current-location-aware recommendation and safe same-key recovery result material.
+- `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs`, `EfRetainedMailboxMessageStore.cs`, mailbox entity/configuration and existing unmerged folder-move migration/designer/snapshot: active claim serialization, latest-success current location and canonical search inclusion.
+- `src/Pegasus.Web/Pages/Mail/Index.cshtml`, `Message.cshtml`, `Message.cshtml.cs`: search scope explanation, same-key status check and reclassification-aware list context.
+- `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs`, `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `MailWorkspaceWebTests.cs`: interface fake plus exact claim/freshness/failure/reclassification/search/recovery evidence.
+- No new project, top-level directory, policy list, search store, provider client, external write or deployment unit.

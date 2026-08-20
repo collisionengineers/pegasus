@@ -84,3 +84,7 @@ Per AGENTS.md, TICK-049 must not be taken while that overlapping claim remains. 
 ### Refined implication
 
 The accepted move form carries only the internal retained-message id, classification version, recommendation policy key/version, approved-mailbox version, a fresh operation key, and the required reason. Core re-loads the exact message, classification, policy and approved binding on POST. Infrastructure alone supplies the persisted exact mailbox/source/destination transport identities to the one move adapter. This preserves the accepted read-only recommendation contract and makes changed classification, policy, binding, or current location fail closed without exposing or trusting browser transport data.
+
+## Review-blocker refresh — 2026-08-20
+
+Read-only inspection of PR #477 head and the independent review set confirmed five gaps: only operation-key uniqueness guarded claims; uncertain recovery was not reachable from Razor; any prior success suppressed a later reclassification move; successful moves were excluded from every retained list/search route; and the report named unimplemented failure evidence. Existing owners were sufficient: the dedicated move store, MAIL-05 recommendation, approved typed bindings, MAIL-11 retained search, authenticated message page and existing LocalDB/fake-provider fixtures. No live mailbox or external-state premise was used.
