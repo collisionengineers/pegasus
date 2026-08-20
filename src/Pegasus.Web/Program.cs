@@ -591,6 +591,11 @@ builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueri
 // existing page that performs it (see Pegasus.Web.Presentation.UploadOutcome).
 builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadOutcomeQueries,
     Pegasus.Web.Presentation.UploadOutcomeQueries>();
+// The confirmation surface's one staff decision: the case search behind the
+// autocomplete, and add-to-case through the existing leased link path
+// (see Pegasus.Web.Presentation.UploadCaseDecision).
+builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
+    Pegasus.Web.Presentation.UploadCaseDecision>();
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());

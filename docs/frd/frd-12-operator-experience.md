@@ -41,9 +41,17 @@ Once a file's processing resolves, the status surface shows a confirmation
 outcome rather than a passive label: what already happened automatically
 (reported, with a link to open it and, where relevant, the existing reversal
 path — never re-offered as a choice), or the staff decision that is
-genuinely open (attach to a possible match with a free choice of
-destination, or create a case from what was uploaded). The exact decision
-table is owned by [FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface).
+genuinely open. Where it is open, the surface offers the decision itself:
+the suggested action (create a case from what was uploaded, or — for a
+just-registered vehicle-image case — the registration is reported with its
+reference and link), **Add to an existing case**, and **Cancel**. Add to an
+existing case opens a case search that suggests matching cases as the
+operator types (keyboard-operable, with the active suggestion marked by more
+than colour); choosing a case and confirming with a reason attaches the
+uploaded material to it as an explicit staff decision. Cancel changes
+nothing — the material stays retained with its state honestly shown. The
+exact decision table and the attach contract are owned by
+[FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface).
 A grouped upload shows this per file; members of the same group can resolve
 independently and are never collapsed into one group-wide outcome.
 

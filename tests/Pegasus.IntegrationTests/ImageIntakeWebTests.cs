@@ -159,6 +159,28 @@ internal static class MultiFormatFixture
 internal static class ImageIntakeTestData
 {
     /// <summary>
+    /// Uploads a QDOS instruction email carrying the given registration and
+    /// claim number, processes it, and promotes its allocated case: a real
+    /// case (with a real origin receipt) reachable by case search.
+    /// </summary>
+    public static async Task<Guid> SeedInstructionCaseAsync(
+        IntakeWebApplicationFactory factory,
+        HttpClient client,
+        string registration,
+        string claimNumber)
+    {
+        var email = IntakeTestEvidence.CreateEmail(
+            $"case-{claimNumber.ToLowerInvariant()}.eml",
+            $"QDOS instruction\r\nClaimant Name: Fixture Claimant\r\nClaim Number: {claimNumber}\r\nVehicle Registration: {registration}");
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, email.FileName, email.MediaType, email.Content);
+        return await PromoteAllocatedCaseAsync(
+            factory.Services,
+            IntakeWebDriver.ReceiptId(upload),
+            nameof(CaseLifecycleState.Review));
+    }
+
+    /// <summary>
     /// Finds the case that processing allocated for a receipt and moves it to
     /// the workflow state a test needs.
     /// </summary>

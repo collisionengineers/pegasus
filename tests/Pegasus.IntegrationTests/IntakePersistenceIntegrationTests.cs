@@ -82,7 +82,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260819180000_GrantEvaHandoffDownloadOperations",
                 "20260819234014_GrantWorkerIntakeSubmissionGroupRead",
                 "20260820034652_ImageIntakeSubmissionGroup",
-                "20260820040337_SendToAiConnectorSettings"
+                "20260820040337_SendToAiConnectorSettings",
+                "20260820055900_ImageCaseCustody"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
