@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
@@ -102,6 +103,7 @@ public static class DependencyInjection
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
+        services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());
@@ -150,8 +152,9 @@ public static class DependencyInjection
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
-        services.AddScoped<IStaffAccountQueries>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
+        // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
+        // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
+        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
@@ -267,6 +270,7 @@ public static class DependencyInjection
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();

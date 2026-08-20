@@ -1,3 +1,4 @@
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -104,15 +105,52 @@ public sealed class RetainedMailTests
         var queries = new Queries();
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new GetRetainedMail(queries).ExecuteAsync(
+            new GetRetainedMail(queries, new NoStaffAccounts()).ExecuteAsync(
                 ActionActor.RequestLink(Guid.NewGuid()),
                 Guid.NewGuid(),
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new GetRetainedMail(queries).ExecuteAsync(
+            new GetRetainedMail(queries, new NoStaffAccounts()).ExecuteAsync(
                 Caseworker(),
                 Guid.Empty,
                 CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task GetResolvesTheClassificationActorsToOperatorFacingNamesAndNeverTheRawSubjectId()
+    {
+        var staffId = Guid.NewGuid();
+        var result = MailClassificationResult.Unclassified([], "No match.", "policy", 1);
+        var dossier = new MailClassificationDossier(
+            2,
+            result,
+            $"staff:{staffId:D}",
+            NowUtc,
+            [
+                new(1, result, result, "system-worker:poll", "Automatic classification.", NowUtc.AddDays(-1)),
+                new(2, result, result, $"staff:{staffId:D}", "Corrected.", NowUtc)
+            ]);
+        var summary = new RetainedMailSummary(
+            Guid.NewGuid(), "mailbox-a", "mailbox-a@example.test", true, null, null, null,
+            null, null, NowUtc, true, 0, null, null, null, null);
+        var detail = new RetainedMailDetail(
+            summary, [], [], null, [], [], MailFolderScope.Inbox, null, null, dossier);
+        var queries = new Queries { DetailToReturn = detail };
+        var staffAccounts = new FixedStaffAccounts(staffId, "alex");
+
+        var resolved = await new GetRetainedMail(queries, staffAccounts).ExecuteAsync(
+            Caseworker(),
+            summary.Id,
+            CancellationToken.None);
+
+        Assert.Equal("alex", resolved!.Classification!.CurrentActorDisplayName);
+        Assert.Equal(ActorDisplayNames.SystemWorker, resolved.Classification.History[0].ActorDisplayName);
+        Assert.Equal("alex", resolved.Classification.History[1].ActorDisplayName);
+        Assert.DoesNotContain(staffId.ToString("D"), resolved.Classification.CurrentActorDisplayName, StringComparison.OrdinalIgnoreCase);
+        foreach (var entry in resolved.Classification.History)
+        {
+            Assert.DoesNotContain(staffId.ToString("D"), entry.ActorDisplayName, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     [Fact]
@@ -250,6 +288,8 @@ public sealed class RetainedMailTests
     {
         internal List<(MailWorkspaceScope Scope, int Page, int PageSize)> Scopes { get; } = [];
 
+        internal RetainedMailDetail? DetailToReturn { get; set; }
+
         public Task<RetainedMailPage> ListAsync(
             MailWorkspaceScope scope,
             int page,
@@ -261,7 +301,7 @@ public sealed class RetainedMailTests
         }
 
         public Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
-            Task.FromResult<RetainedMailDetail?>(null);
+            Task.FromResult(DetailToReturn);
 
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) =>
@@ -304,5 +344,32 @@ public sealed class RetainedMailTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    /// <summary>Unused by these tests: every case here fails closed before a lookup would happen.</summary>
+    private sealed class NoStaffAccounts : IStaffAccountQueries
+    {
+        public Task<StaffAccountQuerySlice> ListAsync(
+            int offset,
+            int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<StaffAccountSummary?> GetAsync(Guid staffId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+    }
+
+    private sealed class FixedStaffAccounts(Guid staffId, string userName) : IStaffAccountQueries
+    {
+        public Task<StaffAccountQuerySlice> ListAsync(
+            int offset,
+            int limit,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<StaffAccountSummary?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            Task.FromResult(id == staffId
+                ? new StaffAccountSummary(staffId, userName, true, false, [StaffRole.User], null)
+                : null);
     }
 }

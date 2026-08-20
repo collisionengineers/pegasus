@@ -17,15 +17,30 @@ public sealed class QdosInstructionExtractionPolicy(
     [
         new("Claimant name", ["Claimant Name", "Claimant"]),
         new("Claim number", ["Claim Number", "Claim No", "Claim Reference"]),
-        new("Vehicle registration", ["Vehicle Registration", "Registration", "VRM"]),
-        new("Vehicle make", ["Vehicle Make", "Make"]),
-        new("Vehicle model", ["Vehicle Model", "Model"]),
-        new("Vehicle mileage", ["Vehicle Mileage", "Mileage"]),
+        new(
+            "Vehicle registration",
+            [
+                "Vehicle Registration", "Registration Number", "Registration No",
+                "Vehicle Reg No", "Vehicle Reg", "Registration", "Reg No", "VRM"
+            ],
+            IsValidTyped: InstructionFieldEngine.IsCurrentFormatRegistration),
+        new("Vehicle make", ["Vehicle Make", "Make"],
+            AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel),
+        new("Vehicle model", ["Vehicle Model", "Model"],
+            AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel),
+        new("Vehicle mileage", ["Vehicle Mileage", "Mileage"],
+            IsValidTyped: value => InstructionFieldEngine.ParseMileage(value) is not null),
         new("Accident circumstances", ["Accident Circumstances", "Circumstances"]),
-        new("Date of incident", ["Date of Incident", "Incident Date", "Accident Date"]),
-        new("Instruction date", ["Instruction Date", "Date of Instruction"]),
+        new("Date of incident", ["Date of Incident", "Incident Date", "Accident Date"],
+            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null),
+        new("Instruction date", ["Instruction Date", "Date of Instruction"],
+            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null),
         new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"]),
-        new("Inspection date", ["Inspection Date", "Date of Inspection", "Inspection Deadline", "Due By"], IsRequired: false)
+        new(
+            "Inspection date",
+            ["Inspection Date", "Date of Inspection", "Inspection Deadline", "Due By"],
+            IsRequired: false,
+            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null)
     ];
 
     public InstructionExtractionResult Extract(

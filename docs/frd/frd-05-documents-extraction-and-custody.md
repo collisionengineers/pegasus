@@ -5,7 +5,7 @@
 
 ### Supported source boundary
 
-The intended intake boundary covers PDF, DOC, DOCX, EML, and MSG source material plus attached images and route metadata. Current support is proved only by the actual application caller and current architecture/evidence, not by an imported workspace or plan.
+The intended intake boundary covers PDF, DOC, DOCX, EML, and MSG source material plus attached images and route metadata. Current support is proved only by the actual application caller and current architecture/evidence, not by an imported workspace or plan. One engine owns each format: PDF stays on the PdfPig path (ADR-0001/ADR-0003 — the only live PDF implementation), DOCX on OpenXml, EML on MimeKit, and DOC/MSG on the CollisionDocNet-derived compound-file readers integrated by ADR-0025 and scoped to those two formats.
 
 Pegasus must:
 
