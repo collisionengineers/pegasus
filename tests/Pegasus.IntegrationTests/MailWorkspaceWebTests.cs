@@ -29,6 +29,143 @@ public sealed class MailWorkspaceWebTests
     private const string SecondMailboxAddress = "reports@collisionengineers.co.uk";
 
     [Fact]
+    public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        _ = Assert.Single(await SeedAsync(
+            factory, SecondMailboxId, SecondMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var replacementOriginId = await ReceiptIdAsync(factory, SecondMailboxId, SecondMailboxId + "-0");
+        var firstCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL31001", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
+        var replacementCaseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, replacementOriginId, "MAIL31002", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
+        using var client = CreateClient(factory);
+
+        var search = await GetHtmlAsync(
+            client,
+            $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&pageNumber=2&caseQuery=MAIL31001");
+        Assert.Contains("Review MAIL31001", search, StringComparison.Ordinal);
+        Assert.Contains("mailbox=instructions", search, StringComparison.Ordinal);
+        Assert.Contains("pageNumber=2", search, StringComparison.Ordinal);
+
+        var target = await GetHtmlAsync(
+            client,
+            $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&pageNumber=2&caseQuery=MAIL31001&targetCaseId={firstCaseId:D}");
+        Assert.Contains("Confirm target", target, StringComparison.Ordinal);
+        Assert.Contains("MAIL31001", target, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unlink from this case", target, StringComparison.Ordinal);
+        var linkAction = AssociationAction(target, "LinkCase");
+        using var link = await client.PostAsync(
+            linkAction,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(target),
+                ["Reason"] = "The retained message names this exact Case/PO."
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, link.StatusCode);
+
+        var linked = await GetHtmlAsync(client, link.Headers.Location!.ToString());
+        Assert.Contains("Message linked to MAIL31001.", linked, StringComparison.Ordinal);
+        Assert.Contains("Current Case/PO", linked, StringComparison.Ordinal);
+        Assert.Contains("Unlink from this case", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("Search cases", linked, StringComparison.Ordinal);
+        var unlinkAction = AssociationAction(linked, "UnlinkCase");
+        using var unlink = await client.PostAsync(
+            unlinkAction,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(linked),
+                ["Reason"] = "The message belongs to a different Case/PO."
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, unlink.StatusCode);
+
+        var unlinked = await GetHtmlAsync(client, unlink.Headers.Location!.ToString());
+        Assert.Contains("Message unlinked from MAIL31001.", unlinked, StringComparison.Ordinal);
+        Assert.Contains("Search cases", unlinked, StringComparison.Ordinal);
+        Assert.DoesNotContain("Unlink from this case", unlinked, StringComparison.Ordinal);
+
+        var replacement = await GetHtmlAsync(
+            client,
+            $"/Inbox/{messageId:D}?caseQuery=MAIL31002&targetCaseId={replacementCaseId:D}");
+        var replacementAction = AssociationAction(replacement, "LinkCase");
+        using var relink = await client.PostAsync(
+            replacementAction,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(replacement),
+                ["Reason"] = "The replacement Case/PO was separately searched and confirmed."
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, relink.StatusCode);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var association = await context.IntakeManualAssociations.SingleAsync(item => item.IntakeReceiptId == receiptId);
+        Assert.True(association.IsActive);
+        Assert.Equal(replacementCaseId, association.CaseId);
+        Assert.Equal(3, await context.IntakeMutationHistory.CountAsync(item => item.IntakeReceiptId == receiptId));
+    }
+
+    [Fact]
+    public async Task AssociationPostRefusesRolelessAndStaleReviewedStateWithoutWriting()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var caseId = await ImageIntakeTestData.SeedCaseAsync(
+            factory.Services, receiptId, "MAIL31999", nameof(Pegasus.Core.Workflow.CaseLifecycleState.Review));
+        using var client = CreateClient(factory);
+        var target = await GetHtmlAsync(
+            client,
+            $"/Inbox/{messageId:D}?caseQuery=MAIL31999&targetCaseId={caseId:D}");
+        var action = AssociationAction(target, "LinkCase");
+        var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = AntiforgeryToken(target),
+            ["Reason"] = "Reviewed exact retained-message evidence."
+        });
+        using var rolelessRequest = new HttpRequestMessage(HttpMethod.Post, action) { Content = form };
+        rolelessRequest.Headers.Add("X-Test-Roleless", "1");
+        using var roleless = await client.SendAsync(rolelessRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            await context.IntakeReceipts
+                .Where(item => item.Id == receiptId)
+                .ExecuteUpdateAsync(update => update.SetProperty(item => item.Version, item => item.Version + 1));
+        }
+
+        using var stale = await client.PostAsync(
+            action,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(target),
+                ["Reason"] = "Reviewed exact retained-message evidence."
+            }));
+        Assert.Equal(HttpStatusCode.OK, stale.StatusCode);
+        Assert.Contains(
+            "The message or case changed. Reload it, review the current target, and try again.",
+            await stale.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+
+        await using var verificationScope = factory.Services.CreateAsyncScope();
+        var verificationFactory = verificationScope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var verification = await verificationFactory.CreateDbContextAsync();
+        Assert.Empty(await verification.IntakeManualAssociations.Where(item => item.IntakeReceiptId == receiptId).ToListAsync());
+        Assert.Empty(await verification.IntakeMutationHistory.Where(item => item.IntakeReceiptId == receiptId).ToListAsync());
+    }
+
+    [Fact]
     public async Task TheDefaultViewIsEveryMailboxNewestFirstWithExcerptsAndNoMutation()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -763,6 +900,31 @@ public sealed class MailWorkspaceWebTests
         var to = text.IndexOf(end, from, StringComparison.Ordinal);
         Assert.True(to > from, $"'{end}' was not rendered after '{start}'.");
         return text[from..to];
+    }
+
+    private static string AssociationAction(string html, string handler)
+    {
+        var match = Regex.Match(
+            html,
+            $"<form method=\"post\" action=\"([^\"]*handler={Regex.Escape(handler)}[^\"]*)\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"The {handler} confirmation action was not rendered.");
+        return WebUtility.HtmlDecode(match.Groups[1].Value);
+    }
+
+    private static async Task<Guid> ReceiptIdAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var externalToken = $"{mailboxId.Length}:{mailboxId}{messageId}";
+        return await context.IntakeReceipts
+            .Where(item => item.SourceChannel == "mailbox" && item.ExternalReceiptToken == externalToken)
+            .Select(item => item.Id)
+            .SingleAsync();
     }
 
     private static string AntiforgeryToken(string html)

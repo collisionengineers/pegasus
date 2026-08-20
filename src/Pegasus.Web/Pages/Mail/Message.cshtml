@@ -47,6 +47,11 @@
     <div class="status-card" role="status">@folderMoveNotice</div>
 }
 
+@if (Model.AssociationNotice is { } associationNotice)
+{
+    <div class="status-card" role="status">@associationNotice</div>
+}
+
 @* The state before any action: what processing decided, and what it became.
    These are read-only findings with a source, not counts, so they are evidence
    figures rather than metric tiles. *@
@@ -77,6 +82,127 @@
         </div>
     </div>
 </section>
+
+@if (Model.AssociationReceipt is { } associationReceipt)
+{
+    <section class="panel section-gap" aria-labelledby="case-association-heading">
+        <h2 id="case-association-heading">Case association</h2>
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+        @if (Model.CurrentCase is { } currentCase)
+        {
+            var unlinkOperationKey = Guid.NewGuid().ToString("D");
+            var unlinkAction = Url.Page(
+                "/Mail/Message",
+                "UnlinkCase",
+                new
+                {
+                    id = summary.Id,
+                    mailbox = Model.MailboxFilter,
+                    folder = Model.FolderFilter,
+                    pageNumber = Model.PageNumber,
+                    search = Model.SearchTerm,
+                    caseId = currentCase.Summary.CaseId,
+                    expectedIntakeVersion = associationReceipt.Version,
+                    expectedCaseVersion = currentCase.Workflow.Version,
+                    operationKey = unlinkOperationKey
+                });
+            var unlinkDialogData = new ViewDataDictionary(ViewData)
+            {
+                ["DialogId"] = "unlinkCaseDialog",
+                ["DialogTitle"] = $"Unlink from {currentCase.Summary.Reference}",
+                ["DialogActionUrl"] = unlinkAction,
+                ["DialogConsequence"] = "This records a permanent reasoned unlink. To correct the association, search for and confirm the replacement case afterwards."
+            };
+            <dl class="detail-list">
+                <div><dt>Current Case/PO</dt><dd><a asp-page="/Cases/Details" asp-route-id="@currentCase.Summary.CaseId">@currentCase.Summary.Reference</a></dd></div>
+                <div><dt>Principal</dt><dd>@currentCase.Summary.Principal</dd></div>
+                <div><dt>Vehicle registration</dt><dd>@(currentCase.Summary.Registration ?? "Not recorded")</dd></div>
+                <div><dt>Claimant</dt><dd>@(currentCase.Summary.Claimant ?? "Not recorded")</dd></div>
+                <div><dt>Claim number</dt><dd>@(currentCase.Summary.ClaimNumber ?? "Not recorded")</dd></div>
+            </dl>
+            <button class="secondary-action" type="button" data-dialog-open="unlinkCaseDialog">Unlink from this case</button>
+            <partial name="Shared/_ReasonDialog" view-data="unlinkDialogData" />
+        }
+        else
+        {
+            <p>This message is not associated with a case. Search for the exact Case/PO before linking it.</p>
+            <form method="get" class="form-grid">
+                <input type="hidden" name="id" value="@summary.Id" />
+                <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
+                <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
+                <input type="hidden" name="pageNumber" value="@Model.PageRouteValue" />
+                <input type="hidden" name="search" value="@Model.SearchTerm" />
+                <label for="association-case-query">Search by Case/PO, registration, claimant or claim number</label>
+                <input id="association-case-query" name="caseQuery" value="@Model.CaseQuery" maxlength="300" required />
+                <button class="secondary-action" type="submit">Search cases</button>
+            </form>
+
+            @if (Model.CaseResults is { } caseResults)
+            {
+                if (caseResults.Count == 0)
+                {
+                    <p class="empty-state">No matching cases were found.</p>
+                }
+                else
+                {
+                    <h3>Matching cases</h3>
+                    <ul class="plain-list">
+                        @foreach (var candidate in caseResults)
+                        {
+                            <li>
+                                <a asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                                   asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                                   asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@candidate.CaseId">
+                                    Review @candidate.Reference
+                                </a>
+                                — @(candidate.Registration ?? "registration not recorded") · @(candidate.Claimant ?? "claimant not recorded") · @candidate.Stage
+                            </li>
+                        }
+                    </ul>
+                }
+            }
+
+            @if (Model.TargetCase is { } targetCase)
+            {
+                var linkOperationKey = Guid.NewGuid().ToString("D");
+                var linkAction = Url.Page(
+                    "/Mail/Message",
+                    "LinkCase",
+                    new
+                    {
+                        id = summary.Id,
+                        mailbox = Model.MailboxFilter,
+                        folder = Model.FolderFilter,
+                        pageNumber = Model.PageNumber,
+                        search = Model.SearchTerm,
+                        caseId = targetCase.Summary.CaseId,
+                        expectedIntakeVersion = associationReceipt.Version,
+                        expectedCaseVersion = targetCase.Workflow.Version,
+                        operationKey = linkOperationKey
+                    });
+                var linkDialogData = new ViewDataDictionary(ViewData)
+                {
+                    ["DialogId"] = "linkCaseDialog",
+                    ["DialogTitle"] = $"Link to {targetCase.Summary.Reference}",
+                    ["DialogActionUrl"] = linkAction,
+                    ["DialogConsequence"] = "Confirm that this exact message belongs to the case shown below. The reason and before/after association are retained permanently."
+                };
+                <h3>Confirm target</h3>
+                <dl class="detail-list">
+                    <div><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></div>
+                    <div><dt>Principal</dt><dd>@targetCase.Summary.Principal</dd></div>
+                    <div><dt>Vehicle registration</dt><dd>@(targetCase.Summary.Registration ?? "Not recorded")</dd></div>
+                    <div><dt>Claimant</dt><dd>@(targetCase.Summary.Claimant ?? "Not recorded")</dd></div>
+                    <div><dt>Claim number</dt><dd>@(targetCase.Summary.ClaimNumber ?? "Not recorded")</dd></div>
+                    <div><dt>State</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></div>
+                </dl>
+                <button class="btn btn--dark" type="button" data-dialog-open="linkCaseDialog">Link to this case</button>
+                <partial name="Shared/_ReasonDialog" view-data="linkDialogData" />
+            }
+        }
+    </section>
+}
 
 @if (Model.Detail.Classification is { } dossier)
 {
