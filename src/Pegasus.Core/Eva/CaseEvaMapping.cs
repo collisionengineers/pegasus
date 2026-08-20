@@ -95,7 +95,7 @@ public static class CaseEvaMapping
     public const string MappingKey = "qdos-eva-13-field-mapping";
     public const int MappingVersion = 1;
     public const string ActivationGateReason =
-        "The EVA source mapping is not activated by an explicitly accepted mapping/config version.";
+        "EVA hand-off is not switched on.";
 
     public static EvaMappingResult MapForProduction(
         EvaAcceptedCaseEvidence evidence,
@@ -192,7 +192,7 @@ public static class CaseEvaMapping
 
         if (!evidence.InstructionComplete || !evidence.ImagesComplete)
         {
-            yield return "Instruction and image completeness must both be confirmed.";
+            yield return "Completeness has not been confirmed.";
         }
 
         if (!evidence.Inspection.IsResolved)

@@ -306,7 +306,7 @@ public sealed class EfCaseAcceptanceStore(
             {
                 CaseId = caseId,
                 Workflow = workflowEntity,
-                MissingMaterialReason = "Accepted intake is incomplete",
+                MissingMaterialReason = "Details are incomplete",
                 DueBy = request.AcceptedInspectionDeadline,
                 State = CaseDueWorkState.Scheduled.ToString(),
                 NextChaseAtUtc = CaseChaseSchedule.FirstChaseAt(acceptedAtUtc),

@@ -99,6 +99,7 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcilePoisonedIntakeWork>();
         services.AddScoped<ReconcileStagedArtifacts>();
         services.AddScoped<ReconcileGroupedImageIntake>();
+        services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<ResolveIntake>();
         services.AddScoped<ReevaluateIntake>();
         services.AddSingleton<IExternalWorkEnqueuer, AzureQueueExternalWorkQueue>();
