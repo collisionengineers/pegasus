@@ -1,16 +1,12 @@
-# Checklist — MAIL-23
+# Checklist — TICK-064
 
-- [ ] Revalidate prerequisites and the exact existing Core/Infrastructure/Web helpers to reuse.
-- [ ] Implement the minimal Core contract/policy with fail-closed validation.
-- [ ] Implement the mailbox-scoped persistence/projection/adapter boundary with idempotency and durable evidence.
-- [ ] Wire the real caller without duplicating business rules.
-- [ ] Add focused acceptance tests for exhaustive table, version identity, unsafe outcomes and no arbitrary destination.
-- [ ] Run `dotnet restore` and `dotnet build --configuration Release`.
-- [ ] Run focused tests and the relevant full suite.
-- [ ] Run and record the four-lens simplification pass.
-- [ ] Update governing/current-state documentation only to the evidence tier actually reached.
-- [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+- [ ] Add the typed Core logical-folder catalogue/policy and exhaustive no-recommendation mapping tests without changing MAIL-02 queue policy.
+- [ ] Add validated approved-mailbox folder-binding contracts with preserve-versus-replace semantics and replay/history coverage.
+- [ ] Add the normalized EF binding entity/configuration/store mapping and one migration without touching retained-message persistence.
+- [ ] Add read-only exact Graph folder discovery and the administrator resolve/display caller with no client-supplied folder identities or Graph writes.
+- [ ] Add focused persistence, fake-Graph and Web caller tests for scope, ambiguity, authorization, version/replay and honest unconfigured results.
+- [ ] Run locked restore, Release build, focused tests and the full relevant suite.
+- [ ] Run the four-lens simplification pass, apply safe findings, and record dated dispositions in plan.md.
+- [ ] Commit/push, open the PR to dev, write the post-implementation report, record traceability and move the ticket to Review.
 
-- [ ] Complete FRD-08's accepted 13-folder-type mapping and prove every classification row has one explicit folder outcome or no-move outcome.
-
-- [ ] After deployment, record a read-only production resolution check for all 13 canonical folder types in the linked mailbox, preserving honest unconfigured states and causing no Outlook/cloud mutation.
+## Progress notes
