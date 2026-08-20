@@ -5,3 +5,19 @@
 ## Parked (explicitly deferred)
 
 - [x] **Is live production association required?** — Yes. Resolved by the operator on 2026-08-19: TICK-051 acceptance must include one live automatic association between an exact retained message and an exact Case. Immediately before the write, obtain/record approval naming both targets and verify the accepted evidence is either a system-wide unique VRM or a mailbox-scoped retained thread already associated with exactly one Case. Do not infer authority from this planning decision alone. Capture the resulting permanent association history and prove replay is idempotent; abort on zero, multiple, stale, or contradictory evidence.
+
+# Research refresh — 2026-08-20
+
+No new unresolved operator question was found. The accepted rule remains:
+
+- normalized VRM only when exactly one Case system-wide carries it;
+- or exact durable conversation identity when the retained thread in that mailbox resolves to exactly one Case;
+- both evidence types must agree when both exist;
+- zero, multiple, stale or contradictory evidence abstains;
+- inbound Case/PO is not a MAIL-09 automatic key.
+
+Planning may choose only the smallest atomic revalidation mechanism inside the existing association transaction; it may not weaken these rules.
+
+## Parked (explicitly deferred)
+
+- [x] **Is live production association required and already authorized?** — Required for acceptance, but not pre-authorized. Immediately before the production DB write, obtain exact-target approval naming the retained message, Case and qualifying evidence; abort on ambiguity, staleness, contradiction or target mismatch. Capture before/after, permanent history, actor and replay. No Graph, Outlook or mailbox mutation is permitted by this decision.
