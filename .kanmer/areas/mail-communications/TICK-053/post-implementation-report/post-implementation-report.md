@@ -158,3 +158,43 @@ Merged current `origin/dev` in `6e52935e9065f0769c2629015202909186f5625c` and ad
 - `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` — proves attached-text ordinal stability and normalized root SQL/detail equality.
 
 No external/cloud/mailbox write, deployment, Graph permission change, historical backfill, merge, or self-review occurred. Replacement CI remains the independent clean-suite authority.
+
+## Independent-final-blocker follow-up — 2026-08-20
+
+Addressed [[PR-033]], [[PR-034]], [[PR-035]], and [[PR-036]] in `fc6840361c1c19ece9a75d7ea68c713c75d01b75` on PR #469.
+
+- Successful-but-invalid Graph responses (malformed JSON, missing identity/time, foreign folder, escaped next link) now map to Deleted unavailable rather than 500; caller cancellation remains distinct.
+- Explicitly attached Content-ID images remain in canonical/display attachment occurrence order, completing [[PR-018]].
+- Invalid classification-correction POSTs keep supported search behavior: whitespace normalizes to the existing unfiltered page, overlong input returns 404, and neither writes history or returns 500.
+- Worker projection permission is exactly `SELECT, INSERT, DELETE`; unsupported UPDATE is absent from migration/bootstrap and proven against a freshly migrated database.
+- No mailbox/cloud write, deployment, Graph permission change, backfill, second parser/store, retry/validation framework, merge, or self-review occurred.
+
+### Verification
+
+- Release solution build: passed, 0 warnings/errors.
+- `ProductionGraphSourceTests`: 27/27 passed.
+- Exact new attachment/Web/SQL proofs: 3/3 passed.
+- Complete `MailWorkspaceWebTests + RetainedMailPersistenceTests`: 39/39 passed.
+- `scripts/Test-MigrationGrants.ps1`: passed, 59 migrations checked.
+- `scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`: passed.
+- `git diff --check`: passed.
+
+### Exact final PR inventory (31 files)
+
+The prior numbered 30-file inventory remains complete. One established permission-evidence file entered the diff:
+
+31. `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs` — proves Web SELECT only and Worker SELECT/INSERT/DELETE on `IntakeSearchDocuments`, including absence of UPDATE, on a fresh migrated database.
+
+Updated rationales for the nine already-inventoried files changed by this pass:
+
+- `docs/current-architecture.md` — states the exact caller-backed Worker projection permission set.
+- `scripts/Invoke-AzureDatabaseBootstrap.ps1` — mirrors that exact permission set in the deployment census.
+- `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` — maps established malformed/scope-invalid response exceptions to unavailable.
+- `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` — gives explicit attachment disposition precedence over Content-ID.
+- `src/Pegasus.Infrastructure/Persistence/Migrations/20260820100724_RetainedMailSearchDocuments.cs` — removes unsupported Worker UPDATE from the unmerged migration.
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` — handles invalid Core search context during correction reload.
+- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` — proves authenticated whitespace/overlong correction reload behavior and no writes.
+- `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` — proves all invalid Graph response categories return unavailable.
+- `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` — proves explicit Content-ID attachment/display ordinals through a later searchable PDF.
+
+`git diff --name-only origin/dev...fc684036` reports exactly 31 files.

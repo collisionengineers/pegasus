@@ -64,3 +64,10 @@ The post-implementation report will cite the migration/model validation, focused
 - **Simplification:** Raw retained body was removed from search ownership rather than adding a normalized column/backfill; attached text uses the unsupported descriptor path; one optional term extends detail; common GET/reload scope and MIME response helpers remove duplicated conditions/transport code.
 - **Efficiency:** Root/attachment filtering remains SQL-first before count/paging; one detail row gets bounded match evidence; Deleted global 100-message/MIME bounds are unchanged; authentication failure stops before HTTP.
 - **Altitude:** Core owns normalization/authorization contracts, Infrastructure owns MIME/persistence/external failure mapping, and Web owns only outside-view/unavailable presentation. No schema, parser, store, retry framework, permission, deployment, or backfill was added.
+
+## Independent-final-blocker simplification pass — 2026-08-20
+
+- **Reuse:** PR-033..036 reuse the existing Deleted-source unavailable catch, Graph response validators, MimeKit attachment disposition, canonical/display occurrence test, Core retained-search validation, Web GET error convention, receipt replacement store, migration stream, bootstrap census, SQL permission reader, and current architecture owner.
+- **Simplification:** The pass adds only the missing exception cases, explicit-attachment precedence, one reload catch, and removes one unsupported permission. It adds no retry, validator, attachment identity layer, permission framework, migration, parser, store, or backfill.
+- **Efficiency:** Normal Graph and MIME bounds are unchanged; invalid input stops early; attachment processing remains single-pass; SQL runtime behavior is unchanged while the Worker loses an unused verb.
+- **Altitude:** Provider failures and MIME classification remain Infrastructure concerns, request-error presentation remains Web, and schema permissions stay in migration/bootstrap/current-state owners. All findings were applied; there are no deferred simplification findings.

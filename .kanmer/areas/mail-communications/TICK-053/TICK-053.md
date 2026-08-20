@@ -39,11 +39,12 @@ commits:
   - c0fa9a9905f2808ec1e2eb03e42dbe29cfde7ae4
   - 6e52935e9065f0769c2629015202909186f5625c
   - 7932d683782669e112f3d996c6914323e8ba72d4
+  - fc6840361c1c19ece9a75d7ea68c713c75d01b75
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/469'
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-20T12:45:07.551Z'
+updated: '2026-08-20T13:11:09.097Z'
 ---
 
 ## What
@@ -64,7 +65,8 @@ This remains allocated to **Next / 0.3.0** in `docs/capabilities.md`. On 2026-08
 
 - [x] A task-level plan covers the capability's exact contract and tests.
 - [x] The local implementation activation is recorded in canonical design/capability owners.
-- [x] Review blockers [[PR-015]], [[PR-016]], [[PR-017]], [[PR-018]], [[PR-019]], [[PR-020]], [[PR-021]], and [[PR-022]] have implementations and PIRs in Review.
+- [x] Original review blockers [[PR-015]] through [[PR-022]] have implementations and PIRs in Review.
+- [x] Follow-up blockers [[PR-024]], [[PR-025]], and [[PR-029]] through [[PR-036]] have implementations and PIRs in Review; [[PR-018]]'s exact attachment identity is completed by [[PR-034]].
 
 ## Notes
 
