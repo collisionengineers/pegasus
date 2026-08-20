@@ -30,3 +30,37 @@ Why does the supported `DevelopmentOffline` lifecycle reject a new Windows run a
 ## Open questions
 
 No operator decision is required. Planning may choose the smallest honest Windows CI placement, but it must not omit an automated caller or weaken the fail-closed ownership behavior.
+
+## Addendum — 2026-08-20 gap review
+
+Independent re-check of the ticket, [[PLAT-005]], the shared classifier, lifecycle callers, CI, and a live LocalDB 2025 probe. The original question and approach still hold. The following details were not explicit enough for an implementer.
+
+### Live missing-instance output
+
+A fresh read-only `sqllocaldb info PegasusDevelopment_PLAT014_readonly_probe_7f8d2c` on SQL Server LocalDB 2025 (17.0.4025.3) printed two stdout lines and exited 0:
+
+```
+Printing of LocalDB instance "PegasusDevelopment_PLAT014_readonly_probe_7f8d2c" information failed because of the following error:
+
+LocalDB instance "PegasusDevelopment_PLAT014_readonly_probe_7f8d2c" doesn't exist! 
+```
+
+- The inner line has a trailing space after `doesn't exist!`.
+- Captured objects are `System.String`, not `ErrorRecord`; `2>&1 | Out-String` does not wrap this diagnostic on this workstation.
+- The wrapping first line (`information failed because of the following error`) is also used for other print failures. Treating that wrapper as `Missing` would let Start create against an instance that exists but cannot be inspected. Only the inner, requested-instance `doesn't exist!` line is the known-absence signal.
+- A line-anchored match must allow trailing whitespace, or the live diagnostic will stay `Unknown`.
+- Focused tests should feed this exact two-line fixture, not a sanitized single-line paraphrase.
+
+### Additional caller that the same misclassification currently blocks
+
+`Stop-RunResources` throws when `created` is false and state is not `Missing`, and throws on `Unknown` when `created` is true. Prior [[PLAT-005]] Start attempts that failed the unowned-instance guard therefore also cannot Reset through the supported action until this classifier is corrected. After the fix, leftover Failed run directories are cleaned with exact-run Reset, not manual deletion.
+
+### Related but out-of-scope existence check
+
+`scripts/Initialize-LocalDevelopment.ps1` decides whether to create `MSSQLLocalDB` from `$LASTEXITCODE` after `sqllocaldb info`, not from `Get-PegasusDatabaseState`. That is the same LocalDB 2025 zero-exit assumption, but it is default-instance bootstrap for the test/template instance. This workstation already has `MSSQLLocalDB`; the Offline per-run instance is `PegasusDevelopment_<run-id>`. Expanding this ticket into Initialize would mix that bootstrap policy into a Start-ownership fix.
+
+### Implications of the addendum
+
+- Keep the chosen approach: one Windows-branch match in `Get-PegasusDatabaseState`, existing `-Command` seam tests, dedicated always-run Windows CI job, owned Doctor → Initialize → Start → Status → Smoke → Reset.
+- Bind the new match to the inner requested-instance missing line, allow trailing whitespace, and keep `Unknown` for the wrapping failure line without that inner diagnostic.
+- Do not treat Initialize's default-instance check as this ticket's defect.
