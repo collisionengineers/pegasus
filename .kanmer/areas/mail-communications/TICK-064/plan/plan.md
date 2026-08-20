@@ -47,3 +47,7 @@ Review the generated SQL/model diff for normalized keys, constraints, ownership 
 ## Simplification pass
 
 To be completed during execution with dated findings and dispositions.
+
+## Course correction — 2026-08-20
+
+Implementation confirmed two internal inconsistencies in linked FRD-08: the triage-request row retains the superseded “Needs sorting” phrase, and the catalogue paragraph says MAIL-23 owns the confirmed move despite the settled ticket split. Step 6 includes the narrow correction to “Unidentified” and to MAIL-23 binding → MAIL-05 recommendation → MAIL-07 confirmed move. This reconciles existing accepted/deployed decisions; it adds no new behavior.
