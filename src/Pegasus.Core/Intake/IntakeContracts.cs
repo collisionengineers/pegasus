@@ -720,6 +720,11 @@ public interface IGetIntake
 
 public sealed record DownloadIntakeSourceQuery(Guid ReceiptId, ActionActor Actor);
 
+/// <param name="ContentType">
+/// The stored source media type. Presentation is each endpoint's decision:
+/// the Source download forces an octet-stream attachment regardless, and the
+/// image view serves only a true image type inline.
+/// </param>
 public sealed record IntakeSourceDownload(
     ReadOnlyMemory<byte> Content,
     string FileName,

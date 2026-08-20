@@ -41,6 +41,9 @@ public sealed partial class ImageModel(
             {
                 return NotFound();
             }
+            // Defence-in-depth restatement of the Core image rule
+            // (ImageIntakeLifecycleRules.IsImageOnlyMaterial): this endpoint
+            // accepts any receipt id, so it gates on the parsed type itself.
             if (!MediaTypeHeaderValue.TryParse(source.ContentType, out var mediaType)
                 || !mediaType.Type.Equals("image", StringComparison.OrdinalIgnoreCase))
             {
