@@ -18,6 +18,10 @@ public sealed class AccessibilityTests
         "/Operations",
         "/VehicleImages",
         "/Triage",
+        // The Unidentified tab is a distinct rendered shape from the default
+        // Not-ready view (INTK-009 folded the standalone /Unidentified page
+        // in here as a tab, so it earns its own accessibility pass).
+        "/Triage?queue=unidentified",
         "/Cases",
         // "/Search" is absent: it is a redirect into Cases now, not a screen.
         "/Administration",

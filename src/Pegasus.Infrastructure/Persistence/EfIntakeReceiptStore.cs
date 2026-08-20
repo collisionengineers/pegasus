@@ -995,7 +995,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
     /// for the fact and avoids a migration for something the Inbox only
     /// displays.
     /// </remarks>
-    private static string? ReadSubject(string evidenceJson)
+    /// <summary>
+    /// Internal rather than private: <c>EfUnidentifiedStore.ListQueueAsync</c>
+    /// reuses this to extract the e-mail subject for an Unidentified queue
+    /// row, so the JSON evidence format has exactly one reader.
+    /// </summary>
+    internal static string? ReadSubject(string evidenceJson)
     {
         try
         {
@@ -1213,7 +1218,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownEnum(value)
     };
 
-    private static IntakeSourceChannel ParseSourceChannel(string value) => value switch
+    /// <summary>
+    /// Internal rather than private: <c>EfUnidentifiedStore.ListQueueAsync</c>
+    /// reuses this to classify an Unidentified row's media kind, so the
+    /// persisted channel code has exactly one parser.
+    /// </summary>
+    internal static IntakeSourceChannel ParseSourceChannel(string value) => value switch
     {
         "manual_upload" => IntakeSourceChannel.ManualUpload,
         "mailbox" => IntakeSourceChannel.Mailbox,
