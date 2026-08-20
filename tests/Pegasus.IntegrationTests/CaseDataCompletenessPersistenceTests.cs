@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -14,7 +14,7 @@ namespace Pegasus.IntegrationTests;
 public sealed class CaseDataCompletenessPersistenceTests
 {
     [Fact]
-    public async Task AcceptanceSnapshotsTypedSourceProvenanceWithoutPromotingSuggestions()
+    public async Task AcceptanceSnapshotsTypedSourceProvenanceWithAutoAddedValues()
     {
         await using var harness = await CaseDataHarness.CreateAsync();
 
@@ -30,13 +30,14 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.Equal(harness.SourceHash, projection.Origin.SourceHash);
         Assert.Equal("QDOS", projection.Provider.WorkProviderCode.Fact?.Value);
         Assert.True(projection.Provider.WorkProviderCode.Fact?.IsAccepted);
-        Assert.Null(projection.Claimant.Name.Fact);
-        Assert.Equal("Jane Example", projection.Claimant.Name.Suggestion?.Value);
-        Assert.False(projection.Claimant.Name.Suggestion?.IsAccepted);
+        // INTK-021: an unambiguous extracted value is auto-added (Fact),
+        // not parked as a suggestion awaiting confirmation.
+        Assert.Null(projection.Claimant.Name.Suggestion);
+        Assert.Equal("Jane Example", projection.Claimant.Name.Fact?.Value);
         Assert.Null(projection.Claimant.Name.Confirmed);
-        Assert.Equal("qdos_instruction", projection.Claimant.Name.Suggestion?.Source.PolicyKey);
-        Assert.Contains("instructions.pdf", projection.Claimant.Name.Suggestion?.Source.Label);
-        Assert.Equal("1 Test Street, London", projection.Inspection.Address.Suggestion?.Value);
+        Assert.Equal("qdos_instruction", projection.Claimant.Name.Fact?.Source.PolicyKey);
+        Assert.Contains("instructions.pdf", projection.Claimant.Name.Fact?.Source.Label);
+        Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
         Assert.Equal("1 Test Street, London", projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
             harness.StaffActor.SubjectId,
@@ -68,7 +69,7 @@ public sealed class CaseDataCompletenessPersistenceTests
     }
 
     [Fact]
-    public async Task CorrectedInspectionAddressRetainsSuggestionAndRecordsStaffCorrectionSource()
+    public async Task CorrectedInspectionAddressRetainsExtractedValueAndRecordsStaffCorrectionSource()
     {
         await using var harness = await CaseDataHarness.CreateAsync(
             InspectionAddressStaffDecision.CorrectSuggestion,
@@ -76,7 +77,7 @@ public sealed class CaseDataCompletenessPersistenceTests
 
         var projection = await harness.GetRequiredDataAsync();
 
-        Assert.Equal("1 Test Street, London", projection.Inspection.Address.Suggestion?.Value);
+        Assert.Equal("1 Test Street, London", projection.Inspection.Address.Fact?.Value);
         Assert.Equal("2 Corrected Street, London", projection.Inspection.Address.Confirmed?.Value);
         Assert.Equal(
             CaseDataSourceKind.StaffCorrection,
@@ -148,7 +149,7 @@ public sealed class CaseDataCompletenessPersistenceTests
         Assert.False(saved.Completeness.Values.InstructionComplete);
         Assert.False(saved.Completeness.Values.InstructionConfirmedByStaff);
         Assert.Equal(saved, replayedSave);
-        Assert.Equal("Jane Example", saved.Claimant.Name.Suggestion?.Value);
+        Assert.Equal("Jane Example", saved.Claimant.Name.Fact?.Value);
         Assert.Equal("Jane Example", saved.Claimant.Name.Confirmed?.Value);
         Assert.Equal("AB12CDE", saved.Vehicle.Registration.Confirmed?.Value);
         Assert.Equal(initial.Identity, saved.Identity);
@@ -254,7 +255,7 @@ public sealed class CaseDataCompletenessPersistenceTests
 
         var after = await harness.GetRequiredDataAsync();
         Assert.Equal(initial.Version, after.Version);
-        Assert.Equal("Jane Example", after.Claimant.Name.Suggestion?.Value);
+        Assert.Equal("Jane Example", after.Claimant.Name.Fact?.Value);
         Assert.Null(after.Claimant.Name.Confirmed);
         Assert.Equal(0, await harness.HistoryCountAsync());
     }
