@@ -50,3 +50,7 @@ At take/plan time, re-check that TICK-054 still contains the configured-category
 ## Out of scope
 
 No Outlook master-category create/update/delete/synchronization; no stored Graph category id/color; no per-mailbox duplicate allowlist; no generic settings/rules framework; no category search/filter/index; no Case match/link evidence; no message PATCH; no MCP management tool; no deployment, permission or live mailbox write.
+
+## Refresh — 2026-08-20
+
+Current merged TICK-064 confirms reuse of `ApprovedMailboxAdministration.cs`, `EfApprovedMailboxStore.cs`, `AdministrationPolicyEntities.cs`, `AdministrationPolicyModelConfiguration.cs`, `DependencyInjection.cs`, the Administration index/page conventions, migration/runtime-grant matrix, and focused Core/relational/Web test shapes. MAIL-004 remains separate from mailbox folder bindings and edits no Graph or retained-mail files.

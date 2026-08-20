@@ -2,12 +2,15 @@
 id: MAIL-004
 type: ticket
 title: Configure the approved Outlook category catalogue in email administration
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-20T09:52:23.990Z'
+taken_at: '2026-08-20T11:39:48.912Z'
+branch: task/mail-004-outlook-category-catalogue
+worktree: ../pegasus-worktrees/mail-004
 labels:
   - mail-workspace
   - administration
@@ -26,7 +29,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T09:47:32.793Z'
-updated: '2026-08-20T09:52:23.990Z'
+updated: '2026-08-20T11:39:48.912Z'
 ---
 
 ## What

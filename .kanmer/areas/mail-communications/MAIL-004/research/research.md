@@ -28,3 +28,7 @@ Proceed only because TICK-054 is a proven concrete caller. Implement a global Ac
 ## Acceptance direction
 
 Core tests prove normalization, duplicates, authorization, version/replay and Active-only resolution. Integration/Web tests prove persistent history, no DELETE, inaccessible policy for non-Administrators, no Graph identifiers/colors, accessible add/disable flow, and the actual MAIL-13 read-policy seam. Local evidence performs no Outlook/Azure write.
+
+## Refresh — 2026-08-20
+
+Verified against current `origin/dev` `fb42ce15802d6bfa35ada3d26b006ba164c595f1`. TICK-064 is merged and supplies the current administrator-mailbox seams (typed server-owned identities, version/replay/history, dedicated configuration UX conventions); it does not supply Outlook category policy. TICK-054 still explicitly requires one configured approved category selected by internal id and reloaded Active in Core, so the catalogue has a concrete caller. No Outlook-category entity/store/page exists. The prior recommendation remains current: one global display-name catalogue, Active/Disabled, no Graph ids/colors/sync, no search/linking or generic rules editor.
