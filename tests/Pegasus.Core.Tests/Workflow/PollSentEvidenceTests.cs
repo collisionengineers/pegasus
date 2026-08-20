@@ -418,6 +418,37 @@ public sealed class PollSentEvidenceTests
     }
 
     [Fact]
+    public async Task NotApprovedMailboxIsHandledAsAnEmptyTickWithoutThrowing()
+    {
+        // Mirrors the exact shape of the production row while it was mid-administration:
+        // address and state correct, but AllowSentEvidence false for that route scope
+        // (ApprovedMailboxes Id 49f47eb9-c5b0-464f-b8f0-8c90ba061728, 2026-08-10 to
+        // 2026-08-19 in production). That is a correct rejection, not a comparison bug,
+        // but it must not surface as an unhandled exception every poll tick.
+        var lease = Lease();
+        var timeProvider = new AdjustableTimeProvider(NowUtc);
+        var pollStore = new RecordingPollStore(lease);
+        var source = new SequencedSource();
+        var useCase = CreateUseCase(
+            pollStore,
+            source,
+            new ResponsePort(),
+            new ReportPort(),
+            timeProvider,
+            policy: new RejectingPolicy());
+
+        var result = await useCase.ExecuteAsync(1, 10, WorkerActor);
+
+        Assert.Equal(PollSentEvidenceResult.Empty, result);
+        Assert.Equal(0, source.CallCount);
+        Assert.Empty(pollStore.OutcomeAttempts);
+        Assert.Empty(pollStore.Completions);
+        var release = Assert.Single(pollStore.Releases);
+        Assert.Equal(NowUtc.AddSeconds(30), release.DueAtUtc);
+        Assert.Equal("sent_mailbox_not_approved", release.FailureCode);
+    }
+
+    [Fact]
     public async Task MaximumPagesBoundsOneInvocationAndLeavesBacklogDue()
     {
         var first = Item("occurrence-page-1", "page-1.sent.json", "cursor-page-1", [], []);
@@ -448,10 +479,11 @@ public sealed class PollSentEvidenceTests
         ResponsePort responsePort,
         ReportPort reportPort,
         TimeProvider? timeProvider = null,
-        AutoLinkPort? autoLinkPort = null) => new(
+        AutoLinkPort? autoLinkPort = null,
+        IApprovedMailboxPolicy? policy = null) => new(
         pollStore,
         source,
-        new ApprovedPolicy(),
+        policy ?? new ApprovedPolicy(),
         responsePort,
         responsePort,
         reportPort,
@@ -498,6 +530,14 @@ public sealed class PollSentEvidenceTests
             CancellationToken cancellationToken) => Task.FromResult(
             mailboxAddress == "instructions@example.test"
                 && routeScope == ApprovedMailboxRouteScope.SentEvidence);
+    }
+
+    private sealed class RejectingPolicy : IApprovedMailboxPolicy
+    {
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) => Task.FromResult(false);
     }
 
     private sealed class RecordingPollStore(params ApprovedSentPollLease?[] claims)

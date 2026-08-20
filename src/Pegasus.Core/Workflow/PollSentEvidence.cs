@@ -167,6 +167,7 @@ public sealed class PollSentEvidence(
 {
     private static readonly TimeSpan LeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromSeconds(30);
+    private const string MailboxNotApprovedFailureCode = "sent_mailbox_not_approved";
     private readonly record struct HandledItem(
         SentEvidencePollOutcomeKind Kind,
         bool ReportEvidenceRetained);
@@ -215,8 +216,18 @@ public sealed class PollSentEvidence(
                     ApprovedMailboxRouteScope.SentEvidence,
                     cancellationToken))
             {
-                throw new UnauthorizedAccessException(
-                    "The claimed mailbox is not approved for Sent-evidence polling.");
+                // An administrator can disable Sent-evidence for this mailbox at any time
+                // (or not yet have approved it) — that is an expected state, not a fault.
+                // Release the lease for the normal failure-retry backoff and report an
+                // empty tick, the same idiom already used above for "not due yet", instead
+                // of throwing an unhandled exception every poll.
+                await pollStore.ReleaseAsync(
+                    lease.MailboxId,
+                    lease.LeaseToken,
+                    timeProvider.GetUtcNow().Add(FailureRetryDelay),
+                    MailboxNotApprovedFailureCode,
+                    cancellationToken);
+                return PollSentEvidenceResult.Empty;
             }
 
             var pagesRead = 0;
@@ -722,7 +733,7 @@ public sealed class PollSentEvidence(
     private static string FailureCode(Exception exception) => exception switch
     {
         ApprovedSentSourceThrottledException => "sent_source_throttled",
-        UnauthorizedAccessException => "sent_mailbox_not_approved",
+        UnauthorizedAccessException => MailboxNotApprovedFailureCode,
         InvalidDataException or ArgumentException => "invalid_sent_source_item",
         _ => "sent_evidence_poll_failure"
     };
