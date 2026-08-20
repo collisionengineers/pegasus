@@ -77,13 +77,12 @@
     <div class="record__accent"></div>
 
     @*
-        The estimating-service links and assessment import stay visible and
-        state their condition rather than vanishing: the work is real and will
-        become available, so removing the control would say something false.
-        EXT-12 (Audatex/PDF ingestion) and EXT-13 (independently licensed
-        valuation-source adapters) are both allocated Later / 1.0.0 in
-        docs/capabilities.md and each needs its own accepted contract, so
-        nothing here is wired to a handler.
+        The estimating-service links stay visible and state their condition
+        rather than vanishing: the work is real and will become available, so
+        removing the control would say something false. EXT-13 (independently
+        licensed valuation-source adapters) still needs its own accepted
+        contract. Estimate import (ENG-002 / EXT-12) is delivered: the link
+        goes to the estimate section's import surface.
     *@
     <div class="record__bar">
         <span class="gated" data-condition="Available once the estimating-service link is agreed">
@@ -98,12 +97,10 @@
                 Open in Audatex
             </a>
         </span>
-        <span class="gated" data-condition="Available once assessment import is agreed">
-            <a class="btn is-disabled" aria-disabled="true">
-                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                Import assessment
-            </a>
-        </span>
+        <a class="btn" href="@assessmentUrl?section=estimate">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            Import estimate
+        </a>
         <span class="record__bar-end">
             <span class="record__bar-rule" aria-hidden="true"></span>
             <a class="btn btn--dark" href="/Cases/@caseId">Back to the case</a>
@@ -624,6 +621,137 @@
 
         @if (current == "estimate")
         {
+            @* ENG-002: the case's current repair specification and the
+               estimate import. Imported and AI-recorded material lands as a
+               draft; only an Engineer's acceptance, with the money figures
+               typed from the retained original, makes it the case's accepted
+               specification. The report's own cost figures still wait on
+               EXT-09's accepted derivation formula. *@
+            <section class="panel" aria-labelledby="estimate-current-title">
+                <h2 id="estimate-current-title">Repair specification</h2>
+
+                @if (Model.AcceptedSpecification is { } acceptedSpec)
+                {
+                    <div class="status-card" role="status">
+                        Version @acceptedSpec.Version, @OperatorLabels.RepairSpecificationRoute(acceptedSpec.Source.Route), accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt ? $" {acceptedAt:d MMM yyyy}" : "").
+                    </div>
+                    @if (acceptedSpec.CalculationBasis is { } basis)
+                    {
+                        <dl class="detail-list">
+                            <div><dt>Labour</dt><dd class="tabular">&#163;@basis.Labour.ToString("N2")</dd></div>
+                            <div><dt>Parts</dt><dd class="tabular">&#163;@basis.Parts.ToString("N2")</dd></div>
+                            <div><dt>Paint materials</dt><dd class="tabular">&#163;@basis.PaintMaterials.ToString("N2")</dd></div>
+                            <div><dt>Specialist and other</dt><dd class="tabular">&#163;@basis.SpecialistOther.ToString("N2")</dd></div>
+                            <div><dt>VAT</dt><dd class="tabular">&#163;@basis.Vat.ToString("N2")</dd></div>
+                            <div><dt>Repair cost</dt><dd class="tabular">&#163;@basis.Total.ToString("N2")</dd></div>
+                        </dl>
+                    }
+                    RenderSpecificationLines(acceptedSpec, "accepted");
+                }
+
+                @if (Model.DraftSpecification is { } draftSpec)
+                {
+                    <div class="status-card status-card--attention" role="status">
+                        Version @draftSpec.Version, @OperatorLabels.RepairSpecificationRoute(draftSpec.Source.Route), awaiting an Engineer&#8217;s acceptance.
+                    </div>
+                    RenderSpecificationLines(draftSpec, "draft");
+
+                    @if (draftSpec.Source.Route == RepairSpecificationSourceRoute.LegacyUnresolved)
+                    {
+                        <p class="empty-state">These lines were recorded without source evidence and need review before they can be accepted.</p>
+                    }
+                    else if (Model.ActorIsEngineer)
+                    {
+                        <h3 class="section-label section-gap">Accept this specification</h3>
+                        <form method="post" asp-page-handler="AcceptSpecification">
+                            <input type="hidden" name="operationKey" value="@Model.AcceptOperationKey" />
+                            <input type="hidden" name="specificationId" value="@draftSpec.SpecificationId" />
+                            <input type="hidden" name="specificationVersion" value="@draftSpec.Version" />
+                            <div class="form-grid">
+                                <div>
+                                    <label for="accept-labour">Labour (&#163;)</label>
+                                    <input type="number" id="accept-labour" name="labour" min="0" step="0.01" inputmode="decimal" class="tabular" required aria-describedby="accept-basis-hint" />
+                                </div>
+                                <div>
+                                    <label for="accept-parts">Parts (&#163;)</label>
+                                    <input type="number" id="accept-parts" name="parts" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                </div>
+                                <div>
+                                    <label for="accept-paint">Paint materials (&#163;)</label>
+                                    <input type="number" id="accept-paint" name="paintMaterials" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                </div>
+                                <div>
+                                    <label for="accept-specialist">Specialist and other (&#163;)</label>
+                                    <input type="number" id="accept-specialist" name="specialistOther" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                </div>
+                                <div>
+                                    <label for="accept-vat">VAT (&#163;)</label>
+                                    <input type="number" id="accept-vat" name="vat" min="0" step="0.01" inputmode="decimal" class="tabular" required />
+                                </div>
+                                <div>
+                                    <fieldset class="role-choices role-choices--stacked">
+                                        <legend>Is the repairer VAT registered?</legend>
+                                        <label class="choice"><input type="radio" name="repairerVatRegistered" value="true" required /> <span>Yes</span></label>
+                                        <label class="choice"><input type="radio" name="repairerVatRegistered" value="false" /> <span>No</span></label>
+                                    </fieldset>
+                                </div>
+                                <div class="field-wide">
+                                    <label for="accept-reason">Reason</label>
+                                    <input type="text" id="accept-reason" name="reason" maxlength="500" />
+                                </div>
+                            </div>
+                            <small id="accept-basis-hint">Type each figure from the original estimate document; acceptance records them against your name.</small>
+                            <div class="button-row section-gap">
+                                <button type="submit" class="primary-action">Accept specification</button>
+                            </div>
+                        </form>
+                    }
+                    else
+                    {
+                        <p class="empty-state">An Engineer accepts the specification.</p>
+                    }
+                }
+                else
+                {
+                    @if (Model.AcceptedSpecification is null)
+                    {
+                        <p class="empty-state">No repair specification is recorded on this case yet.</p>
+                    }
+
+                    <h3 class="section-label section-gap">Import an estimate</h3>
+                    <form method="post" enctype="multipart/form-data" asp-page-handler="ImportEstimate">
+                        <input type="hidden" name="operationKey" value="@Model.ImportOperationKey" />
+                        <div class="dropzone" data-dropzone>
+                            <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
+                            <label for="estimate-file">Drag an estimate here, or choose it</label>
+                            <span class="field-hint">An Audatex estimate report as a PDF &#8212; up to 10 MB. Every line and the document&#8217;s own totals must read cleanly or nothing is imported.</span>
+                            <input type="file" id="estimate-file" name="estimateFile" accept=".pdf,application/pdf" disabled="@(Model.ActorIsEngineer ? null : "disabled")" />
+                            <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose a file</button>
+                            <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
+                        </div>
+                        <div class="form-grid">
+                            <div class="field-wide">
+                                <label for="import-reason">Reason</label>
+                                <input type="text" id="import-reason" name="reason" maxlength="500" aria-describedby="import-reason-hint" disabled="@(Model.ActorIsEngineer ? null : "disabled")" />
+                                <small id="import-reason-hint">@(Model.AcceptedSpecification is null ? "Optional." : "Required: this import supersedes the accepted specification.")</small>
+                            </div>
+                        </div>
+                        @if (Model.ActorIsEngineer)
+                        {
+                            <div class="button-row section-gap">
+                                <button type="submit" class="primary-action">Import estimate</button>
+                            </div>
+                        }
+                        else
+                        {
+                            <span class="gated" data-condition="Only an Engineer can import an estimate">
+                                <button type="submit" class="primary-action is-disabled" disabled>Import estimate</button>
+                            </span>
+                        }
+                    </form>
+                }
+            </section>
+
             @*
                 EXT-09 (Later / 1.0.0): several estimates can sit on one case —
                 an import from an estimating service, the engineer's own, one
@@ -1298,4 +1426,46 @@
             }
         }());
     </script>
+}
+
+@functions {
+    /// <summary>
+    /// ENG-002: one renderer for a specification's ordered lines, shared by
+    /// the accepted and draft views so the two can never drift apart.
+    /// </summary>
+    private void RenderSpecificationLines(RepairSpecificationVersion specification, string kind)
+    {
+        <div class="table-wrap">
+            <table class="line-grid">
+                <caption>The @kind specification&#8217;s ordered lines, exactly as recorded.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">Line</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Code</th>
+                        <th scope="col">Description</th>
+                        <th scope="col">Work units</th>
+                        <th scope="col">Price</th>
+                        <th scope="col">Part number</th>
+                        <th scope="col">Betterment</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in specification.Lines)
+                    {
+                        <tr>
+                            <th scope="row">@line.Position</th>
+                            <td>@OperatorLabels.EstimateLineType(line.Type)</td>
+                            <td>@(line.GuideCode ?? "")</td>
+                            <td>@(line.Description ?? "")</td>
+                            <td class="tabular">@(line.WorkUnits is { } workUnits ? workUnits.ToString("0.0") : "")</td>
+                            <td class="tabular">@(line.Price is { } price ? "£" + price.ToString("N2") : line.Unpriced ? "To be confirmed" : "")</td>
+                            <td>@(line.PartNumber ?? "")</td>
+                            <td>@(line.Betterment ?? "")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
 }

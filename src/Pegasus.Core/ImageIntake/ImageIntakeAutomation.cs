@@ -136,8 +136,14 @@ public sealed class ImageIntakeAutomation(
         var group = await groupStore!.FindForMemberSourceAsync(
             receipt.SourceIdentity,
             cancellationToken);
-        if (group is null)
+        if (group is null || !group.HasSiblingMembers)
         {
+            // Every manual upload is a submission group (INTK-005), but this
+            // decision table scopes itself to a submission with more than
+            // one member: a one-member group is a lone image and stays on
+            // the single-image path below, whose exact-match candidate rule
+            // (operator-directed 2026-08-03) differs from the group's
+            // fail-closed eligible-case count.
             return null;
         }
 

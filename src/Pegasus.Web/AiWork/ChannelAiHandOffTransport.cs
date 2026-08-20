@@ -16,8 +16,27 @@ namespace Pegasus.Web.AiWork;
 /// call, and it never logs the token or the response body.
 /// </summary>
 internal sealed class ChannelAiHandOffTransport(
-    IHttpClientFactory httpClientFactory) : IAiHandOffTransport
+    IHttpClientFactory httpClientFactory,
+    IAiChannelConnectorStore connectorStore,
+    SendToAiOptions options) : IAiHandOffTransport
 {
+    /// <summary>
+    /// One configured client per call: Administration-entered connector
+    /// values override the composed configuration, so a change takes effect
+    /// on the next hand-off without a restart. An unreadable stored token is
+    /// a terminal configuration refusal, not a silent fallback.
+    /// </summary>
+    private async Task<HttpClient> CreateClientAsync(CancellationToken cancellationToken)
+    {
+        var runtime = await connectorStore.GetRuntimeAsync(cancellationToken);
+        var client = httpClientFactory.CreateClient(SendToAi.HttpClientName);
+        client.BaseAddress = runtime.ChannelBaseUrl ?? options.ChannelBaseUrl;
+        client.Timeout = runtime.Timeout ?? options.Timeout;
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", runtime.ChannelToken ?? options.ChannelToken);
+        return client;
+    }
+
     public async Task<AiHandOffResult> HandOffAsync(
         AiHandOffPointer handOff,
         CancellationToken cancellationToken)
@@ -30,9 +49,18 @@ internal sealed class ChannelAiHandOffTransport(
             case_reference = handOff.CaseReference,
             instruction = handOff.Instruction
         });
+        HttpClient client;
         try
         {
-            using var client = httpClientFactory.CreateClient(SendToAi.HttpClientName);
+            client = await CreateClientAsync(cancellationToken);
+        }
+        catch (InvalidOperationException exception)
+        {
+            return new(AiHandOffOutcomeKind.Refused, exception.Message);
+        }
+
+        try
+        {
             using var content = new StringContent(payload, Encoding.UTF8, "application/json");
             using var response = await client.PostAsync("/send", content, cancellationToken);
             if (response.StatusCode is HttpStatusCode.Unauthorized
@@ -70,6 +98,10 @@ internal sealed class ChannelAiHandOffTransport(
         {
             return new(AiHandOffOutcomeKind.Unreachable, "The channel was unreachable.");
         }
+        finally
+        {
+            client.Dispose();
+        }
     }
 
     public async Task<AiChannelReply?> TryReadReplyAsync(
@@ -79,7 +111,7 @@ internal sealed class ChannelAiHandOffTransport(
         ArgumentException.ThrowIfNullOrWhiteSpace(requestId);
         try
         {
-            using var client = httpClientFactory.CreateClient(SendToAi.HttpClientName);
+            using var client = await CreateClientAsync(cancellationToken);
             using var response = await client.GetAsync(
                 $"/events?request_id={Uri.EscapeDataString(requestId)}&limit=1",
                 cancellationToken);
@@ -129,7 +161,9 @@ internal sealed class ChannelAiHandOffTransport(
             return null;
         }
         catch (Exception exception) when (
-            exception is HttpRequestException or JsonException
+            exception is InvalidOperationException
+                or HttpRequestException
+                or JsonException
                 || exception is TaskCanceledException
                     && !cancellationToken.IsCancellationRequested)
         {
@@ -153,13 +187,10 @@ public static class SendToAiExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(options);
         services.AddSingleton(options);
-        services.AddHttpClient(SendToAi.HttpClientName, client =>
-        {
-            client.BaseAddress = options.ChannelBaseUrl;
-            client.Timeout = options.Timeout;
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", options.ChannelToken);
-        })
+        // Base address, timeout, and bearer token are applied per call by
+        // the transport so Administration-entered connector values override
+        // the composed configuration without a restart.
+        services.AddHttpClient(SendToAi.HttpClientName)
             // Redirects are not followed: a 3xx from the configured loopback
             // connector would otherwise resend the pointer — and the bearer
             // token — to whatever host it named, defeating the loopback
@@ -168,6 +199,9 @@ public static class SendToAiExtensions
             .ConfigurePrimaryHttpMessageHandler(
                 () => new HttpClientHandler { AllowAutoRedirect = false });
         services.AddScoped<Pegasus.Core.AiWork.IAiHandOffTransport, ChannelAiHandOffTransport>();
+        services.AddScoped<
+            Pegasus.Core.AiWork.IAiChannelConnectorStore,
+            Pegasus.Infrastructure.Persistence.EfAiChannelConnectorStore>();
         services.AddScoped<Pegasus.Core.AiWork.ISendCaseToAi, Pegasus.Core.AiWork.SendCaseToAi>();
         services.AddScoped<
             Pegasus.Core.AiWork.IReconcileAiWorkRequest,

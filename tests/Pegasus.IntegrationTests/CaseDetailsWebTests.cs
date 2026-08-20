@@ -20,6 +20,61 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class CaseDetailsWebTests
 {
+    /// <summary>
+    /// PLAT-011: the case history table shows the resolved actor name, never the
+    /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its
+    /// username and an Automation row shows the client label, not either GUID.
+    /// </summary>
+    [Fact]
+    public async Task CaseHistoryShowsResolvedActorNamesAndNeverARawSubjectId()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var staffSubjectId = Guid.NewGuid().ToString("D");
+        var automationSubjectId = Guid.NewGuid().ToString("D");
+        var store = new RecordingCaseDetailsStore
+        {
+            HistoryEntries =
+            [
+                new(
+                    "case_returned_to_review",
+                    staffSubjectId,
+                    nameof(ActorKind.Staff),
+                    new(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
+                    "Missing instructions.",
+                    3,
+                    4)
+                {
+                    ActorDisplayName = "alex"
+                },
+                new(
+                    "case_created",
+                    automationSubjectId,
+                    nameof(ActorKind.Automation),
+                    new(2031, 5, 5, 9, 0, 0, TimeSpan.Zero),
+                    "Automated intake.",
+                    0,
+                    1)
+                {
+                    ActorDisplayName = "Automation"
+                }
+            ]
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?tab=history");
+
+        Assert.Contains("alex", html, StringComparison.Ordinal);
+        Assert.Contains("Automation", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(staffSubjectId, html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(automationSubjectId, html, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task CustodyRetryEvaGenerateAndDownloadRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
@@ -987,6 +1042,8 @@ public sealed partial class CaseDetailsWebTests
 
         public bool ExposeCustodyAndEva { get; init; }
 
+        public IReadOnlyList<CaseHistoryEntry> HistoryEntries { get; init; } = [];
+
         public string LeaseToken { get; } = "opaque-live-case-lease";
 
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
@@ -1030,7 +1087,7 @@ public sealed partial class CaseDetailsWebTests
                 CaseCustodyState.Pending,
                 [],
                 [],
-                [])
+                HistoryEntries)
             {
                 Data = CreateData(),
                 Custody = ExposeCustodyAndEva

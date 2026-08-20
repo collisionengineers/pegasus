@@ -249,7 +249,16 @@ internal sealed class IntegrationTestAuthenticationHandler(
             new Claim(ClaimTypes.Name, "integration-user"),
             new Claim("display_name", "Integration User")
         };
-        if (!Request.Headers.ContainsKey("X-Test-Roleless"))
+        if (Request.Headers.TryGetValue("X-Test-Roles", out var requestedRoles))
+        {
+            // ENG-002: a test that needs a specific staff role (e.g. Engineer)
+            // names it; the default identity stays Administrator-only.
+            foreach (var role in requestedRoles.ToString().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+        }
+        else if (!Request.Headers.ContainsKey("X-Test-Roleless"))
         {
             claims.Add(new Claim(ClaimTypes.Role, "Administrator"));
         }
@@ -652,6 +661,19 @@ internal static partial class IntakeWebDriver
             Guid stagedReceiptId,
             CancellationToken cancellationToken) =>
             processor.ExecuteAsync(stagedReceiptId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Advances a work item from pending to dispatched without processing it,
+    /// so a test can choose exactly which member's processing pass runs when
+    /// rather than folding dispatch and processing into one call.
+    /// </summary>
+    internal sealed class NoOpIntakeWorkEnqueuer : IIntakeWorkEnqueuer
+    {
+        public Task EnqueueAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

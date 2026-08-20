@@ -42,36 +42,40 @@ public sealed record SendToAiOptions(
                 $"{SendToAi.FeatureFlag} requires the DevelopmentOffline runtime profile.");
         }
 
+        // The bounds below are owned once, in Core, and shared with the
+        // Administration entry route (AiChannelConnectorRules).
         var configuredBaseUrl = configuration["SendToAi:ChannelBaseUrl"];
-        var baseUrl = string.IsNullOrWhiteSpace(configuredBaseUrl)
-            ? SendToAi.DefaultChannelBaseUrl
-            : Uri.TryCreate(configuredBaseUrl, UriKind.Absolute, out var parsed)
-                ? parsed
-                : throw new InvalidOperationException(
-                    "SendToAi:ChannelBaseUrl must be an absolute URL.");
-        if (baseUrl.Scheme != Uri.UriSchemeHttp
-            || !baseUrl.IsLoopback
-            || !string.IsNullOrEmpty(baseUrl.Query)
-            || baseUrl.AbsolutePath != "/")
+        Uri baseUrl;
+        if (string.IsNullOrWhiteSpace(configuredBaseUrl))
+        {
+            baseUrl = SendToAi.DefaultChannelBaseUrl;
+        }
+        else if (Pegasus.Core.AiWork.AiChannelConnectorRules.TryParseBaseUrl(
+            configuredBaseUrl,
+            out var parsed))
+        {
+            baseUrl = parsed!;
+        }
+        else
         {
             throw new InvalidOperationException(
                 "SendToAi:ChannelBaseUrl must be a loopback http origin without path or query.");
         }
 
         var channelToken = configuration["SendToAi:ChannelToken"];
-        if (string.IsNullOrWhiteSpace(channelToken) || channelToken.Length < 32)
+        if (!Pegasus.Core.AiWork.AiChannelConnectorRules.IsValidToken(channelToken))
         {
             throw new InvalidOperationException(
                 "SendToAi:ChannelToken is required and must be at least 32 characters.");
         }
 
         var timeoutSeconds = configuration.GetValue<double?>("SendToAi:TimeoutSeconds") ?? 10;
-        if (timeoutSeconds is < 1 or > 60)
+        if (!Pegasus.Core.AiWork.AiChannelConnectorRules.IsValidTimeoutSeconds(timeoutSeconds))
         {
             throw new InvalidOperationException(
                 "SendToAi:TimeoutSeconds must be between 1 and 60.");
         }
 
-        return new(baseUrl, channelToken, TimeSpan.FromSeconds(timeoutSeconds));
+        return new(baseUrl, channelToken!, TimeSpan.FromSeconds(timeoutSeconds));
     }
 }
