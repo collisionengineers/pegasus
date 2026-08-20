@@ -19,12 +19,14 @@
     <nav class="tabs" aria-label="Mailbox">
         <a asp-page="/Mail/Index" asp-route-folder="@Model.FolderRouteValue"
            asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
            aria-current="@(Model.MailboxFilter is null ? "page" : null)">All mailboxes</a>
         @foreach (var mailbox in Model.Mailboxes)
         {
             <a asp-page="/Mail/Index" asp-route-mailbox="@mailbox.MailboxId"
                asp-route-folder="@Model.FolderRouteValue"
                asp-route-search="@Model.SearchTerm"
+               asp-route-queue="@Model.QueueFilter"
                aria-current="@(Model.MailboxFilter == mailbox.MailboxId ? "page" : null)">@mailbox.MailboxAddress</a>
         }
     </nav>
@@ -35,10 +37,48 @@
     {
         <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
            asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@(folder == MailFolderScope.DeletedItems ? null : Model.QueueFilter)"
            asp-route-folder="@(folder == MailFolderScope.Inbox ? null : Pegasus.Web.Pages.Mail.IndexModel.FolderCode(folder))"
            aria-current="@(Model.Folder == folder ? "page" : null)">@Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(folder)</a>
     }
 </nav>
+
+@if (Model.Folder != MailFolderScope.DeletedItems)
+{
+    <form method="get" class="panel filterbar section-gap" aria-label="Mail view">
+        @if (Model.MailboxFilter is not null)
+        {
+            <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
+        }
+        @if (Model.FolderRouteValue is not null)
+        {
+            <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
+        }
+        @if (Model.SearchTerm is not null)
+        {
+            <input type="hidden" name="search" value="@Model.SearchTerm" />
+        }
+        <div class="filterbar__line">
+            <label for="mail-view">Queue or detailed classification</label>
+            <select id="mail-view" name="queue">
+                <option value="" selected="@(Model.QueueFilter is null)">All retained mail</option>
+                <optgroup label="Operational queues">
+                    @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.AggregateViews)
+                    {
+                        <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
+                    }
+                </optgroup>
+                <optgroup label="Detailed classifications">
+                    @foreach (var option in Pegasus.Web.Pages.Mail.IndexModel.DetailedViews)
+                    {
+                        <option value="@option.Value" selected="@(Model.QueueFilter == option.Value)">@option.Label</option>
+                    }
+                </optgroup>
+            </select>
+            <button class="btn btn--dark" type="submit">Show view</button>
+        </div>
+    </form>
+}
 
 <form method="get" class="panel filterbar section-gap" role="search">
     @if (Model.MailboxFilter is not null)
@@ -49,6 +89,10 @@
     {
         <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
     }
+    @if (Model.QueueFilter is not null)
+    {
+        <input type="hidden" name="queue" value="@Model.QueueFilter" />
+    }
     <div class="filterbar__line">
         <label for="mail-search" class="vh">@(Model.Folder == MailFolderScope.Inbox ? "Search retained mail in current folders" : "Search this mailbox and folder")</label>
         <input id="mail-search" name="search" value="@Model.SearchTerm" maxlength="200"
@@ -57,7 +101,8 @@
         @if (Model.SearchTerm is not null)
         {
             <a class="btn" asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
-               asp-route-folder="@Model.FolderRouteValue">Clear</a>
+               asp-route-folder="@Model.FolderRouteValue"
+               asp-route-queue="@Model.QueueFilter">Clear</a>
         }
     </div>
 </form>
@@ -207,6 +252,7 @@ else
                                asp-route-mailbox="@Model.MailboxFilter"
                                asp-route-folder="@Model.FolderRouteValue"
                                asp-route-search="@Model.SearchTerm"
+                               asp-route-queue="@Model.QueueFilter"
                                asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
                                title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
                             @{
@@ -239,6 +285,14 @@ else
                     <td>
                         <span class="outcome-row">
                             <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
+                            @if (item.Classification is { } classification
+                                && item.OperationalDestination is { } operationalDestination)
+                            {
+                                <span class="stack">
+                                    <small>@Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(classification)</small>
+                                    <small>@OperatorLabels.MailOperationalDestinationLabel(operationalDestination.Destination)</small>
+                                </span>
+                            }
                             @if (item.CaseId is { } caseId && item.CaseReference is { Length: > 0 } caseReference)
                             {
                                 <a asp-page="/Cases/Details" asp-route-id="@caseId">@caseReference</a>
@@ -278,6 +332,7 @@ else
             <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
                asp-route-folder="@Model.FolderRouteValue"
                asp-route-search="@Model.SearchTerm"
+               asp-route-queue="@Model.QueueFilter"
                asp-route-pageNumber="@(currentPage - 1)">Previous</a>
         }
         <span class="pager__context">Page @currentPage of @totalPages</span>
@@ -286,6 +341,7 @@ else
             <a asp-page="/Mail/Index" asp-route-mailbox="@Model.MailboxFilter"
                asp-route-folder="@Model.FolderRouteValue"
                asp-route-search="@Model.SearchTerm"
+               asp-route-queue="@Model.QueueFilter"
                asp-route-pageNumber="@(currentPage + 1)">Next</a>
         }
     </nav>

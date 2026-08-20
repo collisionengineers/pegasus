@@ -51,6 +51,13 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "search")]
     public string? SearchTerm { get; set; }
 
+    [BindProperty(SupportsGet = true, Name = "queue")]
+    public string? QueueFilter { get; set; }
+
+    private MailOperationalDestination? DestinationFilter { get; set; }
+
+    private MailCategory? DetailedClassificationFilter { get; set; }
+
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? Section { get; set; }
 
@@ -156,7 +163,7 @@ public sealed class MessageModel(
             return Forbid();
         }
 
-        if (!IndexModel.TryParseFolder(FolderFilter, out var listFolder))
+        if (!TryParseListContext(out var listFolder))
         {
             return NotFound();
         }
@@ -200,6 +207,10 @@ public sealed class MessageModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
         }
 
         try
@@ -258,6 +269,10 @@ public sealed class MessageModel(
         {
             return Forbid();
         }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
 
         try
         {
@@ -313,6 +328,10 @@ public sealed class MessageModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
         }
 
         try
@@ -375,6 +394,10 @@ public sealed class MessageModel(
         {
             return Forbid();
         }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
 
         try
         {
@@ -430,6 +453,10 @@ public sealed class MessageModel(
         {
             return Forbid();
         }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
+        }
         if (!TryCategory(out var category))
         {
             ModelState.AddModelError(nameof(ClassificationKey), "Choose a valid classification and complete any Other details.");
@@ -476,7 +503,8 @@ public sealed class MessageModel(
             mailbox = MailboxFilter,
             folder = FolderFilter,
             pageNumber = PageNumber,
-            search = SearchTerm
+            search = SearchTerm,
+            queue = QueueFilter
         });
     }
 
@@ -488,6 +516,10 @@ public sealed class MessageModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!TryParseListContext(out _))
+        {
+            return NotFound();
         }
         try
         {
@@ -518,7 +550,8 @@ public sealed class MessageModel(
                 mailbox = MailboxFilter,
                 folder = FolderFilter,
                 pageNumber = PageNumber,
-                search = SearchTerm
+                search = SearchTerm,
+                queue = QueueFilter
             });
         }
         catch (StaffAuthorizationException)
@@ -537,7 +570,7 @@ public sealed class MessageModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!IndexModel.TryParseFolder(FolderFilter, out var listFolder))
+        if (!TryParseListContext(out var listFolder))
         {
             return NotFound();
         }
@@ -640,7 +673,8 @@ public sealed class MessageModel(
         mailbox = MailboxFilter,
         folder = FolderFilter,
         pageNumber = PageNumber,
-        search = SearchTerm
+        search = SearchTerm,
+        queue = QueueFilter
     });
 
     private RedirectToPageResult RedirectToAssociationTarget(Guid id, Guid caseId) =>
@@ -651,6 +685,7 @@ public sealed class MessageModel(
             folder = FolderFilter,
             pageNumber = PageNumber,
             search = SearchTerm,
+            queue = QueueFilter,
             caseQuery = CaseQuery,
             targetCaseId = caseId
         });
@@ -859,7 +894,56 @@ public sealed class MessageModel(
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))
-            || (SearchTerm is not null && detail.Summary.Matches.Count == 0);
+            || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
+            || !MatchesQueue(detail.Classification);
+
+    private bool TryParseListContext(out MailFolderScope listFolder) =>
+        IndexModel.TryParseFolder(FolderFilter, out listFolder)
+        && ParseQueueFilter(listFolder);
+
+    private bool ParseQueueFilter(MailFolderScope listFolder)
+    {
+        if (!IndexModel.TryParseQueue(
+                QueueFilter,
+                out var normalized,
+                out var destination,
+                out var detailedClassification))
+        {
+            return false;
+        }
+        if (listFolder == MailFolderScope.DeletedItems && normalized is not null)
+        {
+            return false;
+        }
+        QueueFilter = normalized;
+        DestinationFilter = destination;
+        DetailedClassificationFilter = detailedClassification;
+        return true;
+    }
+
+    private bool MatchesQueue(MailClassificationDossier? dossier)
+    {
+        if (DestinationFilter is null && DetailedClassificationFilter is null)
+        {
+            return true;
+        }
+        if (dossier is null)
+        {
+            return false;
+        }
+        if (DestinationFilter is { } destination)
+        {
+            return MailOperationalDestinationPolicy.Map(dossier.Current).Destination == destination;
+        }
+        var actual = dossier.Current.Category;
+        var expected = DetailedClassificationFilter;
+        return actual is not null
+            && expected is not null
+            && actual.Direction == expected.Direction
+            && actual.ReceivedFamily == expected.ReceivedFamily
+            && actual.SentFamily == expected.SentFamily
+            && string.Equals(actual.Subtype, expected.Subtype, StringComparison.Ordinal);
+    }
 
     private bool TryCategory(out MailCategory? category) =>
         MailClassificationSelection.TryParse(
@@ -898,8 +982,11 @@ public sealed class MessageModel(
         MailOperationalDestinationPolicy.Map(result);
 
     public static string DecisionLabel(MailClassificationResult result) => result.Category is { } category
-        ? $"{(category.Direction == MailDirection.Sent ? "Sent: " : string.Empty)}{category.Name}{(category.Subtype is null ? string.Empty : "/" + category.Subtype)}"
+        ? DecisionLabel(category)
         : ClassificationLabel(result.Outcome);
+
+    public static string DecisionLabel(MailCategory category) =>
+        $"{(category.Direction == MailDirection.Sent ? "Sent: " : string.Empty)}{category.Name}{(category.Subtype is null ? string.Empty : "/" + category.Subtype)}";
 
     public static string QueueLabel(MailRouteDisposition? disposition) => disposition switch
     {
