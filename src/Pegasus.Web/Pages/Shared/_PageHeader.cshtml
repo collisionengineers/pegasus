@@ -1,7 +1,6 @@
 @{
     var title = ViewData["Title"] as string ?? "Operations";
     var eyebrow = ViewData["Eyebrow"] as string;
-    var lede = ViewData["Lede"] as string;
     var primaryActionText = ViewData["PrimaryActionText"] as string;
     var primaryActionUrl = ViewData["PrimaryActionUrl"] as string;
 }
@@ -12,10 +11,6 @@
             <p class="eyebrow">@eyebrow</p>
         }
         <h1>@title</h1>
-        @if (!string.IsNullOrEmpty(lede))
-        {
-            <p class="lede">@lede</p>
-        }
     </div>
     @if (!string.IsNullOrEmpty(primaryActionText) && !string.IsNullOrEmpty(primaryActionUrl))
     {

@@ -264,7 +264,7 @@ public sealed class IndexModel(
         var reasons = new List<string>();
         if (!SendComposed)
         {
-            reasons.Add("Sending to AI is not composed in this deployment.");
+            reasons.Add("Sending to AI is not part of this deployment.");
         }
         else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
         {

@@ -4,21 +4,22 @@
 @{
     ViewData["Title"] = "Queues";
 
-    // Refreshing reruns the queue and page the operator is on, not page one of
-    // everything.
+    // Refreshing reruns the queue, its filter, and the page the operator is
+    // on, not page one of everything.
     ViewData["RefreshFields"] = new Dictionary<string, string?>
     {
         ["queue"] = Model.Queue,
         ["state"] = Model.StateFilter,
+        ["kind"] = Model.ShowingUnidentified ? Model.UnidentifiedKind : null,
+        ["origin"] = Model.ShowingNotReady ? Model.NotReadyOrigin : null,
         ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString() : null
     };
 }
 
 @* "Triage queue" spent a reserved business term on a screen that is mostly not
-   about Triage-type work. Three of these four tabs are Case stages; Triage is
-   a separate pre-case entity, which is why it keeps a tab of its own instead
-   of being folded in as a stage. "Unidentified" is not here: it means
-   unmatched e-mail, and it lives in the Inbox. *@
+   about Triage-type work. Not ready, Review, Held and Triage are joined by
+   Unidentified — unresolved retained material, not a case stage, but queue
+   work the same way the other four are. *@
 <header class="page-heading">
     <h1>Queues</h1>
     @* Every count on this screen says when it was last read. *@
@@ -41,6 +42,10 @@
     <a asp-page="/Triage/Index" asp-route-queue="triage"
        aria-current="@(Model.ShowingTriage ? "page" : null)">
         Triage <span class="count">@Model.Results.TotalCount</span>
+    </a>
+    <a asp-page="/Triage/Index" asp-route-queue="unidentified"
+       aria-current="@(Model.ShowingUnidentified ? "page" : null)">
+        Unidentified <span class="count">@Model.UnidentifiedCount</span>
     </a>
 </nav>
 
@@ -103,50 +108,167 @@
         </div>
     }
 }
-else
+else if (Model.ShowingUnidentified)
 {
-    @if (Model.Cases.Items.Count == 0)
+    @* Images vs. e-mails is the operator's own split: "the material behind
+       this row" not "the record type behind this row". *@
+    <nav class="subtabs section-gap" aria-label="Unidentified filters">
+        <a asp-page="/Triage/Index" asp-route-queue="unidentified"
+           aria-current="@(Model.UnidentifiedKind == "all" ? "page" : null)">All</a>
+        <a asp-page="/Triage/Index" asp-route-queue="unidentified" asp-route-kind="images"
+           aria-current="@(Model.UnidentifiedKind == "images" ? "page" : null)">Images</a>
+        <a asp-page="/Triage/Index" asp-route-queue="unidentified" asp-route-kind="emails"
+           aria-current="@(Model.UnidentifiedKind == "emails" ? "page" : null)">E-mails</a>
+    </nav>
+
+    @if (Model.UnidentifiedRows.Count == 0)
     {
         <div class="mark-empty">
             <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
-            <p class="empty-state">
-                @(Model.Queue switch
-                {
-                    "review" => "No cases are ready to confirm.",
-                    "held" => "No cases are held.",
-                    _ => "No cases are waiting."
-                })
-            </p>
+            <p class="empty-state">No Unidentified material matches this view.</p>
         </div>
     }
     else
     {
         <div class="table-wrap">
             <table>
-                <caption class="vh">Cases in this queue</caption>
+                <caption class="vh">Unidentified material, oldest first</caption>
                 <thead>
                     <tr>
-                        <th scope="col">Case</th>
-                        <th scope="col">Registration</th>
-                        <th scope="col">Claimant</th>
-                        <th scope="col">Principal</th>
+                        <th scope="col">Reference</th>
+                        <th scope="col">Kind</th>
+                        <th scope="col">Concerns</th>
                         <th scope="col">Received</th>
+                        <th scope="col">Reason</th>
                     </tr>
                 </thead>
                 <tbody>
-                @foreach (var item in Model.Cases.Items)
+                @foreach (var row in Model.UnidentifiedRows)
                 {
                     <tr>
-                        <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
-                        <td>@(item.Registration ?? "—")</td>
-                        <td>@(item.Claimant ?? "—")</td>
-                        <td>@item.Principal</td>
-                        <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
+                        <td><a asp-page="/Unidentified/Details" asp-route-id="@row.Id">@row.Reference</a></td>
+                        <td>@Pegasus.Web.Pages.Triage.IndexModel.UnidentifiedKindLabel(row)</td>
+                        <td>@Pegasus.Web.Pages.Triage.IndexModel.UnidentifiedHandle(row)</td>
+                        <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(row.ReceivedAtUtc)</time></td>
+                        <td>@Pegasus.Web.Pages.Triage.IndexModel.UnidentifiedReasonLabel(row)</td>
                     </tr>
                 }
                 </tbody>
             </table>
         </div>
+    }
+}
+else
+{
+    @if (Model.ShowingNotReady)
+    {
+        @* The two case origins INTK-008 settled: a formal instructed Case, or
+           an ImageIntake-backed projection awaiting one. *@
+        <nav class="subtabs section-gap" aria-label="Not ready filters">
+            <a asp-page="/Triage/Index" asp-route-queue="not_ready"
+               aria-current="@(Model.NotReadyOrigin == "all" ? "page" : null)">All</a>
+            <a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="instruction"
+               aria-current="@(Model.NotReadyOrigin == "instruction" ? "page" : null)">Instruction-initiated</a>
+            <a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="image"
+               aria-current="@(Model.NotReadyOrigin == "image" ? "page" : null)">Image-initiated</a>
+        </nav>
+    }
+
+    var showBothNotReadyTables = Model.ShowingNotReady && Model.NotReadyOrigin == "all";
+
+    @if (!Model.ShowingNotReady || Model.NotReadyOrigin != "image")
+    {
+        if (showBothNotReadyTables)
+        {
+            <h2 class="section-label">Instruction-initiated</h2>
+        }
+
+        if (Model.Cases.Items.Count == 0)
+        {
+            <div class="mark-empty">
+                <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
+                <p class="empty-state">
+                    @(Model.Queue switch
+                    {
+                        "review" => "No cases are ready to confirm.",
+                        "held" => "No cases are held.",
+                        _ => "No cases are waiting."
+                    })
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <caption class="vh">Cases in this queue</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Case</th>
+                            <th scope="col">Registration</th>
+                            <th scope="col">Claimant</th>
+                            <th scope="col">Principal</th>
+                            <th scope="col">Received</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in Model.Cases.Items)
+                    {
+                        <tr>
+                            <td><a asp-page="/Cases/Details" asp-route-id="@item.CaseId">@item.Reference</a></td>
+                            <td>@(item.Registration ?? "—")</td>
+                            <td>@(item.Claimant ?? "—")</td>
+                            <td>@item.Principal</td>
+                            <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+
+    @if (Model.ShowingNotReady && Model.NotReadyOrigin != "instruction")
+    {
+        if (showBothNotReadyTables)
+        {
+            <h2 class="section-label section-gap">Image-initiated</h2>
+        }
+
+        if (Model.ImageInitiatedRows.Count == 0)
+        {
+            <div class="mark-empty">
+                <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
+                <p class="empty-state">No Image-initiated Cases are waiting.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <caption class="vh">Image-initiated Cases awaiting instruction</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Reference</th>
+                            <th scope="col">Registration</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Received</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in Model.ImageInitiatedRows)
+                    {
+                        <tr>
+                            <td><a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">@item.ImageIntakeReference</a></td>
+                            <td>@item.NormalizedVehicleRegistration</td>
+                            <td>@OperatorLabels.ImageIntakeLifecycleState(item.State)</td>
+                            <td><time datetime="@item.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.RegisteredAtUtc)</time></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
     }
 }
 

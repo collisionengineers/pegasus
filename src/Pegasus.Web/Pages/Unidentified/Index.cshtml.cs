@@ -2,41 +2,18 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Intake.Unidentified;
-using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Unidentified;
 
+/// <summary>
+/// The Unidentified list moved onto the Queues page as a tab (INTK-009). This
+/// route is kept as a permanent redirect rather than deleted outright: the
+/// dashboard historically linked here and staff may have it bookmarked, and a
+/// dead link is a worse answer than a redirect to where the work now lives.
+/// </summary>
 [Authorize(Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public sealed class IndexModel(IUnidentifiedStore store) : PageModel
+public sealed class IndexModel : PageModel
 {
-    [BindProperty(SupportsGet = true)]
-    public string? Query { get; set; }
-
-    public IReadOnlyList<UnidentifiedItem> Results { get; private set; } = [];
-
-    public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
-    {
-        var query = Query?.Trim();
-        if (!string.IsNullOrWhiteSpace(query))
-        {
-            if (!UnidentifiedReferenceFormat.TryParse(query, out _))
-            {
-                return Page();
-            }
-
-            var item = await store.GetByReferenceAsync(query, cancellationToken);
-            Results = item is null ? [] : [item];
-            return Page();
-        }
-
-        Results = await store.ListAsync(UnidentifiedState.Open, cancellationToken);
-        return Page();
-    }
-
-    public static string ReasonLabel(UnidentifiedItem item) =>
-        OperatorLabels.UnidentifiedReason(item.ReasonCode);
-
-    public static string OriginKindLabel(UnidentifiedItem item) =>
-        OperatorLabels.UnidentifiedOriginKind(item.Origin.Kind);
+    public IActionResult OnGet() =>
+        RedirectPermanent("/Triage?queue=unidentified");
 }

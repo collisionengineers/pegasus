@@ -128,7 +128,7 @@ public sealed class MailboxesModel(
                         "This form was already used for another mailbox change. Review the current row and retry.",
                     ApprovedMailboxUpdateError.MissingMailboxIdentity =>
                         "An approved mailbox needs its mailbox identity, plus the Inbox folder " +
-                        "identity for inbound Intake and the Sent folder identity for Sent evidence. " +
+                        "identity for new instructions and the Sent folder identity for Sent evidence. " +
                         "Save the mailbox as Disabled while you are still waiting for them.",
                     ApprovedMailboxUpdateError.InvalidMailboxIdentity =>
                         "A mailbox or folder identity must be an exact identifier with no spaces: " +

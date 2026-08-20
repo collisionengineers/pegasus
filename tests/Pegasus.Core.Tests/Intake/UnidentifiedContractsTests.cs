@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Core.Tests.Intake;
@@ -58,5 +59,20 @@ public sealed class UnidentifiedContractsTests
         Assert.Equal(UnidentifiedOriginKind.SubmissionGroup, origin.Kind);
         Assert.Equal(id, origin.Id);
         Assert.Throws<ArgumentException>(() => UnidentifiedOrigin.Validate(new(UnidentifiedOriginKind.Receipt, Guid.Empty)));
+    }
+
+    [Theory]
+    [InlineData(IntakeSourceChannel.Mailbox, "application/pdf", UnidentifiedMediaKind.Email)]
+    [InlineData(IntakeSourceChannel.Mailbox, "image/jpeg", UnidentifiedMediaKind.Email)]
+    [InlineData(IntakeSourceChannel.ManualUpload, "image/jpeg", UnidentifiedMediaKind.Image)]
+    [InlineData(IntakeSourceChannel.ManualUpload, "image/png", UnidentifiedMediaKind.Image)]
+    [InlineData(IntakeSourceChannel.ManualUpload, "application/pdf", UnidentifiedMediaKind.Document)]
+    [InlineData(IntakeSourceChannel.Automation, "application/msword", UnidentifiedMediaKind.Document)]
+    public void MediaKindPolicyClassifiesByChannelThenContentType(
+        IntakeSourceChannel channel,
+        string mediaType,
+        UnidentifiedMediaKind expected)
+    {
+        Assert.Equal(expected, UnidentifiedMediaKindPolicy.Classify(channel, mediaType));
     }
 }

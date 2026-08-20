@@ -18,12 +18,6 @@
     <div class="status-card" role="status">@status</div>
 }
 
-@* Every material limit of this allowlist, kept from the lede it replaces:
-   approving an address here grants nothing in Exchange. *@
-<aside class="notice">
-    <p>Approves an address for the read-only Inbox and Sent-evidence routes only — no Exchange access. It provides no mailbox browsing, message sending, credentials, rules or folder controls.</p>
-</aside>
-
 @* A rejected save is most often a stale version: the policy moved since this
    page loaded. The summary carries the exact outcome; recovery is to reload
    and reapply against the current version. *@
@@ -47,72 +41,17 @@
                         <th scope="col">State</th>
                         <th scope="col">Polling</th>
                         <th scope="col">Version</th>
-                        <th scope="col">Update</th>
                     </tr>
                 </thead>
                 <tbody>
                 @foreach (var mailbox in Model.Mailboxes)
                 {
-                    var operationKey = mailbox.Id == Model.MailboxId && Model.ExpectedVersion > 0
-                        ? Model.OperationKey
-                        : Guid.NewGuid().ToString("N");
                     <tr>
                         <td>@mailbox.Address</td>
-                        <td>@string.Join(", ", mailbox.RouteScopes.Select(scope => Pegasus.Web.Presentation.OperatorLabels.Humanise(scope.ToString())))</td>
+                        <td>@string.Join(", ", mailbox.RouteScopes.Select(Pegasus.Web.Presentation.OperatorLabels.RouteScope))</td>
                         <td><partial name="Shared/_StatusChip" model="@mailbox.State.ToString()" /></td>
                         <td>@Model.PollStatusFor(mailbox)</td>
                         <td class="tabular">@mailbox.Version</td>
-                        <td>
-                            <form method="post" asp-page-handler="Update" class="role-form">
-                                <input type="hidden" name="MailboxId" value="@mailbox.Id" />
-                                <input type="hidden" name="ExpectedVersion" value="@mailbox.Version" />
-                                <input type="hidden" name="OperationKey" value="@operationKey" />
-                                <label>
-                                    Approved address
-                                    <input name="Address" value="@Model.AddressFor(mailbox)" required maxlength="320" inputmode="email" readonly="@mailbox.IdentityIsBound" />
-                                </label>
-                                @* Once an identity is saved it is the primary key of this
-                                   mailbox's cursor row, so rebinding it would orphan or
-                                   alias that cursor. Saved identities are shown, not edited. *@
-                                <label>
-                                    Mailbox identity
-                                    <input name="MailboxIdentity" value="@Model.MailboxIdentityFor(mailbox)" maxlength="100" spellcheck="false" readonly="@(mailbox.MailboxIdentity is not null)" />
-                                </label>
-                                <label>
-                                    Inbox folder identity
-                                    <input name="InboxFolderIdentity" value="@Model.InboxFolderIdentityFor(mailbox)" maxlength="200" spellcheck="false" readonly="@(mailbox.InboxFolderIdentity is not null)" />
-                                </label>
-                                <label>
-                                    Sent folder identity
-                                    <input name="SentFolderIdentity" value="@Model.SentFolderIdentityFor(mailbox)" maxlength="200" spellcheck="false" readonly="@(mailbox.SentFolderIdentity is not null)" />
-                                </label>
-                                <fieldset class="role-choices role-choices--stacked">
-                                    <legend>Read-only route scope</legend>
-                                    <label class="choice">
-                                        <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.InboundIntake)" />
-                                        <span>Inbound Intake (Inbox)</span>
-                                    </label>
-                                    <label class="choice">
-                                        <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.SentEvidence)" />
-                                        <span>Exact report and Triage evidence (Sent Items)</span>
-                                    </label>
-                                </fieldset>
-                                <label>
-                                    State
-                                    <select name="SelectedState">
-                                        <option value="Approved" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Approved)">Approved</option>
-                                        <option value="Disabled" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Disabled)">Disabled</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    Reason
-                                    <input name="Reason" value="@Model.ReasonFor(mailbox)" required maxlength="1000" />
-                                </label>
-                                <div class="button-row">
-                                    <button type="submit" class="primary-action">Save mailbox policy</button>
-                                </div>
-                            </form>
-                        </td>
                     </tr>
                 }
                 </tbody>
@@ -121,23 +60,75 @@
     }
 </section>
 
+@if (Model.Mailboxes.Count > 0)
+{
+    <section class="section-gap" aria-labelledby="update-policies-heading">
+        <h2 id="update-policies-heading" class="section-label">Update policies</h2>
+        @foreach (var mailbox in Model.Mailboxes)
+        {
+            var operationKey = mailbox.Id == Model.MailboxId && Model.ExpectedVersion > 0
+                ? Model.OperationKey
+                : Guid.NewGuid().ToString("N");
+            var headingId = $"mailbox-update-heading-{mailbox.Id}";
+            <div class="panel form-panel" aria-labelledby="@headingId">
+                <h3 id="@headingId">@mailbox.Address</h3>
+                <form method="post" asp-page-handler="Update" class="role-form">
+                    <input type="hidden" name="MailboxId" value="@mailbox.Id" />
+                    <input type="hidden" name="ExpectedVersion" value="@mailbox.Version" />
+                    <input type="hidden" name="OperationKey" value="@operationKey" />
+                    <label>
+                        Approved address
+                        <input name="Address" value="@Model.AddressFor(mailbox)" required maxlength="320" inputmode="email" readonly="@mailbox.IdentityIsBound" />
+                    </label>
+                    @* Once an identity is saved it is the primary key of this
+                       mailbox's cursor row, so rebinding it would orphan or
+                       alias that cursor. Saved identities are shown, not edited. *@
+                    <label>
+                        Mailbox identity
+                        <input name="MailboxIdentity" value="@Model.MailboxIdentityFor(mailbox)" maxlength="100" spellcheck="false" readonly="@(mailbox.MailboxIdentity is not null)" />
+                    </label>
+                    <label>
+                        Inbox folder identity
+                        <input name="InboxFolderIdentity" value="@Model.InboxFolderIdentityFor(mailbox)" maxlength="200" spellcheck="false" readonly="@(mailbox.InboxFolderIdentity is not null)" />
+                    </label>
+                    <label>
+                        Sent folder identity
+                        <input name="SentFolderIdentity" value="@Model.SentFolderIdentityFor(mailbox)" maxlength="200" spellcheck="false" readonly="@(mailbox.SentFolderIdentity is not null)" />
+                    </label>
+                    <fieldset class="role-choices role-choices--stacked">
+                        <legend>Read-only route scope</legend>
+                        <label class="choice">
+                            <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.InboundIntake)" />
+                            <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.InboundIntake)</span>
+                        </label>
+                        <label class="choice">
+                            <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.SentEvidence)" />
+                            <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.SentEvidence)</span>
+                        </label>
+                    </fieldset>
+                    <label>
+                        State
+                        <select name="SelectedState">
+                            <option value="Approved" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Approved)">Approved</option>
+                            <option value="Disabled" selected="@Model.IsStateSelected(mailbox, ApprovedMailboxState.Disabled)">Disabled</option>
+                        </select>
+                    </label>
+                    <label>
+                        Reason
+                        <input name="Reason" value="@Model.ReasonFor(mailbox)" required maxlength="1000" />
+                    </label>
+                    <div class="button-row">
+                        <button type="submit" class="primary-action">Save mailbox policy</button>
+                    </div>
+                </form>
+            </div>
+        }
+    </section>
+}
+
 <section class="section-gap" aria-labelledby="add-approved-mailbox-heading">
     <h2 id="add-approved-mailbox-heading" class="section-label">Add an approved address</h2>
     <div class="panel form-panel">
-        <p class="field-hint">
-            Approving a mailbox here does not grant Exchange access. The Microsoft 365
-            tenant must already permit the Pegasus application to read this mailbox under
-            its application access policy. Pegasus cannot request or grant that
-            permission. Until it is in place, polling this mailbox fails with
-            <code>mailbox_access_denied</code>.
-        </p>
-        <p class="field-hint">
-            An approved mailbox needs its exact mailbox identity, the Inbox folder identity
-            for inbound Intake, and the Sent folder identity for Sent evidence. Save the
-            mailbox as Disabled while you are still waiting for them. Identities and the
-            address cannot be changed once saved: to move a mailbox, disable this row and
-            add a new one.
-        </p>
         <form method="post" asp-page-handler="Update">
             <input type="hidden" name="MailboxId" value="@Model.NewMailboxId" />
             <input type="hidden" name="ExpectedVersion" value="0" />
@@ -146,6 +137,7 @@
                 Approved address
                 <input name="Address" value="@Model.NewAddress" required maxlength="320" inputmode="email" />
             </label>
+            <p class="field-hint">Identities cannot be changed once saved: disable this row and add a new one to move a mailbox.</p>
             <label>
                 Mailbox identity
                 <input name="MailboxIdentity" value="@Model.NewMailboxIdentity" maxlength="100" spellcheck="false" />
@@ -162,11 +154,11 @@
                 <legend>Read-only route scope</legend>
                 <label class="choice">
                     <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.InboundIntake)" />
-                    <span>Inbound Intake (Inbox)</span>
+                    <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.InboundIntake)</span>
                 </label>
                 <label class="choice">
                     <input type="checkbox" name="SelectedRouteScopes" value="SentEvidence" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.SentEvidence)" />
-                    <span>Exact report and Triage evidence (Sent Items)</span>
+                    <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.SentEvidence)</span>
                 </label>
             </fieldset>
             <label>

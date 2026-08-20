@@ -177,7 +177,7 @@ public sealed partial class DetailsModel(
                     IntakeResolutionKind.Block,
                     CorrectedDraft: null),
                 cancellationToken),
-            "The intake receipt was blocked with the recorded reason.",
+            "The received item was blocked with the recorded reason.",
             cancellationToken);
 
     public async Task<IActionResult> OnPostReevaluateAsync(
@@ -302,7 +302,7 @@ public sealed partial class DetailsModel(
                     operationKey,
                     reason),
                 cancellationToken),
-            "The intake receipt was linked to the selected case.",
+            "The received item was linked to the selected case.",
             cancellationToken);
         if (TempData.Peek("IntakeDetailsError") is null)
         {
