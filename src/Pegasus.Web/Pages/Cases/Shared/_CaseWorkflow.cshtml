@@ -3,6 +3,7 @@
 @using Pegasus.Core.Custody
 @using Pegasus.Core.Lifecycle
 @using Pegasus.Core.Tasks
+@using Pegasus.Core.Vehicle
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Pages
 @{
@@ -16,6 +17,19 @@
             ? null
             : new(
                 value.Value.ToString() ?? string.Empty,
+                value.Kind,
+                value.Source,
+                value.ConfirmedByActor,
+                value.ConfirmedAtUtc);
+    // A mileage figure never appears without its supplied/external/estimated
+    // class, so the one place that turns a case mileage value into row text
+    // also appends the classification word (a derived estimate is never
+    // presented as supplied).
+    static CaseDataValue<string>? MileageText(CaseDataValue<long>? value) =>
+        value is null
+            ? null
+            : new(
+                $"{value.Value:N0} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClassification.Classify(value.Source.Kind))}",
                 value.Kind,
                 value.Source,
                 value.ConfirmedByActor,
@@ -138,7 +152,7 @@ else if (Model.ProposedValues.Count > 0)
                 ("Registration", Text(data.Vehicle.Registration.Fact) ?? Text(data.Vehicle.Registration.Confirmed), Text(data.Vehicle.Registration.Suggestion)),
                 ("Vehicle make", Text(data.Vehicle.Make.Fact) ?? Text(data.Vehicle.Make.Confirmed), Text(data.Vehicle.Make.Suggestion)),
                 ("Vehicle model", Text(data.Vehicle.Model.Fact) ?? Text(data.Vehicle.Model.Confirmed), Text(data.Vehicle.Model.Suggestion)),
-                ("Mileage", Text(data.Vehicle.Mileage.Fact) ?? Text(data.Vehicle.Mileage.Confirmed), Text(data.Vehicle.Mileage.Suggestion)),
+                ("Mileage", MileageText(data.Vehicle.Mileage.Fact) ?? MileageText(data.Vehicle.Mileage.Confirmed), MileageText(data.Vehicle.Mileage.Suggestion)),
                 ("Incident date", Text(data.Accident.IncidentDate.Fact) ?? Text(data.Accident.IncidentDate.Confirmed), Text(data.Accident.IncidentDate.Suggestion)),
                 ("Accident circumstances", Text(data.Accident.Circumstances.Fact) ?? Text(data.Accident.Circumstances.Confirmed), Text(data.Accident.Circumstances.Suggestion)),
                 ("Contact name", Text(data.Contact.Name.Fact) ?? Text(data.Contact.Name.Confirmed), Text(data.Contact.Name.Suggestion)),
@@ -457,11 +471,16 @@ else if (Model.ProposedValues.Count > 0)
     {
         @if (vehicleEvidence.Confirmed is { } confirmed)
         {
+            var confirmedMileageClass = data?.Vehicle.Mileage.Confirmed is { } confirmedMileage
+                ? $" — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClassification.Classify(confirmedMileage.Source.Kind))}"
+                : string.Empty;
             <dl>
                 <dt>Confirmed registration</dt><dd>@confirmed.Registration.Value — @confirmed.Registration.SourceLabel</dd>
                 <dt>Confirmed make</dt><dd>@(confirmed.Make?.Value ?? "Not confirmed")</dd>
                 <dt>Confirmed model</dt><dd>@(confirmed.Model?.Value ?? "Not confirmed")</dd>
-                <dt>Confirmed mileage</dt><dd>@(confirmed.Mileage is null ? "Not confirmed" : $"{confirmed.Mileage.Value} {confirmed.MileageUnit?.Value}")</dd>
+                <dt>Confirmed mileage</dt><dd>@(confirmed.Mileage is null
+                    ? "Not confirmed"
+                    : $"{confirmed.Mileage.Value:N0} {confirmed.MileageUnit?.Value}{confirmedMileageClass}")</dd>
             </dl>
         }
         @if (vehicleEvidence.LatestObservation is { } observation)
@@ -471,7 +490,32 @@ else if (Model.ProposedValues.Count > 0)
                 <dt>Registration</dt><dd>@observation.Registration</dd>
                 <dt>Provider</dt><dd>@observation.Provenance.Provider @observation.Provenance.ProviderVersion</dd>
                 <dt>Retrieved</dt><dd>@OperatorLabels.OfficeTime(observation.Provenance.RetrievedAtUtc)</dd>
+                @if (observation.Mileage is { } estimatedMileage)
+                {
+                    <dt>Mileage</dt><dd>@($"{estimatedMileage.Value:N0} {estimatedMileage.Unit} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.Estimated)}") (latest MOT observation, @estimatedMileage.ObservedOn.ToString("d MMM yyyy"))</dd>
+                }
             </dl>
+            @if (observation.MotTests.Count > 0)
+            {
+                <h3 class="section-label">MOT history</h3>
+                <div class="table-wrap">
+                    <table>
+                        <caption class="vh">MOT tests for this registration, most recent first</caption>
+                        <thead><tr><th>Test date</th><th>Result</th><th>Expiry</th><th>Mileage — @OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.External)</th></tr></thead>
+                        <tbody>
+                            @foreach (var motTest in observation.MotTests.OrderByDescending(test => test.TestDate))
+                            {
+                                <tr>
+                                    <td>@motTest.TestDate.ToString("d MMM yyyy")</td>
+                                    <td>@motTest.TestStatus</td>
+                                    <td>@(motTest.ExpiryDate?.ToString("d MMM yyyy") ?? "—")</td>
+                                    <td>@(motTest.Mileage is { } motMileage ? $"{motMileage:N0} {motTest.MileageUnit}" : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
             @if (mayEdit)
             {
                 <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">

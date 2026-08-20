@@ -1,3 +1,4 @@
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
@@ -114,6 +115,66 @@ public sealed class VehicleWorkflowTests
             observations[0],
             observations[0] with { Mileage = 22001 }
         ]));
+    }
+
+    [Fact]
+    public void LookupSourcedMileageClassifiesAsEstimatedAndNeverAsSupplied()
+    {
+        // Accepting a vehicle suggestion stores the derived MOT calculation, so a
+        // lookup-sourced case mileage is the derived estimate; the operator rule is
+        // that a derived estimate is never relabelled as supplied mileage.
+        var classification = VehicleMileageEvidenceClassification.Classify(
+            CaseDataSourceKind.VehicleLookup);
+
+        Assert.Equal(VehicleMileageEvidenceClass.Estimated, classification);
+        Assert.NotEqual(VehicleMileageEvidenceClass.Supplied, classification);
+    }
+
+    [Theory]
+    [InlineData(CaseDataSourceKind.IntakeEvidence)]
+    [InlineData(CaseDataSourceKind.MailRoute)]
+    [InlineData(CaseDataSourceKind.CaseAcceptance)]
+    [InlineData(CaseDataSourceKind.StaffCorrection)]
+    [InlineData(CaseDataSourceKind.ProviderSetting)]
+    public void DirectlyAttributedMileageClassifiesAsSupplied(CaseDataSourceKind sourceKind) =>
+        Assert.Equal(
+            VehicleMileageEvidenceClass.Supplied,
+            VehicleMileageEvidenceClassification.Classify(sourceKind));
+
+    [Fact]
+    public void AcceptedSuggestionProposesTheDerivedMileageCalculation()
+    {
+        MotTestObservation[] motTests =
+        [
+            new(new DateOnly(2030, 4, 1), "passed", new DateOnly(2031, 3, 31), 22000, VehicleMileageUnit.Miles),
+            new(new DateOnly(2029, 4, 1), "passed", new DateOnly(2030, 3, 31), 15000, VehicleMileageUnit.Miles)
+        ];
+        var calculation = Assert.IsType<VehicleMileageCalculation>(
+            VehicleMileagePolicy.Calculate(motTests));
+        var observation = new VehicleLookupObservation(
+            Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            1,
+            VehicleLookupOutcome.Current,
+            "AB12CDE",
+            new("offline-replay", "fixture-v1", "response-Current", FixedUtcNow, null, FixedUtcNow.AddDays(-1)),
+            new("Example", "Model", 2020, 1600, "petrol"),
+            motTests,
+            calculation,
+            null,
+            FixedUtcNow);
+
+        var values = VehicleSuggestionAcceptancePolicy.Resolve(
+            observation,
+            VehicleSuggestionDecision.Accept,
+            correction: null);
+
+        // The proposed mileage is exactly the derived calculation, not a raw or
+        // invented figure, so the confirmed value's lookup source classifies it
+        // as an estimate.
+        Assert.Equal(calculation.Value, values.Mileage);
+        Assert.Equal(calculation.Unit, values.MileageUnit);
     }
 
     [Theory]
