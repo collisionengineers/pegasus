@@ -57,3 +57,9 @@ PR #477 targets `dev`: https://github.com/collisionengineers/pegasus/pull/477
 ## Handoff
 
 Leave TICK-049 and all five blocker tickets in Review for an independent `kanmer-review`. Do not infer deployment/live mailbox evidence from green local/CI tests.
+
+## PR-043 correction — same-key in-flight replay
+
+Commit `83293162` closes the final in-flight replay race. Pending replay now returns the focused still-processing refusal with no parent probe or state write. A provider exception first persists Uncertain, retaining the active filtered slot, before the existing probe runs. Exact overlapping evidence proves the Pending row remains active, a new key is refused, the original call performs the only move, and the same key replays the completed success.
+
+Additional final evidence: exact concurrency/Uncertain set 5/5, provider-failure/freshness/reclassification set 3/3, full retained-mail persistence class 24/24, Release solution build 0 warnings/errors, and diff checks passed. Only `EfRetainedMailFolderMoveStore.cs` and `RetainedMailPersistenceTests.cs` changed for PR-043. No external write or new framework was introduced.

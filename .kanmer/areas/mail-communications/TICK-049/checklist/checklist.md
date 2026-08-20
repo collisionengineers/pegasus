@@ -21,3 +21,11 @@
 - [x] Add exact freshness/current-location/provider-failure/classification-preservation evidence and replace PIR overclaims.
 - [x] Re-run the four simplification lenses, Release build, focused/proportional tests, migration/deployment scripts and diff checks.
 - [x] Commit blocker corrections to PR #477 and leave all work in Review for a different agent.
+
+## PR-043 closure — 2026-08-20
+
+- [x] Refuse same-key Pending replay without probing, failing the row or freeing its active slot.
+- [x] Persist provider-exception result as Uncertain before allowing recovery probes.
+- [x] Prove an overlapping same-key replay and different-key attempt cannot duplicate the provider move.
+- [x] Run focused/proportional tests, Release build and four simplification lenses.
+- [x] Record PR-043/commit/PR traceability, push and leave Review for an independent agent.

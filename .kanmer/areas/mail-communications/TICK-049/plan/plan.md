@@ -59,3 +59,12 @@ TICK-064 and TICK-047 are merged into `origin/dev` at or before `a1775841`. TICK
 - **Altitude:** Core still owns authorization/freshness and the read-only recommendation; Infrastructure owns durable coordinates/recovery; Web only confirms or checks status. Retained arrival evidence remains immutable.
 - **Applied findings:** database-enforced per-message active claim; reachable same-key uncertain status check; reclassification-aware current source/destination; moved-message findability through existing retained search; exact negative/preservation evidence and corrected reporting.
 - **Unapplied findings:** none.
+
+## PR-043 simplification pass — 2026-08-20
+
+- **Reuse:** Retained the dedicated operation row, Pending/Uncertain vocabulary, filtered active index, existing exception surface, probe recovery and LocalDB blocking fake.
+- **Simplification:** Replaced the combined Pending/Uncertain replay branch with explicit handling and one durable Pending→Uncertain save after provider failure. No lease, timer, worker, flag, wrapper, endpoint or framework.
+- **Efficiency:** Pending replay now performs zero provider calls and cannot release the active slot; only Uncertain is probed.
+- **Altitude:** The external-operation lifecycle remains wholly in Infrastructure; Core and Web contracts did not change.
+- **Applied findings:** matching Pending replay is visibly refused; provider failure becomes durably Uncertain before probe; concurrent same/new-key evidence proves one move and one active row.
+- **Unapplied findings:** none.
