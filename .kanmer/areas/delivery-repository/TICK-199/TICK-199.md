@@ -2,13 +2,14 @@
 id: TICK-199
 type: ticket
 title: Retire .infisical.json or document its active owner
-status: review
+status: verifying
 area: delivery-repository
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T03:58:44.652Z'
   review: '2026-08-20T03:59:49.882Z'
+  verifying: '2026-08-20T04:03:53.658Z'
 taken_at: '2026-08-20T03:56:49.826Z'
 branch: task/tick-199-infisical
 worktree: ../pegasus-worktrees/tick-199
@@ -23,7 +24,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/442'
 archived: false
 created: '2026-08-12T15:08:04.949Z'
-updated: '2026-08-20T03:59:49.882Z'
+updated: '2026-08-20T04:03:53.658Z'
 ---
 
 ## What
