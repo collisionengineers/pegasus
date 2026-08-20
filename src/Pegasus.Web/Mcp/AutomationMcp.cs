@@ -22,12 +22,13 @@ public static class AutomationMcp
     public const string IntakeScope = "automation.intake";
     public const string DocumentsScope = "automation.documents";
     public const string AssessmentScope = "automation.assessment";
+    public const string MailScope = "automation.mail";
     public const int RequestsPerClientPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
     public static IReadOnlyList<string> Scopes { get; } =
-        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope];
+        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope];
 }
 
 /// <summary>
