@@ -120,7 +120,7 @@
                     <form method="post" asp-page-handler="ResolveFolders" class="role-form">
                         <input type="hidden" name="MailboxId" value="@mailbox.Id" />
                         <input type="hidden" name="ExpectedVersion" value="@mailbox.Version" />
-                        <input type="hidden" name="OperationKey" value="@Guid.NewGuid().ToString("N")" />
+                        <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                         <input type="hidden" name="Address" value="@mailbox.Address" />
                         <input type="hidden" name="SelectedState" value="@mailbox.State" />
                         <input type="hidden" name="Reason" value="Refresh approved logical folder bindings" />
