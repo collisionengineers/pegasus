@@ -2,10 +2,12 @@
 id: AUTO-004
 type: ticket
 title: Allow the Automation Actor to retrieve material from Unidentified intake
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T10:10:55.935Z'
 labels:
   - automation-actor
   - MCP
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-20T09:27:47.730Z'
-updated: '2026-08-20T09:27:47.730Z'
+updated: '2026-08-20T10:10:55.935Z'
 ---
 
 ## Why
