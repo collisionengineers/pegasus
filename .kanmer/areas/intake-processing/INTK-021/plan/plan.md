@@ -12,3 +12,11 @@ Branch task/intk-021-extraction-auto-add. Steps (each names its reuse):
 Measured before → after (75 accepted-route corpus instructions): Claimant 4→48 (+12 honest conflicts), Claim number 4→60, Incident date 7→45, Make 13→62, Model 14→47, Registration 57→66.
 
 Deviation note: subagents barred — self-review in scratch.
+
+## Simplification pass — 2026-08-20 (own diff)
+
+- Reuse: no new engine concepts — synonyms ride the existing `FieldDefinition` list; subject facts become an ordinary last-rank fragment so the existing rank-aware conflict rules arbitrate; the description split reuses `IsPlausibleVehicleMakeModel`/registration validation; the kind flip touches one write site because display and confirm paths already handled Fact.
+- Simplification: `AddSuggestion` renamed to what it now does; no second registration-format list (one `UkRegistrationRegex` beside the current-format one, each with a stated consumer).
+- Deliberate asymmetry kept: unlabelled sole-VRM fallback stays current-format-only (false-positive risk documented in code).
+- Efficiency: subject grammar is a handful of anchored regexes over one short string per message.
+- Copy: no operator-facing strings changed.
