@@ -6,23 +6,27 @@ Why does the supported `DevelopmentOffline` lifecycle reject a new Windows run a
 
 ## Findings
 
-- The reported failure is reproducible with a fresh, non-existent `PegasusDevelopment_probe_<guid>` instance on this workstation (Windows, SQL Server LocalDB 2025). `sqllocaldb info <name>` emits “LocalDB instance … doesn't exist!” **and exits 0**.
-  - Direct read-only experiment on 2026-08-20: the shared helper returned `Unknown` for that exact command result.
-- `scripts/PegasusPlatform.ps1` owns `Get-PegasusDatabaseState`, the sole implementation of the four-state database contract: `Missing`, `Stopped`, `Running`, or `Unknown`.
-  - Its Windows branch currently returns `Missing` only for a non-zero exit code; it returns `Unknown` when a zero-exit response lacks a recognized `State: Running|Stopped` line.
-- `scripts/Invoke-LocalDevelopment.ps1` reuses that helper through `Get-RunDatabaseState`. `Test-RunDatabaseExists` intentionally treats every state other than `Missing` as existing.
-  - Start checks this before creating the instance and refuses with “exists without completed run ownership”; that fail-closed guard is correct for an actual existing or unparseable instance.
-- The Offline runbook defines one owned lifecycle—Doctor, Initialize, Start, Status, Smoke, Stop, Reset—and states that Windows uses a per-run LocalDB instance. It explicitly prohibits manually composing service terminals. The correction therefore belongs in the common state classifier, not in PLAT-005 or an ad-hoc manual workaround.
-- No existing PowerShell test harness covers `Get-PegasusDatabaseState` or `Invoke-LocalDevelopment`. The repository’s script tests are standalone assertion scripts; CI has Windows runners, but current script-test steps cover unrelated tooling.
-  - A focused Windows script test can exercise the helper through a temporary command shim that returns the observed zero-exit missing-instance response, without creating LocalDB state. This is preferable to weakening the lifecycle guard or relying only on a manual run.
+- The failure is reproducible with a fresh, non-existent `PegasusDevelopment_PLAT014_readonly_probe_7f8d2c` instance on this workstation.
+  - Read-only command evidence on 2026-08-20: SQL Server LocalDB 2025 (17.0.4025.3) printed `LocalDB instance "<name>" doesn't exist!` and returned exit code 0. The current helper classified that result as `Unknown`.
+  - A read-only query of the existing `MSSQLLocalDB` instance returned exit code 0 with `State: Stopped`, which the current state-line parser recognizes.
+- `scripts/PegasusPlatform.ps1` owns `Get-PegasusDatabaseState`, the repository's sole implementation of the four-state local database contract: `Missing`, `Stopped`, `Running`, or `Unknown`.
+  - Its Windows branch returns `Missing` only for a non-zero exit code. A zero-exit response without a recognized `State: Running|Stopped` line falls through to `Unknown`.
+  - `git blame` traces this unchanged branch to commit `3f4a35ba`; the relevant helper and caller files match the current `origin/dev` base (`bc0646a6`).
+- `scripts/Invoke-LocalDevelopment.ps1` reuses the helper through `Get-RunDatabaseState`. `Test-RunDatabaseExists` intentionally treats every state other than `Missing` as existing.
+  - Start refuses an unowned database when that predicate is true. Stop/Reset also refuse an unproved `Unknown` state. Those are the correct fail-closed ownership semantics and are not the defect.
+- `docs/runbook.md#offline-development-profile` defines one owned lifecycle—Doctor, Initialize, Start, Status, Smoke, Stop, Reset—and states that Windows uses a per-run LocalDB instance. It prohibits manually composing service terminals. The correction therefore belongs in the common classifier, not in [[PLAT-005]] or an ad-hoc workaround.
+- No existing PowerShell test exercises `Get-PegasusDatabaseState` or the local lifecycle state contract. Repository script tests are standalone assertion scripts invoked explicitly by CI.
+  - The helper's existing `-Command` seam accepts a PowerShell function name. A test-only function can emit the observed diagnostic and set `$LASTEXITCODE`, so focused coverage needs neither a live LocalDB mutation nor a temporary executable.
+  - CI has Windows runners, but no current step owns this local-lifecycle script contract. `scripts/Get-CiChangeFlags.ps1` also does not classify `PegasusPlatform.ps1` as build-relevant, so attaching the check to a conditional lane would require updating that classifier and its regression test.
 
 ## Implications
 
-- Recognize the known LocalDB “doesn't exist” response as `Missing` even when its exit code is zero. Keep any other zero-exit, no-state response as `Unknown`; it must continue to block creation and destructive cleanup.
-- Preserve the existing `Test-RunDatabaseExists` and Start ownership logic. They already encode the correct conservative policy once the state is classified correctly.
-- Add a focused regression check for: recognized missing response → `Missing`; running/stopped state responses → their existing states; unrelated zero-exit output → `Unknown`. It must not require a live LocalDB instance or cloud access.
-- After the focused check, use the documented local-only lifecycle for one new run and reset only its exact run id. That produces the caller-backed verification needed to unblock [[PLAT-005]].
+- Recognize the explicit LocalDB missing-instance diagnostic as `Missing` even when the command exits 0. Preserve `Unknown` for every other zero-exit response without a recognized state line.
+- Preserve `Test-RunDatabaseExists`, Start's unowned-instance refusal, and Stop/Reset's unknown-state refusal. Once classification is corrected, those existing callers enforce the required ownership boundary.
+- Add one focused standalone script test beside the shared helper. It should cover: explicit zero-exit missing response → `Missing`; running/stopped state lines → their existing states; unrelated zero-exit output → `Unknown`; non-zero response → `Missing`. The test can use the existing command-injection seam and must not create LocalDB, Docker, Azure, or vendor state.
+- Give that test an explicit Windows CI caller. If planning chooses an existing conditional lane, it must also update and test the lane's changed-path classification; an isolated focused Windows job avoids coupling this script contract to the .NET build.
+- After focused verification, run the documented local-only Start → Status → Smoke → Reset lifecycle for one new run and reset only that exact run id. This caller-backed check is what unblocks [[PLAT-005]].
 
 ## Open questions
 
-No operator decision is required. The implementation must retain fail-closed handling for every response other than an explicitly recognized missing-instance response.
+No operator decision is required. Planning may choose the smallest honest Windows CI placement, but it must not omit an automated caller or weaken the fail-closed ownership behavior.
