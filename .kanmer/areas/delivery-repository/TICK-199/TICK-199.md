@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-20T03:59:49.882Z'
   verifying: '2026-08-20T04:03:53.658Z'
   done: '2026-08-20T12:48:40.858Z'
-taken_at: '2026-08-20T03:56:49.826Z'
-branch: task/tick-199-infisical
-worktree: ../pegasus-worktrees/tick-199
 labels:
   - now
   - source-now
@@ -26,7 +23,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.949Z'
-updated: '2026-08-20T12:48:40.858Z'
+updated: '2026-08-20T12:49:42.487Z'
 ---
 
 ## What

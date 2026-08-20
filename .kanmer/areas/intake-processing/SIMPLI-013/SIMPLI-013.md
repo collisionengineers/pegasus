@@ -2,7 +2,7 @@
 id: SIMPLI-013
 type: ticket
 title: Integrate CollisionDocNet behind IIntakeSourceReader for .doc and .msg intake
-status: verifying
+status: done
 area: intake-processing
 order: 190
 assignee: claude-code
@@ -13,9 +13,7 @@ stageEntered:
   implementing: '2026-08-20T03:42:12.960Z'
   review: '2026-08-20T04:19:39.603Z'
   verifying: '2026-08-20T04:46:24.131Z'
-taken_at: '2026-08-20T03:28:37.656Z'
-branch: task/simpli-013-collisiondocnet-integration
-worktree: ../pegasus-worktrees/simpli-013
+  done: '2026-08-20T12:49:54.966Z'
 labels: []
 groups:
   - EPIC-002
@@ -29,10 +27,11 @@ commits:
   - d999277d
   - 47a1bf49
 prs:
-  - 'https://github.com/collisionengineers/pegasus/pull/449'
+  - '449'
+deployment: production
 archived: false
 created: '2026-08-13T14:38:42.313Z'
-updated: '2026-08-20T04:46:24.131Z'
+updated: '2026-08-20T12:49:58.401Z'
 ---
 
 ## What
