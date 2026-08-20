@@ -173,7 +173,7 @@
             <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
             <label>
                 New channel token
-                <input name="NewChannelToken" type="password" minlength="32" maxlength="200" autocomplete="new-password" required />
+                <input name="NewChannelToken" type="password" minlength="@Pegasus.Core.AiWork.AiChannelConnectorRules.MinimumTokenLength" maxlength="200" autocomplete="new-password" required />
             </label>
             <span asp-validation-for="NewChannelToken"></span>
             <label>
