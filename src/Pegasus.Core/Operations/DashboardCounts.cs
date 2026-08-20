@@ -9,6 +9,11 @@ namespace Pegasus.Core.Operations;
 /// string "Unavailable" for Not ready and Held, and backed the Review tile with
 /// an intake-receipt count — a different entity entirely, and one that was
 /// cumulative for all time.
+///
+/// <see cref="NotReady"/> spans both Not ready case origins (INTK-013): a
+/// formal Case in CaseWorkflows (instruction-initiated) and an unmerged Image
+/// Intake still awaiting instruction (image-initiated), matching the rows the
+/// Queues page's Not ready tab lists for both origins combined.
 /// </remarks>
 public sealed record CaseStageCounts(int NotReady, int Review, int Held);
 
