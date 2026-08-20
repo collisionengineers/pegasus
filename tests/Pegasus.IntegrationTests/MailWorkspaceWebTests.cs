@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using Azure.Core;
 using Azure.Identity;
@@ -198,6 +199,40 @@ public sealed class MailWorkspaceWebTests
                 new FailingCredential(),
                 new Uri("https://graph.microsoft.com/v1.0/"),
                 new HttpClient(new UnexpectedHttpHandler())),
+            new ApprovedMailboxEstate(
+                [new("empty-mailbox", "empty@example.invalid", "inbox-folder")]),
+            new Pegasus.Infrastructure.Intake.MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDeletedMailSearchSource>();
+                services.AddSingleton<IDeletedMailSearchSource>(source);
+            }));
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(
+            client,
+            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+
+        Assert.Contains(
+            "Deleted Items search is unavailable. Retained Inbox mail remains available.",
+            html,
+            StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("folder-root")]
+    [InlineData("missing-value")]
+    [InlineData("relative-next-link")]
+    public async Task AuthenticatedDeletedSearchRendersUnavailableForMalformedGraphShapes(
+        string responseCase)
+    {
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(
+                new SuccessfulCredential(),
+                new Uri("https://graph.microsoft.com/v1.0/"),
+                new HttpClient(new MalformedDeletedGraphHandler(responseCase))),
             new ApprovedMailboxEstate(
                 [new("empty-mailbox", "empty@example.invalid", "inbox-folder")]),
             new Pegasus.Infrastructure.Intake.MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
@@ -914,6 +949,44 @@ public sealed class MailWorkspaceWebTests
             TokenRequestContext requestContext,
             CancellationToken cancellationToken) => ValueTask.FromException<AccessToken>(
                 new AuthenticationFailedException("Credential unavailable."));
+    }
+
+    private sealed class SuccessfulCredential : TokenCredential
+    {
+        public override AccessToken GetToken(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken) =>
+            new("token", DateTimeOffset.UtcNow.AddHours(1));
+
+        public override ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken) => ValueTask.FromResult(
+                GetToken(requestContext, cancellationToken));
+    }
+
+    private sealed class MalformedDeletedGraphHandler(string responseCase) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            var isFolder = request.RequestUri!.AbsolutePath.EndsWith(
+                "/mailFolders/deleteditems",
+                StringComparison.Ordinal);
+            var body = (responseCase, isFolder) switch
+            {
+                ("folder-root", true) => "[]",
+                (_, true) => """{"id":"deleted-folder"}""",
+                ("missing-value", false) => "{}",
+                ("relative-next-link", false) =>
+                    """{"value":[],"@odata.nextLink":"/v1.0/users/empty-mailbox/mailFolders/deleted-folder/messages?$top=100"}""",
+                _ => throw new InvalidOperationException("Unknown malformed Graph response case.")
+            };
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(body, Encoding.UTF8, "application/json")
+            });
+        }
     }
 
     private sealed class UnexpectedHttpHandler : HttpMessageHandler
