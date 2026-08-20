@@ -45,7 +45,7 @@ Implemented the accepted narrow automatic retained-mail association policy in th
 - Full `QdosAllocationRecoveryTests` — 17 passed after blockers.
 - Focused `CaseMatchIntegrationTests|RetainedMailPersistenceTests` — 33 passed at initial implementation head; blocker changes do not touch their production paths.
 - `scripts/Test-DocumentationLinks.ps1` — passed after blockers, 192 files checked.
-- `git diff --check` — passed after blockers.
+- `scripts/Test-MarkdownPlacement.ps1 -Base origin/dev -Head HEAD` — passed after blocker commit.\n- `git diff --check` — passed after blockers.
 
 ## Simplification
 
