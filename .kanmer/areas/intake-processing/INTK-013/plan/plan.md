@@ -63,3 +63,23 @@ Triage page. Reasons:
 ## Simplification pass
 
 To be recorded after implementation, before PR, under a dated heading.
+
+## Simplification pass — 2026-08-20
+
+Reviewed the branch diff (4 files, +102/-2) against the four lenses:
+
+- **Reuse**: confirmed — the fix reuses `EfImageIntakeStore.ToCode` (widened
+  visibility, not duplicated) and the existing
+  `SeedNotReadyCaseAsync`/`IRegisterImageIntake`/`IImageIntakeOriginResolver`
+  test fixtures verbatim from `NotReadyOriginFilterReturnsOnlyTheMatchingOriginsRows`.
+- **Simplification**: no dead branches or unnecessary indirection introduced;
+  the fix is one additional `CountAsync` plus a doc comment update.
+- **Efficiency**: the added query is a single aggregate `CountAsync` against
+  an indexed-by-state column, matching the class's own documented
+  no-row-projection convention — no `ListAsync`/in-memory count used.
+- **Altitude**: comments explain *why* (both origins, mirrors
+  `LoadNotReadyAsync`'s filter) rather than restating the code; kept to the
+  minimum needed to prevent the same drift recurring.
+
+No findings requiring disposition — diff is already proportional to the fix
+and reuses every applicable existing convention.
