@@ -25,3 +25,12 @@ Relink is intentionally not a command: unlink the current Case, then perform a f
 ## Boundaries
 
 No live mailbox/Graph/Box/cloud/deployment/permission/production write; no new schema, persistence owner, transaction, action framework, or direct swap. Production correction remains a separately approved verification activity, not this implementation checklist.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Found the landed `UploadCaseDecision` in the exact ticket worktree after an earlier root-checkout lookup missed it. Replaced direct `ISearchCases` use with its existing bounded, normalized suggestion method. Reused `IGetCase`, `IGetIntake`, `IAcquireCaseEditLease`, `ILinkIntake`, `IReverseIntakeLink`, `OperatorLabels.CaseStage`, and `_ReasonDialog` unchanged.
+- **Simplification:** No new service, result taxonomy, command framework, Core contract, EF store, table, migration, or active-to-active swap was introduced. The two explicit POST handlers remain separate because link and unlink have different authority predicates and consequences; a boolean/generic action handler would obscure those rules.
+- **Efficiency:** Search stays bounded by the existing eight-result helper. The page loads a full Case only for the current or explicitly selected target, not for every search result. Mutations perform only the authoritative message/receipt/Case reloads required for freshness.
+- **Altitude:** Web owns presentation/orchestration only. Core and the existing serializable EF transaction continue to own authorization, edit-lease enforcement, idempotency, current-association mutation, and append-only history.
+- **Applied findings:** corrected the stale helper premise; reused the shared search helper; reused the shared lifecycle label; rejected terminal/archived selected targets before leasing; validated reason before any lease mutation; removed the unnecessary lease-key suffix.
+- **Unapplied findings:** none.

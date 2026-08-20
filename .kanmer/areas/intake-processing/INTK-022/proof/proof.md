@@ -1,0 +1,3 @@
+# Proof — INTK-022 (visual + test-output)
+
+Merged to dev in PR #484 (green CI) and promoted in main `f0b01f39`; deployed in release 15 (`6d04f89d`). **Live-verified post-deploy (2026-08-20, signed-in browser)**: /Triage Not ready renders the "Waiting for" and "Principal" dropdowns (origin pills gone), one merged table surface, and the wiped-empty state — screenshot taken during release verification. Tests: TriageQueuesWebTests 7/7 (new merged-table and sort-toggle tests; existing origin-filter and TICK-065 chase-chip tests green on the new surface), RailCounts/DashboardCounters/CasesIndex 4/4 — green in CI on #484 and the release build. Sort default remains newest-first (store order preserved by the new `CaseSearchOrder` default) with header links toggling direction.
