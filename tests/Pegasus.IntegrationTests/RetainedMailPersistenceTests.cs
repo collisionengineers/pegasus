@@ -23,6 +23,65 @@ public sealed class RetainedMailPersistenceTests
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
+    {
+        var message = new MimeMessage();
+        message.From.Add(MimeKit.MailboxAddress.Parse("sender@example.invalid"));
+        message.To.Add(MimeKit.MailboxAddress.Parse(MailboxAddress));
+        message.Subject = "Nameless attachment occurrence";
+        message.MessageId = "<nameless@example.invalid>";
+
+        var nameless = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream([1, 2, 3])),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64
+        };
+        var named = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream([4, 5, 6])),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = "named.bin"
+        };
+        message.Body = new Multipart("mixed")
+        {
+            new TextPart("plain") { Text = "Body" },
+            nameless,
+            named
+        };
+
+        await using var stream = new MemoryStream();
+        await message.WriteToAsync(stream);
+        var bytes = stream.ToArray();
+        await using var displayStream = new MemoryStream(bytes);
+        var display = await LocalEmailDisplayReader.ReadAsync(displayStream, CancellationToken.None);
+        var canonical = await new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System)
+            .ReadAsync(
+                new(
+                    "message.eml",
+                    "message/rfc822",
+                    bytes,
+                    ReceivedAtUtc,
+                    "test",
+                    new(IntakeSourceChannel.Mailbox, "mailbox:test")),
+                CancellationToken.None);
+
+        Assert.Collection(
+            Assert.IsAssignableFrom<IReadOnlyList<RetainedMailboxAttachment>>(display.Attachments),
+            first => Assert.Equal("Unnamed attachment 1", first.FileName),
+            second => Assert.Equal("named.bin", second.FileName));
+        Assert.Collection(
+            canonical.AttachmentRecords,
+            first => Assert.Equal(0, first.Ordinal),
+            second =>
+            {
+                Assert.Equal(1, second.Ordinal);
+                Assert.Equal("named.bin", second.FileName);
+            });
+    }
+
+    [Fact]
     public async Task ARetainedMessageRoundTripsThroughTheMigration()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -90,7 +149,7 @@ public sealed class RetainedMailPersistenceTests
             Assets: [],
             SearchDocuments:
             [
-                new("message body", null, "Please inspect the vehicle."),
+                new("message body", null, "Please inspect the vehicle. Canonical wrapper only."),
                 new("message, attachment 1", "estimate.pdf", "Repair estimate for replacement wing", 0)
             ]));
 
@@ -114,6 +173,8 @@ public sealed class RetainedMailPersistenceTests
             && match.AttachmentFileName == "estimate.pdf");
         Assert.Empty((await queries.ListAsync(
             new(null, MailFolderScope.Inbox, "not present"), 1, 25, CancellationToken.None)).Items);
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "Canonical wrapper only"), 1, 25, CancellationToken.None)).Items);
 
         var detail = Assert.IsType<RetainedMailDetail>(
             await queries.GetAsync(content.Id, CancellationToken.None));

@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -143,6 +145,49 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task AuthenticatedDeletedSearchUsesTheSelectedApprovedMailboxAndRendersBoundsPagingAndUnavailableState()
+    {
+        var source = new RecordingDeletedMailSearchSource();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDeletedMailSearchSource>();
+                services.AddSingleton<IDeletedMailSearchSource>(source);
+            }));
+        using var client = CreateClient(factory);
+
+        var firstPage = await GetHtmlAsync(
+            client,
+            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+
+        Assert.Equal("empty-mailbox", source.MailboxId);
+        Assert.Equal("needle", source.SearchTerm);
+        Assert.Equal(100, source.MaximumMessages);
+        Assert.Contains("empty@example.invalid", firstPage, StringComparison.Ordinal);
+        Assert.Contains("Deleted match 25", firstPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Deleted match 0", firstPage, StringComparison.Ordinal);
+        Assert.Contains("Attachment content: proof.pdf (attachment 1)", firstPage, StringComparison.Ordinal);
+        Assert.Contains("checked the 100 newest Deleted Items", firstPage, StringComparison.Ordinal);
+        Assert.Contains("pageNumber=2", firstPage, StringComparison.Ordinal);
+
+        var secondPage = await GetHtmlAsync(
+            client,
+            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle&pageNumber=2");
+        Assert.Contains("Deleted match 0", secondPage, StringComparison.Ordinal);
+        Assert.Contains("Page 2 of 2", secondPage, StringComparison.Ordinal);
+
+        source.Result = new([], false, DeletedMailSearchState.Unavailable);
+        var unavailable = await GetHtmlAsync(
+            client,
+            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+        Assert.Contains(
+            "Deleted Items search is unavailable. Retained Inbox mail remains available.",
+            unavailable,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SearchFiltersRetainedRowsAndCarriesTheTermThroughPagingAndDetail()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -208,6 +253,7 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox/{ids[0]:D}{query}&section=attachments");
         Assert.Contains("estimate.pdf", attachments, StringComparison.Ordinal);
+        Assert.Contains("Content unavailable for search", attachments, StringComparison.Ordinal);
         // Megabytes, never bytes.
         Assert.Contains("under 0.1 MB", attachments, StringComparison.Ordinal);
         Assert.DoesNotContain("2048", attachments, StringComparison.Ordinal);
@@ -374,6 +420,13 @@ public sealed class MailWorkspaceWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
     }
+
+    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost:7139")
+        });
 
     private static int CountOccurrences(string text, string value)
     {
@@ -594,5 +647,50 @@ public sealed class MailWorkspaceWebTests
         internal void Advance(TimeSpan amount) => now = now.Add(amount);
 
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class RecordingDeletedMailSearchSource : IDeletedMailSearchSource
+    {
+        internal string? MailboxId { get; private set; }
+
+        internal string? SearchTerm { get; private set; }
+
+        internal int MaximumMessages { get; private set; }
+
+        internal DeletedMailSourceResult Result { get; set; } = new(
+            Enumerable.Range(0, 26)
+                .Select(index => new DeletedMailSearchItem(
+                    "empty-mailbox",
+                    "empty@example.invalid",
+                    $"deleted-{index}",
+                    "sender@example.invalid",
+                    "A Sender",
+                    $"Deleted match {index}",
+                    "The visible body also contains needle.",
+                    NowUtc.AddMinutes(index),
+                    IsRead: false,
+                    [new("proof.pdf", "application/pdf", 1024, IsSearchable: true)],
+                    [new(MailSearchMatchKind.AttachmentContent, "proof.pdf", 0)]))
+                .ToArray(),
+            IsTruncated: true);
+
+        public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<RetainedMailMailbox>>(
+                [
+                    new("empty-mailbox", "empty@example.invalid", IsPolled: true),
+                    new("other-mailbox", "other@example.invalid", IsPolled: true)
+                ]);
+
+        public Task<DeletedMailSourceResult> SearchAsync(
+            string? mailboxId,
+            string searchTerm,
+            int maximumMessages,
+            CancellationToken cancellationToken)
+        {
+            MailboxId = mailboxId;
+            SearchTerm = searchTerm;
+            MaximumMessages = maximumMessages;
+            return Task.FromResult(Result);
+        }
     }
 }

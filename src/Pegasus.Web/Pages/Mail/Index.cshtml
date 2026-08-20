@@ -115,7 +115,7 @@ else if (Model.DeletedResults is { } deleted)
                                     <ul>
                                     @foreach (var attachment in item.Attachments)
                                     {
-                                        <li>@attachment.FileName — @(attachment.IsSearchable ? "Searchable content" : "Content unavailable for search")</li>
+                                        <li>@attachment.FileName — @OperatorLabels.AttachmentSearchability(attachment.IsSearchable)</li>
                                     }
                                     </ul>
                                 }
