@@ -3,7 +3,7 @@ id: KANMER-005
 type: ticket
 title: Enforce exclusive editing leases between staff and Automation Actors
 status: backlog
-area: kanmer-meta
+area: automation-integrations
 assignee: ''
 profile: fix
 labels:
@@ -13,7 +13,7 @@ labels:
 links: []
 archived: false
 created: '2026-08-18T15:17:05.786Z'
-updated: '2026-08-18T15:17:05.786Z'
+updated: '2026-08-20T10:46:42.869Z'
 ---
 
 ## What
