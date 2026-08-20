@@ -11,6 +11,14 @@ public static class AutomationMcp
 {
     public const string FeatureFlag = "Features:AutomationMcp";
     public const string AuthenticationScheme = "PegasusAutomationMcp";
+
+    /// <summary>
+    /// The single Automation client's operator-facing name. Registered as its
+    /// OpenIddict display name (<see cref="AutomationClientRegistry"/>) and used
+    /// wherever the client's raw subject id would otherwise be shown to an operator
+    /// (the Automation activity view).
+    /// </summary>
+    public const string ClientDisplayName = "Pegasus Automation Actor";
     public const string EndpointPolicy = "AutomationMcpEndpoint";
     public const string RateLimitPolicy = "AutomationMcp";
     public const string Audience = "pegasus-automation-mcp";
