@@ -228,7 +228,13 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
     builder.Configuration,
     developmentOfflineProfile);
 
-builder.Services.AddRazorPages();
+// RailCountsPageFilter supplies ViewData["RailCounts"] on every
+// authenticated request (PLAT-003) — the rail (PLAT-001) shipped with the
+// badge mechanism but nothing populated it until now. RazorPagesOptions has
+// no Filters collection of its own, so the global filter is added through
+// the underlying MvcOptions instead.
+builder.Services.AddRazorPages()
+    .AddMvcOptions(options => options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>());
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
     {
