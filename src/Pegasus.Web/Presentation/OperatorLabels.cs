@@ -256,6 +256,23 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// Why a received item is not, and cannot become, a case — the one
+    /// wording for this, shared by the case-creation screen and the upload
+    /// confirmation surface so the same fact is never phrased twice.
+    /// </summary>
+    public static string IntakeCannotBecomeCaseReason(IntakeDecision decision) => decision switch
+    {
+        IntakeDecision.BlockedIntake =>
+            "This item was blocked, with the reason recorded. It cannot become a case until it is corrected on the received item.",
+        IntakeDecision.ImageIntakeRegistered =>
+            "This item was registered as vehicle images. Image material never becomes a case on its own.",
+        IntakeDecision.Unsupported =>
+            "This file could not be read, so there is nothing to create a case from.",
+        _ =>
+            "This file failed while it was being processed, so there is nothing to create a case from."
+    };
+
+    /// <summary>
     /// A case history event in plain language.
     /// </summary>
     /// <remarks>

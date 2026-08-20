@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
@@ -9,10 +11,19 @@ namespace Pegasus.Web.Pages;
 
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
-public sealed class UploadStatusModel(IQueuedIntakeStatusQueries queries) : PageModel
+public sealed class UploadStatusModel(
+    IQueuedIntakeStatusQueries queries,
+    IUploadOutcomeQueries outcomeQueries) : PageModel
 {
     public QueuedIntakeStatus Status { get; private set; } = null!;
     public bool IsDuplicate { get; private set; }
+
+    /// <summary>
+    /// The confirmation outcome, once processing has left Received/Processing.
+    /// Built from the same status read this page already queries — no second
+    /// endpoint, no second poll.
+    /// </summary>
+    public UploadOutcomeView? Outcome { get; private set; }
 
     public bool RefreshAutomatically =>
         Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing;
@@ -57,6 +68,18 @@ public sealed class UploadStatusModel(IQueuedIntakeStatusQueries queries) : Page
 
         Status = status;
         IsDuplicate = duplicate;
+
+        // The confirmation decision needs a full receipt read for a terminal
+        // status; Received/Processing never reach the branch that needs one.
+        if (status.Status is QueuedIntakeStatusKind.Complete or QueuedIntakeStatusKind.Failed
+            && StaffActorFactory.TryCreate(
+                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
+                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
+                out var actor))
+        {
+            Outcome = await outcomeQueries.BuildAsync(status, submissionGroupId: null, actor, cancellationToken);
+        }
+
         return Page();
     }
 }
