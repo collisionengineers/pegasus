@@ -26,6 +26,27 @@ The selected alpha direction is Operations-first. The UI must provide:
 
 Every actionable search result is a full-row keyboard-focusable link or button with visible action affordance. At constrained desktop width, a long Case/PO, Image Intake Reference, or U-reference moves to a labelled second line instead of overlapping the received timestamp. Inbox and intake rows always show received date above received time, and show the precise processing outcome—such as `Case created`, `Image intake registered`, `Associated with Case`, `Unidentified`, or `Blocked intake`—rather than a generic `New`. One semantic action or state has one consistent icon across Pegasus; no decorative or generated replacement icon is used.
 
+### Upload
+
+Selected files render one row per file — name, size, and a per-file state
+that is a spinner while the submission is in flight and a tick once the
+response confirms the file is durably stored; a failed file states its
+failure on the same row. Every row enters the in-flight state together, since
+a single submission stores the whole batch and no finer per-file signal
+exists during it — no row is ticked ahead of what the response actually
+proved. No mechanics narration ("receipt", "submission group", or similar
+internal vocabulary) appears on the Upload or status surfaces.
+
+Once a file's processing resolves, the status surface shows a confirmation
+outcome rather than a passive label: what already happened automatically
+(reported, with a link to open it and, where relevant, the existing reversal
+path — never re-offered as a choice), or the staff decision that is
+genuinely open (attach to a possible match with a free choice of
+destination, or create a case from what was uploaded). The exact decision
+table is owned by [FRD-02](frd-02-intake-and-source-identity.md#upload-confirmation-surface).
+A grouped upload shows this per file; members of the same group can resolve
+independently and are never collapsed into one group-wide outcome.
+
 ### Unidentified queue and detail
 
 `/Unidentified` lists open items oldest-first with the immutable U-reference,

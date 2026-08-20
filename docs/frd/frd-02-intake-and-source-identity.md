@@ -212,6 +212,51 @@ Operator UI shows that provenance without treating it as confirmation. A
 derived value identifies its accepted inputs and calculation rather than
 claiming a separate raw source; provenance and value status remain distinct.
 
+### Upload confirmation surface
+
+Once a manually uploaded file's processing resolves (Complete or Failed), the
+operator sees a confirmation decision rather than a passive status label. The
+decision is per file — a grouped upload's members can terminal-decide
+independently, so the surface never assumes one outcome for a whole group.
+
+The decision table, evaluated once per file:
+
+1. **A case is already associated** (`CurrentCaseId` set). This is always a
+   report of something automation already did — the "linked automatically
+   only on a definitive match" rule (operator notes) means a unique
+   `CaseMatchOutcome` match or the grouped-image-routing unique match above
+   is written before Complete is ever reached, so the confirmation step never
+   re-offers this as a choice. The operator sees the case reference, a link
+   to open it, and the existing reversal path (staff link/unlink) rather than
+   a second association mechanism.
+2. **Registered as a new Image-initiated Case** (`ImageIntakeRegistered`).
+   Also always automatic (a usable VRM with no unique existing-Case match);
+   reported with a link to its own searchable surface, never re-offered as a
+   manual creation (an Image-initiated Case's reference is VRM-keyed and
+   cannot be hand-created without one).
+3. **Routed to Unidentified.** Automation abstained (no usable/conflicting
+   VRM, or no identifiable match at all); reported with a link to the
+   existing Unidentified resolution surface, which is where the staff
+   decision for that item actually happens.
+4. **Possible matching cases found** (`CaseMatchOutcome.Ambiguous`).
+   Automation found candidates but none met the unique-match bar — this is
+   the genuine staff decision the confirmation step offers: review the
+   candidates and attach, freely choosing a different destination than any
+   suggested candidate (the operator's "they can override").
+5. **No matching case at all**, and the file is otherwise eligible to become
+   one. The staff decision offered here is to create a case from what was
+   uploaded — Instruction-initiated, seeded from the file — reusing the
+   existing creation screen.
+6. **Cannot become a case** (blocked, unsupported, or a technical failure) or
+   **the file itself failed to process.** Reported plainly; no offer, since
+   none is genuine.
+
+Every action the confirmation surface offers routes to an existing surface
+that already performs it (case details, the received-item screen's
+attach/reverse controls, the case-creation screen, the Image-initiated Case
+and Unidentified detail screens); the confirmation step itself never mutates
+anything.
+
 ### Global vehicle and value checks
 
 Every Case must satisfy globally required vehicle identity/specification,
