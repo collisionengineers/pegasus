@@ -858,7 +858,9 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
         var fileName = part.FileName ?? InferFileName(part, limits);
         var format = DetectFormat(fileName, part.ContentType.MimeType);
+        var isExplicitAttachment = part.ContentDisposition?.IsAttachment == true;
         var isInlineImage = format == SourceFormat.Image
+            && !isExplicitAttachment
             && (part.ContentDisposition?.Disposition.Equals("inline", StringComparison.OrdinalIgnoreCase) == true
                 || !string.IsNullOrWhiteSpace(part.ContentId));
         var descriptorOrdinal = result.Attachments.Count;

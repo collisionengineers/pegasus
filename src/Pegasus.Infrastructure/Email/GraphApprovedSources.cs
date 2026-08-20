@@ -810,6 +810,9 @@ internal sealed class GraphDeletedMailSearchSource(
                 or ApprovedSentSourceThrottledException
                 or AuthenticationFailedException
                 or HttpRequestException
+                or InvalidDataException
+                or JsonException
+                or UnauthorizedAccessException
             || (exception is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
             return new([], false, DeletedMailSearchState.Unavailable);
