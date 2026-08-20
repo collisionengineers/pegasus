@@ -78,6 +78,78 @@ public sealed class TriageQueuesWebTests
         Assert.Contains(imageIntake.ImageIntakeReference, allHtml, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// INTK-013: the operator saw two Not ready cases (one instruction, one
+    /// image-initiated) but a badge of 1, because the count query
+    /// (<c>EfDashboardQueries.GetCaseStageCountsAsync</c>) only counted
+    /// CaseWorkflows rows while the row query
+    /// (<c>Triage/Index.cshtml.cs LoadNotReadyAsync</c>) also lists
+    /// awaiting-instruction Image Intakes. The badge must equal the number
+    /// of rows across both origins, and the Dashboard's Not-ready tile reads
+    /// the same count so it must agree too.
+    /// </summary>
+    [Fact]
+    public async Task NotReadyBadgeCountMatchesRowsAcrossBothOrigins()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var instructionReceiptId = await StoreMinimalReceiptAsync(services, "instruction-source.pdf");
+        var instructionCaseReference = "QDOS" + DateTime.UtcNow.Ticks % 1_000_000;
+        await SeedNotReadyCaseAsync(services, instructionReceiptId, instructionCaseReference);
+
+        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            TinyPng,
+            Guid.NewGuid().ToString("N"));
+        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
+        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
+        var register = services.GetRequiredService<IRegisterImageIntake>();
+        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
+        var imageIntake = await register.ExecuteAsync(
+            new(
+                origin!,
+                "AB12CDE",
+                StaffActor(),
+                $"image-intake-register:{Guid.NewGuid():N}",
+                "Staff confirmed the registration from the retained image."),
+            CancellationToken.None);
+
+        using var notReady = await client.GetAsync("/Triage?queue=not_ready");
+        var notReadyHtml = await notReady.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, notReady.StatusCode);
+
+        var badgeMatch = Regex.Match(notReadyHtml, "Not ready\\s*<span class=\"count\">(\\d+)</span>");
+        Assert.True(badgeMatch.Success, "Not ready badge markup not found.");
+        var badgeCount = int.Parse(badgeMatch.Groups[1].Value, CultureInfo.InvariantCulture);
+
+        // The row count actually rendered: both origins must be present, and
+        // the badge must equal exactly that many rows (2 — one of each
+        // origin), not one or the other alone.
+        Assert.Contains(instructionCaseReference, notReadyHtml, StringComparison.Ordinal);
+        Assert.Contains(imageIntake.ImageIntakeReference, notReadyHtml, StringComparison.Ordinal);
+        Assert.Equal(2, badgeCount);
+
+        // The Dashboard's Not-ready tile reads the same count query, so it
+        // must report the identical figure — a queue whose badge disagrees
+        // with its own tab's tile is exactly the defect being fixed here.
+        using var dashboard = await client.GetAsync("/");
+        var dashboardHtml = await dashboard.Content.ReadAsStringAsync();
+        var tileMatch = Regex.Match(
+            dashboardHtml,
+            "data-state=\"not-ready\"[\\s\\S]*?metric__value\">(\\d+)</strong>");
+        Assert.True(tileMatch.Success, "Dashboard Not ready tile markup not found.");
+        Assert.Equal(badgeCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
+    }
+
     [Fact]
     public async Task UnidentifiedRouteRedirectsPermanentlyToTheQueuesTab()
     {

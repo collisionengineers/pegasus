@@ -906,7 +906,12 @@ public sealed class EfImageIntakeStore(
         _ => throw new InvalidDataException($"Unknown intake source channel code '{value}'.")
     };
 
-    private static string ToCode(ImageInitiatedCaseState state) => state switch
+    /// <summary>
+    /// Reused by <c>EfDashboardQueries</c> so the Not ready count agrees with
+    /// this store's own definition of "image-initiated, awaiting
+    /// instruction" instead of duplicating the state-code literal.
+    /// </summary>
+    internal static string ToCode(ImageInitiatedCaseState state) => state switch
     {
         ImageInitiatedCaseState.AwaitingInstruction => "awaiting_instruction",
         ImageInitiatedCaseState.MergedIntoInstructionCase => "merged_into_instruction_case",
