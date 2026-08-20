@@ -29,3 +29,11 @@
 - [x] Prove an overlapping same-key replay and different-key attempt cannot duplicate the provider move.
 - [x] Run focused/proportional tests, Release build and four simplification lenses.
 - [x] Record PR-043/commit/PR traceability, push and leave Review for an independent agent.
+
+## PR-044 closure — 2026-08-20
+
+- [x] Persist Pending → Uncertain with a bounded fresh context when cancellation interrupts provider move or provider-success persistence.
+- [x] Preserve the original caller cancellation and prevent a committed Success from being downgraded.
+- [x] Prove both cancellation points, durable Uncertain, different-key exclusion, same-key probe recovery and one provider move.
+- [x] Run focused tests, full retained-mail persistence tests, Release build, diff checks and four simplification lenses.
+- [x] Record PR-044 reports/traceability, push and leave Review for an independent agent.

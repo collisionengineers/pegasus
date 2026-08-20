@@ -68,3 +68,12 @@ TICK-064 and TICK-047 are merged into `origin/dev` at or before `a1775841`. TICK
 - **Altitude:** The external-operation lifecycle remains wholly in Infrastructure; Core and Web contracts did not change.
 - **Applied findings:** matching Pending replay is visibly refused; provider failure becomes durably Uncertain before probe; concurrent same/new-key evidence proves one move and one active row.
 - **Unapplied findings:** none.
+
+## PR-044 cancellation-handoff simplification pass — 2026-08-20
+
+- **Reuse:** Reused the existing Pending/Uncertain vocabulary, filtered active-operation index, same-key probe recovery, EF context factory and LocalDB interceptor/fake patterns.
+- **Simplification:** Added one conditional fresh-context update and one private handoff method. No worker, lease, timer, new state, result wrapper or generic command framework.
+- **Efficiency:** The extra SQL update runs only when request cancellation interrupts provider work or the success save. Recovery probes current location and never repeats the provider move.
+- **Altitude:** The external-operation lifecycle remains inside the dedicated Infrastructure store; Core and Web contracts are unchanged.
+- **Applied findings:** cancellation after provider work begins durably changes Pending to Uncertain before the original cancellation is rethrown; a Success committed before cancellation cannot be downgraded because the update is conditional on Pending; exact tests cover cancellation during move and during Success SaveChanges.
+- **Unapplied findings:** none.
