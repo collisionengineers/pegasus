@@ -26,3 +26,12 @@ Feature contract: the already-implemented DVLA/DVSA lookup workflow (request →
 ## Stacking
 
 Based on `task/tick-021-ext-02-mot-chronology` (PR #448) — same observation block in `_CaseWorkflow.cshtml`. Merge #448 first.
+
+## Simplification pass — 2026-08-20
+
+Lenses: reuse, simplification, efficiency, altitude (`code-simplifier` agent over the staged diff plus own review). Findings and dispositions:
+
+1. **Applied (altitude)** — the added Core test block ran a full `ExecuteAsync` round-trip to prove what is a constant's boolean; replaced with the one-line `Assert.True(VehicleLookupAvailability.ProductionLive.RequestsEnabled)` and reworded the comment to what the assertion actually proves (the `Program.cs` composition itself is not observable from Core and is covered by review, not test).
+2. **Applied (comment trim)** — `Program.cs` comment no longer restates the two-profile guard in prose; the `if/else` shape deliberately mirrors `WorkerDependencyInjection.cs`.
+3. **Not applied (recorded)** — `vehicleDetails.FuelType`/`Make`/`Model` render the provider strings verbatim rather than through an `OperatorLabels` map: these are external evidence values (whatever DVLA returned), not application state codes; inventing a fuel-type vocabulary would rewrite evidence. Consistent with the neighbouring `Provider` render. Flagged for review to confirm.
+4. No reuse or efficiency findings; em-dash placeholders and `is { } x ? … : "—"` match existing usage; the `docs/current-architecture.md` sentence was checked against the three composition files.
