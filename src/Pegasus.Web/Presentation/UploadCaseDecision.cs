@@ -1,4 +1,4 @@
-using Pegasus.Core.Cases;
+﻿using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -43,6 +43,21 @@ public interface IUploadCaseDecision
     /// </param>
     Task<UploadCaseAttachResult> AttachAsync(
         Guid receiptId,
+        Guid? caseId,
+        string? reference,
+        string reason,
+        ActionActor actor,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The submission-level decision: add every still-open member of an
+    /// upload group to one found case, under one reason. Members already on
+    /// the chosen case are counted as done (replay safety); a member on a
+    /// different case is left untouched and reported.
+    /// </summary>
+    Task<UploadCaseAttachResult> AttachGroupAsync(
+        Guid groupId,
+        IReadOnlyList<Guid> memberReceiptIds,
         Guid? caseId,
         string? reference,
         string reason,
@@ -162,6 +177,110 @@ public sealed class UploadCaseDecision(
             true,
             OperatorLabels.AssociatedWithCase(details.Summary.Reference, byStaffDecision: true),
             targetCaseId);
+    }
+
+    public async Task<UploadCaseAttachResult> AttachGroupAsync(
+        Guid groupId,
+        IReadOnlyList<Guid> memberReceiptIds,
+        Guid? caseId,
+        string? reference,
+        string reason,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(memberReceiptIds);
+        if (memberReceiptIds.Count == 0)
+        {
+            return new(false, "There is nothing left in this submission to add.");
+        }
+
+        var resolvedCaseId = caseId
+            ?? await ResolveReferenceAsync(reference, actor, cancellationToken);
+        if (resolvedCaseId is not { } targetCaseId || targetCaseId == Guid.Empty)
+        {
+            return new(false, "No single case matched that reference. Search and choose a case from the suggestions.");
+        }
+
+        var details = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
+        if (details is null)
+        {
+            return new(false, "That case could not be found. Search and choose a case from the suggestions.");
+        }
+
+        var added = 0;
+        var alreadyThere = 0;
+        var elsewhere = 0;
+        try
+        {
+            foreach (var receiptId in memberReceiptIds)
+            {
+                var receipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+                if (receipt is null)
+                {
+                    continue;
+                }
+                if (receipt.CurrentCaseId == targetCaseId)
+                {
+                    alreadyThere++;
+                    continue;
+                }
+                if (receipt.CurrentCaseId is not null)
+                {
+                    elsewhere++;
+                    continue;
+                }
+
+                // Each link consumes its lease and advances the case version,
+                // so every member takes a fresh case read and its own lease —
+                // the same per-mutation contract the single-file decision uses.
+                var current = added == 0
+                    ? details
+                    : await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken)
+                        ?? throw new InvalidOperationException("The case is no longer available.");
+                // The same replay identities as the single-file decision:
+                // adding this member to this case is one operation however
+                // the operator reached it.
+                var lease = await acquireCaseEditLease.ExecuteAsync(
+                    new(
+                        targetCaseId,
+                        current.Workflow.Version,
+                        actor,
+                        $"upload-attach-lease:{receiptId:N}:{targetCaseId:N}"),
+                    cancellationToken);
+                await linkIntake.ExecuteAsync(
+                    new(
+                        receiptId,
+                        targetCaseId,
+                        receipt.Version,
+                        lease.Version,
+                        lease.Token,
+                        actor,
+                        $"upload-attach:{receiptId:N}:{targetCaseId:N}",
+                        reason),
+                    cancellationToken);
+                added++;
+            }
+        }
+        catch (Exception exception) when (
+            exception is ArgumentException or InvalidOperationException or KeyNotFoundException
+            || IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return new(false, "The submission could not be added to that case. Refresh and try again.");
+        }
+
+        if (added == 0 && alreadyThere == 0)
+        {
+            return new(false, "Nothing from this submission could be added to that case.");
+        }
+
+        var message = OperatorLabels.AssociatedWithCase(details.Summary.Reference, byStaffDecision: true);
+        if (elsewhere > 0)
+        {
+            message += elsewhere == 1
+                ? " One file was already on a different case and was left there."
+                : $" {elsewhere} files were already on a different case and were left there."; 
+        }
+        return new(true, message, targetCaseId);
     }
 
     private async Task<Guid?> ResolveReferenceAsync(
