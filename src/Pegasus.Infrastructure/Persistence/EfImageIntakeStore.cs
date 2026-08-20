@@ -732,6 +732,58 @@ public sealed class EfImageIntakeStore(
         return rows.Where(row => row.AssociatedCaseId == caseId).ToArray();
     }
 
+    public async Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
+        Guid imageIntakeId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var intake = await context.ImageIntakes
+            .AsNoTracking()
+            .Where(item => item.Id == imageIntakeId)
+            .Select(item => new { item.OriginReceiptId, item.SubmissionGroupId })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (intake is null)
+        {
+            return [];
+        }
+
+        var ordered = new List<Guid>();
+        if (intake.SubmissionGroupId is { } groupId)
+        {
+            ordered.AddRange(
+                (await ResolveGroupMemberReceiptsAsync(context, groupId, cancellationToken))
+                .Select(pair => pair.ProcessedReceiptId));
+        }
+        if (!ordered.Contains(intake.OriginReceiptId))
+        {
+            ordered.Insert(0, intake.OriginReceiptId);
+        }
+
+        var receiptIds = ordered.Distinct().ToArray();
+        var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
+        var rows = await context.IntakeAssets
+            .AsNoTracking()
+            .Where(asset => receiptIds.Contains(asset.IntakeReceiptId)
+                && asset.Kind == "source"
+                && asset.Disposition == "source"
+                && asset.MediaType.StartsWith("image/"))
+            .Join(
+                context.IntakeReceipts.AsNoTracking()
+                    .Where(receipt => receipt.Decision == registeredDecision),
+                asset => asset.IntakeReceiptId,
+                receipt => receipt.Id,
+                (asset, receipt) => new { asset.IntakeReceiptId, asset.FileName, asset.MediaType })
+            .ToArrayAsync(cancellationToken);
+        var byReceipt = rows.ToDictionary(row => row.IntakeReceiptId);
+        return receiptIds
+            .Where(byReceipt.ContainsKey)
+            .Select(receiptId => new ImageIntakeImage(
+                receiptId,
+                byReceipt[receiptId].FileName,
+                byReceipt[receiptId].MediaType))
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<ImageIntakeSummary>> SearchByRegistrationAsync(
         string normalizedVehicleRegistration,
         CancellationToken cancellationToken)

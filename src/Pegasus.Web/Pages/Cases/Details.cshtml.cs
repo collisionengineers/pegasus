@@ -29,6 +29,13 @@ public sealed partial class DetailsModel(
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
 
     /// <summary>
+    /// The gallery entries for each associated Image-initiated Case, loaded
+    /// only when the Evidence tab is the one being rendered.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake
+    { get; private set; } = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+
+    /// <summary>
     /// Which section of the case container is open.
     /// </summary>
     /// <remarks>
@@ -111,6 +118,17 @@ public sealed partial class DetailsModel(
                 return NotFound();
             }
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
+            if (Tab == "evidence" && ImageIntakes.Count > 0)
+            {
+                var imagesByIntake = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+                foreach (var intake in ImageIntakes)
+                {
+                    imagesByIntake[intake.Id] = await imageIntakeQueries.ListImagesAsync(
+                        intake.Id,
+                        cancellationToken);
+                }
+                ImagesByIntake = imagesByIntake;
+            }
             RestoreLeaseState(id, actor);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);

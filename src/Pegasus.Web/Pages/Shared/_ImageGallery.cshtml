@@ -1,0 +1,17 @@
+@model IReadOnlyList<Pegasus.Core.ImageIntake.ImageIntakeImage>
+@* Thumbnails are the full image CSS-constrained and lazy-loaded; each is a
+   link that opens the same authorised endpoint full-size in place, so the
+   preview-and-expand works with no script and stays keyboard accessible. *@
+<ul class="image-gallery">
+    @foreach (var image in Model)
+    {
+        <li>
+            <a asp-page="/Intake/Image" asp-route-id="@image.ReceiptId">
+                <img src="@Url.Page("/Intake/Image", new { id = image.ReceiptId })"
+                     alt="@image.FileName"
+                     loading="lazy" />
+                <span class="image-gallery__name">@image.FileName</span>
+            </a>
+        </li>
+    }
+</ul>
