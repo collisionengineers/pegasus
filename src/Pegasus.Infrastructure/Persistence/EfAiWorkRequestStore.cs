@@ -1,4 +1,5 @@
 using System.Data;
+using Microsoft.AspNetCore.DataProtection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -325,4 +326,190 @@ public sealed class EfSendToAiControlStore(
         await transaction.CommitAsync(cancellationToken);
         return enabled;
     }
+}
+
+/// <summary>
+/// Administration-held Send to AI connector settings on the same singleton
+/// row as the switch. The token is protected with the application's data
+/// protection ring at entry and unprotected only for the outbound transport;
+/// Administration reads only whether one is held and when it last changed.
+/// Every update writes attributed permanent history recording that a value
+/// changed, never the value.
+/// </summary>
+public sealed class EfAiChannelConnectorStore(
+    IDbContextFactory<PegasusDbContext> contextFactory,
+    IDataProtectionProvider dataProtection,
+    TimeProvider timeProvider) : IAiChannelConnectorStore
+{
+    private const string ProtectionPurpose = "Pegasus.SendToAi.ChannelToken";
+
+    public async Task<AiChannelConnectorSettings> GetAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var control = await ReadAsync(context, tracking: false, cancellationToken);
+        return Map(control);
+    }
+
+    public async Task<AiChannelConnectorRuntime> GetRuntimeAsync(CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var control = await ReadAsync(context, tracking: false, cancellationToken);
+        string? token = null;
+        if (control?.ChannelTokenProtected is { } protectedToken)
+        {
+            try
+            {
+                token = dataProtection.CreateProtector(ProtectionPurpose)
+                    .Unprotect(protectedToken);
+            }
+            catch (CryptographicException)
+            {
+                throw new InvalidOperationException(
+                    "The stored channel token could not be read. Rotate it from Administration.");
+            }
+        }
+
+        return new(
+            control?.ChannelBaseUrl is { } baseUrl ? new Uri(baseUrl, UriKind.Absolute) : null,
+            control?.TimeoutSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : null,
+            token);
+    }
+
+    public Task<AiChannelConnectorSettings> UpdateAsync(
+        UpdateAiChannelConnectorCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.ChannelBaseUrl is { } baseUrl
+            && !AiChannelConnectorRules.TryParseBaseUrl(baseUrl, out _))
+        {
+            throw new ArgumentException(
+                "The channel address must be a loopback http origin without path or query.",
+                nameof(command));
+        }
+        if (command.TimeoutSeconds is { } seconds
+            && !AiChannelConnectorRules.IsValidTimeoutSeconds(seconds))
+        {
+            throw new ArgumentException(
+                "The timeout must be between 1 and 60 seconds.",
+                nameof(command));
+        }
+
+        return WriteAsync(
+            command.Actor,
+            command.Reason,
+            command.OperationKey,
+            "send_to_ai_connector_updated",
+            control =>
+            {
+                control.ChannelBaseUrl = command.ChannelBaseUrl;
+                control.TimeoutSeconds = command.TimeoutSeconds;
+            },
+            cancellationToken);
+    }
+
+    public Task<AiChannelConnectorSettings> RotateTokenAsync(
+        RotateAiChannelTokenCommand command,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(command);
+        if (command.NewToken is not null
+            && !AiChannelConnectorRules.IsValidToken(command.NewToken))
+        {
+            throw new ArgumentException(
+                "The channel token must be at least 32 characters.",
+                nameof(command));
+        }
+
+        var protectedToken = command.NewToken is { } newToken
+            ? dataProtection.CreateProtector(ProtectionPurpose).Protect(newToken)
+            : null;
+        return WriteAsync(
+            command.Actor,
+            command.Reason,
+            command.OperationKey,
+            protectedToken is null
+                ? "send_to_ai_channel_token_cleared"
+                : "send_to_ai_channel_token_rotated",
+            control =>
+            {
+                control.ChannelTokenProtected = protectedToken;
+                control.TokenRotatedAtUtc = protectedToken is null
+                    ? null
+                    : timeProvider.GetUtcNow();
+            },
+            cancellationToken);
+    }
+
+    private async Task<AiChannelConnectorSettings> WriteAsync(
+        ActionActor actor,
+        string reason,
+        string operationKey,
+        string eventKind,
+        Action<SendToAiControlEntity> apply,
+        CancellationToken cancellationToken)
+    {
+        StaffAuthorization.Require(actor, StaffAccessRight.ManageAutomationClients);
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        ArgumentException.ThrowIfNullOrWhiteSpace(operationKey);
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var control = await ReadAsync(context, tracking: true, cancellationToken);
+        if (control is null)
+        {
+            control = new()
+            {
+                Id = SendToAiControlEntity.SingletonId,
+                Enabled = true,
+                Version = 0
+            };
+            context.SendToAiControl.Add(control);
+        }
+        else
+        {
+            control.Version++;
+        }
+
+        apply(control);
+        context.ActionHistory.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            AggregateType = "send_to_ai",
+            AggregateId = SendToAiControlEntity.SingletonId,
+            EventKind = eventKind,
+            ActorKind = actor.Kind.ToString(),
+            ActorSubjectId = actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(actor.Roles.OrderBy(role => role)),
+            OccurredAtUtc = timeProvider.GetUtcNow(),
+            Outcome = "Succeeded",
+            CorrelationId = operationKey.Trim(),
+            Reason = reason.Trim()
+        });
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(control);
+    }
+
+    private static Task<SendToAiControlEntity?> ReadAsync(
+        PegasusDbContext context,
+        bool tracking,
+        CancellationToken cancellationToken)
+    {
+        var query = tracking
+            ? context.SendToAiControl
+            : context.SendToAiControl.AsNoTracking();
+        return query.SingleOrDefaultAsync(
+            item => item.Id == SendToAiControlEntity.SingletonId,
+            cancellationToken);
+    }
+
+    private static AiChannelConnectorSettings Map(SendToAiControlEntity? control) => new(
+        control?.ChannelBaseUrl,
+        control?.TimeoutSeconds,
+        control?.ChannelTokenProtected is not null,
+        control?.TokenRotatedAtUtc,
+        control?.Version ?? 0);
 }
