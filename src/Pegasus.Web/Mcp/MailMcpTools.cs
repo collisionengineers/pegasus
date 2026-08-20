@@ -193,7 +193,7 @@ internal sealed class MailMcpTools(
         Idempotent = true,
         OpenWorld = false,
         UseStructuredContent = true)]
-    [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision with its permanent correction history and operational destination, and the canonical correction options. Attachment content is retrieved through the document tools, not here.")]
+    [Description("Gets one retained message: recipients, body text, attachment names, thread, the versioned classification decision with its permanent correction history and operational destination, and the canonical correction options. Attachments are listed by name, type and size; their content is not returned here — a message attached to a Case exposes its documents through the document tools.")]
     public async Task<MailToolDetail> GetAsync(
         [Description("The retained message identifier from pegasus_mail_list.")] Guid messageId,
         CancellationToken cancellationToken = default)
