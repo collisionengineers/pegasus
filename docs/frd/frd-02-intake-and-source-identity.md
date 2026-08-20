@@ -141,6 +141,8 @@ An Image-initiated Case remains Awaiting instruction until its retained evidence
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
+**Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same seven-calendar-day interval a Not-ready formal Case's first chase falls due at, and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
+
 ### Grouped image-intake routing
 
 **Settled operator truth (2026-08-19):** a retained vehicle image either shows a
