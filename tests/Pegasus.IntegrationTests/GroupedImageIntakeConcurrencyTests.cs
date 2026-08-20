@@ -126,6 +126,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
             }
 
             var references = new HashSet<string>(StringComparer.Ordinal);
+            var intakeIds = new HashSet<Guid>();
             foreach (var receipt in receipts)
             {
                 // The one atomic outcome, on every run: registered, never a
@@ -134,9 +135,16 @@ public sealed class GroupedImageIntakeConcurrencyTests
                 var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, CancellationToken.None);
                 Assert.NotNull(detail);
                 Assert.Equal("AB12CDE", detail!.Record.NormalizedVehicleRegistration);
+                Assert.Equal(groupId, detail.Record.SubmissionGroupId);
                 references.Add(detail.Record.ImageIntakeReference);
+                intakeIds.Add(detail.Record.Id);
             }
-            Assert.Equal(2, references.Count);
+
+            // INTK-015: the group is the registration unit — every member
+            // resolves to the SAME single ImageIntake (one reference, one
+            // row), never one registration per member.
+            Assert.Single(references);
+            Assert.Single(intakeIds);
         }
 
         async Task<bool> AllMembersRegisteredAsync(IReadOnlyList<Guid> stagedReceiptIds)
@@ -232,26 +240,16 @@ public sealed class GroupedImageIntakeConcurrencyTests
             strandedReceiptId = completed!.ProcessedReceiptId;
         }
 
-        // Force the second member back to the exact pre-fix stranded shape:
-        // undo its registration and its decision, leaving it with neither an
-        // Image Intake nor an Unidentified reference -- reachable only by
-        // its receipt, like the production straggler.
+        // Force the second member back to the stranded shape: its decision
+        // reverted to needs_sorting carrying the generic instruction-fallback
+        // reason while the group's single registration stands -- the
+        // straggler is reachable only by its receipt, like the production
+        // evidence.
         await using (var contextFactoryScope = factory.Services.CreateAsyncScope())
         {
             var contextFactory = contextFactoryScope.ServiceProvider
                 .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await contextFactory.CreateDbContextAsync();
-            var imageIntake = await context.ImageIntakes.SingleAsync(item => item.OriginReceiptId == strandedReceiptId);
-            context.ImageIntakes.Remove(imageIntake);
-            // The registration operation key is unique across
-            // IntakeMutationHistory; undoing the registration means undoing
-            // its history row too, or a fresh registration attempt collides
-            // on that same operation key.
-            var registrationOperationKey = $"image-intake-register:{strandedReceiptId:N}";
-            var mutationHistory = await context.IntakeMutationHistory
-                .Where(item => item.OperationKey == registrationOperationKey)
-                .ToArrayAsync();
-            context.IntakeMutationHistory.RemoveRange(mutationHistory);
             var receipt = await context.IntakeReceipts.SingleAsync(item => item.Id == strandedReceiptId);
             receipt.Decision = "needs_sorting";
             receipt.DecisionReason =
@@ -267,8 +265,6 @@ public sealed class GroupedImageIntakeConcurrencyTests
             var receiptQueries = strandedScope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
             var strandedReceipt = await receiptQueries.GetAsync(strandedReceiptId, CancellationToken.None);
             Assert.Equal(IntakeDecision.NeedsSorting, strandedReceipt!.Decision);
-            var strandedImageIntakeQueries = strandedScope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
-            Assert.Null(await strandedImageIntakeQueries.GetByOriginReceiptAsync(strandedReceiptId, CancellationToken.None));
         }
 
         // Reconcile: this is the product's own mechanism recovering the
@@ -300,6 +296,10 @@ public sealed class GroupedImageIntakeConcurrencyTests
         var finalDetail = await finalImageIntakeQueries.GetByOriginReceiptAsync(strandedReceiptId, CancellationToken.None);
         Assert.NotNull(finalDetail);
         Assert.Equal("AB12CDE", finalDetail!.Record.NormalizedVehicleRegistration);
+        // The straggler resolved into the group's ONE registration -- the
+        // group-aware lookup reaches it from the member receipt, and no
+        // second reference was allocated for the recovery.
+        Assert.Equal(groupId, finalDetail.Record.SubmissionGroupId);
     }
 
     private static readonly byte[] TinyPngBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
