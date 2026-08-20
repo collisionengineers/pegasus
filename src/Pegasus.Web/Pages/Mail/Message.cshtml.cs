@@ -15,7 +15,8 @@ namespace Pegasus.Web.Pages.Mail;
 /// </remarks>
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
-    CorrectRetainedMailClassification correctClassification) : StaffPageModel
+    CorrectRetainedMailClassification correctClassification,
+    MoveRetainedMailFolder moveRetainedMailFolder) : StaffPageModel
 {
     public static IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
         MailClassificationSelection.Options;
@@ -54,8 +55,23 @@ public sealed class MessageModel(
     [BindProperty]
     public string? CorrectionReason { get; set; }
 
+    [BindProperty]
+    public int ExpectedRecommendationPolicyVersion { get; set; }
+
+    [BindProperty]
+    public string? ExpectedRecommendationPolicyKey { get; set; }
+
+    [BindProperty]
+    public int ExpectedMailboxVersion { get; set; }
+
+    [BindProperty]
+    public string? MoveOperationKey { get; set; }
+
     [TempData]
     public string? ClassificationNotice { get; set; }
+
+    [TempData]
+    public string? FolderMoveNotice { get; set; }
 
     public RetainedMailDetail Detail { get; private set; } = null!;
 
@@ -167,6 +183,58 @@ public sealed class MessageModel(
         });
     }
 
+    public async Task<IActionResult> OnPostMoveToRecommendedFolderAsync(
+        Guid id,
+        string? Reason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        try
+        {
+            var result = await moveRetainedMailFolder.ExecuteAsync(
+                actor,
+                new(
+                    id,
+                    ExpectedClassificationVersion,
+                    ExpectedRecommendationPolicyKey ?? string.Empty,
+                    ExpectedRecommendationPolicyVersion,
+                    ExpectedMailboxVersion,
+                    MoveOperationKey ?? string.Empty,
+                    Reason ?? string.Empty),
+                cancellationToken);
+            if (result is null)
+            {
+                return NotFound();
+            }
+            FolderMoveNotice = result.Outcome switch
+            {
+                RetainedMailFolderMoveOutcome.Succeeded => "Message moved to the recommended Outlook folder.",
+                RetainedMailFolderMoveOutcome.Failed => "The message was not moved. You can retry with a new confirmation.",
+                _ => "The move result is uncertain. Retry this same confirmation to check its current location."
+            };
+            return RedirectToPage(new
+            {
+                id,
+                mailbox = MailboxFilter,
+                folder = FolderFilter,
+                pageNumber = PageNumber,
+                search = SearchTerm
+            });
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is ArgumentException or RetainedMailFolderMoveException)
+        {
+            ModelState.AddModelError(string.Empty, exception.Message);
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+    }
+
     private async Task<IActionResult> ReloadAsync(
         ActionActor actor,
         Guid id,
@@ -196,7 +264,9 @@ public sealed class MessageModel(
     }
 
     private bool IsOutsideListScope(RetainedMailDetail detail, MailFolderScope listFolder) =>
-        detail.Folder != listFolder
+        (listFolder == MailFolderScope.Inbox
+            && detail.LatestFolderMove?.Outcome == RetainedMailFolderMoveOutcome.Succeeded)
+            || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0);

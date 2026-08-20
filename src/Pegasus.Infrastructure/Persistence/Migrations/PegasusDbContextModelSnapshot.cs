@@ -4703,6 +4703,90 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("RequestUploadReceipts", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailFolderMoveEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Actor")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ActorRolesJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("DestinationFolderId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("FolderType")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("ImmutableMessageId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("MailboxId")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("nvarchar(36)");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTimeOffset>("RecordedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.Property<Guid>("RetainedMailboxMessageId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("SourceFolderId")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationKey")
+                        .IsUnique();
+
+                    b.HasIndex("RetainedMailboxMessageId", "RecordedAtUtc");
+
+                    b.ToTable("RetainedMailFolderMoves", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxAttachmentEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6688,6 +6772,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasForeignKey("VersionId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailFolderMoveEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.RetainedMailboxMessageEntity", "RetainedMailboxMessage")
+                        .WithMany()
+                        .HasForeignKey("RetainedMailboxMessageId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("RetainedMailboxMessage");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.RetainedMailboxAttachmentEntity", b =>

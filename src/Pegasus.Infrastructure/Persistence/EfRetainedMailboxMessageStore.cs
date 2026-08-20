@@ -104,6 +104,11 @@ internal sealed class EfRetainedMailboxMessageStore(
         var matches = context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.FolderScope == folderScope);
+        if (scope.Folder == MailFolderScope.Inbox)
+        {
+            matches = matches.Where(item => !context.RetainedMailFolderMoves.Any(move =>
+                move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded"));
+        }
         if (scope.MailboxId is { } mailboxId)
         {
             matches = matches.Where(item => item.MailboxId == mailboxId);
