@@ -564,4 +564,28 @@ public static class DependencyInjection
             provider.GetRequiredService<TimeProvider>()));
         return services;
     }
+
+    /// <summary>
+    /// The mailbox-administration "add an address" resolve port alone — independent of
+    /// <see cref="AddProductionExternalAdapters"/>, which also composes the single
+    /// configured polling mailbox and its Worker-only pollers. Web composes only this:
+    /// it never polls, it only resolves an address the operator just typed.
+    /// </summary>
+    public static IServiceCollection AddProductionApprovedMailboxResolver(
+        this IServiceCollection services,
+        string? graphBaseUri)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        var baseUri = GraphApprovedMailboxOptions.ParseBaseUri(graphBaseUri);
+        services.TryAddSingleton(static _ => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(100)
+        });
+        services.AddSingleton<IResolveApprovedMailboxIdentity>(provider => new GraphApprovedMailboxResolver(
+            provider.GetRequiredService<TokenCredential>(),
+            baseUri,
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<ILogger<GraphApprovedMailboxResolver>>()));
+        return services;
+    }
 }
