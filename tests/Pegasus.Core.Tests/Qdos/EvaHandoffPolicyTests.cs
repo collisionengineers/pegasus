@@ -24,7 +24,7 @@ public sealed class EvaHandoffPolicyTests
         {
             Assert.Contains(
                 EvaHandoffPolicy.Evaluate(eligible with { State = state }),
-                reason => reason.Contains("only while the case is in Review", StringComparison.Ordinal));
+                reason => reason.Contains("while the case is in Review", StringComparison.Ordinal));
         }
         Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { IsArchived = true }));
         Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { AcceptedEvidenceVersion = 8 }));

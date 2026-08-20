@@ -457,7 +457,7 @@ public static class EvaHandoffPolicy
         }
         if (eligibility.State != CaseLifecycleState.Review)
         {
-            reasons.Add("EVA handoff generation is available only while the case is in Review.");
+            reasons.Add("Available while the case is in Review.");
         }
         if (eligibility.RenderedWorkflowVersion != eligibility.AcceptedEvidenceVersion)
         {
@@ -477,7 +477,7 @@ public static class EvaHandoffPolicy
         }
         if (eligibility.EligibleImageCount <= 0)
         {
-            reasons.Add("At least one custody-confirmed current image version is required.");
+            reasons.Add("At least one stored vehicle image is required.");
         }
         return reasons;
     }

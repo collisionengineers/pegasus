@@ -159,7 +159,7 @@
             @{ PlainRow("State", OperatorLabels.CaseStage(workflow.State)); }
             @if (workflow.DueWork is { } standingDueWork)
             {
-                PlainRow("Outstanding", standingDueWork.MissingMaterialReason);
+                PlainRow("Outstanding", OperatorLabels.ChaseReason(standingDueWork.MissingMaterialReason));
                 PlainRow("Due by", standingDueWork.DueBy?.ToString("d MMM yyyy") ?? "Not recorded");
                 PlainRow("Next chase", OperatorLabels.OfficeTime(standingDueWork.NextChaseAtUtc, "Not scheduled"));
             }
@@ -194,7 +194,7 @@
     <section class="panel section-gap" aria-labelledby="case-due-work-title">
         <h2 id="case-due-work-title" class="section-label">Chase history</h2>
         <dl class="detail-list">
-            <div><dt>Reason</dt><dd>@dueWork.MissingMaterialReason</dd></div>
+            <div><dt>Reason</dt><dd>@OperatorLabels.ChaseReason(dueWork.MissingMaterialReason)</dd></div>
             <div><dt>State</dt><dd>@OperatorLabels.Humanise(dueWork.State.ToString())</dd></div>
             <div><dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd></div>
             <div><dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd></div>

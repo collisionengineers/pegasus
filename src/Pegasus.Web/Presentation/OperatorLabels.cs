@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -476,6 +476,22 @@ public static class OperatorLabels
         ApprovedMailboxRouteScope.InboundIntake => "New instructions and Triage mail (Inbox)",
         ApprovedMailboxRouteScope.SentEvidence => "Exact report and Triage evidence (Sent Items)",
         _ => Humanise(routeScope.ToString())
+    };
+
+    /// <summary>
+    /// A stored chase reason for display. Maps the pre-release-15 wording
+    /// (which used a banned word) without a data migration; anything else is
+    /// already operator text.
+    /// </summary>
+    public static string ChaseReason(string? reason) =>
+        reason == "Accepted intake is incomplete" ? "Details are incomplete" : reason ?? string.Empty;
+
+    /// <summary>The operator words for a recorded inspection mode.</summary>
+    public static string InspectionMode(CaseInspectionMode value) => value switch
+    {
+        CaseInspectionMode.PhysicalAddress => "Physical address",
+        CaseInspectionMode.ImageBasedAssessment => "Image Based Assessment",
+        _ => Humanise(value.ToString())
     };
 
     /// <summary>
