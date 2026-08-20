@@ -14,8 +14,17 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfIntakeMutationStore(
     IDbContextFactory<PegasusDbContext> contextFactory)
-    : IIntakeMutationStore, IAutomaticCaseAssociationStore
+    : IIntakeMutationStore, IAutomaticCaseAssociationStore,
+      IAutomaticMailCaseAssociationEvidenceQueries
 {
+    public async Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await LoadMailAssociationEvidenceAsync(context, intakeReceiptId, cancellationToken);
+    }
+
     public async Task<AutomaticCaseAssociationOutcome> AssociateFromMatchAsync(
         AutomaticCaseAssociationRequest request,
         DateTimeOffset occurredAtUtc,
@@ -27,6 +36,10 @@ internal sealed class EfIntakeMutationStore(
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Reason);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.MatchPolicyKey);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(request.MatchPolicyVersion);
+        if (request.ExpectedEvidenceFingerprint is not null)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(request.ExpectedEvidenceFingerprint);
+        }
         var operationKey = request.OperationKey.Trim();
         var requestHash = RequestHash("intake_case_linked_automatic", request);
 
@@ -66,6 +79,20 @@ internal sealed class EfIntakeMutationStore(
         if (acceptedCaseId is not null)
         {
             return AutomaticCaseAssociationOutcome.AlreadyAssociated;
+        }
+
+        if (request.ExpectedEvidenceFingerprint is { } expectedFingerprint)
+        {
+            var currentEvidence = await LoadMailAssociationEvidenceAsync(
+                context,
+                request.IntakeReceiptId,
+                cancellationToken);
+            if (currentEvidence is null
+                || !FixedTimeHashEquals(currentEvidence.Fingerprint, expectedFingerprint))
+            {
+                throw new IntakeAssociationConflictException(
+                    "The retained-mail matching evidence changed before association; the automatic association yields.");
+            }
         }
 
         var caseWorkflow = await context.CaseWorkflows
@@ -920,8 +947,8 @@ internal sealed class EfIntakeMutationStore(
     private static string RolesJson(ActionActor actor) =>
         JsonSerializer.Serialize(actor.Roles.OrderBy(role => role));
 
-    private static string RequestHash(string eventType, AutomaticCaseAssociationRequest request) =>
-        Hash(JsonSerializer.Serialize(new
+    private static string RequestHash(string eventType, AutomaticCaseAssociationRequest request)
+        => Hash(JsonSerializer.Serialize(new
         {
             EventType = eventType,
             request.IntakeReceiptId,
@@ -932,6 +959,98 @@ internal sealed class EfIntakeMutationStore(
             request.OperationKey,
             request.Reason
         }));
+
+    private static async Task<AutomaticMailCaseAssociationEvidence?> LoadMailAssociationEvidenceAsync(
+        PegasusDbContext context,
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        var receipt = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.Id == intakeReceiptId && item.SourceChannel == "mailbox")
+            .Select(item => new
+            {
+                item.Id,
+                item.Version,
+                item.ExternalReceiptToken,
+                VehicleRegistration = item.InstructionDraft == null
+                    ? null
+                    : item.InstructionDraft.VehicleRegistration
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (receipt is null)
+        {
+            return null;
+        }
+
+        var message = await context.RetainedMailboxMessages
+            .AsNoTracking()
+            .Where(item => item.ExternalReceiptToken == receipt.ExternalReceiptToken)
+            .Select(item => new { item.MailboxId, item.ConversationIdentity })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (message is null)
+        {
+            return null;
+        }
+
+        var normalizedRegistration = Pegasus.Core.Cases.CaseRegistration.Normalize(
+            receipt.VehicleRegistration);
+        Guid[] registrationCaseIds = [];
+        if (normalizedRegistration is not null)
+        {
+            var registrations = await context.CaseDataFields
+                .AsNoTracking()
+                .Where(item => item.FieldName == CaseDataFieldNames.VehicleRegistration
+                    && context.CaseWorkflows.Any(workflow =>
+                        workflow.CaseId == item.CaseId && workflow.ArchivedAtUtc == null))
+                .Select(item => new { item.CaseId, item.Value })
+                .ToListAsync(cancellationToken);
+            registrationCaseIds = registrations
+                .Where(item => string.Equals(
+                    Pegasus.Core.Cases.CaseRegistration.Normalize(item.Value),
+                    normalizedRegistration,
+                    StringComparison.Ordinal))
+                .Select(item => item.CaseId)
+                .Distinct()
+                .Order()
+                .ToArray();
+        }
+
+        Guid[] threadCaseIds = [];
+        if (!string.IsNullOrWhiteSpace(message.ConversationIdentity))
+        {
+            var threadTokens = await context.RetainedMailboxMessages
+                .AsNoTracking()
+                .Where(item => item.MailboxId == message.MailboxId
+                    && item.ConversationIdentity == message.ConversationIdentity)
+                .Select(item => item.ExternalReceiptToken)
+                .ToListAsync(cancellationToken);
+            var threadReceiptIds = await context.IntakeReceipts
+                .AsNoTracking()
+                .Where(item => item.SourceChannel == "mailbox"
+                    && threadTokens.Contains(item.ExternalReceiptToken))
+                .Select(item => item.Id)
+                .ToListAsync(cancellationToken);
+            var current = await CurrentIntakeAssociations.ReadAsync(
+                context,
+                threadReceiptIds,
+                cancellationToken);
+            threadCaseIds = current.Values
+                .Select(item => item.CaseId)
+                .Distinct()
+                .Order()
+                .ToArray();
+        }
+
+        return new(
+            receipt.Id,
+            receipt.Version,
+            normalizedRegistration,
+            registrationCaseIds,
+            message.MailboxId,
+            message.ConversationIdentity,
+            threadCaseIds);
+    }
 
     private static string RequestHash(string eventType, ResolveIntakeRequest request) =>
         Hash(JsonSerializer.Serialize(new
