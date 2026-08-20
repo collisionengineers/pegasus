@@ -43,7 +43,7 @@
         var attachDomId = $"case-attach-{attach.ReceiptId:N}";
         @* Native disclosure, so opening and closing the search works without
            script; script upgrades the input inside to a combobox. *@
-        <details class="upload-attach">
+        <details class="upload-attach" data-refresh-hold>
             <summary class="secondary-action">Add to an existing case</summary>
             <form method="post"
                   asp-page-handler="Attach"

@@ -170,20 +170,18 @@ public sealed class UploadOutcomeQueries(
             return new(UploadOutcomeKind.Working, "Processing", "The file is being processed.", null, null);
         }
 
-        // The queued status carries the acceptance-time association; a case
-        // gained later (the automatic pairing pass or the staff add-to-case
-        // decision on this very surface) lives on the receipt, so both are
-        // consulted before any open decision is offered.
-        if ((status.CaseId ?? receipt.CurrentCaseId) is { } caseId)
+        // The receipt's own CurrentCaseId is Core's reconciliation of the
+        // accepted and staff-linked associations — the same fact the queued
+        // status derives its CaseId from — so it alone decides whether a
+        // case is already settled before any open decision is offered.
+        if (receipt.CurrentCaseId is { } caseId)
         {
             var reference = receipt.CurrentCaseReference;
             // A staff link (the confirmation surface's own add-to-case
             // decision, or the received-item screen) must not be reported as
             // automation's doing — the report-not-reoffer rule cuts both
-            // ways: what it says happened automatically really did. The
-            // automatic pipeline's own association is recorded by a system
-            // worker, so the actor kind on the association is the provenance.
-            var byStaff = receipt.ManualAssociationActorKind == ActorKind.Staff;
+            // ways: what it says happened automatically really did.
+            var byStaff = receipt.AssociationWasStaffDecision;
             return new(
                 UploadOutcomeKind.Attached,
                 "Associated with a case",
@@ -201,11 +199,15 @@ public sealed class UploadOutcomeQueries(
         // Not gated on the ImageIntakeRegistered decision alone: a member of
         // a group registered as one unit can briefly keep its own pre-group
         // NeedsSorting decision, while the registration (resolved through the
-        // group membership) is already this file's settled truth. Restricted
-        // to image material so an instruction document in a mixed group is
-        // never mislabelled with the images' registration.
+        // group membership) is already this file's settled truth. The
+        // group-membership fallback only exists for grouped uploads, so a
+        // single-file upload that was not registered skips the lookup; and
+        // the Core-owned image-only-material rule (not a media-type sniff)
+        // keeps an instruction document in a mixed group from being
+        // mislabelled with the images' registration.
         if (receipt.Decision == IntakeDecision.ImageIntakeRegistered
-            || receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            || (submissionGroupId is not null
+                && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)))
         {
             var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
             if (detail is { State: ImageInitiatedCaseState.MergedIntoInstructionCase, MergedIntoCaseId: { } mergedCaseId })
