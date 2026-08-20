@@ -28,3 +28,9 @@ The fix profile has no linked PRD/FRD/ADR. The plan correctly treats the documen
 ## Verdict
 
 **Needs changes.** Do not merge PR #471 and do not move PLAT-014 to Verifying. [[PR-023]] must be resolved on the existing PR branch, then the PR needs a fresh independent review with all CI green.
+
+## CI log detail — 2026-08-20
+
+Exact failing log: https://github.com/collisionengineers/pegasus/actions/runs/32364388605/job/96410637569.
+
+The job printed `Pegasus platform LocalDB state classification passed.` and then failed with `Process completed with exit code 1.` The final intentional non-zero fixture leaves global `$LASTEXITCODE` as `1`; Actions invokes the script with `pwsh -command ". '{0}'"`, so the harness reports failure even though every assertion passed. [[PR-023]] should explicitly reset/clear the successful script's final native exit state after testing the non-zero classifier path, then rerun/review.
