@@ -4,12 +4,16 @@ type: ticket
 title: >-
   MCP-03 — Automation Actor intake-queue actions through the same Core use cases
   as the QDOS-alpha staff app
-status: preparing
+status: done
 area: automation-integrations
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-20T03:48:14.272Z'
+  implementing: '2026-08-20T03:48:26.495Z'
+  review: '2026-08-20T03:48:56.625Z'
+  verifying: '2026-08-20T03:49:01.406Z'
+  done: '2026-08-20T03:49:08.914Z'
 labels:
   - capability
   - MCP-03
@@ -21,9 +25,10 @@ groups:
 links: []
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.286Z'
-updated: '2026-08-20T03:48:14.272Z'
+updated: '2026-08-20T03:49:13.204Z'
 ---
 
 ## What

@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Mailbox administration hides mailbox identifiers and adds addresses by email
   alone
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-20T03:49:15.419Z'
 labels:
   - administration
   - ui
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T03:16:37.641Z'
-updated: '2026-08-20T03:16:37.641Z'
+updated: '2026-08-20T03:49:15.419Z'
 ---
 
 ## What

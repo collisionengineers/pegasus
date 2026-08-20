@@ -4,13 +4,16 @@ type: ticket
 title: >-
   MCP-02 — Automation Actor Case actions through the same Core use cases as the
   staff app
-status: implementing
+status: done
 area: automation-integrations
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-20T03:48:14.056Z'
   implementing: '2026-08-20T03:48:16.810Z'
+  review: '2026-08-20T03:48:56.268Z'
+  verifying: '2026-08-20T03:49:00.354Z'
+  done: '2026-08-20T03:49:06.830Z'
 labels:
   - capability
   - MCP-02
@@ -22,9 +25,10 @@ groups:
 links: []
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.256Z'
-updated: '2026-08-20T03:48:16.810Z'
+updated: '2026-08-20T03:49:12.175Z'
 ---
 
 ## What
