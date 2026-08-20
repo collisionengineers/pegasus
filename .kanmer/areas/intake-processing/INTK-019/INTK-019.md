@@ -20,12 +20,12 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T10:30:55.359Z'
-updated: '2026-08-20T10:30:55.359Z'
+updated: '2026-08-20T10:31:58.511Z'
 ---
 
 ## What
 
-Replace the Triage detail page’s actor-relative “Assign to me” and “Reassign to me” controls with one explicit `Assign to:` Engineer selector. Retire the “Assign to me” function and wording.
+Replace the Triage detail page’s actor-relative “Assign to me” and “Reassign to me” controls with one explicit `Assign to:` Engineer selector (uses a dropdown box). Retire the “Assign to me” function and wording.
 
 ## Why
 
