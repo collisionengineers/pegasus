@@ -202,3 +202,17 @@ Updated rationales for the nine already-inventoried files changed by this pass:
 ### Current-dev reconciliation
 
 Merged current `origin/dev` (including PR #474 / [[TICK-047]]) in `eaf2f9f4eac577242ed301dd917f0682d4a77729`. The resolved Core path preserves MAIL-11 search context and then derives TICK-047's folder recommendation; both test fakes remain. Post-merge Release build passed with 0 warnings/errors, Core retained-mail tests passed 34/34, and the three new attachment/Web/SQL proofs passed 3/3. The PR is conflict-free and still reports exactly 31 files against current `origin/dev`; CI is queued at the merge head.
+
+## PR-037 malformed-page follow-up — 2026-08-20
+
+Addressed [[PR-037]] in `6aaf2418c30defc1fb21111a10b954e70f74eea3` on PR #469, completing [[PR-033]].
+
+The existing Graph client now validates that the successful Deleted folder root is an object, that a Deleted message page is an object with array `value`, and that any present next link is a valid absolute URI. These exact parse failures become the existing `InvalidDataException` and therefore the existing unavailable state; the outer catch was not broadened.
+
+Verification: Release build passed with 0 warnings/errors; `ProductionGraphSourceTests` passed 33/33; authenticated malformed folder-root/page/next-link Web evidence passed 3/3; `git diff --check` passed. The three affected files were already inventoried, so the exact PR inventory remains 31 files:
+
+- `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` — now validates every Deleted successful-response envelope/link before parsing.
+- `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` — covers non-object folder/page roots, missing/non-array value, and invalid/relative next links.
+- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` — proves representative authenticated failures render unavailable.
+
+No external write, deployment, Graph permission change, backfill, new framework, merge, or self-review occurred.

@@ -75,3 +75,10 @@ The post-implementation report will cite the migration/model validation, focused
 ## Current-dev reconciliation — 2026-08-20
 
 After PR #474 / [[TICK-047]] landed, `origin/dev` was merged in `eaf2f9f4eac577242ed301dd917f0682d4a77729`. The two conflicts preserved both capabilities: `GetRetainedMail` now applies MAIL-11 search normalization/query context before TICK-047's folder recommendation, and Core tests retain both the Deleted-source fake and approved-mailbox store fake. This reuses both landed owners and adds no bridge abstraction. Release build passed with 0 warnings/errors, the reconciled Core retained-mail class passed 34/34, and the three new exact integration proofs passed 3/3. The final diff remains exactly 31 files against current `origin/dev`.
+
+## PR-037 simplification pass — 2026-08-20
+
+- **Reuse:** Existing Graph parse sites, `InvalidDataException`, exact URI validator, unavailable mapping, HTTP fake, and authenticated Web host carry the fix.
+- **Simplification:** Three direct guards replace escaping framework exceptions; the outer catch and all policies remain unchanged. No generic response validator or retry layer.
+- **Efficiency:** Malformed folder/page/link responses stop before enumeration or MIME reads; valid bounds and request work are unchanged.
+- **Altitude:** Infrastructure validates provider data and Web only proves the existing unavailable presentation. All findings were applied; no deferred simplification work.
