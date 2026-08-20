@@ -5,6 +5,6 @@
 - [x] Engine: value truncation at a following known field label (+ mid-line label recognised only with an explicit `:`/`-`)
 - [x] Engine: sole current-format VRM fallback for Vehicle registration (fail-closed on multiple distinct VRMs)
 - [x] Policy: registration label synonyms (longest-first) + `IsValidTyped` wiring (registration/mileage/dates)
-- [x] All new fixtures green (20/20 policy tests); full `Pegasus.Core.Tests` 706/706; Release build 0 warnings
+- [x] All new fixtures green (20/20 policy tests); full `Pegasus.Core.Tests` 706/706; focused `InstructionDraftWebTests` 5/5; Release build 0 warnings
 - [x] Simplification pass over the branch diff recorded in the plan
-- [ ] PR opened against `dev` (dependency on ENG-004 noted); post-implementation-report written; ticket moved to review
+- [x] PR #443 opened against `dev` (dependency on ENG-004 #437 noted); post-implementation-report written; ticket moved to review

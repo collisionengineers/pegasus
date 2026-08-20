@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Deterministic extraction rules populate the full case detail set from
   instruction documents
-status: implementing
+status: review
 area: intake-processing
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T03:50:41.880Z'
+  review: '2026-08-20T04:01:10.225Z'
 taken_at: '2026-08-20T03:44:15.187Z'
 branch: task/intk-017-extraction-coverage
 worktree: ../pegasus-worktrees/intk-017
@@ -28,7 +29,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/443'
 archived: false
 created: '2026-08-20T03:16:37.667Z'
-updated: '2026-08-20T04:00:10.177Z'
+updated: '2026-08-20T04:01:10.225Z'
 ---
 
 ## What
