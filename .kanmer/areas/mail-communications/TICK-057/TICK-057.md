@@ -31,11 +31,12 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 commits:
   - 4b851ded
+  - 4a13def9
 prs:
   - '491'
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-20T22:46:54.024Z'
+updated: '2026-08-20T23:11:50.586Z'
 ---
 
 ## What
