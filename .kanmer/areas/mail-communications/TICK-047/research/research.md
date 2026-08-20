@@ -79,3 +79,7 @@ None. MAIL-23 landing is a hard dependency, not an unresolved product choice. Th
 - Changed code/test paths remain `RetainedMail.cs`, `Message.cshtml`, `RetainedMailTests.cs`, and `MailWorkspaceWebTests.cs`; `Message.cshtml.cs` needs no mapping logic unless a display helper proves necessary.
 - `RetainedMail.cs` overlaps [[TICK-049]], [[TICK-050]], [[TICK-053]], and [[TICK-056]]. The message page overlaps [[TICK-049]], [[TICK-050]], [[TICK-051]], [[TICK-052]], [[TICK-054]], [[TICK-057]], and [[TICK-088]]. The Web test file overlaps [[TICK-053]], [[TICK-056]], and [[TICK-057]]. None is currently claimed in the requested TICK-047 worktree.
 - `docs/design/README.md` and `docs/capabilities.md` overlap MAIL-23's merged activation record and must be edited narrowly without changing MAIL-06/07 status.
+
+### Simplification correction — implementation pass
+
+The exact folder identity is required internally to prove that the typed binding exists, but it is not part of the MAIL-05 page projection. Carrying it (or classification/binding versions) forward solely for MAIL-07 would be future-facing state and unsafe: the later confirmation/move command must re-read current classification and binding to enforce staleness. The delivered recommendation therefore contains only configured logical folder type, policy provenance, and reason; opaque identity remains inside the approved-mailbox boundary and is never displayed.

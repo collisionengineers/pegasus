@@ -53,3 +53,7 @@ No taxonomy or operational-queue change; no approved-mailbox binding/configurati
 | `docs/design/README.md` | Narrow the MAIL-23 exception paragraph so the activated MAIL-05 read projection is no longer described as deferred; MAIL-06/07 and Outlook writes remain deferred. |
 
 Consumed without edits: `MailLogicalFolderPolicy.cs`, `ApprovedMailboxAdministration.cs`, `EfApprovedMailboxStore.cs`, its migration, and Graph resolution. `Message.cshtml.cs` remains context-only unless the implementation needs a thin label helper; `MailMcpTools.cs` must continue compiling but gains no tool contract.
+
+### Implementation file-map correction
+
+`RetainedMailFolderRecommendation` does not expose or carry the opaque folder identity or binding/classification versions. `GetRetainedMail` uses the exact identity and typed binding only to derive available/unavailable; MAIL-07 must re-read current state. `Message.cshtml.cs` remains unchanged and the Razor page shows the canonical logical label plus MAIL-23 policy key/version.

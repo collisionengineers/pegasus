@@ -14,7 +14,7 @@ Extend the existing authorized `GetRetainedMail` read with one nullable, Core-ow
 ## Steps
 
 1. Extend `RetainedMailDetail` with the smallest recommendation projection and compose it inside `GetRetainedMail` using `MailLogicalFolderPolicy.Map`, `IApprovedMailboxStore.ListAsync`, exact `ApprovedMailbox.MailboxIdentity`, and the current typed binding. Preserve all current actor-resolution behavior and return an honest unavailable reason without any write machinery.
-2. Render the Core result in the existing Classification evidence definition list on `/Inbox/{id}`, including the logical label plus policy/version and binding version when available, while retaining but never displaying the opaque configured identity, and a labelled unavailable state otherwise. Add no form, folder input, or MCP contract.
+2. Render the Core result in the existing Classification evidence definition list on `/Inbox/{id}`, including the logical label and policy/version when available; the opaque configured identity is used only to prove that a current typed binding exists and is not carried in the page result, and a labelled unavailable state otherwise. Add no form, folder input, or MCP contract.
 3. Add focused Core tests for exact configured resolution, no recommendation for ambiguous/unclassified or missing/disabled/wrong-mailbox binding, and `NoAction` as a valid recommendation; extend existing fakes only.
 4. Add focused Web integration evidence for the authenticated exact-message caller with a configured binding and an unavailable state, and reconcile the design/capability records to the local evidence tier.
 5. Run locked restore and Release build, the focused Core/Web tests and proportional relevant suite; inspect the branch diff through reuse, simplification, efficiency and altitude lenses, apply behavior-preserving findings, and record dispositions before the post-implementation report and PR.
@@ -26,6 +26,6 @@ Run `dotnet restore --locked-mode` if the runbook requires it, `dotnet build --c
 ## Risks / open questions
 
 - Exact identity confusion is mitigated by ordinal `Summary.MailboxId` → `ApprovedMailbox.MailboxIdentity` matching; aggregate id/address are not substitutes.
-- A missing or disabled approved row, absent folder outcome, or missing typed binding returns unavailable rather than guessing.
+- A missing or disabled approved row, absent folder outcome, or missing typed binding returns unavailable rather than guessing. MAIL-07 must re-read current binding state rather than receive future-facing move state from this projection.
 - Constructor changes affect the existing MCP composition caller only through DI; no MCP schema changes.
 - No open question remains. MAIL-06/07, external mutation, deployment, and live verification stay deferred.
