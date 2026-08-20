@@ -112,14 +112,12 @@ internal sealed class EfRetainedMailboxMessageStore(
         if (searchTerm is not null)
         {
             matches = matches.Where(item =>
-                (item.BodyPlainText != null && item.BodyPlainText.Contains(searchTerm))
-                || item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
+                item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
                 || context.IntakeReceipts.Any(receipt =>
                     receipt.SourceChannel == "mailbox"
                     && receipt.ExternalReceiptToken == item.ExternalReceiptToken
                     && receipt.SearchDocuments.Any(document =>
-                        document.AttachmentFileName != null
-                        && document.Text != null
+                        document.Text != null
                         && document.Text.Contains(searchTerm))));
         }
 
@@ -145,8 +143,13 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.Attachments.Count,
                 item.ExternalReceiptToken,
                 searchTerm != null
-                    && item.BodyPlainText != null
-                    && item.BodyPlainText.Contains(searchTerm)))
+                    && context.IntakeReceipts.Any(receipt =>
+                        receipt.SourceChannel == "mailbox"
+                        && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                        && receipt.SearchDocuments.Any(document =>
+                            document.AttachmentFileName == null
+                            && document.Text != null
+                            && document.Text.Contains(searchTerm)))))
             .ToListAsync(cancellationToken);
 
         if (searchTerm is not null && rows.Count > 0)
@@ -169,7 +172,8 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     public async Task<RetainedMailDetail?> GetAsync(
         Guid id,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? searchTerm = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.RetainedMailboxMessages
@@ -180,25 +184,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             return null;
         }
-
-        var summary = (await MapSummariesAsync(
-            context,
-            [
-                new(
-                    entity.Id,
-                    entity.MailboxId,
-                    entity.MailboxAddress,
-                    entity.SenderAddress,
-                    entity.SenderDisplayName,
-                    entity.Subject,
-                    entity.BodyExcerpt,
-                    entity.ReceivedAtUtc,
-                    entity.IsRead,
-                    entity.Attachments.Count,
-                    entity.ExternalReceiptToken,
-                    false)
-            ],
-            cancellationToken))[0];
 
         // Retained scope only: a matching conversation identity never reaches for a
         // message this application has not already retained.
@@ -227,16 +212,50 @@ internal sealed class EfRetainedMailboxMessageStore(
             {
                 Classification = item.MailClassificationDecision!.Outcome,
                 Route = item.MailRouteDecision!.Disposition,
-                EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress
+                EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
+                BodySearchText = item.SearchDocuments
+                    .Where(document => document.AttachmentFileName == null)
+                    .Select(document => document.Text)
+                    .SingleOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
+
+        var summaryRows = new List<SummaryRow>
+        {
+            new(
+                entity.Id,
+                entity.MailboxId,
+                entity.MailboxAddress,
+                entity.SenderAddress,
+                entity.SenderDisplayName,
+                entity.Subject,
+                entity.BodyExcerpt,
+                entity.ReceivedAtUtc,
+                entity.IsRead,
+                entity.Attachments.Count,
+                entity.ExternalReceiptToken,
+                searchTerm is not null
+                    && receipt?.BodySearchText?.Contains(
+                        searchTerm,
+                        StringComparison.OrdinalIgnoreCase) == true)
+        };
+        if (searchTerm is not null)
+        {
+            summaryRows = await AddSearchMatchesAsync(
+                context,
+                summaryRows,
+                searchTerm,
+                cancellationToken);
+        }
+        var summary = (await MapSummariesAsync(context, summaryRows, cancellationToken))[0];
 
         // A staff forward is de-cluttered on read so existing (write-once) rows
         // are corrected too: the effective sender differs from the transport
         // sender exactly when the route unwrapped a Collision Engineers forward.
         var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
             && !string.Equals(effectiveSender, entity.SenderAddress, StringComparison.OrdinalIgnoreCase);
-        var body = StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
+        var body = receipt?.BodySearchText
+            ?? StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
 
         var searchableAttachments = await context.IntakeReceipts
             .AsNoTracking()

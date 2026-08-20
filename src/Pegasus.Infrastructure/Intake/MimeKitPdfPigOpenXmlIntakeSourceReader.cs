@@ -850,7 +850,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return;
         }
 
-        if (entity is not MimePart part || entity is TextPart)
+        if (entity is not MimePart part
+            || (entity is TextPart && !entity.IsAttachment))
         {
             return;
         }

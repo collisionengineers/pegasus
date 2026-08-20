@@ -44,10 +44,17 @@ public sealed class RetainedMailPersistenceTests
             ContentTransferEncoding = ContentEncoding.Base64,
             FileName = "named.bin"
         };
+        var attachedText = new TextPart("plain")
+        {
+            Text = "Attached notes",
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            FileName = "notes.txt"
+        };
         message.Body = new Multipart("mixed")
         {
             new TextPart("plain") { Text = "Body" },
             nameless,
+            attachedText,
             named
         };
 
@@ -70,14 +77,20 @@ public sealed class RetainedMailPersistenceTests
         Assert.Collection(
             Assert.IsAssignableFrom<IReadOnlyList<RetainedMailboxAttachment>>(display.Attachments),
             first => Assert.Equal("Unnamed attachment 1", first.FileName),
-            second => Assert.Equal("named.bin", second.FileName));
+            second => Assert.Equal("notes.txt", second.FileName),
+            third => Assert.Equal("named.bin", third.FileName));
         Assert.Collection(
             canonical.AttachmentRecords,
             first => Assert.Equal(0, first.Ordinal),
             second =>
             {
                 Assert.Equal(1, second.Ordinal);
-                Assert.Equal("named.bin", second.FileName);
+                Assert.Equal("notes.txt", second.FileName);
+            },
+            third =>
+            {
+                Assert.Equal(2, third.Ordinal);
+                Assert.Equal("named.bin", third.FileName);
             });
     }
 
@@ -123,7 +136,9 @@ public sealed class RetainedMailPersistenceTests
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         await SeedPollStateAsync(database);
-        var message = Message("message-search");
+        var message = Message(
+            "message-search",
+            bodyPlainText: "Canonical wrapper only. Please inspect the vehicle.");
         await RetainAsync(database, message);
         await database.StoreAsync(new(
             SourceFileName: "message-search.eml",
@@ -149,7 +164,7 @@ public sealed class RetainedMailPersistenceTests
             Assets: [],
             SearchDocuments:
             [
-                new("message body", null, "Please inspect the vehicle. Canonical wrapper only."),
+                new("message body", null, "Please inspect the vehicle."),
                 new("message, attachment 1", "estimate.pdf", "Repair estimate for replacement wing", 0)
             ]));
 
@@ -177,7 +192,9 @@ public sealed class RetainedMailPersistenceTests
             new(null, MailFolderScope.Inbox, "Canonical wrapper only"), 1, 25, CancellationToken.None)).Items);
 
         var detail = Assert.IsType<RetainedMailDetail>(
-            await queries.GetAsync(content.Id, CancellationToken.None));
+            await queries.GetAsync(content.Id, CancellationToken.None, "inspect"));
+        Assert.Equal("Please inspect the vehicle.", detail.BodyPlainText);
+        Assert.Contains(detail.Summary.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
         Assert.True(Assert.Single(detail.Attachments).IsSearchable);
         Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeSearchDocuments"));
     }
@@ -742,7 +759,8 @@ public sealed class RetainedMailPersistenceTests
         string? senderDisplayName = "A Sender",
         string? internetMessageIdentity = null,
         string mailboxId = MailboxId,
-        string mailboxAddress = MailboxAddress) => new(
+        string mailboxAddress = MailboxAddress,
+        string? bodyPlainText = "Please inspect the vehicle.") => new(
         mailboxId,
         mailboxAddress,
         immutableMessageId,
@@ -759,7 +777,7 @@ public sealed class RetainedMailPersistenceTests
             ["intake@collisionengineers.co.uk"],
             ["copied@collisionengineers.co.uk"],
             subject,
-            "Please inspect the vehicle.",
+            bodyPlainText,
             [new("estimate.pdf", "application/pdf", 2048)],
             IsRead: false),
         receivedAtUtc ?? ReceivedAtUtc);

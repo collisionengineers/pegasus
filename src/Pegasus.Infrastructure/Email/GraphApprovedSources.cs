@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Azure.Core;
+using Azure.Identity;
 using MimeKit;
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.Identity;
@@ -303,11 +304,31 @@ internal sealed class GraphMailClient(
         var uri = new Uri(
             baseUri,
             $"users/{Uri.EscapeDataString(mailboxId)}/messages/{Uri.EscapeDataString(immutableMessageId)}/$value");
+        return await ReadMimeAsync(uri, cancellationToken);
+    }
+
+    private async Task<byte[]> ReadMimeAsync(
+        Uri uri,
+        CancellationToken cancellationToken)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, uri);
         request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
         using var response = await SendAsync(request, cancellationToken);
         await ThrowForFailureAsync(response, cancellationToken);
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+    }
+
+    public async Task<byte[]> ReadFolderMimeAsync(
+        string mailboxId,
+        string folderId,
+        string immutableMessageId,
+        CancellationToken cancellationToken)
+    {
+        var uri = new Uri(
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/{Uri.EscapeDataString(folderId)}" +
+            $"/messages/{Uri.EscapeDataString(immutableMessageId)}/$value");
+        return await ReadMimeAsync(uri, cancellationToken);
     }
 
     public async Task<string> ResolveDeletedItemsFolderAsync(
@@ -698,7 +719,10 @@ internal sealed class GraphDeletedMailSearchSource(
         var matches = new List<DeletedMailSearchItem>();
         try
         {
-            var candidates = new List<(ApprovedIntakeMailbox Mailbox, GraphDeltaItem Message)>();
+            var candidates = new List<(
+                ApprovedIntakeMailbox Mailbox,
+                string FolderId,
+                GraphDeltaItem Message)>();
             foreach (var mailbox in selected)
             {
                 var folderId = await client.ResolveDeletedItemsFolderAsync(
@@ -723,7 +747,7 @@ internal sealed class GraphDeletedMailSearchSource(
                             truncated = true;
                             break;
                         }
-                        candidates.Add((mailbox, item));
+                        candidates.Add((mailbox, folderId, item));
                     }
                     pageUri = page.NextUri;
                 }
@@ -740,7 +764,11 @@ internal sealed class GraphDeletedMailSearchSource(
             {
                 var mailbox = candidate.Mailbox;
                 var item = candidate.Message;
-                var mime = await client.ReadMimeAsync(mailbox.MailboxId, item.Id, cancellationToken);
+                var mime = await client.ReadFolderMimeAsync(
+                    mailbox.MailboxId,
+                    candidate.FolderId,
+                    item.Id,
+                    cancellationToken);
                 var read = await sourceReader.ReadAsync(
                     new(
                         $"{item.Id}.eml",
@@ -754,7 +782,7 @@ internal sealed class GraphDeletedMailSearchSource(
                 {
                     continue;
                 }
-                var documents = IntakeSearchProjection.Create(read);
+                var documents = IntakeSearchProjection.Create(read, routeDecision: null);
                 var searchableOrdinals = documents
                     .Where(document => document.AttachmentOrdinal is not null && document.IsSearchable)
                     .Select(document => document.AttachmentOrdinal!.Value)
@@ -780,6 +808,7 @@ internal sealed class GraphDeletedMailSearchSource(
         catch (Exception exception) when (
             exception is ApprovedMailboxAccessDeniedException
                 or ApprovedSentSourceThrottledException
+                or AuthenticationFailedException
                 or HttpRequestException
             || (exception is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
@@ -792,7 +821,7 @@ internal sealed class GraphDeletedMailSearchSource(
         IntakeSourceReadResult read,
         string searchTerm)
     {
-        var documents = IntakeSearchProjection.Create(read);
+        var documents = IntakeSearchProjection.Create(read, routeDecision: null);
         var found = new List<RetainedMailSearchMatch>();
         if (documents.Any(document => document.AttachmentFileName is null
             && document.Text?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true))

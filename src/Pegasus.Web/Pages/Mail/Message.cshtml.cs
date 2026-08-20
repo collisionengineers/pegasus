@@ -88,11 +88,15 @@ public sealed class MessageModel(
         RetainedMailDetail? detail;
         try
         {
-            detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+            detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
         }
 
         if (detail is null)
@@ -101,9 +105,7 @@ public sealed class MessageModel(
         }
 
         Detail = detail;
-        OutsideListScope = detail.Folder != listFolder
-            || (MailboxFilter is { } mailbox
-                && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal));
+        OutsideListScope = IsOutsideListScope(detail, listFolder);
         return Page();
     }
 
@@ -175,17 +177,21 @@ public sealed class MessageModel(
             return NotFound();
         }
         ListFolder = listFolder;
-        var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+        var detail = await getRetainedMail.ExecuteAsync(actor, id, SearchTerm, cancellationToken);
         if (detail is null)
         {
             return NotFound();
         }
         Detail = detail;
-        OutsideListScope = detail.Folder != listFolder
-            || (MailboxFilter is { } mailbox
-                && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal));
+        OutsideListScope = IsOutsideListScope(detail, listFolder);
         return Page();
     }
+
+    private bool IsOutsideListScope(RetainedMailDetail detail, MailFolderScope listFolder) =>
+        detail.Folder != listFolder
+            || (MailboxFilter is { } mailbox
+                && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))
+            || (SearchTerm is not null && detail.Summary.Matches.Count == 0);
 
     private bool TryCategory(out MailCategory? category) =>
         MailClassificationSelection.TryParse(
