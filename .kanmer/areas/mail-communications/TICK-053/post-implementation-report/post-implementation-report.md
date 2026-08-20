@@ -104,3 +104,20 @@ The original reviewed 26-file inventory is complete below; the final total is 28
 26. `tests/Pegasus.IntegrationTests/ProductionCompositionTests.cs` — proves production Graph composition wins and fallback composition stays unavailable.
 27. `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` — proves exact-folder reads, fair cross-mailbox selection, approved zero-row mailbox choices, timeouts, and cancellation.
 28. `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` — proves persisted body/name/content matches and exact searchable attachment mapping.
+
+## Remaining review-blocker follow-up — 2026-08-20
+
+Addressed [[PR-017]], [[PR-018]], [[PR-024]], and [[PR-025]] in `c0fa9a99a3f9a1b1082591a32e84687a44076210` on PR #469.
+
+Authenticated `/Inbox?folder=deleted` evidence now proves approved mailbox selection with zero retained rows, exact selected scope/search/fixed 100-message bound, visible match location, truncation, 25/1 paging, and unavailable state. Nameless MIME attachments remain in the same canonical occurrence order as later named attachments; retained detail renders each attachment's `IsSearchable` disclosure. Retained SQL admission now prevents root canonical wrapper text that is absent from the displayed retained body from producing an unlabeled result. No historical backfill, second reader/projection/store, external write, Graph permission, or deployment change occurred.
+
+Verification: `dotnet build Pegasus.slnx --configuration Release --no-restore` passed with 0 warnings/errors. The focused remaining-blocker set (production Graph source, authenticated Deleted Web caller, retained detail disclosure, nameless identity, and retained persistence search) passed 25/25. `git diff --check` passed.
+
+### Corrected exact final PR inventory (30 files)
+
+The prior 28-file inventory omitted two already-diffed production files. Its numbered rationales remain accurate; add:
+
+29. `src/Pegasus.Infrastructure/Intake/LocalEmailDisplayReader.cs` — maps the existing MIME display into retained metadata, now preserving nameless attachment occurrences so canonical ordinals cannot shift.
+30. `src/Pegasus.Web/Presentation/OperatorLabels.cs` — remains the single operator-facing owner for the attachment-searchability wording used by retained and Deleted views.
+
+`git diff --name-only origin/dev...HEAD` reports exactly 30 files. This corrects the inventory only; it does not expand scope.

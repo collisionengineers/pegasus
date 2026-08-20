@@ -50,3 +50,10 @@ The post-implementation report will cite the migration/model validation, focused
 - **Simplification:** Removed the temporary partial-class split by moving the pure projection into `IntakeSearchProjection.cs`; reused the existing `filterbar` CSS instead of introducing a new UI convention; removed two unnecessary search-document eager loads from ordinary receipt reads. Applied.
 - **Efficiency:** Retained filters execute in SQL before count/paging, match evidence is loaded in bounded page-sized batches, projection rows are written in the existing receipt transaction, and Deleted Items stops after 100 newest messages without persistence/backfill. The remaining page-sized in-memory match grouping is bounded to 25 rows and was kept rather than adding another abstraction.
 - **Altitude:** The change stays inside existing Core policy/port, Infrastructure persistence/Graph adapter, and Web composition boundaries. No project, runtime, top-level directory, generic search framework, feature flag, or ADR was introduced. No further findings.
+
+## Remaining-blocker simplification pass — 2026-08-20
+
+- **Reuse:** Reused the existing display-reader attachment enumeration, retained SQL predicate, shared operator label owner, authenticated Web integration host, Deleted source port, and pager. No second parser, projection, store, mailbox list, or backfill was added.
+- **Simplification:** Materialized the display attachment list once; preserved nameless occurrences with a deterministic label; aligned retained admission to the already-visible retained body or named attachment content; one caller fake covers every remaining Deleted state. Applied.
+- **Efficiency:** The new attachment qualifier stays inside SQL before count/paging; display parsing no longer enumerates attachments twice; Deleted source behavior is unchanged and remains bounded at 100.
+- **Altitude:** Parsing/persistence/presentation/test responsibilities remain in their existing layers. No framework, flag, migration, permission, deployment, or external write was added.
