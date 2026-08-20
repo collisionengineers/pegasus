@@ -2,7 +2,7 @@
 id: PLAT-013
 type: ticket
 title: Stop the Functions worker SIGABRT crash loop (dotnet exit 134)
-status: verifying
+status: done
 area: platform-operations
 assignee: claude-code
 profile: fix
@@ -10,9 +10,7 @@ stageEntered:
   implementing: '2026-08-20T03:35:48.885Z'
   review: '2026-08-20T03:48:34.058Z'
   verifying: '2026-08-20T03:53:38.497Z'
-taken_at: '2026-08-20T03:27:48.861Z'
-branch: task/plat-013-worker-sigabrt
-worktree: ../pegasus-worktrees/plat-013
+  done: '2026-08-20T12:47:00.719Z'
 labels:
   - defect
   - worker
@@ -24,10 +22,11 @@ refs:
 commits:
   - ab443909
 prs:
-  - '#438'
+  - '438'
+deployment: production
 archived: false
 created: '2026-08-20T03:25:25.690Z'
-updated: '2026-08-20T03:53:38.497Z'
+updated: '2026-08-20T12:47:04.248Z'
 ---
 
 ## What

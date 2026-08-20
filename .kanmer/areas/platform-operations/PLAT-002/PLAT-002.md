@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-20T09:21:03.098Z'
   verifying: '2026-08-20T09:33:45.453Z'
   done: '2026-08-20T12:46:22.730Z'
-taken_at: '2026-08-20T09:01:35.494Z'
-branch: task/plat-002-staff-page-root
-worktree: ../pegasus-worktrees/plat-002
 labels:
   - simplify
   - web
@@ -27,7 +24,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-17T14:19:26.387Z'
-updated: '2026-08-20T12:46:22.730Z'
+updated: '2026-08-20T12:46:31.185Z'
 ---
 
 ## Why
