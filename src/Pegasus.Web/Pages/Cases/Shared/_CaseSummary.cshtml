@@ -1,5 +1,6 @@
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Cases
+@using Pegasus.Core.Vehicle
 @using Pegasus.Web.Presentation
 @{
     var details = Model.Case!;
@@ -90,12 +91,18 @@
             @{ DataRow("Model", data?.Vehicle.Model); }
             @{
                 var mileageUnit = data?.Vehicle.MileageUnit.Current?.Value;
-                DataRow(
-                    "Odometer",
-                    data?.Vehicle.Mileage,
-                    value => mileageUnit is { Length: > 0 }
+                // The classification word travels with the figure: a derived
+                // estimate is never presented as supplied.
+                var mileageClass = data?.Vehicle.Mileage.Current is { } mileageValue
+                    ? $" — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClassification.Classify(mileageValue.Source.Kind))}"
+                    : string.Empty;
+                DataRow("Odometer", data?.Vehicle.Mileage, value =>
+                {
+                    var figure = mileageUnit is { Length: > 0 }
                         ? $"{value:N0} {mileageUnit}"
-                        : value.ToString("N0"));
+                        : value.ToString("N0");
+                    return figure + mileageClass;
+                });
             }
             <div class="history-check">
                 <button type="button" class="btn" disabled>
