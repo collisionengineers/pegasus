@@ -2,12 +2,15 @@
 id: TICK-050
 type: ticket
 title: MAIL-08 — Suggested next actions for classified email
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:44.019Z'
+taken_at: '2026-08-20T17:53:50.130Z'
+branch: task/tick-050-mail-08-suggested-next-action
+worktree: ../pegasus-worktrees/tick-050
 labels:
   - capability
   - MAIL-08
@@ -23,7 +26,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.237Z'
-updated: '2026-08-19T08:10:44.019Z'
+updated: '2026-08-20T17:53:50.130Z'
 ---
 
 ## What

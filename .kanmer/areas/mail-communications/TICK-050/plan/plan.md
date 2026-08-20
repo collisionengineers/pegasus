@@ -2,45 +2,34 @@
 
 ## Chosen approach
 
-derive advisory next actions from current canonical state. Reuse `a pure projection beside RetainedMail`, keep Web/MCP callers thin, and place persistence or external mechanics only in `no new persistence unless evidence proves derivation is insufficient`. This follows the repository's one-Core-owner rule and the existing convention rather than adding a workspace-specific policy copy.
+Expose one nullable concrete `RetainedMailSuggestedMove` on the existing exact-message detail. `GetRetainedMail` derives it after the landed MAIL-05 recommendation and MAIL-07 current-location/provider eligibility are known: eligible yields one Move advisory; every other state yields none. Razor labels it as a suggested next action and delegates its control to the unchanged MAIL-07 confirmation dialog/POST.
 
-A parallel UI-owned implementation was rejected because UI-10, Automation MCP and background processing would diverge. A generic mail-action framework was rejected because each action already has a concrete Core boundary and no second abstraction caller is proven.
+This is smaller and safer than persisting advice or adding an action enum/registry: there is one accepted action, one existing read owner and one existing execution owner.
 
 ## Governing docs
 
-- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: implement its exact-message, fail-closed, durable-history and workspace behaviour. Any unresolved mapping/mutation behaviour remains conditional on the checked operator answer; do not silently amend the FRD.
-- `docs/design/README.md`: apply the established confirmation, error, focus, navigation and accessibility conventions.
-- No new ADR is planned: the existing Core/Infrastructure/Web boundary carries the change.
+- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: preserves exact-message-only actions, separates classification/recommendation from move, offers only the designated destination, and keeps explicit reasoned confirmation in MAIL-07.
+- `docs/design/README.md`: reuses the existing shared reason dialog, Confirm/Cancel, focus and validation conventions rather than introducing another control pattern.
+- No ADR or FRD change: existing Core/Web boundaries and accepted behavior carry the slice.
 
-## Ordered implementation
+## Steps
 
-1. Re-read the current target files after prerequisite branches land and name the exact existing contracts/helpers/tests being reused.
-2. Add or extend the smallest Core contract/policy required to derive advisory next actions from current canonical state; validate identity, actor, reason, state and version before any write.
-3. Implement the Infrastructure projection/transaction/adapter in no new persistence unless evidence proves derivation is insufficient; preserve mailbox scope, idempotency, optimistic concurrency and append-only evidence.
-4. Wire the real caller (exact-message detail) through the Core use case with no duplicated taxonomy, mapping or authorization logic.
-5. Add focused Core and integration/Web tests for eligible-only suggestions, no mutation, stable ordering and unsafe-state abstention.
-6. Run the locked restore/build and focused tests, then the relevant full suite; perform the four-lens simplification pass and record honest dispositions.
-7. Update FRD/capabilities only where the delivered behaviour/evidence warrants it; do not claim deployment, live Outlook verification or operator acceptance from local tests.
+1. From `origin/dev` `e4d56d9e`, add the smallest Core nullable suggested-Move value and derive it solely from the current landed recommendation. Reuse `GetRetainedMail`; add no I/O or second eligibility rule.
+2. Render a “Suggested next action” section only for that projection and move the existing MAIL-07 dialog/control under it. Preserve the separate Uncertain status-check form and all existing server-derived freshness/route fields.
+3. Extend the existing Core and authenticated Web tests: one Move when eligible, none when unavailable or already current/provider unavailable, current-state re-derivation, and the button still targets `MoveToRecommendedFolder` without transport identity or view-time writes.
+4. Update `docs/capabilities.md` and the existing mail paragraph in `docs/current-architecture.md` only to local source/test evidence. Claim no deployment or live mailbox behavior.
+5. Run focused Core/Web tests, Release build, proportional full Core tests, diff checks and the reuse/simplification/efficiency/altitude pass. Record results in the PIR, push one PR to `dev`, and leave Review.
 
-## Dependencies and sequencing
+## Acceptance
 
-operator confirms advisory-only model; consumes delivered owning actions.
+- Core returns either null or one concrete suggested Move and re-derives it on each read.
+- The advice contains no execution/persistence identity and owns no authorization or stale-state rule.
+- Razor shows the labelled advice only when eligible and delegates to the existing MAIL-07 confirmation handler.
+- Unavailable recommendation, current destination, unavailable writer and Uncertain recovery do not produce a fresh suggested Move.
+- Viewing performs no move/history/external write.
 
-## Proof
+## Risks
 
-The post-implementation report will cite focused test output, Release build output, real-caller integration evidence and simplification findings. External-mailbox behaviour requires separately approved live verification and cannot be inferred from adapter tests.
-
-## Risks and mitigations
-
-- Identity or stale-state mistakes: exact mailbox/message keys plus optimistic concurrency and fail-closed validation.
-- Policy duplication: one Core result consumed by Web, Worker and MCP.
-- External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
-- Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
-
-## Operator decision — 2026-08-19
-
-Suggestions are advisory, but an eligible folder recommendation may render a **Move** button. The button calls MAIL-07's confirmed move use case; it never performs an inline or client-selected mutation.
-
-## Live suggestion acceptance — operator decision 2026-08-19
-
-After deployment, authenticate to the production mailbox viewer and inspect a real retained message from the currently linked mailbox. Capture read-only evidence that its suggested next actions are displayed from current canonical state. Do not click Move or invoke any action; explicitly record that no Outlook or cloud mutation occurred.
+- **Duplicate eligibility:** derive only from `RetainedMailFolderRecommendation.CanMove`.
+- **Freshness leakage:** keep command freshness on the landed recommendation/dossier used by MAIL-07, not the advisory value.
+- **Scope growth:** one concrete record, no enum/registry/framework or additional action.

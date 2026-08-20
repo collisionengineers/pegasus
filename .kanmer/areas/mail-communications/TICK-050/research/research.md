@@ -60,3 +60,18 @@ Tests prove no suggestion when recommendation/move eligibility is unavailable or
 ### Open questions
 
 None for the minimum confirmed Move slice. Broader advisory actions are explicitly deferred until an operator-owned matrix names them and their Core action contracts have landed; they must not be inferred from the mere existence of action tickets.
+
+## Post-merge symbol refresh — 2026-08-20
+
+### Verified source state
+
+- Fetched and inspected current `origin/dev` at `e4d56d9e477b79426e4c93fee022f72a388bd7d9`, the merge of PR #477. MAIL-05 and MAIL-07 are both present on that exact base.
+- `GetRetainedMail` already derives `RetainedMailFolderRecommendation` on every authorized exact-message read. Its `CanMove` is true only when the current classification maps to a configured approved-mailbox binding, the exact message is not already at that destination, and the landed folder mover is available.
+- `Message.cshtml` already delegates an eligible control to `OnPostMoveToRecommendedFolderAsync` and the shared reason dialog. The posted freshness fields, operation key, confirmation, retry and provider mutation all remain MAIL-07-owned.
+- The unavailable/null-classification path and current-location result already render without a move control. An Uncertain move retains its separate same-key “Check move status” form; it must not become a fresh suggested Move.
+- No suggested-action state/store exists or is needed. The current recommendation and move eligibility are the complete landed input for this accepted slice; deriving advice on read prevents stale copies.
+- No overlapping TICK-050 branch/worktree exists. Other active mail worktrees do not own this ticket; the target four code/test files are free after PR #477 merged.
+
+### Implementation implication
+
+Add one concrete nullable suggested-Move projection to `RetainedMailDetail`, populated only from the already-derived current recommendation when `CanMove` is true. Razor renders a labelled “Suggested next action” section from that projection and uses the unchanged MAIL-07 recommendation/version values to construct the existing confirmation dialog. A view with no eligible move contains no advisory action. Do not add an enum/registry, generic descriptor framework, persistence, migration, transaction, operation key, history, adapter, MCP surface or external write.
