@@ -82,6 +82,8 @@ public static class DependencyInjection
         services.AddScoped<GetRetainedMail>();
         services.AddScoped<CorrectRetainedMailClassification>();
         services.AddScoped<GetRetainedMailFreshness>();
+        services.AddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
+        services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
         services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
         services.AddScoped<IAutomaticCaseAssociationStore, EfIntakeMutationStore>();
@@ -586,6 +588,11 @@ public static class DependencyInjection
             baseUri,
             provider.GetRequiredService<HttpClient>(),
             provider.GetRequiredService<ILogger<GraphApprovedMailboxResolver>>()));
+        services.AddSingleton(provider => new GraphMailClient(
+            provider.GetRequiredService<TokenCredential>(),
+            baseUri,
+            provider.GetRequiredService<HttpClient>()));
+        services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
     }
 }

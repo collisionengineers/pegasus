@@ -212,6 +212,77 @@ internal sealed class GraphMailClient(
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
+    public async Task<string> ResolveDeletedItemsFolderAsync(
+        string mailboxId,
+        CancellationToken cancellationToken)
+    {
+        var uri = new Uri(
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/deleteditems?$select=id");
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        using var response = await SendAsync(request, cancellationToken);
+        await ThrowForFailureAsync(response, cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        return RequiredString(document.RootElement, "id");
+    }
+
+    public Uri InitialFolderMessagesUri(string mailboxId, string folderId, int maximumItems) =>
+        new(
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/{Uri.EscapeDataString(folderId)}" +
+            $"/messages?$select=id,parentFolderId,receivedDateTime,conversationId,internetMessageId,isRead&$orderby=receivedDateTime%20desc&$top={maximumItems}");
+
+    public async Task<GraphFolderPage> ReadFolderMessagesAsync(
+        Uri uri,
+        string mailboxId,
+        string folderId,
+        CancellationToken cancellationToken)
+    {
+        ValidateFolderMessagesUri(uri, mailboxId, folderId);
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        using var response = await SendAsync(request, cancellationToken);
+        await ThrowForFailureAsync(response, cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        var root = document.RootElement;
+        var items = root.GetProperty("value").EnumerateArray().Select(ParseItem).ToArray();
+        if (items.Any(item => item.Removed
+            || !string.Equals(item.ParentFolderId, folderId, StringComparison.Ordinal)))
+        {
+            throw new UnauthorizedAccessException(
+                "Microsoft Graph returned a message outside the exact approved Deleted Items folder.");
+        }
+        if (items.Any(item => item.ReceivedAtUtc is null))
+        {
+            throw new InvalidDataException(
+                "Microsoft Graph returned a Deleted Items message without its received time.");
+        }
+        Uri? next = null;
+        if (root.TryGetProperty("@odata.nextLink", out var nextValue)
+            && nextValue.ValueKind == JsonValueKind.String)
+        {
+            next = new Uri(nextValue.GetString()!, UriKind.Absolute);
+            ValidateFolderMessagesUri(next, mailboxId, folderId);
+        }
+        return new(items, next);
+    }
+
+    private void ValidateFolderMessagesUri(Uri uri, string mailboxId, string folderId)
+    {
+        var expected = InitialFolderMessagesUri(mailboxId, folderId, 1)
+            .GetComponents(UriComponents.Path, UriFormat.Unescaped);
+        var actual = uri.GetComponents(UriComponents.Path, UriFormat.Unescaped);
+        if (uri.Scheme != Uri.UriSchemeHttps
+            || !uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+            || !actual.Equals(expected, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                "The Microsoft Graph message page escaped the exact approved mailbox folder.");
+        }
+    }
+
     private async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
         CancellationToken cancellationToken)
@@ -498,6 +569,146 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }
 
+internal sealed class GraphDeletedMailSearchSource(
+    GraphMailClient client,
+    IApprovedIntakeMailboxes approvedMailboxes,
+    IIntakeSourceReader sourceReader) : IDeletedMailSearchSource
+{
+    public async Task<DeletedMailSourceResult> SearchAsync(
+        string? mailboxId,
+        string searchTerm,
+        int maximumMessages,
+        CancellationToken cancellationToken)
+    {
+        var approved = await approvedMailboxes.ListPollableAsync(cancellationToken);
+        var selected = mailboxId is null
+            ? approved
+            : approved.Where(item => item.MailboxId.Equals(mailboxId, StringComparison.Ordinal)).ToArray();
+        if (mailboxId is not null && selected.Count == 0)
+        {
+            return new([], false, DeletedMailSearchState.Unavailable);
+        }
+
+        var scanned = 0;
+        var truncated = false;
+        var matches = new List<DeletedMailSearchItem>();
+        try
+        {
+            foreach (var mailbox in selected)
+            {
+                var folderId = await client.ResolveDeletedItemsFolderAsync(
+                    mailbox.MailboxId,
+                    cancellationToken);
+                Uri? pageUri = client.InitialFolderMessagesUri(
+                    mailbox.MailboxId,
+                    folderId,
+                    Math.Min(maximumMessages + 1, 1000));
+                while (pageUri is not null && scanned <= maximumMessages)
+                {
+                    var page = await client.ReadFolderMessagesAsync(
+                        pageUri,
+                        mailbox.MailboxId,
+                        folderId,
+                        cancellationToken);
+                    foreach (var item in page.Items)
+                    {
+                        if (scanned++ >= maximumMessages)
+                        {
+                            truncated = true;
+                            break;
+                        }
+                        var mime = await client.ReadMimeAsync(
+                            mailbox.MailboxId,
+                            item.Id,
+                            cancellationToken);
+                        var read = await sourceReader.ReadAsync(
+                            new(
+                                $"{item.Id}.eml",
+                                "message/rfc822",
+                                mime,
+                                item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
+                                "system-worker:deleted-mail-search",
+                                new(IntakeSourceChannel.Mailbox, $"deleted:{mailbox.MailboxId}:{item.Id}")),
+                            cancellationToken);
+                        if (Match(read, searchTerm) is not { Length: > 0 } found)
+                        {
+                            continue;
+                        }
+                        var documents = IntakeSearchProjection.Create(read);
+                        var searchableNames = documents
+                            .Where(document => document.AttachmentFileName is not null && document.IsSearchable)
+                            .Select(document => document.AttachmentFileName!)
+                            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                        matches.Add(new(
+                            mailbox.MailboxId,
+                            mailbox.Address,
+                            item.Id,
+                            Sender(read),
+                            null,
+                            Subject(read),
+                            documents.FirstOrDefault(document => document.AttachmentFileName is null)?.Text,
+                            item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
+                            item.IsRead,
+                            read.AttachmentRecords.Select(attachment => new RetainedMailAttachment(
+                                attachment.FileName,
+                                attachment.MediaType,
+                                attachment.ContentLength ?? 0,
+                                searchableNames.Contains(attachment.FileName))).ToArray(),
+                            found));
+                    }
+                    pageUri = page.NextUri;
+                }
+                truncated |= pageUri is not null;
+                if (scanned >= maximumMessages)
+                {
+                    truncated |= selected.Count > 1;
+                    break;
+                }
+            }
+        }
+        catch (Exception exception) when (exception is ApprovedMailboxAccessDeniedException
+            or ApprovedSentSourceThrottledException
+            or HttpRequestException)
+        {
+            return new([], false, DeletedMailSearchState.Unavailable);
+        }
+        return new(matches, truncated);
+    }
+
+    private static RetainedMailSearchMatch[] Match(
+        IntakeSourceReadResult read,
+        string searchTerm)
+    {
+        var documents = IntakeSearchProjection.Create(read);
+        var found = new List<RetainedMailSearchMatch>();
+        if (documents.Any(document => document.AttachmentFileName is null
+            && document.Text?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true))
+        {
+            found.Add(new(MailSearchMatchKind.MessageBody));
+        }
+        found.AddRange(read.AttachmentRecords
+            .Where(attachment => attachment.FileName.Contains(searchTerm, StringComparison.OrdinalIgnoreCase))
+            .Select(attachment => new RetainedMailSearchMatch(
+                MailSearchMatchKind.AttachmentFileName,
+                attachment.FileName)));
+        found.AddRange(documents
+            .Where(document => document.AttachmentFileName is not null
+                && document.Text?.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) == true)
+            .Select(document => new RetainedMailSearchMatch(
+                MailSearchMatchKind.AttachmentContent,
+                document.AttachmentFileName)));
+        return found.Distinct().ToArray();
+    }
+
+    private static string? Sender(IntakeSourceReadResult read) =>
+        read.TransportEvidence.FirstOrDefault(item =>
+            item.Source == IntakeEvidenceSource.Sender
+            && item.SenderIdentityKind == IntakeSenderIdentityKind.Transport)?.Value;
+
+    private static string? Subject(IntakeSourceReadResult read) =>
+        read.TransportEvidence.FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)?.Value;
+}
+
 internal sealed class GraphApprovedSentSource(
     GraphApprovedMailboxOptions options,
     GraphMailClient client) : IApprovedSentSource
@@ -655,6 +866,7 @@ internal sealed class GraphApprovedSentSource(
 }
 
 internal sealed record GraphDeltaPage(IReadOnlyList<GraphDeltaItem> Items, Uri NextUri);
+internal sealed record GraphFolderPage(IReadOnlyList<GraphDeltaItem> Items, Uri? NextUri);
 internal sealed class GraphDeltaResetRequiredException : Exception;
 internal sealed record GraphDeltaItem(
     string Id,

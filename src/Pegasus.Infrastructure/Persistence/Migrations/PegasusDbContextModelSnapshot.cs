@@ -4011,6 +4011,38 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("IntakeReceiptEvents", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSearchDocumentEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AttachmentFileName")
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("IntakeReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Ordinal")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceLabel")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Text")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IntakeReceiptId", "Ordinal")
+                        .IsUnique();
+
+                    b.ToTable("IntakeSearchDocuments", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6490,6 +6522,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSearchDocumentEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", "IntakeReceipt")
+                        .WithMany("SearchDocuments")
+                        .HasForeignKey("IntakeReceiptId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("IntakeReceipt");
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupMemberEntity", b =>
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity", "Group")
@@ -6838,6 +6881,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Navigation("MailRouteDecision");
 
                     b.Navigation("ManualAssociation");
+
+                    b.Navigation("SearchDocuments");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeStagedReceiptEntity", b =>

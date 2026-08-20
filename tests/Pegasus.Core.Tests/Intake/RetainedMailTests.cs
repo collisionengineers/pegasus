@@ -100,6 +100,95 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public async Task ListPassesOneTrimmedSearchTermThroughToTheExistingQueryPort()
+    {
+        var queries = new Queries();
+
+        await new ListRetainedMail(queries).ExecuteAsync(
+            Caseworker(),
+            new("mailbox-a", MailFolderScope.Inbox, "  estimate  "),
+            1,
+            25,
+            CancellationToken.None);
+
+        Assert.Equal("estimate", Assert.Single(queries.Scopes).Scope.SearchTerm);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ListRefusesAnEmptySearchTerm(string searchTerm)
+    {
+        var queries = new Queries();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new ListRetainedMail(queries).ExecuteAsync(
+                Caseworker(),
+                new(null, MailFolderScope.Inbox, searchTerm),
+                1,
+                25,
+                CancellationToken.None));
+
+        Assert.Empty(queries.Scopes);
+    }
+
+    [Fact]
+    public async Task DeletedSearchIsAuthorizedBoundedAndPagedAfterNewestFirstOrdering()
+    {
+        var source = new DeletedSource(new(
+            [
+                Deleted("old", NowUtc.AddMinutes(-2)),
+                Deleted("new", NowUtc),
+                Deleted("middle", NowUtc.AddMinutes(-1))
+            ],
+            true));
+
+        var page = await new SearchDeletedMail(source).ExecuteAsync(
+            Caseworker(),
+            " mailbox-a ",
+            " estimate ",
+            2,
+            2,
+            CancellationToken.None);
+
+        Assert.Equal("mailbox-a", source.MailboxId);
+        Assert.Equal("estimate", source.SearchTerm);
+        Assert.Equal(SearchDeletedMail.MaximumMessages, source.MaximumMessages);
+        Assert.Equal(["old"], page.Items.Select(item => item.ImmutableMessageId));
+        Assert.Equal(3, page.TotalCount);
+        Assert.True(page.IsTruncated);
+    }
+
+    [Fact]
+    public async Task DeletedSearchRequiresCaseworkAuthorizationBeforeCallingItsSource()
+    {
+        var source = new DeletedSource(new([], false));
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new SearchDeletedMail(source).ExecuteAsync(
+                ActionActor.RequestLink(Guid.NewGuid()),
+                null,
+                "estimate",
+                1,
+                25));
+
+        Assert.Null(source.SearchTerm);
+    }
+
+    private static DeletedMailSearchItem Deleted(string id, DateTimeOffset receivedAtUtc) => new(
+        "mailbox-a",
+        "instructions@collisionengineers.co.uk",
+        id,
+        null,
+        null,
+        null,
+        null,
+        receivedAtUtc,
+        false,
+        [],
+        [new(MailSearchMatchKind.MessageBody)]);
+
+    [Fact]
     public async Task GetRequiresCaseworkAuthorizationAndAnIdentifier()
     {
         var queries = new Queries();
@@ -310,6 +399,25 @@ public sealed class RetainedMailTests
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MailPollHealth>>([]);
+    }
+
+    private sealed class DeletedSource(DeletedMailSourceResult result) : IDeletedMailSearchSource
+    {
+        internal string? MailboxId { get; private set; }
+        internal string? SearchTerm { get; private set; }
+        internal int MaximumMessages { get; private set; }
+
+        public Task<DeletedMailSourceResult> SearchAsync(
+            string? mailboxId,
+            string searchTerm,
+            int maximumMessages,
+            CancellationToken cancellationToken)
+        {
+            MailboxId = mailboxId;
+            SearchTerm = searchTerm;
+            MaximumMessages = maximumMessages;
+            return Task.FromResult(result);
+        }
     }
 
     private sealed class ClassificationStore(MailClassificationDossier dossier)

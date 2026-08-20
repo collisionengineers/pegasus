@@ -60,6 +60,68 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task SearchFiltersBeforePagingAndIdentifiesBodyFileNameAndProjectedContentMatches()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("message-search");
+        await RetainAsync(database, message);
+        await database.StoreAsync(new(
+            SourceFileName: "message-search.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: new string('D', 64),
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, message.ExternalReceiptToken),
+            ReceivedAtUtc: ReceivedAtUtc,
+            ProcessedAtUtc: ReceivedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: [],
+            SearchDocuments:
+            [
+                new("message body", null, "Please inspect the vehicle."),
+                new("message, attachment 1", "estimate.pdf", "Repair estimate for replacement wing")
+            ]));
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+
+        var body = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "inspect"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(body.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
+
+        var fileName = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(fileName.Matches, match =>
+            match.Kind == MailSearchMatchKind.AttachmentFileName
+            && match.AttachmentFileName == "estimate.pdf");
+
+        var content = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "replacement"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(content.Matches, match =>
+            match.Kind == MailSearchMatchKind.AttachmentContent
+            && match.AttachmentFileName == "estimate.pdf");
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "not present"), 1, 25, CancellationToken.None)).Items);
+
+        var detail = Assert.IsType<RetainedMailDetail>(
+            await queries.GetAsync(content.Id, CancellationToken.None));
+        Assert.True(Assert.Single(detail.Attachments).IsSearchable);
+        Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeSearchDocuments"));
+    }
+
+    [Fact]
     public async Task RedeliveryIsRefusedByTheUniqueIndexAndRetainIsANoOperation()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();

@@ -1,14 +1,93 @@
 using System.Net;
 using System.Text;
 using Azure.Core;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Intake;
 
 namespace Pegasus.IntegrationTests;
 
 public sealed class ProductionGraphSourceTests
 {
+    [Fact]
+    public async Task DeletedSearchReadsOnlyTheResolvedFolderAndPassesMimeThroughTheCanonicalReader()
+    {
+        var requests = new List<(HttpMethod Method, string Path, string? Prefer)>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add((
+                request.Method,
+                request.RequestUri!.AbsolutePath,
+                request.Headers.TryGetValues("Prefer", out var values) ? values.Single() : null));
+            if (request.RequestUri.AbsolutePath.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+            }
+            if (request.RequestUri.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(
+                    HttpStatusCode.OK,
+                    "From: sender@example.test\r\nSubject: Deleted instruction\r\n"
+                    + "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=part\r\n\r\n"
+                    + "--part\r\nContent-Type: text/plain\r\n\r\nThe searchable needle is here.\r\n"
+                    + "--part\r\nContent-Type: application/octet-stream; name=source.bin\r\n"
+                    + "Content-Disposition: attachment; filename=source.bin\r\n"
+                    + "Content-Transfer-Encoding: base64\r\n\r\nAQID\r\n--part--\r\n",
+                    "message/rfc822");
+            }
+            return Response(
+                HttpStatusCode.OK,
+                """{"value":[{"id":"deleted-1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(
+            options.MailboxId,
+            "needle",
+            100,
+            CancellationToken.None);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("Deleted instruction", item.Subject);
+        Assert.Equal("sender@example.test", item.SenderAddress);
+        Assert.Equal("The searchable needle is here.", item.BodyPlainText);
+        Assert.Contains(item.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
+        Assert.False(Assert.Single(item.Attachments).IsSearchable);
+        Assert.All(requests, request => Assert.Equal(HttpMethod.Get, request.Method));
+        Assert.All(
+            requests.Where(request => !request.Path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal)),
+            request => Assert.Equal("IdType=\"ImmutableId\"", request.Prefer));
+        Assert.Contains(requests, request => request.Path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal));
+        Assert.Contains(requests, request => request.Path.Contains("/mailFolders/deleted-folder/messages", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DeletedSearchDoesNotCallGraphForAMailboxOutsideTheApprovedEstate()
+    {
+        var calls = 0;
+        var handler = new DelegateHandler(_ =>
+        {
+            calls++;
+            return Response(HttpStatusCode.OK, "{}");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync("not-approved", "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+        Assert.Equal(0, calls);
+    }
+
     [Fact]
     public async Task InboxUsesImmutableIdsAndContinuesWithDeltaCursorWithoutMutation()
     {
@@ -323,5 +402,12 @@ public sealed class ProductionGraphSourceTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(handler(request));
+    }
+
+    private sealed class MailboxEstate(IReadOnlyList<ApprovedIntakeMailbox> mailboxes)
+        : IApprovedIntakeMailboxes
+    {
+        public Task<IReadOnlyList<ApprovedIntakeMailbox>> ListPollableAsync(
+            CancellationToken cancellationToken) => Task.FromResult(mailboxes);
     }
 }

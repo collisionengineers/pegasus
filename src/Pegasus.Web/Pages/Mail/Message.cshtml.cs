@@ -33,6 +33,9 @@ public sealed class MessageModel(
     [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int? PageNumber { get; set; }
 
+    [BindProperty(SupportsGet = true, Name = "search")]
+    public string? SearchTerm { get; set; }
+
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? Section { get; set; }
 
@@ -157,7 +160,8 @@ public sealed class MessageModel(
             id,
             mailbox = MailboxFilter,
             folder = FolderFilter,
-            pageNumber = PageNumber
+            pageNumber = PageNumber,
+            search = SearchTerm
         });
     }
 
