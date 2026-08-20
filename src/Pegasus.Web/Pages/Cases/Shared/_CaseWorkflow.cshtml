@@ -490,6 +490,14 @@ else if (Model.ProposedValues.Count > 0)
                 <dt>Registration</dt><dd>@observation.Registration</dd>
                 <dt>Provider</dt><dd>@observation.Provenance.Provider @observation.Provenance.ProviderVersion</dd>
                 <dt>Retrieved</dt><dd>@OperatorLabels.OfficeTime(observation.Provenance.RetrievedAtUtc)</dd>
+                @if (observation.Vehicle is { } vehicleDetails)
+                {
+                    <dt>Make</dt><dd>@(vehicleDetails.Make ?? "—")</dd>
+                    <dt>Model</dt><dd>@(vehicleDetails.Model ?? "—")</dd>
+                    <dt>Manufacture year</dt><dd>@(vehicleDetails.ManufactureYear?.ToString() ?? "—")</dd>
+                    <dt>Engine capacity</dt><dd>@(vehicleDetails.EngineCapacityCc is { } engineCapacityCc ? $"{engineCapacityCc:N0} cc" : "—")</dd>
+                    <dt>Fuel type</dt><dd>@(vehicleDetails.FuelType ?? "—")</dd>
+                }
                 @if (observation.Mileage is { } estimatedMileage)
                 {
                     <dt>Mileage</dt><dd>@($"{estimatedMileage.Value:N0} {estimatedMileage.Unit} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.Estimated)}") (latest MOT observation, @estimatedMileage.ObservedOn.ToString("d MMM yyyy"))</dd>
