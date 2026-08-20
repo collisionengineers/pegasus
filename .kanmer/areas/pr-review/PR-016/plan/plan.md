@@ -9,3 +9,10 @@ FRD-08's all-mailbox refinement and fixed bound are met without persistence, mut
 ## Steps
 1. Refactor the existing Graph adapter around bounded candidate collection.
 2. Prove a later mailbox's newer match and global truncation/MIME bound; simplify.
+
+## Simplification pass — 2026-08-20
+
+- Reuse: applied — existing Graph folder metadata calls and canonical MIME reader are reused.
+- Simplification: the two phases use one local candidate tuple; no new public abstraction or store.
+- Efficiency: at most 101 metadata rows per selected mailbox and 100 MIME reads globally; newest-first selection prevents mailbox-order starvation.
+- Altitude: bounding/fairness stays in the Graph adapter; Core continues to own the global 100-message policy.
