@@ -20,6 +20,8 @@ public sealed class DetailsModel(
 
     public IReadOnlyList<ImageIntakeLifecycleEvent> History { get; private set; } = [];
 
+    public IReadOnlyList<ImageIntakeImage> Images { get; private set; } = [];
+
     public IReadOnlyList<ImageVrmSuggestion> Suggestions { get; private set; } = [];
 
     public IReadOnlyList<ImageIntakeCaseCandidate> AssociationCandidates { get; private set; } = [];
@@ -33,6 +35,7 @@ public sealed class DetailsModel(
         }
 
         Detail = detail;
+        Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
         History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
         Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
             detail.Record.Origin.ReceiptId,

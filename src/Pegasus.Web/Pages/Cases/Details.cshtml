@@ -137,27 +137,21 @@
                 }
                 else
                 {
-                    <div class="table-wrap">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th scope="col">Image reference</th>
-                                    <th scope="col">Registration</th>
-                                    <th scope="col">Registered</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                            @foreach (var image in Model.ImageIntakes)
+                    @foreach (var image in Model.ImageIntakes)
+                    {
+                        <section class="section-gap">
+                            <h3><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></h3>
+                            <p>@image.NormalizedVehicleRegistration · Registered <time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></p>
+                            @if (Model.ImagesByIntake.TryGetValue(image.Id, out var galleryImages) && galleryImages.Count > 0)
                             {
-                                <tr>
-                                    <td><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></td>
-                                    <td>@image.NormalizedVehicleRegistration</td>
-                                    <td><time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></td>
-                                </tr>
+                                <partial name="Shared/_ImageGallery" model="galleryImages" />
                             }
-                            </tbody>
-                        </table>
-                    </div>
+                            else
+                            {
+                                <p class="empty-state">No images are available to display for this record.</p>
+                            }
+                        </section>
+                    }
                 }
             </section>
         }
