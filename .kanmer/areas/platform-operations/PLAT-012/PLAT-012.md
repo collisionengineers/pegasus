@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Dashboard received counters count only their own channel — manual uploads
   never increment emails received
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-20T05:05:17.879Z'
+branch: task/plat-012-channel-counters
+worktree: ../pegasus-worktrees/plat-012
 labels:
   - defect
   - dashboard
@@ -17,7 +20,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T03:16:37.586Z'
-updated: '2026-08-20T03:16:37.586Z'
+updated: '2026-08-20T05:05:17.879Z'
 ---
 
 ## What
