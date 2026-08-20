@@ -2,12 +2,13 @@
 id: MAIL-004
 type: ticket
 title: Configure the approved Outlook category catalogue in email administration
-status: implementing
+status: review
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-20T09:52:23.990Z'
+  review: '2026-08-20T12:06:42.628Z'
 taken_at: '2026-08-20T11:39:48.912Z'
 branch: task/mail-004-outlook-category-catalogue
 worktree: ../pegasus-worktrees/mail-004
@@ -37,7 +38,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-20T09:47:32.793Z'
-updated: '2026-08-20T12:05:46.304Z'
+updated: '2026-08-20T12:06:42.628Z'
 ---
 
 ## What
