@@ -2,12 +2,13 @@
 id: TICK-062
 type: ticket
 title: MCP-05 — Automation Actor actions for the broader classified-email workspace
-status: implementing
+status: review
 area: automation-integrations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:49.381Z'
+  review: '2026-08-20T03:53:31.538Z'
 taken_at: '2026-08-20T03:34:25.049Z'
 branch: task/tick-062-mcp-05-mail-workspace
 worktree: ../pegasus-worktrees/tick-062
@@ -25,9 +26,11 @@ links:
   - TICK-056
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+prs:
+  - '#441'
 archived: false
 created: '2026-08-12T15:05:19.507Z'
-updated: '2026-08-20T03:34:25.049Z'
+updated: '2026-08-20T03:53:31.538Z'
 ---
 
 ## What
