@@ -61,6 +61,16 @@ public sealed class IndexModel(
 
     public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>
+    /// ENG-003: the one readiness list the page renders. <see cref="ReportDraftPreparation"/>'s
+    /// <c>Reasons</c> already reuses <see cref="AssessmentPolicy.EvaluateReadiness"/> as its
+    /// base and only appends report-specific requirements on top
+    /// (<see cref="Pegasus.Core.Reports.AssessmentReportProjection.Project"/>), so it is always a
+    /// superset of <see cref="Assessment"/>'s own <c>Readiness</c> for the same case — using it
+    /// here loses nothing the readiness rail previously showed on its own.
+    /// </summary>
+    public IReadOnlyList<AssessmentReadinessItem> CombinedReadiness { get; private set; } = [];
+
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -79,6 +89,7 @@ public sealed class IndexModel(
         Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
         LatestRequest = await workRequests.GetLatestForCaseAsync(id, cancellationToken);
         ReportDraftPreparation = await generateReportDraft.PrepareAsync(id, actor, cancellationToken);
+        CombinedReadiness = ReportDraftPreparation?.Reasons ?? Assessment?.Readiness ?? [];
         await EvaluatePanelStateAsync(cancellationToken);
         return Page();
     }
@@ -225,6 +236,14 @@ public sealed class IndexModel(
 
         return RedirectToPage(new { id });
     }
+
+    /// <summary>
+    /// ENG-003: the one place the "N issues detected" pluralisation rule
+    /// lives, so the readiness panel's summary chip and the report-draft
+    /// "Not ready" card's reference back to it never drift apart.
+    /// </summary>
+    public static string IssueSummaryText(int count) =>
+        $"{count} {(count == 1 ? "issue" : "issues")} detected";
 
     public string FieldValue(string path) => Assessment?.Field(path)?.Value ?? string.Empty;
 
