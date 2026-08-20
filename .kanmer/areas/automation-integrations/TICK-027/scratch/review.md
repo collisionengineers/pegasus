@@ -1,0 +1,3 @@
+## Independent review — PR #445 (orchestrator, 2026-08-20)
+
+Verdict: **pass**. Tests-only PR closing the one gap the verification pass named: `pegasus_case_update_details` now has three functional tests following the file's own conventions — scope enforcement with a SecurityEvents row, HTTP mutation under lease with logging parity + replay + completeness-reopen (the ADR-0021 boundary the tool actually has: confirmed staff_correction values, unconditional NotReady reset), and lease-refusal with Failed history and no token disclosure. The other flagged gap was verified already fixed on dev (TICK-026 harness split) rather than duplicated. 7/7 focused; no production code touched.

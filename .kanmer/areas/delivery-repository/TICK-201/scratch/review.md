@@ -1,0 +1,3 @@
+## Independent review — PR #444 (orchestrator, 2026-08-20)
+
+Verdict: **pass**. One-paragraph docs-only correction: operations.md's claim that Box secrets resolve "only inside the Worker" contradicted both the doc's own Secrets record and the live estate (Web has two Box secret refs via its own managed identity, confirmed in the 2026-08-20 read-only diagnostics). The replacement states the real shape (both hosts, server-side only, per-identity) and links the authoritative section. Correct call not to encode live *defects* into the architecture docs — no doc claimed those behaviours worked. Link checks pass (205 files).
