@@ -802,6 +802,49 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task ConcurrentSameKeyReplayCannotResolveOrReleaseThePendingMove()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new BlockingFolderMover();
+        await using var firstScope = database.CreateAsyncScope();
+        await using var replayScope = database.CreateAsyncScope();
+        await using var newKeyScope = database.CreateAsyncScope();
+        var first = FolderMoveCommand(firstScope, mover).ExecuteAsync(seed.Actor, seed.Request);
+        await mover.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            var replayError = await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+                FolderMoveCommand(replayScope, mover).ExecuteAsync(seed.Actor, seed.Request));
+            Assert.Equal("The folder move is still being processed.", replayError.Message);
+            await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+                FolderMoveCommand(newKeyScope, mover).ExecuteAsync(
+                    seed.Actor,
+                    seed.Request with { OperationKey = Guid.NewGuid().ToString("D") }));
+
+            await using var inFlight = await database.CreateContextAsync();
+            var operation = Assert.Single(await inFlight.RetainedMailFolderMoves.ToListAsync());
+            Assert.Equal("pending", operation.Outcome);
+            Assert.Equal(1, mover.ParentCalls);
+            Assert.Equal(1, mover.MoveCalls);
+        }
+        finally
+        {
+            mover.Release.TrySetResult();
+        }
+
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, (await first)!.Outcome);
+        await using var completedReplayScope = database.CreateAsyncScope();
+        var completedReplay = await FolderMoveCommand(completedReplayScope, mover)
+            .ExecuteAsync(seed.Actor, seed.Request);
+        Assert.True(completedReplay!.IsReplay);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, completedReplay.Outcome);
+        Assert.Equal(1, mover.ParentCalls);
+        Assert.Equal(1, mover.MoveCalls);
+    }
+
+    [Fact]
     public async Task FreshnessAndCurrentLocationRefusalsNeverIssueTheMove()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -1240,6 +1283,7 @@ public sealed class RetainedMailPersistenceTests
     {
         public bool IsAvailable => true;
         public int MoveCalls { get; private set; }
+        public int ParentCalls { get; private set; }
         public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private string currentFolder = "inbox";
@@ -1252,8 +1296,11 @@ public sealed class RetainedMailPersistenceTests
             currentFolder = coordinates.DestinationFolderId;
         }
 
-        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
-            Task.FromResult<string?>(currentFolder);
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
+        {
+            ParentCalls++;
+            return Task.FromResult<string?>(currentFolder);
+        }
     }
 
     private sealed class StatefulFolderMover(string currentFolder) : IRetainedMailFolderMover
