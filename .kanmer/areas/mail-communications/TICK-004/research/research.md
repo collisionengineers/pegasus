@@ -14,3 +14,15 @@
 **File presence at 2325ed4a (production `main` ancestor):** confirmed present via `git show 2325ed4a:scripts/email-eval-desktop/EmailEvaluationWorkflow.cs`. This is not meaningful as "production deployment" evidence, though — the tool is by design never deployed to any Azure environment; it is a local reviewer utility restored and run independently. No `deployment` value applies (leaving it unset is the honest state, per the runbook's own rule: "no local result is relabelled deployed, live verified, or accepted").
 
 **Verdict:** EVAL-02 is fully implemented and tested against its own capability text, in the correct (standalone desktop) artifact.
+
+## VERIFY2 correction (2026-08-20, second pass) — the taxonomy source file no longer exists
+
+The verdict above is falsified on one point, verified directly against git:
+
+- `CategoryCatalog.Load` reads `docs/reference/CollisionSPikeCurrenttree.txt` from the repository root and throws `FileNotFoundException` when absent (`CategoryCatalog.cs:33-38`).
+- **That file was deleted** in commit `4e084ca2` ("Delete superseded planning material; migrate surviving content first"), and `git merge-base --is-ancestor 4e084ca2 origin/main` confirms the deletion **is an ancestor of origin/main (2325ed4a)**. `git show origin/main:docs/reference/CollisionSPikeCurrenttree.txt` → "fatal: path … does not exist". Same on origin/dev.
+- Therefore the evaluator **cannot start** from the current tree or from the release-13 tree — the 8+4 structural enforcement quoted above can never execute. ADR-0016 (line 22) still names that file as the taxonomy source; the deletion broke the ADR's own contract without superseding it.
+
+**Conceded from the earlier draft of this research:** the "no Reply limb" gap is answered by ADR-0016 ("Reply remains context on its underlying Received or Sent category") — Reply-as-context is the accepted design, not a gap.
+
+**Corrected verdict: PARTIAL.** The workflow, reasoning validation, filing, and tests are all real and present on main, but the tool is unstartable because its ADR-named taxonomy source was deleted. Remaining work (small): re-source the catalog from the Core-owned taxonomy (one list per concept — Core is the owner per ADR-0016's own words) or restore an ADR-sanctioned export, plus a startup test that would have caught this. Ticket returned to preparing; done was premature on a false file-presence premise.
