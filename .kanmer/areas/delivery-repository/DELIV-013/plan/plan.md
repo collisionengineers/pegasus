@@ -23,3 +23,12 @@ After the docs PR merges to dev: exact-SHA atomic push of the dev head to main p
 Per verifying ticket: proof written from deployment + live evidence, move to done, release claim; remove only release-scope worktrees/branches (plat-002 + tick-098 worktrees, remote task/plat-002-staff-page-root + task/tick-098-rpt-03-audit-report-parity). End state: remote branches main/dev/kanmer-board + in-flight lanes only; 0 open release-scope PRs.
 
 Simplification pass: n/a — release/deployment chore, no product code authored by this ticket (docs-only PR).
+
+## Simplification pass — 2026-08-20 (task/deliv-013-copy-fixes)
+
+Diff: 18 files, 106+/85−. Lenses over the branch's own diff:
+- Reuse: all new words route through `OperatorLabels` (the settled owner); `MileageUnit` and `SourceChannel` added there rather than inline maps. The two pre-existing duplicate `SourceChannelLabel` switches (Intake + Triage DetailsModel) now delegate to the one owner — net duplication removed, not added.
+- Simplification: uncomposed Send-to-AI surfaces render nothing (view-level wrap + one early return) instead of explaining their gate — smaller markup, design-mandated.
+- Efficiency: display-only changes; no query or allocation changes.
+- Altitude: view/presentation layer only; no Core or Infrastructure behaviour touched; the only behavioural delta is panel absence when `ISendCaseToAi`/connector store is uncomposed, which is the design authority's rule.
+Findings applied in-branch; nothing deferred from this diff. Structural pre-existing copy debt deliberately excluded → [[PLAT-015]].
