@@ -112,10 +112,33 @@
         });
     });
 
+    // Global drop safety net. Without this, a file dropped anywhere off a
+    // dropzone's own listeners below — the heading, a panel border, released
+    // a beat early while still moving — is unhandled, and the browser's
+    // default action navigates the whole tab to the dropped file, losing the
+    // page. A dropzone's own listener runs first (event bubbling) and calls
+    // preventDefault() itself, so this only ever catches a drop nothing more
+    // specific already handled.
+    document.addEventListener('dragover', function (event) {
+        if (!event.defaultPrevented) {
+            event.preventDefault();
+        }
+    });
+    document.addEventListener('drop', function (event) {
+        if (!event.defaultPrevented) {
+            event.preventDefault();
+        }
+    });
+
     // Upload dropzones. The native file input is the control and keeps working
-    // on its own; this makes the whole dashed area a drop target, gives it a
-    // real button for the picker, and reads the chosen file back. Nothing here
-    // is required: without script the input is simply visible.
+    // on its own; with script the effective drop target is the whole panel
+    // the dashed area sits in, not the dashed area itself — a small rectangle
+    // is too easy to miss on a real drag — and a real button opens the same
+    // input. Nothing here is required: without script the input is simply
+    // visible. A genuine OS drag's dataTransfer.files is empty until the drop
+    // itself; only .types is readable during dragenter/dragover, so both the
+    // affordance and the drop check key off "Files" in .types rather than
+    // .files.
     document.querySelectorAll('[data-dropzone]').forEach(function (zone) {
         var input = zone.querySelector('input[type="file"]');
         var browse = zone.querySelector('[data-dropzone-browse]');
@@ -124,6 +147,17 @@
             return;
         }
 
+        var formatSize = function (bytes) {
+            return bytes >= 1048576
+                ? (bytes / 1048576).toFixed(1) + ' MB'
+                : Math.max(1, Math.round(bytes / 1024)) + ' KB';
+        };
+
+        // One row per file — not the crammed single line this replaced. Each
+        // row carries its own state placeholder, populated only once a
+        // submission is under way (see the upload-progress block below);
+        // until then it stays empty, so a page whose form has no progress
+        // enhancement (Uploads/Request) renders identically to before.
         var describe = function () {
             var files = input.files ? Array.from(input.files) : [];
             zone.classList.toggle('has-file', files.length > 0);
@@ -136,10 +170,17 @@
 
             var rows = files.map(function (file) {
                 var row = document.createElement('span');
-                var size = file.size >= 1048576
-                    ? (file.size / 1048576).toFixed(1) + ' MB'
-                    : Math.max(1, Math.round(file.size / 1024)) + ' KB';
-                row.textContent = file.name + ' (' + size + ')';
+                row.className = 'dropzone__file-row';
+                var name = document.createElement('span');
+                name.className = 'dropzone__file-row__name';
+                name.textContent = file.name;
+                var size = document.createElement('span');
+                size.className = 'dropzone__file-row__size';
+                size.textContent = formatSize(file.size);
+                var status = document.createElement('span');
+                status.className = 'dropzone__file-row__status';
+                status.setAttribute('data-file-row-status', '');
+                row.append(name, size, status);
                 return row;
             });
             readout.replaceChildren.apply(readout, rows);
@@ -153,18 +194,46 @@
         browse.addEventListener('click', function () { input.click(); });
         input.addEventListener('change', describe);
 
-        ['dragenter', 'dragover'].forEach(function (type) {
-            zone.addEventListener(type, function (event) {
+        // dragenter/dragleave fire once per element the pointer crosses
+        // inside the target, so a depth counter (not a toggle) decides when
+        // the drag has genuinely left it, rather than flickering as it moves
+        // across the panel's own children.
+        var target = zone.closest('.panel') || zone;
+        var depth = 0;
+        var isFileDrag = function (event) {
+            return Boolean(event.dataTransfer)
+                && Array.from(event.dataTransfer.types || []).includes('Files');
+        };
+
+        target.addEventListener('dragenter', function (event) {
+            if (!isFileDrag(event)) {
+                return;
+            }
+            depth += 1;
+            zone.classList.add('is-dragover');
+        });
+        target.addEventListener('dragover', function (event) {
+            if (isFileDrag(event)) {
                 event.preventDefault();
-                zone.classList.add('is-dragover');
-            });
+            }
         });
-        ['dragleave', 'dragend'].forEach(function (type) {
-            zone.addEventListener(type, function () { zone.classList.remove('is-dragover'); });
+        target.addEventListener('dragleave', function () {
+            depth = Math.max(0, depth - 1);
+            if (depth === 0) {
+                zone.classList.remove('is-dragover');
+            }
         });
-        zone.addEventListener('drop', function (event) {
-            event.preventDefault();
+        target.addEventListener('dragend', function () {
+            depth = 0;
             zone.classList.remove('is-dragover');
+        });
+        target.addEventListener('drop', function (event) {
+            depth = 0;
+            zone.classList.remove('is-dragover');
+            if (!isFileDrag(event)) {
+                return;
+            }
+            event.preventDefault();
             var dropped = event.dataTransfer ? event.dataTransfer.files : null;
             if (!dropped || dropped.length === 0) {
                 return;
@@ -174,6 +243,72 @@
         });
 
         describe();
+
+        // Per-file upload progress: opt-in via data-upload-progress on the
+        // form, so this only changes behaviour on the one form that owns the
+        // contract below (Upload.cshtml) and never touches the document
+        // request form, which keeps its plain native submit.
+        var form = zone.closest('form');
+        if (form
+            && form.hasAttribute('data-upload-progress')
+            && typeof fetch === 'function'
+            && typeof FormData === 'function') {
+            var setRowStatus = function (state, text) {
+                readout.classList.toggle('is-refreshing', state === 'uploading');
+                readout.querySelectorAll('[data-file-row-status]').forEach(function (status) {
+                    var iconId = state === 'stored' ? '#icon-check-circle' : '#icon-refresh-cw';
+                    var glyph = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    glyph.setAttribute('class', state === 'uploading' ? 'icon icon--spin' : 'icon');
+                    glyph.setAttribute('aria-hidden', 'true');
+                    var use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+                    use.setAttribute('href', iconId);
+                    glyph.appendChild(use);
+                    var label = document.createElement('span');
+                    label.textContent = text;
+                    status.setAttribute('data-state', state);
+                    status.replaceChildren(glyph, label);
+                });
+            };
+
+            form.addEventListener('submit', function (event) {
+                var files = input.files ? Array.from(input.files) : [];
+                if (files.length === 0) {
+                    // Nothing chosen: let native "choose a file" validation
+                    // say so, exactly as it always has.
+                    return;
+                }
+
+                event.preventDefault();
+                // Every row enters the same state together here: a single
+                // POST stores the whole batch, so there is no per-file signal
+                // to show yet, and showing one anyway would be a state this
+                // page cannot actually know (see research.md).
+                setRowStatus('uploading', 'Uploading');
+
+                fetch(form.getAttribute('action') || window.location.href, {
+                    method: 'POST',
+                    body: new FormData(form)
+                }).then(function (response) {
+                    if (response.redirected) {
+                        // The response proves the whole batch is durably
+                        // stored — a real fact from the actual response, not
+                        // a guess — so every row ticks together.
+                        setRowStatus('stored', 'Stored');
+                        window.location.assign(response.url);
+                        return;
+                    }
+
+                    // Validation failed. Upload.cshtml.cs stores nothing
+                    // until every file passes validation, so nothing was
+                    // written on this path and a native re-submit is safe —
+                    // it shows the exact, already-correct error page rather
+                    // than this script guessing which row to blame.
+                    form.submit();
+                }).catch(function () {
+                    form.submit();
+                });
+            });
+        }
     });
 
     // Live character counters for reason fields whose limit is policy.

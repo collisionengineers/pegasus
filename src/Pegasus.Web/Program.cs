@@ -563,6 +563,11 @@ builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
 builder.Services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
 builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
+// Presentation-layer read model for the Upload confirmation surface: composes
+// existing Core read ports only, and every action it offers routes to the
+// existing page that performs it (see Pegasus.Web.Presentation.UploadOutcome).
+builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadOutcomeQueries,
+    Pegasus.Web.Presentation.UploadOutcomeQueries>();
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());
