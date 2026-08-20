@@ -4,4 +4,4 @@ No unresolved question blocks the combined AUTO-004/AUTO-005 implementation. ADR
 
 ## Parked (explicitly deferred)
 
-- [x] **Can Automation assign Triage “to me” or choose an arbitrary staff assignee?** — No. The actor is not a staff GUID and never impersonates staff; an arbitrary-assignee API would be broader than the Web caller.
+- [x] **How is Triage assignment handled?** — [[INTK-019]] retires actor-relative “Assign to me” and replaces it with explicit named-Engineer selection. That shared contract is outside this PR; it must preserve distinct acting-principal and assignee identities.

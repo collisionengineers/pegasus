@@ -2,12 +2,15 @@
 id: AUTO-005
 type: ticket
 title: Expose Triage casework through the Automation Actor
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: codex-mcp-client
 profile: spike
 stageEntered:
   preparing: '2026-08-20T10:23:17.577Z'
+taken_at: '2026-08-20T10:37:15.283Z'
+branch: task/auto-004-automation-parity
+worktree: ../pegasus-worktrees/auto-004
 labels:
   - automation-actor
   - MCP
@@ -22,7 +25,7 @@ refs:
   - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-20T10:12:42.306Z'
-updated: '2026-08-20T10:24:08.277Z'
+updated: '2026-08-20T10:37:15.283Z'
 ---
 
 ## What
@@ -35,13 +38,13 @@ ADR-0011 requires MCP tools to call the same Core use cases as Web and forbids a
 
 ## Scope
 
-Research the exact parity inventory: list/detail, retained source retrieval, state transitions, findings/corrections, response-evidence links, completion/cancellation/reopen, and Case association through existing leases. Preserve explicit identity constraints: the Automation Actor never impersonates staff, so the staff-only “assign to me” interaction is not converted into an Automation assignee or an arbitrary-staff assignment tool.
+Research the exact parity inventory: list/detail, retained source retrieval, state transitions, findings/corrections, response-evidence links, completion/cancellation/reopen, and Case association through existing leases. Preserve distinct actor and assignee identities. [[INTK-019]] retires “Assign to me” in favour of explicit named-Engineer selection; this PR does not pre-empt that shared assignment redesign.
 
 ## Verification
 
 - Every in-scope tool calls the existing Triage/Core owner used by Web.
 - Automation receives the same `PerformCasework` authorization, version, reason, operation-key, evidence, and Case-lease guards.
-- Staff-only identity semantics and explicitly prohibited external/management actions remain absent.
+- The retired actor-relative assignment shape and explicitly prohibited external/management actions remain absent; [[INTK-019]] owns explicit named-Engineer assignment.
 - Real `/mcp` success, denial, validation, replay, attribution, and history evidence covers the Triage inventory.
 
 ## Outcome

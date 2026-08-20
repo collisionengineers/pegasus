@@ -9,8 +9,8 @@ Deliver [[AUTO-004]] and [[AUTO-005]] as one bounded Automation-ingress change: 
 - **`docs/adr/0011-restrict-mcp-to-automation-actor.md` — Meets.** Every tool resolves the distinct Automation actor, calls the same Core use case as Web, records attributable history, and accepts no caller-supplied actor. No staff impersonation, management action, or second policy engine is introduced.
 - **`docs/adr/0021-automation-actor-direct-write-assessment-contract.md` — Meets.** The change completes the comprehensive ordinary-`PerformCasework` inventory with logging parity under existing scopes and the shared composition/kill-switch boundary. The ADR's explicit professional Case-finding, report-approval, and outward-dispatch exclusions remain absent.
 - **`docs/frd/frd-02-intake-and-source-identity.md` — Meets.** Exact U-reference reads preserve receipt/group identity, enumerate every grouped member, and retrieve bytes only through the existing integrity-checked source owner. U references never become Case/Audit/Image Intake/principal identities.
-- **`docs/frd/frd-03-triage.md` — Meets.** Typed tools reuse the settled Triage states, findings, response evidence, reasons, replay/version rules, and Case association lease. Triage remains distinct from Unidentified. Staff “Assign to me” is not mapped to an Automation/staff-impersonation action.
-- **`docs/frd/frd-10-mcp-automation-and-actor-boundary.md` — Modifies with explicit operator authorization in this task.** Name the already-decided Unidentified/Triage typed inventory and parity boundary, including retained-source access, same-Core behavior, `automation.intake`, real-caller evidence, and the staff-assignment identity exclusion. This records behavior implied by ADR-0011/ADR-0021; it does not create a new architectural decision.
+- **`docs/frd/frd-03-triage.md` — Meets.** Typed tools reuse the settled Triage states, findings, response evidence, reasons, replay/version rules, and Case association lease. Triage remains distinct from Unidentified. Assignment uses an explicit named-Engineer contract, not actor-relative “Assign to me”; that redesign is tracked by [[INTK-019]] and is not duplicated in this PR.
+- **`docs/frd/frd-10-mcp-automation-and-actor-boundary.md` — Modifies with explicit operator authorization in this task.** Name the already-decided Unidentified/Triage typed inventory and parity boundary, including retained-source access, same-Core behavior, `automation.intake`, real-caller evidence, and the explicit separation of acting principal from selected assignee. This records behavior implied by ADR-0011/ADR-0021; it does not create a new architectural decision.
 - **No new ADR.** ADR-0011 and ADR-0021 already own the actor, access, same-Core, comprehensive-inventory, and logging decisions.
 
 ## Steps
@@ -34,7 +34,7 @@ Deliver [[AUTO-004]] and [[AUTO-005]] as one bounded Automation-ingress change: 
    - Separate tools for Awaiting information, record finding, supersede finding, link/unlink response evidence, complete, cancel, and reopen.
    - Construct every request from the resolved Automation subject; never accept actor input.
    - Preserve expected version, bounded reason, `mcp:` operation key, exact evidence identities, replay, and fail-closed state rules.
-   - Do not expose assign/reassign/unassign because the current staff capability is identity-specific “Assign to me” and the Automation Actor cannot impersonate a staff GUID.
+   - Do not implement assignment in this PR: [[INTK-019]] owns retirement of actor-relative “Assign to me” and the shared explicit named-Engineer assignment contract. Once that Core contract lands, staff and Automation must use it with separate actor attribution and selected assignee identity.
 
 5. Add Triage Case association parity.
    - Expose typed link/unlink tools that accept the exact Case id/version, Triage version, active Case edit-lease token, reason, and operation key.
@@ -42,7 +42,7 @@ Deliver [[AUTO-004]] and [[AUTO-005]] as one bounded Automation-ingress change: 
 
 6. Register `TriageMcpTools` under the existing configuration gate and `automation.intake` scope, then prove the complete runtime surface.
    - Cover tool discovery, success, wrong-scope denial, malformed IDs/enums/keys, stale versions, replay/conflicting reuse, missing/incorrect evidence, source integrity failure, grouped-member selection, Case lease conflict, action-history success/failure, and domain-history actor attribution.
-   - Verify prohibited staff assignment, management, external send, and cross-identity actions remain absent.
+   - Verify management, external send, cross-identity actions, and the retired actor-relative “Assign to me” shape remain absent; explicit named-Engineer assignment remains [[INTK-019]].
 
 7. Reconcile canonical documentation to evidence.
    - Update FRD-10 with the authorized parity behavior and explicit exclusions; leave FRD-02/FRD-03/ADRs unchanged unless implementation reveals a direct contradiction, which is a stop condition.
@@ -51,7 +51,7 @@ Deliver [[AUTO-004]] and [[AUTO-005]] as one bounded Automation-ingress change: 
    - Update `docs/operations.md` only if an explicitly approved deployment occurs; otherwise retain the deployed inventory and state that the new source inventory is not yet deployed rather than claiming it live.
 
 8. Run the required simplification and verification pass.
-   - Review the branch diff through reuse, simplification, efficiency, and altitude lenses; specifically reject duplicate state/reason lists, generic queue/material wrappers, new scopes, direct stores where a Core use case exists, and repeated bounded-content code where the existing convention can be reused without inventing an abstraction for one caller.
+   - Review the branch diff through reuse, simplification, efficiency, and altitude lenses; specifically reject duplicate state/reason lists, generic queue/material wrappers, actor-relative assignment shortcuts, new scopes, direct stores where a Core use case exists, and repeated bounded-content code where the existing convention can be reused without inventing an abstraction for one caller.
    - Record findings/dispositions under a dated “Simplification pass” heading in this plan during execution.
    - Run locked restore/build, focused Automation/Unidentified/Triage/Core tests, full relevant IntegrationTests, ArchitectureTests, documentation-link checks, and the full solution suite proportionate to the final diff.
 
@@ -76,5 +76,5 @@ Post-merge `proof.md` must verify the inventory and representative success/denia
 - **Legacy Triage mutation actor strings.** MCP supplies only the resolved Automation subject and the auditor records actor kind. If a command cannot preserve the accepted authorization/history boundary without changing its Core contract, stop and make the smallest shared typed-`ActionActor` correction rather than authorizing in MCP alone.
 - **Submission-group identity.** Require an exact member receipt id belonging to the U-reference's group; reject cross-group or missing members before download.
 - **Content size.** Reuse the existing bounded-inline convention and integrity-checked Core download; never read the artifact store directly.
-- **Assignment semantics.** No open question: Automation is not a staff assignee and receives no broader arbitrary-assignment API.
+- **Assignment semantics.** [[INTK-019]] owns the explicit named-Engineer selection contract and retirement of “Assign to me.” This PR must not preserve or extend the obsolete actor-relative shape, nor pre-empt the shared replacement contract.
 - **Deployment.** Not authorized by this planning task; source/PR work must not be described as deployed.

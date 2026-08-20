@@ -2,12 +2,15 @@
 id: AUTO-004
 type: ticket
 title: Restore Automation Actor parity for Unidentified and Triage
-status: preparing
+status: implementing
 area: automation-integrations
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-20T10:10:55.935Z'
+taken_at: '2026-08-20T10:37:15.247Z'
+branch: task/auto-004-automation-parity
+worktree: ../pegasus-worktrees/auto-004
 labels:
   - automation-actor
   - MCP
@@ -25,7 +28,7 @@ refs:
   - docs/frd/frd-03-triage.md
 archived: false
 created: '2026-08-20T09:27:47.730Z'
-updated: '2026-08-20T10:25:21.385Z'
+updated: '2026-08-20T10:37:15.247Z'
 ---
 
 ## Why
@@ -42,7 +45,7 @@ Deliver [[AUTO-004]] and [[AUTO-005]] in one task/worktree/PR while keeping thei
 - Correct the governed tool inventory and add real HTTP caller proof.
 - Reconcile FRD/capability/as-built/runtime claims only to proven behavior.
 
-Staff-only “Assign to me” identity is not converted into Automation impersonation or an arbitrary-staff assignment API. Broader classified-mail parity remains [[AUTO-003]].
+Actor-relative “Assign to me” is obsolete. [[INTK-019]] owns the explicit named-Engineer assignment contract; this PR neither preserves the old shortcut nor duplicates that pending shared redesign. Broader classified-mail parity remains [[AUTO-003]].
 
 ## Verification
 
