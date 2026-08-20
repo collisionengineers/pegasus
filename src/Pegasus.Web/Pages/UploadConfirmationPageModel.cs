@@ -20,7 +20,7 @@ namespace Pegasus.Web.Pages;
 public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecision) : PageModel
 {
     /// <summary>Back to the concrete status surface after a decision.</summary>
-    protected abstract IActionResult RedirectToSurface(Guid id, bool duplicate);
+    protected abstract IActionResult RedirectToSurface(Guid id);
 
     protected bool TryGetActor([NotNullWhen(true)] out ActionActor? actor) =>
         StaffActorFactory.TryCreate(
@@ -60,7 +60,6 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
         Guid? caseId,
         string? reference,
         string? reason,
-        bool duplicate,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -71,21 +70,23 @@ public abstract class UploadConfirmationPageModel(IUploadCaseDecision caseDecisi
         if (receiptId == Guid.Empty || string.IsNullOrWhiteSpace(reason))
         {
             TempData["UploadConfirmationError"] = "A reason is required to add this to a case.";
-            return RedirectToSurface(id, duplicate);
+            return RedirectToSurface(id);
         }
 
         try
         {
             var result = await caseDecision.AttachAsync(
                 receiptId, caseId, reference, reason, actor, cancellationToken);
-            TempData[result.Succeeded ? "UploadConfirmationStatus" : "UploadConfirmationError"] =
-                result.Message;
+            // Success uses the layout's one-time confirmation slot — the
+            // existing convention for an action completed on another page;
+            // only the failure banner is this surface's own.
+            TempData[result.Succeeded ? "Confirmation" : "UploadConfirmationError"] = result.Message;
         }
         catch (StaffAuthorizationException)
         {
             return Forbid();
         }
 
-        return RedirectToSurface(id, duplicate);
+        return RedirectToSurface(id);
     }
 }

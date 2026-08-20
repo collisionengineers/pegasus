@@ -80,6 +80,20 @@ public static class OperatorLabels
         _ => "(No subject)"
     };
 
+    /// <summary>
+    /// The confirmation surface's association report, worded by provenance:
+    /// a staff decision is never described as automation's doing, and what
+    /// it says happened automatically really did.
+    /// </summary>
+    public static string AssociatedWithCase(string? caseReference, bool byStaffDecision) =>
+        (byStaffDecision, caseReference) switch
+        {
+            (true, null) => "This was added to a case.",
+            (true, { } staffLinked) => $"This was added to case {staffLinked}.",
+            (false, null) => "This was automatically associated with a case.",
+            (false, { } matched) => $"This was automatically associated with case {matched}."
+        };
+
     public static string CaseStage(CaseLifecycleState state) => state switch
     {
         CaseLifecycleState.NotReady => "Not ready",

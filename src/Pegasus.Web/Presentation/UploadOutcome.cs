@@ -176,22 +176,12 @@ public sealed class UploadOutcomeQueries(
         // case is already settled before any open decision is offered.
         if (receipt.CurrentCaseId is { } caseId)
         {
-            var reference = receipt.CurrentCaseReference;
-            // A staff link (the confirmation surface's own add-to-case
-            // decision, or the received-item screen) must not be reported as
-            // automation's doing — the report-not-reoffer rule cuts both
-            // ways: what it says happened automatically really did.
-            var byStaff = receipt.AssociationWasStaffDecision;
             return new(
                 UploadOutcomeKind.Attached,
                 "Associated with a case",
-                (byStaff, reference) switch
-                {
-                    (true, null) => "This was added to a case.",
-                    (true, { } linked) => $"This was added to case {linked}.",
-                    (false, null) => "This was automatically associated with a case.",
-                    (false, { } matched) => $"This was automatically associated with case {matched}."
-                },
+                OperatorLabels.AssociatedWithCase(
+                    receipt.CurrentCaseReference,
+                    receipt.AssociationWasStaffDecision),
                 new("Open case", $"/Cases/Details/{caseId:D}"),
                 new("Not the right case?", $"/Received/{receiptId:D}"));
         }
@@ -219,9 +209,7 @@ public sealed class UploadOutcomeQueries(
                 return new(
                     UploadOutcomeKind.Attached,
                     "Associated with a case",
-                    detail.MergedIntoCaseReference is { } mergedReference
-                        ? $"This was added to case {mergedReference}."
-                        : "This was added to a case.",
+                    OperatorLabels.AssociatedWithCase(detail.MergedIntoCaseReference, byStaffDecision: true),
                     new("Open case", $"/Cases/Details/{mergedCaseId:D}"),
                     null);
             }

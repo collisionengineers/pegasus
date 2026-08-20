@@ -78,6 +78,6 @@ public sealed class UploadStatusModel(
         return Page();
     }
 
-    protected override IActionResult RedirectToSurface(Guid id, bool duplicate) =>
-        RedirectToPage("/UploadStatus", new { id, duplicate = duplicate ? "true" : null });
+    protected override IActionResult RedirectToSurface(Guid id) =>
+        RedirectToPage("/UploadStatus", new { id });
 }

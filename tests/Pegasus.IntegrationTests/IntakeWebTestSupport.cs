@@ -632,6 +632,23 @@ internal static partial class IntakeWebDriver
         ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
 
     /// <summary>
+    /// Runs the Worker's grouped-image reconcile sweep once, standing in for
+    /// its timer. A grouped upload's members can drain in an order that
+    /// leaves a member's group outcome pending for this sweep (the ordinal-
+    /// zero member's group lookup resolves only through it), so a test about
+    /// a group's settled state must run it just as production does.
+    /// </summary>
+    internal static async Task ReconcileGroupedImageIntakeAsync(
+        IServiceProvider services,
+        CancellationToken cancellationToken = default)
+    {
+        var reconcile = ActivatorUtilities.CreateInstance<ReconcileGroupedImageIntake>(
+            services,
+            (IProcessQueuedIntake)CreateProcessor(services));
+        _ = await reconcile.ExecuteAsync(50, cancellationToken);
+    }
+
+    /// <summary>
     /// Dispatches and processes one staged receipt to its completed evaluation,
     /// standing in for the Worker timer and queue trigger. A replay may already
     /// name completed work, so it reads before dispatching.

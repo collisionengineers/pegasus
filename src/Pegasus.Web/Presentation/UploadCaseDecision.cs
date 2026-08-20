@@ -112,9 +112,7 @@ public sealed class UploadCaseDecision(
         {
             return new(
                 true,
-                receipt.CurrentCaseReference is { } linkedReference
-                    ? $"This was added to case {linkedReference}."
-                    : "This was added to a case.",
+                OperatorLabels.AssociatedWithCase(receipt.CurrentCaseReference, byStaffDecision: true),
                 targetCaseId);
         }
         if (receipt.CurrentCaseId is not null)
@@ -160,7 +158,10 @@ public sealed class UploadCaseDecision(
             return new(false, "The uploaded material could not be added to that case. Refresh and try again.");
         }
 
-        return new(true, $"This was added to case {details.Summary.Reference}.", targetCaseId);
+        return new(
+            true,
+            OperatorLabels.AssociatedWithCase(details.Summary.Reference, byStaffDecision: true),
+            targetCaseId);
     }
 
     private async Task<Guid?> ResolveReferenceAsync(
