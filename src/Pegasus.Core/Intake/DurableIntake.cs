@@ -426,7 +426,8 @@ public sealed class ProcessQueuedIntake(
     TimeProvider timeProvider,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
-    ReconcileUnidentifiedDestinations? unidentifiedDestinations = null) : IProcessQueuedIntake
+    ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
+    AssociateRetainedMailWithCase? automaticMailCaseAssociation = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
@@ -468,6 +469,12 @@ public sealed class ProcessQueuedIntake(
                 completedEvaluation,
                 cancellationToken);
             if (replayAssociated)
+            {
+                completedReceipt = await receiptQueries.GetAsync(
+                    completedEvaluation.ProcessedReceiptId,
+                    cancellationToken) ?? completedReceipt;
+            }
+            if (await AssociateRetainedMailAsync(completedReceipt, cancellationToken))
             {
                 completedReceipt = await receiptQueries.GetAsync(
                     completedEvaluation.ProcessedReceiptId,
@@ -595,6 +602,10 @@ public sealed class ProcessQueuedIntake(
 
         var associated = await AssociateCaseIfUnambiguousAsync(processed, evaluation, cancellationToken);
         if (associated)
+        {
+            processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
+        }
+        if (await AssociateRetainedMailAsync(processed, cancellationToken))
         {
             processed = await receiptQueries.GetAsync(processed.Id, cancellationToken) ?? processed;
         }
@@ -772,6 +783,33 @@ public sealed class ProcessQueuedIntake(
         {
             // A vanished case, an archived case, or a live staff edit lease
             // yields; the recorded decision stays visible for a staff link.
+            return false;
+        }
+    }
+
+    private async Task<bool> AssociateRetainedMailAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        if (automaticMailCaseAssociation is null || receipt.CurrentCaseId is not null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var outcome = await automaticMailCaseAssociation.ExecuteAsync(
+                receipt.Id,
+                cancellationToken);
+            return outcome == AutomaticCaseAssociationOutcome.Associated;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception)
+        {
+            // Advisory: changed/ambiguous evidence yields to the staff link path.
             return false;
         }
     }

@@ -662,19 +662,10 @@ internal sealed class EfRetainedMailboxMessageStore(
             item => item.ExternalReceiptToken,
             StringComparer.Ordinal);
         var receiptIds = receipts.Select(item => item.Id).ToArray();
-        var cases = receiptIds.Length == 0
-            ? []
-            : await context.CaseIntakeLinks
-                .AsNoTracking()
-                .Where(link => receiptIds.Contains(link.IntakeReceiptId))
-                .Select(link => new
-                {
-                    link.IntakeReceiptId,
-                    link.CaseId,
-                    link.Case.Reference
-                })
-                .ToListAsync(cancellationToken);
-        var casesByReceipt = cases.ToDictionary(item => item.IntakeReceiptId);
+        var casesByReceipt = await CurrentIntakeAssociations.ReadAsync(
+            context,
+            receiptIds,
+            cancellationToken);
         var allocationStates = receiptIds.Length == 0
             ? new Dictionary<Guid, IntakeAllocationState>()
             : (await context.IntakeAllocationAttempts
