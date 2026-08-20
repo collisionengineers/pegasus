@@ -49,4 +49,5 @@ Assert-DatabaseState -Case 'stopped state' -Output 'State: Stopped' -ExitCode 0 
 Assert-DatabaseState -Case 'contradictory state and missing response' -Output "State: Running`r`nLocalDB instance `"$script:RequestedInstance`" doesn't exist! " -ExitCode 0 -Expected 'Unknown'
 Assert-DatabaseState -Case 'non-zero response' -Output 'LocalDB command failed.' -ExitCode 1 -Expected 'Missing'
 
+$global:LASTEXITCODE = 0
 Write-Output 'Pegasus platform LocalDB state classification passed.'
