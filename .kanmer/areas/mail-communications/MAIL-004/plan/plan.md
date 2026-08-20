@@ -33,3 +33,12 @@ To be recorded after implementation.
 - **Altitude:** Core owns validation/authorization/Active reload; Infrastructure owns EF/history; Web owns thin Administrator forms. No retained-mail, search, association, Graph, Automation or message-action code changed.
 
 Applied finding: added the new route to the existing canonical authorization, antiforgery and browser axe inventories rather than adding parallel page-only accessibility machinery. No unapplied findings.
+
+## Review-blocker simplification pass — 2026-08-20
+
+- **Reuse:** extended the existing Core fake, LocalDB/Web test support, ActionHistory queries, runtime-role permission reader and Administration design pattern.
+- **Simplification:** no new framework/table/page was added. A synthetic Web-test tag helper was removed in favor of passing parsed values directly.
+- **Efficiency:** the concurrency correction takes an update/key-range lock for one category id only; focused tests avoid unrelated full LocalDB suites.
+- **Altitude:** Core policy and Web behavior are unchanged; Infrastructure alone owns relational serialization; governing docs own UI activation/evidence.
+- **Applied findings:** same-category serialization now precedes operation-history lookup, giving deterministic replay/version behavior; MAIL-004's PIR is one row per final Git path.
+- **Outstanding disposition:** PR-026 manual visual evidence remains blocked because the in-app Browser runtime had no available instance. No evidence was fabricated or substituted.
