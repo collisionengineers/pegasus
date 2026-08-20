@@ -47,3 +47,9 @@ The PR reference and final head SHA will be recorded on the ticket after the bra
 - The default `IRetainedMailFolderMover` is intentionally unavailable. Production activation still requires separate exact permission/RBAC/deployment approval and live evidence; none was requested or performed here.
 - A provider timeout that cannot be resolved by probing either exact source or destination remains durable as uncertain and blocks a second operation key, preventing a duplicate move.
 - On merged code, verification should repeat locked restore, Release build, full Core tests, the retained-mail/Web/Graph integration set, and the migration permission tests. It should also confirm the production composition still has no live writer before any separately authorized activation work.
+
+## Pull request
+
+Opened PR #477 to `dev`: https://github.com/collisionengineers/pegasus/pull/477
+
+Pushed head: `f60248af4a078c1fa188a46143818d2cce2683c9`. CI was queued at handoff; independent review must wait for required checks to pass before merge.

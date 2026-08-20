@@ -13,3 +13,11 @@ Branch task/intk-020-upload-one-unit from origin/dev (after PLAT-016 merges). Ev
 Copy: all new strings pass the (new) no-explanatory-copy rule — labels + one consequence sentence max.
 
 Deviation note: operator barred subagents — self-review recorded in scratch instead of independent review.
+
+## Simplification pass — 2026-08-20 (own diff)
+
+- Reuse: group actions converge on the single-path replay identities (`upload-attach-lease:{rid}:{caseId}` / `upload-attach:{rid}:{caseId}` / automation's `image-intake-register:group:{gid}`) — no new key vocabulary; combobox JS contract, gallery CSS language, `IRegisterImageIntake`, origin resolver, and the ONE new normalizer owner (which absorbed the existing inline copy) all reused.
+- Simplification: GET + handlers share one `LoadAsync`; compact per-file rendering is an inherited ViewData flag, not a second partial.
+- Found + fixed during testing: composite 3-GUID operation keys exceeded the Core 100-char key bound — converging on the single-path keys removed the problem and the duplication at once; per-member lease/fresh-version loop matches the lease-consumed-per-mutation contract (`CaseMutationGuard.Complete` clears the lease each link).
+- Accepted local: `UploadGroupStatusModel` keeps a private `_caseDecision` field because the base deliberately doesn't expose its dependency; widening the base for one consumer would be the bigger change.
+- Copy: every new string is label-or-consequence only; checked against the new no-explanatory-copy rule.

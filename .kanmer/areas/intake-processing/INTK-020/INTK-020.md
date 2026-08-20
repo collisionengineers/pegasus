@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Treat an upload submission as one unit: one decision card, thumbnails
   everywhere images appear
-status: implementing
+status: review
 area: intake-processing
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-20T14:11:41.964Z'
+  review: '2026-08-20T14:53:26.920Z'
 taken_at: '2026-08-20T14:12:11.426Z'
 branch: task/intk-020-upload-one-unit
 worktree: ../pegasus-worktrees/intk-020
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T14:08:22.595Z'
-updated: '2026-08-20T14:12:11.426Z'
+updated: '2026-08-20T14:53:26.920Z'
 ---
 
 ## Why

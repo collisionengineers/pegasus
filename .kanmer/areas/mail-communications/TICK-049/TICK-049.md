@@ -2,12 +2,13 @@
 id: TICK-049
 type: ticket
 title: MAIL-07 — Move the confirmed message to the designated Outlook folder
-status: implementing
+status: review
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:37.436Z'
+  review: '2026-08-20T14:53:19.600Z'
 taken_at: '2026-08-20T14:16:53.138Z'
 branch: task/tick-049-mail-07-confirmed-folder-move
 worktree: ../pegasus-worktrees/tick-049
@@ -28,9 +29,14 @@ blocks:
   - TICK-054
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - 8b1e6d74
+  - f60248af4a078c1fa188a46143818d2cce2683c9
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/477'
 archived: false
 created: '2026-08-12T15:05:19.217Z'
-updated: '2026-08-20T14:16:53.138Z'
+updated: '2026-08-20T14:53:19.600Z'
 ---
 
 ## What
