@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Workflow;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Mail;
@@ -16,7 +19,13 @@ namespace Pegasus.Web.Pages.Mail;
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
     CorrectRetainedMailClassification correctClassification,
-    MoveRetainedMailFolder moveRetainedMailFolder) : StaffPageModel
+    MoveRetainedMailFolder moveRetainedMailFolder,
+    IUploadCaseDecision caseDecision,
+    IGetCase getCase,
+    IGetIntake getIntake,
+    IAcquireCaseEditLease acquireCaseEditLease,
+    ILinkIntake linkIntake,
+    IReverseIntakeLink reverseIntakeLink) : StaffPageModel
 {
     public static IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
         MailClassificationSelection.Options;
@@ -39,6 +48,12 @@ public sealed class MessageModel(
 
     [BindProperty(SupportsGet = true, Name = "section")]
     public string? Section { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "caseQuery")]
+    public string? CaseQuery { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "targetCaseId")]
+    public Guid? TargetCaseId { get; set; }
 
     [BindProperty]
     public int ExpectedClassificationVersion { get; set; }
@@ -73,7 +88,18 @@ public sealed class MessageModel(
     [TempData]
     public string? FolderMoveNotice { get; set; }
 
+    [TempData]
+    public string? AssociationNotice { get; set; }
+
     public RetainedMailDetail Detail { get; private set; } = null!;
+
+    public IntakeReceipt? AssociationReceipt { get; private set; }
+
+    public CaseDetails? CurrentCase { get; private set; }
+
+    public CaseDetails? TargetCase { get; private set; }
+
+    public IReadOnlyList<UploadCaseSuggestion>? CaseResults { get; private set; }
 
     public MailFolderScope ListFolder { get; private set; } = MailFolderScope.Inbox;
 
@@ -122,7 +148,133 @@ public sealed class MessageModel(
 
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
+        await LoadAssociationSafelyAsync(actor, cancellationToken);
         return Page();
+    }
+
+    public async Task<IActionResult> OnPostLinkCaseAsync(
+        Guid id,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string operationKey,
+        string Reason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            RequireAssociationReason(Reason);
+            var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
+            if (binding is null)
+            {
+                return NotFound();
+            }
+            if (binding.Version != expectedIntakeVersion
+                || binding.CurrentCaseId is not null)
+            {
+                throw new IntakeVersionConflictException();
+            }
+
+            var selectedCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
+            if (selectedCase is null
+                || selectedCase.Workflow.Version != expectedCaseVersion
+                || selectedCase.Workflow.Archive is not null
+                || CaseLifecycleRules.IsTerminal(selectedCase.Workflow.State))
+            {
+                throw new IntakeVersionConflictException();
+            }
+            var lease = await acquireCaseEditLease.ExecuteAsync(
+                new(caseId, expectedCaseVersion, actor, operationKey),
+                cancellationToken);
+            await linkIntake.ExecuteAsync(
+                new(
+                    binding.Id,
+                    caseId,
+                    expectedIntakeVersion,
+                    lease.Version,
+                    lease.Token,
+                    actor,
+                    operationKey,
+                    Reason),
+                cancellationToken);
+            AssociationNotice = $"Message linked to {selectedCase.Summary.Reference}.";
+            return RedirectToMessage(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            ModelState.AddModelError(string.Empty, AssociationFailureMessage(exception));
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+    }
+
+    public async Task<IActionResult> OnPostUnlinkCaseAsync(
+        Guid id,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string operationKey,
+        string Reason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            RequireAssociationReason(Reason);
+            var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
+            if (binding is null)
+            {
+                return NotFound();
+            }
+            if (binding.Version != expectedIntakeVersion
+                || binding.CurrentCaseId != caseId)
+            {
+                throw new IntakeVersionConflictException();
+            }
+
+            var currentCase = await getCase.ExecuteAsync(new(caseId, actor), cancellationToken);
+            if (currentCase is null || currentCase.Workflow.Version != expectedCaseVersion)
+            {
+                throw new IntakeVersionConflictException();
+            }
+            var lease = await acquireCaseEditLease.ExecuteAsync(
+                new(caseId, expectedCaseVersion, actor, operationKey),
+                cancellationToken);
+            await reverseIntakeLink.ExecuteAsync(
+                new(
+                    binding.Id,
+                    caseId,
+                    expectedIntakeVersion,
+                    lease.Version,
+                    lease.Token,
+                    actor,
+                    operationKey,
+                    Reason),
+                cancellationToken);
+            AssociationNotice = $"Message unlinked from {currentCase.Summary.Reference}.";
+            return RedirectToMessage(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            ModelState.AddModelError(string.Empty, AssociationFailureMessage(exception));
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
     }
 
     public async Task<IActionResult> OnPostCorrectClassificationAsync(
@@ -260,7 +412,97 @@ public sealed class MessageModel(
         }
         Detail = detail;
         OutsideListScope = IsOutsideListScope(detail, listFolder);
+        await LoadAssociationSafelyAsync(actor, cancellationToken);
         return Page();
+    }
+
+    private async Task LoadAssociationSafelyAsync(
+        ActionActor actor,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await LoadAssociationAsync(actor, cancellationToken);
+        }
+        catch (ArgumentException exception)
+        {
+            ModelState.AddModelError(nameof(CaseQuery), exception.Message);
+        }
+    }
+
+    private async Task LoadAssociationAsync(ActionActor actor, CancellationToken cancellationToken)
+    {
+        if (Detail.Summary.IntakeReceiptId is not { } receiptId)
+        {
+            return;
+        }
+
+        AssociationReceipt = await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+        if (AssociationReceipt is null)
+        {
+            return;
+        }
+
+        if (AssociationReceipt.CurrentCaseId is { } currentCaseId)
+        {
+            CurrentCase = await getCase.ExecuteAsync(new(currentCaseId, actor), cancellationToken);
+            return;
+        }
+
+        if (TargetCaseId is { } targetCaseId)
+        {
+            var target = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
+            if (target is not null
+                && target.Workflow.Archive is null
+                && !CaseLifecycleRules.IsTerminal(target.Workflow.State))
+            {
+                TargetCase = target;
+            }
+            else
+            {
+                ModelState.AddModelError(string.Empty, "The selected case is not available for association.");
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(CaseQuery))
+        {
+            CaseResults = await caseDecision.SearchAsync(CaseQuery, actor, cancellationToken);
+        }
+    }
+
+    private async Task<IntakeReceipt?> GetExactAssociationAsync(
+        ActionActor actor,
+        Guid messageId,
+        CancellationToken cancellationToken)
+    {
+        var detail = await getRetainedMail.ExecuteAsync(actor, messageId, SearchTerm, cancellationToken);
+        if (detail?.Summary.IntakeReceiptId is not { } receiptId)
+        {
+            return null;
+        }
+        return await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
+    }
+
+    private RedirectToPageResult RedirectToMessage(Guid id) => RedirectToPage(new
+    {
+        id,
+        mailbox = MailboxFilter,
+        folder = FolderFilter,
+        pageNumber = PageNumber,
+        search = SearchTerm
+    });
+
+    private static string AssociationFailureMessage(Exception exception) => exception switch
+    {
+        ArgumentException => "Enter a reason and reload the message before trying again.",
+        _ => "The message or case changed. Reload it, review the current target, and try again."
+    };
+
+    private static void RequireAssociationReason(string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
+        {
+            throw new ArgumentException("A reason of no more than 500 characters is required.", nameof(reason));
+        }
     }
 
     private bool IsOutsideListScope(RetainedMailDetail detail, MailFolderScope listFolder) =>
