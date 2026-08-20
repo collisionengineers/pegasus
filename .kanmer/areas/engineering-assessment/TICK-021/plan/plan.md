@@ -33,3 +33,17 @@ Caller: the existing Case Details page (`GetCase` → `_CaseWorkflow.cshtml` / `
 ## Out of scope (recorded in research)
 
 Intake draft preview mileage; Assessment report "Mileage source" select; live adapter activation (EXT-01); EvaHandoffStore `"staff-correction"` comparison bug (reported for its own ticket).
+
+## Simplification pass — 2026-08-20
+
+Lenses: reuse, simplification, efficiency, altitude (`code-simplifier` agent over the branch diff plus own review). Findings and dispositions:
+
+1. **Applied** — nested ternary in the "Confirmed mileage" row (`_CaseWorkflow.cshtml`): hoisted the classification suffix into `confirmedMileageClass`, one ternary, one copy of the figure format, mirroring `_CaseSummary`.
+2. **Applied** — parenthesised concat in the Odometer row (`_CaseSummary.cshtml`): braced lambda separating figure from suffix.
+3. **Applied (raised by the pass)** — routed the new classification words through `OperatorLabels.MileageEvidence`, honouring the documented "single place a persisted code becomes words" convention instead of raw enum `ToString()` in markup. Pre-existing raw renders in the same file (`@observation.Outcome`, mileage-unit enums) left untouched — out of this diff.
+4. **Not applied** — folding `MileageText` into `Text` via `Text(value)! with { … }`: only two copies exist (under the third-copy bar) and the null-forgiving `!` costs more than the five duplicated ctor args; explicitly not fixed by an optional formatter parameter on `Text` (the named smell).
+5. **Not applied** — merging `VehicleMileageEvidenceClassification` into `VehicleMileagePolicy`: kept as a separate named type because calculation and operator-facing evidence class are different concerns and the separate name documents the binding rule; deliberate, not incidental.
+6. **Reviewer note** — the confirmed-mileage figure gains `:N0` formatting even where no class is appended (consistency with every other mileage render); named in the PR description.
+7. **Efficiency** — none; `OrderByDescending` is required (JSON-deserialized `MotTests` carry no ordering guarantee) and the table reuses existing `table-wrap`/`section-label`/`vh` classes.
+
+Bug found out of scope (not in this diff): `EvaHandoffStore.cs:822` compares `"staff-correction"` while the store writes `'staff_correction'`, so EVA evidence status can never be `Corrected` for staff-corrected vehicle fields — reported for its own ticket.
