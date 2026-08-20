@@ -1,8 +1,5 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
@@ -30,7 +27,7 @@ namespace Pegasus.Web.Pages;
 public sealed partial class UploadModel(
     IGroupedIntakeSubmission groupedSubmission,
     TimeProvider timeProvider,
-    ILogger<UploadModel> logger) : PageModel
+    ILogger<UploadModel> logger) : StaffPageModel
 {
     public static string MaximumSizeLabel =>
         OperatorLabels.FileSize(IntakeEnvelopeLimits.MaximumContentLength);
@@ -98,10 +95,7 @@ public sealed partial class UploadModel(
             return Page();
         }
 
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }

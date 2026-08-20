@@ -1,8 +1,5 @@
-using System.Security.Claims;
-using Pegasus.Core.Actors;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
 using Pegasus.Core.ImageIntake;
@@ -36,7 +33,7 @@ public sealed class IndexModel(
     IDashboardQueries dashboardQueries,
     IUnidentifiedStore unidentifiedStore,
     IImageIntakeQueries imageIntakeQueries,
-    TimeProvider timeProvider) : PageModel
+    TimeProvider timeProvider) : StaffPageModel
 {
     private const int PageSize = 25;
 
@@ -131,10 +128,7 @@ public sealed class IndexModel(
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }

@@ -1,6 +1,4 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
@@ -17,7 +15,7 @@ namespace Pegasus.Web.Pages.Mail;
 /// </remarks>
 public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
-    CorrectRetainedMailClassification correctClassification) : PageModel
+    CorrectRetainedMailClassification correctClassification) : StaffPageModel
 {
     public static IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
         MailClassificationSelection.Options;
@@ -71,10 +69,7 @@ public sealed class MessageModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -113,10 +108,7 @@ public sealed class MessageModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }

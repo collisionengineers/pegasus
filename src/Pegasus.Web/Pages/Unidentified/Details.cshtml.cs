@@ -1,8 +1,5 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -14,7 +11,7 @@ namespace Pegasus.Web.Pages.Unidentified;
 public sealed class DetailsModel(
     IUnidentifiedStore store,
     IResolveUnidentified resolve,
-    IGetIntake getIntake) : PageModel
+    IGetIntake getIntake) : StaffPageModel
 {
     public UnidentifiedItem Item { get; private set; } = null!;
 
@@ -101,10 +98,7 @@ public sealed class DetailsModel(
             return NotFound();
         }
 
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -165,10 +159,7 @@ public sealed class DetailsModel(
         }
 
         if (item.Origin.Kind == UnidentifiedOriginKind.Receipt
-            && StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+            && TryGetActor(out var actor))
         {
             try
             {

@@ -1,10 +1,7 @@
-using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -52,7 +49,7 @@ public sealed partial class CreateModel(
     IAllocateIntake allocateIntake,
     IInspectionAddressResolutionStore addressResolutionStore,
     IProviderInspectionModeStore providerInspectionModeStore,
-    ILogger<CreateModel> logger) : PageModel
+    ILogger<CreateModel> logger) : StaffPageModel
 {
     /// <summary>
     /// How the inspection address on this screen is being settled.
@@ -260,7 +257,7 @@ public sealed partial class CreateModel(
             ? draft?.InspectionAddress ?? string.Empty
             : string.Empty;
         ReceiptId = Receipt.Id;
-        OperationId = Guid.NewGuid().ToString("N");
+        OperationId = NewOperationKey();
         ExpectedReceiptVersion = Receipt.Version;
         AddressSuggestionFingerprint = AddressSuggestion?.Fingerprint ?? string.Empty;
         return Page();
@@ -286,10 +283,7 @@ public sealed partial class CreateModel(
             return Page();
         }
 
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -608,10 +602,7 @@ public sealed partial class CreateModel(
 
     private async Task<IActionResult?> LoadAsync(Guid receiptId, CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
