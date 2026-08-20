@@ -77,9 +77,6 @@
                         <span class="rail-link__count rail-link__count--waiting">@queuesCount</span>
                     }
                 </a>
-                <a class="rail-link" asp-page="/Unidentified/Index" aria-current="@CurrentWhen("/Unidentified")">
-                    <span>Unidentified</span>
-                </a>
                 <a class="rail-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Search")">
                     <span>Cases</span>
                     @if (CountFor("Cases") is { } casesCount)

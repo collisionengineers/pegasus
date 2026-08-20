@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.IntegrationTests;
@@ -126,5 +127,133 @@ public sealed class UnidentifiedPersistenceTests
 
         var reloaded = await store.GetAsync(registered.Item.Id);
         Assert.Equal(UnidentifiedState.Open, reloaded!.State);
+    }
+
+    /// <summary>
+    /// INTK-009's Unidentified tab filters: media kind is derived from the
+    /// origin receipt's channel and content type, not a stored field, so this
+    /// exercises the join and the classification together.
+    /// </summary>
+    [Fact]
+    public async Task ListQueueClassifiesEachRowByItsReceiptsChannelAndContentType()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await using var scope = database.CreateAsyncScope();
+        var receiptStore = scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>();
+        var register = scope.ServiceProvider.GetRequiredService<IRegisterUnidentified>();
+        var store = scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+
+        var emailReceiptId = await StoreReceiptAsync(
+            receiptStore,
+            IntakeSourceChannel.Mailbox,
+            "message/rfc822",
+            "unread-message.eml",
+            subject: "Vehicle damage claim",
+            senderAddress: "claimant@example.test");
+        var imageReceiptId = await StoreReceiptAsync(
+            receiptStore,
+            IntakeSourceChannel.ManualUpload,
+            "image/jpeg",
+            "damage-photo.jpg");
+        var documentReceiptId = await StoreReceiptAsync(
+            receiptStore,
+            IntakeSourceChannel.ManualUpload,
+            "application/pdf",
+            "instruction-letter.pdf");
+
+        var emailItem = await RegisterAsync(register, emailReceiptId);
+        var imageItem = await RegisterAsync(register, imageReceiptId);
+        var documentItem = await RegisterAsync(register, documentReceiptId);
+
+        var all = await store.ListQueueAsync(null);
+        Assert.Contains(all, row => row.Id == emailItem.Id);
+        Assert.Contains(all, row => row.Id == imageItem.Id);
+        Assert.Contains(all, row => row.Id == documentItem.Id);
+
+        var emailRow = Assert.Single(await store.ListQueueAsync(UnidentifiedMediaKind.Email), row => row.Id == emailItem.Id);
+        Assert.Equal(UnidentifiedMediaKind.Email, emailRow.MediaKind);
+        Assert.Equal("Vehicle damage claim", emailRow.EmailSubject);
+        Assert.Equal("claimant@example.test", emailRow.EmailSender);
+        Assert.Null(emailRow.FileName);
+
+        var imageRows = await store.ListQueueAsync(UnidentifiedMediaKind.Image);
+        Assert.Contains(imageRows, row => row.Id == imageItem.Id);
+        Assert.DoesNotContain(imageRows, row => row.Id == emailItem.Id || row.Id == documentItem.Id);
+        var imageRow = Assert.Single(imageRows, row => row.Id == imageItem.Id);
+        Assert.Equal("damage-photo.jpg", imageRow.FileName);
+
+        var documentRows = await store.ListQueueAsync(null);
+        var documentRow = Assert.Single(documentRows, row => row.Id == documentItem.Id);
+        Assert.Equal(UnidentifiedMediaKind.Document, documentRow.MediaKind);
+        Assert.Equal("instruction-letter.pdf", documentRow.FileName);
+    }
+
+    private static async Task<UnidentifiedItem> RegisterAsync(IRegisterUnidentified register, Guid receiptId)
+    {
+        var result = await register.ExecuteAsync(
+            new(
+                UnidentifiedOrigin.Receipt(receiptId),
+                UnidentifiedReasonCode.NoUsableIdentification,
+                "test detail",
+                ActionActor.SystemWorker("test-worker"),
+                $"unidentified-test:{Guid.NewGuid():N}",
+                CreatedAtUtc));
+        return result.Item;
+    }
+
+    private static async Task<Guid> StoreReceiptAsync(
+        IIntakeReceiptStore receiptStore,
+        IntakeSourceChannel channel,
+        string mediaType,
+        string sourceFileName,
+        string? subject = null,
+        string? senderAddress = null)
+    {
+        IReadOnlyList<IntakeEvidence> evidence = subject is null
+            ? []
+            : [new IntakeEvidence(
+                IntakeEvidenceSource.Subject,
+                IntakeEvidenceStrength.Strong,
+                IntakeEvidenceFinding.Information,
+                "subject",
+                subject)];
+        var mailRouteDecision = senderAddress is null
+            ? null
+            : new MailRouteEvaluationResult(
+                MailRouteDisposition.NeedsSorting,
+                null,
+                [],
+                "test route evaluation",
+                "test-policy",
+                1,
+                [],
+                [],
+                new MailRouteIdentity(senderAddress, "transport"));
+
+        var draft = new IntakeReceiptDraft(
+            sourceFileName,
+            mediaType,
+            1024,
+            Guid.NewGuid().ToString("N"),
+            new IntakeSourceIdentity(channel, Guid.NewGuid().ToString("N")),
+            CreatedAtUtc,
+            CreatedAtUtc,
+            "test-actor",
+            IntakeDecision.NeedsSorting,
+            "test decision reason",
+            evidence,
+            [],
+            null,
+            [],
+            null,
+            null,
+            "test-reader",
+            "1",
+            null,
+            null,
+            MailRouteDecision: mailRouteDecision);
+
+        var receipt = await receiptStore.StoreAsync(draft, CancellationToken.None);
+        return receipt.Id;
     }
 }
