@@ -8,7 +8,7 @@ internal static class TextSanitation
 {
     internal static string ReplaceLoneSurrogates(string value, out bool replaced)
     {
-        replaced = false;
+        char[]? characters = null;
         for (var index = 0; index < value.Length; index++)
         {
             if (!char.IsSurrogate(value[index]))
@@ -24,34 +24,17 @@ internal static class TextSanitation
                 continue;
             }
 
-            replaced = true;
-            break;
-        }
-
-        if (!replaced)
-        {
-            return value;
-        }
-
-        var characters = value.ToCharArray();
-        for (var index = 0; index < characters.Length; index++)
-        {
-            if (!char.IsSurrogate(characters[index]))
-            {
-                continue;
-            }
-
-            if (char.IsHighSurrogate(characters[index])
-                && index + 1 < characters.Length
-                && char.IsLowSurrogate(characters[index + 1]))
-            {
-                index++;
-                continue;
-            }
-
+            characters ??= value.ToCharArray();
             characters[index] = '�';
         }
 
+        if (characters is null)
+        {
+            replaced = false;
+            return value;
+        }
+
+        replaced = true;
         return new string(characters);
     }
 }
