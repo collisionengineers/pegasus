@@ -55,5 +55,17 @@ internal static class AdministrationPolicyModelConfiguration
                 Version = 1
             });
         });
+
+        builder.Entity<ApprovedMailboxFolderBindingEntity>(entity =>
+        {
+            entity.ToTable("ApprovedMailboxFolderBindings");
+            entity.HasKey(item => new { item.ApprovedMailboxId, item.FolderType });
+            entity.Property(item => item.FolderType).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.FolderIdentity).HasMaxLength(200).IsRequired();
+            entity.HasOne(item => item.ApprovedMailbox)
+                .WithMany(item => item.FolderBindings)
+                .HasForeignKey(item => item.ApprovedMailboxId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 }

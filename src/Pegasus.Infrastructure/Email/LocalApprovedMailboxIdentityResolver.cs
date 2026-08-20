@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Infrastructure.Email;
 
@@ -23,6 +24,11 @@ public sealed class LocalApprovedMailboxIdentityResolver : IResolveApprovedMailb
         return Task.FromResult<ApprovedMailboxIdentityResolution?>(new(
             $"local-mailbox-{stem}",
             $"local-inbox-{stem}",
-            $"local-sent-{stem}"));
+            $"local-sent-{stem}",
+            MailLogicalFolders.All
+                .Select(folder => new ApprovedMailboxFolderBinding(
+                    folder.Type,
+                    $"local-{folder.Key}-{stem}"))
+                .ToArray()));
     }
 }
