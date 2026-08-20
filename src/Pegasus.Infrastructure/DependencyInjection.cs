@@ -464,7 +464,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         Func<IServiceProvider, Azure.Storage.Blobs.BlobContainerClient> intakeContainerFactory,
         Func<IServiceProvider, bool> allowContainerCreateIfNotExists,
-        BoxCustodyOptions boxOptions)
+        Func<IServiceProvider, BoxCustodyOptions> boxOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(intakeContainerFactory);
@@ -484,15 +484,18 @@ public static class DependencyInjection
     /// Registers the approved Box custody root as both the case custody adapter and
     /// the managed-document content store. Both composition roots call this so Web
     /// and Worker resolve the same fenced Box client rather than diverging.
+    /// The options factory runs at first Box resolution, not at host build: an
+    /// invalid or still-unresolved Box secret fails the Box work item, never the
+    /// whole process (PLAT-013 — the worker exit-134 crash loop).
     /// </summary>
     public static IServiceCollection AddProductionBoxCustody(
         this IServiceCollection services,
-        BoxCustodyOptions boxOptions)
+        Func<IServiceProvider, BoxCustodyOptions> boxOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(boxOptions);
 
-        services.AddSingleton(boxOptions);
+        services.AddSingleton(provider => boxOptions(provider));
         services.TryAddSingleton(static _ => new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(100)

@@ -139,7 +139,36 @@ public sealed class ProductionCompositionTests
         Assert.Throws<InvalidOperationException>(() => services.AddPegasusInfrastructure(
             ConfigureDatabase,
             _ => Path.Combine(Path.GetTempPath(), "pegasus-composition-conflict"),
-            documentStorage: registrations => registrations.AddProductionBoxCustody(BoxOptions())));
+            documentStorage: registrations => registrations.AddProductionBoxCustody(_ => BoxOptions())));
+    }
+
+    [Fact]
+    public void AnUnresolvedBoxSecretFailsTheFirstBoxUseNotHostBuild()
+    {
+        // PLAT-013: parsing the Box secret during host build aborted the whole
+        // worker process (exit 134) whenever the platform handed over an
+        // unresolved Key Vault reference. Composition must succeed and non-Box
+        // services must resolve; only the first Box resolution fails closed.
+        var services = NewServices();
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxCustodyOptions.Create(
+                    "https://api.box.com/2.0/",
+                    "https://upload.box.com/api/2.0/",
+                    "405543781910",
+                    "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
+                    "client-secret")));
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<AzureBlobIntakeArtifactStore>(
+            provider.GetRequiredService<IIntakeArtifactStore>());
+        var error = Assert.Throws<InvalidOperationException>(
+            () => provider.GetRequiredService<ICaseCustody>());
+        Assert.Contains("unresolved Key Vault reference", error.Message, StringComparison.Ordinal);
     }
 
     private static ServiceProvider BuildProduction()
@@ -151,7 +180,7 @@ public sealed class ProductionCompositionTests
                 static _ => new BlobContainerClient(
                     new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
                 static _ => false,
-                BoxOptions()));
+                static _ => BoxOptions()));
         return services.BuildServiceProvider();
     }
 
