@@ -91,6 +91,16 @@ public sealed class ReconcileUnidentifiedDestinations(
             return false;
         }
 
+        // Cheapest discriminator first: every processed receipt reaches this
+        // method, and only the few that carry an open item can be superseded,
+        // so no destination lookup is issued for the common no-op.
+        var existing = await unidentifiedStore.GetByOriginAsync(
+            UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken);
+        if (existing is not { State: UnidentifiedState.Open })
+        {
+            return false;
+        }
+
         UnidentifiedResolutionTargetKind targetKind;
         string targetId;
         string? targetReference;
@@ -113,13 +123,6 @@ public sealed class ReconcileUnidentifiedDestinations(
             targetReference = detail.Record.ImageIntakeReference;
         }
         else
-        {
-            return false;
-        }
-
-        var existing = await unidentifiedStore.GetByOriginAsync(
-            UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken);
-        if (existing is not { State: UnidentifiedState.Open })
         {
             return false;
         }
