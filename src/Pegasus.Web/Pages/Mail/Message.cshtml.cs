@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Mail;
 
@@ -18,20 +19,8 @@ public sealed class MessageModel(
     GetRetainedMail getRetainedMail,
     CorrectRetainedMailClassification correctClassification) : PageModel
 {
-    public sealed record ClassificationOption(string Value, string Label);
-
-    public static IReadOnlyList<ClassificationOption> ClassificationOptions { get; } =
-        [
-            .. Enum.GetValues<ReceivedMailFamily>().SelectMany(family =>
-                MailTaxonomy.ConfirmedReceivedSubtypes[family].Length == 0
-                    ? [new ClassificationOption($"received:{family}", MailTaxonomy.CategoryName(family))]
-                    : MailTaxonomy.ConfirmedReceivedSubtypes[family].Select(subtype =>
-                        new ClassificationOption($"received:{family}:{subtype}", $"{MailTaxonomy.CategoryName(family)}/{subtype}"))),
-            .. Enum.GetValues<SentMailFamily>().Select(family =>
-                new ClassificationOption($"sent:{family}", $"Sent: {MailTaxonomy.CategoryName(family)}")),
-            new("other-received", "Other received classification"),
-            new("other-sent", "Other sent classification")
-        ];
+    public static IReadOnlyList<MailClassificationSelection.SelectionOption> ClassificationOptions =>
+        MailClassificationSelection.Options;
 
     /// <summary>
     /// The list scope this message was opened from, carried through untouched so
@@ -202,57 +191,12 @@ public sealed class MessageModel(
         return Page();
     }
 
-    private bool TryCategory(out MailCategory? category)
-    {
-        category = null;
-        var parts = ClassificationKey?.Split(':');
-        if (parts is ["received", var received]
-            && Enum.TryParse<ReceivedMailFamily>(received, out var receivedFamily)
-            && Enum.IsDefined(receivedFamily))
-        {
-            category = MailCategory.Received(receivedFamily);
-            return true;
-        }
-        if (parts is ["received", var receivedWithSubtype, var subtype]
-            && Enum.TryParse<ReceivedMailFamily>(receivedWithSubtype, out var subtypeFamily))
-        {
-            try
-            {
-                category = MailCategory.Received(subtypeFamily, subtype);
-                return true;
-            }
-            catch (ArgumentException)
-            {
-                return false;
-            }
-        }
-        if (parts is ["sent", var sent]
-            && Enum.TryParse<SentMailFamily>(sent, out var sentFamily)
-            && Enum.IsDefined(sentFamily))
-        {
-            category = MailCategory.Sent(sentFamily);
-            return true;
-        }
-        var otherDirection = ClassificationKey switch
-        {
-            "other-received" => MailDirection.Received,
-            "other-sent" => MailDirection.Sent,
-            _ => (MailDirection?)null
-        };
-        if (otherDirection is null
-            || string.IsNullOrWhiteSpace(OtherClassificationName)
-            || string.IsNullOrWhiteSpace(OtherClassificationReasoning)
-            || OtherClassificationName.Trim().Length > MailCategory.OtherNameMaxLength
-            || OtherClassificationReasoning.Trim().Length > MailCategory.OtherReasoningMaxLength)
-        {
-            return false;
-        }
-        category = MailCategory.Other(
-            otherDirection.Value,
+    private bool TryCategory(out MailCategory? category) =>
+        MailClassificationSelection.TryParse(
+            ClassificationKey,
             OtherClassificationName,
-            OtherClassificationReasoning);
-        return true;
-    }
+            OtherClassificationReasoning,
+            out category);
 
     public string ActiveSection => Section switch
     {
