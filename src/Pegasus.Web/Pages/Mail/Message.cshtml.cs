@@ -24,6 +24,7 @@ public sealed class MessageModel(
     IGetCase getCase,
     IGetIntake getIntake,
     IAcquireCaseEditLease acquireCaseEditLease,
+    IReleaseCaseEditLease releaseCaseEditLease,
     ILinkIntake linkIntake,
     IReverseIntakeLink reverseIntakeLink) : StaffPageModel
 {
@@ -101,6 +102,19 @@ public sealed class MessageModel(
 
     public IReadOnlyList<UploadCaseSuggestion>? CaseResults { get; private set; }
 
+    [TempData]
+    public string? AssociationLeaseState { get; set; }
+
+    public Guid? AssociationLeaseCaseId { get; private set; }
+
+    public long? AssociationLeaseCaseVersion { get; private set; }
+
+    public long? AssociationLeaseIntakeVersion { get; private set; }
+
+    public string? AssociationLeaseToken { get; private set; }
+
+    public string? AssociationOperationKey { get; private set; }
+
     public MailFolderScope ListFolder { get; private set; } = MailFolderScope.Inbox;
 
     /// <summary>
@@ -152,13 +166,12 @@ public sealed class MessageModel(
         return Page();
     }
 
-    public async Task<IActionResult> OnPostLinkCaseAsync(
+    public async Task<IActionResult> OnPostPrepareLinkCaseAsync(
         Guid id,
         Guid caseId,
         long expectedIntakeVersion,
         long expectedCaseVersion,
-        string operationKey,
-        string Reason,
+        string leaseOperationKey,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -168,7 +181,6 @@ public sealed class MessageModel(
 
         try
         {
-            RequireAssociationReason(Reason);
             var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
             if (binding is null)
             {
@@ -189,21 +201,11 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
             var lease = await acquireCaseEditLease.ExecuteAsync(
-                new(caseId, expectedCaseVersion, actor, operationKey),
+                new(caseId, expectedCaseVersion, actor, leaseOperationKey),
                 cancellationToken);
-            await linkIntake.ExecuteAsync(
-                new(
-                    binding.Id,
-                    caseId,
-                    expectedIntakeVersion,
-                    lease.Version,
-                    lease.Token,
-                    actor,
-                    operationKey,
-                    Reason),
-                cancellationToken);
-            AssociationNotice = $"Message linked to {selectedCase.Summary.Reference}.";
-            return RedirectToMessage(id);
+            PreserveAssociationLease(
+                lease, expectedIntakeVersion, Guid.NewGuid().ToString("D"));
+            return RedirectToAssociationTarget(id, caseId);
         }
         catch (StaffAuthorizationException)
         {
@@ -211,18 +213,17 @@ public sealed class MessageModel(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            ModelState.AddModelError(string.Empty, AssociationFailureMessage(exception));
+            ModelState.AddModelError(string.Empty, AssociationPreparationFailureMessage(exception));
             return await ReloadAsync(actor, id, cancellationToken);
         }
     }
 
-    public async Task<IActionResult> OnPostUnlinkCaseAsync(
+    public async Task<IActionResult> OnPostPrepareUnlinkCaseAsync(
         Guid id,
         Guid caseId,
         long expectedIntakeVersion,
         long expectedCaseVersion,
-        string operationKey,
-        string Reason,
+        string leaseOperationKey,
         CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
@@ -232,7 +233,6 @@ public sealed class MessageModel(
 
         try
         {
-            RequireAssociationReason(Reason);
             var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
             if (binding is null)
             {
@@ -250,20 +250,10 @@ public sealed class MessageModel(
                 throw new IntakeVersionConflictException();
             }
             var lease = await acquireCaseEditLease.ExecuteAsync(
-                new(caseId, expectedCaseVersion, actor, operationKey),
+                new(caseId, expectedCaseVersion, actor, leaseOperationKey),
                 cancellationToken);
-            await reverseIntakeLink.ExecuteAsync(
-                new(
-                    binding.Id,
-                    caseId,
-                    expectedIntakeVersion,
-                    lease.Version,
-                    lease.Token,
-                    actor,
-                    operationKey,
-                    Reason),
-                cancellationToken);
-            AssociationNotice = $"Message unlinked from {currentCase.Summary.Reference}.";
+            PreserveAssociationLease(
+                lease, expectedIntakeVersion, Guid.NewGuid().ToString("D"));
             return RedirectToMessage(id);
         }
         catch (StaffAuthorizationException)
@@ -272,6 +262,120 @@ public sealed class MessageModel(
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
+            ModelState.AddModelError(string.Empty, AssociationPreparationFailureMessage(exception));
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+    }
+
+    public async Task<IActionResult> OnPostLinkCaseAsync(
+        Guid id,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string editLeaseToken,
+        string operationKey,
+        string Reason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            RequireAssociationConfirmation(operationKey, editLeaseToken, Reason);
+            var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
+            if (binding is null)
+            {
+                return NotFound();
+            }
+            await linkIntake.ExecuteAsync(
+                new(
+                    binding.Id,
+                    caseId,
+                    expectedIntakeVersion,
+                    expectedCaseVersion,
+                    editLeaseToken,
+                    actor,
+                    operationKey,
+                    Reason),
+                cancellationToken);
+            ClearAssociationLease();
+            AssociationNotice = "Message linked to the confirmed case.";
+            return RedirectToMessage(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            await ResolveFailedAssociationLeaseAsync(
+                exception,
+                caseId,
+                expectedIntakeVersion,
+                expectedCaseVersion,
+                actor,
+                operationKey,
+                editLeaseToken);
+            ModelState.AddModelError(string.Empty, AssociationFailureMessage(exception));
+            return await ReloadAsync(actor, id, cancellationToken);
+        }
+    }
+
+    public async Task<IActionResult> OnPostUnlinkCaseAsync(
+        Guid id,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        string editLeaseToken,
+        string operationKey,
+        string Reason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            RequireAssociationConfirmation(operationKey, editLeaseToken, Reason);
+            var binding = await GetExactAssociationAsync(actor, id, cancellationToken);
+            if (binding is null)
+            {
+                return NotFound();
+            }
+            await reverseIntakeLink.ExecuteAsync(
+                new(
+                    binding.Id,
+                    caseId,
+                    expectedIntakeVersion,
+                    expectedCaseVersion,
+                    editLeaseToken,
+                    actor,
+                    operationKey,
+                    Reason),
+                cancellationToken);
+            ClearAssociationLease();
+            AssociationNotice = "Message unlinked from the confirmed case.";
+            return RedirectToMessage(id);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            await ResolveFailedAssociationLeaseAsync(
+                exception,
+                caseId,
+                expectedIntakeVersion,
+                expectedCaseVersion,
+                actor,
+                operationKey,
+                editLeaseToken);
             ModelState.AddModelError(string.Empty, AssociationFailureMessage(exception));
             return await ReloadAsync(actor, id, cancellationToken);
         }
@@ -432,6 +536,7 @@ public sealed class MessageModel(
 
     private async Task LoadAssociationAsync(ActionActor actor, CancellationToken cancellationToken)
     {
+        RestoreAssociationLease();
         if (Detail.Summary.IntakeReceiptId is not { } receiptId)
         {
             return;
@@ -491,15 +596,154 @@ public sealed class MessageModel(
         search = SearchTerm
     });
 
+    private RedirectToPageResult RedirectToAssociationTarget(Guid id, Guid caseId) =>
+        RedirectToPage(new
+        {
+            id,
+            mailbox = MailboxFilter,
+            folder = FolderFilter,
+            pageNumber = PageNumber,
+            search = SearchTerm,
+            caseQuery = CaseQuery,
+            targetCaseId = caseId
+        });
+
+    private void PreserveAssociationLease(
+        CaseEditLease lease,
+        long intakeVersion,
+        string operationKey) =>
+        PreserveAssociationLease(
+            lease.CaseId,
+            intakeVersion,
+            lease.Version,
+            lease.Token,
+            operationKey);
+
+    private void PreserveAssociationLease(
+        Guid caseId,
+        long intakeVersion,
+        long caseVersion,
+        string leaseToken,
+        string operationKey)
+    {
+        AssociationLeaseState = string.Join(
+            '|',
+            caseId.ToString("D"),
+            intakeVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            caseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            leaseToken,
+            operationKey);
+        AssociationLeaseCaseId = caseId;
+        AssociationLeaseIntakeVersion = intakeVersion;
+        AssociationLeaseCaseVersion = caseVersion;
+        AssociationLeaseToken = leaseToken;
+        AssociationOperationKey = operationKey;
+    }
+
+    private void RestoreAssociationLease()
+    {
+        var parts = AssociationLeaseState?.Split('|');
+        if (parts is { Length: 5 }
+            && Guid.TryParse(parts[0], out var caseId)
+            && long.TryParse(parts[1], out var intakeVersion)
+            && long.TryParse(parts[2], out var caseVersion)
+            && parts[3] is { Length: CaseEditAuthority.LeaseTokenLength } leaseToken
+            && Guid.TryParseExact(parts[4], "D", out _))
+        {
+            AssociationLeaseCaseId = caseId;
+            AssociationLeaseIntakeVersion = intakeVersion;
+            AssociationLeaseCaseVersion = caseVersion;
+            AssociationLeaseToken = leaseToken;
+            AssociationOperationKey = parts[4];
+            TempData.Keep(nameof(AssociationLeaseState));
+        }
+    }
+
+    private void ClearAssociationLease()
+    {
+        TempData.Remove(nameof(AssociationLeaseState));
+        AssociationLeaseState = null;
+        AssociationLeaseCaseId = null;
+        AssociationLeaseIntakeVersion = null;
+        AssociationLeaseCaseVersion = null;
+        AssociationLeaseToken = null;
+        AssociationOperationKey = null;
+    }
+
+    private async Task ResolveFailedAssociationLeaseAsync(
+        Exception exception,
+        Guid caseId,
+        long expectedIntakeVersion,
+        long expectedCaseVersion,
+        ActionActor actor,
+        string operationKey,
+        string editLeaseToken)
+    {
+        if (!IsDefinitiveAssociationFailure(exception))
+        {
+            PreserveAssociationLease(
+                caseId,
+                expectedIntakeVersion,
+                expectedCaseVersion,
+                editLeaseToken,
+                operationKey);
+            return;
+        }
+
+        try
+        {
+            await releaseCaseEditLease.ExecuteAsync(
+                new(
+                    caseId,
+                    actor,
+                    $"mail-association-release:{Guid.NewGuid():N}",
+                    editLeaseToken),
+                CancellationToken.None);
+        }
+        catch (Exception releaseException) when (IntakeExceptionPolicy.IsRecoverable(releaseException))
+        {
+        }
+        ClearAssociationLease();
+    }
+
+    private static bool IsDefinitiveAssociationFailure(Exception exception) => exception is
+        ArgumentException
+        or InvalidOperationException
+        or InvalidDataException
+        or KeyNotFoundException
+        or IntakeOperationConflictException
+        or IntakeVersionConflictException
+        or IntakeAssociationConflictException;
+
     private static string AssociationFailureMessage(Exception exception) => exception switch
     {
-        ArgumentException => "Enter a reason and reload the message before trying again.",
+        IntakeOperationConflictException =>
+            "This confirmation identity was already used with different details. Reload and review the action again.",
+        _ when IsDefinitiveAssociationFailure(exception) =>
+            "The message or case changed. Reload it, review the current target, and try again.",
+        _ => "The association result could not be confirmed. Retry this same confirmation."
+    };
+
+    private static string AssociationPreparationFailureMessage(Exception exception) => exception switch
+    {
+        CaseEditLeaseConflictException => "This case is currently being edited. Reload and try again later.",
         _ => "The message or case changed. Reload it, review the current target, and try again."
     };
 
-    private static void RequireAssociationReason(string reason)
+    private static void RequireAssociationConfirmation(
+        string operationKey,
+        string editLeaseToken,
+        string reason)
     {
-        if (string.IsNullOrWhiteSpace(reason) || reason.Length > 500)
+        if (!Guid.TryParseExact(operationKey, "D", out _))
+        {
+            throw new ArgumentException("The association confirmation has expired.", nameof(operationKey));
+        }
+        if (editLeaseToken?.Length != CaseEditAuthority.LeaseTokenLength)
+        {
+            throw new ArgumentException("The case edit confirmation has expired.", nameof(editLeaseToken));
+        }
+        if (string.IsNullOrWhiteSpace(reason) || reason.Trim().Length > 500)
         {
             throw new ArgumentException("A reason of no more than 500 characters is required.", nameof(reason));
         }
