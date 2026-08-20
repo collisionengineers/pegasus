@@ -1,6 +1,6 @@
 # Files — PLAT-002
 
-Surveyed on 2026-08-20 at `c41314d9`. Option 1 is final: complete
+Originally surveyed at `c41314d9`; reconciled at execution against `origin/dev` `bc0646a6`. Option 1 is final: complete
 Web-wide actor and operation-key consolidation.
 
 ## Where the change lands
@@ -17,13 +17,13 @@ Web-wide actor and operation-key consolidation.
 | src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs | Derive from StaffPageModel; remove actor/key copies. |
 | src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml.cs | Derive from StaffPageModel; remove actor helper; retain explicit staff authorization. |
 | src/Pegasus.Web/Pages/ImageIntake/Details.cshtml.cs | Derive from StaffPageModel; replace one actor lookup. |
-| src/Pegasus.Web/Pages/Intake/Details.cshtml.cs; src/Pegasus.Web/Pages/Intake/Source.cshtml.cs | Derive from StaffPageModel; replace five actor lookups while preserving fallback authentication and handler responses. |
+| src/Pegasus.Web/Pages/Intake/Details.cshtml.cs; src/Pegasus.Web/Pages/Intake/Source.cshtml.cs; src/Pegasus.Web/Pages/Intake/Image.cshtml.cs | Derive from StaffPageModel; replace six actor lookups while preserving fallback authentication and handler responses. |
 | src/Pegasus.Web/Pages/Mail/Index.cshtml.cs; src/Pegasus.Web/Pages/Mail/Message.cshtml.cs | Derive from StaffPageModel; replace three actor lookups. |
 | src/Pegasus.Web/Pages/Operations/Index.cshtml.cs | Derive from StaffPageModel; remove actor/key copies while preserving lease flow. |
 | src/Pegasus.Web/Pages/Triage/Index.cshtml.cs; src/Pegasus.Web/Pages/Triage/Details.cshtml.cs | Derive from StaffPageModel; replace actor/key copies; Details keeps local SubjectId-to-Guid parsing. |
 | src/Pegasus.Web/Pages/Unidentified/Details.cshtml.cs | Derive from StaffPageModel; replace two actor lookups without changing conditional action logic. |
 | src/Pegasus.Web/Pages/Upload.cshtml.cs | Derive from StaffPageModel and replace its actor lookup. Keep ExternalReceiptToken generation local: it is an intake replay/receipt identity, not an operation key. |
-| src/Pegasus.Web/Pages/UploadStatus.cshtml.cs; src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs | Derive from StaffPageModel; replace their actor lookups. |
+| src/Pegasus.Web/Pages/UploadConfirmationPageModel.cs | Derive the existing shared upload-confirmation base from StaffPageModel and remove its actor helper. UploadStatus and UploadGroupStatus already derive from this base and need no edits. |
 | src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs | Remain AllowAnonymous on PageModel; remove its operation-key copy and call StaffPageModel.NewOperationKey statically. |
 | tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs | Reuse FindRepositoryRoot/source inspection. Guard the sole actor-factory owner, the two intentional GUID-N application sites (StaffPageModel operation key and Upload receipt token), and RequestModel's anonymous/non-staff boundary. |
 | docs/current-architecture.md | Name StaffPageModel as the shared request-context owner. |

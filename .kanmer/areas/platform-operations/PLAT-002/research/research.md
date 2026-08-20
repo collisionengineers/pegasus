@@ -78,6 +78,17 @@ behaviour?
   database, Infrastructure, Azure/live state, deployment, or product behaviour
   changes.
 
+## Fresh-base reconciliation (execution)
+
+- Execution started from `origin/dev` at `bc0646a6`, not the earlier survey SHA.
+- The total remained 20 actor-owning files and 26 calls, but merged work had
+  introduced `UploadConfirmationPageModel` as the shared base for UploadStatus
+  and UploadGroupStatus, and `Intake/Image.cshtml.cs` as an actor caller.
+- The executable shape is therefore three existing bases plus 17 direct actor
+  callers. Reusing UploadConfirmationPageModel avoids editing its two concrete
+  descendants and is simpler than the earlier file map; scope and behaviour are
+  unchanged.
+
 ## Implications
 
 Create one metadata-free StaffPageModel owning claim-to-actor translation and
