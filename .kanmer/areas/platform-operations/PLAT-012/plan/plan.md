@@ -53,3 +53,23 @@ can merge into `dev` independently regardless of order.
 ## Simplification pass
 
 To be recorded after implementation, before PR, under a dated heading.
+
+## Simplification pass — 2026-08-20
+
+Reviewed the branch diff (4 files, ~110 lines) against the four lenses:
+
+- **Reuse**: confirmed — reused `EfIntakeReceiptStore.ToCode(IntakeSourceChannel)`
+  (widened visibility, not duplicated) and the `IIntakeReceiptStore.StoreAsync`
+  / `IntakeReceiptDraft` fixture shape already established by
+  `TriageQueuesWebTests.StoreMinimalReceiptAsync`.
+- **Simplification**: considered joining `RetainedMailboxMessages` instead of
+  filtering `IntakeReceipts` by channel; rejected as a second table access
+  for a result the existing query reaches with one more predicate (see
+  `files` doc).
+- **Efficiency**: the fix adds no new query — it narrows the existing single
+  `CountAsync` with one more predicate on an already-fetched column. No
+  additional round trip.
+- **Altitude**: comments explain *why* the filter exists (the tile's section
+  heading, the operator report) rather than restating the code.
+
+No findings requiring disposition.
