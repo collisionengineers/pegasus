@@ -4,12 +4,15 @@ type: ticket
 title: >-
   EVAL-05 — Display the rule-generated category and evidence beside the human
   review once rules exist
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-20T05:38:49.143Z'
+taken_at: '2026-08-20T05:54:09.299Z'
+branch: task/tick-007-eval-05-rule-suggestion
+worktree: ../pegasus-worktrees/tick-007
 labels:
   - capability
   - EVAL-05
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:52.910Z'
-updated: '2026-08-20T05:38:49.143Z'
+updated: '2026-08-20T05:54:09.299Z'
 ---
 
 ## What

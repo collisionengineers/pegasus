@@ -4,9 +4,9 @@ type: ticket
 title: >-
   EVAL-02 — Reviewer selects from the detailed Received/Sent/Reply taxonomy and
   records required reasoning
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-20T05:38:48.459Z'
@@ -14,6 +14,9 @@ stageEntered:
   review: '2026-08-20T05:43:21.138Z'
   verifying: '2026-08-20T05:43:24.616Z'
   done: '2026-08-20T05:43:29.590Z'
+taken_at: '2026-08-20T05:54:10.227Z'
+branch: task/tick-007-eval-05-rule-suggestion
+worktree: ../pegasus-worktrees/tick-007
 labels:
   - capability
   - EVAL-02
@@ -25,7 +28,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:52.841Z'
-updated: '2026-08-20T05:48:58.024Z'
+updated: '2026-08-20T05:54:10.227Z'
 ---
 
 ## What
