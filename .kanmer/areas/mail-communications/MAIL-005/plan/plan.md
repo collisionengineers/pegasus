@@ -10,3 +10,13 @@ Branch `task/mail-005-inbox-case-links` from origin/dev (09b42a57), worktree `..
 The three zero-attempt pre-release-14 rows are data, not code: eliminated by the T9 wipe; the pipeline that could strand a decided receipt without an attempt was closed by the durable-intake reconciliation and CASE-005.
 
 Deviation: subagents barred — self-review recorded.
+
+## Simplification pass — 2026-08-20 (self, subagents barred)
+
+Lenses over the branch diff (4 files, ~40 lines):
+
+- **Reuse** — the fix reads the `allocationStates` dictionary the query already builds; zero new queries, no schema change, `OutcomeLabel` untouched (its `CaseId: not null` arm now simply matches). ✔.
+- **Simplification** — the tile tidy is one CSS class swap (`.stack` → `.outcome-row`); no markup growth. ✔.
+- **Efficiency/Altitude** — n/a beyond the above; the projection stays the one owner of case resolution. ✔.
+
+No BOM drift. Nothing deferred.
