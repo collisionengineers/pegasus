@@ -880,6 +880,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 IntakeReceiptId = receipt.Id,
                 IntakeReceipt = receipt,
                 Ordinal = ordinal,
+                AttachmentOrdinal = document.AttachmentOrdinal,
                 SourceLabel = document.SourceLabel,
                 AttachmentFileName = document.AttachmentFileName,
                 Text = document.Text

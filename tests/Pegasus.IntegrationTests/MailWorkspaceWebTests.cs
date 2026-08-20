@@ -158,6 +158,22 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task SearchDistinguishesNoMatchAndInvalidInputFromNoReceivedMail()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var noMatch = await GetHtmlAsync(client, "/Inbox?search=definitely-not-present");
+        await GetHtmlAsync(client, "/Inbox?search=%20%20%20");
+        var overlong = await GetHtmlAsync(client, $"/Inbox?search={new string('x', 201)}");
+
+        Assert.Contains("No retained mail in this mailbox and folder matched", noMatch, StringComparison.Ordinal);
+        Assert.DoesNotContain("No mail has been received.", noMatch, StringComparison.Ordinal);
+        Assert.Contains("Search terms must be 200 characters or fewer.", overlong, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task AnUnknownFolderScopeIsNotFound()
     {
         using var factory = new IntakeWebApplicationFactory();

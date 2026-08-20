@@ -34,7 +34,8 @@ public enum MailSearchMatchKind
 
 public sealed record RetainedMailSearchMatch(
     MailSearchMatchKind Kind,
-    string? AttachmentFileName = null);
+    string? AttachmentFileName = null,
+    int? AttachmentOrdinal = null);
 
 public sealed record RetainedMailSummary(
     Guid Id,
