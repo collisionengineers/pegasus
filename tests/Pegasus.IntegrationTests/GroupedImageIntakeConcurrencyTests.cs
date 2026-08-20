@@ -69,7 +69,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
             {
                 var dispatchOnly = new DispatchPendingIntakeWork(
                     dispatchOnlyScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>(),
-                    new NoOpEnqueuer(),
+                    new IntakeWebDriver.NoOpIntakeWorkEnqueuer(),
                     clock);
                 await dispatchOnly.ExecuteAsync(10);
             }
@@ -219,7 +219,7 @@ public sealed class GroupedImageIntakeConcurrencyTests
         {
             var dispatchOnly = new DispatchPendingIntakeWork(
                 dispatchOnlyScope.ServiceProvider.GetRequiredService<IIntakeWorkStore>(),
-                new NoOpEnqueuer(),
+                new IntakeWebDriver.NoOpIntakeWorkEnqueuer(),
                 dispatchOnlyScope.ServiceProvider.GetRequiredService<TimeProvider>());
             await dispatchOnly.ExecuteAsync(10);
         }
@@ -332,17 +332,6 @@ public sealed class GroupedImageIntakeConcurrencyTests
             }
         }
     }
-    /// <summary>
-    /// Advances a work item from pending to dispatched without processing it
-    /// -- used to set up the concurrent race itself as the thing under test,
-    /// rather than folding dispatch and processing into one call.
-    /// </summary>
-    private sealed class NoOpEnqueuer : IIntakeWorkEnqueuer
-    {
-        public Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken) =>
-            Task.CompletedTask;
-    }
-
     private sealed class AdvanceableTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         private DateTimeOffset now = utcNow;
