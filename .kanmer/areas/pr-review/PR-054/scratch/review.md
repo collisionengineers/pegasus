@@ -1,0 +1,1 @@
+Independent re-review at PR #491 head 4a13def9: pass. One reused list-context parser guards all six POST paths before reads/leases/mutations; forged-context no-effect and valid success/uncertain-recovery evidence pass. Replacement CI run 32427631319 is green.

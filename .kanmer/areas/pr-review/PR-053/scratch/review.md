@@ -1,0 +1,1 @@
+Independent re-review at PR #491 head 4a13def9: pass. The prohibited hint and queue-only empty-state copy are removed without replacement; the native selected option remains. Replacement CI run 32427631319 is green.
