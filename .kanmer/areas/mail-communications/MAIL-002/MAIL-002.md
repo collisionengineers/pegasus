@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Mailbox administration hides mailbox identifiers and adds addresses by email
   alone
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-20T03:49:15.419Z'
+taken_at: '2026-08-20T04:20:47.934Z'
+branch: task/mail-002-admin-no-identifiers
+worktree: ../pegasus-worktrees/mail-002
 labels:
   - administration
   - ui
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T03:16:37.641Z'
-updated: '2026-08-20T03:49:15.419Z'
+updated: '2026-08-20T04:20:47.934Z'
 ---
 
 ## What
