@@ -4,7 +4,7 @@ type: ticket
 title: >-
   INT-31 — Authenticated staff generate a temporary, revocable, expiring,
   request-scoped link for isolated unauthenticated image/d…
-status: verifying
+status: done
 area: intake-processing
 order: 40
 assignee: codex-mcp-client
@@ -13,9 +13,7 @@ stageEntered:
   preparing: '2026-08-18T14:12:27.399Z'
   review: '2026-08-18T15:28:37.025Z'
   verifying: '2026-08-18T15:38:33.639Z'
-taken_at: '2026-08-18T15:22:39.593Z'
-branch: task/tick-033-request-upload-reconciliation
-worktree: ../pegasus-worktrees/tick-033
+  done: '2026-08-20T03:21:57.933Z'
 labels:
   - capability
   - INT-31
@@ -31,10 +29,10 @@ commits:
   - b32532d888b676bffaf197675b3e0edded5f0e81
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/408'
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.456Z'
-updated: '2026-08-19T13:29:36.875Z'
+updated: '2026-08-20T03:21:57.933Z'
 ---
 
 ## What

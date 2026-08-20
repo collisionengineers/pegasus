@@ -16,38 +16,21 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.764Z'
-updated: '2026-08-17T06:43:37.461Z'
+updated: '2026-08-20T03:21:51.297Z'
 ---
 
 ## What
 
-Complete the QDOS alpha production release as one controlled outcome: recover its immutable release record, close the demonstrated production workflow, obtain operator acceptance, and record Collision Engineers management approval.
+Complete the QDOS alpha production release — **re-scoped 2026-08-20**: the release-execution limbs of this ticket are satisfied (13 numbered releases have shipped with immutable manifests, digests, revisions, and migration transcripts — see `docs/operations.md` release table). What remains is acceptance, which is not agent-executable:
+
+- [ ] Designated-operator acceptance of the QDOS production workflow against real end-to-end work.
+- [ ] Explicit Collision Engineers management approval of production use (OPS-25; `docs/capabilities.md` records OPS-10 as "operator acceptance outstanding").
 
 ## Why
 
-Deployment alone is not release completion. The repository separates implementation, deployment, live caller evidence, operator acceptance, and management approval, and the release must retain those distinctions.
-
-## Approach
-
-- Recover and verify the immutable manifest, image identity, source revision, and migration transcript for the intended release.
-- Complete the production-path checks consolidated into this ticket's `checklist.md`.
-- Record the exact evidence tier and limitations of each observation.
-- Obtain designated-operator acceptance and explicit management approval only for the demonstrated scope.
+The capability inventory allocates OPS-10 to Now. The recover-the-manifest / assign-a-numbered-release limbs became moot once the numbered release process (release 8 onwards) was operating; keeping them open misstates the estate.
 
 ## Verification
 
-- [ ] The immutable release record is complete and internally consistent.
-- [ ] Every required production journey is linked with its limitations.
-- [ ] Operator acceptance and management approval are explicit and separately recorded.
-- [ ] No numbered release or live-caller claim exceeds the recovered evidence.
-
-## Notes
-
-- Source capability: OPS-10.
-- Source: the retired pre-Kanmer tracker production state and QDOS production path.
-- Live Azure, credential, mailbox, Box, deployment, destructive, or other external operations require fresh approval for exact targets.
-
-
-## Tracker migration
-
-Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.
+- [ ] Operator acceptance recorded in `docs/operator-notes.md` or a linked decision.
+- [ ] Management approval recorded with date and scope.
