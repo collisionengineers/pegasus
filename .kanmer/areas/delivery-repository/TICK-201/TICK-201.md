@@ -2,10 +2,13 @@
 id: TICK-201
 type: ticket
 title: Correct canonical documentation claims against source evidence
-status: backlog
+status: preparing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T04:04:50.932Z'
+branch: task/tick-201-doc-claims
+worktree: ../pegasus-worktrees/tick-201
 labels:
   - now
   - source-now
@@ -13,7 +16,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-12T15:08:05.001Z'
-updated: '2026-08-20T04:00:18.278Z'
+updated: '2026-08-20T04:04:50.932Z'
 ---
 
 ## What
