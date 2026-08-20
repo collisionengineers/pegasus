@@ -1,0 +1,1 @@
+Implemented fresh-context conditional Pending→Uncertain handoff with a bounded internal token before rethrowing request cancellation. Added exact provider-cancel and success-SaveChanges-cancel LocalDB tests; both assert durable Uncertain, new-key exclusion, same-key probe-only recovery and one move total.
