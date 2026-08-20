@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Make the image-group outcome atomic: one readable VRM registers the whole
   group, no member terminal-decides alone
-status: verifying
+status: done
 area: intake-processing
 assignee: claude-code
 profile: fix
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-19T23:34:56.406Z'
   review: '2026-08-20T00:39:12.877Z'
   verifying: '2026-08-20T00:57:20.511Z'
+  done: '2026-08-20T01:29:45.404Z'
 taken_at: '2026-08-19T23:22:56.601Z'
 branch: task/intk-011-atomic-group-outcome
 worktree: ../pegasus-worktrees/intk-011-atomic-group-outcome
@@ -38,9 +39,10 @@ commits:
   - 777d2762
 prs:
   - '434'
+deployment: production
 archived: false
 created: '2026-08-19T23:21:58.876Z'
-updated: '2026-08-20T00:57:20.511Z'
+updated: '2026-08-20T01:29:45.404Z'
 ---
 
 ## What

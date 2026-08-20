@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Answer /Cases/Create without a receipt with the designed status page, not a
   500
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-20T01:29:47.039Z'
 labels:
   - ui
   - robustness
@@ -15,9 +17,12 @@ links:
   - PLAT-006
 refs:
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - '433'
+deployment: production
 archived: false
 created: '2026-08-19T07:48:36.354Z'
-updated: '2026-08-19T07:48:36.354Z'
+updated: '2026-08-20T01:29:47.039Z'
 ---
 
 ## What

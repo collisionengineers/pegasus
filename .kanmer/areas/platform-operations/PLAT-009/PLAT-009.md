@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Rebuild the Approved mailboxes layout: data table and edit panel, not a form
   in a table cell
-status: verifying
+status: done
 area: platform-operations
 assignee: claude-code
 profile: fix
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-19T23:02:07.263Z'
   review: '2026-08-19T23:45:18.497Z'
   verifying: '2026-08-19T23:57:44.880Z'
+  done: '2026-08-20T01:29:45.856Z'
 taken_at: '2026-08-19T23:02:40.159Z'
 branch: task/plat-009-mailboxes-layout
 worktree: ../pegasus-worktrees/plat-009-mailboxes-layout
@@ -24,9 +25,12 @@ links:
 refs:
   - docs/design/README.md
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - '430'
+deployment: production
 archived: false
 created: '2026-08-19T22:58:23.870Z'
-updated: '2026-08-19T23:57:44.880Z'
+updated: '2026-08-20T01:29:45.856Z'
 ---
 
 ## What

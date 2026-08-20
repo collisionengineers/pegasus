@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Upload flow v2: clean per-file rows with progress, then a confirmation step
   offering attach-to-case or create-case
-status: verifying
+status: done
 area: intake-processing
 assignee: claude-code
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-19T23:47:55.366Z'
   review: '2026-08-20T00:37:10.289Z'
   verifying: '2026-08-20T00:57:15.252Z'
+  done: '2026-08-20T01:29:45.309Z'
 taken_at: '2026-08-19T23:18:29.012Z'
 branch: task/intk-010-upload-flow-v2
 worktree: ../pegasus-worktrees/intk-010-upload-flow-v2
@@ -31,9 +32,12 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-12-operator-experience.md
   - docs/design/README.md
+prs:
+  - '433'
+deployment: production
 archived: false
 created: '2026-08-19T23:17:07.323Z'
-updated: '2026-08-20T00:57:15.252Z'
+updated: '2026-08-20T01:29:45.309Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Strip UI narration estate-wide to the design rule: one H1, no ledes,
   one-sentence consequence guidance
-status: verifying
+status: done
 area: platform-operations
 assignee: claude-code
 profile: fix
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-19T23:45:41.132Z'
   review: '2026-08-19T23:46:35.334Z'
   verifying: '2026-08-20T00:21:58.536Z'
+  done: '2026-08-20T01:29:46.400Z'
 taken_at: '2026-08-19T23:01:15.166Z'
 branch: task/plat-010-copy-strip
 worktree: ../pegasus-worktrees/plat-010-copy-strip
@@ -26,9 +27,12 @@ links:
 refs:
   - docs/design/README.md
   - docs/frd/frd-12-operator-experience.md
+prs:
+  - '431'
+deployment: production
 archived: false
 created: '2026-08-19T23:00:23.570Z'
-updated: '2026-08-20T00:21:58.536Z'
+updated: '2026-08-20T01:29:46.400Z'
 ---
 
 ## What

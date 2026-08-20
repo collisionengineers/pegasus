@@ -4,7 +4,7 @@ type: ticket
 title: >-
   MAIL-01 — Identify every inbound mailbox item and its mailbox/thread/message
   identity
-status: verifying
+status: done
 area: mail-communications
 order: 10
 assignee: codex-mcp-client
@@ -13,6 +13,7 @@ stageEntered:
   preparing: '2026-08-18T15:21:16.581Z'
   review: '2026-08-19T09:25:07.280Z'
   verifying: '2026-08-19T10:34:21.101Z'
+  done: '2026-08-20T01:29:40.942Z'
 taken_at: '2026-08-19T09:04:22.276Z'
 branch: task/tick-043-mailbox-identity
 worktree: ../pegasus-worktrees/tick-043-mailbox-identity
@@ -35,10 +36,10 @@ commits:
   - ee947826
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/414'
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.649Z'
-updated: '2026-08-19T13:29:40.235Z'
+updated: '2026-08-20T01:29:40.942Z'
 ---
 
 ## What

@@ -2,7 +2,7 @@
 id: INTK-005
 type: ticket
 title: Allow one Upload submission to accept and track multiple files
-status: verifying
+status: done
 area: intake-processing
 order: 10
 assignee: claude-code
@@ -11,6 +11,7 @@ stageEntered:
   preparing: '2026-08-19T09:14:26.260Z'
   review: '2026-08-19T10:29:04.017Z'
   verifying: '2026-08-19T21:45:20.164Z'
+  done: '2026-08-20T01:29:43.252Z'
 taken_at: '2026-08-19T13:09:59.107Z'
 branch: intk-005-grouped-upload
 worktree: ../pegasus-worktrees/intk-005
@@ -30,9 +31,10 @@ commits:
   - ed04f498
 prs:
   - '416'
+deployment: production
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-19T21:45:20.164Z'
+updated: '2026-08-20T01:29:43.252Z'
 ---
 
 ## What

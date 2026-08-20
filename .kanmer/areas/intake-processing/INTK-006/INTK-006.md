@@ -2,7 +2,7 @@
 id: INTK-006
 type: ticket
 title: Associate each vehicle-image group or create one Image-initiated Case
-status: verifying
+status: done
 area: intake-processing
 order: 20
 assignee: claude-code
@@ -12,6 +12,7 @@ stageEntered:
   review: '2026-08-19T10:46:45.932Z'
   implementing: '2026-08-19T10:49:31.628Z'
   verifying: '2026-08-19T21:45:23.480Z'
+  done: '2026-08-20T01:29:43.678Z'
 taken_at: '2026-08-19T13:10:02.565Z'
 branch: intk-006-grouped-image-routing
 worktree: ../pegasus-worktrees/intk-006
@@ -38,9 +39,10 @@ commits:
   - 599bfe6d
 prs:
   - '417'
+deployment: production
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-19T21:45:23.480Z'
+updated: '2026-08-20T01:29:43.678Z'
 ---
 
 ## What

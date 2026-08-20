@@ -4,7 +4,7 @@ type: ticket
 title: >-
   MAIL-04 — Explainable classification evidence, policy version, and correction
   history
-status: verifying
+status: done
 area: mail-communications
 order: 30
 assignee: codex-mcp-client
@@ -13,6 +13,7 @@ stageEntered:
   preparing: '2026-08-18T15:21:25.839Z'
   review: '2026-08-19T10:52:46.993Z'
   verifying: '2026-08-19T11:24:00.818Z'
+  done: '2026-08-20T01:29:42.695Z'
 taken_at: '2026-08-19T10:35:23.458Z'
 branch: task/tick-046-classification-history
 worktree: ../pegasus-worktrees/tick-046-classification-history
@@ -34,10 +35,10 @@ commits:
   - 581fee7f
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/418'
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.708Z'
-updated: '2026-08-19T13:29:46.406Z'
+updated: '2026-08-20T01:29:42.695Z'
 ---
 
 ## What
