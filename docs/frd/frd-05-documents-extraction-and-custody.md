@@ -30,10 +30,17 @@ Receipt/staging and accepted case custody are different states.
 - Default local alpha work must not mutate any Outlook mailbox or Box location. The separately approved Box integration-test profile and explicitly approved non-production test deployments may create and update controlled non-corpus artifacts only in the approved disposable test subtree recorded in [operations](../operations.md#approved-box-integration-test-target); they must not delete, move, copy, or share Box content. Outlook tests use immutable local copies or an explicitly approved test mailbox and operation.
 - A custody transition records source identity, content hash, target identity/version, actor/caller, time, and failure/retry state without deleting the source proof prematurely.
 
-Image-initiated Case files stay under the same intake source-artifact
-retention as every other received item; there is no separate VRM-keyed Box
-custody root for an Image-initiated Case in this slice, and none is claimed as
-delivered. Once an Image-initiated Case merges into a formal Case, its
-preserved origin evidence becomes available for retention into that Case's
-Box custody under the rules above; the Image-initiated lifecycle state and
+An Image-initiated Case also has its own Box folder from registration
+(INTK-014): the folder is named for the permanent Image Intake Reference,
+sits directly under the approved custody root, and retains every registered
+image of the submission group in stored order. The storage is queued work
+behind the registration — a Box failure never blocks or rolls back a
+registration or a merge, the images remain authoritative in intake
+source-artifact retention throughout, and the queued work re-arms itself
+with bounded backoff for dependency failures before recording a terminal
+failure honestly on the record. When the Image-initiated Case merges into a
+formal Case, its folder's contents move into that Case's Box custody (the
+case root's image evidence location) and the emptied folder is removed; the
+removal is non-recursive, so unexpected content fails the fold closed
+instead of being destroyed. The Image-initiated lifecycle state and
 merge/closure history remain in SQL regardless of custody.

@@ -488,9 +488,14 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => new { item.DueAtUtc, item.Id }).IsDescending(true, false);
             entity.HasIndex(item => new { item.LeaseExpiresAtUtc, item.Id }).IsDescending(true, false);
             entity.HasIndex(item => new { item.CompletedAtUtc, item.Id }).IsDescending(true, false);
+            entity.HasIndex(item => item.ImageIntakeId);
             entity.HasOne(item => item.Case)
                 .WithMany(item => item.ExternalWork)
                 .HasForeignKey(item => item.CaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item => item.ImageIntake)
+                .WithMany()
+                .HasForeignKey(item => item.ImageIntakeId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
@@ -623,6 +628,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.LifecycleState).HasMaxLength(40).IsRequired();
             entity.Property(item => item.MergedIntoCaseReference).HasMaxLength(50);
             entity.Property(item => item.ClosureReason).HasMaxLength(500);
+            entity.Property(item => item.CustodyState).HasMaxLength(40);
+            entity.Property(item => item.CustodyRootRemoteId).HasMaxLength(200);
             entity.HasIndex(item => new { item.LifecycleState, item.CreatedAtUtc });
             entity.HasIndex(item => item.OriginReceiptId).IsUnique();
             entity.HasIndex(item => new { item.SourceChannel, item.ExternalReceiptToken }).IsUnique();
@@ -1153,8 +1160,16 @@ internal sealed class CaseHistoryEntity
 internal sealed class ExternalWorkItemEntity
 {
     public Guid Id { get; set; }
-    public Guid CaseId { get; set; }
-    public CaseEntity Case { get; set; } = null!;
+
+    /// <summary>
+    /// The owning formal Case, when the work is case-scoped. Image-case
+    /// custody creation has no formal Case yet and carries only
+    /// <see cref="ImageIntakeId"/>; the image-case merge carries both.
+    /// </summary>
+    public Guid? CaseId { get; set; }
+    public CaseEntity? Case { get; set; }
+    public Guid? ImageIntakeId { get; set; }
+    public ImageIntakeEntity? ImageIntake { get; set; }
     public required string Kind { get; set; }
     public required string OperationKey { get; set; }
     public required string State { get; set; }

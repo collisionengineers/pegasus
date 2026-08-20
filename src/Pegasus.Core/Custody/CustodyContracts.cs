@@ -150,6 +150,62 @@ public interface ICaseCustody
         return await CreateAuditReferenceFolderAsync(
             root, auditReference, creationOwnerToken, operationKey, cancellationToken);
     }
+
+    /// <summary>
+    /// Retains one group image inside an Image-initiated Case root created by
+    /// <see cref="CreateCaseRootAsync(Guid, string, string, string, CancellationToken)"/>
+    /// with the Image intake identity in the case slots. The stored name carries the
+    /// group ordinal so ordering is stable and duplicate file names cannot collide.
+    /// Idempotent: an existing file must match the retained content exactly.
+    /// Defaults fail closed for adapters that do not support image-case custody.
+    /// </summary>
+    Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Task.FromException<CustodyDocumentVersion>(new NotSupportedException(
+            "Image-case custody is not supported by this adapter."));
+
+    async Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        int ordinal,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        return await RetainImageCaseAssetAsync(
+            root, source, ordinal, operationKey, cancellationToken);
+    }
+
+    /// <summary>
+    /// Folds a merged Image-initiated Case folder into the paired instruction
+    /// case: every retained image moves into the case root's image evidence
+    /// location and the emptied image-case folder is removed. Both roots must
+    /// verify inside the approved custody root; anything unexpected left in the
+    /// image-case folder fails the fold closed instead of being deleted.
+    /// </summary>
+    Task MergeImageCaseContentsAsync(
+        CaseCustodyRoot imageRoot,
+        CaseCustodyRoot caseRoot,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Task.FromException(new NotSupportedException(
+            "Image-case custody is not supported by this adapter."));
+
+    async Task MergeImageCaseContentsAsync(
+        CaseCustodyRoot imageRoot,
+        CaseCustodyRoot caseRoot,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await leaseGuard.RequireCurrentAsync(cancellationToken);
+        await MergeImageCaseContentsAsync(imageRoot, caseRoot, operationKey, cancellationToken);
+    }
 }
 
 public enum CustodyTargetKind
