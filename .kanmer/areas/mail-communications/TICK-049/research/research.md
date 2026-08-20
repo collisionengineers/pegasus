@@ -61,3 +61,26 @@ What exact Core, persistence, Graph and Web seams can implement a separately con
 ### Open questions
 
 None. Confirmation ownership, destination authority and the no-live-move decision are already resolved.
+
+## Post-merge symbol refresh — 2026-08-20
+
+### Verified baseline
+
+- Fetched `origin/dev` is `a1775841297108db8de2d612a2ba82452b02242e`, the merge of PR #474 after MAIL-23. This is the only baseline used for this refresh.
+- MAIL-05 landed `RetainedMailFolderRecommendation(MailLogicalFolderType? FolderType, string PolicyKey, int PolicyVersion, string Reason)`. Its XML contract explicitly requires a later move to re-read the exact approved binding instead of carrying an opaque Graph destination identity from the view.
+- `GetRetainedMail.RecommendFolderAsync` re-derives the logical folder with `MailLogicalFolderPolicy.Map`, selects the approved mailbox by exact ordinal `MailboxIdentity == RetainedMailSummary.MailboxId`, and checks the typed `ApprovedMailboxFolderBinding`. No destination identity is returned to Razor.
+- `ApprovedMailbox.Version` is the landed concurrency value for mailbox/binding administration, but MAIL-05 does not currently place it on the recommendation. `MailClassificationDossier.Version` is the landed classification freshness value. Therefore the smallest safe extension is a non-secret approved-mailbox version on the recommendation; the POST still carries no mailbox, source-message, or destination Graph identity.
+- `RetainedMailboxMessageEntity` remains documented and implemented as write-once arrival evidence. Its exact `MailboxId`, `FolderIdentity`, and `ImmutableMessageId` remain the source coordinates; MAIL-07 must add a separate operation/current-location record rather than update them.
+- `GraphMailClient` owns Graph-host confinement, token acquisition, folder-scoped URI construction, safe failure mapping, and `Prefer: IdType="ImmutableId"` for message reads. It has no POST move or location probe. The narrow move/probe methods belong here; no second Graph client or general command API is justified.
+- Web's real caller remains `Pages/Mail/Message.cshtml(.cs)`, with casework authorization, anti-forgery, list-context preservation, classification version input, and the shared reason-dialog convention available for reuse.
+- No current schema owns an external mail-move operation. `ActionHistory` is the permanent reporting feed but cannot uniquely claim and recover a provider operation, confirming the need for one concrete mail-folder-move operation/current-location owner.
+
+### Active overlap and execution gate
+
+TICK-053 / PR #469 is still taken in Review. Its current diff overlaps all important MAIL-07 seams: `RetainedMail.cs`, `EfRetainedMailboxMessageStore.cs`, `GraphApprovedSources.cs`, `DependencyInjection.cs`, `Message.cshtml(.cs)`, `MailWorkspaceWebTests.cs`, `ProductionGraphSourceTests.cs`, and `RetainedMailPersistenceTests.cs`. It also changes retained-mail scope/search contracts and composes `GraphMailClient` in Web for read-only deleted-mail search.
+
+Per AGENTS.md, TICK-049 must not be taken while that overlapping claim remains. After PR #469 merges and TICK-053 releases: fetch the new `origin/dev`, verify it contains `a1775841` and the #469 merge, re-read the landed versions of every overlap above, then create `../pegasus-worktrees/tick-049` on `task/tick-049-mail-07-confirmed-folder-move` from that exact `origin/dev` and call `take_ticket`.
+
+### Refined implication
+
+The accepted move form carries only the internal retained-message id, classification version, recommendation policy key/version, approved-mailbox version, a fresh operation key, and the required reason. Core re-loads the exact message, classification, policy and approved binding on POST. Infrastructure alone supplies the persisted exact mailbox/source/destination transport identities to the one move adapter. This preserves the accepted read-only recommendation contract and makes changed classification, policy, binding, or current location fail closed without exposing or trusting browser transport data.
