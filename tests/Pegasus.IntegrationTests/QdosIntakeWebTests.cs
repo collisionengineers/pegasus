@@ -62,9 +62,18 @@ public sealed class QdosIntakeWebTests
         var completedHtml = await completedStatusPage.Content.ReadAsStringAsync();
         Assert.Contains("<h1>Complete</h1>", completedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("data-auto-refresh=\"2000\"", completedHtml, StringComparison.Ordinal);
-        Assert.Contains("Open receipt", completedHtml, StringComparison.Ordinal);
-        Assert.Contains("/Received/", completedHtml, StringComparison.Ordinal);
+        // No case exists yet and this ordinary correspondence carries no
+        // identifiable instruction to become one from, so the confirmation
+        // step reports it needing a staff decision rather than offering to
+        // create a case from nothing (INTK-010's decision table).
+        Assert.Contains("Needs sorting", completedHtml, StringComparison.Ordinal);
+        Assert.Contains(
+            "This could not be matched automatically and needs a staff decision.",
+            completedHtml,
+            StringComparison.Ordinal);
+        Assert.Contains("/Unidentified/", completedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("Open case", completedHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain("Create a case", completedHtml, StringComparison.Ordinal);
 
         var duplicate = await IntakeWebDriver.UploadAsync(
             client,

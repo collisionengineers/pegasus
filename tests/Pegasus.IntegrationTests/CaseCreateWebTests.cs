@@ -39,6 +39,23 @@ public sealed partial class CaseCreateWebTests
         DevelopmentOfflineIdentity.AdministratorId,
         [StaffRole.Administrator]);
 
+    /// <summary>
+    /// CASE-003: a stale bookmark or a typed URL can reach this handler with
+    /// no receiptId at all. Before the guard, LoadAsync passed Guid.Empty
+    /// straight to IGetIntake, which throws — a 500 in production rather than
+    /// the designed not-found page.
+    /// </summary>
+    [Fact]
+    public async Task CreateWithNoReceiptIdReturnsNotFoundInsteadOfThrowing()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        using var response = await client.GetAsync("/Cases/Create");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     [Fact]
     public async Task CreateScreenDoesNotOfferManualAuditCreation()
     {

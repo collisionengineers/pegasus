@@ -1,0 +1,35 @@
+@*
+    One file's confirmation outcome, once processing has resolved: what
+    already happened automatically (reported, not re-offered) or the staff
+    decision that is genuinely open. Every action here is a link to the
+    existing page that performs it — this partial never mutates anything.
+    The file it is about is the caller's to label (the group page names each
+    row; the single-file status page already has the name in its heading).
+
+    Model: Pegasus.Web.Presentation.UploadOutcomeView
+*@
+@model Pegasus.Web.Presentation.UploadOutcomeView
+<div class="upload-outcome">
+    @if (Model.ChipLabel is not null)
+    {
+        <partial name="Shared/_StatusChip" model="@Model.ChipLabel" />
+    }
+    else
+    {
+        <span class="field-hint">@Model.StateLabel</span>
+    }
+    <p class="upload-outcome__message">@Model.Message</p>
+    @if (Model.PrimaryAction is not null || Model.SecondaryAction is not null)
+    {
+        <div class="button-row">
+            @if (Model.PrimaryAction is { } primary)
+            {
+                <a class="primary-action" href="@primary.Url">@primary.Label</a>
+            }
+            @if (Model.SecondaryAction is { } secondary)
+            {
+                <a class="secondary-action" href="@secondary.Url">@secondary.Label</a>
+            }
+        </div>
+    }
+</div>
