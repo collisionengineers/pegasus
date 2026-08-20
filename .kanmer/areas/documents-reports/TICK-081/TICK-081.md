@@ -29,12 +29,12 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:05:40.146Z'
-updated: '2026-08-19T09:42:37.492Z'
+updated: '2026-08-20T09:45:44.347Z'
 ---
 
 ## What
 
-Plan and research **EXT-08**: Activate deterministic report generation from accepted Core-owned data through the approved renderer contract
+Plan and research **EXT-08**: Activate deterministic report generation from accepted Core-owned data through the approved renderer contract.
 
 ## Why
 
@@ -42,17 +42,20 @@ This is allocated to **Later / 1.1.0** in `docs/capabilities.md`. It is **not de
 
 ## Approach
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
+- At activation, define the Core policy owner, one shared monolith caller/service, its render contract, failure behavior, and acceptance evidence.
+- Every document and report type uses that same caller/service. A type may provide a different approved template to the shared contract, but it must not introduce a type-specific caller, service, renderer family, or deployment unit.
 - Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
+- [ ] A task-level plan covers the shared caller's exact contract, template-selection input, and tests across document types.
 - [ ] All activation conditions are accepted before implementation starts.
+- [ ] Audit and Inspection reach the same Core-owned caller when their reports are activated; their template/provenance inputs may differ without creating a second caller.
 
 ## Notes
 
 - Source: `docs/capabilities.md` — EXT-08.
+- [[TICK-098]] defines Audit's physical-output parity and reference provenance within this shared-caller boundary.
 - Blocked by: [[TICK-092]] — The renderer activation waits for accepted structured case and engineering data.
 - Blocked by: [[TICK-093]] — The renderer activation waits for an accepted repair-specification contract.
 - Blocked by: [[TICK-094]] — The renderer activation waits for accepted Engineer-owned outcomes and values.
