@@ -91,3 +91,26 @@ The replacement satisfies FRD-08’s separate confirmation, later reclassificati
 ## Verdict
 
 **Needs changes.** PR #477 was not merged. TICK-049 and PR-038 through PR-042 remain in Review; [[PR-043]] blocks TICK-049 from passing. Fix PR-043, run complete replacement CI, and independently re-review the next exact head.
+
+# Independent re-review — PR #477 at `83293162c3059d52b05d5139e2d1b8ee56b8d5a9` — 2026-08-20
+
+This is an independent re-review; I did not implement this head.
+
+## Changes
+
+- `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs`: refuses same-key replay while the row is Pending, permits recovery only for Uncertain, and persists Pending→Uncertain after a non-cancellation provider exception before probing.
+- `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`: overlaps the original provider call with same-key and new-key requests, asserting Pending remains active, only one parent probe/move occurs, and completed replay is terminal.
+
+The full PR remains the same 23-file inventory recorded in the final TICK-049 PIR; this head adds no new file or scope. The prior independent dispositions for PR-038 through PR-042 remain passing.
+
+## Comments and disposition
+
+1. **PR-043 — fixed-in-PR for overlapping requests.** Pending replay now returns “still being processed” without probing or mutating. The deterministic blocking mover proves an overlapping same-key request leaves the row Pending, a new key remains blocked, one source probe and one move occur, and a replay after completion returns the existing success.
+2. **Blocking — request cancellation can strand Pending forever.** The provider-call/complete block still rethrows `OperationCanceledException` when the request token is cancelled. Cancellation during the external call, or after Graph succeeds while SQL completion uses the cancelled token, leaves the durable row Pending. Because this head correctly refuses all Pending replays and keeps the filtered slot occupied—and deliberately adds no lease/worker—neither same-key recovery nor a new-key retry can ever proceed. **Disposition:** filed [[PR-044]], which blocks TICK-049.
+3. **Simplicity — pass except for the missing terminal path.** PR-043 uses two explicit existing states and one durable transition; it adds no flag, wrapper, lease, timer, worker, endpoint or framework. PR-044 should preserve that narrow shape by making the post-provider transition durable independently of request abandonment.
+4. **Prior blockers and governing docs — pass.** PR-038 through PR-042 remain correctly addressed: database-enforced different-key serialization, authenticated same-key Uncertain probing, repeat confirmation after reclassification, MAIL-11 search findability, exact failure-path tests, qualified evidence and the complete 23-file PIR inventory. Exact transport identities stay server-side; production composition remains unavailable/default-off; no external write is claimed.
+5. **CI status.** Replacement run 32393959663 had only just started when this needs-changes verdict was finalized. Local-development-scripts and reference-data were green; changes and documentation were running and downstream build/test jobs had not all started. The next head requires a complete green replacement run.
+
+## Verdict
+
+**Needs changes.** PR #477 was not merged and no ticket moved. [[PR-044]] is the sole new blocking finding at this head. After it is fixed with cancellation evidence and the replacement CI run is fully green, run another independent review of the exact new head.
