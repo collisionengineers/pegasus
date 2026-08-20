@@ -7,7 +7,18 @@ public sealed record IntakeSubmissionGroup(
     int ExpectedMemberCount,
     string Actor,
     DateTimeOffset ReceivedAtUtc,
-    IReadOnlyList<IntakeSubmissionGroupMember> Members);
+    IReadOnlyList<IntakeSubmissionGroupMember> Members)
+{
+    /// <summary>
+    /// Whether this submission declared more than one member. Every manual
+    /// upload is a submission group (INTK-005), but the grouped image
+    /// decision table scopes itself to "a manual upload [that] contains more
+    /// than one image" — a one-member group is a lone image governed by the
+    /// single-image rules, and this property is the one owner of that
+    /// distinction.
+    /// </summary>
+    public bool HasSiblingMembers => ExpectedMemberCount > 1;
+}
 
 public sealed record IntakeSubmissionGroupMember(
     Guid GroupId,
@@ -104,6 +115,34 @@ public static class GroupedIntakeMemberToken
 {
     public static string Create(string submissionToken, int ordinal) =>
         ordinal == 0 ? submissionToken : $"{submissionToken}:{ordinal}";
+
+    /// <summary>
+    /// The parent submission tokens a member's external receipt token can
+    /// name, in precedence order — the inverse of <see cref="Create"/>, kept
+    /// here so the convention still has exactly one owner. A strict
+    /// <c>:{ordinal}</c> suffix (positive, unsigned, no whitespace — the
+    /// only suffix shape <see cref="Create"/> emits, which never produces
+    /// <c>:0</c>) names its parent by stripping; the bare token itself is
+    /// always a candidate, because an ordinal-0 member carries the parent
+    /// token verbatim.
+    /// </summary>
+    public static IEnumerable<string> ParentTokenCandidates(string memberToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(memberToken);
+        var separator = memberToken.LastIndexOf(':');
+        if (separator > 0
+            && int.TryParse(
+                memberToken[(separator + 1)..],
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var ordinal)
+            && ordinal >= 1)
+        {
+            yield return memberToken[..separator];
+        }
+
+        yield return memberToken;
+    }
 }
 
 public sealed class SubmitGroupedIntake(
