@@ -1,3 +1,4 @@
+using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Eva;
@@ -74,7 +75,16 @@ public sealed record CaseHistoryEntry(
     DateTimeOffset OccurredAtUtc,
     string Reason,
     long BeforeVersion,
-    long AfterVersion);
+    long AfterVersion)
+{
+    /// <summary>
+    /// The operator-facing name for <see cref="Actor"/>, resolved by <c>GetCase</c>
+    /// (see <see cref="ActorDisplayNames"/>). Defaults to the
+    /// same honest "not yet resolved" fallback a missing account gets, so a caller
+    /// that forgets to populate it never renders the raw subject id.
+    /// </summary>
+    public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
+}
 
 public sealed record CaseDetails(
     CaseSearchItem Summary,
@@ -93,6 +103,12 @@ public sealed record CaseDetails(
     public CaseVehicleEvidence? VehicleEvidence { get; init; }
     public EvaHandoffPreparation? EvaHandoff { get; init; }
     public IReadOnlyList<CaseCustodyPreparation> Custody { get; init; } = [];
+
+    /// <summary>
+    /// The operator-facing name for <c>Workflow.ReportApproval.ApprovedBy</c>,
+    /// resolved by <c>GetCase</c>. Null when there is no report approval to name.
+    /// </summary>
+    public string? ReportApprovedByDisplayName { get; init; }
 }
 
 public sealed record GetCaseQuery(Guid CaseId, ActionActor Actor);
@@ -214,7 +230,8 @@ public sealed class GetCase(
     IEvaHandoffQueries evaHandoffQueries,
     ICaseCustodyQueries caseCustodyQueries,
     ICaseDueChaserQueries dueChaserQueries,
-    ICaseTaskQueries taskQueries) : IGetCase
+    ICaseTaskQueries taskQueries,
+    IStaffAccountQueries staffAccountQueries) : IGetCase
 {
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
     private readonly ICaseDataQueries _caseDataQueries =
@@ -229,6 +246,8 @@ public sealed class GetCase(
         dueChaserQueries ?? throw new ArgumentNullException(nameof(dueChaserQueries));
     private readonly ICaseTaskQueries _taskQueries =
         taskQueries ?? throw new ArgumentNullException(nameof(taskQueries));
+    private readonly IStaffAccountQueries _staffAccountQueries =
+        staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
 
     public async Task<CaseDetails?> ExecuteAsync(
         GetCaseQuery query,
@@ -263,6 +282,19 @@ public sealed class GetCase(
             throw new InvalidDataException("A composed case projection belongs to another case.");
         }
 
+        var approvedBy = details.Workflow.ReportApproval?.ApprovedBy;
+        var staffIds = details.History
+            .Where(entry => entry.ActorKind == nameof(ActorKind.Staff) && Guid.TryParse(entry.Actor, out _))
+            .Select(entry => Guid.Parse(entry.Actor));
+        if (approvedBy is { Kind: ActorKind.Staff } && Guid.TryParse(approvedBy.SubjectId, out var approverId))
+        {
+            staffIds = staffIds.Append(approverId);
+        }
+        var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
+            _staffAccountQueries,
+            staffIds,
+            cancellationToken);
+
         return details with
         {
             Data = data,
@@ -270,7 +302,18 @@ public sealed class GetCase(
             EvaHandoff = evaHandoff,
             Custody = custody,
             LatestChaser = latestChaser,
-            Tasks = tasks
+            Tasks = tasks,
+            History = details.History
+                .Select(entry => entry with
+                {
+                    ActorDisplayName = Enum.TryParse<ActorKind>(entry.ActorKind, out var actorKind)
+                        ? ActorDisplayNames.Resolve(actorKind, entry.Actor, staffNames)
+                        : ActorDisplayNames.UnknownStaff
+                })
+                .ToArray(),
+            ReportApprovedByDisplayName = approvedBy is null
+                ? null
+                : ActorDisplayNames.Resolve(approvedBy.Kind, approvedBy.SubjectId, staffNames)
         };
     }
 }
