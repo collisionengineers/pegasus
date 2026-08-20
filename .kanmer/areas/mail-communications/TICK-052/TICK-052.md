@@ -2,12 +2,13 @@
 id: TICK-052
 type: ticket
 title: 'MAIL-10 — Manual email/case association, unlink, relink, and correction'
-status: implementing
+status: review
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:45.021Z'
+  review: '2026-08-20T20:53:13.536Z'
 taken_at: '2026-08-20T20:31:22.084Z'
 branch: task/tick-052-mail-10-manual-case-association
 worktree: 'C:/Users/Alex/Documents/GitHub/pegasus-worktrees/tick-052'
@@ -16,7 +17,6 @@ labels:
   - MAIL-10
   - next
   - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - EPIC-003
@@ -25,9 +25,13 @@ links: []
 blocks: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - d4c951f5
+prs:
+  - '490'
 archived: false
 created: '2026-08-12T15:05:19.275Z'
-updated: '2026-08-20T20:31:22.084Z'
+updated: '2026-08-20T20:53:13.536Z'
 ---
 
 ## What

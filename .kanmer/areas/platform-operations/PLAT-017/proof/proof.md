@@ -17,3 +17,7 @@ Executed 2026-08-20 ~20:00 UTC, operator-approved targets exactly as planned.
 Outlook mailbox, Box content (DOCS-005's release step deletes the legacy binding JSONs), all identity/config/reference tables.
 
 Live-app spot check happens with the release-15 post-deploy verification (empty Queues/Inbox, staff login working).
+
+## Live check after release 15 (2026-08-20, signed-in browser)
+
+Staff sign-in works on the deployed app (`6d04f89d`); Queues shows every badge 0 with "No cases are waiting"; the Inbox shows its honest empty state. The wipe held through the deployment.

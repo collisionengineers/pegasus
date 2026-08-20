@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Box custody: drop binding JSONs, retain instruction attachments as their own
   files
-status: verifying
+status: done
 area: documents-reports
 assignee: claude-code
 profile: fix
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-20T19:33:57.962Z'
   review: '2026-08-20T19:56:28.573Z'
   verifying: '2026-08-20T20:10:52.080Z'
+  done: '2026-08-20T20:53:04.998Z'
 taken_at: '2026-08-20T19:34:02.296Z'
 branch: task/box-custody
 worktree: ../pegasus-worktrees/box-custody
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-20T19:33:29.208Z'
-updated: '2026-08-20T20:10:52.080Z'
+updated: '2026-08-20T20:53:04.998Z'
 ---
 
 ## Why
