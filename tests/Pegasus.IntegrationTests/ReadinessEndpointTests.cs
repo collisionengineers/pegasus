@@ -333,7 +333,8 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
             ["Box:RootFolderId"] = "405543781910",
             ["Box:ConfigJson"] = TestBoxConfigJson,
-            ["Box:ClientSecret"] = "test-client-secret"
+            ["Box:ClientSecret"] = "test-client-secret",
+            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/"
         };
         foreach (var setting in settings)
         {
