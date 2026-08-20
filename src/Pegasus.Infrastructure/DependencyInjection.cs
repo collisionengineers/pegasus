@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
@@ -267,6 +268,7 @@ public static class DependencyInjection
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
