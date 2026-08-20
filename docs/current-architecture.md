@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 ## Unidentified intake boundary
 
@@ -206,6 +206,9 @@ The current enforced resource limits are:
 | PDF reader | 5,242,880 extracted characters; 512 discrete image objects; 100,000,000 decoded image-sample pixels; 25 MiB extracted image bytes; 30 seconds |
 | EML reader | Eight nested-message levels; 128 MIME entities; 25 MiB cumulatively decoded MIME bytes |
 | DOCX reader | 512 package entries; 50 MiB total uncompressed bytes; 10 MiB for each XML or relationship part; 25 MiB total image bytes |
+| DOC reader | 10 MiB input; 16,777,216 extracted characters; 1,000,000 piece-table pieces; the compound-file bounds below |
+| MSG reader | Eight nested-message levels; the compound-file bounds below |
+| Compound-file container (DOC and MSG) | 16 MiB input; 32,768 sectors; 131,072 directory entries; 16 MiB per stream; 64 MiB total stream bytes |
 
 The multipart boundary is enforced before Core. Reader-limit outcomes remain visible and cannot allocate a case or reference.
 
@@ -219,11 +222,20 @@ The current reader can:
 - enumerate supported attachments;
 - read PDF embedded text and discrete image streams;
 - read DOCX text and internal images;
+- read legacy DOC (Word binary) text through the bounded compound-file and
+  piece-table readers;
+- read Outlook MSG bodies (plain, HTML, and compressed RTF), sender/subject
+  transport evidence, and attachments, which re-enter the same dispatch so a
+  PDF inside a message reaches the PDF reader;
 - retain the uploaded source and each supported attachment, inline image, DOCX image, and discrete PDF image as separate review occurrences.
 
 SQL stores metadata and opaque artifact keys, not file bytes.
 
-Legacy DOC and MSG are retained but routed to `Needs sorting` without a reference; their automated extraction remains deferred. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
+Legacy DOC and MSG are extracted in-process since release 14 by the
+CollisionDocNet-derived readers under `Pegasus.Infrastructure` (SIMPLI-013,
+[ADR-0025](adr/0025-integrate-renderer-and-extractor-into-the-application.md));
+unreadable, encrypted, or over-limit containers fail closed into Unidentified
+without a reference. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
 
 For PDFs, only low-text pages with a dominant raster are marked as scan-like OCR candidates. No OCR service is currently called. Document- and attachment-level OCR-required state is visible during review.
 

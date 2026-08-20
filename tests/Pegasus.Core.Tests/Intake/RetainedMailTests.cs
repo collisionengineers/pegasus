@@ -253,12 +253,12 @@ public sealed class RetainedMailTests
         var queries = new Queries();
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new GetRetainedMail(queries, new NoStaffAccounts()).ExecuteAsync(
+            new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore()).ExecuteAsync(
                 ActionActor.RequestLink(Guid.NewGuid()),
                 Guid.NewGuid(),
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new GetRetainedMail(queries, new NoStaffAccounts()).ExecuteAsync(
+            new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore()).ExecuteAsync(
                 Caseworker(),
                 Guid.Empty,
                 CancellationToken.None));
@@ -286,7 +286,7 @@ public sealed class RetainedMailTests
         var queries = new Queries { DetailToReturn = detail };
         var staffAccounts = new FixedStaffAccounts(staffId, "alex");
 
-        var resolved = await new GetRetainedMail(queries, staffAccounts).ExecuteAsync(
+        var resolved = await new GetRetainedMail(queries, staffAccounts, new MailboxStore()).ExecuteAsync(
             Caseworker(),
             summary.Id,
             CancellationToken.None);
@@ -299,6 +299,137 @@ public sealed class RetainedMailTests
         {
             Assert.DoesNotContain(staffId.ToString("D"), entry.ActorDisplayName, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    [Fact]
+    public async Task GetDerivesTheExactConfiguredFolderFromTheCurrentClassificationAndMailboxBinding()
+    {
+        var detail = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            classificationVersion: 4);
+        var mailbox = ApprovedMailbox(
+            "mailbox-a",
+            ApprovedMailboxState.Approved,
+            version: 7,
+            new ApprovedMailboxFolderBinding(
+                MailLogicalFolderType.Instructions,
+                "outlook-folder-instructions"));
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            new MailboxStore(mailbox)).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.Equal(MailLogicalFolderType.Instructions, result!.FolderRecommendation!.FolderType);
+        Assert.Equal(MailLogicalFolderPolicy.Key, result.FolderRecommendation.PolicyKey);
+        Assert.True(result.FolderRecommendation.IsAvailable);
+    }
+
+    [Fact]
+    public async Task GetDoesNotConsultMailboxBindingsWhenClassificationAbstains()
+    {
+        var classification = MailClassificationResult.Ambiguous(
+            ["received:billing:invoice", "received:general:general-chase"],
+            [],
+            "Several categories matched.",
+            "classification-policy",
+            2);
+        var detail = Detail("mailbox-a", new(3, classification, "system-worker:poll", NowUtc, []));
+        var mailboxes = new MailboxStore();
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            mailboxes).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.False(result!.FolderRecommendation!.IsAvailable);
+        Assert.Null(result.FolderRecommendation.FolderType);
+        Assert.Contains("absent or ambiguous", result.FolderRecommendation.Reason, StringComparison.Ordinal);
+        Assert.Equal(0, mailboxes.ListCount);
+    }
+
+    [Theory]
+    [InlineData(ApprovedMailboxState.Approved, "different-mailbox", "currently approved")]
+    [InlineData(ApprovedMailboxState.Disabled, "mailbox-a", "currently approved")]
+    [InlineData(ApprovedMailboxState.Approved, "mailbox-a", "not configured")]
+    public async Task GetFailsClosedWhenTheExactApprovedBindingIsUnavailable(
+        ApprovedMailboxState state,
+        string mailboxIdentity,
+        string expectedReason)
+    {
+        var detail = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.Billing, "billing-query"));
+        var mailbox = ApprovedMailbox(mailboxIdentity, state, version: 2);
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            new MailboxStore(mailbox)).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.False(result!.FolderRecommendation!.IsAvailable);
+        Assert.Null(result.FolderRecommendation.FolderType);
+        Assert.Contains(expectedReason, result.FolderRecommendation.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetTreatsNoActionAsAConfiguredFolderRatherThanNoRecommendation()
+    {
+        var detail = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"));
+        var mailbox = ApprovedMailbox(
+            "mailbox-a",
+            ApprovedMailboxState.Approved,
+            version: 2,
+            new ApprovedMailboxFolderBinding(
+                MailLogicalFolderType.NoAction,
+                "outlook-folder-no-action"));
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            new MailboxStore(mailbox)).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.True(result!.FolderRecommendation!.IsAvailable);
+        Assert.Equal(MailLogicalFolderType.NoAction, result.FolderRecommendation.FolderType);
+    }
+
+    [Fact]
+    public async Task GetReDerivesAfterTheClassificationAndBindingChange()
+    {
+        var queries = new Queries
+        {
+            DetailToReturn = ClassifiedDetail(
+                "mailbox-a",
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"))
+        };
+        var mailboxes = new MailboxStore(ApprovedMailbox(
+            "mailbox-a",
+            ApprovedMailboxState.Approved,
+            version: 1,
+            new ApprovedMailboxFolderBinding(MailLogicalFolderType.Instructions, "instructions-folder")));
+        var sut = new GetRetainedMail(queries, new NoStaffAccounts(), mailboxes);
+
+        var before = await sut.ExecuteAsync(Caseworker(), queries.DetailToReturn.Summary.Id);
+
+        queries.DetailToReturn = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.Billing, "billing-query"));
+        mailboxes.Mailboxes =
+        [
+            ApprovedMailbox(
+                "mailbox-a",
+                ApprovedMailboxState.Approved,
+                version: 2,
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Billing, "billing-folder"))
+        ];
+        var after = await sut.ExecuteAsync(Caseworker(), queries.DetailToReturn.Summary.Id);
+
+        Assert.Equal(MailLogicalFolderType.Instructions, before!.FolderRecommendation!.FolderType);
+        Assert.Equal(MailLogicalFolderType.Billing, after!.FolderRecommendation!.FolderType);
+        Assert.Equal(2, mailboxes.ListCount);
     }
 
     [Fact]
@@ -432,6 +563,45 @@ public sealed class RetainedMailTests
     private static ActionActor Caseworker() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
+    private static RetainedMailDetail ClassifiedDetail(
+        string mailboxId,
+        MailCategory category,
+        int classificationVersion = 1) => Detail(
+            mailboxId,
+            new(
+                classificationVersion,
+                MailClassificationResult.Classified(category, [], "Classified.", "classification-policy", 1),
+                "system-worker:poll",
+                NowUtc,
+                []));
+
+    private static RetainedMailDetail Detail(
+        string mailboxId,
+        MailClassificationDossier dossier)
+    {
+        var summary = new RetainedMailSummary(
+            Guid.NewGuid(), mailboxId, "mailbox@example.test", true, null, null, null,
+            null, null, NowUtc, true, 0, null, null, null, null);
+        return new(summary, [], [], null, [], [], MailFolderScope.Inbox,
+            dossier.Current.Outcome, null, dossier);
+    }
+
+    private static ApprovedMailbox ApprovedMailbox(
+        string mailboxIdentity,
+        ApprovedMailboxState state,
+        int version,
+        params ApprovedMailboxFolderBinding[] bindings) => new(
+            Guid.NewGuid(),
+            "mailbox@example.test",
+            [ApprovedMailboxRouteScope.InboundIntake],
+            state,
+            mailboxIdentity,
+            "inbox-folder",
+            "sent-folder",
+            true,
+            version,
+            bindings);
+
     private sealed class Queries : IRetainedMailQueries
     {
         internal List<(MailWorkspaceScope Scope, int Page, int PageSize)> Scopes { get; } = [];
@@ -484,6 +654,27 @@ public sealed class RetainedMailTests
             MaximumMessages = maximumMessages;
             return Task.FromResult(result);
         }
+    }
+
+    private sealed class MailboxStore(params ApprovedMailbox[] mailboxes) : IApprovedMailboxStore
+    {
+        internal int ListCount { get; private set; }
+        internal IReadOnlyList<ApprovedMailbox> Mailboxes { get; set; } = mailboxes;
+
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
+        {
+            ListCount++;
+            return Task.FromResult(Mailboxes);
+        }
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class ClassificationStore(MailClassificationDossier dossier)

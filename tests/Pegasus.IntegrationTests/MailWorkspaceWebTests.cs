@@ -305,6 +305,22 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task MessageDetailShowsUnavailableFolderRecommendationBeforeClassificationExists()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+
+        Assert.Contains("<h2 id=\"folder-recommendation-heading\">Folder recommendation</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Unavailable —", html, StringComparison.Ordinal);
+        Assert.Contains("no current classification decision", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
+    }
+
+    [Fact]
     public async Task MessageDetailExplainsTheVersionedDecisionAndOffersExactMessageCorrection()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -330,6 +346,8 @@ public sealed class MailWorkspaceWebTests
         // to an operator-facing name, never the raw stored value.
         Assert.Contains("<dt>Decided by</dt><dd>System</dd>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("system-worker:approved-inbox-poller", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Unavailable —", html, StringComparison.Ordinal);
+        Assert.Contains("absent or ambiguous", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -347,6 +365,27 @@ public sealed class MailWorkspaceWebTests
         // regress to no destination, or the wrong one, for a known category.
         Assert.Contains("<dt>Operational destination</dt><dd>Receiving work</dd>", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Destination policy</dt><dd>mail_operational_destination version 1</dd>", html, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task MessageDetailShowsTheCurrentMailboxConfiguredFolderRecommendation()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassifiedInstructionAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        await ConfigureFolderBindingAsync(
+            factory,
+            FirstMailboxId,
+            MailLogicalFolderType.Instructions,
+            "outlook-folder-instructions");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+
+        Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Instructions</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("mail_logical_folder version 1", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -672,6 +711,32 @@ public sealed class MailWorkspaceWebTests
                     [new("original@qdosassist.co.uk", "inline forward")],
                     new("original@qdosassist.co.uk", "inline forward"))),
             CancellationToken.None);
+    }
+
+    private static async Task ConfigureFolderBindingAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxIdentity,
+        MailLogicalFolderType folderType,
+        string folderIdentity)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var mailbox = await context.ApprovedMailboxes
+            .Include(item => item.FolderBindings)
+            .SingleAsync(item => item.Address == FirstMailboxAddress);
+        mailbox.MailboxIdentity = mailboxIdentity;
+        mailbox.InboxFolderIdentity = "inbox-folder";
+        mailbox.SentFolderIdentity = "sent-folder";
+        mailbox.Version++;
+        mailbox.FolderBindings.Add(new()
+        {
+            ApprovedMailboxId = mailbox.Id,
+            FolderType = folderType.ToString(),
+            FolderIdentity = folderIdentity
+        });
+        await context.SaveChangesAsync();
     }
 
     private static async Task StoreClassificationAsync(
