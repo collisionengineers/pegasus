@@ -261,7 +261,8 @@ public sealed class UploadOutcomeQueriesTests
             IntakeDecision.CaseCreated,
             manualLinkedCaseId: caseId,
             manualLinkedCaseReference: "QDO31002",
-            manualAssociationVersion: 3);
+            manualAssociationVersion: 3,
+            manualAssociationActorKind: ActorKind.Staff);
 
         var result = await BuildAsync(status, receipt);
 
@@ -289,7 +290,8 @@ public sealed class UploadOutcomeQueriesTests
         CaseMatchEvaluationResult? caseMatchDecision = null,
         Guid? manualLinkedCaseId = null,
         string? manualLinkedCaseReference = null,
-        long? manualAssociationVersion = null) =>
+        long? manualAssociationVersion = null,
+        ActorKind? manualAssociationActorKind = null) =>
         new(
             id,
             "example.pdf",
@@ -317,7 +319,8 @@ public sealed class UploadOutcomeQueriesTests
             CaseMatchDecision: caseMatchDecision,
             ManualLinkedCaseId: manualLinkedCaseId,
             ManualLinkedCaseReference: manualLinkedCaseReference,
-            ManualAssociationVersion: manualAssociationVersion);
+            ManualAssociationVersion: manualAssociationVersion,
+            ManualAssociationActorKind: manualAssociationActorKind);
 
     private static Task<UploadOutcomeView> BuildAsync(
         QueuedIntakeStatus status,

@@ -43,6 +43,10 @@
   --navy-line: #365f87;
   --success: #16833b;
   --success-tint: rgba(22, 131, 59, .1);
+  /* Text-on-tint green, matching the amber/red pattern of a darker fg than
+     the line colour: --success on --success-tint sits just under the 4.5:1
+     floor, which the status-card--done comment below already records. */
+  --success-fg: #11672e;
 
   /* Spacing rhythm */
   --sp-1: 4px;
@@ -833,7 +837,7 @@ a.metric:hover { border-color: var(--state-line); background: var(--state-bg); }
 .status-chip--navy, .status-chip--review { --state-line: var(--navy-line); --state-bg: var(--navy-bg); --state-fg: var(--navy-fg); }
 .status-chip--amber, .status-chip--not-ready { --state-line: var(--amber-line); --state-bg: var(--amber-tint); --state-fg: var(--amber-fg); }
 .status-chip--red, .status-chip--blocked { --state-line: var(--ce-red); --state-bg: var(--ce-red-tint); --state-fg: var(--ce-red-dark); }
-.status-chip--green, .status-chip--completed { --state-line: var(--success); --state-bg: var(--success-tint); --state-fg: var(--success); }
+.status-chip--green, .status-chip--completed { --state-line: var(--success); --state-bg: var(--success-tint); --state-fg: var(--success-fg); }
 .status-chip--neutral { --state-line: var(--line); --state-bg: var(--paper); --state-fg: var(--muted); }
 
 .status-card {
@@ -2065,6 +2069,9 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .upload-attach > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 .upload-attach[open] > summary { border-color: var(--charcoal); }
 .upload-attach__form { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); max-width: 480px; }
+/* display: grid would otherwise override the user-agent [hidden] rule and
+   keep the empty suggestion box visible before any search has run. */
+.case-search-list[hidden] { display: none; }
 .case-search-list {
   margin: 0;
   padding: var(--sp-1);

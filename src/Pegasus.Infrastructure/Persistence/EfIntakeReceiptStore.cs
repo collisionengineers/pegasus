@@ -2,6 +2,7 @@ using System.Data;
 using System.Text.Json;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Identity;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -555,7 +556,11 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 : MapCaseMatchDecision(entity.CaseMatchDecision),
             allocationState,
             acceptedCaseReference,
-            manualLinkedCaseReference);
+            manualLinkedCaseReference,
+            entity.ManualAssociation is { IsActive: true } activeAssociation
+                && Enum.TryParse<ActorKind>(activeAssociation.ActorKind, ignoreCase: false, out var associationActorKind)
+                ? associationActorKind
+                : null);
     }
 
     private static async Task<IntakeAllocationState?> GetAllocationStateAsync(
