@@ -113,4 +113,12 @@ internal sealed class SendToAiControlEntity
     public required string Id { get; set; }
     public bool Enabled { get; set; }
     public int Version { get; set; }
+
+    // Administration-entered connector settings (MCP-07). Null means the
+    // composed configuration value applies. The token is stored protected
+    // and is never readable back through Administration.
+    public string? ChannelBaseUrl { get; set; }
+    public double? TimeoutSeconds { get; set; }
+    public string? ChannelTokenProtected { get; set; }
+    public DateTimeOffset? TokenRotatedAtUtc { get; set; }
 }

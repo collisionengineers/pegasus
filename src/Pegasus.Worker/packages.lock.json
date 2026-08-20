@@ -254,6 +254,11 @@
           "Microsoft.AspNetCore.Cryptography.Internal": "10.0.10"
         }
       },
+      "Microsoft.AspNetCore.DataProtection.Abstractions": {
+        "type": "Transitive",
+        "resolved": "10.0.10",
+        "contentHash": "q2RNx0N/qrsU+JgbPE78I9pu5ekwguitAFVoeE1NCgxtkUTguvf7oTzBnn42zSQxuugJ4fmj0RSarob8Rvorrg=="
+      },
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
         "type": "Transitive",
         "resolved": "10.0.10",
@@ -1088,6 +1093,7 @@
           "Azure.Storage.Blobs": "[12.26.0, )",
           "Box.Sdk.Gen": "[1.12.0, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
+          "Microsoft.AspNetCore.DataProtection.Abstractions": "[10.0.10, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.10, )",
           "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.10, )",
           "Microsoft.Graph": "[6.2.0, )",

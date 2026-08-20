@@ -174,6 +174,8 @@ internal static class AssessmentModelConfiguration
             entity.HasKey(item => item.Id);
             entity.Property(item => item.Id).HasMaxLength(40);
             entity.Property(item => item.Version).IsConcurrencyToken();
+            entity.Property(item => item.ChannelBaseUrl).HasMaxLength(200);
+            entity.Property(item => item.ChannelTokenProtected).HasMaxLength(2000);
         });
     }
 

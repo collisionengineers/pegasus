@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260820040337_SendToAiConnectorSettings")]
+    partial class SendToAiConnectorSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2992,9 +2995,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nchar(64)")
                         .IsFixedLength();
 
-                    b.Property<Guid?>("SubmissionGroupId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.HasKey("Id");
 
                     b.HasIndex("CreationOperationKey")
@@ -3005,10 +3005,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OriginReceiptId")
                         .IsUnique();
-
-                    b.HasIndex("SubmissionGroupId")
-                        .IsUnique()
-                        .HasFilter("[SubmissionGroupId] IS NOT NULL");
 
                     b.HasIndex("LifecycleState", "CreatedAtUtc");
 
@@ -6294,11 +6290,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OriginReceiptId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity", null)
-                        .WithMany()
-                        .HasForeignKey("SubmissionGroupId")
-                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("OriginReceipt");
                 });
