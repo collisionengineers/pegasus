@@ -2,18 +2,22 @@
 id: TICK-186
 type: ticket
 title: Assemble the extraction cohort and untouched holdout
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T05:37:15.697Z'
+branch: local-only/tick-186
 labels:
   - now
   - source-now
 links:
   - TICK-009
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:08:04.505Z'
-updated: '2026-08-17T06:43:41.774Z'
+updated: '2026-08-20T05:37:15.697Z'
 ---
 
 ## What
