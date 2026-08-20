@@ -265,7 +265,8 @@ public sealed class MessageModel(
 
     private bool IsOutsideListScope(RetainedMailDetail detail, MailFolderScope listFolder) =>
         (listFolder == MailFolderScope.Inbox
-            && detail.LatestFolderMove?.Outcome == RetainedMailFolderMoveOutcome.Succeeded)
+            && SearchTerm is null
+            && detail.Summary.CurrentFolderType is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
                 && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))

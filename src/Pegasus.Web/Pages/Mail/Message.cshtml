@@ -94,7 +94,7 @@
                 <div><dt>Folder recommendation policy</dt><dd>@recommendation.PolicyKey version @recommendation.PolicyVersion</dd></div>
                 @if (Model.Detail.LatestFolderMove is { } latestMove)
                 {
-                    <div><dt>Latest folder move</dt><dd>@latestMove.Outcome — @latestMove.Reason</dd></div>
+                    <div><dt>Latest folder move</dt><dd>@latestMove.Outcome — @(latestMove.FailureReason ?? latestMove.Reason)</dd></div>
                 }
             }
             else if (Model.Detail.FolderRecommendation is { } unavailableRecommendation)
@@ -107,13 +107,34 @@
             <div><dt>Decided by</dt><dd>@dossier.CurrentActorDisplayName</dd></div>
             <div><dt>Decided at</dt><dd><time datetime="@dossier.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(dossier.CurrentDecidedAtUtc)</time></dd></div>
         </dl>
-        @if (Model.Detail.FolderRecommendation is
+        @if (Model.Detail.LatestFolderMove is
+            {
+                Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain,
+                OperationKey: { } recoveryOperationKey,
+                ExpectedClassificationVersion: { } recoveryClassificationVersion,
+                ExpectedRecommendationPolicyKey: { } recoveryPolicyKey,
+                ExpectedRecommendationPolicyVersion: { } recoveryPolicyVersion,
+                ExpectedMailboxVersion: { } recoveryMailboxVersion
+            } uncertainMove)
+        {
+            <form method="post" asp-page-handler="MoveToRecommendedFolder" asp-route-id="@summary.Id"
+                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                  asp-route-search="@Model.SearchTerm" asp-route-pageNumber="@Model.PageNumber">
+                <input type="hidden" name="ExpectedClassificationVersion" value="@recoveryClassificationVersion" />
+                <input type="hidden" name="ExpectedRecommendationPolicyKey" value="@recoveryPolicyKey" />
+                <input type="hidden" name="ExpectedRecommendationPolicyVersion" value="@recoveryPolicyVersion" />
+                <input type="hidden" name="ExpectedMailboxVersion" value="@recoveryMailboxVersion" />
+                <input type="hidden" name="MoveOperationKey" value="@recoveryOperationKey" />
+                <input type="hidden" name="Reason" value="@uncertainMove.Reason" />
+                <button class="btn btn--dark" type="submit">Check move status</button>
+            </form>
+        }
+        else if (Model.Detail.FolderRecommendation is
             {
                 IsAvailable: true,
                 CanMove: true,
                 MailboxVersion: { } mailboxVersion
-            } moveRecommendation
-            && Model.Detail.LatestFolderMove?.Outcome != Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Succeeded)
+            } moveRecommendation)
         {
             var moveOperationKey = Guid.NewGuid().ToString("D");
             var moveAction = Url.Page(

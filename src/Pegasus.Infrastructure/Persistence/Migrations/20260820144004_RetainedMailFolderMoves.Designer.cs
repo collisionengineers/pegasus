@@ -4729,6 +4729,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<int>("ExpectedClassificationVersion")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExpectedMailboxVersion")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ExpectedRecommendationPolicyKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("ExpectedRecommendationPolicyVersion")
+                        .HasColumnType("int");
+
                     b.Property<string>("FailureReason")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
@@ -4784,6 +4798,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OperationKey")
                         .IsUnique();
+
+                    b.HasIndex("RetainedMailboxMessageId")
+                        .IsUnique()
+                        .HasFilter("[Outcome] IN ('pending', 'uncertain')");
 
                     b.HasIndex("RetainedMailboxMessageId", "RecordedAtUtc");
 

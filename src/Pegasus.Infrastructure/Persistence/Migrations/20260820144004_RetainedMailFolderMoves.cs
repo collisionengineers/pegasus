@@ -19,6 +19,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     RetainedMailboxMessageId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     OperationKey = table.Column<string>(type: "nvarchar(36)", maxLength: 36, nullable: false),
                     RequestHash = table.Column<string>(type: "nchar(64)", fixedLength: true, maxLength: 64, nullable: false),
+                    ExpectedClassificationVersion = table.Column<int>(type: "int", nullable: false),
+                    ExpectedRecommendationPolicyKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    ExpectedRecommendationPolicyVersion = table.Column<int>(type: "int", nullable: false),
+                    ExpectedMailboxVersion = table.Column<int>(type: "int", nullable: false),
                     MailboxId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     ImmutableMessageId = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
                     SourceFolderId = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: false),
@@ -48,6 +52,13 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "RetainedMailFolderMoves",
                 column: "OperationKey",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RetainedMailFolderMoves_RetainedMailboxMessageId",
+                table: "RetainedMailFolderMoves",
+                column: "RetainedMailboxMessageId",
+                unique: true,
+                filter: "[Outcome] IN ('pending', 'uncertain')");
 
             migrationBuilder.CreateIndex(
                 name: "IX_RetainedMailFolderMoves_RetainedMailboxMessageId_RecordedAtUtc",

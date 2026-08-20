@@ -24,7 +24,13 @@ public sealed record RetainedMailFolderMoveResult(
     MailLogicalFolderType FolderType,
     string Reason,
     DateTimeOffset RecordedAtUtc,
-    bool IsReplay = false);
+    bool IsReplay = false,
+    string? OperationKey = null,
+    string? FailureReason = null,
+    int? ExpectedClassificationVersion = null,
+    string? ExpectedRecommendationPolicyKey = null,
+    int? ExpectedRecommendationPolicyVersion = null,
+    int? ExpectedMailboxVersion = null);
 
 public sealed record RetainedMailFolderMoveCoordinates(
     string MailboxId,
@@ -56,6 +62,11 @@ public interface IRetainedMailFolderMoveStore
     Task<RetainedMailFolderMoveResult?> GetLatestAsync(
         Guid messageId,
         CancellationToken cancellationToken);
+
+    Task<bool> IsCurrentLocationAsync(
+        Guid messageId,
+        string folderIdentity,
+        CancellationToken cancellationToken);
 }
 
 internal sealed class EmptyRetainedMailFolderMoveStore : IRetainedMailFolderMoveStore
@@ -67,6 +78,9 @@ internal sealed class EmptyRetainedMailFolderMoveStore : IRetainedMailFolderMove
 
     public Task<RetainedMailFolderMoveResult?> GetLatestAsync(Guid messageId, CancellationToken cancellationToken) =>
         Task.FromResult<RetainedMailFolderMoveResult?>(null);
+
+    public Task<bool> IsCurrentLocationAsync(Guid messageId, string folderIdentity, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
 }
 
 public sealed class RetainedMailFolderMoveException(string message) : InvalidOperationException(message);

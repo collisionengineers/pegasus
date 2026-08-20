@@ -55,7 +55,8 @@ public sealed record RetainedMailSummary(
     Guid? CaseId,
     string? CaseReference,
     IntakeAllocationState? AllocationState = null,
-    IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null)
+    IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,
+    MailLogicalFolderType? CurrentFolderType = null)
 {
     public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
 }
@@ -564,13 +565,17 @@ public sealed class GetRetainedMail(
                 $"The designated {label} folder is not configured for this mailbox.");
         }
 
+        var isCurrentLocation = await folderMoveStore.IsCurrentLocationAsync(
+            detail.Summary.Id,
+            binding.FolderIdentity,
+            cancellationToken);
         return new(
             folderType,
             policy.PolicyKey,
             policy.PolicyVersion,
             policy.Reason,
             mailbox.Version,
-            folderMover?.IsAvailable == true);
+            folderMover?.IsAvailable == true && !isCurrentLocation);
     }
 
     private static RetainedMailFolderRecommendation Unavailable(

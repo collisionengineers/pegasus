@@ -103,6 +103,7 @@ internal static class MailboxModelConfiguration
             entity.HasKey(item => item.Id);
             entity.Property(item => item.OperationKey).HasMaxLength(36).IsRequired();
             entity.Property(item => item.RequestHash).HasMaxLength(64).IsFixedLength().IsRequired();
+            entity.Property(item => item.ExpectedRecommendationPolicyKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.MailboxId).HasMaxLength(100).IsRequired();
             entity.Property(item => item.ImmutableMessageId).HasMaxLength(500).IsRequired();
             entity.Property(item => item.SourceFolderId).HasMaxLength(500).IsRequired();
@@ -114,6 +115,9 @@ internal static class MailboxModelConfiguration
             entity.Property(item => item.Outcome).HasMaxLength(40).IsRequired();
             entity.Property(item => item.FailureReason).HasMaxLength(1000);
             entity.HasIndex(item => item.OperationKey).IsUnique();
+            entity.HasIndex(item => item.RetainedMailboxMessageId)
+                .IsUnique()
+                .HasFilter("[Outcome] IN ('pending', 'uncertain')");
             entity.HasIndex(item => new { item.RetainedMailboxMessageId, item.RecordedAtUtc });
             entity.HasOne(item => item.RetainedMailboxMessage)
                 .WithMany()
