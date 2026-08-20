@@ -244,7 +244,7 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
-    public async Task OneEligibleCaseAssociatesEveryGroupMember()
+    public async Task OneEligibleCaseRegistersTheGroupOnceAndAssociatesEveryMember()
     {
         var harness = new GroupHarness(memberCount: 2);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
@@ -254,7 +254,13 @@ public sealed class AutomaticImageIntakeTests
 
         await harness.ApplyAsync(triggerOrdinal: 1);
 
-        Assert.Equal(2, harness.Register.Requests.Count);
+        // The group is the registration unit: one registration for the whole
+        // submission group, keyed to the group and originating from its
+        // lowest-ordinal image member — never one per member.
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+        Assert.Equal($"image-intake-register:group:{harness.GroupId:N}", registration.OperationKey);
+        Assert.Equal(harness.Receipts[0].Id, registration.Origin.ReceiptId);
         Assert.Equal(2, harness.MutationStore.AutoLinks.Count);
         Assert.All(harness.MutationStore.AutoLinks, link => Assert.Equal(caseId, link.CaseId));
         Assert.Equal(
@@ -263,30 +269,24 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
-    public async Task MemberRegistrationFailureReportsGroupPendingInsteadOfFallingBack()
+    public async Task GroupRegistrationFailureReportsGroupPendingInsteadOfFallingBack()
     {
-        // INTK-011: the production race. Two members of a group both read
-        // the same VRM, but one member's registration attempt loses a
-        // transient concurrency race (simulated here as a recoverable
-        // exception from the register port, standing in for the real
-        // Serializable-isolation contention on the shared VRM-sequence row).
-        // That member must be reported back as GroupPending, never silently
-        // left to fall through to the instruction-fallback/Unidentified path
-        // with its NeedsSorting decision looking like a final outcome.
+        // INTK-011 contract, kept under the group-as-registration-unit shape:
+        // the group's one registration attempt loses a transient concurrency
+        // race (simulated here as a recoverable exception from the register
+        // port). The trigger member must be reported back as GroupPending,
+        // never silently left to fall through to the instruction-fallback/
+        // Unidentified path with its NeedsSorting decision looking final.
         var harness = new GroupHarness(memberCount: 2);
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
         harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
-        var failingReceiptId = harness.Receipts[1].Id;
-        harness.Register.FailForReceiptIds.Add(failingReceiptId);
+        harness.Register.FailForReceiptIds.Add(harness.Receipts[0].Id);
 
         var outcome = await harness.ApplyAsync(triggerOrdinal: 1);
 
         Assert.True(outcome.GroupPending);
         Assert.Equal(IntakeDecision.NeedsSorting, outcome.Receipt.Decision);
-        // The sibling that did not lose the race still registers; only the
-        // losing member's own outcome is reported pending.
-        Assert.Single(harness.Register.Requests);
-        Assert.Equal(harness.Receipts[0].Id, harness.Register.Requests[0].Origin.ReceiptId);
+        Assert.Empty(harness.Register.Requests);
     }
 
     [Fact]
@@ -295,9 +295,9 @@ public sealed class AutomaticImageIntakeTests
         // Both members read the same registration, but the group holds two
         // raw candidates for it — one an exact match, one a one-character-
         // longer fuzzy match. The group-level count of two is ambiguous, so
-        // the group hands off to ImageIntake. The per-member candidate
-        // search below would, on its own, resolve the ambiguity by exact
-        // match and associate — that must never overrule the group decision.
+        // the group hands off to ImageIntake. A member-level candidate
+        // search would, on its own, resolve the ambiguity by exact match and
+        // associate — that must never overrule the group decision.
         var harness = new GroupHarness(memberCount: 2);
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
         harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
@@ -311,7 +311,27 @@ public sealed class AutomaticImageIntakeTests
         await harness.ApplyAsync(triggerOrdinal: 1);
 
         Assert.Empty(harness.MutationStore.AutoLinks);
-        Assert.Equal(2, harness.Register.Requests.Count);
+        // Registration still happens — once for the group, with the read
+        // itself (no guessed completion between the two candidates).
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
+        Assert.Equal(harness.GroupId, registration.SubmissionGroupId);
+    }
+
+    [Fact]
+    public async Task AGroupRegistrationReassertsEachStillPendingMembersDecision()
+    {
+        // A straggler re-driven after its group already registered replays
+        // the registration without touching receipts; the automation then
+        // re-asserts the registered decision for every member still at
+        // Needs sorting through the existing re-assert convention.
+        var harness = new GroupHarness(memberCount: 2);
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+        harness.Engine.Enqueue(Suggested("AB12CDE", 0.95));
+
+        await harness.ApplyAsync(triggerOrdinal: 1);
+
+        Assert.Equal(2, harness.ImageIntakeQueries.EnsureRegisteredCalls);
     }
 
     [Fact]
@@ -325,6 +345,33 @@ public sealed class AutomaticImageIntakeTests
         await harness.ApplyAsync(triggerOrdinal: 1);
 
         Assert.Equal(2, harness.Engine.Calls);
+    }
+
+    [Fact]
+    public async Task AOneMemberGroupKeepsTheSingleImageAssociationRule()
+    {
+        // Every manual upload is a submission group (INTK-005), so a single
+        // uploaded image arrives as a one-member group — and now that the
+        // ordinal-0 lookup finds it (INTK-012), the automation must still
+        // apply the single-image candidate rule: an exact confirmed match
+        // beats a one-character-longer fuzzy candidate and associates. The
+        // group decision table would count two eligible cases and fail
+        // closed — that table scopes itself to more than one image.
+        var harness = new GroupHarness(memberCount: 1);
+        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
+        var exactCaseId = Guid.NewGuid();
+        harness.CaseCandidates.Candidates =
+        [
+            new(exactCaseId, "QDS26014", 1, "BX69YLM"),
+            new(Guid.NewGuid(), "QDS26015", 1, "BX69YLMA")
+        ];
+
+        await harness.ApplyAsync(triggerOrdinal: 0);
+
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
+        var link = Assert.Single(harness.MutationStore.AutoLinks);
+        Assert.Equal(exactCaseId, link.CaseId);
     }
 
     [Fact]
@@ -804,6 +851,7 @@ public sealed class AutomaticImageIntakeTests
         {
             const string submissionToken = "group-token";
             var groupId = Guid.NewGuid();
+            GroupId = groupId;
             var members = new List<IntakeSubmissionGroupMember>(memberCount);
             for (var ordinal = 0; ordinal < memberCount; ordinal++)
             {
@@ -889,6 +937,8 @@ public sealed class AutomaticImageIntakeTests
                 TimeProvider.System,
                 GroupStore);
         }
+
+        public Guid GroupId { get; }
 
         public List<IntakeReceipt> Receipts { get; } = [];
 

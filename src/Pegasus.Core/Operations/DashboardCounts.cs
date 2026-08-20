@@ -32,6 +32,11 @@ public sealed record CaseActivityCounts(
 /// <summary>
 /// What arrived, and what is waiting for a person.
 /// </summary>
+/// <remarks>
+/// <see cref="ReceivedToday"/> counts mailbox-channel intake only (PLAT-012):
+/// it backs the Dashboard's E-mail activity tile, so a manual upload — a
+/// different intake channel entirely — must not move it.
+/// </remarks>
 public sealed record MailActivityCounts(int ReceivedToday, int NeedsSorting)
 {
     /// <summary>Open Unidentified items; NeedsSorting remains read-only compatibility during rollout.</summary>

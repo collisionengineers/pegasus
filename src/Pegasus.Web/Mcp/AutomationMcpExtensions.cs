@@ -112,7 +112,8 @@ public static class AutomationMcpExtensions
             .WithTools<CaseMcpTools>()
             .WithTools<IntakeMcpTools>()
             .WithTools<DocumentMcpTools>()
-            .WithTools<AssessmentMcpTools>();
+            .WithTools<AssessmentMcpTools>()
+            .WithTools<MailMcpTools>();
         return services;
     }
 

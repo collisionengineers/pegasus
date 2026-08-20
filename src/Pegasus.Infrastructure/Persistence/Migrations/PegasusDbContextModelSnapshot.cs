@@ -2992,6 +2992,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nchar(64)")
                         .IsFixedLength();
 
+                    b.Property<Guid?>("SubmissionGroupId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("CreationOperationKey")
@@ -3002,6 +3005,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("OriginReceiptId")
                         .IsUnique();
+
+                    b.HasIndex("SubmissionGroupId")
+                        .IsUnique()
+                        .HasFilter("[SubmissionGroupId] IS NOT NULL");
 
                     b.HasIndex("LifecycleState", "CreatedAtUtc");
 
@@ -6287,6 +6294,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasForeignKey("OriginReceiptId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity", null)
+                        .WithMany()
+                        .HasForeignKey("SubmissionGroupId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("OriginReceipt");
                 });

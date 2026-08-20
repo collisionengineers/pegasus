@@ -54,8 +54,12 @@ business retry.
 Production server authentication uses the retained `box-config-json` JWT
 configuration and `box-client-secret` Key Vault secrets. The Box SDK obtains and
 refreshes short-lived authorization headers at runtime; a static access token is
-not an accepted setting or deployment input. Secret values remain resolved only
-inside the Worker through Key Vault references.
+not an accepted setting or deployment input. Since release 3 both hosts resolve
+their own copy of these secrets server-side only — the Worker through app
+setting Key Vault references and the Web through Key Vault-backed Container
+Apps secrets, each via its own managed identity (see the
+[production environment Secrets record](#production-environment)) — never
+client-side.
 
 The intended application staff accounts are Pegasus Identity accounts. The DevelopmentOffline profile authenticates its deterministic local Administrator fixture and enforces its Administrator role. Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 

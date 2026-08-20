@@ -13,7 +13,9 @@ internal static partial class InstructionFieldEngine
     internal sealed record FieldDefinition(
         string Name,
         string[] Labels,
-        bool IsRequired = true);
+        bool IsRequired = true,
+        Func<string, bool>? AcceptsValue = null,
+        Func<string, bool>? IsValidTyped = null);
 
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
@@ -27,9 +29,13 @@ internal static partial class InstructionFieldEngine
 
         foreach (var definition in definitions)
         {
-            var candidates = fragments
-                .SelectMany(fragment => FindCandidates(fragment, definition, definitions))
-                .DistinctBy(candidate => candidate.Value, StringComparer.OrdinalIgnoreCase)
+            var discovered = fragments
+                .SelectMany((fragment, rank) => FindCandidates(fragment, definition, definitions)
+                    .Select(candidate => (Candidate: candidate, FragmentRank: rank)))
+                .DistinctBy(entry => entry.Candidate.Value, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            var candidates = discovered
+                .Select(entry => entry.Candidate)
                 .ToArray();
 
             if (candidates.Length == 0 && definition.Name == "Instruction date")
@@ -50,6 +56,22 @@ internal static partial class InstructionFieldEngine
                 continue;
             }
 
+            if (candidates.Length == 0 && definition.Name == "Vehicle registration")
+            {
+                var soleRegistration = FindSoleUnlabelledRegistration(fragments);
+                if (soleRegistration is not null)
+                {
+                    fields.Add(new(definition.Name, soleRegistration.Value, [soleRegistration], false, false));
+                    evidence.Add(new(
+                        soleRegistration.Source,
+                        IntakeEvidenceStrength.Strong,
+                        IntakeEvidenceFinding.ExtractedField,
+                        definition.Name,
+                        $"{definition.Name} was suggested from {soleRegistration.SourceLabel} as the document's only registration-shaped value."));
+                    continue;
+                }
+            }
+
             if (candidates.Length == 0)
             {
                 fields.Add(new(definition.Name, null, [], false, false));
@@ -68,13 +90,26 @@ internal static partial class InstructionFieldEngine
 
             if (candidates.Length > 1)
             {
-                fields.Add(new(definition.Name, null, candidates, false, true));
+                var resolved = ResolveConflictingCandidates(definition, discovered);
+                if (resolved is null)
+                {
+                    fields.Add(new(definition.Name, null, candidates, false, true));
+                    evidence.Add(new(
+                        candidates[0].Source,
+                        IntakeEvidenceStrength.Strong,
+                        IntakeEvidenceFinding.ConflictingField,
+                        definition.Name,
+                        $"Conflicting {definition.Name.ToLowerInvariant()} candidates require operator review."));
+                    continue;
+                }
+
+                fields.Add(new(definition.Name, resolved.Value, candidates, false, false));
                 evidence.Add(new(
-                    candidates[0].Source,
+                    resolved.Source,
                     IntakeEvidenceStrength.Strong,
-                    IntakeEvidenceFinding.ConflictingField,
+                    IntakeEvidenceFinding.ExtractedField,
                     definition.Name,
-                    $"Conflicting {definition.Name.ToLowerInvariant()} candidates require operator review."));
+                    $"{definition.Name} was suggested from {resolved.SourceLabel}."));
                 continue;
             }
 
@@ -104,11 +139,23 @@ internal static partial class InstructionFieldEngine
         {
             foreach (var label in definition.Labels)
             {
+                // A bare label token must sit at a plausible label position (line
+                // start or after a clear separator); a label immediately followed by
+                // an explicit ':' or '-' is a label wherever it sits on the line.
                 var match = Regex.Match(
                     lines[index],
-                    $@"(?i)(?:^|\s){Regex.Escape(label)}\s*(?::|-)?\s*(?<value>.*)$",
+                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){Regex.Escape(label)}\s*(?::|-)?\s*(?<value>.*)$",
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromMilliseconds(100));
+                if (!match.Success)
+                {
+                    match = Regex.Match(
+                        lines[index],
+                        $@"(?i)(?:^|\s){Regex.Escape(label)}\s*(?::|-)\s*(?<value>.*)$",
+                        RegexOptions.CultureInvariant,
+                        TimeSpan.FromMilliseconds(100));
+                }
+
                 if (!match.Success)
                 {
                     continue;
@@ -125,8 +172,11 @@ internal static partial class InstructionFieldEngine
                         : string.Empty;
                 }
 
+                value = TruncateAtFollowingFieldLabel(value, definitions);
+                value = TruncateAtColumnBoundary(value);
                 value = WhitespaceRegex().Replace(value, " ").Trim();
-                if (!string.IsNullOrWhiteSpace(value))
+                if (!string.IsNullOrWhiteSpace(value)
+                    && (definition.AcceptsValue is null || definition.AcceptsValue(value)))
                 {
                     yield return new(value, fragment.Source, fragment.SourceLabel);
                 }
@@ -145,6 +195,133 @@ internal static partial class InstructionFieldEngine
                 $@"(?i)^{Regex.Escape(label)}(?:\s*(?::|-|\|)\s*|\s+|$)",
                 RegexOptions.CultureInvariant,
                 TimeSpan.FromMilliseconds(100))));
+
+    /// <summary>
+    /// Deterministic resolution of multiple distinct candidates: candidates whose
+    /// value satisfies the definition's typed-validity check beat those that do not;
+    /// among what remains the earliest fragment (document order — instruction
+    /// material precedes appended reports) wins when it is unambiguous. Distinct
+    /// values inside the same fragment stay a genuine conflict.
+    /// </summary>
+    private static InstructionFieldCandidate? ResolveConflictingCandidates(
+        FieldDefinition definition,
+        IReadOnlyList<(InstructionFieldCandidate Candidate, int FragmentRank)> candidates)
+    {
+        var pool = candidates;
+        if (definition.IsValidTyped is not null)
+        {
+            var valid = candidates
+                .Where(entry => definition.IsValidTyped(entry.Candidate.Value))
+                .ToArray();
+            if (valid.Length == 1)
+            {
+                return valid[0].Candidate;
+            }
+
+            if (valid.Length > 1)
+            {
+                pool = valid;
+            }
+        }
+
+        var earliestRank = pool.Min(entry => entry.FragmentRank);
+        var earliest = pool
+            .Where(entry => entry.FragmentRank == earliestRank)
+            .ToArray();
+        return earliest.Length == 1 ? earliest[0].Candidate : null;
+    }
+
+    /// <summary>
+    /// Finds the document's only registration-shaped value (current-format UK
+    /// registration, uppercase) across every fragment. Returns null when none or
+    /// more than one distinct registration appears — an ambiguous read is withheld
+    /// rather than guessed.
+    /// </summary>
+    private static InstructionFieldCandidate? FindSoleUnlabelledRegistration(
+        IReadOnlyList<IntakeContentFragment> fragments)
+    {
+        string? normalized = null;
+        InstructionFieldCandidate? candidate = null;
+        foreach (var fragment in fragments)
+        {
+            foreach (Match match in UnlabelledRegistrationRegex().Matches(fragment.Text))
+            {
+                var value = match.Value.Replace(" ", string.Empty, StringComparison.Ordinal);
+                if (normalized is null)
+                {
+                    normalized = value;
+                    candidate = new(match.Value, fragment.Source, fragment.SourceLabel);
+                }
+                else if (!string.Equals(normalized, value, StringComparison.Ordinal))
+                {
+                    return null;
+                }
+            }
+        }
+
+        return candidate;
+    }
+
+    /// <summary>
+    /// Cuts a labelled value where the next known field label (followed by an
+    /// explicit ':' or '-') begins, so a flattened line carrying several labelled
+    /// fields does not bleed one field's text into another's value.
+    /// </summary>
+    private static string TruncateAtFollowingFieldLabel(
+        string value,
+        IReadOnlyList<FieldDefinition> definitions)
+    {
+        var cut = value.Length;
+        foreach (var definition in definitions)
+        {
+            foreach (var label in definition.Labels)
+            {
+                var match = Regex.Match(
+                    value,
+                    $@"(?i)(?:^|\s){Regex.Escape(label)}\s*(?::|-)",
+                    RegexOptions.CultureInvariant,
+                    TimeSpan.FromMilliseconds(100));
+                if (match.Success && match.Index < cut)
+                {
+                    cut = match.Index;
+                }
+            }
+        }
+
+        return value[..cut];
+    }
+
+    /// <summary>
+    /// Cuts a labelled value at the first column boundary left behind when a tabular
+    /// row is flattened into a single line: a tab, a pipe, a run of two or more spaces,
+    /// or a whitespace-preceded colon (a genuine label colon is attached to its label
+    /// and is consumed by the label match).
+    /// </summary>
+    private static string TruncateAtColumnBoundary(string value)
+    {
+        var boundary = ColumnBoundaryRegex().Match(value);
+        return boundary.Success ? value[..boundary.Index] : value;
+    }
+
+    /// <summary>
+    /// A vehicle make/model candidate is implausible when it carries wheel-position
+    /// tokens, MOT/brake test-result vocabulary, or characters outside the shapes real
+    /// makes and models use — the residue of a flattened test-results table row.
+    /// </summary>
+    internal static bool IsPlausibleVehicleMakeModel(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && !MotVocabularyRegex().IsMatch(value)
+        && MakeModelCharsetRegex().IsMatch(value);
+
+    /// <summary>
+    /// Whether a value is a current-format UK registration once spacing and hyphens
+    /// are removed. Used to let a well-formed registration candidate beat free text.
+    /// </summary>
+    internal static bool IsCurrentFormatRegistration(string value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && CurrentFormatRegistrationRegex().IsMatch(
+            Regex.Replace(value, @"[\s-]", string.Empty, RegexOptions.CultureInvariant)
+                .ToUpperInvariant());
 
     internal static bool ContainsLabel(string text, string label) =>
         Regex.IsMatch(
@@ -218,4 +395,21 @@ internal static partial class InstructionFieldEngine
 
     [GeneratedRegex("^[A-Z0-9]+$", RegexOptions.CultureInvariant)]
     private static partial Regex RegistrationRegex();
+
+    [GeneratedRegex(@"[\t|]|\s{2,}|\s+:", RegexOptions.CultureInvariant)]
+    private static partial Regex ColumnBoundaryRegex();
+
+    [GeneratedRegex(
+        @"\b(?:NSF|OSF|NSR|OSR|SATISFACTORY|ADVISORY|DANGEROUS|FOOTBRAKE|HANDBRAKE|PASS|FAIL|MOT)\b",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex MotVocabularyRegex();
+
+    [GeneratedRegex(@"^[\p{L}\p{N}\s\-.'&/()+]+$", RegexOptions.CultureInvariant)]
+    private static partial Regex MakeModelCharsetRegex();
+
+    [GeneratedRegex(@"\b[A-Z]{2}[0-9]{2} ?[A-Z]{3}\b", RegexOptions.CultureInvariant)]
+    private static partial Regex UnlabelledRegistrationRegex();
+
+    [GeneratedRegex("^[A-Z]{2}[0-9]{2}[A-Z]{3}$", RegexOptions.CultureInvariant)]
+    private static partial Regex CurrentFormatRegistrationRegex();
 }

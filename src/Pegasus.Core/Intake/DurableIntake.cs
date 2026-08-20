@@ -426,9 +426,7 @@ public sealed class ProcessQueuedIntake(
     TimeProvider timeProvider,
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
-    IResolveUnidentified? resolveUnidentified = null,
-    IUnidentifiedStore? unidentifiedStore = null,
-    Pegasus.Core.ImageIntake.IImageIntakeQueries? imageIntakeQueries = null) : IProcessQueuedIntake
+    ReconcileUnidentifiedDestinations? unidentifiedDestinations = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
@@ -710,64 +708,17 @@ public sealed class ProcessQueuedIntake(
             return;
         }
 
-        if (unidentifiedStore is null
-            || resolveUnidentified is null
-            || ProcessIntake.IsUnidentifiedEligible(receipt))
-        {
-            return;
-        }
-
-        UnidentifiedResolutionTargetKind targetKind;
-        string targetId;
-        string? targetReference;
-        if (receipt.Decision == IntakeDecision.CaseCreated && receipt.CurrentCaseId is { } caseId)
-        {
-            targetKind = UnidentifiedResolutionTargetKind.InstructionCase;
-            targetId = caseId.ToString("N");
-            targetReference = receipt.AcceptedCaseReference ?? receipt.ManualLinkedCaseReference;
-        }
-        else if (receipt.Decision == IntakeDecision.ImageIntakeRegistered && imageIntakeQueries is not null)
-        {
-            var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
-            if (detail is null)
-            {
-                return;
-            }
-
-            targetKind = UnidentifiedResolutionTargetKind.ImageIntake;
-            targetId = detail.Record.Id.ToString("N");
-            targetReference = detail.Record.ImageIntakeReference;
-        }
-        else
+        if (unidentifiedDestinations is null)
         {
             return;
         }
 
         try
         {
-            var existing = await unidentifiedStore.GetByOriginAsync(
-                UnidentifiedOrigin.Receipt(receipt.Id), cancellationToken);
-            if (existing is not { State: UnidentifiedState.Open })
-            {
-                return;
-            }
-
-            await resolveUnidentified.ExecuteAsync(
-                new(
-                    existing.Id,
-                    existing.Version,
-                    // UnidentifiedValidation.ValidateResolve requires Staff or
-                    // Automation (unlike registration, which also accepts
-                    // SystemWorker); this automatic reconciliation is
-                    // authorised automation, not registration.
-                    ActionActor.Automation("intake-processing"),
-                    $"intake-unidentified-reconcile:{receipt.Id:N}:{receipt.Version}",
-                    $"The receipt now has a {targetKind} destination; the Unidentified item is superseded.",
-                    targetKind,
-                    targetId,
-                    targetReference,
-                    timeProvider.GetUtcNow()),
-                cancellationToken);
+            // One owner for the supersession rule: the same component the
+            // reconciliation sweep uses resolves the receipt's stale open
+            // item to the destination that now exists.
+            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {

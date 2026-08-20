@@ -47,9 +47,9 @@ Authority order is defined once in the
 - Green means every `repository-check` job for the PR's head revision
   succeeded or was path-skipped. The executable CI behavior, path filters,
   lane selection, timeouts, and runner choices are defined and explained in
-  [`.github/workflows/ci.yml`](../.github/workflows/ci.yml);
-  [`.github/workflows/workspaces.yml`](../.github/workflows/workspaces.yml)
-  separately gates imported workspace changes.
+  [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). No separate
+  workspace CI lane remains: both imported source workspaces were integrated
+  and retired under ADR-0025 (see [workspaces](../workspaces/README.md)).
 
 ## Markdown convention
 

@@ -28,7 +28,6 @@ public sealed class AutomationClientRegistry(
     AutomationMcpOptions options)
 {
     private static readonly TimeSpan EnsureLifetime = TimeSpan.FromHours(24);
-    private const string DisplayName = "Pegasus Automation Actor";
 
     private string EnabledCacheKey => $"automation-mcp:enabled:{options.ClientId}";
 
@@ -189,7 +188,7 @@ public sealed class AutomationClientRegistry(
         {
             ClientId = options.ClientId,
             ClientSecret = options.ClientSecret,
-            DisplayName = DisplayName,
+            DisplayName = AutomationMcp.ClientDisplayName,
             ClientType = OpenIddictConstants.ClientTypes.Confidential,
             ConsentType = OpenIddictConstants.ConsentTypes.Implicit
         };
