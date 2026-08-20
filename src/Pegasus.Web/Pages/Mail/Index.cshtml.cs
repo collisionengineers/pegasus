@@ -16,6 +16,7 @@ namespace Pegasus.Web.Pages.Mail;
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
+    GetRetainedMail getRetainedMail,
     GetRetainedMailFreshness getFreshness,
     SearchDeletedMail searchDeletedMail) : StaffPageModel
 {
@@ -152,6 +153,49 @@ public sealed class IndexModel(
         }
 
         return Page();
+    }
+
+    public async Task<IActionResult> OnGetPreviewAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+            if (detail is null)
+            {
+                return NotFound();
+            }
+
+            var summary = detail.Summary;
+            return new JsonResult(new
+            {
+                id = summary.Id,
+                sender = SenderLine(summary),
+                subject = SubjectLine(summary),
+                receivedAtUtc = summary.ReceivedAtUtc,
+                received = $"{OperatorLabels.OfficeDate(summary.ReceivedAtUtc)} {OperatorLabels.OfficeClock(summary.ReceivedAtUtc)}",
+                excerpt = summary.BodyExcerpt ?? "No excerpt available",
+                classification = detail.Classification is { } dossier
+                    ? MessageModel.DecisionLabel(dossier.Current)
+                    : MessageModel.ClassificationLabel(detail.ClassificationOutcome),
+                association = summary.CaseReference ?? "Not associated",
+                attachments = detail.Attachments.Select(attachment => attachment.FileName).ToArray()
+            });
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
     }
 
     /// <summary>
