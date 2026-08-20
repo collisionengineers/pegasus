@@ -18,3 +18,17 @@ Branch `task/intk-012-ordinal-token` from origin/dev (c91215fd), worktree `../pe
 ## Interplay with INTK-015 (recorded)
 
 INTK-015 (PR #447) rewrites the body of `TryApplyGroupAsync` below the group lookup; this ticket adds an early return beside the lookup itself and touches no INTK-015 file regions otherwise. Whichever merges second should re-run `GroupedImageIntakeConcurrencyTests` (CI does). Composed behaviour: an ordinal-0 trigger takes the group path and the group registers once; INTK-015's adopt-by-origin branch remains as the convergence safety net.
+
+## Simplification pass — 2026-08-20
+
+Run with the `code-simplifier` agent over `git diff origin/dev...HEAD`; behaviour-preserving only; build zero-warning, focused Core suites (32) green after applying. Commit `3e6a452f`.
+
+Applied:
+- `GroupedIntakeMemberToken.ParentTokenCandidates` — iterator (`yield return`) replaced with a returned candidate list, so the `ThrowIfNullOrWhiteSpace` guard fires at the call instead of at first enumeration (no caller/test observes the deferred path; the sole production caller enumerates immediately).
+- `IIntakeSubmissionGroupStore.FindForMemberSourceAsync` XML doc — repointed at `GroupedIntakeMemberToken` as the token-shape owner and states the ordinal-zero case (the old doc restated the very belief this ticket corrects).
+
+Not applied (with reasons):
+- Up-to-two-DbContext lookups per candidate in the store — inherent to the fix (an ordinal-0 token is shape-indistinguishable from a non-group token, so no cheap pre-filter exists); collapsing candidates into one query would fold `FindAsync`'s composition back in and lose the owner-defined candidate order. Recorded as an observation: `ReconcileGroupedImageIntake` now pays one query per non-group needs-sorting receipt where the shape-gate cost zero.
+- The one-member-group rationale appearing at three sites — the rule has one owner (`HasSiblingMembers`); each comment adds a local consequence.
+- Fully-qualified `NumberStyles`/`CultureInfo` — both conventions exist in the codebase; no churn.
+- Test-preamble duplication in `GroupedIntakeWebTests` — second copy, deliberately divergent (skips processing); threshold is a third copy.
