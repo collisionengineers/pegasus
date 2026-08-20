@@ -127,6 +127,15 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The Image-initiated Case side of chase visibility
+    /// (<see cref="ImageIntakeChaseSchedule"/>): a derived due/not-due read
+    /// with no held/stopped state, reusing the exact "Chase due" wording
+    /// <see cref="ChaseState"/> already uses for the Case side rather than a
+    /// second spelling of the same fact.
+    /// </summary>
+    public static string ImageChaseState(bool chaseDue) => chaseDue ? "Chase due" : "Not yet due";
+
+    /// <summary>
     /// The application work view a classified message belongs in, from the
     /// Core operational-destination policy.
     /// </summary>
