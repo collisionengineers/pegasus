@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Post-upload confirmation offers create-image-case, cancel, or merge into a
   case found by autocomplete search
-status: preparing
+status: implementing
 area: intake-processing
 assignee: uploadconf-lane
 profile: feature
+stageEntered:
+  implementing: '2026-08-20T05:05:46.289Z'
 taken_at: '2026-08-20T04:59:27.426Z'
 branch: task/intk-016-upload-confirmation
 worktree: ../pegasus-worktrees/intk-016
@@ -23,7 +25,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T03:16:37.615Z'
-updated: '2026-08-20T04:59:27.426Z'
+updated: '2026-08-20T05:05:46.289Z'
 ---
 
 ## What
