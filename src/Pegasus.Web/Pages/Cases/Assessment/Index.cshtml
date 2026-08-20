@@ -134,17 +134,33 @@
     <aside aria-label="Assessment readiness">
         <section class="panel" aria-labelledby="readiness-title">
             <h2 id="readiness-title" class="section-label">Readiness</h2>
-            @if (Model.Assessment is { Readiness.Count: > 0 } assessment)
+            @* ENG-003: the readiness rail collapses into one combined
+               indicator instead of a per-issue list; the itemised detail is
+               the same content, reached through this one disclosure — the
+               report-draft panel below no longer repeats it. Native
+               <details>/<summary> gives click and Enter/Space plus
+               screen-reader semantics for free; the hover script in
+               @section Scripts only adds mouse hover and bare keyboard focus
+               as two more ways in. *@
+            @if (Model.CombinedReadiness.Count > 0)
             {
-                <ul class="blocker-list">
-                    @foreach (var item in assessment.Readiness)
-                    {
-                        <li class="blocker" data-state="not-ready">
-                            <strong>@item.Requirement</strong>
-                            <small>@item.Source. @item.WhyOutstanding @item.HowToResolve</small>
-                        </li>
-                    }
-                </ul>
+                <details class="readiness-summary" data-hover-disclosure>
+                    <summary>
+                        <span class="status-chip status-chip--amber">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>@IndexModel.IssueSummaryText(Model.CombinedReadiness.Count)</span>
+                        </span>
+                    </summary>
+                    <ul class="blocker-list">
+                        @foreach (var item in Model.CombinedReadiness)
+                        {
+                            <li class="blocker" data-state="not-ready">
+                                <strong>@item.Requirement</strong>
+                                <small>@item.Source. @item.WhyOutstanding @item.HowToResolve</small>
+                            </li>
+                        }
+                    </ul>
+                </details>
             }
             else
             {
@@ -249,17 +265,12 @@
             }
             else
             {
+                @* ENG-003: the readiness panel above owns the one itemised
+                   list — this card names the same count and points back to
+                   it rather than repeating every reason a second time. *@
                 <div class="status-card status-card--attention">
                     <h3>Not ready</h3>
-                    <ul class="blocker-list">
-                        @foreach (var reason in Model.ReportDraftPreparation.Reasons)
-                        {
-                            <li class="blocker" data-state="not-ready">
-                                <strong>@reason.Requirement</strong>
-                                <small>@reason.Source. @reason.WhyOutstanding @reason.HowToResolve</small>
-                            </li>
-                        }
-                    </ul>
+                    <p>@IndexModel.IssueSummaryText(Model.ReportDraftPreparation.Reasons.Count) — see Readiness above for the list.</p>
                 </div>
             }
         </section>
@@ -1053,6 +1064,32 @@
 </div>
 
 @section Scripts {
+    <script>
+        // ENG-003: the readiness summary is a native <details> disclosure,
+        // so click and Enter/Space already open it and a screen reader
+        // already announces it correctly with no script at all. This only
+        // adds mouse hover and bare keyboard focus as two more ways in,
+        // without touching the native toggle — an operator with JavaScript
+        // disabled still reaches every item.
+        (function () {
+            document.querySelectorAll('[data-hover-disclosure]').forEach(function (details) {
+                var summary = details.querySelector('summary');
+                if (!summary) { return; }
+
+                function openNow() { details.open = true; }
+                function closeIfIdle() {
+                    if (!details.matches(':hover') && !details.matches(':focus-within')) {
+                        details.open = false;
+                    }
+                }
+
+                details.addEventListener('mouseenter', openNow);
+                details.addEventListener('mouseleave', closeIfIdle);
+                summary.addEventListener('focus', openNow);
+                summary.addEventListener('blur', closeIfIdle);
+            });
+        }());
+    </script>
     <script>
         // PAV sensitivity slider: a review aid that writes nothing. It keeps
         // the range and numeric inputs in step and recomputes the indicative

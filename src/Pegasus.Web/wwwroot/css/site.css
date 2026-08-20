@@ -1282,6 +1282,22 @@ textarea:focus-visible,
 .blocker strong { font-size: var(--t-sm); }
 .blocker small { color: var(--muted); font-size: var(--t-xs); }
 
+/* ENG-003: one combined readiness indicator replaces a per-issue list. The
+   trigger reuses .status-chip as-is (no new chip look); this only styles the
+   <details> wrapper and hides its native marker, since the chip already
+   carries its own border and icon. */
+.readiness-summary > summary {
+  display: inline-flex;
+  cursor: pointer;
+  list-style: none;
+}
+
+.readiness-summary > summary::-webkit-details-marker { display: none; }
+.readiness-summary > summary::marker { content: ""; }
+.readiness-summary > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.readiness-summary > .blocker-list { margin: 0; }
+.readiness-summary[open] > .blocker-list { margin-top: var(--sp-3); }
+
 /* Guide evidence. Read-only, on the recessed ground, so it never reads as one
    of the three figures the engineer chooses on the panel below it. */
 .evidence-figure {
