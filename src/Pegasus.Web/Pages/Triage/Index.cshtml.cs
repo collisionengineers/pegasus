@@ -119,12 +119,82 @@ public sealed class IndexModel(
         : OriginFilter.ToLowerInvariant();
 
     /// <summary>
-    /// Image-initiated Cases still awaiting instruction, for the Not ready
-    /// tab's Image-initiated filter. Not paginated: this is the same bounded
+    /// Image-initiated Cases still awaiting instruction, merged into the one
+    /// Not ready table. Not paginated: this is the same bounded
     /// exception-queue trade-off the Unidentified tab already makes, not a
     /// second convention.
     /// </summary>
     public IReadOnlyList<ImageIntakeSummary> ImageInitiatedRows { get; private set; } = [];
+
+    /// <summary>The Not ready tab's Principal dropdown filter.</summary>
+    [BindProperty(SupportsGet = true, Name = "principal")]
+    public string? PrincipalFilter { get; set; }
+
+    /// <summary>
+    /// The case tables' sort: a column code plus direction, defaulting to
+    /// newest received first.
+    /// </summary>
+    [BindProperty(SupportsGet = true, Name = "sort")]
+    public string? SortParam { get; set; }
+
+    public CaseSearchOrder Order { get; private set; } = CaseSearchOrder.ReceivedDesc;
+
+    /// <summary>One row of the merged Not ready table, whichever origin.</summary>
+    public sealed record QueueRow(
+        string Reference,
+        string DetailsPage,
+        Guid Id,
+        string? Registration,
+        string? Claimant,
+        string? Principal,
+        string Status,
+        DateTimeOffset ReceivedAtUtc,
+        DateTimeOffset? NextChaseAtUtc,
+        bool IsImageInitiated = false);
+
+    public IReadOnlyList<QueueRow> NotReadyRows { get; private set; } = [];
+
+    /// <summary>The principals present in the Not ready queue, for the dropdown.</summary>
+    public IReadOnlyList<string> Principals { get; private set; } = [];
+
+    /// <summary>The sort code the given column header should link to next.</summary>
+    public string NextSort(string column)
+    {
+        var (asc, desc) = ($"{column}_asc", $"{column}_desc");
+        var current = SortParam ?? "received_desc";
+        if (column == "received")
+        {
+            return current == desc ? asc : desc;
+        }
+
+        return current == asc ? desc : asc;
+    }
+
+    public string? AriaSort(string column)
+    {
+        var current = SortParam ?? "received_desc";
+        if (current == $"{column}_asc")
+        {
+            return "ascending";
+        }
+
+        return current == $"{column}_desc" ? "descending" : null;
+    }
+
+    private static CaseSearchOrder? ParseOrder(string? sort) => sort switch
+    {
+        null or "" or "received_desc" => CaseSearchOrder.ReceivedDesc,
+        "received_asc" => CaseSearchOrder.ReceivedAsc,
+        "reference_asc" => CaseSearchOrder.ReferenceAsc,
+        "reference_desc" => CaseSearchOrder.ReferenceDesc,
+        "registration_asc" => CaseSearchOrder.RegistrationAsc,
+        "registration_desc" => CaseSearchOrder.RegistrationDesc,
+        "claimant_asc" => CaseSearchOrder.ClaimantAsc,
+        "claimant_desc" => CaseSearchOrder.ClaimantDesc,
+        "principal_asc" => CaseSearchOrder.PrincipalAsc,
+        "principal_desc" => CaseSearchOrder.PrincipalDesc,
+        _ => null
+    };
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -159,6 +229,13 @@ public sealed class IndexModel(
         {
             return NotFound();
         }
+
+        if (ParseOrder(SortParam) is not { } order)
+        {
+            return NotFound();
+        }
+
+        Order = order;
 
         State = parsedState;
         StateFilter = parsedState is null ? null : StateCode(parsedState.Value);
@@ -207,7 +284,8 @@ public sealed class IndexModel(
                     actor,
                     new(State: Queue == "held" ? CaseLifecycleState.Held : CaseLifecycleState.Review),
                     CurrentPage,
-                    PageSize),
+                    PageSize,
+                    Order),
                 cancellationToken);
         }
 
@@ -225,7 +303,12 @@ public sealed class IndexModel(
     {
         Task<SearchCasesResult>? casesTask = NotReadyOrigin != "image"
             ? _searchCases.ExecuteAsync(
-                new(actor, new(State: CaseLifecycleState.NotReady), CurrentPage, PageSize),
+                new(
+                    actor,
+                    new(State: CaseLifecycleState.NotReady, Principal: EmptyToNull(PrincipalFilter)),
+                    Page: 1,
+                    PageSize: 100,
+                    Order: Order),
                 cancellationToken)
             : null;
         Task<IReadOnlyList<ImageIntakeSummary>>? imageInitiatedTask = NotReadyOrigin != "instruction"
@@ -249,6 +332,54 @@ public sealed class IndexModel(
                 .Where(item => item.State == ImageInitiatedCaseState.AwaitingInstruction)
                 .ToArray();
         }
+
+        // One table, both origins. Image-initiated rows have no claimant,
+        // principal or chase schedule yet, so those cells render a dash.
+        var rows = Cases.Items
+            .Select(item => new QueueRow(
+                item.Reference,
+                "/Cases/Details",
+                item.CaseId,
+                item.Registration,
+                item.Claimant,
+                item.Principal,
+                OperatorLabels.CaseStage(item.State),
+                item.ReceivedAtUtc,
+                item.NextChaseAtUtc))
+            .Concat(ImageInitiatedRows
+                .Where(_ => string.IsNullOrWhiteSpace(PrincipalFilter))
+                .Select(item => new QueueRow(
+                    item.ImageIntakeReference,
+                    "/ImageIntake/Details",
+                    item.Id,
+                    item.NormalizedVehicleRegistration,
+                    null,
+                    null,
+                    OperatorLabels.ImageIntakeLifecycleState(item.State),
+                    item.RegisteredAtUtc,
+                    null,
+                    IsImageInitiated: true)));
+        NotReadyRows = (Order switch
+        {
+            CaseSearchOrder.ReceivedAsc => rows.OrderBy(row => row.ReceivedAtUtc),
+            CaseSearchOrder.ReferenceAsc => rows.OrderBy(row => row.Reference, StringComparer.Ordinal),
+            CaseSearchOrder.ReferenceDesc => rows.OrderByDescending(row => row.Reference, StringComparer.Ordinal),
+            CaseSearchOrder.RegistrationAsc => rows.OrderBy(row => row.Registration, StringComparer.Ordinal),
+            CaseSearchOrder.RegistrationDesc => rows.OrderByDescending(row => row.Registration, StringComparer.Ordinal),
+            CaseSearchOrder.ClaimantAsc => rows.OrderBy(row => row.Claimant, StringComparer.Ordinal),
+            CaseSearchOrder.ClaimantDesc => rows.OrderByDescending(row => row.Claimant, StringComparer.Ordinal),
+            CaseSearchOrder.PrincipalAsc => rows.OrderBy(row => row.Principal, StringComparer.Ordinal),
+            CaseSearchOrder.PrincipalDesc => rows.OrderByDescending(row => row.Principal, StringComparer.Ordinal),
+            _ => rows.OrderByDescending(row => row.ReceivedAtUtc)
+        }).ThenBy(row => row.Reference, StringComparer.Ordinal).ToArray();
+        Principals = Cases.Items
+            .Select(item => item.Principal)
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        static string? EmptyToNull(string? value) =>
+            string.IsNullOrWhiteSpace(value) ? null : value;
     }
 
     public static bool TryParseState(string value, out TriageState? state)

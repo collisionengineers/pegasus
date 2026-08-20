@@ -534,3 +534,15 @@
         }
     });
 })();
+
+// INTK-022: a filter form marked data-auto-submit submits itself when any of
+// its selects change; the noscript Apply button covers the rest.
+(function () {
+    document.querySelectorAll('form[data-auto-submit]').forEach(function (form) {
+        form.addEventListener('change', function (event) {
+            if (event.target instanceof HTMLSelectElement) {
+                form.submit();
+            }
+        });
+    });
+})();
