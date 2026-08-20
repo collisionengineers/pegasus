@@ -52,3 +52,13 @@ Against current `origin/dev`, which Case-association transaction and Case-search
 ## Open questions
 
 No unresolved operator/product question remains. Planning may choose the smallest refactor that lets the retained-mail caller reuse the existing shared Web association flow after TICK-051 lands, but it may not change the staged behavior, external-write boundary or one-Core-owner rule.
+
+## Focused post-merge refresh — 2026-08-20
+
+- Verified `origin/dev` is exactly `708706b83eb45104eb58cdcf6410e97278d2d040`, the merged TICK-051 head requested by the handoff.
+- Re-read the landed MAIL-09 projection. `EfRetainedMailboxMessageStore` now derives each retained message's current Case through the shared current-association precedence; the detail already supplies the exact server-derived `IntakeReceiptId` and current `CaseId`. MAIL-10 needs no retained-mail schema or projection change.
+- Re-read the landed write seam. `LinkIntake`, `ReverseIntakeLink`, and `EfIntakeMutationStore` remain the single Core/EF owners for authorization, versions, edit lease, operation-key replay, serializable current-association mutation, and append-only history. No Core contract or persistence change is required.
+- Corrected one stale research premise: current `origin/dev` has no `UploadCaseDecision` type. The concrete reusable conventions are `ISearchCases` / `IGetCase`, `IAcquireCaseEditLease`, the existing Intake Details link/reverse command calls, and the shared reason/confirmation presentation. The smallest implementation is a thin Mail page caller over those existing ports, not a new presenter or generic action service.
+- Exact Web journey: a side-effect-free search returns canonical `CaseSearchItem` summaries; selecting one reloads the canonical Case and renders its business summary and current version; the confirmed POST reloads the exact message and receipt server-side, checks that the receipt is still unassociated and the selected Case/version is still the reviewed target, acquires the existing edit lease, then calls `ILinkIntake`. Unlink similarly reloads the exact message/receipt/current Case and refuses any mismatch before lease + `IReverseIntakeLink`.
+- Replacement remains two honest decisions: unlink completes first; only the resulting unassociated page offers a new search and separately reasoned confirmation. There is no active-to-active swap handler or optional replacement parameter.
+- Evidence is local/fake Web and disposable SQL only. Production correction execution, Graph, Outlook, Box, cloud, permission, deployment, and external writes are excluded from this implementation task.

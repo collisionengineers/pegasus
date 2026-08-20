@@ -2,12 +2,15 @@
 id: TICK-052
 type: ticket
 title: 'MAIL-10 — Manual email/case association, unlink, relink, and correction'
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:45.021Z'
+taken_at: '2026-08-20T20:31:22.084Z'
+branch: task/tick-052-mail-10-manual-case-association
+worktree: 'C:/Users/Alex/Documents/GitHub/pegasus-worktrees/tick-052'
 labels:
   - capability
   - MAIL-10
@@ -24,7 +27,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.275Z'
-updated: '2026-08-20T09:34:42.972Z'
+updated: '2026-08-20T20:31:22.084Z'
 ---
 
 ## What
