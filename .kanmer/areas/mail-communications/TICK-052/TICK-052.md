@@ -2,13 +2,14 @@
 id: TICK-052
 type: ticket
 title: 'MAIL-10 — Manual email/case association, unlink, relink, and correction'
-status: review
+status: verifying
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:45.021Z'
   review: '2026-08-20T20:53:13.536Z'
+  verifying: '2026-08-20T22:05:21.309Z'
 taken_at: '2026-08-20T20:31:22.084Z'
 branch: task/tick-052-mail-10-manual-case-association
 worktree: 'C:/Users/Alex/Documents/GitHub/pegasus-worktrees/tick-052'
@@ -33,7 +34,7 @@ prs:
   - '490'
 archived: false
 created: '2026-08-12T15:05:19.275Z'
-updated: '2026-08-20T21:51:48.251Z'
+updated: '2026-08-20T22:05:21.309Z'
 ---
 
 ## What
