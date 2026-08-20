@@ -29,6 +29,10 @@ public sealed class VehicleWorkflowTests
             available.ExecuteAsync(
                 command with { Actor = ActionActor.SystemWorker("vehicle-test") },
                 CancellationToken.None));
+
+        // ProductionLive permits requests; the Web's production profile composes it
+        // (the composition itself lives in Program.cs and is not observable from Core).
+        Assert.True(VehicleLookupAvailability.ProductionLive.RequestsEnabled);
     }
 
     [Fact]

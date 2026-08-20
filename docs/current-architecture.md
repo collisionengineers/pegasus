@@ -468,7 +468,7 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 ### OCR and recognition
 
-A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. Document Intelligence OCR for scan-like PDFs remains absent. DVLA/DVSA adapters are implemented, but live entitlement, enabled Worker caller evidence, and acceptance remain separate gates.
+A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. Document Intelligence OCR for scan-like PDFs remains absent. DVLA/DVSA adapters are implemented and the staff-triggered lookup path is composed in both runtime profiles (the Web records the request — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter); live acceptance evidence from a real production lookup remains a separate, approval-gated step.
 
 ### Provider API and Automation MCP
 
