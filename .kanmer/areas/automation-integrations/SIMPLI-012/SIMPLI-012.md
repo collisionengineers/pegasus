@@ -2,13 +2,18 @@
 id: SIMPLI-012
 type: ticket
 title: Decide the post-alpha disposition of AI and MCP
-status: backlog
+status: done
 area: automation-integrations
 order: 180
 assignee: ''
 profile: feature
 stageEntered:
   backlog: '2026-08-17T12:54:14.368Z'
+  preparing: '2026-08-20T03:52:53.436Z'
+  implementing: '2026-08-20T03:52:53.646Z'
+  review: '2026-08-20T03:53:06.568Z'
+  verifying: '2026-08-20T03:53:06.714Z'
+  done: '2026-08-20T03:53:08.649Z'
 labels: []
 groups:
   - EPIC-002
@@ -19,7 +24,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-13T12:12:48.943Z'
-updated: '2026-08-20T03:52:15.745Z'
+updated: '2026-08-20T03:53:08.649Z'
 ---
 
 ## What
@@ -41,4 +46,12 @@ By its own wording this ticket runs **after alpha acceptance** ([[HZN-003]] is n
 
 ## Verification
 
-- [ ] The decision and its resulting scope are recorded and actionable.
+- [x] The decision and its resulting scope are recorded and actionable.
+
+## Decision (2026-08-20)
+
+**RESUME / ACTIVATE — not remove.** Operator direction: *"consider the 'qdos alpha' restriction relaxed in terms of scope… All MCP related tickets are within your scope now"* (operator, 2026-08-20).
+
+The "dormant" premise in this ticket's original framing (2026-08-17) is stale: MCP has been live in production since release 10 (2026-08-18) — `docs/operations.md:230`, `infra/modules/platform.bicep:425` (`Features__AutomationMcp=true`), confirmed by a live read-only probe on 2026-08-20 (`/mcp` → 302, `/connect/token` → 400, `/authorize` → 400 — none 404).
+
+**Resulting scope:** all MCP tickets are active. Concretely: MCP-05 (TICK-062) is already `implementing`, taken by another lane concurrently with this decision being recorded; MCP-03 (TICK-025) was found fully implemented against its own committed capability scope and closed `done` in this same run; MCP-07 (TICK-104) remains in scope per the operator's direction but still governed by its own `Later/1.3.0` allocation and its `TICK-102` dependency, unaffected by this decision beyond being confirmed in-scope. See `research.md` for full evidence.
