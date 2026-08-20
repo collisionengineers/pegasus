@@ -107,7 +107,7 @@ The original reviewed 26-file inventory is complete below; the final total is 28
 
 ## Remaining review-blocker follow-up — 2026-08-20
 
-Addressed [[PR-017]], [[PR-018]], [[PR-024]], and [[PR-025]] in `c0fa9a99a3f9a1b1082591a32e84687a44076210` on PR #469.
+Addressed [[PR-017]], [[PR-018]], [[PR-024]], and [[PR-025]] in `c0fa9a9905f2808ec1e2eb03e42dbe29cfde7ae4` on PR #469.
 
 Authenticated `/Inbox?folder=deleted` evidence now proves approved mailbox selection with zero retained rows, exact selected scope/search/fixed 100-message bound, visible match location, truncation, 25/1 paging, and unavailable state. Nameless MIME attachments remain in the same canonical occurrence order as later named attachments; retained detail renders each attachment's `IsSearchable` disclosure. Retained SQL admission now prevents root canonical wrapper text that is absent from the displayed retained body from producing an unlabeled result. No historical backfill, second reader/projection/store, external write, Graph permission, or deployment change occurred.
 
