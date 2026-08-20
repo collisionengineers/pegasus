@@ -26,6 +26,21 @@ internal sealed class EfRetainedMailFolderMoveStore(
         return operation is null ? null : Map(operation, false);
     }
 
+    public async Task<bool> IsCurrentLocationAsync(
+        Guid messageId,
+        string folderIdentity,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var current = await context.RetainedMailFolderMoves.AsNoTracking()
+            .Where(item => item.RetainedMailboxMessageId == messageId && item.Outcome == "succeeded")
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .Select(item => item.DestinationFolderId)
+            .FirstOrDefaultAsync(cancellationToken);
+        return string.Equals(current, folderIdentity, StringComparison.Ordinal);
+    }
+
     public async Task<RetainedMailFolderMoveResult?> MoveAsync(
         ActionActor actor,
         MoveRetainedMailFolderRequest request,
@@ -85,15 +100,15 @@ internal sealed class EfRetainedMailFolderMoveStore(
         var destination = approved.FolderBindings.SingleOrDefault(item =>
             item.FolderType == folderType.ToString())?.FolderIdentity
             ?? throw new RetainedMailFolderMoveException("The designated Outlook folder is unavailable.");
-        if (string.Equals(retained.FolderIdentity, destination, StringComparison.Ordinal))
+        var latestSuccessfulMove = await context.RetainedMailFolderMoves
+            .Where(item => item.RetainedMailboxMessageId == retained.Id && item.Outcome == "succeeded")
+            .OrderByDescending(item => item.RecordedAtUtc)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+        var currentFolderId = latestSuccessfulMove?.DestinationFolderId ?? retained.FolderIdentity;
+        if (string.Equals(currentFolderId, destination, StringComparison.Ordinal))
         {
             throw new RetainedMailFolderMoveException("The message is already in the designated Outlook folder.");
-        }
-        if (await context.RetainedMailFolderMoves.AnyAsync(item =>
-                item.RetainedMailboxMessageId == retained.Id
-                && item.Outcome == "succeeded", cancellationToken))
-        {
-            throw new RetainedMailFolderMoveException("The message has already been moved.");
         }
         if (await context.RetainedMailFolderMoves.AnyAsync(item =>
                 item.RetainedMailboxMessageId == retained.Id
@@ -101,30 +116,6 @@ internal sealed class EfRetainedMailFolderMoveStore(
         {
             throw new RetainedMailFolderMoveException("A previous move is still being recovered. Retry that operation instead.");
         }
-        if (mover.IsAvailable)
-        {
-            string? currentParent;
-            try
-            {
-                currentParent = await mover.GetParentFolderIdAsync(
-                    retained.MailboxId,
-                    retained.ImmutableMessageId,
-                    cancellationToken);
-            }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-                throw;
-            }
-            catch
-            {
-                throw new RetainedMailFolderMoveException("The current Outlook folder could not be confirmed.");
-            }
-            if (!string.Equals(currentParent, retained.FolderIdentity, StringComparison.Ordinal))
-            {
-                throw new RetainedMailFolderMoveException("The message is no longer in the expected Outlook folder.");
-            }
-        }
-
         var operation = new RetainedMailFolderMoveEntity
         {
             Id = Guid.NewGuid(),
@@ -132,9 +123,13 @@ internal sealed class EfRetainedMailFolderMoveStore(
             RetainedMailboxMessage = retained,
             OperationKey = request.OperationKey,
             RequestHash = requestHash,
+            ExpectedClassificationVersion = request.ExpectedClassificationVersion,
+            ExpectedRecommendationPolicyKey = request.ExpectedRecommendationPolicyKey,
+            ExpectedRecommendationPolicyVersion = request.ExpectedRecommendationPolicyVersion,
+            ExpectedMailboxVersion = request.ExpectedMailboxVersion,
             MailboxId = retained.MailboxId,
             ImmutableMessageId = retained.ImmutableMessageId,
-            SourceFolderId = retained.FolderIdentity,
+            SourceFolderId = currentFolderId,
             DestinationFolderId = destination,
             FolderType = folderType.ToString(),
             Actor = MailClassificationActor.Format(actor),
@@ -157,6 +152,29 @@ internal sealed class EfRetainedMailFolderMoveStore(
         if (!mover.IsAvailable)
         {
             await CompleteAsync(context, operation, "failed", "Outlook folder moves are unavailable in this runtime.", cancellationToken);
+            return Map(operation, false);
+        }
+
+        string? currentParent;
+        try
+        {
+            currentParent = await mover.GetParentFolderIdAsync(
+                operation.MailboxId,
+                operation.ImmutableMessageId,
+                cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            await CompleteAsync(context, operation, "failed", "The current Outlook folder could not be confirmed.", cancellationToken);
+            return Map(operation, false);
+        }
+        if (!string.Equals(currentParent, operation.SourceFolderId, StringComparison.Ordinal))
+        {
+            await CompleteAsync(context, operation, "failed", "The message is no longer in the expected Outlook folder.", cancellationToken);
             return Map(operation, false);
         }
 
@@ -252,9 +270,15 @@ internal sealed class EfRetainedMailFolderMoveStore(
                 _ => RetainedMailFolderMoveOutcome.Uncertain
             },
             Enum.Parse<MailLogicalFolderType>(operation.FolderType),
-            operation.FailureReason ?? operation.Reason,
+            operation.Reason,
             operation.CompletedAtUtc ?? operation.RecordedAtUtc,
-            replay);
+            replay,
+            operation.OperationKey,
+            operation.FailureReason,
+            operation.ExpectedClassificationVersion,
+            operation.ExpectedRecommendationPolicyKey,
+            operation.ExpectedRecommendationPolicyVersion,
+            operation.ExpectedMailboxVersion);
 
     private static string Hash(MoveRetainedMailFolderRequest request, ActionActor actor)
     {

@@ -50,7 +50,7 @@
         <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
     }
     <div class="filterbar__line">
-        <label for="mail-search" class="vh">Search this mailbox and folder</label>
+        <label for="mail-search" class="vh">@(Model.Folder == MailFolderScope.Inbox ? "Search retained mail in current folders" : "Search this mailbox and folder")</label>
         <input id="mail-search" name="search" value="@Model.SearchTerm" maxlength="200"
                placeholder="Message body or attachment" />
         <button class="btn btn--dark" type="submit">Search</button>
@@ -65,6 +65,10 @@
 @* The mail list is a table: an operator scanning a morning's post compares
    sender, subject, outcome and time down columns, which a stack of rows
    cannot line up. *@
+@if (Model.Folder == MailFolderScope.Inbox && Model.SearchTerm is not null && Model.Results.Items.Count > 0)
+{
+    <div class="status-card" role="status">Search includes retained messages in their current Outlook folders.</div>
+}
 @if (Model.SearchValidationMessage is not null)
 {
     <div class="status-card" role="alert">@Model.SearchValidationMessage</div>
@@ -140,7 +144,7 @@ else if (Model.Results.Items.Count == 0)
     <img class="mark mark--md" src="~/images/marks/mailboxes.png" asp-append-version="true" alt="" aria-hidden="true" />
     @if (Model.SearchTerm is not null)
     {
-        <p class="empty-state">No retained mail in this mailbox and folder matched “@Model.SearchTerm”.</p>
+        <p class="empty-state">No retained mail in this mailbox matched “@Model.SearchTerm”.</p>
     }
     else if (Model.Folder != MailFolderScope.Inbox)
     {

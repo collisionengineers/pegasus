@@ -88,5 +88,8 @@ public sealed class RetainedMailFolderMoveTests
 
         public Task<RetainedMailFolderMoveResult?> GetLatestAsync(Guid messageId, CancellationToken cancellationToken) =>
             Task.FromResult<RetainedMailFolderMoveResult?>(null);
+
+        public Task<bool> IsCurrentLocationAsync(Guid messageId, string folderIdentity, CancellationToken cancellationToken) =>
+            Task.FromResult(false);
     }
 }
