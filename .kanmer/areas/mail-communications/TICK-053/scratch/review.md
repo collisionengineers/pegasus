@@ -212,3 +212,66 @@ Replacement CI at the reviewed head has green changes, documentation, local-deve
 ### Verdict
 
 **Needs changes.** Do not merge PR #469. TICK-053 and every resolved shared-PR blocker remain in Review; PR-018 and PR-024 are retained as active blockers, and PR-029 through PR-031 newly block TICK-053. Re-review only after those five blockers land, the PIR/file inventory is refreshed, replacement CI is fully green, and the Release-14 merge hold is cleared.
+
+## Independent final review — PR #469 at `7932d683782669e112f3d996c6914323e8ba72d4` (2026-08-20)
+
+### Changes
+
+1. `docs/capabilities.md` records MAIL-11/UI-10 local implementation while retaining deployment and live-evidence qualifications.
+2. `docs/current-architecture.md` records the local retained/Deleted search composition and runtime grants.
+3. `docs/design/README.md` records the operator-approved local MAIL-11 re-entry and separate release evidence.
+4. `scripts/Invoke-AzureDatabaseBootstrap.ps1` adds the projection-table permission expectation.
+5. `src/Pegasus.Core/Intake/DeletedMailSearch.cs` adds the authorized 100-message Deleted search use case, page contract, mailbox source and unavailable fallback.
+6. `src/Pegasus.Core/Intake/IntakeContracts.cs` adds canonical attachment descriptors and receipt-owned search documents.
+7. `src/Pegasus.Core/Intake/IntakeSearchProjection.cs` derives root/attachment search documents from the existing reader result and route evidence.
+8. `src/Pegasus.Core/Intake/ProcessIntake.cs` sends that projection through the existing receipt draft.
+9. `src/Pegasus.Core/Intake/RetainedMail.cs` extends existing list/detail contracts with normalized search and exact match/searchability evidence.
+10. `src/Pegasus.Infrastructure/DependencyInjection.cs` composes the unavailable default and production Graph source without overriding the latter.
+11. `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` adds bounded approved-estate Deleted metadata/MIME reads, exact-folder MIME routing and recoverable timeout/authentication mapping.
+12. `src/Pegasus.Infrastructure/Intake/LocalEmailDisplayReader.cs` preserves nameless displayed attachment occurrences.
+13. `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` emits canonical attachment descriptors/ordinals, including attached text parts.
+14. `src/Pegasus.Infrastructure/Persistence/EfIntakeReceiptStore.cs` inserts/replaces search documents within the existing receipt transaction.
+15. `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` applies SQL-first search and maps visible matches/detail searchability.
+16. `20260820100724_RetainedMailSearchDocuments.Designer.cs` is the generated migration model.
+17. `20260820100724_RetainedMailSearchDocuments.cs` creates the receipt-owned table/index/FK and runtime grants without backfill.
+18. `PegasusDbContextModelSnapshot.cs` records that schema.
+19. `PegasusDbContext.cs` maps the receipt-owned child entity.
+20. `Index.cshtml` renders GET search, match locations, Deleted disclosure and honest bounded/error states.
+21. `Index.cshtml.cs` selects retained versus Deleted queries and preserves query scope.
+22. `Message.cshtml` preserves search scope and renders retained attachment searchability.
+23. `Message.cshtml.cs` carries search into detail/thread membership and correction reload.
+24. `OperatorLabels.cs` remains the single operator wording owner for searchability.
+25. Core tests cover validation, authorization, bounding and projection normalization/identity.
+26. Migration integration evidence covers the new committed migration/table.
+27. Web tests cover retained states, authenticated Deleted caller behavior, search-aware thread membership and credential unavailability.
+28. Composition tests prove the production source wins and fallback profiles remain unavailable.
+29. Graph tests cover exact folder paths, fair cross-mailbox bounds, timeout/cancellation and concurrent moves.
+30. Persistence tests cover SQL matches, normalized visible body equality and known attachment-ordinal cases.
+
+The PIR's corrected 30-file inventory matches `git diff --name-only origin/dev...HEAD`; `git diff --check` is clean.
+
+### Comments and disposition
+
+- **PR-015, PR-016, PR-017, PR-019, PR-020, PR-021, PR-022, PR-024, PR-025 and PR-029 through PR-031 — fixed-in-PR.** The final code and focused evidence implement their stated cases without a second parser/store, mailbox mutation, backfill or permission expansion.
+- **PR-018 — still incomplete.** Nameless and attached-text cases are fixed, but an explicitly attached image carrying a Content-ID is still omitted from the canonical descriptor sequence while MimeKit keeps it in the displayed attachment sequence. The fresh exact case is filed as [[PR-034]].
+- **Blocking — [[PR-033]].** Successful-but-malformed or scope-invalid Graph responses throw `JsonException`, `InvalidDataException` or `UnauthorizedAccessException` outside the Deleted-source catch policy, returning 500 rather than the established unavailable state.
+- **Blocking — [[PR-034]].** Content-ID alone currently makes an explicitly attached image inline, shifting every later canonical ordinal and allowing match/searchability attribution to the wrong displayed attachment.
+- **Blocking — [[PR-035]].** An invalid classification-correction POST carrying whitespace-only or overlong search context calls `ReloadAsync`, whose new search validation exception is outside the handler catches and becomes a 500.
+- **Blocking/security — [[PR-036]].** The Worker is granted UPDATE on `IntakeSearchDocuments`, but the implemented writer selects/deletes/inserts projection rows and has no UPDATE caller. The PIR/current-state least-privilege claim is therefore too broad.
+- **Won't-do — historical backfill.** FRD-08 expressly prohibits reconstruction; existing receipts without a projection remain honestly unsearchable.
+- **Non-blocking/pass — simplicity.** The implementation reuses the existing Core retained-mail port, canonical intake reader, receipt transaction/store, approved mailbox estate, Graph client and `/Inbox` pages. The dated four-lens passes are honest. The remaining defects need narrow fixes to existing code/tests, not new abstractions.
+- **Non-blocking/pass — governing scope.** FRD-08 and the accepted design re-entry authorize this local read-only implementation. No deployment, Graph permission change, mailbox write or live evidence is claimed. The release-14 hold was explicitly cleared in the PR conversation.
+
+### CI
+
+Replacement CI run `32370485614` at the reviewed head has green changes, documentation, local-development-scripts, reference-data, infrastructure, unit, browser, and SQL shards 1 and 3. SQL shard 2 was still running when this needs-changes verdict was recorded. A later green result cannot make this head reviewable because substantive blockers remain.
+
+### Repository review questions
+
+1. **Did the plan miss anything implied by the ticket?** Yes: malformed provider-response mapping, Content-ID versus explicit attachment precedence, invalid search context on correction reload, and exact least-privilege grants.
+2. **Did implementation miss anything in the plan?** Yes: the stated honest unavailable state and exact attachment identity are incomplete for the cases above; the permission claim exceeds the actual caller.
+3. **Did the simplification pass run with honest dispositions?** Yes. The unresolved findings are correctness/security boundary defects and can be fixed narrowly without adding a framework.
+
+### Verdict
+
+**Needs changes.** Do not merge PR #469. Keep TICK-053 and all shared-PR blocker tickets in Review; [[PR-033]] through [[PR-036]] now block TICK-053 from Backlog. Re-review only after those four tickets land, PR-018's exact-identity claim is genuinely complete, the PIR remains exact, and full replacement CI is green.
