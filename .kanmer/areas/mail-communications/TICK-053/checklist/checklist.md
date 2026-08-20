@@ -7,9 +7,9 @@
 - [x] Wire the authenticated `/Inbox` search and retained detail-return context with accessible pagination and honest empty/error/truncation UI.
 - [x] Add focused Core, persistence/migration, fake-Graph and Web acceptance tests without external writes or fabricated production data.
 - [x] Update capabilities/current-architecture only to the exact local evidence tier.
-- [ ] Run locked restore, Release build, focused tests and the relevant full suite.
-- [ ] Run the four-lens simplification pass and append dated findings/dispositions to the plan.
-- [ ] Write the post-implementation report, commit/push the branch, open the dev-targeting PR, record traceability and move TICK-053 to Review.
+- [x] Run locked restore, Release build, focused tests and the relevant full suite.
+- [x] Run the four-lens simplification pass and append dated findings/dispositions to the plan.
+- [x] Write the post-implementation report, commit/push the branch, open the dev-targeting PR, record traceability and move TICK-053 to Review.
 
 ## Parked post-deployment acceptance
 
