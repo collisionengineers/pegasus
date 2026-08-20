@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Automatic DVSA vehicle lookup on any known registration, with mileage estimate
   prefill
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-20T18:22:51.244Z'
+taken_at: '2026-08-20T18:24:27.615Z'
+branch: task/case-008-auto-vehicle-lookup
+worktree: ../pegasus-worktrees/case-008
 labels:
   - vehicle
   - automation
@@ -20,7 +23,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-20T18:22:48.653Z'
-updated: '2026-08-20T18:22:51.244Z'
+updated: '2026-08-20T18:24:27.615Z'
 ---
 
 ## Why
