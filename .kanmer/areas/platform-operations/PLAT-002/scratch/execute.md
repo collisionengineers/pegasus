@@ -1,0 +1,1 @@
+2026-08-20: implemented on task/plat-002-staff-page-root, commit 62502995a7b452977f596c5bd72b44296f3710ec; opened PR https://github.com/collisionengineers/pegasus/pull/467 targeting dev. Final evidence: restore/build green; architecture 98 passed; focused integration 114 passed, 6 skipped, 0 failed; ownership inventories matched.
