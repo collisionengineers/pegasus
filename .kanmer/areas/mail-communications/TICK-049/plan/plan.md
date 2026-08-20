@@ -2,41 +2,42 @@
 
 ## Chosen approach
 
-add a separately confirmed exact-message folder-move command and Graph adapter. Reuse `a minimal Core move request/use case beside retained mail`, keep Web/MCP callers thin, and place persistence or external mechanics only in `Graph mail mutation adapter plus durable action result/history`. This follows the repository's one-Core-owner rule and the existing convention rather than adding a workspace-specific policy copy.
+Implement one concrete Core-owned confirmed-folder-move use case after PR #469 lands. Preserve MAIL-05's read-only contract: Razor receives a logical folder recommendation and freshness values, never Graph transport identities or a selectable destination. On POST, Core re-loads the current classification, policy and typed approved-mailbox binding; Infrastructure supplies exact persisted coordinates to the existing Graph client.
 
-A parallel UI-owned implementation was rejected because UI-10, Automation MCP and background processing would diverge. A generic mail-action framework was rejected because each action already has a concrete Core boundary and no second abstraction caller is proven.
+Use one dedicated durable folder-move operation/current-location record because the SQL claim and Graph move cannot be atomic. Do not generalize it into a mail-command framework: no second concrete mutation caller exists. Keep retained arrival evidence write-once.
 
 ## Governing docs
 
-- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: implement its exact-message, fail-closed, durable-history and workspace behaviour. Any unresolved mapping/mutation behaviour remains conditional on the checked operator answer; do not silently amend the FRD.
-- `docs/design/README.md`: apply the established confirmation, error, focus, navigation and accessibility conventions.
-- No new ADR is planned: the existing Core/Infrastructure/Web boundary carries the change.
+- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: deliver separate reasoned confirmation, exact-message/current-approved-destination validation, no automatic or arbitrary move, durable visible failure, staff-only explicit retry, preserved classification, and removal from Inbox after success.
+- `docs/design/README.md`: reuse the existing reason dialog, anti-forgery, Confirm/Cancel, focus return, stale/conflict, replay and dependency-unavailable presentation.
+- `docs/capabilities.md`: record only local implementation and fake/local evidence. Allocation and merged code are not deployment or live Outlook proof.
+- No ADR: Core/Infrastructure/Web and the existing Graph client already carry the change.
+
+## Preconditions
+
+TICK-064 and TICK-047 are merged into `origin/dev` at or before `a1775841`. TICK-053 / PR #469 currently owns overlapping files, so execution must wait until #469 merges and the claim releases. Then fetch the new `origin/dev`, verify it contains both predecessors and #469, and re-read the landed overlap before creating/taking TICK-049.
 
 ## Ordered implementation
 
-1. Re-read the current target files after prerequisite branches land and name the exact existing contracts/helpers/tests being reused.
-2. Add or extend the smallest Core contract/policy required to add a separately confirmed exact-message folder-move command and Graph adapter; validate identity, actor, reason, state and version before any write.
-3. Implement the Infrastructure projection/transaction/adapter in Graph mail mutation adapter plus durable action result/history; preserve mailbox scope, idempotency, optimistic concurrency and append-only evidence.
-4. Wire the real caller (exact-message detail POST with operation key/version) through the Core use case with no duplicated taxonomy, mapping or authorization logic.
-5. Add focused Core and integration/Web tests for confirmation, idempotency, stale identity, success, visible failure and staff-only retry.
-6. Run the locked restore/build and focused tests, then the relevant full suite; perform the four-lens simplification pass and record honest dispositions.
-7. Update FRD/capabilities only where the delivered behaviour/evidence warrants it; do not claim deployment, live Outlook verification or operator acceptance from local tests.
+1. **Refresh and isolate.** From post-#469 `origin/dev`, re-read retained-mail search/detail, Graph client/composition, Razor and overlapping tests. Create `task/tick-049-mail-07-confirmed-folder-move` in `../pegasus-worktrees/tick-049` and take TICK-049. Reuse PR #469's landed query overloads and fake Graph handler shapes.
+2. **Add the one Core move owner.** Create a focused `RetainedMailFolderMove` contract/use case. Reuse `StaffAuthorization.PerformCasework`, `MailLogicalFolderPolicy`, `MailClassificationDossier.Version`, `ApprovedMailbox.Version` and typed bindings. Validate internal message id, expected classification/policy/mailbox versions, GUID operation key and 1–500 character reason. Accept no mailbox/source/destination transport value.
+3. **Persist one exact operation/current location.** Add the focused entity, configuration, store and migration. Reserve a unique operation key plus request fingerprint before Graph; matching completed replay returns its result and changed inputs conflict. Preserve the retained row, append action history, and overlay only the latest successful location onto list/detail. Reuse existing EF concurrency and ActionHistory conventions.
+4. **Add exact Graph move/probe.** Extend `GraphMailClient` with only the folder-scoped move POST and immutable-item parent-folder probe. Reuse its authorization, host/URI confinement, safe HTTP mapping and `Prefer: IdType="ImmutableId"`. On uncertain response, probe: destination means recovered success, source means recorded failure eligible for a deliberate new-key retry, and unresolved location remains uncertain/replay-probe-only so a blind second move is impossible.
+5. **Wire the authenticated message caller.** Extend MAIL-05 recommendation with only approved-mailbox version freshness. Reuse the message page, anti-forgery, list-context route values and shared reason dialog. Render the current server-derived label, Confirm/Cancel, durable result and explicit retry; preserve saved classification on every provider failure.
+6. **Prove locally without external writes.** Add focused Core tests, SQL integration for claim/concurrency/history/projection, fake-handler Graph request/recovery tests, and exact authenticated Web tests. Run locked restore and Release build, focused tests, then the proportional full Core and Integration suites. No live Graph/mailbox/cloud action is permitted.
+7. **Simplify and report.** Review the branch diff through reuse, simplification, efficiency and altitude lenses. Apply behaviour-preserving findings; record dispositions under a dated Simplification pass. Update capabilities/current architecture only to the evidence reached, write the post-implementation report, push, open a PR to `dev`, and leave TICK-049 in Review.
 
-## Dependencies and sequencing
+## Acceptance evidence
 
-TICK-047/TICK-064; archived TICK-048 behaviour is absorbed here.
-
-## Proof
-
-The post-implementation report will cite focused test output, Release build output, real-caller integration evidence and simplification findings. External-mailbox behaviour requires separately approved live verification and cannot be inferred from adapter tests.
+- Core: authorization and all freshness/state checks fail before the provider port; replay/conflict/recovery/new-key retry are deterministic.
+- Persistence: concurrent claims produce one operation; arrival identity/classification remain unchanged; failed/uncertain attempts stay visible; success alone changes effective location and removes the item from Inbox.
+- Graph fake: exact folder-scoped POST body/header plus exact immutable-id parent probe; no network outside the fake handler.
+- Web: authenticated staff sees the current recommendation, submits no destination, must confirm with reason, gets stale/failure/retry/success semantics, and classification survives failure.
+- Commands and results are captured in the post-implementation report. Live mutation, permissions, deployment and production activation are explicitly not claimed.
 
 ## Risks and mitigations
 
-- Identity or stale-state mistakes: exact mailbox/message keys plus optimistic concurrency and fail-closed validation.
-- Policy duplication: one Core result consumed by Web, Worker and MCP.
-- External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
-- Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
-
-## Live-operation decision — 2026-08-19
-
-The operator declined a real Outlook move for this ticket. Implementation and acceptance must use local/integration tests and Graph fakes only. Do not mutate the linked production mailbox. The post-implementation report and capability evidence must explicitly qualify MAIL-07 as not live-mutation-verified.
+- **Overlapping search work:** wait for #469, branch from its merge, and preserve its focused tests.
+- **Silent binding drift:** expose only `ApprovedMailbox.Version` as freshness; re-resolve the exact binding server-side.
+- **SQL/Graph split:** durable reservation plus exact destination/source probe; never blind-retry an uncertain operation.
+- **Scope growth:** keep one folder-move operation, one adapter extension and one Web caller; defer every other mail action and Automation exposure.
