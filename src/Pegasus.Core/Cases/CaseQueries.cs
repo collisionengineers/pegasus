@@ -158,6 +158,20 @@ public interface IGetCase
         CancellationToken cancellationToken);
 }
 
+public static class CaseRegistration
+{
+    public static string? Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var compact = string.Concat(value.Trim().Where(char.IsLetterOrDigit)).ToUpperInvariant();
+        return compact.Length == 0 ? null : compact;
+    }
+}
+
 public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
 {
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -237,8 +251,8 @@ public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
             return null;
         }
 
-        var compact = string.Concat(normalized.Where(char.IsLetterOrDigit)).ToUpperInvariant();
-        if (compact.Length == 0)
+        var compact = CaseRegistration.Normalize(normalized);
+        if (compact is null)
         {
             throw new ArgumentException("The registration filter is invalid.", nameof(value));
         }

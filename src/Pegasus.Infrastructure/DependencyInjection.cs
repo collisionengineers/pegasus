@@ -90,8 +90,14 @@ public static class DependencyInjection
         services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
         services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
-        services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
-        services.AddScoped<IAutomaticCaseAssociationStore, EfIntakeMutationStore>();
+        services.AddScoped<EfIntakeMutationStore>();
+        services.AddScoped<IIntakeMutationStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticCaseAssociationStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticMailCaseAssociationEvidenceQueries>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<IResolveIntake, ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<ILinkIntake, LinkIntake>();

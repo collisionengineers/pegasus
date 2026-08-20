@@ -250,6 +250,19 @@ If that move fails, the saved classification remains intact, the failure is
 visible, and only a staff-initiated retry may repeat the move.
 After a successful move, the message leaves the Inbox view and remains
 findable through its destination-folder scope or search; it is not duplicated.
+For retained inbound mail, automatic Case association is deliberately
+conservative. A message may associate only when its normalised vehicle
+registration identifies exactly one current, non-archived Case system-wide, or
+when its exact mailbox-and-conversation thread identifies exactly one current
+Case. If both forms of evidence identify a Case, they must agree. A supplied
+registration with zero or several candidates, several thread candidates,
+contradictory candidates, or evidence that changes before the serializable
+write causes abstention. The inbound Case/PO text is never a matching key. A
+first message may therefore qualify by unique registration before its thread
+has an association; a later message without a registration may qualify from
+the exact thread. The system-worker association is append-only, idempotent and
+uses the ordinary current-association and staff reversal precedence. It does
+not mutate the mailbox.
 Selecting a Case association opens that Case workspace in the same tab; Back
 returns to the exact message detail and originating list context.
 Each Case workspace also exposes its associated correspondence as a contextual
