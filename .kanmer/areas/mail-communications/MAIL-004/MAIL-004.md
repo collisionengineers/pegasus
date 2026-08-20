@@ -27,9 +27,17 @@ blocks:
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/frd/frd-12-operator-experience.md
+  - docs/capabilities.md
+  - docs/design/README.md
+commits:
+  - ec8bb958
+  - 480f19fe
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/473'
+deployment: not-deployed
 archived: false
 created: '2026-08-20T09:47:32.793Z'
-updated: '2026-08-20T11:39:48.912Z'
+updated: '2026-08-20T12:05:46.304Z'
 ---
 
 ## What
