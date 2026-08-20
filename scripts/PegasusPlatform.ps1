@@ -573,8 +573,22 @@ function Get-PegasusDatabaseState {
         if ($LASTEXITCODE -ne 0) {
             return 'Missing'
         }
-        if ($output -match '(?im)^\s*State:\s*(?<state>Running|Stopped)\s*$') {
-            return $Matches.state
+
+        $state = [regex]::Match(
+            $output,
+            '^\s*State:\s*(?<state>Running|Stopped)\s*$',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor
+                [System.Text.RegularExpressions.RegexOptions]::Multiline)
+        $missingPattern = '(?im)^[ \t]*LocalDB[ \t]+instance[ \t]+"' +
+            [regex]::Escape($InstanceName) +
+            '"[ \t]+doesn''t[ \t]+exist![ \t]*\r?$'
+        $isExplicitlyMissing = [regex]::IsMatch($output, $missingPattern)
+
+        if ($state.Success -and -not $isExplicitlyMissing) {
+            return $state.Groups['state'].Value
+        }
+        if ($isExplicitlyMissing -and -not $state.Success) {
+            return 'Missing'
         }
         return 'Unknown'
     }
