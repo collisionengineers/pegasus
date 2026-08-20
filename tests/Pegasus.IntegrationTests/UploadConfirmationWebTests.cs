@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.ImageIntake;
@@ -266,6 +266,195 @@ public sealed class UploadConfirmationWebTests
             .GetRequiredService<ICaseWorkflowStore>()
             .GetAsync(caseId, CancellationToken.None);
         return workflow!.Identity.Reference;
+    }
+
+    [Fact]
+    public async Task AnUndecidedGroupShowsOneSubmissionDecisionInsteadOfPerFileOffers()
+    {
+        // No readable VRM: automation abstains, both members go to
+        // Unidentified, and the submission needs one staff decision.
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
+        Assert.Contains("This submission", groupPage, StringComparison.Ordinal);
+        Assert.Contains("Create a vehicle-image case", groupPage, StringComparison.Ordinal);
+        Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
+        // Exactly one decision surface: no per-file offers, and the per-file
+        // rows keep their state chips without action buttons.
+        Assert.DoesNotContain(">Create a case<", groupPage, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Review<", groupPage, StringComparison.Ordinal);
+        Assert.Single(SplitOccurrences(groupPage, "Add to an existing case"));
+        // Image members render thumbnails through the inline image route.
+        Assert.Contains("/Image", groupPage, StringComparison.Ordinal);
+        Assert.Contains("upload-thumb", groupPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RegisterGroupCreatesOneVehicleImageCaseFromTheStaffTypedRegistration()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        var memberReceiptId = IntakeWebDriver.ReceiptId(processed);
+
+        var redirect = await PostGroupHandlerAsync(
+            client,
+            $"/Upload/Group/{groupId:D}?handler=RegisterGroup",
+            new Dictionary<string, string>
+            {
+                ["vehicleRegistration"] = "ab12 cde",
+                ["reason"] = "Staff read the registration from the photographs."
+            });
+        Assert.Equal(HttpStatusCode.Redirect, redirect);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var detail = await scope.ServiceProvider
+            .GetRequiredService<IImageIntakeQueries>()
+            .GetByOriginReceiptAsync(memberReceiptId, CancellationToken.None);
+        Assert.NotNull(detail);
+        Assert.StartsWith("AB12CDE", detail!.Record.ImageIntakeReference, StringComparison.Ordinal);
+        Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, detail.State);
+
+        // Replay: the same decision posts again and still reports one
+        // registration for the group.
+        var replay = await PostGroupHandlerAsync(
+            client,
+            $"/Upload/Group/{groupId:D}?handler=RegisterGroup",
+            new Dictionary<string, string>
+            {
+                ["vehicleRegistration"] = "AB12CDE",
+                ["reason"] = "Staff read the registration from the photographs."
+            });
+        Assert.Equal(HttpStatusCode.Redirect, replay);
+    }
+
+    [Fact]
+    public async Task AttachGroupAddsEveryOpenMemberToTheChosenCase()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
+            factory, client, "XY34 ZZZ", "GROUP-ATTACH-01");
+        var caseReference = await CaseReferenceAsync(factory, caseId);
+
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        var redirect = await PostGroupHandlerAsync(
+            client,
+            $"/Upload/Group/{groupId:D}?handler=AttachGroup",
+            new Dictionary<string, string>
+            {
+                ["reference"] = caseReference,
+                ["reason"] = "Staff matched the whole submission to the instructed case."
+            });
+        Assert.Equal(HttpStatusCode.Redirect, redirect);
+        var confirmationPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
+        Assert.DoesNotContain("could not be added", confirmationPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("No single case matched", confirmationPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Nothing from this submission", confirmationPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("nothing left in this submission", confirmationPage, StringComparison.Ordinal);
+        Assert.DoesNotContain("A reason is required", confirmationPage, StringComparison.Ordinal);
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var groups = scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
+            var group = await groups.GetAsync(groupId, CancellationToken.None);
+            Assert.NotNull(group);
+            var receipts = scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>();
+            var statuses = scope.ServiceProvider.GetRequiredService<IQueuedIntakeStatusQueries>();
+            foreach (var member in group!.Members)
+            {
+                var status = await statuses.GetAsync(member.StagedReceiptId, CancellationToken.None);
+                Assert.NotNull(status);
+                var receipt = await receipts.GetAsync(
+                    status!.ProcessedReceiptId ?? status.StagedReceiptId, CancellationToken.None);
+                Assert.NotNull(receipt);
+                Assert.Equal(caseId, receipt!.CurrentCaseId);
+            }
+        }
+
+        // Replay-safe: the same submission decision reports success again.
+        var replay = await PostGroupHandlerAsync(
+            client,
+            $"/Upload/Group/{groupId:D}?handler=AttachGroup",
+            new Dictionary<string, string>
+            {
+                ["reference"] = caseReference,
+                ["reason"] = "Staff matched the whole submission to the instructed case."
+            });
+        Assert.Equal(HttpStatusCode.Redirect, replay);
+        var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
+        Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
+    }
+
+    private static IEnumerable<int> SplitOccurrences(string haystack, string needle)
+    {
+        var index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            yield return index;
+            index += needle.Length;
+        }
+    }
+
+    private static async Task<HttpStatusCode> PostGroupHandlerAsync(
+        HttpClient client,
+        string url,
+        Dictionary<string, string> fields)
+    {
+        var token = await IntakeWebDriver.GetAntiforgeryTokenAsync(client);
+        fields["__RequestVerificationToken"] = token;
+        using var response = await client.PostAsync(url, new FormUrlEncodedContent(fields));
+        if (response.StatusCode == HttpStatusCode.InternalServerError)
+        {
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.Fail("500: " + body[..Math.Min(body.Length, 4000)]);
+        }
+        return response.StatusCode;
     }
 
     private static async Task<HttpStatusCode> PostAttachAsync(
