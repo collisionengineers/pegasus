@@ -20,7 +20,7 @@
 <div class="upload-layout">
     <section class="panel" aria-labelledby="upload-title">
         <h2 id="upload-title" class="section-label">Upload documents or images</h2>
-        <form method="post" enctype="multipart/form-data">
+        <form method="post" enctype="multipart/form-data" data-upload-progress>
             <input asp-for="ExternalReceiptToken" type="hidden" />
             <div asp-validation-summary="ModelOnly" class="validation-summary-errors" role="alert"></div>
             @* The dashed area is the destination. site.js makes the whole
@@ -42,17 +42,17 @@
         </form>
     </section>
 
-    @* Every sentence here is the real flow: the receipt is durable before the
-       page redirects (Upload.cshtml.cs), the status page refreshes itself
+    @* Every sentence here is the real flow: each row ticks once its file is
+       durably stored (Upload.cshtml.cs), the status page refreshes itself
        while the state is Received or Processing (UploadStatus), and Complete
-       links to the case or the retained receipt. Nothing is promised that the
-       Worker does not do. *@
+       shows what happens next — a case was found, or one can be created.
+       Nothing is promised that the Worker does not do. *@
     <section class="panel" aria-labelledby="upload-next-title">
         <h2 id="upload-next-title" class="section-label">What happens next</h2>
         <ol class="upload-steps">
-            <li><b>The file is kept as received.</b><span>You get a receipt the moment it is stored.</span></li>
+            <li><b>Each file is safely stored.</b><span>Its row ticks the moment it is stored; a failed file states why.</span></li>
             <li><b>It is processed in the background.</b><span>The status page refreshes itself until processing is complete.</span></li>
-            <li><b>Open the result.</b><span>A case created from the file, or the retained receipt when no case was created; a failure is stated on the status page.</span></li>
+            <li><b>Decide where it goes.</b><span>You'll see a case it was matched to, or be offered to create one; a failure is stated clearly.</span></li>
         </ol>
         <h2 class="section-label section-gap">Accepted files</h2>
         <ul class="accepted-list" aria-label="Accepted file types">
