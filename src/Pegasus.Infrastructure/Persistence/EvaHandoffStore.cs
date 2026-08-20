@@ -819,7 +819,7 @@ public sealed class EvaHandoffStore(
             : string.Empty;
         return new(
             format(field.Value),
-            field.SourceKind.Equals("staff-correction", StringComparison.Ordinal)
+            field.SourceKind.Equals(CaseDataCodes.StaffCorrection, StringComparison.Ordinal)
                 ? EvaEvidenceStatus.Corrected
                 : EvaEvidenceStatus.Accepted,
             $"vehicle:{field.SourceKind}:{field.SourceIdentity}:{field.SourceLabel};confirmed={field.ConfirmedByActor}@{field.ConfirmedAtUtc:O}{external}",
