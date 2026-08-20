@@ -2374,3 +2374,7 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
 .upload-outcome-list > li > :not(.upload-thumb) {
   grid-column: 2;
 }
+
+
+/* MAIL-005: the Inbox outcome cell aligns its chip and case link on one row. */
+.outcome-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }

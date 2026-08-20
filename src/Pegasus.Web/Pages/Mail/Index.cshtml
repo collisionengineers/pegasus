@@ -237,7 +237,7 @@ else
                         </span>
                     </td>
                     <td>
-                        <span class="stack">
+                        <span class="outcome-row">
                             <partial name="Shared/_StatusChip" model="@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(item)" />
                             @if (item.CaseId is { } caseId && item.CaseReference is { Length: > 0 } caseReference)
                             {
