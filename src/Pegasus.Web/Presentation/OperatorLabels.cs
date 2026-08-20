@@ -48,11 +48,35 @@ public static class OperatorLabels
         _ => Humanise(state.ToString())
     };
 
-    public static string UnidentifiedOriginKind(UnidentifiedOriginKind kind) => kind switch
+    /// <summary>
+    /// What an Unidentified item's retained material is, for the Queues
+    /// page's Images/E-mails filter and the row/detail "what is going on"
+    /// text. Supersedes the old origin-kind label ("Intake receipt"), which
+    /// named the internal record rather than the material and used the
+    /// banned word "intake".
+    /// </summary>
+    public static string UnidentifiedMediaKind(Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind kind) => kind switch
     {
-        Pegasus.Core.Intake.Unidentified.UnidentifiedOriginKind.Receipt => "Intake receipt",
-        Pegasus.Core.Intake.Unidentified.UnidentifiedOriginKind.SubmissionGroup => "Submission group",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind.Image => "Image",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind.Email => "E-mail",
+        Pegasus.Core.Intake.Unidentified.UnidentifiedMediaKind.Document => "Document",
         _ => Humanise(kind.ToString())
+    };
+
+    /// <summary>
+    /// The operator-meaningful handle for a received e-mail: its subject and
+    /// sender, or "(No subject)" when the subject could not be read. The one
+    /// formatting rule for both the Unidentified queue row
+    /// (<c>Triage.IndexModel.UnidentifiedHandle</c>) and its detail page
+    /// (<c>Unidentified.DetailsModel.Handle</c>), which read the same
+    /// subject/sender from two different shapes.
+    /// </summary>
+    public static string EmailHandle(string? subject, string? sender) => (subject, sender) switch
+    {
+        ({ } presentSubject, { } presentSender) => $"{presentSubject} — from {presentSender}",
+        ({ } presentSubject, null) => presentSubject,
+        (null, { } presentSender) => $"(No subject) — from {presentSender}",
+        _ => "(No subject)"
     };
 
     public static string CaseStage(CaseLifecycleState state) => state switch

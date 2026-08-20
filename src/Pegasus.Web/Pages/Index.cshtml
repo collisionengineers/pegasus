@@ -53,7 +53,7 @@
             </span>
             <strong class="metric__value">@Model.MailActivity.ReceivedToday</strong>
         </a>
-        <a class="metric" data-state="unidentified" asp-page="/Unidentified/Index">
+        <a class="metric" data-state="unidentified" asp-page="/Triage/Index" asp-route-queue="unidentified">
             <span class="metric__label">
                 <svg class="icon icon--sm" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
                 Unidentified
