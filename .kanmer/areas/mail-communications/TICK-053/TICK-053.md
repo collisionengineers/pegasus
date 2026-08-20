@@ -31,34 +31,39 @@ blocks:
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 commits:
-  - 2d7c1421
-  - 72f55b8a
+  - 2d7c1421fcc4ff864cd9e114c904a3181c3fb4b9
+  - 72f55b8a551336ffd46b8536aafdc334c1854f26
   - 93c06957
+  - 347f5ce741e19e6973a31655cd433f5c452005b0
+  - 8b300043182ab14e8716323f6fa6f800bc2ba782
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/469'
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-20T11:11:50.033Z'
+updated: '2026-08-20T11:55:18.964Z'
 ---
 
 ## What
 
-Plan and research **MAIL-11**: Browse, search, and view mailbox messages and conversation threads in the app, including read-only search of accepted Deleted Items
+Implement **MAIL-11**: Browse, search, and view mailbox messages and conversation threads in the app, including read-only search of accepted Deleted Items.
 
 ## Why
 
-This is allocated to **Next / 0.3.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+This remains allocated to **Next / 0.3.0** in `docs/capabilities.md`. On 2026-08-20 the operator instructed “Implement the plan”, activating the planned local browse/search UI. That instruction does not authorize deployment, Graph permission changes, live mailbox writes, or claim live-mailbox/manual visual acceptance.
 
 ## Approach
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+- Reuse the existing retained-mail query/read model and canonical intake reader projection.
+- Keep Deleted Items as an explicit bounded GET-only read of exact approved mailbox scopes, with no persistence, backfill, reconstruction, or mailbox mutation.
+- Keep production composition, failure behavior, exact attachment identity, and acceptance evidence explicit.
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [x] A task-level plan covers the capability's exact contract and tests.
+- [x] The local implementation activation is recorded in canonical design/capability owners.
+- [x] Review blockers [[PR-015]], [[PR-016]], [[PR-017]], [[PR-018]], [[PR-019]], [[PR-020]], [[PR-021]], and [[PR-022]] have implementations and PIRs in Review.
 
 ## Notes
 
 - Source: `docs/capabilities.md` — MAIL-11.
+- Deployment and live-mailbox evidence remain separately allocated.
