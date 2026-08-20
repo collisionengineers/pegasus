@@ -13,6 +13,7 @@
 <a class="back-link" asp-page="/Mail/Index"
    asp-route-mailbox="@Model.MailboxFilter"
    asp-route-folder="@Model.FolderRouteValue"
+   asp-route-search="@Model.SearchTerm"
    asp-route-pageNumber="@Model.PageRouteValue">
     <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
     Back to Inbox
@@ -101,6 +102,7 @@
         <h3>Correct classification</h3>
         <form method="post" asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
               asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+              asp-route-search="@Model.SearchTerm"
               asp-route-pageNumber="@Model.PageNumber">
             <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
             <input type="hidden" asp-for="ExpectedClassificationVersion" value="@dossier.Version" />
@@ -157,9 +159,11 @@
 <nav class="tabs section-gap" aria-label="Sections">
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
        asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+       asp-route-search="@Model.SearchTerm"
        aria-current="@(Model.ActiveSection == "message" ? "page" : null)">Message</a>
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
        asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+       asp-route-search="@Model.SearchTerm"
        asp-route-section="attachments"
        aria-current="@(Model.ActiveSection == "attachments" ? "page" : null)">
         @(Model.Detail.Attachments.Count > 0
@@ -168,6 +172,7 @@
     </a>
     <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
        asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+       asp-route-search="@Model.SearchTerm"
        asp-route-section="thread"
        aria-current="@(Model.ActiveSection == "thread" ? "page" : null)">Thread</a>
 </nav>
@@ -269,6 +274,7 @@ else
                     <a asp-page="/Mail/Message" asp-route-id="@entry.Id"
                        asp-route-mailbox="@Model.MailboxFilter"
                        asp-route-folder="@Model.FolderRouteValue"
+                       asp-route-search="@Model.SearchTerm"
                        asp-route-pageNumber="@Model.PageRouteValue"
                        aria-current="@(entry.Id == summary.Id ? "page" : null)">
                         <span>

@@ -16,7 +16,8 @@ namespace Pegasus.Web.Pages.Mail;
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
-    GetRetainedMailFreshness getFreshness) : StaffPageModel
+    GetRetainedMailFreshness getFreshness,
+    SearchDeletedMail searchDeletedMail) : StaffPageModel
 {
     internal const int PageSize = 25;
 
@@ -40,6 +41,9 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int? PageNumber { get; set; }
 
+    [BindProperty(SupportsGet = true, Name = "search")]
+    public string? SearchTerm { get; set; }
+
     public MailFolderScope Folder { get; private set; } = MailFolderScope.Inbox;
 
     public RetainedMailPage Results { get; private set; } =
@@ -49,6 +53,8 @@ public sealed class IndexModel(
 
     public MailFreshness Freshness { get; private set; } =
         new(MailFreshnessState.Unavailable, null);
+
+    public DeletedMailSearchPage? DeletedResults { get; private set; }
 
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
@@ -67,16 +73,30 @@ public sealed class IndexModel(
         MailboxFilter = mailbox;
         var page = Math.Clamp(PageNumber ?? 1, 1, 10_000);
         PageNumber = page;
+        SearchTerm = string.IsNullOrWhiteSpace(SearchTerm) ? null : SearchTerm.Trim();
 
         try
         {
             Mailboxes = await listRetainedMail.ListMailboxesAsync(actor, cancellationToken);
-            Results = await listRetainedMail.ExecuteAsync(
-                actor,
-                new(mailbox, folder),
-                page,
-                PageSize,
-                cancellationToken);
+            if (folder == MailFolderScope.DeletedItems && SearchTerm is not null)
+            {
+                DeletedResults = await searchDeletedMail.ExecuteAsync(
+                    actor,
+                    mailbox,
+                    SearchTerm,
+                    page,
+                    PageSize,
+                    cancellationToken);
+            }
+            else
+            {
+                Results = await listRetainedMail.ExecuteAsync(
+                    actor,
+                    new(mailbox, folder, SearchTerm),
+                    page,
+                    PageSize,
+                    cancellationToken);
+            }
             Freshness = await getFreshness.ExecuteAsync(actor, cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -159,9 +179,20 @@ public sealed class IndexModel(
     {
         ["mailbox"] = MailboxFilter,
         ["folder"] = FolderRouteValue,
+        ["search"] = SearchTerm,
         ["pageNumber"] = Results.Page > 1
             ? Results.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : DeletedResults?.Page > 1
+                ? DeletedResults.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : null
+    };
+
+    public static string MatchLabel(RetainedMailSearchMatch match) => match.Kind switch
+    {
+        MailSearchMatchKind.MessageBody => "Message body",
+        MailSearchMatchKind.AttachmentFileName => $"Attachment name: {match.AttachmentFileName}",
+        MailSearchMatchKind.AttachmentContent => $"Attachment content: {match.AttachmentFileName}",
+        _ => "Message"
     };
 
     public static string MailFailureSentence(string? failureCode, long? sourceLength = null)

@@ -296,12 +296,20 @@ public sealed record IntakeSourceReadResult(
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
     bool IsIncomplete = false,
     string ReaderKey = "unspecified_reader",
-    string ReaderVersion = "1")
+    string ReaderVersion = "1",
+    IReadOnlyList<IntakeAttachmentDescriptor>? Attachments = null)
 {
     public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+
+    public IReadOnlyList<IntakeAttachmentDescriptor> AttachmentRecords => Attachments ?? [];
 }
+
+public sealed record IntakeAttachmentDescriptor(
+    string FileName,
+    string MediaType,
+    long? ContentLength);
 
 public sealed record IntakeAssetRecord(
     Guid Id,
@@ -437,11 +445,27 @@ public sealed record IntakeReceiptDraft(
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
     MailRouteEvaluationResult? MailRouteDecision = null,
     MailClassificationResult? MailClassificationDecision = null,
-    CaseMatchEvaluationResult? CaseMatchDecision = null)
+    CaseMatchEvaluationResult? CaseMatchDecision = null,
+    IReadOnlyList<IntakeSearchDocument>? SearchDocuments = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+
+    public IReadOnlyList<IntakeSearchDocument> SearchDocumentRecords => SearchDocuments ?? [];
+}
+
+/// <summary>
+/// One queryable projection of text the canonical intake reader already produced.
+/// A null attachment name denotes the root message body; named rows are attachment
+/// content. Empty text records that an attachment was retained but not searchable.
+/// </summary>
+public sealed record IntakeSearchDocument(
+    string SourceLabel,
+    string? AttachmentFileName,
+    string? Text)
+{
+    public bool IsSearchable => !string.IsNullOrWhiteSpace(Text);
 }
 
 /// <summary>

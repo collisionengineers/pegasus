@@ -51,6 +51,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             cancellationToken);
         var receipt = await context.IntakeReceipts
             .Include(item => item.Assets)
+            .Include(item => item.SearchDocuments)
             .Include(item => item.InstructionDraft)
             .Include(item => item.MailRouteDecision)
             .Include(item => item.MailClassificationDecision)
@@ -127,6 +128,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             draft.ProcessedAtUtc);
         ApplyCaseMatchDecision(context, receipt, draft.CaseMatchDecision);
         AppendNewDerivedAssets(receipt, draft.AssetRecords);
+        ReplaceSearchDocuments(context, receipt, draft.SearchDocumentRecords);
         receipt.Version++;
 
         context.IntakeReceiptEvents.Add(new()
@@ -490,6 +492,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
             WidthPixels = asset.WidthPixels,
             HeightPixels = asset.HeightPixels
         }));
+        AddSearchDocuments(receipt, draft.SearchDocumentRecords);
         context.IntakeReceipts.Add(receipt);
         context.IntakeReceiptEvents.Add(new()
         {
@@ -852,6 +855,36 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         entity.InspectionAddress = draft.InspectionAddress;
         entity.InspectionDate = draft.InspectionDate;
         receipt.InstructionDraft = entity;
+    }
+
+    private static void ReplaceSearchDocuments(
+        PegasusDbContext context,
+        IntakeReceiptEntity receipt,
+        IReadOnlyList<IntakeSearchDocument> documents)
+    {
+        context.RemoveRange(receipt.SearchDocuments);
+        receipt.SearchDocuments.Clear();
+        AddSearchDocuments(receipt, documents);
+    }
+
+    private static void AddSearchDocuments(
+        IntakeReceiptEntity receipt,
+        IReadOnlyList<IntakeSearchDocument> documents)
+    {
+        for (var ordinal = 0; ordinal < documents.Count; ordinal++)
+        {
+            var document = documents[ordinal];
+            receipt.SearchDocuments.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                IntakeReceiptId = receipt.Id,
+                IntakeReceipt = receipt,
+                Ordinal = ordinal,
+                SourceLabel = document.SourceLabel,
+                AttachmentFileName = document.AttachmentFileName,
+                Text = document.Text
+            });
+        }
     }
 
     private static void ApplyMailRouteDecision(

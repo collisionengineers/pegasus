@@ -20,7 +20,21 @@ public enum MailFolderScope
 /// Which slice of retained mail the operator is looking at. A null
 /// <paramref name="MailboxId"/> is the default all-mailboxes view.
 /// </summary>
-public sealed record MailWorkspaceScope(string? MailboxId, MailFolderScope Folder);
+public sealed record MailWorkspaceScope(
+    string? MailboxId,
+    MailFolderScope Folder,
+    string? SearchTerm = null);
+
+public enum MailSearchMatchKind
+{
+    MessageBody,
+    AttachmentFileName,
+    AttachmentContent
+}
+
+public sealed record RetainedMailSearchMatch(
+    MailSearchMatchKind Kind,
+    string? AttachmentFileName = null);
 
 public sealed record RetainedMailSummary(
     Guid Id,
@@ -39,7 +53,11 @@ public sealed record RetainedMailSummary(
     Guid? IntakeReceiptId,
     Guid? CaseId,
     string? CaseReference,
-    IntakeAllocationState? AllocationState = null);
+    IntakeAllocationState? AllocationState = null,
+    IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null)
+{
+    public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
+}
 
 /// <summary>
 /// One page of retained mail.
@@ -66,7 +84,8 @@ public sealed record RetainedMailPage(
 public sealed record RetainedMailAttachment(
     string FileName,
     string MediaType,
-    long ContentLength);
+    long ContentLength,
+    bool IsSearchable = false);
 
 public sealed record RetainedMailThreadEntry(
     Guid Id,
@@ -359,6 +378,13 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope),
                 "The mail folder scope is not recognized.");
         }
+        if (scope.SearchTerm is { } searchTerm
+            && (string.IsNullOrWhiteSpace(searchTerm) || searchTerm.Trim().Length > 200))
+        {
+            throw new ArgumentException(
+                "A mail search term must contain 1 to 200 characters.",
+                nameof(scope));
+        }
         if (scope.MailboxId is { } mailboxId
             && (string.IsNullOrWhiteSpace(mailboxId) || mailboxId.Length > 100))
         {
@@ -367,7 +393,11 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope));
         }
 
-        return await queries.ListAsync(scope, page, pageSize, cancellationToken);
+        var normalizedScope = scope with
+        {
+            SearchTerm = scope.SearchTerm?.Trim()
+        };
+        return await queries.ListAsync(normalizedScope, page, pageSize, cancellationToken);
     }
 
     public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(

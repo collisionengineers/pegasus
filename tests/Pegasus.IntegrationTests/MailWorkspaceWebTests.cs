@@ -126,7 +126,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task SentAndDeletedScopesNameWhatIsNotKeptRatherThanBeingAbsent()
+    public async Task SentNamesWhatIsNotKeptAndDeletedRequiresAnExplicitBoundedSearch()
     {
         using var factory = new IntakeWebApplicationFactory();
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
@@ -137,9 +137,24 @@ public sealed class MailWorkspaceWebTests
 
         Assert.Contains("Sent messages are not kept in Pegasus yet.", sent, StringComparison.Ordinal);
         Assert.Contains(
-            "Deleted items messages are not kept in Pegasus yet.",
+            "Enter a search term to read accepted Deleted Items within the selected approved mailbox scope.",
             deleted,
             StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SearchFiltersRetainedRowsAndCarriesTheTermThroughPagingAndDetail()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox?search=inspect");
+
+        Assert.Contains("name=\"search\" value=\"inspect\"", html, StringComparison.Ordinal);
+        Assert.Contains("search=inspect&amp;pageNumber=2", html, StringComparison.Ordinal);
+        Assert.Contains("Matched in: Message body", html, StringComparison.Ordinal);
+        Assert.Contains("search=inspect", html, StringComparison.Ordinal);
     }
 
     [Fact]
