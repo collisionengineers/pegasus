@@ -48,3 +48,10 @@ Estimated incremental diff: two existing files, under 50 lines.
 ## Governing docs
 
 FRD-08's exact per-attachment disclosure is preserved with the existing ordinal and one parser/store.
+
+## Final simplification pass — 2026-08-20
+
+- Reuse: attached text uses the canonical reader's existing unsupported attachment descriptor path and ordinal list.
+- Simplification: one condition distinguishes attached text from ordinary body text; no text parser, identity, schema, or store was added.
+- Efficiency: the part is described without decoding/indexing it a second time.
+- Altitude: MIME occurrence identity remains wholly in the canonical Infrastructure reader.

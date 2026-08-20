@@ -29,3 +29,10 @@ Estimated incremental diff: five existing files, about 120 lines.
 ## Governing docs
 
 FRD-08 gets a one-to-one visible body match from the existing receipt-owned projection. The no-reconstruction boundary remains intact.
+
+## Final simplification pass — 2026-08-20
+
+- Reuse: the receipt-owned root document, route decision, `StaffForwardBodyCleaner`, and existing EF match mapper now own both search and visible detail body.
+- Simplification: removed raw retained body from search admission instead of adding a normalized column/table/backfill.
+- Efficiency: root and attachment predicates remain in SQL before count/paging; detail loads one existing root row.
+- Altitude: Core creates normalized projection policy, Infrastructure persists/queries it, and Web only renders the result.
