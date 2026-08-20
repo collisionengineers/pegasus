@@ -37,6 +37,18 @@ internal sealed class ImageIntakeEntity
     public string? MergedIntoCaseReference { get; set; }
     public string? ClosureReason { get; set; }
     public DateTimeOffset? ClosedAtUtc { get; set; }
+
+    /// <summary>
+    /// External evidence-storage (Box) state for this Image-initiated Case:
+    /// null (registered before this capability), "pending" (folder work
+    /// queued), "confirmed" (folder + images stored), "merged" (contents
+    /// folded into the paired case and the folder removed), or "failed"
+    /// (work terminally failed; blob custody remains authoritative).
+    /// </summary>
+    public string? CustodyState { get; set; }
+    public string? CustodyRootRemoteId { get; set; }
+    public DateTimeOffset? CustodyConfirmedAtUtc { get; set; }
+    public DateTimeOffset? CustodyMergedAtUtc { get; set; }
 }
 
 internal sealed class ImageIntakeLifecycleEventEntity

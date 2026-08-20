@@ -7,6 +7,8 @@ public static class ExternalWorkKinds
 {
     public const string CreateCaseCustody = "create_case_custody";
     public const string CreateAuditReferenceCustody = "create_audit_reference_custody";
+    public const string CreateImageCaseCustody = "create_image_case_custody";
+    public const string MergeImageCaseCustody = "merge_image_case_custody";
     public const string VehicleLookup = "vehicle_lookup";
 }
 
@@ -52,6 +54,8 @@ public sealed class ProcessQueuedExternalWork(
         {
             case ExternalWorkKinds.CreateCaseCustody:
             case ExternalWorkKinds.CreateAuditReferenceCustody:
+            case ExternalWorkKinds.CreateImageCaseCustody:
+            case ExternalWorkKinds.MergeImageCaseCustody:
                 await custody.ExecuteAsync(workItemId, cancellationToken);
                 return;
             case ExternalWorkKinds.VehicleLookup:
