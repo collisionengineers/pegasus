@@ -5,9 +5,11 @@
 - [x] Migrate all 17 reconciled direct actor callers, preserving conditions, failure results, authorization, and local staff-Guid parsing; remove remaining operation-key copies while keeping Upload.ExternalReceiptToken local.
 - [x] Keep Uploads/Request AllowAnonymous on PageModel, reuse StaffPageModel.NewOperationKey statically, and add proportional ownership/anonymous/receipt-boundary architecture assertions.
 - [x] Refresh docs/current-architecture.md; run all four simplification lenses over the diff and immediate surroundings; apply findings and append dated dispositions to plan.md.
-- [ ] After simplification, run the exact restore/build/architecture/focused-integration/inventory checks from plan.md and record results in the post-implementation report.
+- [x] After simplification; run the exact restore/build/architecture/focused-integration/inventory checks from plan.md and record results in the post-implementation report.
 
 ## Progress notes
+
+- 2026-08-20: Final evidence: locked restore succeeded; Release build succeeded with 0 warnings/0 errors; 98/98 architecture tests passed; focused integration batches covered the exact planned 15 classes with 114 passed, 6 skipped, 0 failed; inventories found one actor factory site, one operation-key method, one separate receipt-token site, and the anonymous RequestModel boundary intact. The original combined integration wrapper outlived its timed-out parent and was stopped; clean captured batches then passed.
 
 - 2026-08-20: Four-lens simplification pass complete; all findings applied, none skipped or deferred. Reused UploadConfirmationPageModel, removed obsolete helpers/usings, strengthened the GUID-N guard to count occurrences, and retained receipt-token ownership at intake altitude.
 
