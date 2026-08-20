@@ -2,12 +2,15 @@
 id: PLAT-014
 type: ticket
 title: Correct missing LocalDB detection in Offline lifecycle
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-20T09:02:33.715Z'
+taken_at: '2026-08-20T10:41:05.974Z'
+branch: task/plat-014-localdb-detection
+worktree: ../pegasus-worktrees/plat-014
 labels:
   - local-development
   - offline
@@ -18,7 +21,7 @@ blocks:
   - PLAT-005
 archived: false
 created: '2026-08-20T08:56:51.802Z'
-updated: '2026-08-20T09:02:33.715Z'
+updated: '2026-08-20T10:41:05.974Z'
 ---
 
 ## Why
