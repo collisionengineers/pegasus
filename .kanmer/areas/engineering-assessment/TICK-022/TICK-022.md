@@ -4,10 +4,16 @@ type: ticket
 title: >-
   EXT-03 — Operator-approved deterministic UTF-8 EVA handoff with the exact
   ordered 13-key JSON, every eligible custody-confirmed…
-status: backlog
+status: done
 area: engineering-assessment
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T03:37:00.937Z'
+  implementing: '2026-08-20T03:37:02.731Z'
+  review: '2026-08-20T03:37:17.847Z'
+  verifying: '2026-08-20T03:37:18.534Z'
+  done: '2026-08-20T03:37:21.767Z'
 labels:
   - capability
   - EXT-03
@@ -17,9 +23,12 @@ groups:
   - HZN-002
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-07-eva-and-external-engineering-handoff.md
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.205Z'
-updated: '2026-08-17T06:43:40.008Z'
+updated: '2026-08-20T03:37:22.591Z'
 ---
 
 ## What
