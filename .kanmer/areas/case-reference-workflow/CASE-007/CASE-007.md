@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Case page shows only what matters: short read-only view, operator words,
   toggle edit
-status: backlog
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-20T17:41:25.387Z'
+branch: task/case-007-case-page
+worktree: ../pegasus-worktrees/case-007
 labels:
   - ui
   - design
@@ -19,7 +22,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-20T17:39:20.825Z'
-updated: '2026-08-20T17:39:20.825Z'
+updated: '2026-08-20T17:41:25.387Z'
 ---
 
 ## Why
