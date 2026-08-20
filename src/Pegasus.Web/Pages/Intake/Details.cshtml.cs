@@ -520,10 +520,7 @@ public sealed partial class DetailsModel(
             id,
             async actor =>
             {
-                var normalized = new string((vehicleRegistration ?? string.Empty)
-                    .ToUpperInvariant()
-                    .Where(character => char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
-                    .ToArray());
+                var normalized = ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration);
                 var origin = await imageIntakeOriginResolver.ResolveOriginAsync(id, cancellationToken)
                     ?? throw new InvalidOperationException(
                         "The intake receipt has no completed evaluation to register from.");
