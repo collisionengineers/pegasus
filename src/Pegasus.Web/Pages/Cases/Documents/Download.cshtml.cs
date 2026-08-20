@@ -1,9 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.Net.Http.Headers;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 
@@ -14,7 +11,7 @@ namespace Pegasus.Web.Pages.Cases.Documents;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class DownloadModel(
     IDownloadCaseDocument downloadCaseDocument,
-    ILogger<DownloadModel> logger) : PageModel
+    ILogger<DownloadModel> logger) : StaffPageModel
 {
     public async Task<IActionResult> OnGetAsync(
         Guid caseId,
@@ -67,21 +64,6 @@ public sealed partial class DownloadModel(
             LogDocumentDownloadDenied(logger, caseId, documentId, versionId, exception);
             return NotFound();
         }
-    }
-
-    private bool TryGetActor(out ActionActor actor)
-    {
-        if (StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var resolved))
-        {
-            actor = resolved;
-            return true;
-        }
-
-        actor = null!;
-        return false;
     }
 
     private static bool TryValidateResponse(
