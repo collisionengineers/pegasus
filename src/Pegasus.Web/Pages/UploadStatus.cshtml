@@ -12,7 +12,17 @@
     <div>
         <p class="eyebrow">Upload status</p>
         <h1>@Model.Heading</h1>
-        <p class="lede" aria-live="polite">@Model.Message</p>
+        @* Once the confirmation section below has something to say, it says
+           it once — the generic "Processing is complete."/failure sentence
+           here would otherwise repeat the same fact a second time. *@
+        @if (Model.Outcome is null)
+        {
+            <p class="lede" aria-live="polite">@Model.Message</p>
+        }
+        else if (Model.IsDuplicate)
+        {
+            <p class="lede" aria-live="polite">@Model.Status.SourceFileName was already received. No duplicate was created.</p>
+        }
     </div>
 </header>
 
@@ -25,20 +35,17 @@
     <h2 id="upload-file-heading" class="section-label">@Model.Status.SourceFileName</h2>
     <dl class="detail-list">
         <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>
-        <div><dt>Receipt</dt><dd>@Model.Status.StagedReceiptId</dd></div>
     </dl>
 
-    <div class="button-row">
-        @if (Model.Status.CaseId is { } caseId)
-        {
-            <a class="primary-action" asp-page="/Cases/Details" asp-route-id="@caseId">Open case</a>
-        }
-        else if (Model.Status.Status == QueuedIntakeStatusKind.Complete
-            && Model.Status.ProcessedReceiptId is { } receiptId)
-        {
-            <a class="primary-action" asp-page="/Intake/Details" asp-route-id="@receiptId">Open receipt</a>
-        }
+    @if (Model.Outcome is { } outcome)
+    {
+        @* Processing has resolved: the confirmation decision replaces the
+           plain status text — what already happened automatically, or the
+           staff decision that is genuinely open. *@
+        <partial name="Shared/_UploadOutcome" model="@outcome" />
+    }
 
+    <div class="button-row">
         <a class="secondary-action"
            asp-page="/UploadStatus"
            asp-route-id="@Model.Status.StagedReceiptId"
