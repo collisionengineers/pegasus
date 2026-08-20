@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Azure.Core;
 using Azure.Identity;
@@ -30,6 +31,72 @@ public sealed class MailWorkspaceWebTests
     private const string FirstMailboxAddress = "instructions@collisionengineers.co.uk";
     private const string SecondMailboxId = "reports";
     private const string SecondMailboxAddress = "reports@collisionengineers.co.uk";
+
+    [Fact]
+    public async Task QuickPreviewIsAuthenticatedExactEvidenceAndDoesNotMutateMailState()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, "/Inbox");
+        Assert.Contains("data-mail-preview-workspace", html, StringComparison.Ordinal);
+        Assert.Contains("data-mail-preview-trigger", html, StringComparison.Ordinal);
+        Assert.Contains("handler=Preview", html, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(messageId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
+        var previewMarkup = Between(html, "<aside id=\"mail-quick-preview\"", "</aside>");
+        Assert.DoesNotContain("<form", previewMarkup, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("<button", previewMarkup, StringComparison.OrdinalIgnoreCase);
+
+        bool readBefore;
+        int classificationHistoryBefore;
+        int associationHistoryBefore;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            readBefore = await context.RetainedMailboxMessages
+                .Where(item => item.Id == messageId)
+                .Select(item => item.IsRead)
+                .SingleAsync();
+            classificationHistoryBefore = await context.IntakeMailClassificationHistory.CountAsync();
+            associationHistoryBefore = await context.IntakeMutationHistory.CountAsync();
+        }
+
+        using var response = await client.GetAsync($"/Inbox?handler=Preview&id={messageId:D}");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var preview = document.RootElement;
+        Assert.Equal(messageId, preview.GetProperty("id").GetGuid());
+        Assert.Equal("A Sender", preview.GetProperty("sender").GetString());
+        Assert.Equal($"Message 0 from {FirstMailboxId}", preview.GetProperty("subject").GetString());
+        Assert.Equal("Please inspect the vehicle at the address supplied.", preview.GetProperty("excerpt").GetString());
+        Assert.Equal("Not yet processed", preview.GetProperty("classification").GetString());
+        Assert.Equal("Not associated", preview.GetProperty("association").GetString());
+        Assert.Equal("estimate.pdf", Assert.Single(preview.GetProperty("attachments").EnumerateArray()).GetString());
+
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+            await using var context = await contextFactory.CreateDbContextAsync();
+            Assert.Equal(readBefore, await context.RetainedMailboxMessages
+                .Where(item => item.Id == messageId)
+                .Select(item => item.IsRead)
+                .SingleAsync());
+            Assert.Equal(classificationHistoryBefore, await context.IntakeMailClassificationHistory.CountAsync());
+            Assert.Equal(associationHistoryBefore, await context.IntakeMutationHistory.CountAsync());
+        }
+
+        using var unknown = await client.GetAsync($"/Inbox?handler=Preview&id={Guid.NewGuid():D}");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        using var rolelessRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Inbox?handler=Preview&id={messageId:D}");
+        rolelessRequest.Headers.Add("X-Test-Roleless", "1");
+        using var roleless = await client.SendAsync(rolelessRequest);
+        Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+    }
 
     [Fact]
     public async Task ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement()
