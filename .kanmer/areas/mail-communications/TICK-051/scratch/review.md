@@ -32,3 +32,19 @@ Needs changes. Reviewed the complete ticket and both epic contexts, resolved gat
 ## CI state at needs-changes handoff
 
 Initial exact-head run 32408607514 for `33aa2dfb` had unit, changes, documentation, reference-data and local-development-scripts green; SQL shards 1–3 and browser were still in progress when the implementer began the blocker fixes. This run is superseded by any blocker commit and cannot satisfy the required replacement-head gate. Re-review must wait for the full replacement run on the final head.
+
+# Independent re-review — PR #486 at a940af83 — 2026-08-20
+
+## Blocker disposition
+
+- [[PR-045]] fixed-in-PR: two focused LocalDB tests enter real `ProcessQueuedIntake` live and completed-replay branches. They prove provider → MAIL-09 → allocation order, downstream visibility of the associated existing Case, one Case total, persisted association, and subsequent associated-replay skip. Test-only wrappers reuse the real processor, Core use case, EF query/write, existing retained-message helper and existing allocation-recovery fixture; no production abstraction was added.
+- [[PR-046]] fixed-in-PR: the MAIL-09 capability row now preserves the QDOS-direct `Now / 0.1.0-alpha.1` statement and ADR-0020 link while retaining general `Next / 0.3.0` and local-only evidence.
+- [[PR-047]] fixed-in-ticket evidence: the PIR contains all 14 final repository paths exactly once with an honest rationale and updated acceptance/verification boundaries.
+
+## Prior findings rechecked
+
+The final production diff is unchanged from the prior architecture/simplicity review: one Core choose-or-abstain policy, one shared Case registration grammar, one focused evidence port, one shared current-association precedence helper, and the existing `EfIntakeMutationStore`/association/history transaction. Both evidence forms agree or abstain; inbound Case/PO is absent; stale evidence is revalidated inside the existing serializable transaction without entering stable request identity; inactive staff reversal suppresses accepted fallback and automatic relink. No duplicate matcher, table, normalizer, generic framework, provider adapter, external operation or live write.
+
+## Verdict pending CI
+
+Code, docs and ticket evidence pass at exact head `a940af83995caa811da93b4b439cc12037d7dc48`. Final pass/merge remains conditional on full replacement run 32410662329 completing green.
