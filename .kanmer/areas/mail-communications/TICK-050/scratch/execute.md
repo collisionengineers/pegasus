@@ -1,1 +1,3 @@
 Execution started in `../pegasus-worktrees/tick-050` on `task/tick-050-mail-08-suggested-next-action` from exact origin/dev e4d56d9e. Added a concrete nullable `RetainedMailSuggestedMove` derived only from landed `FolderRecommendation.CanMove`; Razor gates the existing MAIL-07 dialog through it. Added focused Core/Web assertions and local-evidence docs. No Infrastructure/EF/MCP/provider changes.
+
+Verification complete: locked restore passed; RetainedMailTests 34/34; direct Web cases 3/3; full MailWorkspaceWebTests 30/30; full Core 848/848; Architecture 98/98; Release solution build 0 warnings/errors; diff check passed. Four lenses found no remaining scope expansion.

@@ -33,3 +33,12 @@ This is smaller and safer than persisting advice or adding an action enum/regist
 - **Duplicate eligibility:** derive only from `RetainedMailFolderRecommendation.CanMove`.
 - **Freshness leakage:** keep command freshness on the landed recommendation/dossier used by MAIL-07, not the advisory value.
 - **Scope growth:** one concrete record, no enum/registry/framework or additional action.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Reused `GetRetainedMail`, `RetainedMailFolderRecommendation.CanMove`, the latest MAIL-07 outcome, the existing message-detail route, shared reason dialog and unchanged `MoveToRecommendedFolder` POST. No second eligibility policy, label table or command owner.
+- **Simplification:** Kept one concrete nullable `RetainedMailSuggestedMove` rather than an action enum, registry or general descriptor. Consolidated the previously duplicated recommendation/latest-move detail projection into one `with` expression.
+- **Efficiency:** Advice adds no I/O, persistence or provider call; it is one constant-time branch after reads MAIL-05/07 already perform.
+- **Altitude:** Core owns the derived advisory, Razor owns its label/presentation, and MAIL-07 continues to own confirmation, authorization, freshness, persistence and mutation. Infrastructure and MCP are unchanged.
+- **Applied findings:** suppress a fresh Move advisory while the latest operation is Uncertain; allow it again only after source-folder recovery reaches Failed; combine current-location and Uncertain re-derivation evidence into the existing Core test instead of adding a test framework.
+- **Unapplied findings:** none.
