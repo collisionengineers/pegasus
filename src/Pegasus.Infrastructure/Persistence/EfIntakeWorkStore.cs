@@ -486,6 +486,19 @@ public sealed class EfIntakeWorkStore(
         await context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<Guid?> FindStagedReceiptIdForReceiptAsync(
+        Guid intakeReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        return await context.IntakeEvaluations
+            .AsNoTracking()
+            .Where(item => item.ProcessedReceiptId == intakeReceiptId)
+            .OrderByDescending(item => item.Revision)
+            .Select(item => (Guid?)item.StagedReceiptId)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
     private static async Task<DispatchCandidate?> FindNextDispatchCandidateAsync(
         PegasusDbContext context,
         DateTimeOffset nowUtc,

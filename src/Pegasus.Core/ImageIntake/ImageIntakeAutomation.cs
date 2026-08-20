@@ -6,6 +6,22 @@ using Pegasus.Core.Intake;
 namespace Pegasus.Core.ImageIntake;
 
 /// <summary>
+/// What one automation pass concluded about a receipt.
+/// </summary>
+/// <param name="Receipt">The receipt's state after this pass.</param>
+/// <param name="GroupPending">
+/// True only when <paramref name="Receipt"/> is a member of a submission
+/// group whose own outcome did not complete this pass — the group is still
+/// waiting on sibling members/recognition, or this receipt's own
+/// registration attempt lost a transient concurrency race. Always false for
+/// the non-group path and for a group that resolved to a legitimate terminal
+/// outcome (no usable or ambiguous VRM, technical failure), which are
+/// unchanged INTK-007 scope. What the caller does with a pending outcome is
+/// owned by <c>ProcessQueuedIntake.ApplyImageIntakeAutomationAsync</c>.
+/// </param>
+public sealed record ImageIntakeAutomationOutcome(IntakeReceipt Receipt, bool GroupPending = false);
+
+/// <summary>
 /// The post-persistence intake hook for image-only material: scan every
 /// retained image, record every outcome, and — at the provisional bar —
 /// automatically register the Image intake and associate the one unambiguous
@@ -14,15 +30,15 @@ namespace Pegasus.Core.ImageIntake;
 /// </summary>
 public interface IImageIntakeAutomation
 {
-    Task<IntakeReceipt> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
+    Task<ImageIntakeAutomationOutcome> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken);
 }
 
 public sealed class NoImageIntakeAutomation : IImageIntakeAutomation
 {
-    public Task<IntakeReceipt> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken)
+    public Task<ImageIntakeAutomationOutcome> ApplyAsync(IntakeReceipt receipt, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
-        return Task.FromResult(receipt);
+        return Task.FromResult(new ImageIntakeAutomationOutcome(receipt));
     }
 }
 
@@ -44,14 +60,14 @@ public sealed class ImageIntakeAutomation(
 
     private static readonly ActivitySource Telemetry = new("Pegasus.Core.ImageIntake");
 
-    public async Task<IntakeReceipt> ApplyAsync(
+    public async Task<ImageIntakeAutomationOutcome> ApplyAsync(
         IntakeReceipt receipt,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(receipt);
         if (!IsImageOnly(receipt))
         {
-            return receipt;
+            return new(receipt);
         }
 
         using var activity = Telemetry.StartActivity("image_intake_automation");
@@ -59,10 +75,10 @@ public sealed class ImageIntakeAutomation(
 
         if (groupStore is not null)
         {
-            var groupUpdated = await TryApplyGroupAsync(receipt, activity, cancellationToken);
-            if (groupUpdated is not null)
+            var groupOutcome = await TryApplyGroupAsync(receipt, activity, cancellationToken);
+            if (groupOutcome is not null)
             {
-                return groupUpdated;
+                return groupOutcome;
             }
         }
 
@@ -77,11 +93,11 @@ public sealed class ImageIntakeAutomation(
                 await imageIntakeStore.EnsureRegisteredReceiptDecisionAsync(
                     receipt.Id,
                     cancellationToken);
-                return await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
+                return new(await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt);
             }
             catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
             {
-                return receipt;
+                return new(receipt);
             }
         }
 
@@ -99,7 +115,7 @@ public sealed class ImageIntakeAutomation(
             != VrmRecognitionProvisionalBar.RequiredDistinctRegistrations)
         {
             activity?.SetTag("image_intake.outcome", "below_bar");
-            return receipt;
+            return new(receipt);
         }
 
         var registration = confidentRegistrations[0];
@@ -110,10 +126,10 @@ public sealed class ImageIntakeAutomation(
             activity,
             groupDecision: null,
             cancellationToken);
-        return updated ?? receipt;
+        return new(updated ?? receipt);
     }
 
-    private async Task<IntakeReceipt?> TryApplyGroupAsync(
+    private async Task<ImageIntakeAutomationOutcome?> TryApplyGroupAsync(
         IntakeReceipt receipt,
         Activity? activity,
         CancellationToken cancellationToken)
@@ -132,9 +148,10 @@ public sealed class ImageIntakeAutomation(
             // Fewer member rows exist than the originating submission
             // declared: later files in the same batch are still being
             // staged. This is distinct from the per-row check below, which
-            // can only see rows that already exist.
+            // can only see rows that already exist. Retriable, not terminal:
+            // the caller must defer rather than fall back to Unidentified.
             activity?.SetTag("image_intake.group_outcome", "waiting_for_members");
-            return receipt;
+            return new(receipt, GroupPending: true);
         }
 
         var receipts = new List<IntakeReceipt>(members.Count);
@@ -148,7 +165,7 @@ public sealed class ImageIntakeAutomation(
             if (memberReceipt is null)
             {
                 activity?.SetTag("image_intake.group_outcome", "waiting_for_members");
-                return receipt;
+                return new(receipt, GroupPending: true);
             }
 
             receipts.Add(memberReceipt);
@@ -203,30 +220,51 @@ public sealed class ImageIntakeAutomation(
         activity?.SetTag("image_intake.group_id", group.Id);
         activity?.SetTag("image_intake.group_outcome", routing.Decision.ToString());
         activity?.SetTag("image_intake.group_reason", routing.ReasonCode);
-        if (routing.Decision is ImageIntakeGroupRoutingDecision.RouteToUnidentified
-            or ImageIntakeGroupRoutingDecision.TechnicalFailure
-            or ImageIntakeGroupRoutingDecision.WaitingForMembers
-            or ImageIntakeGroupRoutingDecision.WaitingForRecognition
-            || routing.NormalizedRegistration is null)
+        if (routing.Decision is ImageIntakeGroupRoutingDecision.WaitingForMembers
+            or ImageIntakeGroupRoutingDecision.WaitingForRecognition)
         {
-            // No accepted VRM is available for ImageIntake registration. Keep
-            // the intact group available for Unidentified, including the
-            // explicit conflicting_vrms outcome.
-            return receipt;
+            // Recognition has not finished for every member yet. Retriable,
+            // not terminal.
+            return new(receipt, GroupPending: true);
         }
 
+        if (routing.Decision is ImageIntakeGroupRoutingDecision.RouteToUnidentified
+            or ImageIntakeGroupRoutingDecision.TechnicalFailure
+            || routing.NormalizedRegistration is null)
+        {
+            // No accepted VRM is available for ImageIntake registration. This
+            // is a legitimate, resolved group outcome (not retriable): keep
+            // the intact group available for Unidentified, including the
+            // explicit conflicting_vrms outcome (INTK-007 scope, unchanged).
+            return new(receipt);
+        }
+
+        // Every member that resolves this pass registers; a member whose
+        // registration attempt loses a transient concurrency race (e.g. two
+        // siblings' work items racing the same VRM's sequence row) is not
+        // silently dropped — it is reported back as pending so the caller
+        // defers it via the durable-work retry convention instead of ever
+        // letting it fall through to the instruction-fallback/Unidentified
+        // path while the group could still resolve.
+        var allRegistered = true;
         foreach (var (memberReceipt, suggestions) in scans)
         {
-            await TryRegisterAndAssociateAsync(
+            var updated = await TryRegisterAndAssociateAsync(
                 memberReceipt,
                 routing.NormalizedRegistration,
                 suggestions,
                 activity,
                 routing.Decision,
                 cancellationToken);
+            if (updated is null)
+            {
+                allRegistered = false;
+            }
         }
 
-        return await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
+        var finalReceipt = await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
+        var pending = !allRegistered && finalReceipt.Decision == IntakeDecision.NeedsSorting;
+        return new(finalReceipt, pending);
 
         static bool IsTerminal(IReadOnlyList<ImageVrmSuggestion> suggestions) =>
             suggestions.Count > 0
