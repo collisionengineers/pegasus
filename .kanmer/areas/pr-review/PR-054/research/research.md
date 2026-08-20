@@ -1,0 +1,3 @@
+# Focused research — PR-054
+
+`MessageModel` has six exact-message POST handlers: prepare Link, prepare Unlink, final Link, final Unlink, classification correction, and recommended-folder move. GET and `ReloadAsync` call the same `IndexModel.TryParseFolder` plus `ParseQueueFilter`, but each successful POST reaches reads, lease acquisition, or mutation before reload validation. A single private list-context helper can consolidate the existing parser pair and run immediately after authenticated actor resolution in GET, all six POST handlers, and reload. This rejects unknown keys and Deleted Items plus queue without adding policy or authorization.
