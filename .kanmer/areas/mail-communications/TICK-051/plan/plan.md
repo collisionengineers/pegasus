@@ -36,3 +36,11 @@ Extend that existing request with an optional evidence fingerprint. `EfIntakeMut
 - **Policy duplication:** Core chooses the candidate; EF only gathers facts and verifies unchanged evidence.
 - **Normalizer drift:** share the existing Case-search convention.
 - **Scope growth:** no migration/table/index/framework/manual UI/MCP/external operation.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** pass. Reused `IAutomaticCaseAssociationStore` / `EfIntakeMutationStore`, the Case registration grammar, queued-intake advisory convention, and one shared current-association precedence query. The provider-scoped `CaseMatchIndex` cannot own system-wide MAIL-09 candidates, so current `CaseDataFields` remain the authoritative read.
+- **Simplification:** one finding applied. The expected evidence fingerprint is a transaction freshness precondition, not stable command identity; excluding it from the established request fingerprint preserves both legacy callers and same-key replay after the association increments receipt version.
+- **Efficiency:** pass. Retained projection stays page-batched; thread reads exact mailbox/conversation tokens; no N+1 query, duplicate projection, table, index, or migration was added. The system-wide registration scan is the smallest correct query because stored values require the shared normalization grammar and the existing match index is provider-limited.
+- **Altitude:** pass. One focused Core policy selects or abstains; Infrastructure gathers current facts and verifies freshness inside the existing transaction; the existing queued caller invokes it. No generic mail matcher, registry, action matrix, provider adapter, or external operation was introduced.
+- **Unapplied findings:** none.

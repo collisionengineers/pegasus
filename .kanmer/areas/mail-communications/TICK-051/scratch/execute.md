@@ -1,0 +1,1 @@
+2026-08-20 implementation complete locally. Exact base 09b42a57. Release build, full Core 860/860, Architecture 98/98, and focused CaseMatch+Retained SQL 33/33 are green. Four lenses recorded in plan; no live/external writes. Awaiting final build completion, commit/push/PR.
