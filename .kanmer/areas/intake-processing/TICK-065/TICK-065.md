@@ -4,12 +4,15 @@ type: ticket
 title: >-
   INT-32 — Instruction/image halves retain separate age and chase state;
   definitive pairing notifies staff that the job is ready
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-20T03:49:51.314Z'
+taken_at: '2026-08-20T05:46:41.267Z'
+branch: task/tick-065-int-32-completion
+worktree: ../pegasus-worktrees/tick-065
 labels:
   - capability
   - INT-32
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:05:19.575Z'
-updated: '2026-08-20T03:50:02.579Z'
+updated: '2026-08-20T05:46:41.267Z'
 ---
 
 ## What

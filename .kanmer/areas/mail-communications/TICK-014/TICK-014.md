@@ -2,7 +2,7 @@
 id: TICK-014
 type: ticket
 title: MAIL-16 — Automatically match the exact report Sent item to its case
-status: verifying
+status: done
 area: mail-communications
 assignee: ''
 profile: feature
@@ -11,6 +11,7 @@ stageEntered:
   implementing: '2026-08-20T05:44:57.109Z'
   review: '2026-08-20T05:45:12.375Z'
   verifying: '2026-08-20T05:45:31.530Z'
+  done: '2026-08-20T05:46:26.659Z'
 labels:
   - capability
   - MAIL-16
@@ -21,9 +22,10 @@ groups:
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.047Z'
-updated: '2026-08-20T05:45:31.530Z'
+updated: '2026-08-20T05:46:32.293Z'
 ---
 
 ## What

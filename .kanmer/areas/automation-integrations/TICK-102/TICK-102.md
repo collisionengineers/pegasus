@@ -4,7 +4,7 @@ type: ticket
 title: >-
   AI-09 — Staff Send to AI creates one durable idempotent capability-scoped work
   request bound to an immutable case/version stamp…
-status: review
+status: verifying
 area: automation-integrations
 assignee: ''
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   preparing: '2026-08-20T05:39:28.583Z'
   implementing: '2026-08-20T05:40:03.231Z'
   review: '2026-08-20T05:40:10.234Z'
+  verifying: '2026-08-20T05:46:39.396Z'
 labels:
   - capability
   - AI-09
@@ -26,7 +27,7 @@ refs:
   - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-12T15:06:02.768Z'
-updated: '2026-08-20T05:41:24.452Z'
+updated: '2026-08-20T05:46:39.396Z'
 ---
 
 ## What

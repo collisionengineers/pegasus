@@ -1,0 +1,14 @@
+- [ ] `ImageIntakeChaseSchedule.IsChaseDue` added in Core, reusing `CaseChaseSchedule.FirstChaseAt`
+- [ ] Core unit tests for the chase-due boundary (not due / due exactly at / due past)
+- [ ] `OperatorLabels.ImageChaseState` added, reusing "Chase due" text
+- [ ] `_StatusChip.cshtml` tone entries added for chase/not-yet-due states
+- [ ] `Triage/Index.cshtml.cs` exposes `IsImageIntakeChaseDue`
+- [ ] `Triage/Index.cshtml` Image-initiated table gets a Chase column
+- [ ] Web test asserts the Chase column renders for a freshly registered image intake
+- [ ] `docs/frd/frd-02-intake-and-source-identity.md` updated with the chase-due read
+- [ ] Age (already satisfied) and notification (already satisfied) verified and documented in research/plan, no code invented
+- [ ] `dotnet build -c Release` zero warnings
+- [ ] Focused `dotnet test` for the new/changed tests green
+- [ ] Simplification pass run over the branch diff, findings recorded in plan.md
+- [ ] Post-implementation report written
+- [ ] PR opened against `dev`
