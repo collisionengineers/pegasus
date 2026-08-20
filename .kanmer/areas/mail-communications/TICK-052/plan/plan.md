@@ -34,3 +34,20 @@ No live mailbox/Graph/Box/cloud/deployment/permission/production write; no new s
 - **Altitude:** Web owns presentation/orchestration only. Core and the existing serializable EF transaction continue to own authorization, edit-lease enforcement, idempotency, current-association mutation, and append-only history.
 - **Applied findings:** corrected the stale helper premise; reused the shared search helper; reused the shared lifecycle label; rejected terminal/archived selected targets before leasing; validated reason before any lease mutation; removed the unnecessary lease-key suffix.
 - **Unapplied findings:** none.
+
+## PR-048..050 correction plan — 2026-08-20
+
+### Governing docs
+
+FRD-08 still owns exact-message reasoned association and permanent history. `docs/design/README.md` requires the whole visible search result to be one keyboard/accessibility target. No governing-doc behavior or ADR changes.
+
+### Steps
+
+1. Reuse the Intake Details lease-first convention: add separate prepare-link and prepare-unlink POSTs that verify the server-bound receipt/current target and acquire the existing Case lease.
+2. Carry the exact lease token, reviewed versions, and one association operation key into the final reason dialog. On final POST, resolve message→receipt server-side and call the existing Core command without pre-empting its replay/fingerprint ordering.
+3. On a definitive association refusal after preparation, quietly release through `IReleaseCaseEditLease` with `CancellationToken.None`; preserve uncertain/cancelled outcomes for same-confirmation recovery.
+4. Put registration, claimant, and stage inside each existing Case-result anchor.
+5. Add exact authenticated SQL/Web tests for successful link/unlink replay, same-key changed-input conflict, post-acquire failure compensation/immediate retry, successful lease consumption, and accessible result text.
+6. Run focused/proportional verification, repeat four lenses, update PIR/traceability, push the replacement head, and leave Review.
+
+No Core/EF/schema/framework/swap/external-write scope is introduced.

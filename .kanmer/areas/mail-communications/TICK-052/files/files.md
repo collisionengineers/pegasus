@@ -20,3 +20,14 @@
 ## Explicitly unchanged
 
 No Core/EF schema, migration, permission, Graph/Box adapter, generic command framework, active-to-active swap, MCP surface, or live-production integration.
+
+## PR-048..050 correction files — 2026-08-20
+
+| Path | Focused correction |
+|---|---|
+| `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` | Add explicit prepare-link/prepare-unlink lease handlers; accept the prepared lease token in final handlers; let Core see exact replay/conflict before Web state checks; compensate definitive failures through existing `IReleaseCaseEditLease` with non-request cancellation. |
+| `src/Pegasus.Web/Pages/Mail/Message.cshtml` | Render final reason dialogs only when exact prepared lease authority is present; otherwise offer the explicit prepare step. Put every visible suggestion fact inside its one anchor. |
+| `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` | Add exact replay/conflict, failure-release/retry, success-consumes-lease, and accessible-name evidence. |
+| ticket research/plan/checklist/PIR/scratch | Reconcile blocker reasoning, commands, four lenses, file inventory, and PR traceability. |
+
+Unchanged: Core link/reverse contracts, EF association/history transaction and fingerprint, Case lease store/schema, retained-mail projection, shared search helper, shared reason dialog, FRD/product policy, Graph/Box/cloud/deployment.
