@@ -21,3 +21,23 @@ Branch `task/intk-014-image-case-box`, worktree `../pegasus-worktrees/intk-014` 
 - Merge enqueues Box work that moves contents into the paired case's root (`Evidence/Images`) and removes the emptied folder.
 - No Box outage can block registration or merge or lose an image; failures are recorded and retryable.
 - Production verification of the real Box path is deploy-stage (ticket Verification checklist) — not claimable from this task.
+
+## Simplification pass — 2026-08-20
+
+Lenses: reuse, simplification, efficiency, altitude (`code-simplifier` agent over the branch diff, findings dispositioned here; commit `5bc72eea`).
+
+Applied (behaviour-preserving):
+- Group-member resolution (members → latest evaluation → processed receipt) now has one owner: `EfImageIntakeStore.ResolveGroupMemberReceiptsAsync`, used by both registration and the custody payload loader.
+- Image custody state vocabulary → one `ImageCustodyStates` const list (was 11 bare literals); image re-arm policy (retryable failure codes, attempt cap, backoff schedule) moved to Core as `ImageCustodyRetryPolicy.NextAttemptDelay` — removes the second copy of the failure-code taxonomy and the cap/array-length dual invariant.
+- Completion guard (`TakeCompletableWorkAsync`, message-parameterised) and terminal completion mutation (`CompleteWork`) reused by the case, audit, and image completion paths (were three inline copies).
+- Box adapter: `FindChildAsync` regains per-page name filtering (the `ListChildrenAsync` extraction had made every child materialise before filtering — hot on the custody root); the fold lists the destination once into a name set instead of a full listing per moved file; the fold validates the probed image folder instead of listing the root twice; read-verify and upload-or-verify blocks shared between instruction-source and image retention (`ReadVerifiedSourceAsync`, `UploadOrVerifyFileAsync`). Same two extractions in `LocalCaseCustody`.
+- `EfExternalWorkStore` skips the `CaseWorkflows` lookup for image-kind rows with null CaseId; `UnavailableCaseCustody` reports the new operations as `CaseCustodyUnavailableException` instead of inheriting the `NotSupportedException` default; processor payload dispatch typed via an abstract `CustodyWorkPayload` base; `RequireImageIntakeId` hoisted out of EF predicates; merge enqueue sets nav+FK like the acceptance enqueue; remaining raw custody kind strings in the processor use `ExternalWorkKinds`.
+- The two ~35-line failing test fakes collapsed into one `FailingCustody(Func<Exception>)`.
+
+Not applied, with reasons:
+- `DeleteFolderAsync` status check keeps the `NotFound or NoContent || IsSuccess` shape — deliberately identical to the adjacent `DeleteFileAsync` convention.
+- Raw `"create_case_custody"` literals in `EfCaseAcceptanceStore`/`EfLinkedCaseReplacementStore` predate this branch — out of scope for a behaviour-preserving pass on this diff.
+- Receipt-row projection in the image payload loader (avoid loading `FieldsJson`) would need a projection overload of `EnsureSourceMatchesReceipt`; deferred as not worth the surface change.
+- The merge processor still signals "create side not landed yet" by throwing `IOException` so the existing failure-code mapping re-arms it; an explicit requeue outcome would grow the Core surface for one caller. Kept, with the coupling commented at the throw site.
+- Interface defaults on the two new `ICaseCustody` members stay: dropping them would force implementations onto five existing test wrappers for no behaviour change.
+- Reviewer note (not a simplification): Box mapping of a 409 "folder not empty" delete to a retryable dependency failure is correct here — the only reachable race is a file landing between listing and delete, and the retry then folds that file too before removing the folder.
