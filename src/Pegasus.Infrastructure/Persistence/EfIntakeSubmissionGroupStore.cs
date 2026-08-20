@@ -34,22 +34,26 @@ public sealed class EfIntakeSubmissionGroupStore(
         return entity is null ? null : await MapAsync(context, entity, cancellationToken);
     }
 
-    public Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
+    public async Task<IntakeSubmissionGroup?> FindForMemberSourceAsync(
         IntakeSourceIdentity sourceIdentity,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(sourceIdentity);
-        var separator = sourceIdentity.ExternalReceiptToken.LastIndexOf(':');
-        if (separator <= 0
-            || !int.TryParse(
-                sourceIdentity.ExternalReceiptToken[(separator + 1)..],
-                out _))
+        // GroupedIntakeMemberToken owns the token convention; this lookup
+        // just tries each parent candidate it names. The bare-token
+        // candidate is what lets an ordinal-0 member — which carries the
+        // parent token verbatim — find its own group (INTK-012).
+        foreach (var parentToken in GroupedIntakeMemberToken.ParentTokenCandidates(
+            sourceIdentity.ExternalReceiptToken))
         {
-            return Task.FromResult<IntakeSubmissionGroup?>(null);
+            var group = await FindAsync(sourceIdentity.Channel, parentToken, cancellationToken);
+            if (group is not null)
+            {
+                return group;
+            }
         }
 
-        var parentToken = sourceIdentity.ExternalReceiptToken[..separator];
-        return FindAsync(sourceIdentity.Channel, parentToken, cancellationToken);
+        return null;
     }
 
     public Task<IntakeSubmissionGroup> GetOrCreateAsync(
