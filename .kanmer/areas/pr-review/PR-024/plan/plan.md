@@ -16,3 +16,16 @@ FRD-08 requires every result to show the matching location. This keeps admission
 - Simplification: one predicate qualifier aligns admission with existing match labeling; no new result type or reconciliation layer.
 - Efficiency: the restriction remains inside the SQL predicate before count and paging.
 - Altitude: the change is confined to persistence query behavior and its owning integration test.
+
+## Final completion plan
+
+Estimated incremental diff: five existing files, about 120 lines.
+
+1. Extend the existing search projection call with the already-computed route decision; normalize its root via `StaffForwardBodyCleaner`, choosing the existing attached-original source label where applicable.
+2. Make retained SQL body search and match labeling use that root row, and render the same text in detail; keep cleaned retained-body fallback only for receipts without a root projection.
+3. Prove normalized root search/display equality and preserve attachment search.
+4. Run focused verification and final four-lens/PIR updates.
+
+## Governing docs
+
+FRD-08 gets a one-to-one visible body match from the existing receipt-owned projection. The no-reconstruction boundary remains intact.

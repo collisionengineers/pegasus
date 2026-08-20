@@ -18,3 +18,12 @@ Context: attachment ordinal is already canonical in retained metadata. Out of sc
 | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `MailWorkspaceWebTests.cs` | Prove nameless-before-named identity and rendered disclosure. |
 
 No schema, second parser/projection/store, or backfill.
+
+## Final re-review file delta
+
+| Path | Change / risk |
+|---|---|
+| `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` | Describe attached text parts in the canonical occurrence domain without introducing another text parser. |
+| `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` | Put attached `text/plain` before a named attachment and prove the later ordinal remains stable. |
+
+Context: `LocalEmailDisplayReader.cs` already includes attached text parts. No schema, store, parsing, or backfill change.

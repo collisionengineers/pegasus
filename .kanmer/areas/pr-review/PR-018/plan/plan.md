@@ -36,3 +36,15 @@ FRD-08's honest per-attachment searchable/unsupported disclosure is rendered wit
 - Simplification: preserved nameless occurrences with a deterministic display label; no second identity scheme, parser, store, or backfill.
 - Efficiency: one materialized attachment list replaces two enumerations.
 - Altitude: parsing stays in Infrastructure and wording stays in Web presentation.
+
+## Final completion plan
+
+Estimated incremental diff: two existing files, under 50 lines.
+
+1. Reuse the canonical reader's existing unsupported-attachment descriptor path for attached `TextPart` entities while retaining the early return for ordinary body text.
+2. Extend the existing cross-reader occurrence test with attached `text/plain` before the later named part.
+3. Run focused tests and record the final four-lens/PIR evidence.
+
+## Governing docs
+
+FRD-08's exact per-attachment disclosure is preserved with the existing ordinal and one parser/store.

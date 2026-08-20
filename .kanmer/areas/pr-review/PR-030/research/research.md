@@ -1,0 +1,3 @@
+# Research
+
+Verified at current branch: Deleted metadata is enumerated through `/mailFolders/{resolvedFolderId}/messages`, but MIME is later fetched from `/users/{mailbox}/messages/{id}/$value`. The existing `GraphMailClient` already receives and validates the exact mailbox/folder for metadata calls. Put the resolved folder into the MIME route as `/mailFolders/{folder}/messages/{immutableId}/$value`; a concurrent move produces a non-success response and the existing Deleted boundary maps its `HttpRequestException` to unavailable. The global candidate/MIME bounds and GET-only behavior remain unchanged.

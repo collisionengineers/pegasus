@@ -1,7 +1,5 @@
-# Checklist — PR-018 re-review
+# Checklist — PR-018 final re-review
 
-- [x] Persist and correlate the existing attachment ordinal.
-- [x] Preserve nameless display attachment occurrences in the same ordinal domain.
-- [x] Render retained per-attachment `IsSearchable` disclosure.
-- [x] Prove nameless-before-named identity and rendered disclosure.
-- [x] Run focused checks, update simplification/PIR, and move back to Review.
+- [ ] Preserve attached text parts in the canonical attachment occurrence domain.
+- [ ] Prove attached-text-before-named identity across display/canonical readers.
+- [ ] Run focused checks, update simplification/PIR, and move back to Review.

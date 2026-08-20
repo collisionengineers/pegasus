@@ -1,6 +1,6 @@
-# Checklist
+# Checklist — PR-024 final re-review
 
-- [x] Restrict retained projection admission to attachment content.
-- [x] Prove root-only projection text cannot return an unlabeled result.
-- [x] Run focused verification and record four-lens dispositions.
-- [x] Update PIR/traceability and move to Review.
+- [ ] Normalize the existing root projection from route-aware canonical reader output.
+- [ ] Use that one root for retained body admission, label, and visible detail.
+- [ ] Prove wrapper/cid-only terms do not match and normalized visible body does.
+- [ ] Run focused checks, update simplification/PIR, and move back to Review.
