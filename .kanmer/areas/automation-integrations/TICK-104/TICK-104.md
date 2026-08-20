@@ -4,13 +4,14 @@ type: ticket
 title: >-
   MCP-07 — Administration-configurable Send to AI channel connector setup: base
   URL, token entry/rotation, and timeout configured…
-status: review
+status: verifying
 area: automation-integrations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-20T03:55:39.646Z'
   review: '2026-08-20T04:14:51.142Z'
+  verifying: '2026-08-20T05:40:51.533Z'
 taken_at: '2026-08-20T03:56:57.696Z'
 branch: task/tick-104-mcp-07-connector-admin
 worktree: ../pegasus-worktrees/tick-104
@@ -31,7 +32,7 @@ prs:
   - '#446'
 archived: false
 created: '2026-08-12T15:06:02.806Z'
-updated: '2026-08-20T04:14:51.142Z'
+updated: '2026-08-20T05:40:51.533Z'
 ---
 
 ## What

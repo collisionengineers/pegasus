@@ -23,9 +23,10 @@ groups:
 links: []
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+  - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-12T15:06:02.768Z'
-updated: '2026-08-20T05:40:10.234Z'
+updated: '2026-08-20T05:41:24.452Z'
 ---
 
 ## What

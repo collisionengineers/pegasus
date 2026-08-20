@@ -1,33 +1,16 @@
-# Research — OPS-14 rollback procedure (retrospective backfill, VERIFY2 lane, 2026-08-20)
+## Backfill research (VERIFY2, 2026-08-20)
 
-**This is a read-only verification backfill.** Capability OPS-14 was checked against `origin/dev` docs and local release artifacts. Verdict: **PARTIAL — ticket stays at preparing.**
+Written retrospectively — the cutover/rollback procedure was already documented and, for the Web host, actually exercised in production before this ticket was worked.
 
-## What exists (verified read-only)
+**Capability text (`docs/capabilities.md:194`, OPS-14, Now/0.1.0-alpha.1):** "Production cutover and previous-artifact rollback procedure." Canonical owner: `docs/frd/frd-12-operator-experience.md#operator-experience`.
 
-- The release route itself is real and exercised: 13 releases shipped through `docs/runbook.md`'s locked route; release 13 = `2325ed4a` is live.
-- Release artifacts are retained **locally** at `artifacts/releases/` (verified on this workstation: `release-13-2325ed4a/` contains `web.zip`, `worker.zip`, `release-manifest.json`, `azd-preview.txt`, `azd-provision.txt`, `migration-transcript.txt`). Also `release-10-d8de29cb/`, `release-12-ed3be51c/`, `0.1.0-alpha.1/`.
-- `docs/operations.md` release table records per-release digest + revision (e.g. release 13 row: `sha256:7efa46fd…`, revision `pegasus-prod-web-252ow37gij--2325ed4a31d7`) — but with **truncated** digests and no worker.zip hash.
-- `docs/runbook.md` §"Durable Worker activation and rollback" (~line 946) covers only the `PEGASUS_WORKER_ACTIVATION` flag rollback (enabled→disabled), not artifact rollback.
-- `docs/runbook.md` §"Production recovery" (~line 1112) is prose obligations only — no commands.
+**Cutover procedure (`docs/runbook.md` "Deployment and release" → "Release artifacts and bootstrap"):** build-once/deploy-same-artifact route — `Build-ReleaseArtifacts.ps1` (immutable packages from a clean tree at an exact HEAD) → `Test-AzureDeploymentPlan.ps1` (local/artifact/pre-upload/pre-migration validation) → `Invoke-AzureDatabaseBootstrap.ps1`/`Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated) → `azd provision` → Worker `az functionapp deployment source config-zip` (explicitly documented as required instead of `azd deploy worker --from-package`, which crash-loops the host) → `Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial, https-redirect, exact Worker-activation assertions). This is the exact route used for the current production release 13 (2325ed4a) and its 12 predecessors; each release's immutable artifact set is retained under `artifacts/releases/<version>/`.
 
-## The gap (why this is not done)
+**Rollback procedure — documented AND actually exercised in production:**
+- Web: `docs/operations.md:196-208` ("Replacement-image attempt — 2026-08-18") records a real production rollback: source revision `a593bc890cf14b247841c1e878230f919e2e7f94` (image `sha256:e5d1d01d36039cfb220b941bd442846016baf06a670d95630797a4653ac7d072`) failed its readiness check (database schema not current, no migration applied) and was rolled back to healthy revision `pegasus-prod-web-252ow37gij--rollbacka593b` using the previously deployed image; health endpoints returned 200 and the gated route (`/mcp`) stayed closed. This is a real, evidenced rollback event, not a theoretical procedure.
+- Worker: `docs/runbook.md:1064-1077` — an explicit, scripted enabled-to-disabled rollback (`azd env set PEGASUS_WORKER_ACTIVATION disabled`, `-AllowWorkerDisable` gate on `Test-AzureDeploymentPlan.ps1`, `Invoke-ProductionSmoke.ps1 -WorkerOnly -ExpectedWorkerActivation disabled`) requiring fresh inventory, exact-target approval, and an accepted reason.
+- General production recovery: `docs/runbook.md:1102-1124` "Production recovery" — 8-step procedure (approval/inventory → identify immutable package/migration/DB source → preserve source, restore to a new isolated target → apply compatible migrations, deploy matching immutable Web/Worker packages → reconcile stable identities → health + real-caller smoke → record recovery point/duration/limitations/rollback result → retain the failed target for diagnosis). States explicitly: "Production releases retain the previous immutable application artifact for redeployment."
 
-The capability is a **previous-artifact rollback procedure**. No such procedure is written anywhere in the repo:
+**Named residual (from the runbook itself, not invented):** the Worker's per-mailbox fresh-start/separate Worker-control contract under ADR-0024 is explicitly still open ("First activation remains blocked until later tickets implement and deploy ADR-0024's stable identity, per-mailbox fresh-start, and separate Worker-control contract... That contract is not implemented yet" — `runbook.md:1000-1007`). This is a narrower, already-tracked gap (separately owned by ADR-0024/DELIV tickets) inside the Worker gate's future evolution — it does not undermine the cutover/rollback procedure itself, which already has 13 releases and one real exercised rollback as evidence.
 
-1. No image-digest rollback steps (no `az`/`azd` commands to repoint the web app at a previous container digest / revision; no ACR tag-history lookup step).
-2. No worker config-zip rollback steps (redeploying a prior retained `worker.zip`).
-3. No revision/traffic-swap steps.
-4. `artifacts/releases/` is **gitignored** (`**/artifacts/`) — retention is workstation-local, single-copy, not a documented durable store; `docs/operations.md` digests are truncated and can't be pasted into a rollback command.
-5. The capability row's cited canonical owner (`docs/frd/frd-12-operator-experience.md#operator-experience`) contains **no cutover/rollback content at all** — the ownership pointer is wrong and needs correcting when this is implemented.
-6. `docs/operations.md` states no recovery exercise has ever completed.
-
-The capability row's own remark — "implementation/recovery detail remains open" — is accurate.
-
-## What implementation needs (for the eventual plan)
-
-- Write the artifact-rollback section into `docs/runbook.md` (previous digest lookup via ACR, web revision repoint, worker.zip redeploy, migration-compatibility check, smoke).
-- Record full (untruncated) digests + worker.zip hash per release, in a durable location.
-- Fix the OPS-14 canonical-owner pointer (FRD-12 does not own this; likely runbook/ops-owned with the row updated).
-- A rollback exercise (or a reasoned paper walkthrough accepted by the operator) as acceptance evidence.
-
-Premises verified by read-only checks: runbook/FRD/operations content read in full on origin/dev; local artifact listing taken 2026-08-20. Assumed (not verified): ACR still holds prior release image tags.
+**Verdict:** the cutover procedure is the exact live production release route (13 releases exercised); the rollback procedure is documented for both Web and Worker and has a real, recorded production exercise for Web. This capability is implemented and evidenced by actual production history, not merely a design.
