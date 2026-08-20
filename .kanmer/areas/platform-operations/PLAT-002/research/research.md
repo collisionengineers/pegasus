@@ -27,3 +27,35 @@ Planning cannot define honest acceptance until scope is decided: expand to all c
 ## Open questions
 
 - Expand to every current Web actor/key copy, or retain the named cleanup with narrower verification?
+
+## Expanded-scope findings — option 1 selected 2026-08-20
+
+The user selected complete Web-wide consolidation. Survey source: current checkout c41314d9; commands were read-only.
+
+- The 20 files contain 27 StaffActorFactory.TryCreate calls: 7 helper owners/callers and 13 files with inline claim parsing. All 20 are Razor Page models.
+- Explicitly authorized actor callers: root Index; Cases/Create, Cases/Index, Cases/Assessment, Cases/Documents/Download; ImageIntake/Details; Operations/Index; Triage/Index and Details; Unidentified/Details; Upload; UploadStatus; UploadGroupStatus.
+- Fallback-authenticated actor callers: Account/PasswordChange; Intake/Details and Source; Mail/Index and Message. AdministrationPageModel and CaseMutationPageModel are abstract bases whose concrete descendants remain protected by their existing endpoint metadata/policies.
+- No actor caller is anonymous. Uploads/Request is the only relevant AllowAnonymous page and contains no actor lookup, only key generation. It must not derive from the staff root.
+- Actor-call shapes do not require multiple shared overloads. The shared nullable ActionActor output is sufficient:
+  - ordinary callers consume the actor directly;
+  - Triage/Details and Account/PasswordChange locally parse ActionActor.SubjectId to the existing Guid;
+  - inline conditional callers can call TryGetActor once and retain their existing surrounding condition;
+  - multiple calls within Cases/Create, Intake/Details, Mail/Message, and Unidentified/Details become repeated calls to the same inherited method, not new policy.
+- Nine application page files own N-format key generation: Account/PasswordChange, AdministrationPageModel, Cases/Assessment, CaseMutationPageModel, Cases/Create, Operations/Index, Triage/Details, Upload, and anonymous Uploads/Request. Test-only generators are fixture data and are not application policy; they remain out of the application-owner rg assertion.
+- A single class cannot accurately represent both staff actor resolution and anonymous key generation if named StaffPageModel. The clean boundary is:
+  - StaffPageModel owns TryGetActor and derives from PageModel;
+  - one neutral application key generator is callable by both StaffPageModel and Uploads/Request.
+  Search found no existing neutral Web owner. The simplest concrete shape is a static NewOperationKey on a neutrally named page utility only if the plan can justify that exception to the no-Helpers rule, or make the generator public on StaffPageModel and call it statically from the anonymous page while explicitly avoiding inheritance. The latter has one owner and no extra abstraction, despite the staff-oriented name.
+- Deriving the 18 concrete actor-calling models directly from StaffPageModel, and the two current abstract bases from it, is a mechanical inheritance substitution. No constructor dependency, route, handler, endpoint metadata, antiforgery, actor factory input, or failure response needs to change.
+- Verification should separate the two concepts:
+  - StaffActorFactory.TryCreate appears once under src/Pegasus.Web, in StaffPageModel;
+  - Guid.NewGuid().ToString("N") appears once in application Pages code;
+  - Uploads/Request does not derive from StaffPageModel and remains AllowAnonymous.
+- The expanded surface needs broader focused tests than the original ticket named. Existing owners include ShellAndStatusPageWebTests, CaseCreateWebTests, CasesIndexWebTests, ImageIntakeWebTests, QdosIntakeWebTests/IntakeWebNegativeTests, MailWorkspaceWebTests, OperationsWebTests, QdosTriageIntegrationTests/TriageQueuesWebTests, AdministrationSearchAccountWebTests, QdosCustodialWebTests, and upload/status browser or Web tests. Architecture coverage should assert ownership and the anonymous non-inheritance fact.
+- No new governing product or architecture decision is needed: this is one Web implementation owner replacing byte-equivalent claim parsing and key formatting. Current architecture documentation only needs an edit if its Web composition inventory explicitly describes the old owner.
+
+## Expanded-scope implications
+
+Planning may now treat all actor and key copies as one mechanical slice, grouped by caller family so failures are localized. It should introduce the root first, migrate the two bases, then migrate concrete page families while keeping each family's focused tests green. The anonymous upload page consumes only the shared static key generator.
+
+There are no unresolved research questions. The remaining choice of exact key-generator placement is an implementation-shape decision constrained by one owner, no anonymous staff inheritance, and no unnecessary abstraction; the planner can settle it from those constraints.

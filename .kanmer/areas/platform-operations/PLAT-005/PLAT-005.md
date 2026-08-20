@@ -2,12 +2,15 @@
 id: PLAT-005
 type: ticket
 title: Capture visual screenshots from a local DevelopmentOffline run
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-20T08:49:11.185Z'
+taken_at: '2026-08-20T08:51:00.421Z'
+branch: task/plat-005-visual-proof
+worktree: .worktrees/plat-005
 labels:
   - ui
   - design
@@ -16,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-18T09:39:12.370Z'
-updated: '2026-08-20T08:49:11.185Z'
+updated: '2026-08-20T08:51:00.421Z'
 ---
 
 ## What
