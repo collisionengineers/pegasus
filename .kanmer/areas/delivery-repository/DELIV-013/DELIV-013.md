@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Release 14: verify merged dev, deploy to production, refresh current-state
   docs, promote to main
-status: implementing
+status: review
 area: delivery-repository
 assignee: claude-code
 profile: chore
+stageEntered:
+  review: '2026-08-20T12:51:27.291Z'
 taken_at: '2026-08-20T11:08:34.207Z'
 branch: task/deliv-013-release-14
 worktree: ../pegasus-worktrees/release-14
@@ -19,7 +21,7 @@ links: []
 deployment: not-deployed
 archived: false
 created: '2026-08-20T11:07:36.848Z'
-updated: '2026-08-20T11:08:34.207Z'
+updated: '2026-08-20T12:51:27.291Z'
 ---
 
 ## Why
