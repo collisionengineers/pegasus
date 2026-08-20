@@ -1,0 +1,10 @@
+# Research — INTK-021
+
+Verified read-only at origin/dev (c025b39a line) + live corpus runs:
+
+- **Why values only "suggest"**: `CaseDataSnapshotFactory.AddSuggestion` writes every unambiguous extracted instruction field as `ValueKind = Suggestion` at acceptance; conflicted fields never reach it. The case-detail rows already render `Fact ?? Confirmed` as the value column — so a kind flip alone fixes both storage and display. `ApplyConfirmed`'s underlying lookup already accepts Fact-or-Suggestion.
+- **Why "extracting nothing"**: measured over the real corpus (256 emails, 75 accepted-route instructions) with a new corpus-conditional coverage test: Claimant name 4/75, Claim number 4/75, Incident date 7/75, Make 13/75, Model 14/75, Registration 57/75. Root causes: (1) the real letters label fields as "Our Client:", "Our Client's Vehicle:", "Registration:", "Date of Accident:", "Our Ref:" — most absent from the synonym lists; (2) the message subject (which carries "Client Mr X", "Vehicle …", "Our Ref …", "RTA on dd_mm_yyyy") goes to transport evidence and never reaches the field engine; (3) no combined vehicle-description handling (make+model+registration in one line); (4) an engine defect: a label match could run into a longer word ("Our Client" matched inside "Our Client's Vehicle", producing junk conflict candidates — found when the new synonyms first landed).
+- Completeness (`InstructionComplete`) is computed from the draft at intake, so richer extraction directly improves it; no kind-sensitivity there.
+- Corpus rules: local-only, immutable, never committed — real-shape assertions therefore live in corpus-conditional tests (the established `QdosCorpus`/`QdosCorpusFact` harness; skip where the corpus is absent, e.g. CI). Committed unit fixtures stay analogous-shape (the repo bans fabricating domain data but permits realistic shapes); the corpus tests are the bar the operator asked for.
+
+Assumed (not re-verified): the Assessment "Suggestions" surface handles the reduced suggestion volume gracefully (it also serves image/ALPR suggestions, which keep their kind).
