@@ -1,0 +1,1 @@
+2026-08-20 board correction: moved back exactly one stage from Verifying to Review. The correction commit is pushed but PR #490 has not merged; independent re-review/merge must occur before any blocker ticket enters Verifying.
