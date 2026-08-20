@@ -1,0 +1,7 @@
+- [ ] `RailCountsPageFilter` created and registered globally via `RazorPagesOptions.Filters`
+- [ ] Queues rail badge renders the real `NotReady + Review + Held` total on every authenticated page
+- [ ] Inbox and Cases rail badges continue to render nothing (no dictionary entry, not a `0`)
+- [ ] `dotnet build ./Pegasus.slnx -c Release --no-restore` — zero warnings
+- [ ] New `RailCountsWebTests` integration test passes
+- [ ] `AccessibilityTests` regression run passes
+- [ ] Simplification pass recorded in `plan`
