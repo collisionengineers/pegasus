@@ -2,13 +2,14 @@
 id: PLAT-014
 type: ticket
 title: Correct missing LocalDB detection in Offline lifecycle
-status: review
+status: verifying
 area: platform-operations
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-20T09:02:33.715Z'
   review: '2026-08-20T11:33:51.724Z'
+  verifying: '2026-08-20T11:54:13.473Z'
 taken_at: '2026-08-20T10:41:05.974Z'
 branch: task/plat-014-localdb-detection
 worktree: ../pegasus-worktrees/plat-014
@@ -26,7 +27,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/471'
 archived: false
 created: '2026-08-20T08:56:51.802Z'
-updated: '2026-08-20T11:33:51.724Z'
+updated: '2026-08-20T11:54:13.473Z'
 ---
 
 ## Why

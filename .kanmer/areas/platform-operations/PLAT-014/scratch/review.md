@@ -34,3 +34,28 @@ The fix profile has no linked PRD/FRD/ADR. The plan correctly treats the documen
 Exact failing log: https://github.com/collisionengineers/pegasus/actions/runs/32364388605/job/96410637569.
 
 The job printed `Pegasus platform LocalDB state classification passed.` and then failed with `Process completed with exit code 1.` The final intentional non-zero fixture leaves global `$LASTEXITCODE` as `1`; Actions invokes the script with `pwsh -command ". '{0}'"`, so the harness reports failure even though every assertion passed. [[PR-023]] should explicitly reset/clear the successful script's final native exit state after testing the non-zero classifier path, then rerun/review.
+
+# Re-review verdict — 2026-08-20
+
+**Pass — independent reviewer.** This re-review includes the original three-file LocalDB classifier/CI diff and repair commit `4c7b459f02f24ce54f66b973eebfbf75596acb50`.
+
+## Changes and governing-doc check
+
+- `scripts/PegasusPlatform.ps1` recognizes only the escaped, requested-instance, line-anchored LocalDB missing diagnostic (including trailing whitespace); wrong-instance, wrapper-only, arbitrary, and contradictory zero-exit output remains `Unknown`. Existing state-line and non-zero handling, Linux/Docker behavior, and lifecycle ownership callers are unchanged.
+- `scripts/Test-PegasusPlatform.ps1` covers the required classifier outcomes through the existing seam. The amended success epilogue resets `$global:LASTEXITCODE` only after all assertions, including the required intentional non-zero fixture, pass.
+- `.github/workflows/ci.yml` adds the narrow always-run Windows caller. The amended diff/report remains within the plan, preserves the runbook's supported Offline ownership lifecycle, and introduces no product behavior or architectural scope. Both PLAT-014 and [[PR-023]] reports account honestly for the original red run and its correction.
+
+## Comments and disposition
+
+1. **Previous blocking CI failure — fixed in PR.** The first Windows job inherited the final test fixture's exit code 1 after printing success. The one-line epilogue preserves the fixture and makes the successful host exit 0. Independent GitHub-style local invocation passed.
+2. **Previous non-blocking full-suite timeout — resolved by CI.** The complete PR workflow reached terminal success; no timeout was represented as a local pass.
+
+## Evidence checked
+
+- PR #471 target `dev`, full amended diff, both ticket plans/checklists/reports, questions, and gates.
+- Local independent GitHub-style command: `pwsh -NoProfile -Command ". './scripts/Test-PegasusPlatform.ps1'"` — passed, exit 0.
+- GitHub Actions run 32364977115: all 11 required checks succeeded (changes, documentation, local-development-scripts, reference-data, infrastructure, unit, three SQL integration shards, browser, and SQL integration coverage). PR is `CLEAN` and mergeable.
+
+## Verdict
+
+**Pass.** Merge PR #471 into `dev` only, then move PLAT-014 exactly one stage to Verifying. Do not run verification, write proof, close out, or promote to `main`.
