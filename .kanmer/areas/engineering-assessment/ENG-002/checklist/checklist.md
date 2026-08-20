@@ -11,5 +11,5 @@
 - [x] Web tests: import + accept + refusals + custody retention — 5 passed
 - [x] Local corpus-sample parse verification (scratchpad only): the real Audatex sample parses to 33 lines with all four section checksums matching the document's own printed totals and normalization passing; the Tractable AI line-level estimate is rejected as "not recognized as an Audatex estimate report"
 - [x] Release build zero warnings; focused test filters green (Core repair-spec/assessment 25, architecture 97, focused integration 27 passed / 6 pre-existing conditional skips)
-- [ ] Simplification pass recorded in plan
-- [ ] PR to dev opened; post-implementation-report written; ticket → review
+- [x] Simplification pass recorded in plan (5 applied, 6 left with reasons, 1 defect fixed)
+- [x] PR #455 to dev opened; post-implementation-report written; ticket → review
