@@ -32,6 +32,9 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    public static string AttachmentSearchability(bool isSearchable) =>
+        isSearchable ? "Searchable content" : "Content unavailable for search";
+
     public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
     {
         UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",

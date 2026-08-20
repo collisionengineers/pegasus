@@ -493,6 +493,30 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task RetainedMailSearchProjectionUsesExactCallerPermissions()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            ["IntakeSearchDocuments:SELECT"],
+            (await ReadGrantedPermissionsAsync(database, WebRole))
+                .Where(value => value.StartsWith("IntakeSearchDocuments:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Equal(
+            [
+                "IntakeSearchDocuments:DELETE",
+                "IntakeSearchDocuments:INSERT",
+                "IntakeSearchDocuments:SELECT"
+            ],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("IntakeSearchDocuments:", StringComparison.Ordinal))
+                .ToArray());
+    }
+
+    [Fact]
     public async Task TerminalDowngradeRestoresTheExactPreTerminalPermissionState()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);

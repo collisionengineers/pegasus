@@ -1,14 +1,266 @@
 using System.Net;
 using System.Text;
 using Azure.Core;
+using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Intake;
 
 namespace Pegasus.IntegrationTests;
 
 public sealed class ProductionGraphSourceTests
 {
+    [Fact]
+    public async Task DeletedSearchReadsOnlyTheResolvedFolderAndPassesMimeThroughTheCanonicalReader()
+    {
+        var requests = new List<(HttpMethod Method, string Path, string? Prefer)>();
+        var handler = new DelegateHandler(request =>
+        {
+            requests.Add((
+                request.Method,
+                request.RequestUri!.AbsolutePath,
+                request.Headers.TryGetValues("Prefer", out var values) ? values.Single() : null));
+            if (request.RequestUri.AbsolutePath.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+            }
+            if (request.RequestUri.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(
+                    HttpStatusCode.OK,
+                    "From: sender@example.test\r\nSubject: Deleted instruction\r\n"
+                    + "MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=part\r\n\r\n"
+                    + "--part\r\nContent-Type: text/plain\r\n\r\nThe searchable needle is here.\r\n"
+                    + "--part\r\nContent-Type: application/octet-stream; name=source.bin\r\n"
+                    + "Content-Disposition: attachment; filename=source.bin\r\n"
+                    + "Content-Transfer-Encoding: base64\r\n\r\nAQID\r\n--part--\r\n",
+                    "message/rfc822");
+            }
+            return Response(
+                HttpStatusCode.OK,
+                """{"value":[{"id":"deleted-1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(
+            options.MailboxId,
+            "needle",
+            100,
+            CancellationToken.None);
+
+        var item = Assert.Single(result.Items);
+        Assert.Equal("Deleted instruction", item.Subject);
+        Assert.Equal("sender@example.test", item.SenderAddress);
+        Assert.Equal("The searchable needle is here.", item.BodyPlainText);
+        Assert.Contains(item.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
+        Assert.False(Assert.Single(item.Attachments).IsSearchable);
+        Assert.All(requests, request => Assert.Equal(HttpMethod.Get, request.Method));
+        Assert.All(
+            requests.Where(request => !request.Path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal)),
+            request => Assert.Equal("IdType=\"ImmutableId\"", request.Prefer));
+        Assert.Contains(requests, request => request.Path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal));
+        Assert.Contains(requests, request => request.Path.Contains("/mailFolders/deleted-folder/messages", StringComparison.Ordinal));
+        Assert.Contains(requests, request => request.Path.EndsWith(
+            "/mailFolders/deleted-folder/messages/deleted-1/$value",
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DeletedSearchBecomesUnavailableWhenTheMessageMovesBeforeItsFolderScopedMimeRead()
+    {
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+            }
+            if (request.RequestUri.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.NotFound, "{}");
+            }
+            return Response(
+                HttpStatusCode.OK,
+                """{"value":[{"id":"moved-1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+        Assert.Empty(result.Items);
+    }
+
+    [Fact]
+    public async Task DeletedSearchDoesNotCallGraphForAMailboxOutsideTheApprovedEstate()
+    {
+        var calls = 0;
+        var handler = new DelegateHandler(_ =>
+        {
+            calls++;
+            return Response(HttpStatusCode.OK, "{}");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync("not-approved", "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+        Assert.Equal(0, calls);
+    }
+
+    [Fact]
+    public async Task DeletedSearchChoosesTheNewestBoundedMessagesAcrossApprovedMailboxes()
+    {
+        var mimePaths = new List<string>();
+        var handler = new DelegateHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, path.Contains("mailbox-two", StringComparison.Ordinal)
+                    ? """{"id":"deleted-two"}"""
+                    : """{"id":"deleted-one"}""");
+            }
+            if (path.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                mimePaths.Add(path);
+                return Response(HttpStatusCode.OK, "Subject: Match\r\n\r\nneedle", "message/rfc822");
+            }
+            var second = path.Contains("mailbox-two", StringComparison.Ordinal);
+            return Response(HttpStatusCode.OK, second
+                ? """{"value":[{"id":"newer","parentFolderId":"deleted-two","receivedDateTime":"2026-08-20T11:00:00Z","isRead":false}]}"""
+                : """{"value":[{"id":"older","parentFolderId":"deleted-one","receivedDateTime":"2026-08-20T10:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([
+                new("mailbox-id", "one@example.test", "inbox-one"),
+                new("mailbox-two", "two@example.test", "inbox-two")]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 1, CancellationToken.None);
+
+        Assert.Equal("newer", Assert.Single(result.Items).ImmutableMessageId);
+        Assert.Single(mimePaths);
+        Assert.Contains(
+            "mailbox-two/mailFolders/deleted-two/messages/newer",
+            mimePaths[0],
+            StringComparison.Ordinal);
+        Assert.True(result.IsTruncated);
+    }
+
+    [Fact]
+    public async Task DeletedSearchListsApprovedMailboxesWithoutRetainedRows()
+    {
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(new DelegateHandler(_ => Response(HttpStatusCode.OK, "{}")))),
+            new MailboxEstate([new("mailbox-zero", "zero@example.test", "inbox-zero")]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var mailbox = Assert.Single(await source.ListMailboxesAsync(CancellationToken.None));
+
+        Assert.Equal("mailbox-zero", mailbox.MailboxId);
+        Assert.True(mailbox.IsPolled);
+    }
+
+    [Fact]
+    public async Task DeletedSearchTurnsHttpTimeoutIntoUnavailable()
+    {
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(
+                new DelegateHandler(_ => throw new TaskCanceledException("timeout")))),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+    }
+
+    [Fact]
+    public async Task DeletedSearchDoesNotTurnCallerCancellationIntoUnavailable()
+    {
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(
+                new DelegateHandler(_ => throw new TaskCanceledException("cancelled")))),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAsync<TaskCanceledException>(() =>
+            source.SearchAsync(null, "needle", 100, cancellation.Token));
+    }
+
+    [Theory]
+    [InlineData("malformed-json")]
+    [InlineData("missing-id")]
+    [InlineData("missing-received-time")]
+    [InlineData("foreign-parent")]
+    [InlineData("escaped-next-link")]
+    [InlineData("non-object-folder-root")]
+    [InlineData("non-object-page-root")]
+    [InlineData("missing-value")]
+    [InlineData("non-array-value")]
+    [InlineData("invalid-next-link")]
+    [InlineData("relative-next-link")]
+    public async Task DeletedSearchTurnsInvalidGraphResponsesIntoUnavailable(string responseCase)
+    {
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(
+                    HttpStatusCode.OK,
+                    responseCase == "non-object-folder-root"
+                        ? "[]"
+                        : """{"id":"deleted-folder"}""");
+            }
+
+            var body = responseCase switch
+            {
+                "malformed-json" => "{",
+                "missing-id" => """{"value":[{"parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z"}]}""",
+                "missing-received-time" => """{"value":[{"id":"deleted-1","parentFolderId":"deleted-folder"}]}""",
+                "foreign-parent" => """{"value":[{"id":"deleted-1","parentFolderId":"inbox-folder","receivedDateTime":"2026-07-31T10:00:00Z"}]}""",
+                "escaped-next-link" => """{"value":[],"@odata.nextLink":"https://graph.microsoft.com/v1.0/users/other-mailbox/mailFolders/deleted-folder/messages?$top=100"}""",
+                "non-object-page-root" => "[]",
+                "missing-value" => "{}",
+                "non-array-value" => """{"value":{}}""",
+                "invalid-next-link" => """{"value":[],"@odata.nextLink":"not a URI"}""",
+                "relative-next-link" => """{"value":[],"@odata.nextLink":"/v1.0/users/mailbox-id/mailFolders/deleted-folder/messages?$top=100"}""",
+                _ => throw new InvalidOperationException("Unknown Graph response case.")
+            };
+            return Response(HttpStatusCode.OK, body);
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+        Assert.Empty(result.Items);
+    }
+
     [Fact]
     public async Task InboxUsesImmutableIdsAndContinuesWithDeltaCursorWithoutMutation()
     {
@@ -323,5 +575,12 @@ public sealed class ProductionGraphSourceTests
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
             Task.FromResult(handler(request));
+    }
+
+    private sealed class MailboxEstate(IReadOnlyList<ApprovedIntakeMailbox> mailboxes)
+        : IApprovedIntakeMailboxes
+    {
+        public Task<IReadOnlyList<ApprovedIntakeMailbox>> ListPollableAsync(
+            CancellationToken cancellationToken) => Task.FromResult(mailboxes);
     }
 }

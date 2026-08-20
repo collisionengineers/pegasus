@@ -148,6 +148,15 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
 
 Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
 
+**MAIL-11 re-entry adopted 2026-08-20 for local implementation.** The operator's
+instruction to implement the reviewed programme activates browse/search inside the
+existing `/Inbox` workspace for its allocated `0.3.0` introduction. Integrating
+with the existing mailbox tabs, GET filter, table, detail and empty/failure patterns
+was selected over a second mail workspace; it introduces no new visual system.
+PR #469 supplies the independent implementation and design review. Deployment,
+live-mailbox evidence and manual visual acceptance remain separate release evidence;
+this decision authorises none of those and no mailbox mutation.
+
 ## Design principles
 
 - Operational, restrained and border-led rather than decorative.

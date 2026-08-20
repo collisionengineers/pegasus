@@ -108,6 +108,18 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             matches = matches.Where(item => item.MailboxId == mailboxId);
         }
+        var searchTerm = scope.SearchTerm?.Trim();
+        if (searchTerm is not null)
+        {
+            matches = matches.Where(item =>
+                item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
+                || context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                    && receipt.SearchDocuments.Any(document =>
+                        document.Text != null
+                        && document.Text.Contains(searchTerm))));
+        }
 
         // Counted and paged in SQL. Reading every row to take twenty-five of them
         // makes the list slower the more mail is retained, which is the one thing a
@@ -129,8 +141,25 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.ReceivedAtUtc,
                 item.IsRead,
                 item.Attachments.Count,
-                item.ExternalReceiptToken))
+                item.ExternalReceiptToken,
+                searchTerm != null
+                    && context.IntakeReceipts.Any(receipt =>
+                        receipt.SourceChannel == "mailbox"
+                        && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                        && receipt.SearchDocuments.Any(document =>
+                            document.AttachmentFileName == null
+                            && document.Text != null
+                            && document.Text.Contains(searchTerm)))))
             .ToListAsync(cancellationToken);
+
+        if (searchTerm is not null && rows.Count > 0)
+        {
+            rows = await AddSearchMatchesAsync(
+                context,
+                rows,
+                searchTerm,
+                cancellationToken);
+        }
 
         var summaries = await MapSummariesAsync(context, rows, cancellationToken);
         return new(
@@ -143,7 +172,8 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     public async Task<RetainedMailDetail?> GetAsync(
         Guid id,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? searchTerm = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.RetainedMailboxMessages
@@ -154,24 +184,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             return null;
         }
-
-        var summary = (await MapSummariesAsync(
-            context,
-            [
-                new(
-                    entity.Id,
-                    entity.MailboxId,
-                    entity.MailboxAddress,
-                    entity.SenderAddress,
-                    entity.SenderDisplayName,
-                    entity.Subject,
-                    entity.BodyExcerpt,
-                    entity.ReceivedAtUtc,
-                    entity.IsRead,
-                    entity.Attachments.Count,
-                    entity.ExternalReceiptToken)
-            ],
-            cancellationToken))[0];
 
         // Retained scope only: a matching conversation identity never reaches for a
         // message this application has not already retained.
@@ -200,16 +212,63 @@ internal sealed class EfRetainedMailboxMessageStore(
             {
                 Classification = item.MailClassificationDecision!.Outcome,
                 Route = item.MailRouteDecision!.Disposition,
-                EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress
+                EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
+                BodySearchText = item.SearchDocuments
+                    .Where(document => document.AttachmentFileName == null)
+                    .Select(document => document.Text)
+                    .SingleOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
+
+        var summaryRows = new List<SummaryRow>
+        {
+            new(
+                entity.Id,
+                entity.MailboxId,
+                entity.MailboxAddress,
+                entity.SenderAddress,
+                entity.SenderDisplayName,
+                entity.Subject,
+                entity.BodyExcerpt,
+                entity.ReceivedAtUtc,
+                entity.IsRead,
+                entity.Attachments.Count,
+                entity.ExternalReceiptToken,
+                searchTerm is not null
+                    && receipt?.BodySearchText?.Contains(
+                        searchTerm,
+                        StringComparison.OrdinalIgnoreCase) == true)
+        };
+        if (searchTerm is not null)
+        {
+            summaryRows = await AddSearchMatchesAsync(
+                context,
+                summaryRows,
+                searchTerm,
+                cancellationToken);
+        }
+        var summary = (await MapSummariesAsync(context, summaryRows, cancellationToken))[0];
 
         // A staff forward is de-cluttered on read so existing (write-once) rows
         // are corrected too: the effective sender differs from the transport
         // sender exactly when the route unwrapped a Collision Engineers forward.
         var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
             && !string.Equals(effectiveSender, entity.SenderAddress, StringComparison.OrdinalIgnoreCase);
-        var body = StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
+        var body = receipt?.BodySearchText
+            ?? StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
+
+        var searchableAttachments = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.SourceChannel == "mailbox"
+                && item.ExternalReceiptToken == entity.ExternalReceiptToken)
+            .SelectMany(item => item.SearchDocuments)
+            .Where(item => item.AttachmentFileName != null && item.Text != null)
+            .Select(item => item.AttachmentOrdinal)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var searchableOrdinals = searchableAttachments.Where(item => item is not null)
+            .Select(item => item!.Value)
+            .ToHashSet();
 
         return new(
             summary,
@@ -221,7 +280,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                 .Select(item => new RetainedMailAttachment(
                     item.FileName,
                     item.MediaType,
-                    item.ContentLength))
+                    item.ContentLength,
+                    searchableOrdinals.Contains(item.Ordinal)))
                 .ToArray(),
             thread,
             ParseFolderScope(entity.FolderScope),
@@ -660,7 +720,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     receipt?.Id,
                     linkedCase?.CaseId,
                     linkedCase?.Reference,
-                    allocationState);
+                    allocationState,
+                    row.SearchMatches);
             })
             .ToArray();
     }
@@ -756,5 +817,61 @@ internal sealed class EfRetainedMailboxMessageStore(
         DateTimeOffset ReceivedAtUtc,
         bool IsRead,
         int AttachmentCount,
-        string ExternalReceiptToken);
+        string ExternalReceiptToken,
+        bool BodyMatched,
+        IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null);
+
+    private static async Task<List<SummaryRow>> AddSearchMatchesAsync(
+        PegasusDbContext context,
+        IReadOnlyList<SummaryRow> rows,
+        string searchTerm,
+        CancellationToken cancellationToken)
+    {
+        var messageIds = rows.Select(item => item.Id).ToArray();
+        var tokens = rows.Select(item => item.ExternalReceiptToken).ToArray();
+        var fileNameMatches = await context.RetainedMailboxAttachments
+            .AsNoTracking()
+            .Where(item => messageIds.Contains(item.RetainedMailboxMessageId)
+                && item.FileName.Contains(searchTerm))
+            .Select(item => new { item.RetainedMailboxMessageId, item.FileName, item.Ordinal })
+            .ToListAsync(cancellationToken);
+        var contentMatches = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.SourceChannel == "mailbox"
+                && tokens.Contains(item.ExternalReceiptToken))
+            .SelectMany(
+                receipt => receipt.SearchDocuments
+                    .Where(document => document.AttachmentFileName != null
+                        && document.Text != null
+                        && document.Text.Contains(searchTerm)),
+                (receipt, document) => new
+                {
+                    receipt.ExternalReceiptToken,
+                    document.AttachmentFileName,
+                    document.AttachmentOrdinal
+                })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(row =>
+        {
+            var found = new List<RetainedMailSearchMatch>();
+            if (row.BodyMatched)
+            {
+                found.Add(new(MailSearchMatchKind.MessageBody));
+            }
+            found.AddRange(fileNameMatches
+                .Where(item => item.RetainedMailboxMessageId == row.Id)
+                .Select(item => new RetainedMailSearchMatch(
+                    MailSearchMatchKind.AttachmentFileName,
+                    item.FileName,
+                    item.Ordinal)));
+            found.AddRange(contentMatches
+                .Where(item => item.ExternalReceiptToken == row.ExternalReceiptToken)
+                .Select(item => new RetainedMailSearchMatch(
+                    MailSearchMatchKind.AttachmentContent,
+                    item.AttachmentFileName,
+                    item.AttachmentOrdinal)));
+            return row with { SearchMatches = found.Distinct().ToArray() };
+        }).ToList();
+    }
 }

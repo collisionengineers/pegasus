@@ -82,6 +82,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
 
     internal DbSet<IntakeAssetEntity> IntakeAssets => Set<IntakeAssetEntity>();
 
+    internal DbSet<IntakeSearchDocumentEntity> IntakeSearchDocuments => Set<IntakeSearchDocumentEntity>();
+
     internal DbSet<InstructionDraftEntity> InstructionDrafts => Set<InstructionDraftEntity>();
 
     internal DbSet<IntakeReceiptEventEntity> IntakeReceiptEvents => Set<IntakeReceiptEventEntity>();
@@ -219,6 +221,19 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.HasIndex(item => new { item.IntakeReceiptId, item.ContentHash });
             entity.HasOne(item => item.IntakeReceipt)
                 .WithMany(item => item.Assets)
+                .HasForeignKey(item => item.IntakeReceiptId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<IntakeSearchDocumentEntity>(entity =>
+        {
+            entity.ToTable("IntakeSearchDocuments");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.SourceLabel).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.AttachmentFileName).HasMaxLength(260);
+            entity.HasIndex(item => new { item.IntakeReceiptId, item.Ordinal }).IsUnique();
+            entity.HasOne(item => item.IntakeReceipt)
+                .WithMany(item => item.SearchDocuments)
                 .HasForeignKey(item => item.IntakeReceiptId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
@@ -1353,6 +1368,19 @@ internal sealed class IntakeReceiptEntity
     public IntakeCaseMatchDecisionEntity? CaseMatchDecision { get; set; }
     public IntakeManualAssociationEntity? ManualAssociation { get; set; }
     public List<IntakeAssetEntity> Assets { get; set; } = [];
+    public List<IntakeSearchDocumentEntity> SearchDocuments { get; set; } = [];
+}
+
+internal sealed class IntakeSearchDocumentEntity
+{
+    public Guid Id { get; set; }
+    public Guid IntakeReceiptId { get; set; }
+    public IntakeReceiptEntity IntakeReceipt { get; set; } = null!;
+    public int Ordinal { get; set; }
+    public int? AttachmentOrdinal { get; set; }
+    public required string SourceLabel { get; set; }
+    public string? AttachmentFileName { get; set; }
+    public string? Text { get; set; }
 }
 
 internal sealed class InstructionDraftEntity

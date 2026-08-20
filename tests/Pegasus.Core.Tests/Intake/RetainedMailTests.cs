@@ -10,6 +10,65 @@ namespace Pegasus.Core.Tests.Intake;
 /// </summary>
 public sealed class RetainedMailTests
 {
+    [Fact]
+    public void SearchProjectionKeepsDuplicateAttachmentNamesAsDistinctOccurrences()
+    {
+        const string readableLabel = "message, attachment 1: estimate.pdf";
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent, readableLabel, "searchable text")],
+            [],
+            [],
+            false,
+            Assets: [new(readableLabel, "estimate.pdf", "application/pdf", ReadOnlyMemory<byte>.Empty,
+                IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment)],
+            Attachments:
+            [
+                new("estimate.pdf", "application/pdf", 10, 0, readableLabel),
+                new("estimate.pdf", "application/octet-stream", 10, 1)
+            ]);
+
+        var attachments = IntakeSearchProjection.Create(read, routeDecision: null)
+            .Where(item => item.AttachmentOrdinal is not null)
+            .OrderBy(item => item.AttachmentOrdinal)
+            .ToArray();
+
+        Assert.True(attachments[0].IsSearchable);
+        Assert.False(attachments[1].IsSearchable);
+        Assert.Equal([0, 1], attachments.Select(item => item.AttachmentOrdinal));
+    }
+
+    [Fact]
+    public void SearchProjectionCleansTheSameForwardedBodyThatDetailDisplays()
+    {
+        const string body = "Wrapper [cid:signature]\r\nFrom: Provider <sender@qdosassist.co.uk>\r\n"
+            + "Sent: yesterday\r\nTo: intake\r\nSubject: Instruction\r\n\r\nVisible instruction";
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.EmailBody, "message, email body", body)],
+            [],
+            [],
+            false);
+        var route = new MailRouteEvaluationResult(
+            MailRouteDisposition.Accepted,
+            new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+            [],
+            "Accepted.",
+            "policy",
+            1,
+            [new("forwarder@collisionengineers.co.uk", "message")],
+            [new("sender@qdosassist.co.uk", "message, inline forwarded-message header")],
+            new("sender@qdosassist.co.uk", "message, inline forwarded-message header"));
+
+        var root = Assert.Single(IntakeSearchProjection.Create(read, route));
+
+        Assert.Equal(
+            StaffForwardBodyCleaner.Clean(body, isStaffForward: true),
+            root.Text);
+        Assert.DoesNotContain("Wrapper", root.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("cid:", root.Text, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static readonly DateTimeOffset NowUtc = new(2031, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
     [Theory]
@@ -98,6 +157,95 @@ public sealed class RetainedMailTests
         Assert.Equal(3, scope.Page);
         Assert.Equal(25, scope.PageSize);
     }
+
+    [Fact]
+    public async Task ListPassesOneTrimmedSearchTermThroughToTheExistingQueryPort()
+    {
+        var queries = new Queries();
+
+        await new ListRetainedMail(queries).ExecuteAsync(
+            Caseworker(),
+            new("mailbox-a", MailFolderScope.Inbox, "  estimate  "),
+            1,
+            25,
+            CancellationToken.None);
+
+        Assert.Equal("estimate", Assert.Single(queries.Scopes).Scope.SearchTerm);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ListRefusesAnEmptySearchTerm(string searchTerm)
+    {
+        var queries = new Queries();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new ListRetainedMail(queries).ExecuteAsync(
+                Caseworker(),
+                new(null, MailFolderScope.Inbox, searchTerm),
+                1,
+                25,
+                CancellationToken.None));
+
+        Assert.Empty(queries.Scopes);
+    }
+
+    [Fact]
+    public async Task DeletedSearchIsAuthorizedBoundedAndPagedAfterNewestFirstOrdering()
+    {
+        var source = new DeletedSource(new(
+            [
+                Deleted("old", NowUtc.AddMinutes(-2)),
+                Deleted("new", NowUtc),
+                Deleted("middle", NowUtc.AddMinutes(-1))
+            ],
+            true));
+
+        var page = await new SearchDeletedMail(source).ExecuteAsync(
+            Caseworker(),
+            " mailbox-a ",
+            " estimate ",
+            2,
+            2,
+            CancellationToken.None);
+
+        Assert.Equal("mailbox-a", source.MailboxId);
+        Assert.Equal("estimate", source.SearchTerm);
+        Assert.Equal(SearchDeletedMail.MaximumMessages, source.MaximumMessages);
+        Assert.Equal(["old"], page.Items.Select(item => item.ImmutableMessageId));
+        Assert.Equal(3, page.TotalCount);
+        Assert.True(page.IsTruncated);
+    }
+
+    [Fact]
+    public async Task DeletedSearchRequiresCaseworkAuthorizationBeforeCallingItsSource()
+    {
+        var source = new DeletedSource(new([], false));
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new SearchDeletedMail(source).ExecuteAsync(
+                ActionActor.RequestLink(Guid.NewGuid()),
+                null,
+                "estimate",
+                1,
+                25));
+
+        Assert.Null(source.SearchTerm);
+    }
+
+    private static DeletedMailSearchItem Deleted(string id, DateTimeOffset receivedAtUtc) => new(
+        "mailbox-a",
+        "instructions@collisionengineers.co.uk",
+        id,
+        null,
+        null,
+        null,
+        null,
+        receivedAtUtc,
+        false,
+        [],
+        [new(MailSearchMatchKind.MessageBody)]);
 
     [Fact]
     public async Task GetRequiresCaseworkAuthorizationAndAnIdentifier()
@@ -470,7 +618,10 @@ public sealed class RetainedMailTests
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
         }
 
-        public Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        public Task<RetainedMailDetail?> GetAsync(
+            Guid id,
+            CancellationToken cancellationToken,
+            string? searchTerm = null) =>
             Task.FromResult(DetailToReturn);
 
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
@@ -480,6 +631,29 @@ public sealed class RetainedMailTests
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MailPollHealth>>([]);
+    }
+
+    private sealed class DeletedSource(DeletedMailSourceResult result) : IDeletedMailSearchSource
+    {
+        internal string? MailboxId { get; private set; }
+        internal string? SearchTerm { get; private set; }
+        internal int MaximumMessages { get; private set; }
+
+        public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
+
+        public Task<DeletedMailSourceResult> SearchAsync(
+            string? mailboxId,
+            string searchTerm,
+            int maximumMessages,
+            CancellationToken cancellationToken)
+        {
+            MailboxId = mailboxId;
+            SearchTerm = searchTerm;
+            MaximumMessages = maximumMessages;
+            return Task.FromResult(result);
+        }
     }
 
     private sealed class MailboxStore(params ApprovedMailbox[] mailboxes) : IApprovedMailboxStore
