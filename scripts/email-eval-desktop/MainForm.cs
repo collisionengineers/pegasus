@@ -5,7 +5,7 @@ public sealed class MainForm : Form
     private readonly EmailEvaluationWorkflow workflow;
     private readonly Label statusLabel = new() { AutoSize = true, Dock = DockStyle.Fill };
     private readonly Label errorLabel = new() { AutoSize = true, ForeColor = Color.Firebrick, Dock = DockStyle.Fill };
-    private readonly Label suggestionLabel = new() { AutoSize = true, Dock = DockStyle.Fill };
+    private readonly Label suggestionLabel = new() { AutoSize = false, Dock = DockStyle.Fill, TextAlign = ContentAlignment.TopLeft };
     private readonly TextBox fromText = ReadOnlyField();
     private readonly TextBox toText = ReadOnlyField();
     private readonly TextBox ccText = ReadOnlyField();
@@ -52,7 +52,7 @@ public sealed class MainForm : Form
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 190));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 110));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 90));
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));

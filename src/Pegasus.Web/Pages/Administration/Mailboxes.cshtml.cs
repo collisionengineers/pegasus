@@ -9,7 +9,8 @@ namespace Pegasus.Web.Pages.Administration;
 public sealed class MailboxesModel(
     ListApprovedMailboxes listApprovedMailboxes,
     UpdateApprovedMailbox updateApprovedMailbox,
-    IApprovedMailboxPollStatusQueries pollStatusQueries)
+    IApprovedMailboxPollStatusQueries pollStatusQueries,
+    IResolveApprovedMailboxIdentity resolveApprovedMailboxIdentity)
     : AdministrationPageModel
 {
     public IReadOnlyList<ApprovedMailbox> Mailboxes { get; private set; } = [];
@@ -29,21 +30,6 @@ public sealed class MailboxesModel(
     [BindProperty]
     [Required]
     public string SelectedState { get; set; } = ApprovedMailboxState.Approved.ToString();
-
-    // Exact tenant identifiers, not credentials. They are shown in full here, on the
-    // only surface that already requires Administrator and ManageApprovedMailboxes,
-    // and nowhere else.
-    [BindProperty]
-    [StringLength(100)]
-    public string? MailboxIdentity { get; set; }
-
-    [BindProperty]
-    [StringLength(200)]
-    public string? InboxFolderIdentity { get; set; }
-
-    [BindProperty]
-    [StringLength(200)]
-    public string? SentFolderIdentity { get; set; }
 
     [BindProperty]
     [Range(0, int.MaxValue)]
@@ -77,6 +63,11 @@ public sealed class MailboxesModel(
         }
 
         StaffAuthorization.Require(actor, StaffAccessRight.ManageApprovedMailboxes);
+        // Loaded once, up front: an existing row's own identities are read from here
+        // (never from the client — the form no longer carries them) so a save that only
+        // changes route scope or state still resends the identity UpdateApprovedMailbox
+        // requires for an Approved row, without the operator ever seeing it.
+        await LoadAsync(actor, cancellationToken);
         var routeScopes = ParseRouteScopes();
         if (!Enum.TryParse<ApprovedMailboxState>(
                 SelectedState,
@@ -89,6 +80,36 @@ public sealed class MailboxesModel(
         if (MailboxId == Guid.Empty || !IsOperationKeyValid(OperationKey))
         {
             ModelState.AddModelError(string.Empty, "The form has expired. Retry the operation.");
+        }
+
+        var isNewMailbox = ExpectedVersion == 0;
+        var existingMailbox = isNewMailbox
+            ? null
+            : Mailboxes.SingleOrDefault(mailbox => mailbox.Id == MailboxId);
+        ApprovedMailboxIdentityResolution? resolution = null;
+        if (ModelState.IsValid && isNewMailbox)
+        {
+            string normalizedAddress;
+            try
+            {
+                normalizedAddress = ApprovedMailboxAddress.Normalize(Address);
+            }
+            catch (ArgumentException)
+            {
+                normalizedAddress = string.Empty;
+                ModelState.AddModelError(nameof(Address), "Enter a supported mailbox address and route scope.");
+            }
+
+            if (ModelState.IsValid)
+            {
+                resolution = await resolveApprovedMailboxIdentity.ResolveAsync(normalizedAddress, cancellationToken);
+                if (resolution is null)
+                {
+                    ModelState.AddModelError(
+                        nameof(Address),
+                        "The address could not be found in the mail system.");
+                }
+            }
         }
 
         if (ModelState.IsValid)
@@ -105,12 +126,11 @@ public sealed class MailboxesModel(
                         actor,
                         Reason,
                         OperationKey,
-                        MailboxIdentity,
-                        InboxFolderIdentity,
-                        SentFolderIdentity),
+                        resolution?.MailboxIdentity ?? existingMailbox?.MailboxIdentity,
+                        resolution?.InboxFolderIdentity ?? existingMailbox?.InboxFolderIdentity,
+                        resolution?.SentFolderIdentity ?? existingMailbox?.SentFolderIdentity),
                     cancellationToken);
-                TempData["AdministrationStatus"] =
-                    $"Approved-mailbox policy version {updated.Version} was recorded for {updated.Address}.";
+                TempData["AdministrationStatus"] = $"The mailbox policy for {updated.Address} was saved.";
                 return RedirectToPage();
             }
             catch (ApprovedMailboxUpdateException exception)
@@ -127,18 +147,13 @@ public sealed class MailboxesModel(
                     ApprovedMailboxUpdateError.OperationConflict =>
                         "This form was already used for another mailbox change. Review the current row and retry.",
                     ApprovedMailboxUpdateError.MissingMailboxIdentity =>
-                        "An approved mailbox needs its mailbox identity, plus the Inbox folder " +
-                        "identity for new instructions and the Sent folder identity for Sent evidence. " +
-                        "Save the mailbox as Disabled while you are still waiting for them.",
+                        "This mailbox cannot be approved for that route scope yet.",
                     ApprovedMailboxUpdateError.InvalidMailboxIdentity =>
-                        "A mailbox or folder identity must be an exact identifier with no spaces: " +
-                        "up to 100 characters for the mailbox and 200 for a folder.",
+                        "The resolved identity for this mailbox was not valid. Try again.",
                     ApprovedMailboxUpdateError.MailboxIdentityImmutable =>
-                        "A mailbox identity and address cannot be changed once saved. " +
-                        "Disable this mailbox and add a new one.",
+                        "This mailbox's address cannot be changed once saved. Disable it and add a new one.",
                     ApprovedMailboxUpdateError.DuplicateMailboxIdentity =>
-                        "That mailbox identity already belongs to another row. " +
-                        "Two rows cannot share one mailbox.",
+                        "That address already resolves to a mailbox approved under another row.",
                     _ => "The approved-mailbox change was not accepted."
                 });
             }
@@ -150,6 +165,8 @@ public sealed class MailboxesModel(
             }
         }
 
+        // Reloaded again: the up-front load above may now be stale (this failure can
+        // itself be a version conflict with another save that landed in between).
         await LoadAsync(actor, cancellationToken);
         if (ExpectedVersion > 0)
         {
@@ -170,26 +187,6 @@ public sealed class MailboxesModel(
 
     public string AddressFor(ApprovedMailbox mailbox) =>
         mailbox.Id == MailboxId && ExpectedVersion > 0 ? Address : mailbox.Address;
-
-    public string MailboxIdentityFor(ApprovedMailbox mailbox) =>
-        Identity(mailbox, mailbox.MailboxIdentity, MailboxIdentity);
-
-    public string InboxFolderIdentityFor(ApprovedMailbox mailbox) =>
-        Identity(mailbox, mailbox.InboxFolderIdentity, InboxFolderIdentity);
-
-    public string SentFolderIdentityFor(ApprovedMailbox mailbox) =>
-        Identity(mailbox, mailbox.SentFolderIdentity, SentFolderIdentity);
-
-    private string Identity(ApprovedMailbox mailbox, string? saved, string? posted) =>
-        saved ?? (mailbox.Id == MailboxId && ExpectedVersion > 0 ? posted ?? string.Empty : string.Empty);
-
-    public string NewMailboxIdentity => ExpectedVersion == 0 ? MailboxIdentity ?? string.Empty : string.Empty;
-
-    public string NewInboxFolderIdentity =>
-        ExpectedVersion == 0 ? InboxFolderIdentity ?? string.Empty : string.Empty;
-
-    public string NewSentFolderIdentity =>
-        ExpectedVersion == 0 ? SentFolderIdentity ?? string.Empty : string.Empty;
 
     /// <summary>
     /// What the last poll of this mailbox actually did. A mailbox with no cursor row has
