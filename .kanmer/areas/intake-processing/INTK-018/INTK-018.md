@@ -2,10 +2,13 @@
 id: INTK-018
 type: ticket
 title: Resolve Unidentified items when their receipt reaches a real destination
-status: backlog
+status: preparing
 area: intake-processing
-assignee: ''
+assignee: group-lane
 profile: fix
+taken_at: '2026-08-20T04:16:43.894Z'
+branch: task/intk-018-unidentified-resolution
+worktree: ../pegasus-worktrees/intk-018
 labels:
   - defect
   - unidentified
@@ -17,7 +20,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-20T03:25:25.736Z'
-updated: '2026-08-20T03:25:25.736Z'
+updated: '2026-08-20T04:16:43.894Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: >-
   MCP-06 — Automation Actor assessment actions: direct writes with logging
   parity (assessment get/update, case-detail update, EVA…
-status: review
+status: verifying
 area: automation-integrations
 order: 20
 assignee: claude-code
@@ -13,6 +13,7 @@ stageEntered:
   preparing: '2026-08-17T13:24:20.304Z'
   implementing: '2026-08-20T04:06:27.660Z'
   review: '2026-08-20T04:06:29.725Z'
+  verifying: '2026-08-20T04:16:57.510Z'
 taken_at: '2026-08-20T03:55:11.805Z'
 branch: task/tick-027-mcp06-update-details-tests
 worktree: ../pegasus-worktrees/tick-027
@@ -29,7 +30,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:03:53.326Z'
-updated: '2026-08-20T04:06:29.725Z'
+updated: '2026-08-20T04:16:57.510Z'
 ---
 
 ## What
