@@ -194,7 +194,7 @@ public sealed class EfImageIntakeStore(
             RequestFingerprint = requestFingerprint,
             LifecycleState = ToCode(ImageInitiatedCaseState.AwaitingInstruction),
             LifecycleVersion = 0,
-            CustodyState = "pending"
+            CustodyState = ImageCustodyStates.Pending
         };
         context.ImageIntakes.Add(entity);
 
@@ -295,32 +295,9 @@ public sealed class EfImageIntakeStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var memberStagedIds = await context.IntakeSubmissionGroupMembers
-            .AsNoTracking()
-            .Where(member => member.GroupId == submissionGroupId)
-            .Select(member => member.StagedReceiptId)
-            .ToArrayAsync(cancellationToken);
-        if (memberStagedIds.Length == 0)
-        {
-            return;
-        }
-
-        var evaluations = await context.IntakeEvaluations
-            .AsNoTracking()
-            .Where(evaluation => memberStagedIds.Contains(evaluation.StagedReceiptId))
-            .Select(evaluation => new
-            {
-                evaluation.StagedReceiptId,
-                evaluation.ProcessedReceiptId,
-                evaluation.Revision
-            })
-            .ToArrayAsync(cancellationToken);
-        var memberReceiptIds = evaluations
-            .GroupBy(evaluation => evaluation.StagedReceiptId)
-            .Select(grouping => grouping
-                .OrderByDescending(evaluation => evaluation.Revision)
-                .First()
-                .ProcessedReceiptId)
+        var memberReceiptIds =
+            (await ResolveGroupMemberReceiptsAsync(context, submissionGroupId, cancellationToken))
+            .Select(pair => pair.ProcessedReceiptId)
             .Where(receiptId => receiptId != originReceiptId)
             .Distinct()
             .ToArray();
@@ -373,6 +350,55 @@ public sealed class EfImageIntakeStore(
                 AfterJson = Snapshot(receipt)
             });
         }
+    }
+
+    /// <summary>
+    /// Resolves a submission group's member receipts through the durable
+    /// membership itself (member → latest evaluation → processed receipt),
+    /// ordered by member ordinal. The one implementation of that rule:
+    /// registration above and the queued image-case custody processor both
+    /// resolve members through it.
+    /// </summary>
+    internal static async Task<IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>
+        ResolveGroupMemberReceiptsAsync(
+            PegasusDbContext context,
+            Guid submissionGroupId,
+            CancellationToken cancellationToken)
+    {
+        var members = await context.IntakeSubmissionGroupMembers
+            .AsNoTracking()
+            .Where(member => member.GroupId == submissionGroupId)
+            .Select(member => new { member.Ordinal, member.StagedReceiptId })
+            .ToArrayAsync(cancellationToken);
+        if (members.Length == 0)
+        {
+            return [];
+        }
+
+        var stagedIds = members.Select(member => member.StagedReceiptId).ToArray();
+        var evaluations = await context.IntakeEvaluations
+            .AsNoTracking()
+            .Where(evaluation => stagedIds.Contains(evaluation.StagedReceiptId))
+            .Select(evaluation => new
+            {
+                evaluation.StagedReceiptId,
+                evaluation.ProcessedReceiptId,
+                evaluation.Revision
+            })
+            .ToArrayAsync(cancellationToken);
+        var latestByStaged = evaluations
+            .GroupBy(evaluation => evaluation.StagedReceiptId)
+            .ToDictionary(
+                grouping => grouping.Key,
+                grouping => grouping
+                    .OrderByDescending(evaluation => evaluation.Revision)
+                    .First()
+                    .ProcessedReceiptId);
+        return members
+            .Where(member => latestByStaged.ContainsKey(member.StagedReceiptId))
+            .Select(member => (member.Ordinal, latestByStaged[member.StagedReceiptId]))
+            .OrderBy(pair => pair.Ordinal)
+            .ToArray();
     }
 
     public async Task EnsureRegisteredReceiptDecisionAsync(
@@ -568,6 +594,7 @@ public sealed class EfImageIntakeStore(
             context.ExternalWorkItems.Add(new ExternalWorkItemEntity
             {
                 Id = Guid.NewGuid(),
+                ImageIntake = entity,
                 ImageIntakeId = entity.Id,
                 CaseId = linkedCaseId,
                 Kind = ExternalWorkKinds.MergeImageCaseCustody,

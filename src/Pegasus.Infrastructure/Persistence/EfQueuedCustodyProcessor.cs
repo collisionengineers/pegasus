@@ -22,7 +22,7 @@ internal sealed class EfQueuedCustodyProcessor(
         }
 
         var leaseToken = Guid.NewGuid().ToString("N");
-        object payload;
+        CustodyWorkPayload payload;
         while (true)
         {
             await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -135,7 +135,7 @@ internal sealed class EfQueuedCustodyProcessor(
             var casePayload = (WorkPayload)payload;
             var isAuditCustody = string.Equals(
                 casePayload.WorkKind,
-                "create_audit_reference_custody",
+                ExternalWorkKinds.CreateAuditReferenceCustody,
                 StringComparison.Ordinal);
             var isAuditCase = string.Equals(casePayload.CaseType, "audit", StringComparison.Ordinal);
             var rootReference = isAuditCase
@@ -346,27 +346,10 @@ internal sealed class EfQueuedCustodyProcessor(
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
-        var work = await context.ExternalWorkItems
-            .SingleOrDefaultAsync(
-                value => value.Id == workId
-                    && value.State == "processing"
-                    && value.LeaseToken == leaseToken
-                    && value.LeaseExpiresAtUtc > now,
-                cancellationToken);
+        var work = await TakeCompletableWorkAsync(context, workId, leaseToken, now, cancellationToken);
         if (work is null)
         {
-            var state = await context.ExternalWorkItems
-                .AsNoTracking()
-                .Where(value => value.Id == workId)
-                .Select(value => value.State)
-                .SingleOrDefaultAsync(cancellationToken);
-            if (string.Equals(state, "completed", StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                "The custody work item lease was lost before completion could be persisted.");
+            return;
         }
 
         var caseEntity = await context.Cases
@@ -396,13 +379,7 @@ internal sealed class EfQueuedCustodyProcessor(
             workflow.State = CaseLifecycleState.Review.ToString();
         }
         CaseMutationGuard.Complete(workflow);
-        work.State = "completed";
-        work.CompletedAtUtc = now;
-        work.ExternalReceipt = version.RemoteId;
-        work.LeaseToken = null;
-        work.LeaseExpiresAtUtc = null;
-        work.FailureCode = null;
-        work.FailureReason = null;
+        CompleteWork(work, now, version.RemoteId);
         context.Set<CaseHistoryEntity>().Add(new()
         {
             Id = Guid.NewGuid(),
@@ -429,31 +406,20 @@ internal sealed class EfQueuedCustodyProcessor(
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         var now = timeProvider.GetUtcNow();
-        var work = await context.ExternalWorkItems
-            .SingleOrDefaultAsync(
-                value => value.Id == workId
-                    && value.State == "processing"
-                    && value.LeaseToken == leaseToken
-                    && value.LeaseExpiresAtUtc > now,
-                cancellationToken);
+        var work = await TakeCompletableWorkAsync(
+            context,
+            workId,
+            leaseToken,
+            now,
+            cancellationToken,
+            "The Audit custody work item lease was lost before completion could be persisted.");
         if (work is null)
         {
-            var state = await context.ExternalWorkItems
-                .AsNoTracking()
-                .Where(value => value.Id == workId)
-                .Select(value => value.State)
-                .SingleOrDefaultAsync(cancellationToken);
-            if (string.Equals(state, "completed", StringComparison.Ordinal))
-            {
-                return;
-            }
-
-            throw new InvalidOperationException(
-                "The Audit custody work item lease was lost before completion could be persisted.");
+            return;
         }
         if (!string.Equals(
                 work.Kind,
-                "create_audit_reference_custody",
+                ExternalWorkKinds.CreateAuditReferenceCustody,
                 StringComparison.Ordinal))
         {
             throw new InvalidDataException(
@@ -476,13 +442,7 @@ internal sealed class EfQueuedCustodyProcessor(
         caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
         caseEntity.AuditCustodyConfirmedAtUtc = now;
         CaseMutationGuard.Complete(workflow);
-        work.State = "completed";
-        work.CompletedAtUtc = now;
-        work.ExternalReceipt = auditFolderRemoteId;
-        work.LeaseToken = null;
-        work.LeaseExpiresAtUtc = null;
-        work.FailureCode = null;
-        work.FailureReason = null;
+        CompleteWork(work, now, auditFolderRemoteId);
         context.CaseHistory.Add(new()
         {
             Id = Guid.NewGuid(),
@@ -602,44 +562,20 @@ internal sealed class EfQueuedCustodyProcessor(
         ImageIntakeEntity intake,
         CancellationToken cancellationToken)
     {
-        var ordered = new List<(int Ordinal, Guid ReceiptId)>();
+        var ordered = new List<Guid>();
         if (intake.SubmissionGroupId is { } groupId)
         {
-            var members = await context.IntakeSubmissionGroupMembers
-                .AsNoTracking()
-                .Where(member => member.GroupId == groupId)
-                .Select(member => new { member.Ordinal, member.StagedReceiptId })
-                .ToArrayAsync(cancellationToken);
-            var stagedIds = members.Select(member => member.StagedReceiptId).ToArray();
-            var evaluations = await context.IntakeEvaluations
-                .AsNoTracking()
-                .Where(evaluation => stagedIds.Contains(evaluation.StagedReceiptId))
-                .Select(evaluation => new
-                {
-                    evaluation.StagedReceiptId,
-                    evaluation.ProcessedReceiptId,
-                    evaluation.Revision
-                })
-                .ToArrayAsync(cancellationToken);
-            var latestByStaged = evaluations
-                .GroupBy(evaluation => evaluation.StagedReceiptId)
-                .ToDictionary(
-                    grouping => grouping.Key,
-                    grouping => grouping
-                        .OrderByDescending(evaluation => evaluation.Revision)
-                        .First()
-                        .ProcessedReceiptId);
-            ordered.AddRange(members
-                .Where(member => latestByStaged.ContainsKey(member.StagedReceiptId))
-                .Select(member => (member.Ordinal, latestByStaged[member.StagedReceiptId]))
-                .OrderBy(pair => pair.Ordinal));
+            ordered.AddRange(
+                (await EfImageIntakeStore.ResolveGroupMemberReceiptsAsync(
+                    context, groupId, cancellationToken))
+                .Select(pair => pair.ProcessedReceiptId));
         }
-        if (!ordered.Any(pair => pair.ReceiptId == intake.OriginReceiptId))
+        if (!ordered.Contains(intake.OriginReceiptId))
         {
-            ordered.Insert(0, (-1, intake.OriginReceiptId));
+            ordered.Insert(0, intake.OriginReceiptId);
         }
 
-        var receiptIds = ordered.Select(pair => pair.ReceiptId).Distinct().ToArray();
+        var receiptIds = ordered.Distinct().ToArray();
         var receipts = await context.IntakeReceipts
             .AsNoTracking()
             .Where(receipt => receiptIds.Contains(receipt.Id))
@@ -664,13 +600,8 @@ internal sealed class EfQueuedCustodyProcessor(
 
         var registeredDecision = EfIntakeReceiptStore.ToCode(IntakeDecision.ImageIntakeRegistered);
         var assets = new List<ImageAssetPayload>();
-        var seen = new HashSet<Guid>();
-        foreach (var (_, receiptId) in ordered)
+        foreach (var receiptId in receiptIds)
         {
-            if (!seen.Add(receiptId))
-            {
-                continue;
-            }
             if (!receipts.TryGetValue(receiptId, out var receipt))
             {
                 throw new InvalidDataException(
@@ -747,7 +678,7 @@ internal sealed class EfQueuedCustodyProcessor(
         CustodyEffectLeaseGuard leaseGuard,
         CancellationToken cancellationToken)
     {
-        if (string.Equals(payload.ImageCustodyState, "merged", StringComparison.Ordinal))
+        if (string.Equals(payload.ImageCustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal))
         {
             await CompleteImageMergeAsync(
                 workId, leaseToken, payload.CaseId, payload.ImageReference, folded: true, cancellationToken);
@@ -808,13 +739,14 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
+        var imageIntakeId = RequireImageIntakeId(work);
         var intake = await context.ImageIntakes
-            .SingleAsync(value => value.Id == RequireImageIntakeId(work), cancellationToken);
+            .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
         intake.CustodyRootRemoteId = root.RemoteId;
         intake.CustodyConfirmedAtUtc ??= now;
-        if (!string.Equals(intake.CustodyState, "merged", StringComparison.Ordinal))
+        if (!string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal))
         {
-            intake.CustodyState = "confirmed";
+            intake.CustodyState = ImageCustodyStates.Confirmed;
         }
         CompleteWork(work, now, root.RemoteId);
         await context.SaveChangesAsync(cancellationToken);
@@ -838,12 +770,13 @@ internal sealed class EfQueuedCustodyProcessor(
             return;
         }
 
+        var imageIntakeId = RequireImageIntakeId(work);
         var intake = await context.ImageIntakes
-            .SingleAsync(value => value.Id == RequireImageIntakeId(work), cancellationToken);
-        var alreadyMerged = string.Equals(intake.CustodyState, "merged", StringComparison.Ordinal);
+            .SingleAsync(value => value.Id == imageIntakeId, cancellationToken);
+        var alreadyMerged = string.Equals(intake.CustodyState, ImageCustodyStates.Merged, StringComparison.Ordinal);
         if (folded && !alreadyMerged)
         {
-            intake.CustodyState = "merged";
+            intake.CustodyState = ImageCustodyStates.Merged;
             intake.CustodyMergedAtUtc ??= now;
             var workflow = await context.CaseWorkflows
                 .SingleAsync(value => value.CaseId == caseId, cancellationToken);
@@ -878,7 +811,9 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid workId,
         string leaseToken,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string leaseLostMessage =
+            "The custody work item lease was lost before completion could be persisted.")
     {
         var work = await context.ExternalWorkItems
             .SingleOrDefaultAsync(
@@ -902,8 +837,7 @@ internal sealed class EfQueuedCustodyProcessor(
             return null;
         }
 
-        throw new InvalidOperationException(
-            "The custody work item lease was lost before completion could be persisted.");
+        throw new InvalidOperationException(leaseLostMessage);
     }
 
     private static void CompleteWork(
@@ -920,12 +854,14 @@ internal sealed class EfQueuedCustodyProcessor(
         work.FailureReason = null;
     }
 
+    private abstract record CustodyWorkPayload;
+
     private sealed record ImageCreatePayload(
         Guid ImageIntakeId,
         string ImageReference,
         string OperationKey,
         string? CaseRootCreationToken,
-        IReadOnlyList<ImageAssetPayload> Assets);
+        IReadOnlyList<ImageAssetPayload> Assets) : CustodyWorkPayload;
 
     private sealed record ImageAssetPayload(
         Guid IntakeReceiptId,
@@ -943,7 +879,7 @@ internal sealed class EfQueuedCustodyProcessor(
         Guid CaseId,
         string CaseRootReference,
         string? CaseCustodyRootRemoteId,
-        string OperationKey);
+        string OperationKey) : CustodyWorkPayload;
 
     private sealed record WorkPayload(
         string WorkKind,
@@ -959,7 +895,7 @@ internal sealed class EfQueuedCustodyProcessor(
         long SourceLength,
         string OperationKey,
         string? CaseRootCreationToken,
-        string? AuditFolderCreationToken);
+        string? AuditFolderCreationToken) : CustodyWorkPayload;
 
     private sealed record SourcePayload(
         string SourceFileName,

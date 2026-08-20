@@ -252,7 +252,7 @@ public sealed class ImageCaseCustodyIntegrationTests
         var outageProcessor = new EfQueuedCustodyProcessor(
             contextFactory,
             workStore,
-            new DependencyFailingCustody(),
+            new FailingCustody(() => new IOException("The storage dependency is unavailable.")),
             services.GetRequiredService<TimeProvider>());
         await Assert.ThrowsAsync<IOException>(() =>
             outageProcessor.ExecuteAsync(workId, CancellationToken.None));
@@ -314,7 +314,7 @@ public sealed class ImageCaseCustodyIntegrationTests
         var integrityProcessor = new EfQueuedCustodyProcessor(
             contextFactory,
             workStore,
-            new IntegrityFailingCustody(),
+            new FailingCustody(() => new InvalidDataException("The retained source failed its integrity check.")),
             services.GetRequiredService<TimeProvider>());
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             integrityProcessor.ExecuteAsync(secondWorkId, CancellationToken.None));
@@ -366,7 +366,11 @@ public sealed class ImageCaseCustodyIntegrationTests
         return caseId;
     }
 
-    private sealed class DependencyFailingCustody : ICaseCustody
+    /// <summary>
+    /// One failing ICaseCustody fake; the constructed exception decides the
+    /// persisted failure taxonomy under test.
+    /// </summary>
+    private sealed class FailingCustody(Func<Exception> failure) : ICaseCustody
     {
         public Task<CaseCustodyRoot> CreateCaseRootAsync(
             Guid caseId,
@@ -374,23 +378,20 @@ public sealed class ImageCaseCustodyIntegrationTests
             string creationOwnerToken,
             string operationKey,
             CancellationToken cancellationToken) =>
-            Task.FromException<CaseCustodyRoot>(
-                new IOException("The storage dependency is unavailable."));
+            Task.FromException<CaseCustodyRoot>(failure());
 
         public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
             Guid caseId,
             string caseReference,
             CancellationToken cancellationToken) =>
-            Task.FromException<CaseCustodyRoot>(
-                new IOException("The storage dependency is unavailable."));
+            Task.FromException<CaseCustodyRoot>(failure());
 
         public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
             CaseCustodyRoot root,
             IntakeSourceCustodyReference source,
             string operationKey,
             CancellationToken cancellationToken) =>
-            Task.FromException<CustodyDocumentVersion>(
-                new IOException("The storage dependency is unavailable."));
+            Task.FromException<CustodyDocumentVersion>(failure());
 
         public Task<string> CreateAuditReferenceFolderAsync(
             CaseCustodyRoot root,
@@ -398,43 +399,6 @@ public sealed class ImageCaseCustodyIntegrationTests
             string creationOwnerToken,
             string operationKey,
             CancellationToken cancellationToken) =>
-            Task.FromException<string>(
-                new IOException("The storage dependency is unavailable."));
-    }
-
-    private sealed class IntegrityFailingCustody : ICaseCustody
-    {
-        public Task<CaseCustodyRoot> CreateCaseRootAsync(
-            Guid caseId,
-            string caseReference,
-            string creationOwnerToken,
-            string operationKey,
-            CancellationToken cancellationToken) =>
-            Task.FromException<CaseCustodyRoot>(
-                new InvalidDataException("The retained source failed its integrity check."));
-
-        public Task<CaseCustodyRoot> GetExistingCaseRootAsync(
-            Guid caseId,
-            string caseReference,
-            CancellationToken cancellationToken) =>
-            Task.FromException<CaseCustodyRoot>(
-                new InvalidDataException("The retained source failed its integrity check."));
-
-        public Task<CustodyDocumentVersion> RetainAcceptedIntakeSourceAsync(
-            CaseCustodyRoot root,
-            IntakeSourceCustodyReference source,
-            string operationKey,
-            CancellationToken cancellationToken) =>
-            Task.FromException<CustodyDocumentVersion>(
-                new InvalidDataException("The retained source failed its integrity check."));
-
-        public Task<string> CreateAuditReferenceFolderAsync(
-            CaseCustodyRoot root,
-            string auditReference,
-            string creationOwnerToken,
-            string operationKey,
-            CancellationToken cancellationToken) =>
-            Task.FromException<string>(
-                new InvalidDataException("The retained source failed its integrity check."));
+            Task.FromException<string>(failure());
     }
 }
