@@ -637,6 +637,35 @@ or operator-accepted. Test cleanup and migration tests are narrower evidence.
 The accepted method for a future exercise is in the
 [runbook](runbook.md#recovery); procedure does not establish execution.
 
+**Measured backup posture** (read-only `az` readback, 2026-08-20, database
+`pegasus` on `pegasus-prod-sql-252ow37gij`, `rg-pegasus-prod`):
+
+- Short-term retention (point-in-time restore window): 7 days; observed
+  `earliestRestoreDate` 2026-08-13, exactly 7 days before the readback date —
+  PITR is live, not merely configured.
+- Backup storage redundancy: `Geo` (both `current` and `requested`); primary
+  region `uksouth`, secondary `ukwest`. `zoneRedundant`: false.
+- Long-term retention: not configured (weekly/monthly/yearly retention all
+  zero) — only the 7-day short-term window exists.
+- SKU: Standard `S0` (10 DTU). Database size: ~39.5 MiB used, ~48 MiB
+  allocated, against a 250 GB max.
+- Documented RPO for this configuration (Microsoft Learn, "Automated backups
+  in Azure SQL Database"): transaction log backups approximately every 10
+  minutes, restorable to any point within the retention window. This is under
+  the 15-minute RPO objective with a typical ~5-minute margin, but Microsoft
+  states the interval depends on compute size and activity — a documented
+  typical figure, not a guaranteed bound.
+- RTO: not yet measured by an exercise. Given the database's small size
+  (~40 MB) and the documented same-region restore-time factors (size, compute
+  size, log volume, activity replayed), a same-region restore is expected to
+  complete in minutes, comfortably inside the 4-hour objective — an inference
+  from documented factors, not a measured result.
+- The exact restore commands and verification steps are in
+  [runbook § Point-in-time restore commands](runbook.md#point-in-time-restore-commands).
+  A restore drill that would measure actual RPO/RTO end to end is an Azure
+  write and remains a separately approved exercise (parked, not run in this
+  posture check).
+
 ## Deferred capability seams
 
 Deferred capabilities must attach to an existing Core port and a real composition-root caller. Preserve run identifiers, stable source identities, versioned external contracts, ignored evidence directories, and transport-neutral policy boundaries. Every activation still requires settled product policy, representative evidence, licence/cost/security approval, a real caller, a production adapter, contract fixtures, a live sandbox where applicable, and rollout/rollback evidence.
