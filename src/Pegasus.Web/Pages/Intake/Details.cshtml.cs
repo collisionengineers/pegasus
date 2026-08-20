@@ -1,4 +1,4 @@
-using Pegasus.Core.Actors;
+﻿using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
@@ -360,13 +360,8 @@ public sealed partial class DetailsModel(
         _ => throw new InvalidOperationException($"Unknown intake decision value '{(int)decision}'.")
     };
 
-    public static string SourceChannelLabel(IntakeSourceChannel channel) => channel switch
-    {
-        IntakeSourceChannel.ManualUpload => "Manual upload",
-        IntakeSourceChannel.Mailbox => "Approved inbox",
-        IntakeSourceChannel.Automation => "Automation",
-        _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
-    };
+    public static string SourceChannelLabel(IntakeSourceChannel channel) =>
+        OperatorLabels.SourceChannel(channel);
 
     public static string CaseTypeLabel(CaseType? caseType) => caseType switch
     {

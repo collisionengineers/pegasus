@@ -1,4 +1,4 @@
-@page "/Upload/Group/{id:guid}"
+﻿@page "/Upload/Group/{id:guid}"
 @model Pegasus.Web.Pages.UploadGroupStatusModel
 @{
     ViewData["Title"] = "Upload received";
@@ -41,7 +41,7 @@
                     else
                     {
                         <a asp-page="/UploadStatus" asp-route-id="@member.StagedReceiptId">@member.SourceFileName</a>
-                        <span class="field-hint">@(Model.Statuses[member.StagedReceiptId]?.Status.ToString() ?? "Received")</span>
+                        <span class="field-hint">@(Model.Statuses[member.StagedReceiptId]?.Status is { } memberStatus ? Pegasus.Web.Presentation.OperatorLabels.Humanise(memberStatus.ToString()) : "Received")</span>
                     }
                     @if (memberOutcome is not null)
                     {
