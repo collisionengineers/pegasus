@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.AiWork;
@@ -67,7 +67,7 @@ public sealed class IndexModel : AdministrationPageModel
         {
             ModelState.AddModelError(
                 string.Empty,
-                "Automation is not part of this deployment.");
+                "Automation is not available.");
         }
         if (!IsOperationKeyValid(OperationKey))
         {
@@ -136,7 +136,7 @@ public sealed class IndexModel : AdministrationPageModel
         var store = ConnectorStore();
         if (store is null)
         {
-            ModelState.AddModelError(string.Empty, "Send to AI is not part of this deployment.");
+            ModelState.AddModelError(string.Empty, "Sending to AI is not available.");
         }
         if (!IsOperationKeyValid(OperationKey))
         {
@@ -148,7 +148,7 @@ public sealed class IndexModel : AdministrationPageModel
         {
             ModelState.AddModelError(
                 nameof(ChannelAddress),
-                "The channel address must be a loopback http origin without path or query.");
+                "Enter the connector address exactly as supplied, without a path or query.");
         }
 
         if (ModelState.IsValid && store is not null)
@@ -176,7 +176,7 @@ public sealed class IndexModel : AdministrationPageModel
         var store = ConnectorStore();
         if (store is null)
         {
-            ModelState.AddModelError(string.Empty, "Send to AI is not part of this deployment.");
+            ModelState.AddModelError(string.Empty, "Sending to AI is not available.");
         }
         if (!IsOperationKeyValid(OperationKey))
         {
@@ -215,7 +215,7 @@ public sealed class IndexModel : AdministrationPageModel
         var store = ConnectorStore();
         if (store is null)
         {
-            ModelState.AddModelError(string.Empty, "Send to AI is not part of this deployment.");
+            ModelState.AddModelError(string.Empty, "Sending to AI is not available.");
         }
         if (!IsOperationKeyValid(OperationKey))
         {
@@ -228,7 +228,7 @@ public sealed class IndexModel : AdministrationPageModel
                 new(actor, Reason, OperationKey, NewToken: null),
                 cancellationToken);
             TempData["AdministrationStatus"] =
-                "The administration-entered token is removed; the deployment configuration token applies from the next hand-off.";
+                "The administration-entered token is removed; the standard token applies from the next hand-off.";
             return RedirectToPage();
         }
 

@@ -1,4 +1,4 @@
-@model Pegasus.Web.Pages.Cases.DetailsModel
+﻿@model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Cases
 @using Pegasus.Core.Custody
 @using Pegasus.Core.Lifecycle
@@ -401,7 +401,7 @@ else if (Model.ProposedValues.Count > 0)
         @foreach (var task in details.Tasks)
         {
             <li>
-                <strong>@task.Description</strong> — @task.State — assignee @(task.AssigneeId?.ToString("D") ?? "unassigned")
+                <strong>@task.Description</strong> — @OperatorLabels.Humanise(task.State.ToString()) — assignee @(task.AssigneeId?.ToString("D") ?? "unassigned")
                 @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null && task.State == CaseTaskState.Open)
                 {
                     <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="AssignTask">
@@ -486,7 +486,7 @@ else if (Model.ProposedValues.Count > 0)
         @if (vehicleEvidence.LatestObservation is { } observation)
         {
             <dl>
-                <dt>Latest lookup outcome</dt><dd>@observation.Outcome</dd>
+                <dt>Latest lookup outcome</dt><dd>@OperatorLabels.Humanise(observation.Outcome.ToString())</dd>
                 <dt>Registration</dt><dd>@observation.Registration</dd>
                 <dt>Provider</dt><dd>@observation.Provenance.Provider @observation.Provenance.ProviderVersion</dd>
                 <dt>Retrieved</dt><dd>@OperatorLabels.OfficeTime(observation.Provenance.RetrievedAtUtc)</dd>
@@ -500,7 +500,7 @@ else if (Model.ProposedValues.Count > 0)
                 }
                 @if (observation.Mileage is { } estimatedMileage)
                 {
-                    <dt>Mileage</dt><dd>@($"{estimatedMileage.Value:N0} {estimatedMileage.Unit} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.Estimated)}") (latest MOT observation, @estimatedMileage.ObservedOn.ToString("d MMM yyyy"))</dd>
+                    <dt>Mileage</dt><dd>@($"{estimatedMileage.Value:N0} {OperatorLabels.MileageUnit(estimatedMileage.Unit)} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.Estimated)}") (latest MOT observation, @estimatedMileage.ObservedOn.ToString("d MMM yyyy"))</dd>
                 }
             </dl>
             @if (observation.MotTests.Count > 0)
@@ -517,7 +517,7 @@ else if (Model.ProposedValues.Count > 0)
                                     <td>@motTest.TestDate.ToString("d MMM yyyy")</td>
                                     <td>@motTest.TestStatus</td>
                                     <td>@(motTest.ExpiryDate?.ToString("d MMM yyyy") ?? "—")</td>
-                                    <td>@(motTest.Mileage is { } motMileage ? $"{motMileage:N0} {motTest.MileageUnit}" : "—")</td>
+                                    <td>@(motTest.Mileage is { } motMileage ? $"{motMileage:N0}{(motTest.MileageUnit is { } motUnit ? " " + OperatorLabels.MileageUnit(motUnit) : "")}" : "—")</td>
                                 </tr>
                             }
                         </tbody>
@@ -563,7 +563,7 @@ else if (Model.ProposedValues.Count > 0)
         {
             <li>
                 <strong>@(custody.TargetKind == CustodyTargetKind.CaseSource ? "Case evidence" : "Audit reference")</strong>
-                — @custody.State
+                — @OperatorLabels.Humanise(custody.State.ToString())
                 @if (!string.IsNullOrWhiteSpace(custody.SafeFailureReason))
                 {
                     <span>— @custody.SafeFailureReason</span>

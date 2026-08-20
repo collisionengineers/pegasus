@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
@@ -157,7 +157,7 @@ public static class OperatorLabels
     /// Core operational-destination policy.
     /// </summary>
     /// <remarks>
-    /// The abstention case reuses the exact "Needs sorting" wording this page
+    /// The abstention case reuses the exact "Unidentified" wording this page
     /// already shows for the unmatched Queue and Filed-to states
     /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.QueueLabel"/> and
     /// <see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
@@ -563,6 +563,38 @@ public static class OperatorLabels
         VehicleMileageEvidenceClass.External => "External",
         VehicleMileageEvidenceClass.Estimated => "Estimated",
         _ => Humanise(value.ToString())
+    };
+
+    /// <summary>
+    /// The unit word a mileage figure carries ("12,345 miles").
+    /// </summary>
+    public static string MileageUnit(VehicleMileageUnit value) => value switch
+    {
+        VehicleMileageUnit.Miles => "miles",
+        VehicleMileageUnit.Kilometres => "km",
+        _ => Humanise(value.ToString())
+    };
+
+    /// <summary>
+    /// The operator word for how material arrived. One owner for the channel
+    /// vocabulary; the string overload accepts the persisted channel code.
+    /// </summary>
+    public static string SourceChannel(IntakeSourceChannel channel) => channel switch
+    {
+        IntakeSourceChannel.ManualUpload => "Manual upload",
+        IntakeSourceChannel.Mailbox => "Approved inbox",
+        IntakeSourceChannel.Automation => "Automation",
+        _ => throw new InvalidOperationException(
+            $"Unknown intake source channel value '{(int)channel}'.")
+    };
+
+    /// <inheritdoc cref="SourceChannel(IntakeSourceChannel)" />
+    public static string SourceChannel(string? code) => code switch
+    {
+        "manual_upload" => "Manual upload",
+        "mailbox" => "Approved inbox",
+        "automation" => "Automation",
+        _ => Humanise(code)
     };
 
     public static (string Word, string Icon) Provenance(CaseDataSource? source)

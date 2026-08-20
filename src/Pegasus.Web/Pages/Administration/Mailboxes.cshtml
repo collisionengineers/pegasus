@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model Pegasus.Web.Pages.Administration.MailboxesModel
 @using Pegasus.Core.Identity
 @using Pegasus.Core.Intake
@@ -49,7 +49,7 @@
                     <tr>
                         <td>@mailbox.Address</td>
                         <td>@string.Join(", ", mailbox.RouteScopes.Select(Pegasus.Web.Presentation.OperatorLabels.RouteScope))</td>
-                        <td><partial name="Shared/_StatusChip" model="@mailbox.State.ToString()" /></td>
+                        <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Presentation.OperatorLabels.Humanise(mailbox.State.ToString())" /></td>
                         <td>@Model.PollStatusFor(mailbox)</td>
                     </tr>
                 }
@@ -120,7 +120,7 @@
                     <form method="post" asp-page-handler="ResolveFolders" class="role-form">
                         <input type="hidden" name="MailboxId" value="@mailbox.Id" />
                         <input type="hidden" name="ExpectedVersion" value="@mailbox.Version" />
-                        <input type="hidden" name="OperationKey" value="@Guid.NewGuid().ToString("N")" />
+                        <input type="hidden" name="OperationKey" value="@Pegasus.Web.Pages.StaffPageModel.NewOperationKey()" />
                         <input type="hidden" name="Address" value="@mailbox.Address" />
                         <input type="hidden" name="SelectedState" value="@mailbox.State" />
                         <input type="hidden" name="Reason" value="Refresh approved logical folder bindings" />
