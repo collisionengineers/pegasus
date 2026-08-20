@@ -1,0 +1,3 @@
+# Focused research — queued caller evidence
+
+PR #486 head 33aa2dfb adds the live and completed-replay calls in `ProcessQueuedIntake`, but its changed tests stop at the Core use case and EF store. `QdosAllocationRecoveryTests` already owns durable queued-processing/replay evidence, supplies disposable SQL, and has helpers to seed a definitive QDOS Case and retained message. The smallest proof is two tests in that existing class, using the real processor and association transaction with narrow recording wrappers: one first-pass claim and one completed-work replay. Both must show provider attempt precedes MAIL-09, successful MAIL-09 state is reloaded before allocation, and external systems are untouched.
