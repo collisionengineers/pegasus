@@ -61,3 +61,13 @@ instead (confirmed in `research`).
 ## Simplification pass
 
 To be recorded after implementation, before PR, under a dated heading.
+
+## Correction during implementation
+
+`RazorPagesOptions` has no `Filters` collection of its own (build error
+CS1061). The global filter is registered through the underlying
+`MvcOptions` instead:
+`builder.Services.AddRazorPages().AddMvcOptions(options => options.Filters.Add<RailCountsPageFilter>());`
+— same effect (a global filter applied to every Razor Page request), just
+the correct API surface. `files`/step 2 above described `RazorPagesOptions.
+Filters`, which does not exist; this is the as-built correction.
