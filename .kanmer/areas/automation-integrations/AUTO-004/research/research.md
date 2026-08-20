@@ -38,3 +38,15 @@ Do not add a generic material abstraction or merge Case documents, intake source
 ## Open questions
 
 None for AUTO-004. Exact wire naming and response records are planning details constrained by the existing typed-tool and bounded-inline conventions. Triage authority is deliberately separated to [[AUTO-005]].
+
+## Parity correction — 2026-08-20
+
+The operator clarified that [[AUTO-005]] is in the same task/worktree and that staff/Automation capability parity is already policy. The governing ADR review confirms this:
+
+- ADR-0011 requires MCP tools to call the same Core use cases as Web/Worker and forbids a second policy engine.
+- ADR-0021 grants `ActorKind.Automation` exactly `PerformCasework` and records the requirement for a comprehensive toolset with logging parity.
+- `StaffAuthorization` implements Staff/Automation parity for `PerformCasework`, while retaining explicit denial of staff-application identity, administration, credentials, system work, and request-upload authority.
+
+Therefore the earlier implication that Triage lacked an approved Automation contract was too narrow. AUTO-004 is the umbrella implementation plan for both tickets. It must register/complete Unidentified access and add a separate typed Triage surface over the existing Core queries/commands. Triage remains a distinct domain/tool class, but not a deferred authority decision.
+
+The Triage inventory and exclusions are recorded in [[AUTO-005]] research. Staff “Assign to me” is not transferable because the Automation Actor cannot impersonate a staff GUID; this explicit identity constraint does not weaken ordinary-casework parity.

@@ -1,0 +1,1 @@
+ADR-0011 + ADR-0021 establish the answer: Automation has exactly PerformCasework and Pegasus owes a comprehensive same-Core toolset with logging parity. Triage has zero MCP surface. In scope: list/get/source, await, finding/supersede, response link/unlink, complete/cancel/reopen, Case link/unlink. Exclude staff self-assignment identity; no generic framework/new scope.

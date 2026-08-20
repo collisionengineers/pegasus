@@ -43,3 +43,16 @@
 ## Out of scope
 
 No Triage tools, mail-workspace tools, generic “material” framework, direct artifact-store access from MCP, new authorization scope, second U-reference parser/reason taxonomy, Case-document identity changes, live cloud/Outlook/Box writes, deployment, or claim that unexercised registration is delivered.
+
+## Combined-worktree addition — AUTO-005
+
+Operator direction makes [[AUTO-005]] part of this ticket's implementation unit. Add the following change surface:
+
+| Path | Why |
+|---|---|
+| New `src/Pegasus.Web/Mcp/TriageMcpTools.cs` | Typed adapters for Triage list/detail/source, lifecycle, evidence, and Case association through existing Core owners. |
+| New `tests/Pegasus.IntegrationTests/AutomationTriageIngressTests.cs` | Real HTTP parity, denial, validation, replay, attribution, history, source, and Case-lease evidence. |
+| `docs/frd/frd-10-mcp-automation-and-actor-boundary.md` | Name the Unidentified/Triage Automation behaviour already required by ADR-0011/ADR-0021. |
+| `src/Pegasus.Core/Triage/TriageQueryUseCases.cs`, `TriageContracts.cs`, and `TriageLifecycle.cs` | Context first; modify only if implementation exposes a concrete shared-authorization defect that cannot be handled by the existing typed query/command contract. Do not create parallel commands. |
+
+Read [[AUTO-005]] research/files as binding context for the combined plan. The separate ticket preserves traceability; one branch/worktree/PR carries both.
