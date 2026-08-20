@@ -14,3 +14,9 @@ Added a database-enforced single active folder-move claim per retained message. 
 ## Simplicity
 
 The dated plan records all four lenses. This is one filtered index on the existing dedicated table, not a lock service or generic framework.
+
+## Traceability
+
+- Commit: `fc3b651e`
+- Pull request: https://github.com/collisionengineers/pegasus/pull/477
+- Stage handoff: Review; independent review/merge required.

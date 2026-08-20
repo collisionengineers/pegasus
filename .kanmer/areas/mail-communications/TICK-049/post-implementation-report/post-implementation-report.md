@@ -2,58 +2,58 @@
 
 ## Outcome
 
-Implemented the confirmed retained-mail folder move as a narrow, dedicated operation. Staff can confirm the already-computed recommendation with a reason; the server resolves the exact approved mailbox binding and current retained-message coordinates, records an idempotent operation, calls the exact Microsoft Graph move/probe boundary, and exposes durable outcome/current-location evidence. The live provider remains unavailable in the default composition, so this branch makes no deployment or production-activation claim.
+Implemented the narrow confirmed retained-mail folder move and closed independent-review blockers PR-038 through PR-042. Authenticated staff confirm the server-derived recommendation with a reason; Core revalidates classification/policy/mailbox freshness, Infrastructure reserves one active operation per message, probes the exact current source, moves through the existing provider port, and preserves immutable arrival/classification evidence. Uncertain operations expose an authenticated same-key status check which probes only. A later reclassification can produce a second confirmation to a different exact binding. Successful moves leave ordinary Inbox browse but remain findable through the existing retained search.
 
-## Implementation
+Default composition still supplies no live writer. No live Graph, mailbox, cloud, permission, deployment or external write was performed.
 
-- Added `MoveRetainedMailFolder` and its focused request/result and mover/store ports in Core. It reuses the existing `PerformCasework` authorization, retained classification/recommendation policy, approved mailbox version and binding. It rejects automation actors, stale versions, invalid operation keys and invalid reasons.
-- Added one dedicated EF operation/current-location entity and store. The store resolves all Graph identities server-side, persists the claim before the provider call, enforces matching replay/different-input conflict, blocks concurrent unresolved operations, and resolves uncertain responses with an exact parent-folder probe.
-- Preserved the immutable retained arrival row. Successful moves are overlaid as current location, excluded from the Inbox list with a SQL `NOT EXISTS`, and permanently attributed through action history.
-- Extended the existing Graph client only with the exact folder-scoped move and immutable-id parent-folder probe. Tests use a fake HTTP handler; no live mailbox was contacted.
-- Added the authenticated retained-message confirmation POST and reused the shared reason dialog. The browser submits only the retained internal id, freshness tokens, operation key and reason—never mailbox, source or destination Graph identity.
-- Added migration `20260820144004_RetainedMailFolderMoves` with restrictive foreign keys, unique operation key, Web SELECT/INSERT/UPDATE grants, explicit Web/Worker DELETE denial, and no Worker write grant.
-- Updated `docs/capabilities.md` and `docs/current-architecture.md` only to describe local, test-backed, default-off evidence.
+## Review-blocker corrections
 
-## Governing-doc compliance
+- **PR-038:** unique filtered `RetainedMailboxMessageId` index for pending/uncertain rows plus post-reservation exact source probe; overlapping different keys cannot both move.
+- **PR-039:** durable result exposes only the original operation key/reason/freshness; Razor reuses them for same-key uncertain recovery; no blind repeat move.
+- **PR-040:** current location is latest successful destination or immutable arrival folder; exact approved destination comparison permits a separately confirmed reclassification move.
+- **PR-041:** ordinary Inbox browsing excludes successful moves, while non-empty canonical retained search includes them exactly once with current logical folder, mailbox filtering and paging preserved.
+- **PR-042:** executable negative/preservation evidence replaces prior overclaims.
 
-The implementation follows `docs/frd/frd-08-email-mailbox-and-background-processing.md`: a move requires explicit authenticated staff confirmation and reason; classification remains unchanged; provider identity is server-derived; failures remain visible and recoverable; retained evidence is not deleted. No new product scope or technical architecture boundary was introduced, so no new PRD/FRD/ADR was needed.
+## Simplicity
 
-## Simplicity pass
+The dated plan records reuse, simplification, efficiency and altitude. The final design keeps the existing dedicated move store, MAIL-05 recommendation, MAIL-11 search, typed bindings, Graph mover/probe and shared dialog. It adds no generic command framework, second policy/category list, second search store, destination tabs, project, runtime or deployment unit. No findings remain unapplied.
 
-The dated plan disposition covers reuse, simplification, efficiency and altitude. The final diff keeps one concrete caller and one external-provider boundary, reuses the existing retained-mail query, Graph client, approved binding/version, policy and shared dialog, and does not introduce a generic mail-command framework. Applied findings removed an unused move reason, retained actor roles, avoided duplicate uncertain-replay history, rendered the durable reason, and removed a duplicate migration object caused by snapshot overlap. No findings remain unapplied.
+## Final changed-file inventory
+
+Original implementation plus blocker corrections changed:
+
+- Docs/bootstrap: `docs/capabilities.md`, `docs/current-architecture.md`, `scripts/Invoke-AzureDatabaseBootstrap.ps1`.
+- Core: `src/Pegasus.Core/Intake/RetainedMail.cs`, `RetainedMailFolderMove.cs`.
+- Infrastructure/provider: `src/Pegasus.Infrastructure/DependencyInjection.cs`, `Email/GraphApprovedSources.cs`, `Persistence/EfRetainedMailFolderMoveStore.cs`, `EfRetainedMailboxMessageStore.cs`, `MailboxEntities.cs`, `MailboxModelConfiguration.cs`, `PegasusDbContext.cs`.
+- Existing unmerged migration stream: `Persistence/Migrations/20260820144004_RetainedMailFolderMoves.cs`, its Designer, and `PegasusDbContextModelSnapshot.cs`.
+- Web: `src/Pegasus.Web/Pages/Mail/Index.cshtml`, `Message.cshtml`, `Message.cshtml.cs`.
+- Tests: `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs`; Integration `AzureSqlRuntimeRoleMigrationTests.cs`, `IntakePersistenceIntegrationTests.cs`, `MailWorkspaceWebTests.cs`, `ProductionGraphSourceTests.cs`, `RetainedMailPersistenceTests.cs`.
 
 ## Verification
 
-All verification was local, using fake HTTP and local SQL only.
+All provider evidence used fake HTTP/provider implementations and local SQL.
 
-- `dotnet restore ./Pegasus.slnx --locked-mode` — passed.
-- `dotnet build ./Pegasus.slnx --configuration Release --no-restore` — passed; 0 warnings, 0 errors.
-- Focused Core folder-move tests — 6/6 passed.
-- Focused persistence/fake-Graph/authenticated-Web tests — 4/4 passed.
+- `dotnet build Pegasus.slnx --configuration Release --no-restore` — passed, 0 warnings/errors.
+- Focused retained-mail Core tests — 40/40 passed.
+- Exact persistence blocker tests — 4/4 passed.
+- Exact authenticated Web move/recovery tests — 4/4 passed; final search-enhanced happy test rerun 1/1.
 - Full `Pegasus.Core.Tests` — 848/848 passed.
-- Broader retained-mail/Web/Graph test set — 81/81 passed.
-- Exact migration schema/runtime permission tests — 2/2 passed.
-- `git diff origin/dev...HEAD --check` — passed.
+- `CommittedMigrationCreatesTheSqlServerSchema` — 1/1 passed.
+- `RetainedMailFolderMovesUseExactWebOnlyAppendPermissions` — 1/1 passed.
+- Broader retained-mail/Web/fake-Graph filter — 87 behavior tests passed; its only failure was the intentionally changed empty-search copy expectation. That assertion was corrected, rebuilt, and `SearchDistinguishesNoMatchAndInvalidInputFromNoReceivedMail` passed 1/1 on the final binary.
+- `Test-AzureDeploymentPlan.ps1 -Mode Local` — passed.
+- `Test-MigrationGrants.ps1` — passed for 60 migrations.
+- `git diff --check` and staged diff check — passed.
 
-## Commits
+## Commits and pull request
 
-- `8b1e6d74` — feature, persistence, migration and tests.
-- `f60248af` — qualified local-evidence documentation.
+- `8b1e6d74` — initial feature/persistence/migration/tests.
+- `f60248af` — qualify local evidence.
+- `5e8217a1` — reconcile runtime permissions.
+- `fc3b651e` — close PR-038 through PR-042.
 
-The PR reference and final head SHA will be recorded on the ticket after the branch is pushed and the PR is opened.
+PR #477 targets `dev`: https://github.com/collisionengineers/pegasus/pull/477
 
-## Risks and verification handoff
+## Handoff
 
-- The default `IRetainedMailFolderMover` is intentionally unavailable. Production activation still requires separate exact permission/RBAC/deployment approval and live evidence; none was requested or performed here.
-- A provider timeout that cannot be resolved by probing either exact source or destination remains durable as uncertain and blocks a second operation key, preventing a duplicate move.
-- On merged code, verification should repeat locked restore, Release build, full Core tests, the retained-mail/Web/Graph integration set, and the migration permission tests. It should also confirm the production composition still has no live writer before any separately authorized activation work.
-
-## Pull request
-
-Opened PR #477 to `dev`: https://github.com/collisionengineers/pegasus/pull/477
-
-Pushed head: `f60248af4a078c1fa188a46143818d2cce2683c9`. CI was queued at handoff; independent review must wait for required checks to pass before merge.
-
-## CI follow-up
-
-The first PR run's repository `changes` job correctly reported that the grant-carrying migration was absent from the deployment bootstrap's exhaustive permission matrix. Commit `5e8217a1` adds the exact migration-defined Web SELECT/INSERT/UPDATE grants plus Web/Worker DELETE denials. `Test-AzureDeploymentPlan.ps1 -Mode Local` and `Test-MigrationGrants.ps1` both pass after the correction. The commit was pushed and replacement CI started; independent review should use the new head.
+Leave TICK-049 and all five blocker tickets in Review for an independent `kanmer-review`. Do not infer deployment/live mailbox evidence from green local/CI tests.

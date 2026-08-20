@@ -18,3 +18,9 @@ Replaced report overclaims with executable named evidence. Tests now cover stale
 ## Simplicity
 
 Evidence extends existing fixtures and names observed results; no new test harness or product scope.
+
+## Traceability
+
+- Commit: `fc3b651e`
+- Pull request: https://github.com/collisionengineers/pegasus/pull/477
+- Stage handoff: Review; independent review/merge required.

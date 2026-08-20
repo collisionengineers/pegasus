@@ -14,3 +14,9 @@ Successful moves remain excluded from ordinary Inbox browse but are findable thr
 ## Simplicity
 
 MAIL-11’s retained search remains the only search owner.
+
+## Traceability
+
+- Commit: `fc3b651e`
+- Pull request: https://github.com/collisionengineers/pegasus/pull/477
+- Stage handoff: Review; independent review/merge required.

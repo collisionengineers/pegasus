@@ -14,3 +14,9 @@ An uncertain result now retains its original operation key, reason and safe fres
 ## Simplicity
 
 Reused the existing handler, fingerprint and probe; no new endpoint or recovery framework.
+
+## Traceability
+
+- Commit: `fc3b651e`
+- Pull request: https://github.com/collisionengineers/pegasus/pull/477
+- Stage handoff: Review; independent review/merge required.

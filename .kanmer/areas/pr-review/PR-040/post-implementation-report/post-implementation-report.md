@@ -14,3 +14,9 @@ Current location is now the latest successful destination, falling back to immut
 ## Simplicity
 
 No mutable duplicate location column was added; the existing append-only operation history remains the current-location owner.
+
+## Traceability
+
+- Commit: `fc3b651e`
+- Pull request: https://github.com/collisionengineers/pegasus/pull/477
+- Stage handoff: Review; independent review/merge required.

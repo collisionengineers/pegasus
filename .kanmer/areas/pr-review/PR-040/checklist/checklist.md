@@ -1,6 +1,6 @@
 # Checklist — PR-040
 
-- [ ] Resolve current source from latest successful operation.
-- [ ] Offer a new confirmation only when current approved destination differs.
-- [ ] Prove a second move after reclassification and immutable arrival evidence.
-- [ ] Record focused verification, simplification, commits and PR traceability.
+- [x] Resolve current source from latest successful operation.
+- [x] Offer a new confirmation only when current approved destination differs.
+- [x] Prove a second move after reclassification and immutable arrival evidence.
+- [x] Record focused verification, simplification, commit `fc3b651e` and PR #477 traceability.

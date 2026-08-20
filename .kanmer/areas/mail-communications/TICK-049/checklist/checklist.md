@@ -11,3 +11,13 @@
 - [x] Run the reuse, simplification, efficiency and altitude lenses; apply safe simplifications and record dated dispositions in the plan.
 - [x] Update capabilities/current architecture only to local evidence; explicitly record no permission, deployment, activation, live Graph call or Outlook mutation.
 - [x] Write the post-implementation report, record commits/PR, push, open the PR to `dev`, move TICK-049 exactly Implementing → Review, and hand off to `kanmer-review`.
+
+## Independent-review blocker closure — 2026-08-20
+
+- [x] Serialize different-key active claims per message at the database boundary and prove one provider move.
+- [x] Make authenticated same-key uncertain recovery reachable and prove destination/source/unresolved outcomes without a repeated move.
+- [x] Permit a correct separately confirmed move after reclassification by resolving latest successful current location.
+- [x] Preserve successful-move findability through the existing retained search without a second policy/search owner.
+- [x] Add exact freshness/current-location/provider-failure/classification-preservation evidence and replace PIR overclaims.
+- [x] Re-run the four simplification lenses, Release build, focused/proportional tests, migration/deployment scripts and diff checks.
+- [x] Commit blocker corrections to PR #477 and leave all work in Review for a different agent.
