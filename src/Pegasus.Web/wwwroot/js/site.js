@@ -14,11 +14,11 @@
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
         if (Number.isFinite(delay) && delay > 0) {
-            // A group page can still be moving while one member's add-to-case
-            // form is open; reloading then would discard what the operator is
-            // typing, so the reload waits until no decision form is open.
+            // A page can still be moving while an operator has a form open
+            // that a reload would wipe; any element opting in with
+            // data-refresh-hold pauses the reload while it is open.
             var reload = function () {
-                if (document.querySelector('.upload-attach[open]')) {
+                if (document.querySelector('[data-refresh-hold][open]')) {
                     window.setTimeout(reload, delay);
                     return;
                 }
@@ -348,6 +348,7 @@
         var active = -1;
         var timer = null;
         var requestSequence = 0;
+        var inFlight = null;
 
         var close = function () {
             list.hidden = true;
@@ -426,8 +427,16 @@
             }
             timer = window.setTimeout(function () {
                 var sequence = ++requestSequence;
+                // Abort the superseded request rather than merely ignoring
+                // its result: the server honours the cancellation, so the
+                // abandoned search stops running instead of completing.
+                if (inFlight) {
+                    inFlight.abort();
+                }
+                inFlight = typeof AbortController === 'function' ? new AbortController() : null;
                 fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'term=' + encodeURIComponent(term), {
-                    headers: { Accept: 'application/json' }
+                    headers: { Accept: 'application/json' },
+                    signal: inFlight ? inFlight.signal : undefined
                 }).then(function (response) {
                     return response.ok ? response.json() : [];
                 }).then(function (items) {

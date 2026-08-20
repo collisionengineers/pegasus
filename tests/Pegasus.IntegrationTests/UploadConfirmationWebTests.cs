@@ -22,7 +22,7 @@ public sealed class UploadConfirmationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var caseId = await SeedInstructionCaseAsync(
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "SEARCH-001");
 
         using var response = await client.GetAsync(
@@ -80,7 +80,7 @@ public sealed class UploadConfirmationWebTests
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
-        var caseId = await SeedInstructionCaseAsync(
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "ATTACH-CASE-01");
 
         var email = IntakeTestEvidence.CreateEmail(
@@ -92,7 +92,7 @@ public sealed class UploadConfirmationWebTests
         var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         var receiptId = IntakeWebDriver.ReceiptId(processed);
 
-        var statusPage = await GetAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
         Assert.Contains("No existing case matched this", statusPage, StringComparison.Ordinal);
         Assert.Contains("Add to an existing case", statusPage, StringComparison.Ordinal);
         Assert.Contains("Cancel", statusPage, StringComparison.Ordinal);
@@ -106,7 +106,7 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, redirect);
 
         await AssertLinkedAsync(factory, receiptId, caseId);
-        var afterPage = await GetAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
         Assert.Contains("This was added to case", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Add to an existing case", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("automatically associated", afterPage, StringComparison.Ordinal);
@@ -134,7 +134,7 @@ public sealed class UploadConfirmationWebTests
         // The fixture case's registration does not match the images' VRM, so
         // automation abstains from associating and the group registers as a
         // new vehicle-image case awaiting the staff decision.
-        var caseId = await SeedInstructionCaseAsync(
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "XY34 ZZZ", "IMAGE-MERGE-01");
         var caseReference = await CaseReferenceAsync(factory, caseId);
 
@@ -163,7 +163,7 @@ public sealed class UploadConfirmationWebTests
             originReceiptId = detail.Record.Origin.ReceiptId;
         }
 
-        var groupPage = await GetAsync(client, $"/Upload/Group/{groupId:D}");
+        var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.Contains("registered as a new vehicle-image case", groupPage, StringComparison.Ordinal);
         Assert.Contains("Add to an existing case", groupPage, StringComparison.Ordinal);
 
@@ -187,7 +187,7 @@ public sealed class UploadConfirmationWebTests
         }
 
         await AssertLinkedAsync(factory, originReceiptId, caseId);
-        var afterPage = await GetAsync(client, $"/Upload/Group/{groupId:D}");
+        var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.Contains("This was added to case", afterPage, StringComparison.Ordinal);
         Assert.DoesNotContain("Add to an existing case", afterPage, StringComparison.Ordinal);
     }
@@ -200,7 +200,7 @@ public sealed class UploadConfirmationWebTests
             true,
             recognitionEngine: new FakeVrmRecognitionEngine("AB12CDE"));
         using var client = IntakeWebDriver.CreateClient(factory);
-        var caseId = await SeedInstructionCaseAsync(
+        var caseId = await ImageIntakeTestData.SeedInstructionCaseAsync(
             factory, client, "AB12 CDE", "AUTO-ASSOC-01");
 
         var upload = await IntakeWebDriver.UploadAsync(
@@ -212,7 +212,7 @@ public sealed class UploadConfirmationWebTests
         var stagedReceiptId = IntakeWebDriver.ReceiptId(upload);
         _ = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
 
-        var statusPage = await GetAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        var statusPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
         Assert.Contains("automatically associated with case", statusPage, StringComparison.Ordinal);
         // Automation at the accepted bar is reported, never re-offered: the
         // surface carries no add-to-case decision for this file.
@@ -244,35 +244,13 @@ public sealed class UploadConfirmationWebTests
             reason: "Staff tried a reference that matches nothing.");
         Assert.Equal(HttpStatusCode.Redirect, redirect);
 
-        var page = await GetAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
+        var page = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Status/{stagedReceiptId:D}");
         Assert.Contains("No single case matched that reference", page, StringComparison.Ordinal);
         await using var scope = factory.Services.CreateAsyncScope();
         var receipt = await scope.ServiceProvider
             .GetRequiredService<IIntakeReceiptQueries>()
             .GetAsync(receiptId, CancellationToken.None);
         Assert.Null(receipt!.CurrentCaseId);
-    }
-
-    /// <summary>
-    /// Uploads a QDOS instruction email carrying the given registration and
-    /// claim number, processes it, and promotes its allocated case, giving
-    /// the test a real case reachable by the confirmation surface's search.
-    /// </summary>
-    private static async Task<Guid> SeedInstructionCaseAsync(
-        IntakeWebApplicationFactory factory,
-        HttpClient client,
-        string registration,
-        string claimNumber)
-    {
-        var email = IntakeTestEvidence.CreateEmail(
-            $"case-{claimNumber.ToLowerInvariant()}.eml",
-            $"QDOS instruction\r\nClaimant Name: Fixture Claimant\r\nClaim Number: {claimNumber}\r\nVehicle Registration: {registration}");
-        var upload = await IntakeWebDriver.UploadAndProcessAsync(
-            factory, client, email.FileName, email.MediaType, email.Content);
-        return await ImageIntakeTestData.PromoteAllocatedCaseAsync(
-            factory.Services,
-            IntakeWebDriver.ReceiptId(upload),
-            nameof(CaseLifecycleState.Review));
     }
 
     private static async Task<string> CaseReferenceAsync(
@@ -326,12 +304,5 @@ public sealed class UploadConfirmationWebTests
         Assert.NotNull(receipt);
         Assert.Equal(caseId, receipt!.CurrentCaseId);
         Assert.NotNull(receipt.ManualAssociationVersion);
-    }
-
-    private static async Task<string> GetAsync(HttpClient client, string url)
-    {
-        using var response = await client.GetAsync(url);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        return await response.Content.ReadAsStringAsync();
     }
 }

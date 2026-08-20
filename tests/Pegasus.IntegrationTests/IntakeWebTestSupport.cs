@@ -500,6 +500,17 @@ internal static partial class IntakeWebDriver
         return Assert.Single(all.Items).Id;
     }
 
+    /// <summary>GETs a page, asserts 200, and returns its HTML.</summary>
+    public static async Task<string> GetHtmlAsync(
+        HttpClient client,
+        string url,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await client.GetAsync(url, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public static async Task<string> GetAntiforgeryTokenAsync(
         HttpClient client,
         CancellationToken cancellationToken = default) =>

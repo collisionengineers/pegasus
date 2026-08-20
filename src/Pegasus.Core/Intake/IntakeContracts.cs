@@ -396,6 +396,16 @@ public sealed record IntakeReceipt(
     public Guid? CurrentCaseId =>
         ManualAssociationVersion is null ? AcceptedCaseId : ManualLinkedCaseId;
 
+    /// <summary>
+    /// Whether the current case association was an explicit staff decision
+    /// rather than the pipeline's automatic one — the automatic paths record
+    /// their association under a system-worker actor. Owned here, beside the
+    /// rest of the association derivation, so no surface re-derives
+    /// provenance from raw actor identity.
+    /// </summary>
+    public bool AssociationWasStaffDecision =>
+        CurrentCaseId is not null && ManualAssociationActorKind == ActorKind.Staff;
+
     public string? CurrentCaseReference =>
         ManualAssociationVersion is null
             ? AcceptedCaseReference

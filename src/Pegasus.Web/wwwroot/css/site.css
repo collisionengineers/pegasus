@@ -1882,8 +1882,9 @@ table tfoot th {
 .row-confirm { display: flex; align-items: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
 .row-confirm label { font-size: var(--t-eyebrow); font-weight: 600; }
 .row-confirm input { min-width: 12rem; }
-details > summary.btn { display: inline-flex; list-style: none; }
-details > summary.btn::-webkit-details-marker { display: none; }
+details > summary.btn, .upload-attach > summary { display: inline-flex; list-style: none; }
+details > summary.btn::-webkit-details-marker, .upload-attach > summary::-webkit-details-marker { display: none; }
+details > summary.btn::marker, .upload-attach > summary::marker { content: ""; }
 
 /* A disabled action rendered as a link: it keeps its place and its stated
    condition, and stops being a target. */
@@ -2060,16 +2061,15 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .upload-outcome__message { margin: 0; color: var(--charcoal); }
 
 /* The add-to-existing-case decision on the confirmation surface. The
-   summary reuses the secondary-action look; this hides its native marker
-   and lays out the search form and its suggestion list. The active option
-   is marked by background and an inset border, never colour alone. */
-.upload-attach > summary { list-style: none; }
-.upload-attach > summary::-webkit-details-marker { display: none; }
-.upload-attach > summary::marker { content: ""; }
+   summary reuses the secondary-action look and the shared summary marker
+   reset above; this lays out the search form and its suggestion list. The
+   active option is marked by background and an inset border, never colour
+   alone. */
 .upload-attach > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
 .upload-attach[open] > summary { border-color: var(--charcoal); }
 .upload-attach__form { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); max-width: 480px; }
-/* display: grid would otherwise override the user-agent [hidden] rule and
+/* This block sits after the stylesheet's own `[hidden] { display: none }`
+   ordering contract, so its display: grid would win over the attribute and
    keep the empty suggestion box visible before any search has run. */
 .case-search-list[hidden] { display: none; }
 .case-search-list {

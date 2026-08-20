@@ -104,17 +104,18 @@ public sealed class UploadCaseDecision(
             return new(false, "No single case matched that reference. Search and choose a case from the suggestions.");
         }
 
-        // Replay safety at the flow level: a repeated submission of a
-        // decision that already took effect reports the same success rather
-        // than attempting a second mutation.
-        var details = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
-        if (details is null)
-        {
-            return new(false, "That case could not be found. Search and choose a case from the suggestions.");
-        }
+        // Replay safety at the flow level, checked before the heavier case
+        // read: a repeated submission of a decision that already took effect
+        // reports the same success rather than attempting a second mutation,
+        // and the receipt already carries the reference for both messages.
         if (receipt.CurrentCaseId == targetCaseId)
         {
-            return new(true, $"This was added to case {details.Summary.Reference}.", targetCaseId);
+            return new(
+                true,
+                receipt.CurrentCaseReference is { } linkedReference
+                    ? $"This was added to case {linkedReference}."
+                    : "This was added to a case.",
+                targetCaseId);
         }
         if (receipt.CurrentCaseId is not null)
         {
@@ -123,6 +124,12 @@ public sealed class UploadCaseDecision(
                 receipt.CurrentCaseReference is { } currentReference
                     ? $"This is already associated with case {currentReference}. Open the received item to change that association."
                     : "This is already associated with a case. Open the received item to change that association.");
+        }
+
+        var details = await getCase.ExecuteAsync(new(targetCaseId, actor), cancellationToken);
+        if (details is null)
+        {
+            return new(false, "That case could not be found. Search and choose a case from the suggestions.");
         }
 
         try
