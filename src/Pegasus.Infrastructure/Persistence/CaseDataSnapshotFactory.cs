@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
@@ -154,12 +154,12 @@ internal static class CaseDataSnapshotFactory
         }
 
         var fields = EfIntakeReceiptStore.DeserializeFields(receipt.FieldsJson);
-        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.ClaimantName, "Claimant name", CaseDataCodes.Text, draft.ClaimantName);
-        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.ClaimNumber, "Claim number", CaseDataCodes.Text, draft.ClaimNumber);
-        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.VehicleRegistration, "Vehicle registration", CaseDataCodes.Text, draft.VehicleRegistration);
-        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.VehicleMake, "Vehicle make", CaseDataCodes.Text, draft.VehicleMake);
-        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.VehicleModel, "Vehicle model", CaseDataCodes.Text, draft.VehicleModel);
-        AddSuggestion(
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimantName, "Claimant name", CaseDataCodes.Text, draft.ClaimantName);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.ClaimNumber, "Claim number", CaseDataCodes.Text, draft.ClaimNumber);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleRegistration, "Vehicle registration", CaseDataCodes.Text, draft.VehicleRegistration);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleMake, "Vehicle make", CaseDataCodes.Text, draft.VehicleMake);
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.VehicleModel, "Vehicle model", CaseDataCodes.Text, draft.VehicleModel);
+        AddExtractedValue(
             snapshot,
             receipt,
             fields,
@@ -167,8 +167,8 @@ internal static class CaseDataSnapshotFactory
             "Vehicle mileage",
             CaseDataCodes.Integer,
             draft.VehicleMileage?.ToString(CultureInfo.InvariantCulture));
-        AddSuggestion(snapshot, receipt, fields, CaseDataFieldNames.AccidentCircumstances, "Accident circumstances", CaseDataCodes.Text, draft.AccidentCircumstances);
-        AddSuggestion(
+        AddExtractedValue(snapshot, receipt, fields, CaseDataFieldNames.AccidentCircumstances, "Accident circumstances", CaseDataCodes.Text, draft.AccidentCircumstances);
+        AddExtractedValue(
             snapshot,
             receipt,
             fields,
@@ -176,7 +176,7 @@ internal static class CaseDataSnapshotFactory
             "Date of incident",
             CaseDataCodes.Date,
             Date(draft.DateOfIncident));
-        AddSuggestion(
+        AddExtractedValue(
             snapshot,
             receipt,
             fields,
@@ -184,7 +184,7 @@ internal static class CaseDataSnapshotFactory
             "Instruction date",
             CaseDataCodes.Date,
             Date(draft.InstructionDate));
-        AddSuggestion(
+        AddExtractedValue(
             snapshot,
             receipt,
             fields,
@@ -199,7 +199,7 @@ internal static class CaseDataSnapshotFactory
                     StringComparison.Ordinal))
             ?.SuggestedValue
             ?? draft.InspectionAddress;
-        AddSuggestion(
+        AddExtractedValue(
             snapshot,
             receipt,
             fields,
@@ -210,7 +210,7 @@ internal static class CaseDataSnapshotFactory
 
         if (!string.IsNullOrWhiteSpace(suggestedInspectionAddress))
         {
-            AddSuggestion(
+            AddExtractedValue(
                 snapshot,
                 receipt,
                 fields,
@@ -230,7 +230,7 @@ internal static class CaseDataSnapshotFactory
         if (mileageField?.SuggestedValue is { } suggestedMileage
             && HasExplicitMilesUnit(suggestedMileage))
         {
-            AddSuggestion(
+            AddExtractedValue(
                 snapshot,
                 receipt,
                 fields,
@@ -337,7 +337,7 @@ internal static class CaseDataSnapshotFactory
             receipt.ExtractionPolicyVersion ?? request.CompletenessEvaluation.PolicyVersion);
     }
 
-    private static void AddSuggestion(
+    private static void AddExtractedValue(
         CaseDataSnapshotEntity snapshot,
         IntakeReceiptEntity receipt,
         IReadOnlyList<InstructionReviewField> fields,
@@ -371,7 +371,11 @@ internal static class CaseDataSnapshotFactory
             CaseId = snapshot.CaseId,
             Snapshot = snapshot,
             FieldName = fieldName,
-            ValueKind = CaseDataCodes.Suggestion,
+            // Operator direction 2026-08-20 (INTK-021): an unambiguous,
+            // singly-provenanced extracted value is auto-added as the working
+            // value (Fact), not parked as a suggestion awaiting confirmation.
+            // Conflicted or ambiguous candidates never reach this method.
+            ValueKind = CaseDataCodes.Fact,
             ValueType = valueType,
             Value = value,
             // A value a person keyed is not intake evidence, whatever else is
