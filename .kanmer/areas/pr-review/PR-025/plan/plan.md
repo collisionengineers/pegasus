@@ -9,3 +9,10 @@ Estimated diff: one test file, about 90 lines.
 ## Governing docs
 
 FRD-08 caller evidence is produced at the authenticated Web tier without changing its behavior or external scope.
+
+## Simplification pass — 2026-08-20
+
+- Reuse: the authenticated integration factory, RemoveAll<T> override, Core source port, existing page, and pager are exercised directly.
+- Simplification: one controlled fake covers mailbox selection, match location, bound, truncation, paging, and unavailable state.
+- Efficiency: no production code or extra application host was added.
+- Altitude: this is caller evidence only; Graph and Core behavior remain owned by their existing tests.

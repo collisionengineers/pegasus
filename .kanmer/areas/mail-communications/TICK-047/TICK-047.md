@@ -16,7 +16,6 @@ labels:
   - MAIL-05
   - next
   - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - EPIC-003
@@ -29,26 +28,28 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.177Z'
-updated: '2026-08-20T11:44:11.993Z'
+updated: '2026-08-20T12:17:16.790Z'
 ---
 
 ## What
 
-Plan and research **MAIL-05**: Recommend the designated Outlook folder for a classified message
+Implement **MAIL-05**: recommend the current policy-designated Outlook folder for one classified retained message.
 
 ## Why
 
-This is allocated to **Next / 0.3.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+This remains allocated to **Next / 0.3.0**, and the operator activated its narrow local read-only implementation after MAIL-23 merged. Staff need an honest message-level recommendation without coupling classification to the later Outlook move.
 
 ## Approach
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+- Reuse the MAIL-23 Core logical-folder policy and approved-mailbox typed bindings through the existing authorized `GetRetainedMail` exact-message read.
+- Display the canonical logical folder or an accessible unavailable reason on `/Inbox/{id}`.
+- Keep MAIL-06/07 confirmation/move, persistence, Graph, deployment, and live-mailbox writes outside this ticket.
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [x] Task research, exact file map, plan, and open questions refreshed against merged MAIL-23 symbols.
+- [x] Focused Core and authenticated Web caller evidence covers configured, unavailable, and re-derived outcomes.
+- [x] No external write is performed or claimed.
 
 ## Notes
 

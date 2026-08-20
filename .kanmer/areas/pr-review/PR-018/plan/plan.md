@@ -29,3 +29,10 @@ Estimated incremental diff: four existing files, under 100 lines.
 ## Governing docs
 
 FRD-08's honest per-attachment searchable/unsupported disclosure is rendered without changing retention history.
+
+## Re-review simplification pass — 2026-08-20
+
+- Reuse: the display reader now materializes its existing attachment enumeration once for names and rows; the existing IsSearchable value is rendered through one shared label helper.
+- Simplification: preserved nameless occurrences with a deterministic display label; no second identity scheme, parser, store, or backfill.
+- Efficiency: one materialized attachment list replaces two enumerations.
+- Altitude: parsing stays in Infrastructure and wording stays in Web presentation.

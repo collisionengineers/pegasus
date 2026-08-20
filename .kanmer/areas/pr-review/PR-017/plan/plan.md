@@ -24,3 +24,10 @@ Add the authenticated `/Inbox` evidence in [[PR-025]]'s single existing Web test
 ## Governing docs
 
 This closes FRD-08's caller-evidence gap without changing mailbox ownership.
+
+## Re-review simplification pass — 2026-08-20
+
+- Reuse: authenticated Web proof uses the existing integration authentication and service-override convention; no production mailbox list was duplicated.
+- Simplification: the evidence shares PR-025's single caller test and fake.
+- Efficiency: one HTTP caller test covers selection and the fixed source bound.
+- Altitude: no production change was required for this evidence-only gap.

@@ -1,9 +1,8 @@
 # Post-implementation report
 
-Added canonical attachment occurrence/source identity to the existing reader descriptors and single receipt-owned search projection. Persisted nullable attachment ordinal in the already-unmerged migration and mapped retained/Deleted matches by ordinal, so duplicate filenames have independent searchability. No parser/store/backfill was added.
+The display reader now preserves every attachment occurrence, including a deterministic label for nameless attachments, and reuses the same materialized list for names and structured rows. Retained detail renders each attachment's persisted searchability through the shared presentation label. Canonical ordinals remain the identity; no second parser/store/backfill exists.
 
 Shared PR: https://github.com/collisionengineers/pegasus/pull/469
-Implementation commit: `347f5ce741e19e6973a31655cd433f5c452005b0`
-Current-dev merge: `8b300043182ab14e8716323f6fa6f800bc2ba782`
+Commits: `347f5ce741e19e6973a31655cd433f5c452005b0`, `c0fa9a99a3f9a1b1082591a32e84687a44076210`
 
-Verification: locked restore passed; Release build passed with zero warnings/errors; Core retained-mail 26/26; production Graph/composition 31/31; EF reports no pending model changes; migration grants 59/59. Exact LocalDB web and persistence owning reruns each passed. No external write or historical backfill occurred.
+Files: `src/Pegasus.Infrastructure/Intake/LocalEmailDisplayReader.cs` (preserve occurrence), `src/Pegasus.Web/Pages/Mail/Message.cshtml` and `src/Pegasus.Web/Presentation/OperatorLabels.cs` (per-row disclosure), `src/Pegasus.Web/Pages/Mail/Index.cshtml` (same canonical label), and both focused integration test files. Verification: Release build succeeded with zero warnings/errors; focused slice passed 25/25.
