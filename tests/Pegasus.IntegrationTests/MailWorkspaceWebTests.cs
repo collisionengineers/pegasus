@@ -658,6 +658,73 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task AuthenticatedMailViewsAreDistinctAccessibleAndPreservedThroughDetail()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 6);
+        var classifications = new[]
+        {
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"), [], "fixture", "test", 1),
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"), [], "fixture", "test", 1),
+            MailClassificationResult.Classified(
+                MailCategory.Other(MailDirection.Received, "supplier-newsletter", "No known class fits."), [], "fixture", "test", 1),
+            MailClassificationResult.Unclassified([], "fixture", "test", 1),
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, "triage-request"), [], "fixture", "test", 1),
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.General, "autoreply"), [], "fixture", "test", 1)
+        };
+        for (var index = 0; index < classifications.Length; index++)
+        {
+            await StoreMailClassificationAsync(
+                factory,
+                FirstMailboxId,
+                $"{FirstMailboxId}-{index}",
+                classifications[index]);
+        }
+        using var client = CreateClient(factory);
+
+        var receiving = await GetHtmlAsync(client, "/Inbox?queue=receiving-work");
+        Assert.Contains("<label for=\"mail-view\">Queue or detailed classification</label>", receiving, StringComparison.Ordinal);
+        Assert.Contains("<optgroup label=\"Operational queues\">", receiving, StringComparison.Ordinal);
+        Assert.Contains("<optgroup label=\"Detailed classifications\">", receiving, StringComparison.Ordinal);
+        Assert.Contains("Current view: Receiving work", receiving, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(receiving, " selected=\"selected\""));
+        Assert.Contains($"/Inbox/{ids[5]:D}?queue=receiving-work", receiving, StringComparison.Ordinal);
+        Assert.Contains("new-instruction-received/inspection", receiving, StringComparison.Ordinal);
+        Assert.DoesNotContain("Message 1 from instructions", receiving, StringComparison.Ordinal);
+
+        foreach (var (key, included, excluded) in new[]
+        {
+            ("queries", "Message 1 from instructions", "Message 0 from instructions"),
+            ("other", "Message 2 from instructions", "Message 1 from instructions"),
+            ("unidentified", "Message 3 from instructions", "Message 4 from instructions"),
+            ("triage", "Message 4 from instructions", "Message 3 from instructions"),
+            ("classification:received:General:autoreply", "Message 5 from instructions", "Message 0 from instructions")
+        })
+        {
+            var html = await GetHtmlAsync(client, $"/Inbox?queue={Uri.EscapeDataString(key)}");
+            Assert.Contains(included, html, StringComparison.Ordinal);
+            Assert.DoesNotContain(excluded, html, StringComparison.Ordinal);
+        }
+
+        var detail = await GetHtmlAsync(
+            client,
+            $"/Inbox/{ids[5]:D}?queue=receiving-work&pageNumber=2");
+        Assert.Contains("/Inbox?queue=receiving-work&amp;pageNumber=2", detail, StringComparison.Ordinal);
+        Assert.Contains("name=\"queue\" value=\"receiving-work\"", detail, StringComparison.Ordinal);
+        using var unknown = await client.GetAsync("/Inbox?queue=needs-sorting");
+        using var deleted = await client.GetAsync("/Inbox?folder=deleted&queue=triage");
+        using var deletedDetail = await client.GetAsync($"/Inbox/{ids[5]:D}?folder=deleted&queue=triage");
+        Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, deleted.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, deletedDetail.StatusCode);
+        Assert.DoesNotContain("Needs sorting", receiving, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public async Task AnUnknownFolderScopeIsNotFound()
     {
         using var factory = new IntakeWebApplicationFactory();
@@ -1456,6 +1523,42 @@ public sealed class MailWorkspaceWebTests
                     "No supported category matched.",
                     "shared-mail-policy",
                     3)),
+            CancellationToken.None);
+    }
+
+    private static async Task StoreMailClassificationAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId,
+        MailClassificationResult classification)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+            new(
+                SourceFileName: "mail-view.eml",
+                MediaType: "message/rfc822",
+                SourceLength: 1,
+                SourceHash: new string('F', 64),
+                SourceIdentity: new(
+                    IntakeSourceChannel.Mailbox,
+                    mailboxId.Length + ":" + mailboxId + messageId),
+                ReceivedAtUtc: NowUtc,
+                ProcessedAtUtc: NowUtc,
+                Actor: "system-worker:approved-inbox-poller",
+                Decision: IntakeDecision.NeedsSorting,
+                DecisionReason: "Fixture evaluation.",
+                Evidence: [],
+                Fields: [],
+                InstructionDraft: null,
+                MissingFields: [],
+                FailureCode: null,
+                FailureReason: null,
+                SourceReaderKey: "protocol_reader",
+                SourceReaderVersion: "1",
+                ExtractionPolicyKey: "protocol_policy",
+                ExtractionPolicyVersion: 1,
+                Assets: [],
+                MailClassificationDecision: classification),
             CancellationToken.None);
     }
 

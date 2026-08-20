@@ -125,6 +125,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                         document.Text != null
                         && document.Text.Contains(searchTerm))));
         }
+        matches = ApplyClassificationFilter(matches, context, scope);
 
         // Counted and paged in SQL. Reading every row to take twenty-five of them
         // makes the list slower the more mail is retained, which is the one thing a
@@ -653,6 +654,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.Id,
                 item.ExternalReceiptToken,
                 item.Decision,
+                Classification = item.MailClassificationDecision,
                 EffectiveSenderAddress = item.MailRouteDecision == null
                     ? null
                     : item.MailRouteDecision.EffectiveSenderAddress
@@ -700,6 +702,9 @@ internal sealed class EfRetainedMailboxMessageStore(
                 var allocationState = receipt is null
                     ? null
                     : allocationStates.GetValueOrDefault(receipt.Id);
+                var classification = receipt?.Classification is null
+                    ? null
+                    : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification);
                 var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
                     && !string.Equals(effectiveSender, row.SenderAddress, StringComparison.OrdinalIgnoreCase);
                 var cleanedExcerpt = row.BodyExcerpt is { } excerpt
@@ -736,9 +741,55 @@ internal sealed class EfRetainedMailboxMessageStore(
                     row.SearchMatches,
                     row.CurrentFolderType is null
                         ? null
-                        : Enum.Parse<MailLogicalFolderType>(row.CurrentFolderType));
+                        : Enum.Parse<MailLogicalFolderType>(row.CurrentFolderType),
+                    classification,
+                    classification is null
+                        ? null
+                        : MailOperationalDestinationPolicy.Map(classification));
             })
             .ToArray();
+    }
+
+    private static IQueryable<RetainedMailboxMessageEntity> ApplyClassificationFilter(
+        IQueryable<RetainedMailboxMessageEntity> messages,
+        PegasusDbContext context,
+        MailWorkspaceScope scope)
+    {
+        if (scope.Destination is null && scope.DetailedClassification is null)
+        {
+            return messages;
+        }
+
+        var query = scope.Destination is { } destination
+            ? MailOperationalDestinationPolicy.Query(destination)
+            : new MailOperationalDestinationQuery(
+                ExactClassification: scope.DetailedClassification);
+        var familyNames = query.Families
+            .Select(MailTaxonomy.CategoryName)
+            .ToArray();
+        var exact = query.ExactClassification;
+        var exactDirection = exact?.Direction.ToString().ToLowerInvariant();
+        var exactFamily = exact?.Name;
+        var exactSubtype = exact?.Subtype;
+        const string classified = "classified";
+
+        return messages.Where(message => context.IntakeReceipts.Any(receipt =>
+            receipt.SourceChannel == "mailbox"
+            && receipt.ExternalReceiptToken == message.ExternalReceiptToken
+            && receipt.MailClassificationDecision != null
+            && (query.IncludesUnidentified
+                ? receipt.MailClassificationDecision.Outcome != classified
+                : receipt.MailClassificationDecision.Outcome == classified
+                    && ((query.IncludesOther
+                            && receipt.MailClassificationDecision.OtherName != null)
+                        || (receipt.MailClassificationDecision.Direction == "received"
+                            && receipt.MailClassificationDecision.Family != null
+                            && familyNames.Contains(receipt.MailClassificationDecision.Family))
+                        || (exact != null
+                            && receipt.MailClassificationDecision.OtherName == null
+                            && receipt.MailClassificationDecision.Direction == exactDirection
+                            && receipt.MailClassificationDecision.Family == exactFamily
+                            && receipt.MailClassificationDecision.Subtype == exactSubtype)))));
     }
 
     /// <summary>
