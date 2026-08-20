@@ -64,3 +64,7 @@ No unapplied simplification findings. The final handwritten change remains withi
 ### Delivery-gate follow-up — 2026-08-20
 
 The first PR `changes` gate found one additional altitude/reuse requirement: the new grant-carrying migration must extend the existing exhaustive Azure bootstrap permission matrix. Added the exact Web-only `SELECT`, `INSERT`, and `DELETE` entries to `scripts/Invoke-AzureDatabaseBootstrap.ps1`; no Worker grant was added because there is no Worker caller. `Test-AzureDeploymentPlan.ps1 -Mode Local` and `Test-MigrationGrants.ps1` both pass. This is an applied finding; none remains unapplied.
+
+### Governing UI activation reconciliation — 2026-08-20
+
+PR-014 adds `docs/capabilities.md` and `docs/design/README.md` to the governing-doc inventory. The operator's programme review and “Implement the plan” instruction activate the local administrator-only MAIL-23 binding resolver, not deployment or a live write. The docs preserve MAIL-05 recommendation, MAIL-06 confirmation, MAIL-07 move, deployment, and live-mailbox evidence as separate gates.

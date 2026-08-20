@@ -56,3 +56,7 @@ For UI evidence, use the offline/local resolver and capture the Mailboxes admini
 ## Delivery-gate addendum — 2026-08-20
 
 The first PR repository check identified the existing exhaustive Azure bootstrap permission matrix as an additional changed file. `scripts/Invoke-AzureDatabaseBootstrap.ps1` now accounts for migration `20260820100056_ApprovedMailboxLogicalFolderBindings` with the exact Web-only `SELECT`, `INSERT`, and `DELETE` grants; the Worker has no caller and no grant. Commit `b6754dd8` contains the correction. Local `Test-AzureDeploymentPlan.ps1 -Mode Local` passes, and `Test-MigrationGrants.ps1` passes across 58 migration files. The initial shard-coverage check failed only because the failed changes gate skipped its producer shards; the new push reruns the workflow.
+
+## Governing UI activation addendum — 2026-08-20
+
+PR-014 reconciles `docs/capabilities.md` and `docs/design/README.md`: local administrator-only MAIL-23 binding resolution is explicitly activated and test-backed, while ordinary message controls, MAIL-05/06/07, deployment, live verification, and live Outlook writes remain deferred/unauthorized.

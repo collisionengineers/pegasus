@@ -30,6 +30,8 @@ blocks:
   - TICK-047
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+  - docs/capabilities.md
+  - docs/design/README.md
 commits:
   - a1ae9608
   - f23f7e0e
@@ -39,7 +41,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-12T15:05:19.554Z'
-updated: '2026-08-20T10:40:13.640Z'
+updated: '2026-08-20T11:26:01.866Z'
 ---
 
 ## What
