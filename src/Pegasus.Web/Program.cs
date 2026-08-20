@@ -546,6 +546,13 @@ if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
 }
+else
+{
+    // The production profile enables staff vehicle lookup requests. The Web only
+    // records the request; the production Worker owns the live DVLA/DVSA adapter
+    // and executes it from the recorded work item.
+    builder.Services.AddSingleton(VehicleLookupAvailability.ProductionLive);
+}
 builder.Services.AddScoped<EfIdentityAuditStore>();
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIdentityAuditStore>());
