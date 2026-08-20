@@ -2,12 +2,13 @@
 id: INTK-018
 type: ticket
 title: Resolve Unidentified items when their receipt reaches a real destination
-status: implementing
+status: review
 area: intake-processing
 assignee: group-lane
 profile: fix
 stageEntered:
   implementing: '2026-08-20T04:20:13.751Z'
+  review: '2026-08-20T04:43:23.616Z'
 taken_at: '2026-08-20T04:16:43.894Z'
 branch: task/intk-018-unidentified-resolution
 worktree: ../pegasus-worktrees/intk-018
@@ -20,9 +21,15 @@ links:
   - INTK-015
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - bbb7b6d4
+  - 94472c69
+  - 77bb1306
+prs:
+  - '#453'
 archived: false
 created: '2026-08-20T03:25:25.736Z'
-updated: '2026-08-20T04:20:13.751Z'
+updated: '2026-08-20T04:43:23.616Z'
 ---
 
 ## What

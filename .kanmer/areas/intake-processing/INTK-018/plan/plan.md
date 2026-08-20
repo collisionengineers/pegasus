@@ -20,3 +20,19 @@ Verified on dev (files doc, "Verified facts"): no U row is created while a work 
 - Still-unresolved receipts (Unsupported/TechnicalFailure/needs-sorting non-image, or image material with no registration) keep their open items — the sweep never force-closes real work.
 - Pending group members never gain a U row (regression).
 - Build zero-warning; focused suites green.
+
+## Simplification pass — 2026-08-20
+
+Run with the `code-simplifier` agent over `git diff origin/dev...HEAD`; behaviour-preserving only; build zero-warning and focused suites green after applying. Commit `77bb1306`.
+
+Applied:
+- `ReconcileUnidentifiedDestinations.ResolveForReceiptAsync` — open-item existence check moved ahead of the destination mapping: every processed receipt flows through this via `ProcessQueuedIntake`, and almost none carry an open item, so the common path now pays one query instead of two (the image-intake detail lookup no longer runs for item-less receipts).
+- Test-support reuse — the new `NoOpEnqueuer` duplicated the one in `GroupedImageIntakeConcurrencyTests`; promoted to `IntakeWebDriver.NoOpIntakeWorkEnqueuer` in the shared driver (engineering.md one-fake-per-concept), all three call sites repointed.
+
+Not applied (with reasons):
+- Sweep loop shape (`Where/Take` vs counter) — the sibling sweep `ReconcileGroupedImageIntake` uses exactly this counter shape; the existing convention wins.
+- Bounding `ListAsync(Open)` at the query — needs a paged overload on the `IUnidentifiedStore` port (contract change); the open queue is an operator work queue, operationally small.
+- Batching the sweep's per-item reads — ≤50 items on a low-frequency timer; batching would fork the single `ResolveForReceiptAsync` owner.
+- DI placement: registered in Infrastructure DI rather than Worker DI where the sibling reconcilers live — deliberate: `ProcessQueuedIntake`'s optional dependency and the Web-hosted test factory must resolve it, and Worker DI is never wired there. Recorded here as the reason the convention deviates.
+- Fourth per-file `FakeReceiptQueries` in Core tests — that project's convention is per-file fakes (no shared driver); a shared-fake refactor is its own ticket if it keeps growing.
+- Hard-coded `50` batch in the Worker function — matches the two sibling calls; the architecture test asserts it literally.
