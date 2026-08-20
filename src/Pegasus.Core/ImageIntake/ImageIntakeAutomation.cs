@@ -124,7 +124,6 @@ public sealed class ImageIntakeAutomation(
             registration,
             suggestions,
             activity,
-            groupDecision: null,
             cancellationToken);
         return new(updated ?? receipt);
     }
@@ -175,9 +174,17 @@ public sealed class ImageIntakeAutomation(
         // instruction document uploaded in the same request); only the
         // image-only members are vehicle evidence, so only they run
         // recognition and count toward the group's routing decision. The
-        // triggering receipt is always image-only (checked in ApplyAsync
+        // filter is on the retained material alone, never the current
+        // decision: a member already registered (a sibling pass or the
+        // single-receipt path got there first) must stay in the group so the
+        // group's primary member — and with it the registration identity —
+        // is the same on every evaluation, converging on the one existing
+        // row instead of allocating a second reference for the remainder.
+        // The triggering receipt is always image-only (checked in ApplyAsync
         // before this method is called), so this is never empty.
-        var imageReceipts = receipts.Where(IsImageOnly).ToArray();
+        var imageReceipts = receipts
+            .Where(ImageIntakeLifecycleRules.IsImageOnlyMaterial)
+            .ToArray();
 
         var recognitions = new List<ImageIntakeGroupMemberRecognition>(imageReceipts.Length);
         var scans = new List<(IntakeReceipt Receipt, IReadOnlyList<ImageVrmSuggestion> Suggestions)>();
@@ -208,15 +215,15 @@ public sealed class ImageIntakeAutomation(
             .Select(recognition => recognition.NormalizedRegistration!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
-        var eligibleCaseCount = registrationCandidates.Length == 1
-            ? (await caseCandidates.FindEligibleByRegistrationAsync(
+        IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases = registrationCandidates.Length == 1
+            ? await caseCandidates.FindEligibleByRegistrationAsync(
                 registrationCandidates[0],
-                cancellationToken)).Count
-            : 0;
+                cancellationToken)
+            : [];
         var routing = ImageIntakeGroupRoutingPolicy.Evaluate(
             recognitions,
             imageReceipts.Length,
-            eligibleCaseCount);
+            eligibleCases.Count);
         activity?.SetTag("image_intake.group_id", group.Id);
         activity?.SetTag("image_intake.group_outcome", routing.Decision.ToString());
         activity?.SetTag("image_intake.group_reason", routing.ReasonCode);
@@ -239,31 +246,26 @@ public sealed class ImageIntakeAutomation(
             return new(receipt);
         }
 
-        // Every member that resolves this pass registers; a member whose
-        // registration attempt loses a transient concurrency race (e.g. two
-        // siblings' work items racing the same VRM's sequence row) is not
-        // silently dropped — it is reported back as pending so the caller
-        // defers it via the durable-work retry convention instead of ever
-        // letting it fall through to the instruction-fallback/Unidentified
-        // path while the group could still resolve.
-        var allRegistered = true;
-        foreach (var (memberReceipt, suggestions) in scans)
-        {
-            var updated = await TryRegisterAndAssociateAsync(
-                memberReceipt,
-                routing.NormalizedRegistration,
-                suggestions,
-                activity,
-                routing.Decision,
-                cancellationToken);
-            if (updated is null)
-            {
-                allRegistered = false;
-            }
-        }
+        // The group is the registration unit (INTK-015): exactly one
+        // ImageIntake exists per submission group, registered once under a
+        // group-scoped operation key, with every image-only member's receipt
+        // moved to the registered decision against that one reference. A
+        // group whose registration attempt loses a transient concurrency
+        // race is not silently dropped — it is reported back as pending so
+        // the caller defers it via the durable-work retry convention instead
+        // of ever letting a member fall through to the instruction-fallback/
+        // Unidentified path while the group could still resolve.
+        var registered = await TryRegisterGroupAsync(
+            group,
+            imageReceipts,
+            scans,
+            routing,
+            eligibleCases,
+            activity,
+            cancellationToken);
 
         var finalReceipt = await receiptQueries.GetAsync(receipt.Id, cancellationToken) ?? receipt;
-        var pending = !allRegistered && finalReceipt.Decision == IntakeDecision.NeedsSorting;
+        var pending = !registered && finalReceipt.Decision == IntakeDecision.NeedsSorting;
         return new(finalReceipt, pending);
 
         static bool IsTerminal(IReadOnlyList<ImageVrmSuggestion> suggestions) =>
@@ -273,6 +275,119 @@ public sealed class ImageIntakeAutomation(
                 or VrmRecognitionOutcomeKind.NoReadableResult
                 or VrmRecognitionOutcomeKind.TechnicalFailure
                 or VrmRecognitionOutcomeKind.Unavailable);
+    }
+
+    /// <summary>
+    /// Registers the whole submission group as one ImageIntake. The group's
+    /// primary member — its lowest-ordinal image-only member — carries the
+    /// registration origin, and every racing sibling computes the same
+    /// primary from the same durable membership, so the group-scoped
+    /// operation key (<c>image-intake-register:group:{id}</c>) replays
+    /// instead of duplicating no matter which member's work item runs it.
+    /// The store moves every image-only member receipt to the registered
+    /// decision in the registration transaction; the re-assert loop below
+    /// covers the replay path (a straggler re-driven after the group already
+    /// registered), whose probe returns the record without touching
+    /// receipts.
+    /// </summary>
+    /// <remarks>
+    /// A group decision other than
+    /// <see cref="ImageIntakeGroupRoutingDecision.AssociateExistingCase"/> —
+    /// most importantly <see cref="ImageIntakeGroupRoutingDecision.HandOffToImageIntake"/>,
+    /// chosen because the eligible-case count was zero or ambiguous — must
+    /// register the ImageIntake evidence but must never associate a Case:
+    /// the group's own fail-closed decision is the sole authority for
+    /// whether association happens.
+    /// </remarks>
+    private async Task<bool> TryRegisterGroupAsync(
+        IntakeSubmissionGroup group,
+        IntakeReceipt[] imageReceipts,
+        IReadOnlyList<(IntakeReceipt Receipt, IReadOnlyList<ImageVrmSuggestion> Suggestions)> scans,
+        ImageIntakeGroupRoutingResult routing,
+        IReadOnlyList<ImageIntakeCaseCandidate> eligibleCases,
+        Activity? activity,
+        CancellationToken cancellationToken)
+    {
+        var actor = ActionActor.SystemWorker(ActorId);
+        var read = routing.NormalizedRegistration!;
+        var associationAllowed =
+            routing.Decision == ImageIntakeGroupRoutingDecision.AssociateExistingCase;
+        try
+        {
+            var primary = imageReceipts[0];
+            var origin = await originResolver.ResolveOriginAsync(primary.Id, cancellationToken);
+            if (origin is null)
+            {
+                activity?.SetTag("image_intake.outcome", "origin_unresolved");
+                return false;
+            }
+
+            // Candidate selection mirrors the single-receipt path: an exact
+            // confirmed registration wins; otherwise the single one-missing-
+            // character candidate completes the truncated read with its
+            // confirmed value. The group's routing decision already fixed
+            // WHETHER association happens; this only fixes WHICH value is
+            // registered.
+            IReadOnlyList<ImageIntakeCaseCandidate> candidates =
+                associationAllowed ? eligibleCases : [];
+            var exactMatches = candidates
+                .Where(candidate => string.Equals(
+                    candidate.ConfirmedRegistration,
+                    read,
+                    StringComparison.Ordinal))
+                .ToArray();
+            var target = exactMatches.Length == 1
+                ? exactMatches[0]
+                : exactMatches.Length == 0 && candidates.Count == 1
+                    ? candidates[0]
+                    : null;
+            var registration = target?.ConfirmedRegistration ?? read;
+            var reason = target is not null
+                && !string.Equals(registration, read, StringComparison.Ordinal)
+                ? $"Automatic registration: the group's confident read {read} matches case {target.CaseReference}'s confirmed registration with one character missing; registered with the confirmed value."
+                : "Automatic registration of the whole submission group from a confident vehicle-registration read on its retained image evidence.";
+            var record = await registerImageIntake.ExecuteAsync(
+                new(
+                    origin,
+                    registration,
+                    actor,
+                    $"image-intake-register:group:{group.Id:N}",
+                    reason,
+                    SubmissionGroupId: group.Id),
+                cancellationToken);
+            activity?.SetTag("image_intake.reference", record.ImageIntakeReference);
+            if (!associationAllowed)
+            {
+                activity?.SetTag("image_intake.association", "handed_off_to_image_intake");
+            }
+
+            foreach (var (memberReceipt, suggestions) in scans)
+            {
+                await ConfirmUsedSuggestionsAsync(
+                    suggestions,
+                    record.NormalizedVehicleRegistration,
+                    actor,
+                    cancellationToken);
+                if (target is not null && memberReceipt.CurrentCaseId is null)
+                {
+                    await TryAssociateAsync(memberReceipt, target, actor, activity, cancellationToken);
+                }
+
+                if (memberReceipt.Decision == IntakeDecision.NeedsSorting)
+                {
+                    await imageIntakeStore.EnsureRegisteredReceiptDecisionAsync(
+                        memberReceipt.Id,
+                        cancellationToken);
+                }
+            }
+
+            return true;
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            activity?.SetTag("image_intake.outcome", "registration_failed");
+            return false;
+        }
     }
 
     private static bool IsImageOnly(IntakeReceipt receipt) =>
@@ -391,29 +506,20 @@ public sealed class ImageIntakeAutomation(
         && registration.All(character =>
             char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character));
 
-    /// <param name="groupDecision">
-    /// The group's own routing decision, when this receipt is a member of a
-    /// completed image group; <see langword="null"/> for the legacy
-    /// single-receipt path that has no group to defer to. A group decision
-    /// other than <see cref="ImageIntakeGroupRoutingDecision.AssociateExistingCase"/>
-    /// — most importantly <see cref="ImageIntakeGroupRoutingDecision.HandOffToImageIntake"/>,
-    /// chosen because the eligible-case count was zero or ambiguous — must
-    /// register the ImageIntake evidence but must never associate a Case:
-    /// the per-member candidate search below can find a single exact match
-    /// among an otherwise-ambiguous candidate set, and that near-match must
-    /// not overrule the group's own fail-closed decision.
-    /// </param>
+    /// <summary>
+    /// The legacy single-receipt registration path — a receipt that is not a
+    /// member of any submission group. Group members never come through
+    /// here: their whole group registers once via
+    /// <see cref="TryRegisterGroupAsync"/>.
+    /// </summary>
     private async Task<IntakeReceipt?> TryRegisterAndAssociateAsync(
         IntakeReceipt receipt,
         string read,
         IReadOnlyList<ImageVrmSuggestion> suggestions,
         Activity? activity,
-        ImageIntakeGroupRoutingDecision? groupDecision,
         CancellationToken cancellationToken)
     {
         var actor = ActionActor.SystemWorker(ActorId);
-        var associationAllowed = groupDecision is null
-            or ImageIntakeGroupRoutingDecision.AssociateExistingCase;
         try
         {
             var origin = await originResolver.ResolveOriginAsync(receipt.Id, cancellationToken);
@@ -429,10 +535,8 @@ public sealed class ImageIntakeAutomation(
             // value (operator-directed 2026-08-03) — the case's
             // instruction-supplied registration is the registered identity,
             // never the incomplete read. Ambiguity of any kind means no
-            // automatic association. This search only runs when the group
-            // (or the legacy single-receipt path) has not already decided
-            // the group hands off without association.
-            var candidates = associationAllowed && receipt.CurrentCaseId is null
+            // automatic association.
+            var candidates = receipt.CurrentCaseId is null
                 ? await caseCandidates.FindEligibleByRegistrationAsync(read, cancellationToken)
                 : [];
             activity?.SetTag("image_intake.case_candidates", candidates.Count);
@@ -466,11 +570,7 @@ public sealed class ImageIntakeAutomation(
                 record.NormalizedVehicleRegistration,
                 actor,
                 cancellationToken);
-            if (!associationAllowed)
-            {
-                activity?.SetTag("image_intake.association", "handed_off_to_image_intake");
-            }
-            else if (target is not null)
+            if (target is not null)
             {
                 await TryAssociateAsync(receipt, target, actor, activity, cancellationToken);
             }
