@@ -3,6 +3,7 @@ using System.Net;
 using System.Security.Cryptography;
 using System.Text;
 using Pegasus.Core.Intake;
+using Pegasus.IntegrationTests.DocumentExtraction;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 
@@ -62,11 +63,12 @@ public sealed partial class MultiFormatIntakeWebTests
     }
 
     [Theory]
-    [InlineData("legacy-instruction.doc", "application/msword")]
-    [InlineData("outlook-message.msg", "application/vnd.ms-outlook")]
-    public async Task DeferredLegacyContainersAreAcceptedIntoNeedsSortingWithoutReference(
+    [InlineData("legacy-instruction.doc", "application/msword", "unreadable-doc-file")]
+    [InlineData("outlook-message.msg", "application/vnd.ms-outlook", "unreadable-msg-file")]
+    public async Task UnreadableLegacyContainersFallBackIntoNeedsSortingWithoutReference(
         string fileName,
-        string mediaType)
+        string mediaType,
+        string expectedSignal)
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = CreateClient(factory);
@@ -77,9 +79,55 @@ public sealed partial class MultiFormatIntakeWebTests
 
         Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
         Assert.Null(receipt.FailureCode);
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == expectedSignal);
         Assert.Contains(receipt.AssetRecords, asset => asset.FileName == fileName && asset.Kind == IntakeAssetKind.Source);
         Assert.Contains(fileName, reviewHtml, StringComparison.Ordinal);
         Assert.Contains("Unidentified", reviewHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DirectLegacyDocTextIsExtractedThroughWebCaller()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var text = "QDOS instruction\rClaim Number: SYN-DOC-001\rVehicle Registration: AB12 CDE";
+        var doc = WordBinaryFixture.CreateRawCfb([new(0, (uint)text.Length, 700, false, text)]);
+
+        var result = await UploadAsync(factory, client, "legacy-instruction.doc", "application/msword", doc);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+        var reviewHtml = await GetReviewHtmlAsync(client, result);
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Null(receipt.FailureCode);
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "doc-engine");
+        Assert.DoesNotContain(receipt.Evidence, evidence => evidence.Signal == "deferred_file_type");
+        Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "legacy-instruction.doc" && asset.Kind == IntakeAssetKind.Source);
+        Assert.Contains("legacy-instruction.doc", reviewHtml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task OutlookMessageBodyAndPdfAttachmentDriveTheRealIntakePipeline()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = CreateClient(factory);
+        var pdf = CreatePdf("Synthetic PDF attachment");
+        var msg = new MsgFileBuilder()
+            .WithRootMessage(
+                "IPM.Note",
+                "Synthetic msg instruction",
+                "QDOS instruction\r\nClaim Number: SYN-MSG-001\r\nVehicle Registration: AB12 CDE\r\nClaimant Name: Synthetic Person",
+                senderSmtpAddress: "instructions@qdosassist.co.uk")
+            .WithByValueAttachment("supporting.pdf", "application/pdf", pdf)
+            .Build();
+
+        var result = await UploadAsync(factory, client, "outlook-instruction.msg", "application/vnd.ms-outlook", msg);
+        var receipt = await GetReceiptAsync(factory, ReceiptId(result));
+
+        Assert.Null(receipt.FailureCode);
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "msg-engine");
+        Assert.Contains(receipt.Evidence, evidence => evidence.Signal == "pdf-engine");
+        Assert.Contains(receipt.AssetRecords, asset => asset.FileName == "supporting.pdf");
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
     }
 
     [Theory]
