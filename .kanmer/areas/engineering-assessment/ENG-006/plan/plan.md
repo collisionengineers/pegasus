@@ -9,3 +9,14 @@ Branch `task/eng-assessment-page` from origin/dev (0857f7b9), worktree `../pegas
 5. **Tests**: web test — page renders no "Required." hint text and no explainer cards; damage save persists and re-renders highlighted; method radio preselected for an IBA case. Suites: assessment web tests + Release build 0/0.
 
 Deviation: subagents barred — self-review recorded.
+
+## Simplification pass — 2026-08-20 (self, subagents barred)
+
+Lenses over `origin/dev...HEAD` (4 files, +435/−179):
+
+- **Reuse** — the damage save rides `ISaveAssessment` (existing Core seam with the MCP caller) and the estimate-import lease-acquisition pattern; the diagram binds the existing `assessment.impact_location` vocabulary — one field, three views (diagram, dropdown, report), no new store or path. ✔.
+- **Simplification** — the diagram is submit buttons in one form (click = save), not SVG hit-testing plus JS state plus a separate save button; hint removal was mechanical (39 `<small>` + orphaned `aria-describedby`). ✔ nothing further.
+- **Efficiency** — no new queries on GET; the save is one lease + one field write. ✔.
+- **Altitude** — required-ness stays declared by Core policy (`AssessmentPolicy` readiness); the label marker is presentation only; no validation duplicated into the view. ✔.
+
+No BOM drift; site.js syntax-checked. Nothing deferred.
