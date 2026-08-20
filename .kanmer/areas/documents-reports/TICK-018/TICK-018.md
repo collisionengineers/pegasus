@@ -4,10 +4,12 @@ type: ticket
 title: >-
   DOC-02 — Store source emails, instruction documents, images, correspondence,
   and reports in Box
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T06:21:20.960Z'
 labels:
   - capability
   - DOC-02
@@ -16,9 +18,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-12T15:03:53.124Z'
-updated: '2026-08-17T06:41:36.309Z'
+updated: '2026-08-20T06:21:20.960Z'
 ---
 
 ## What
