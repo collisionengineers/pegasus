@@ -30,7 +30,7 @@ public sealed partial class SendToAiIntegrationTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
         Assert.Contains("Not available", html, StringComparison.Ordinal);
-        Assert.Contains("not composed", html, StringComparison.Ordinal);
+        Assert.Contains("not part of this deployment", html, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"send-to-claude-form\"", html, StringComparison.Ordinal);
     }
 
