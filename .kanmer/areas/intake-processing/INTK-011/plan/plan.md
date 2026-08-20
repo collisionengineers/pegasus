@@ -155,3 +155,90 @@ sufficient and is the minimal change.
 
 To be run over the branch diff before PR, findings recorded here with a dated
 heading, per repository convention.
+
+## Design revision — 2026-08-19 (during implementation)
+
+Step 2's original plan (reuse `IIntakeWorkStore.ScheduleReevaluationAsync` to
+defer a pending group member, with `RetryDelays`/`AttemptCount` bounding) was
+built, then **disproven by its own integration test**: `ScheduleReevaluationAsync`
+moves the work item's state back to `Pending`, forcing a future re-claim
+through `ProcessQueuedIntake.ExecuteAsync`'s artifact-reading branch — but by
+the time a receipt's group outcome is evaluated, `TryDeleteCompletedStagingAsync`
+has already deleted its staged artifact (it runs unconditionally right after
+`CompleteProcessingAsync`, before image automation). Re-arming produced a
+reproducible terminal `staged_artifact_integrity_failure`, confirmed against
+real LocalDB. Corrected design (implemented, all tests green):
+
+- `ApplyImageIntakeWithDeferralAsync` no longer touches the work item at all.
+  When `GroupPending`, it just skips this pass's `SynchronizeUnidentifiedAsync`
+  call — the work item is left exactly as `CompleteProcessingAsync` set it
+  (`Completed`), which is cheap and safe to revisit later: a later
+  `ProcessQueuedIntake.ExecuteAsync(stagedReceiptId)` call finds nothing to
+  claim and takes the existing "claimed is null" replay branch, which re-runs
+  automation without ever touching staging.
+- New `IProcessQueuedIntake` interface (implemented by `ProcessQueuedIntake`)
+  so `ReconcileGroupedImageIntake` can re-drive that safe replay branch
+  without depending on every concrete adapter the full class requires — one
+  real second caller (the reconciliation sweep), not a speculative abstraction.
+- `IIntakeWorkStore.ScheduleReevaluationForReceiptAsync` (step 3's planned
+  mutating join) was replaced by a **read-only** `FindStagedReceiptIdForReceiptAsync`
+  — the reconciliation sweep only needs the staged-receipt id to call
+  `IProcessQueuedIntake.ExecuteAsync` directly; it must never move a
+  `Completed` work item back to `Pending` for the same staging reason above.
+- Bounded retry / poison escape moved from work-item `AttemptCount` to
+  `ReconcileGroupedImageIntake.EscapeAfter` (2h wall-clock age of the
+  receipt's own `ProcessedAtUtc`, the same longest delay already used by
+  `ProcessQueuedIntake.RetryDelays`): past that age, the reconciliation sweep
+  registers Unidentified directly instead of retrying again. This still means
+  no member is ever left invisible forever, and it still never touches the
+  work item.
+
+Root cause and reuse inventory in `files.md` remain accurate. `enter-review`'s
+`post-implementation-report` will state the corrected design as delivered.
+
+## A discovered, out-of-scope gap: ordinal-0 group lookup
+
+While tracing the race, confirmed (with a green concurrency test either way)
+that `EfIntakeSubmissionGroupStore.FindForMemberSourceAsync`
+(`src/Pegasus.Infrastructure/Persistence/EfIntakeSubmissionGroupStore.cs:37-53`)
+can never recognise an **ordinal-0** member as belonging to a group from its
+own identity: `GroupedIntakeMemberToken.Create` gives ordinal 0 the bare
+submission token (no `:N` suffix), and `FindForMemberSourceAsync` requires
+that suffix to resolve a group. An ordinal-0 receipt's own automation pass
+therefore always falls through to the single-receipt path
+(`ImageIntakeAutomation.ApplyAsync`, below the `TryApplyGroupAsync` call),
+never `TryApplyGroupAsync` — this is why the production PNG (ordinal 0)
+registered solo while the JPEG (ordinal 1) went through the group path and
+lost the race. It also means `ReconcileGroupedImageIntake` cannot recognise an
+ordinal-0 straggler as a group candidate (`group is null` short-circuit) if
+ordinal 0 were ever the one that lost a race instead.
+
+This is a distinct, pre-existing defect in the token-encoding scheme (a bare
+token is inherently ambiguous between "ordinal-0 group member" and "genuinely
+standalone upload" — not fixable by a small patch to `FindForMemberSourceAsync`
+alone) and is **not what the production evidence for this ticket exhibited**
+(the stranded member was ordinal 1). Left out of scope deliberately, per the
+plan's "explicitly out of scope" discipline, and flagged here plus in the
+post-implementation report for a follow-up ticket rather than silently
+shipped as if this fix covers every ordinal.
+
+## Simplification pass — 2026-08-19
+
+Ran two independent lenses over the branch diff before PR: a manual
+reuse/simplification/efficiency/altitude read of every changed file, and the
+`code-simplifier` agent over the same diff.
+
+Manual review findings: no dead code, no leftover diagnostics (temporary
+debug-diagnostic blocks used while chasing the staged-artifact and
+`IntakeMutationHistory`-uniqueness bugs during test development were removed
+before commit), naming consistent with existing conventions
+(`ApplyImageIntakeWithDeferralAsync` alongside `ApplyImageIntakeAutomationAsync`,
+`ReconcileGroupedImageIntake` alongside `ReconcileStagedArtifacts`/
+`ReconcilePoisonedIntakeWork`). No new abstraction without a second concrete
+caller (`IImageIntakeAutomation` already had one; `IProcessQueuedIntake` gets
+its second real caller in this same ticket). No new "group outcome" schema —
+confirmed unnecessary by the corrected design above.
+
+code-simplifier agent findings: recorded once the agent's run completes;
+either "no changes" with reasoning, or applied fixes, both to be listed here
+verbatim before this ticket leaves Review.
