@@ -1,9 +1,9 @@
 # EXT-01 completion checklist
 
-- [ ] `Program.cs`: production profile composes `VehicleLookupAvailability.ProductionLive`
-- [ ] `_CaseWorkflow.cshtml`: observation shows make/model/manufacture year/engine capacity/fuel type
-- [ ] Core test pins ProductionLive permits requests
-- [ ] `docs/current-architecture.md` as-built sentence refreshed
-- [ ] Release build zero warnings; focused Vehicle tests green
-- [ ] Simplification pass recorded in plan
-- [ ] PR opened (base dev, stacked on #448, dependency named); ticket → review with post-implementation-report
+- [x] `Program.cs`: production profile composes `VehicleLookupAvailability.ProductionLive`
+- [x] `_CaseWorkflow.cshtml`: observation shows make/model/manufacture year/engine capacity/fuel type
+- [x] Core test pins ProductionLive permits requests (`RequestsEnabled`)
+- [x] `docs/current-architecture.md` as-built sentence refreshed
+- [x] Release build zero warnings; focused Vehicle tests green (23/23; full Core 703/703)
+- [x] Simplification pass recorded in plan
+- [x] PR #450 opened (base dev, stacked on #448, dependency named); ticket → review with post-implementation-report
