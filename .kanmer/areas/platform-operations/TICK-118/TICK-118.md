@@ -2,12 +2,16 @@
 id: TICK-118
 type: ticket
 title: 'Activate live completeness and Review, Not ready, and Held queues'
-status: preparing
+status: done
 area: platform-operations
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-20T05:34:52.385Z'
+  implementing: '2026-08-20T05:35:45.114Z'
+  review: '2026-08-20T05:35:54.711Z'
+  verifying: '2026-08-20T05:36:00.197Z'
+  done: '2026-08-20T05:36:11.085Z'
 labels:
   - now
   - source-now
@@ -19,9 +23,10 @@ links: []
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-12-operator-experience.md
+deployment: production
 archived: false
 created: '2026-08-12T15:08:02.439Z'
-updated: '2026-08-20T05:34:52.385Z'
+updated: '2026-08-20T05:36:11.739Z'
 ---
 
 ## What

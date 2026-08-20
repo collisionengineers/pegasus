@@ -10,14 +10,15 @@ labels:
   - now
   - source-now
   - requires-live-approval
-  - blocked
 groups:
   - HZN-003
 links:
   - TICK-116
+refs:
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-12T15:08:02.478Z'
-updated: '2026-08-17T06:41:56.074Z'
+updated: '2026-08-20T05:36:21.650Z'
 ---
 
 ## What
