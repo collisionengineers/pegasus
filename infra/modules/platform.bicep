@@ -516,7 +516,10 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'IntakeStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         { name: 'ExternalWorkQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
-        { name: 'PendingWorkDispatchSchedule', value: '0 * * * * *' }
+        // Every 15 s rather than each minute: freshly staged work is due
+        // immediately (DueAtUtc = StagedAtUtc), so this poll cadence is the
+        // dispatch latency an upload waits before processing starts (INTK-015).
+        { name: 'PendingWorkDispatchSchedule', value: '*/15 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '30 * * * * *' }
         { name: 'ApprovedInboxPollSchedule', value: '45 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }

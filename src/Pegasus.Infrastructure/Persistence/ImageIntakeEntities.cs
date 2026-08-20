@@ -14,6 +14,15 @@ internal sealed class ImageIntakeEntity
     public required string ExternalReceiptToken { get; set; }
     public required string SourceHash { get; set; }
     public Guid EvaluationRevisionId { get; set; }
+
+    /// <summary>
+    /// The submission group this registration covers, when the group is the
+    /// registration unit (INTK-015): at most one ImageIntake exists per
+    /// group, enforced by a filtered unique index. Null for a single-receipt
+    /// (non-grouped or legacy) registration.
+    /// </summary>
+    public Guid? SubmissionGroupId { get; set; }
+
     public required string NormalizedVehicleRegistration { get; set; }
     public required string ImageIntakeReference { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }

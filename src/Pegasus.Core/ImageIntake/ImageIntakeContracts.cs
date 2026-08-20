@@ -26,7 +26,8 @@ public sealed record ImageIntakeRecord(
     string? MergedIntoCaseReference = null,
     string? ClosureReason = null,
     DateTimeOffset? ClosedAtUtc = null,
-    long LifecycleVersion = 0);
+    long LifecycleVersion = 0,
+    Guid? SubmissionGroupId = null);
 
 public enum ImageInitiatedCaseState
 {
@@ -71,12 +72,22 @@ public sealed class ImageIntakeCaseNotEligibleException(Guid caseId)
     public Guid CaseId { get; } = caseId;
 }
 
+/// <param name="SubmissionGroupId">
+/// The <c>IntakeSubmissionGroup</c> this registration covers, when the whole
+/// group is the registration unit: exactly one ImageIntake exists per group
+/// (enforced by a unique index), <see cref="Origin"/> is the group's primary
+/// member (its lowest-ordinal image-only member, so racing siblings compute
+/// the same request), and the store moves every image-only member receipt to
+/// `ImageIntakeRegistered` against the one reference in the same
+/// transaction. Null for the legacy single-receipt path.
+/// </param>
 public sealed record RegisterImageIntakeRequest(
     ImageIntakeOrigin Origin,
     string NormalizedVehicleRegistration,
     ActionActor Actor,
     string OperationKey,
-    string Reason);
+    string Reason,
+    Guid? SubmissionGroupId = null);
 
 public interface IRegisterImageIntake
 {

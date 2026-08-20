@@ -181,10 +181,12 @@ that reaches an association, a pre-Case Image intake registration, or a
      above.
   3. Exactly one distinct accepted VRM, but zero or more than one eligible
      instructed Case carries it: the VRM is usable but not uniquely matched.
-     Every member registers into the existing pre-Case Image intake identity
-     described above (allocating its Image Intake Reference); none associates
-     to any Case. This FRD does not re-specify the further searchable
-     lifecycle of that pre-Case identity.
+     The group registers as **one** pre-Case Image intake identity — exactly
+     one Image Intake Reference is allocated for the whole submission group,
+     never one per member — and every member's receipt and retained evidence
+     records against that single registration; none associates to any Case.
+     This FRD does not re-specify the further searchable lifecycle of that
+     pre-Case identity.
   4. Zero distinct accepted VRMs, or more than one (conflicting readable
      VRMs): no single usable identity exists. The intact group — every member
      together, kept as one unit — remains `Needs sorting`; no VRM-based
