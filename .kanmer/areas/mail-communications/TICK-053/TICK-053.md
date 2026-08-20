@@ -37,11 +37,13 @@ commits:
   - 347f5ce741e19e6973a31655cd433f5c452005b0
   - 8b300043182ab14e8716323f6fa6f800bc2ba782
   - c0fa9a9905f2808ec1e2eb03e42dbe29cfde7ae4
+  - 6e52935e9065f0769c2629015202909186f5625c
+  - 7932d683782669e112f3d996c6914323e8ba72d4
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/469'
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-20T12:18:29.933Z'
+updated: '2026-08-20T12:45:07.551Z'
 ---
 
 ## What

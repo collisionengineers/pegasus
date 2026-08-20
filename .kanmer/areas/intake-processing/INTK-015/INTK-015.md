@@ -4,7 +4,7 @@ type: ticket
 title: >-
   One grouped upload yields one Image-initiated Case, promptly, without a
   per-image case explosion
-status: verifying
+status: done
 area: intake-processing
 assignee: group-lane
 profile: fix
@@ -12,9 +12,7 @@ stageEntered:
   implementing: '2026-08-20T03:35:13.660Z'
   review: '2026-08-20T04:16:01.270Z'
   verifying: '2026-08-20T04:40:05.491Z'
-taken_at: '2026-08-20T03:27:07.899Z'
-branch: task/intk-015-group-registration-unit
-worktree: ../pegasus-worktrees/intk-015
+  done: '2026-08-20T12:44:47.945Z'
 labels:
   - defect
   - grouped-upload
@@ -35,10 +33,11 @@ commits:
   - c7109d97
   - 0605c431
 prs:
-  - '#447'
+  - '447'
+deployment: production
 archived: false
 created: '2026-08-20T03:16:37.547Z'
-updated: '2026-08-20T04:40:05.491Z'
+updated: '2026-08-20T12:44:51.223Z'
 ---
 
 ## What

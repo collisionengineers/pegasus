@@ -57,3 +57,10 @@ The post-implementation report will cite the migration/model validation, focused
 - **Simplification:** Materialized the display attachment list once; preserved nameless occurrences with a deterministic label; aligned retained admission to the already-visible retained body or named attachment content; one caller fake covers every remaining Deleted state. Applied.
 - **Efficiency:** The new attachment qualifier stays inside SQL before count/paging; display parsing no longer enumerates attachments twice; Deleted source behavior is unchanged and remains bounded at 100.
 - **Altitude:** Parsing/persistence/presentation/test responsibilities remain in their existing layers. No framework, flag, migration, permission, deployment, or external write was added.
+
+## Final review-blocker simplification pass — 2026-08-20
+
+- **Reuse:** The final fixes reuse the canonical reader descriptor list, one receipt root projection, route decision, `StaffForwardBodyCleaner`, existing retained match mapper/detail query, outside-view status, Graph client, resolved folder identity, and Deleted unavailable state.
+- **Simplification:** Raw retained body was removed from search ownership rather than adding a normalized column/backfill; attached text uses the unsupported descriptor path; one optional term extends detail; common GET/reload scope and MIME response helpers remove duplicated conditions/transport code.
+- **Efficiency:** Root/attachment filtering remains SQL-first before count/paging; one detail row gets bounded match evidence; Deleted global 100-message/MIME bounds are unchanged; authentication failure stops before HTTP.
+- **Altitude:** Core owns normalization/authorization contracts, Infrastructure owns MIME/persistence/external failure mapping, and Web owns only outside-view/unavailable presentation. No schema, parser, store, retry framework, permission, deployment, or backfill was added.

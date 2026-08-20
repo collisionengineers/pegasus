@@ -121,3 +121,40 @@ The prior 28-file inventory omitted two already-diffed production files. Its num
 30. `src/Pegasus.Web/Presentation/OperatorLabels.cs` — remains the single operator-facing owner for the attachment-searchability wording used by retained and Deleted views.
 
 `git diff --name-only origin/dev...HEAD` reports exactly 30 files. This corrects the inventory only; it does not expand scope.
+
+## Final review-blocker follow-up — 2026-08-20
+
+Merged current `origin/dev` in `6e52935e9065f0769c2629015202909186f5625c` and addressed [[PR-018]], [[PR-024]], [[PR-029]], [[PR-030]], and [[PR-031]] in `7932d683782669e112f3d996c6914323e8ba72d4` on PR #469.
+
+- Attached `text/plain` parts now preserve canonical/display ordinal identity.
+- The one receipt root projection is route-aware and normalized; retained SQL body admission, match labeling, and visible detail read the same text, with no reconstruction.
+- A nonmatching retained thread member is explicitly outside the preserved active search.
+- Deleted MIME GETs remain bound to the resolved folder; a concurrent move fails to unavailable.
+- Azure credential acquisition failure maps to unavailable through the authenticated caller while caller cancellation remains distinct.
+
+### Verification
+
+- Release solution build: passed, 0 warnings/errors.
+- Core retained-mail class: 27/27 passed.
+- Focused Graph/Web/SQL blocker slice: 27/27 passed.
+- Complete owning Web + persistence classes: 38/38 passed.
+- Exact normalized-body SQL rerun: 1/1 passed.
+- `git diff --check`: passed.
+
+### Exact final PR inventory
+
+`git diff --name-only origin/dev...HEAD` remains exactly 30 files; no new file entered the PR. The prior numbered 30-file inventory remains complete. Final-blocker rationale updates for the 11 affected existing entries are:
+
+- `src/Pegasus.Core/Intake/IntakeSearchProjection.cs` — creates the normalized visible/search root from existing reader fragments and route evidence.
+- `src/Pegasus.Core/Intake/ProcessIntake.cs` — passes the already-computed route decision into that single projection.
+- `src/Pegasus.Core/Intake/RetainedMail.cs` — carries one normalized active term through the existing detail boundary.
+- `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs` — folder-scopes Deleted MIME and maps Azure authentication failure to unavailable.
+- `src/Pegasus.Infrastructure/Intake/MimeKitPdfPigOpenXmlIntakeSourceReader.cs` — preserves attached text parts in canonical ordinal identity.
+- `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` — uses the same root for SQL admission, labels, detail body, and detail search membership.
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` — marks nonmatching thread members outside the originating search.
+- `tests/Pegasus.Core.Tests/Intake/RetainedMailTests.cs` — proves forwarded wrapper/cid normalization.
+- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` — proves authenticated thread mismatch and credential-unavailable rendering.
+- `tests/Pegasus.IntegrationTests/ProductionGraphSourceTests.cs` — proves exact folder MIME path and concurrent-move unavailability.
+- `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` — proves attached-text ordinal stability and normalized root SQL/detail equality.
+
+No external/cloud/mailbox write, deployment, Graph permission change, historical backfill, merge, or self-review occurred. Replacement CI remains the independent clean-suite authority.

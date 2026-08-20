@@ -2,7 +2,7 @@
 id: INTK-018
 type: ticket
 title: Resolve Unidentified items when their receipt reaches a real destination
-status: verifying
+status: done
 area: intake-processing
 assignee: group-lane
 profile: fix
@@ -10,9 +10,7 @@ stageEntered:
   implementing: '2026-08-20T04:20:13.751Z'
   review: '2026-08-20T04:43:23.616Z'
   verifying: '2026-08-20T05:10:28.317Z'
-taken_at: '2026-08-20T04:16:43.894Z'
-branch: task/intk-018-unidentified-resolution
-worktree: ../pegasus-worktrees/intk-018
+  done: '2026-08-20T12:45:10.873Z'
 labels:
   - defect
   - unidentified
@@ -27,10 +25,11 @@ commits:
   - 94472c69
   - 77bb1306
 prs:
-  - '#453'
+  - '453'
+deployment: production
 archived: false
 created: '2026-08-20T03:25:25.736Z'
-updated: '2026-08-20T05:10:28.317Z'
+updated: '2026-08-20T12:45:14.785Z'
 ---
 
 ## What
