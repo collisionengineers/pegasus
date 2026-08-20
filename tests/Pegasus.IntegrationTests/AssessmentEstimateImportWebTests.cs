@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -134,7 +134,7 @@ public sealed partial class AssessmentEstimateImportWebTests
         using var client = CreateEngineerClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=estimate");
-        Assert.Contains("awaiting an Engineer", html, StringComparison.Ordinal);
+        Assert.Contains("Awaiting an Engineer", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Import an estimate", html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(

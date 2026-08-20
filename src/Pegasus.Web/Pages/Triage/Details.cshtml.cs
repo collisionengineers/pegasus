@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
@@ -228,14 +228,8 @@ public sealed class DetailsModel(
 
     public static string StateLabel(TriageState state) => IndexModel.StateLabel(state);
 
-    public static string SourceChannelLabel(IntakeSourceChannel channel) => channel switch
-    {
-        IntakeSourceChannel.ManualUpload => "Manual upload",
-        IntakeSourceChannel.Mailbox => "Approved inbox",
-        IntakeSourceChannel.Automation => "Automation",
-        _ => throw new InvalidOperationException(
-            $"Unknown intake source channel value '{(int)channel}'.")
-    };
+    public static string SourceChannelLabel(IntakeSourceChannel channel) =>
+        Presentation.OperatorLabels.SourceChannel(channel);
 
     public static string RoadworthinessLabel(RoadworthinessFinding finding) => finding switch
     {
