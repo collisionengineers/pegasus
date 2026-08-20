@@ -2,13 +2,14 @@
 id: TICK-028
 type: ticket
 title: 'Establish database backup, restore, RPO, and RTO capability'
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T05:35:08.583Z'
   review: '2026-08-20T05:37:02.806Z'
+  verifying: '2026-08-20T05:51:47.722Z'
 taken_at: '2026-08-20T05:34:06.267Z'
 branch: task/tick-028-ops-09-backup
 worktree: ../pegasus-worktrees/tick-028
@@ -26,7 +27,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/459'
 archived: false
 created: '2026-08-12T15:03:53.347Z'
-updated: '2026-08-20T05:37:03.549Z'
+updated: '2026-08-20T05:51:47.722Z'
 ---
 
 ## What
