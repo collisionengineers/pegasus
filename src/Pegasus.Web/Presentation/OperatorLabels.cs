@@ -7,6 +7,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Web.Presentation;
@@ -470,6 +471,19 @@ public static class OperatorLabels
     /// IntakeEvidence. It is derived from the reader identity already carried on
     /// the source label, and falls back to Extracted rather than guessing.
     /// </remarks>
+    /// <summary>
+    /// The supplied/external/estimated classification a mileage figure carries. The
+    /// binding rule sits in Core (<see cref="VehicleMileageEvidenceClassification"/>):
+    /// a derived estimate is never presented as supplied.
+    /// </summary>
+    public static string MileageEvidence(VehicleMileageEvidenceClass value) => value switch
+    {
+        VehicleMileageEvidenceClass.Supplied => "Supplied",
+        VehicleMileageEvidenceClass.External => "External",
+        VehicleMileageEvidenceClass.Estimated => "Estimated",
+        _ => Humanise(value.ToString())
+    };
+
     public static (string Word, string Icon) Provenance(CaseDataSource? source)
     {
         var isAiReader = source is not null
