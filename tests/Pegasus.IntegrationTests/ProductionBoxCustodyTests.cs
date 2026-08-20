@@ -422,6 +422,102 @@ public sealed class ProductionBoxCustodyTests
     private static string Sha256(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
 
+    [Fact]
+    public async Task ImageCaseFolderStoresOrdinalNamedImagesIdempotently()
+    {
+        var box = new StatefulBox();
+        var imageBytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(imageBytes), CreateClient(box));
+        var imageIntakeId = Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10");
+        var imageRoot = await custody.CreateCaseRootAsync(
+            imageIntakeId, "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root-create", default);
+        var source = new IntakeSourceCustodyReference(
+            Guid.NewGuid(),
+            "photo one.jpg",
+            "image/jpeg",
+            Sha256(imageBytes),
+            "source",
+            imageBytes.Length);
+
+        await custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain-1", default);
+        Assert.True(box.PathExists("AB12CDE-01/pegasus-case-binding.json"));
+        Assert.True(box.PathExists("AB12CDE-01/001 photo one.jpg"));
+
+        // A replayed retention verifies the immutable content instead of
+        // mutating anything again.
+        var mutationsAfterFirst = box.MutationCount;
+        await custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain-1", default);
+        Assert.Equal(mutationsAfterFirst, box.MutationCount);
+
+        // Corrupted remote content fails the replay closed.
+        box.CorruptFile("AB12CDE-01/001 photo one.jpg");
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain-1", default));
+    }
+
+    [Fact]
+    public async Task MergeFoldsImageFilesIntoTheCaseEvidenceAndRemovesTheEmptiedFolder()
+    {
+        var box = new StatefulBox { AllowDeletes = true };
+        var imageBytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(imageBytes), CreateClient(box));
+        var source = new IntakeSourceCustodyReference(
+            Guid.NewGuid(),
+            "photo one.jpg",
+            "image/jpeg",
+            Sha256(imageBytes),
+            "source",
+            imageBytes.Length);
+        var firstImageRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10"),
+            "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "first-image-root", default);
+        await custody.RetainImageCaseAssetAsync(firstImageRoot, source, 1, "first-retain", default);
+        var secondImageRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("30213243-5465-7687-98a9-bacbdcedfe11"),
+            "AB12CDE-02", "123456789ABCDEFGHJKMNPQRS0", "second-image-root", default);
+        await custody.RetainImageCaseAssetAsync(secondImageRoot, source, 1, "second-retain", default);
+        var caseRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("40213243-5465-7687-98a9-bacbdcedfe12"),
+            "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "case-root", default);
+
+        await custody.MergeImageCaseContentsAsync(firstImageRoot, caseRoot, "first-fold", default);
+        Assert.True(box.PathExists("QDOS31001/Evidence/Images/001 photo one.jpg"));
+        Assert.False(box.PathExists("AB12CDE-01"));
+
+        // A replayed fold after the folder is gone is an idempotent no-op.
+        var mutationsAfterFold = box.MutationCount;
+        await custody.MergeImageCaseContentsAsync(firstImageRoot, caseRoot, "first-fold", default);
+        Assert.Equal(mutationsAfterFold, box.MutationCount);
+
+        // A same-named file from a second Image intake keeps a unique name by
+        // carrying its source reference.
+        await custody.MergeImageCaseContentsAsync(secondImageRoot, caseRoot, "second-fold", default);
+        Assert.True(box.PathExists("QDOS31001/Evidence/Images/AB12CDE-02 001 photo one.jpg"));
+        Assert.False(box.PathExists("AB12CDE-02"));
+    }
+
+    [Fact]
+    public async Task MergeFailsClosedOnUnexpectedContentAndTheRootCanNeverBeRemoved()
+    {
+        var box = new StatefulBox { AllowDeletes = true };
+        var imageBytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(imageBytes), CreateClient(box));
+        var imageRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10"),
+            "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        var caseRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("40213243-5465-7687-98a9-bacbdcedfe12"),
+            "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "case-root", default);
+        await CreateClient(box).CreateFolderAsync(imageRoot.RemoteId, "Nested", default);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            custody.MergeImageCaseContentsAsync(imageRoot, caseRoot, "fold", default));
+        Assert.True(box.PathExists("AB12CDE-01/Nested"));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            CreateClient(box).DeleteFolderAsync("405543781910", default));
+    }
+
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
         artifactStore ?? new EmptyArtifactStore(),
         CreateClient(handler));
@@ -510,7 +606,7 @@ public sealed class ProductionBoxCustodyTests
             public string Id { get; } = id;
             public string Name { get; set; } = name;
             public string Type { get; } = type;
-            public string? ParentId { get; } = parentId;
+            public string? ParentId { get; set; } = parentId;
             public byte[]? Content { get; set; } = content;
             public string? MediaType { get; set; } = mediaType;
             public string? MetadataParentOverride { get; set; }
@@ -524,7 +620,9 @@ public sealed class ProductionBoxCustodyTests
 
         public bool LoseNextFolderCreateResponse { get; set; }
         public string? LoseNextFileUploadResponseForName { get; set; }
+        public bool AllowDeletes { get; set; }
         public int RenameCount { get; private set; }
+        public int MoveCount { get; private set; }
         public int DeleteCount { get; private set; }
         public int MutationCount { get; private set; }
         public IEnumerable<string> FinalPathSegments => nodes.Values.Select(node => node.Name);
@@ -653,10 +751,48 @@ public sealed class ProductionBoxCustodyTests
                 MutationCount++;
                 return Item(nodes[id]);
             }
+            if (request.Method == HttpMethod.Put && path.StartsWith("/2.0/files/", StringComparison.Ordinal))
+            {
+                var id = path["/2.0/files/".Length..];
+                using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                var name = body.RootElement.GetProperty("name").GetString()!;
+                var parent = body.RootElement.GetProperty("parent").GetProperty("id").GetString()!;
+                var conflict = Find(parent, name);
+                if (conflict is not null && !string.Equals(conflict.Id, id, StringComparison.Ordinal))
+                {
+                    return new(HttpStatusCode.Conflict) { Content = new StringContent("conflict") };
+                }
+                nodes[id].Name = name;
+                nodes[id].ParentId = parent;
+                MoveCount++;
+                MutationCount++;
+                return Item(nodes[id]);
+            }
             if (request.Method == HttpMethod.Delete)
             {
                 DeleteCount++;
-                throw new InvalidOperationException("Folder/custody deletion was not expected.");
+                if (!AllowDeletes)
+                {
+                    throw new InvalidOperationException("Folder/custody deletion was not expected.");
+                }
+                if (path.StartsWith("/2.0/folders/", StringComparison.Ordinal))
+                {
+                    var id = path["/2.0/folders/".Length..];
+                    if (nodes.Values.Any(node => node.ParentId == id))
+                    {
+                        return new(HttpStatusCode.Conflict) { Content = new StringContent("not empty") };
+                    }
+                    nodes.Remove(id);
+                    MutationCount++;
+                    return new(HttpStatusCode.NoContent);
+                }
+                if (path.StartsWith("/2.0/files/", StringComparison.Ordinal))
+                {
+                    nodes.Remove(path["/2.0/files/".Length..]);
+                    MutationCount++;
+                    return new(HttpStatusCode.NoContent);
+                }
+                throw new InvalidOperationException($"Unexpected Box delete: {request.RequestUri}");
             }
             throw new InvalidOperationException($"Unexpected Box request: {request.Method} {request.RequestUri}");
         }
