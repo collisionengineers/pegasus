@@ -25,6 +25,15 @@
     // class, so the one place that turns a case mileage value into row text
     // also appends the classification word (a derived estimate is never
     // presented as supplied).
+    static CaseDataValue<string>? ModeText(CaseDataValue<CaseInspectionMode>? value) =>
+        value is null
+            ? null
+            : new(
+                OperatorLabels.InspectionMode(value.Value),
+                value.Kind,
+                value.Source,
+                value.ConfirmedByActor,
+                value.ConfirmedAtUtc);
     static CaseDataValue<string>? MileageText(CaseDataValue<long>? value) =>
         value is null
             ? null
@@ -39,67 +48,9 @@
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
 }
 
-<section class="panel form-panel" aria-labelledby="case-edit-mode-title">
-    <h2 id="case-edit-mode-title" class="section-label">Edit mode</h2>
-    @if (workflow.Archive is not null)
-    {
-        <p>This archived case is read-only; evidence and immutable history remain available.</p>
-    }
-    else if (!string.IsNullOrWhiteSpace(leaseToken))
-    {
-        <p>You hold edit authority for this case; a successful change consumes it.</p>
-        @if (details.ActiveEditLease is { } heldByYou)
-        {
-            <p>Editing stays yours until @EditModeDisplay.WallClock(heldByYou.ExpiresAtUtc).</p>
-        }
-        <div class="button-row">
-            <form method="post" asp-page-handler="RenewLease">
-                <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
-                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <button type="submit" class="secondary-action">Renew edit mode</button>
-            </form>
-            <form method="post" asp-page-handler="ReleaseLease">
-                <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
-                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <button type="submit" class="secondary-action">Leave edit mode</button>
-            </form>
-        </div>
-    }
-    else if (Model.CanRecoverLease)
-    {
-        <p>Edit authority is active for this staff session, but its protected browser state must be recovered.</p>
-        <form method="post" asp-page-handler="ClaimLease">
-            <input type="hidden" name="id" value="@workflow.CaseId" />
-            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
-            <button type="submit" class="primary-action">Recover edit mode</button>
-        </form>
-    }
-    else if (details.ActiveEditLease is { } heldByOther && Model.EditAuthorityHolder is { } holder)
-    {
-        <p>
-            Read-only view.
-            @EditModeDisplay.HeldBy(
-                holder,
-                heldByOther.ExpiresAtUtc,
-                Model.ViewerHoldsEditAuthority)
-        </p>
-        <p>Editing cannot be taken over; reload the case once editing is available.</p>
-    }
-    else
-    {
-        <p>Read-only view; enter edit mode to make one versioned change.</p>
-        <form method="post" asp-page-handler="ClaimLease">
-            <input type="hidden" name="id" value="@workflow.CaseId" />
-            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
-            <button type="submit" class="primary-action">Enter edit mode</button>
-        </form>
-    }
-</section>
+@* Edit mode is a toggle on the case action bar (CASE-007); this
+   partial renders only the sections that carry content or an action in the
+   current mode. *@
 
 @if (Model.ProposedValuesWereDropped)
 {
@@ -163,7 +114,7 @@ else if (Model.ProposedValues.Count > 0)
                 ("Inspection date", Text(data.Inspection.InspectionDate.Fact) ?? Text(data.Inspection.InspectionDate.Confirmed), Text(data.Inspection.InspectionDate.Suggestion)),
                 ("Inspection deadline", Text(data.Inspection.Deadline.Fact) ?? Text(data.Inspection.Deadline.Confirmed), Text(data.Inspection.Deadline.Suggestion)),
                 ("Inspection address", Text(data.Inspection.Address.Fact) ?? Text(data.Inspection.Address.Confirmed), Text(data.Inspection.Address.Suggestion)),
-                ("Inspection mode", Text(data.Inspection.Mode.Fact) ?? Text(data.Inspection.Mode.Confirmed), Text(data.Inspection.Mode.Suggestion))
+                ("Inspection mode", ModeText(data.Inspection.Mode.Fact) ?? ModeText(data.Inspection.Mode.Confirmed), ModeText(data.Inspection.Mode.Suggestion))
             };
             var populated = rows.Where(row => row.Accepted is not null || row.Suggested is not null).ToArray();
         }
@@ -197,7 +148,6 @@ else if (Model.ProposedValues.Count > 0)
             }
         }
 
-        <p>Saving case detail resets instruction completeness; confirm it again afterwards.</p>
         @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null)
         {
             <form method="post" asp-page-handler="Save" class="form-grid">
@@ -248,7 +198,6 @@ else if (Model.ProposedValues.Count > 0)
                             <option value="ImageBasedAssessment">Image Based Assessment</option>
                         }
                     </select>
-                    <span>Choosing Image Based Assessment requires the inspection address to read exactly &ldquo;Image Based Assessment&rdquo;.</span>
                 </label>
                 <label class="field-wide">Accident circumstances<textarea name="accidentCircumstances" maxlength="2000">@data.Accident.Circumstances.Confirmed?.Value</textarea></label>
                 <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>
@@ -273,15 +222,11 @@ else if (Model.ProposedValues.Count > 0)
     </section>
 }
 
+@if (mayEdit)
+{
 <section class="panel form-panel" aria-labelledby="case-workflow-title">
     <h2 id="case-workflow-title" class="section-label">Lifecycle actions</h2>
-    @if (string.IsNullOrWhiteSpace(leaseToken) || workflow.Archive is not null)
-    {
-        <p>Enter edit mode to expose reasoned lifecycle commands.</p>
-    }
-    else
-    {
-        <div class="form-grid">
+    <div class="form-grid">
             <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="Hold">
                 <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Hold case</button>
@@ -326,10 +271,13 @@ else if (Model.ProposedValues.Count > 0)
                 <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
                 <label>Assessment<select name="assessment"><option value="Repairable">Repairable</option><option value="TotalLoss">Total loss</option></select></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Record Engineer finding</button>
             </form>
-        </div>
-    }
+    </div>
 </section>
+}
 
+@if (workflow.ReportApproval is not null
+    || (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation))
+{
 <section class="panel form-panel" aria-labelledby="case-report-approval-title">
     <h2 id="case-report-approval-title" class="section-label">Immutable report approval</h2>
     @if (workflow.ReportApproval is { } approval)
@@ -350,19 +298,15 @@ else if (Model.ProposedValues.Count > 0)
             <button type="submit" class="primary-action">Approve immutable report</button>
         </form>
     }
-    else
-    {
-        <p class="empty-state">No immutable report approval is recorded. Approval is optional and is available during report preparation with edit authority.</p>
-    }
 </section>
+}
 
+@if (details.AvailableReportSentEvidence.Count > 0
+    || (workflow.ReportSentEvidence is not null && mayEdit && workflow.State is not CaseLifecycleState.Held && !CaseLifecycleRules.IsTerminal(workflow.State)))
+{
 <section class="panel form-panel" aria-labelledby="case-report-evidence-title">
     <h2 id="case-report-evidence-title" class="section-label">Report-Sent evidence</h2>
-    @if (details.AvailableReportSentEvidence.Count == 0)
-    {
-        <p>No unlinked approved-mailbox Sent evidence is currently available.</p>
-    }
-    else
+    @if (details.AvailableReportSentEvidence.Count > 0)
     {
         <ul>
         @foreach (var evidence in details.AvailableReportSentEvidence)
@@ -388,14 +332,13 @@ else if (Model.ProposedValues.Count > 0)
         </form>
     }
 </section>
+}
 
+@if (details.Tasks.Count > 0 || (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null))
+{
 <section class="panel form-panel" aria-labelledby="case-tasks-title">
     <h2 id="case-tasks-title" class="section-label">Case tasks</h2>
-    @if (details.Tasks.Count == 0)
-    {
-        <p class="empty-state">No case tasks are recorded.</p>
-    }
-    else
+    @if (details.Tasks.Count > 0)
     {
         <ul>
         @foreach (var task in details.Tasks)
@@ -429,14 +372,15 @@ else if (Model.ProposedValues.Count > 0)
         </form>
     }
 </section>
+}
 
 @if (details.LatestChaser is { } chaser)
 {
     <section class="panel" aria-labelledby="case-chaser-title">
         <h2 id="case-chaser-title" class="section-label">Latest generated chase draft</h2>
-        <dl><dt>Generated</dt><dd>@OperatorLabels.OfficeTime(chaser.GeneratedAtUtc)</dd><dt>Next chase</dt><dd>@OperatorLabels.OfficeTime(chaser.NextChaseAtUtc)</dd><dt>Due-work version</dt><dd>@chaser.DueWorkVersion</dd></dl>
+        <dl><dt>Generated</dt><dd>@OperatorLabels.OfficeTime(chaser.GeneratedAtUtc)</dd><dt>Next chase</dt><dd>@OperatorLabels.OfficeTime(chaser.NextChaseAtUtc)</dd></dl>
         <pre>@chaser.CopyableText</pre>
-        <p>This draft is copyable text only, not sent correspondence or delivery evidence.</p>
+        <p>Copyable text only; nothing has been sent.</p>
     </section>
 }
 
@@ -444,7 +388,7 @@ else if (Model.ProposedValues.Count > 0)
 {
     <section class="panel form-panel" aria-labelledby="case-manual-chase-title">
         <h2 id="case-manual-chase-title" class="section-label">Record manual chase</h2>
-        <p>This records an attributable attempt and updates the chase schedule; it does not send correspondence or prove delivery.</p>
+        <p>Recording an attempt updates the chase schedule; nothing is sent.</p>
         <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="RecordManualChase" class="form-grid">
             <input type="hidden" name="id" value="@workflow.CaseId" />
             <input type="hidden" name="expectedVersion" value="@workflow.Version" />
@@ -461,13 +405,11 @@ else if (Model.ProposedValues.Count > 0)
     </section>
 }
 
+@if (details.VehicleEvidence is not null || mayEdit)
+{
 <section class="panel form-panel" aria-labelledby="case-vehicle-evidence-title">
     <h2 id="case-vehicle-evidence-title" class="section-label">Vehicle evidence</h2>
-    @if (details.VehicleEvidence is not { } vehicleEvidence)
-    {
-        <p class="empty-state">No vehicle lookup evidence is recorded. This is distinct from a confirmed no-result or unavailable outcome.</p>
-    }
-    else
+    @if (details.VehicleEvidence is { } vehicleEvidence)
     {
         @if (vehicleEvidence.Confirmed is { } confirmed)
         {
@@ -536,10 +478,6 @@ else if (Model.ProposedValues.Count > 0)
                 </form>
             }
         }
-        @if (vehicleEvidence.ConfirmationHistory.Count > 0)
-        {
-            <p>@vehicleEvidence.ConfirmationHistory.Count attributable vehicle confirmation event(s) are retained.</p>
-        }
     }
     @if (mayEdit)
     {
@@ -549,15 +487,13 @@ else if (Model.ProposedValues.Count > 0)
         </form>
     }
 </section>
+}
 
+@if (details.Custody.Count > 0)
+{
 <section class="panel form-panel" aria-labelledby="case-custody-title">
     <h2 id="case-custody-title" class="section-label">Case custody</h2>
-    @if (details.Custody.Count == 0)
-    {
-        <p class="empty-state">No custody preparation is recorded for this case.</p>
-    }
-    else
-    {
+    @{
         <ul class="action-list">
         @foreach (var custody in details.Custody)
         {
@@ -585,56 +521,54 @@ else if (Model.ProposedValues.Count > 0)
         </ul>
     }
 </section>
+}
 
+@if (details.EvaHandoff is { } eva && (eva.Revisions.Count > 0 || mayEdit))
+{
 <section class="panel form-panel" aria-labelledby="case-eva-title">
     <h2 id="case-eva-title" class="section-label">EVA handoff</h2>
-    @if (details.EvaHandoff is not { } eva)
+    @if (eva.Revisions.Count > 0)
     {
-        <p class="empty-state">EVA handoff preparation is unavailable for this runtime or case.</p>
+        <ul class="action-list">
+        @foreach (var revision in eva.Revisions)
+        {
+            <li>
+                <strong>@revision.FileName</strong>
+                <small>Generated @OperatorLabels.OfficeTime(revision.GeneratedAtUtc) · integrity verified</small>
+                @if (mayEdit)
+                {
+                    <form method="post" asp-page="/Cases/Eva/Download" asp-route-id="@workflow.CaseId" class="form-grid">
+                        <input type="hidden" name="id" value="@workflow.CaseId" />
+                        <input type="hidden" name="revision" value="@revision.Revision" />
+                        <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                        <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                        <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                        <label>Reason<input name="reason" required maxlength="500" /></label>
+                        <button type="submit" class="secondary-action">Download handoff</button>
+                    </form>
+                }
+            </li>
+        }
+        </ul>
     }
-    else
+    @if (mayEdit && eva.CanGenerate)
     {
-        <dl>
-            <dt>Can generate</dt><dd>@(eva.CanGenerate ? "Yes" : "No")</dd>
-            <dt>Eligible images</dt><dd>@eva.Images.Count</dd>
-            <dt>Revisions</dt><dd>@eva.Revisions.Count</dd>
-            <dt>First sent to Engineer</dt><dd>@(OperatorLabels.OfficeTime(eva.FirstSentToEngineerAtUtc, "Not recorded"))</dd>
-        </dl>
-        @if (eva.Revisions.Count > 0)
-        {
-            <ul class="action-list">
-            @foreach (var revision in eva.Revisions)
-            {
-                <li>
-                    <strong>@revision.FileName</strong>
-                    <small>Business revision @revision.Revision · generated @OperatorLabels.OfficeTime(revision.GeneratedAtUtc) · integrity verified</small>
-                    @if (mayEdit)
-                    {
-                        <form method="post" asp-page="/Cases/Eva/Download" asp-route-id="@workflow.CaseId" class="form-grid">
-                            <input type="hidden" name="id" value="@workflow.CaseId" />
-                            <input type="hidden" name="revision" value="@revision.Revision" />
-                            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                            <label>Reason<input name="reason" required maxlength="500" /></label>
-                            <button type="submit" class="secondary-action">Download handoff</button>
-                        </form>
-                    }
-                </li>
-            }
-            </ul>
-        }
-        @if (eva.BlockingReasons.Count > 0)
-        {
-            <ul>@foreach (var blockingReason in eva.BlockingReasons){<li>@blockingReason</li>}</ul>
-        }
-        @if (mayEdit && eva.CanGenerate)
-        {
-            <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="GenerateEvaHandoff" class="form-grid">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <p class="field-wide">The hand-off includes every eligible confirmed vehicle image, in a fixed order; EVA owns selection from there.</p>
-                <label class="field-wide">Reason<input name="reason" required maxlength="300" /></label><button type="submit" class="primary-action">Generate deterministic EVA handoff</button>
-            </form>
-        }
+        <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="GenerateEvaHandoff" class="form-grid">
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <label class="field-wide">Reason<input name="reason" required maxlength="300" /></label><button type="submit" class="primary-action">Generate EVA handoff</button>
+        </form>
+    }
+    else if (mayEdit && eva.BlockingReasons.Count > 0)
+    {
+        <details class="readiness-summary" data-hover-disclosure>
+            <summary>
+                <span class="status-chip status-chip--amber">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>@Pegasus.Web.Pages.Cases.Assessment.IndexModel.IssueSummaryText(eva.BlockingReasons.Count)</span>
+                </span>
+            </summary>
+            <ul class="blocker-list">@foreach (var blockingReason in eva.BlockingReasons){<li>@blockingReason</li>}</ul>
+        </details>
     }
 </section>
+}

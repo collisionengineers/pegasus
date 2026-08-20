@@ -1797,8 +1797,8 @@ table tfoot th {
 .facts dd.quiet { color: var(--muted); font-weight: 400; }
 
 .datarow { display: flex; align-items: center; gap: var(--sp-4); min-height: 32px; padding: 3px 0; border-top: var(--border); font-variant-numeric: tabular-nums; }
-.datarow__field { flex: 0 0 150px; color: var(--muted); font-size: var(--t-sm); }
-.datarow__value { flex: 0 0 210px; font-weight: 600; }
+.datarow__field { flex: 1 1 120px; min-width: 0; color: var(--muted); font-size: var(--t-sm); }
+.datarow__value { flex: 1.4 1 140px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .datarow__value.quiet { color: var(--muted); font-weight: 400; }
 .datarow__end { display: flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
 
@@ -2374,3 +2374,8 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
 .upload-outcome-list > li > :not(.upload-thumb) {
   grid-column: 2;
 }
+
+
+/* CASE-007: the action bar hosts the edit toggle forms inline. */
+.record__bar-form { display: inline-flex; }
+.record__bar-note { align-self: center; color: var(--muted); font-size: var(--t-sm); }
