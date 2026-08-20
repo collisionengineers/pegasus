@@ -51,3 +51,12 @@ To be completed during execution with dated findings and dispositions.
 ## Course correction — 2026-08-20
 
 Implementation confirmed two internal inconsistencies in linked FRD-08: the triage-request row retains the superseded “Needs sorting” phrase, and the catalogue paragraph says MAIL-23 owns the confirmed move despite the settled ticket split. Step 6 includes the narrow correction to “Unidentified” and to MAIL-23 binding → MAIL-05 recommendation → MAIL-07 confirmed move. This reconciles existing accepted/deployed decisions; it adds no new behavior.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** pass. Reused `MailClassificationResult`/`MailCategory`, the existing `ApprovedMailbox` aggregate and EF store, `IApprovedMailboxIdentityResolver`, the existing Graph credential/client, and the existing administrator Mailboxes page. No second queue policy, retained-message store, or audit mechanism was introduced.
+- **Simplification:** one finding applied. The generated migration initially exposed the need to extend the existing committed-migrations schema proof; the existing test was updated rather than adding a parallel migration test. The folder model stays one enum/catalogue plus one mailbox-owned collection; nullable per-folder fields and a combined queue/folder result remain rejected.
+- **Efficiency:** pass. Folder discovery is a read-only breadth-first walk using Graph paging and `childFolderCount`; it requests only id/display-name/child-count, and resolution occurs only on the administrator add/refresh actions. There is no per-message traversal or write.
+- **Altitude:** one finding applied. A focused hostile-`@odata.nextLink` test now proves the Infrastructure adapter fails closed before leaving the exact approved-mailbox path. Business vocabulary/mapping/validation remain in Core, transport traversal and EF persistence in Infrastructure, and Web only composes the approved action.
+
+No unapplied simplification findings. The final handwritten change remains within the estimated 500–800 lines; generated migration metadata is mechanical.
