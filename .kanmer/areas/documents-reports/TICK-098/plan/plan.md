@@ -19,3 +19,11 @@ No second template, report model, calculation owner, or Audit-only renderer is p
 ## Verification
 
 Run focused Core identity/report tests, renderer parity tests through real Chromium, integration tests for both Audit outcomes, and the repository's locked restore/build/test profile.
+
+## Execution scope update — 2026-08-20
+
+The active renderer surface is explicitly closed to Audit and no accepted Audit caller exists. Per FRD-11 and the feature-gate safety rail, this ticket records the corrected future contract only; it does not add an unreachable Audit code path or claim activation. The implemented scope is therefore the governing capability/FRD correction, with no code or renderer change.
+
+## Simplification pass — 2026-08-20
+
+n/a — docs-only. The review confirmed the existing renderer boundary remains the sole presentation owner; no abstraction, template, model, or feature-gate change is introduced.

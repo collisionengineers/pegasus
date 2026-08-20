@@ -2,10 +2,12 @@
 id: PLAT-014
 type: ticket
 title: Correct missing LocalDB detection in Offline lifecycle
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-20T09:02:33.715Z'
 labels:
   - local-development
   - offline
@@ -16,7 +18,7 @@ blocks:
   - PLAT-005
 archived: false
 created: '2026-08-20T08:56:51.802Z'
-updated: '2026-08-20T08:56:51.802Z'
+updated: '2026-08-20T09:02:33.715Z'
 ---
 
 ## Why
