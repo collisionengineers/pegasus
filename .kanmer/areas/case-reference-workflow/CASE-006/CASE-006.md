@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Case images are viewable in Pegasus: thumbnail preview, click to expand,
   Box-backed storage
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T06:07:05.668Z'
+  review: '2026-08-20T06:34:44.383Z'
 taken_at: '2026-08-20T06:02:14.163Z'
 branch: task/case-006-image-viewing
 worktree: ../pegasus-worktrees/case-006
@@ -24,9 +25,16 @@ links:
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
+commits:
+  - edceb77e
+  - 56a71a38
+  - f409cb7b
+  - 67e3f63b
+prs:
+  - '#464'
 archived: false
 created: '2026-08-20T03:16:37.709Z'
-updated: '2026-08-20T06:07:05.668Z'
+updated: '2026-08-20T06:34:44.383Z'
 ---
 
 ## What
