@@ -31,3 +31,10 @@ No Core/EF schema, migration, permission, Graph/Box adapter, generic command fra
 | ticket research/plan/checklist/PIR/scratch | Reconcile blocker reasoning, commands, four lenses, file inventory, and PR traceability. |
 
 Unchanged: Core link/reverse contracts, EF association/history transaction and fingerprint, Case lease store/schema, retained-mail projection, shared search helper, shared reason dialog, FRD/product policy, Graph/Box/cloud/deployment.
+
+## PR-051/052 correction files — 2026-08-20
+
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs`: exact message/receipt/action payload binding, success replay retention, release-failure retention/outcome.
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml`: action-specific confirmation rendering.
+- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs`: cross-message/cross-action and fail-once release retry proof.
+- Ticket documents only otherwise; no Core/EF/schema/runtime/external file.

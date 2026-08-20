@@ -75,3 +75,9 @@ The initial post-merge lookup was run from the root checkout and incorrectly rep
 - `IReleaseCaseEditLease` is already registered. Triage association uses a `finally` compensation with `CancellationToken.None`; Operations uses a quiet-release helper. MAIL-10 can inject that existing port and release only after a definitive post-acquire refusal. Cancellation/unknown commit outcome must preserve the token/operation for same-confirmation recovery instead of releasing uncertain authority.
 - The accessible-result defect is markup-only. Keep `UploadCaseDecision.SearchAsync`; move registration, claimant, and stage inside the one existing anchor so the visible text is also its accessible name. No component or script is needed.
 - Required evidence belongs in `MailWorkspaceWebTests`: exact successful link replay; exact successful unlink replay; same-key changed-reason conflict; forced definitive link failure after lease claim followed by immediate lease reacquisition; success clears lease; and one focusable result link whose text includes reference, registration, claimant, and stage.
+
+## PR-051/052 focused blocker research — 2026-08-20
+
+The protected confirmation payload must be the exact preparation authority, not merely transport for the lease token. Bind it to route message id, server-derived receipt id and Link/Unlink intent, validate the complete submitted authority, and retain it after success so exact Core replay remains possible. A mismatch is a definitive no-write refusal whose already-acquired lease is resolved through the existing release port.
+
+A recoverable release failure is itself unconfirmed compensation. Preserve the same protected payload and surface same-confirmation retry; retrying reruns the definitive refusal and release. Clear only after confirmed release. A fail-once decorator around the real release port gives exact SQL/Web proof without a new runtime abstraction.

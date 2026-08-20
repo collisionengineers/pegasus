@@ -1,0 +1,13 @@
+# Plan
+
+## Governing docs
+
+FRD-08 continues to require exact-message reasoned association and fail-closed identity. No governing-doc or ADR change.
+
+1. Add exact message id, server-derived receipt id and Link/Unlink intent to the existing protected TempData payload.
+2. Validate the full prepared payload against route, resolved receipt, action and submitted authority before calling Core.
+3. Treat mismatch as definitive and reuse existing lease compensation; retain matching state after success so exact replay still reaches Core.
+4. Make final dialog rendering action-specific.
+5. Add exact authenticated cross-message, Link→Unlink and Unlink→Link proofs and rerun replay regressions.
+
+No new store, framework, schema or policy owner.

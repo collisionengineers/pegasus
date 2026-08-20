@@ -1,0 +1,3 @@
+# Research
+
+The protected TempData payload is the only server-trusted preparation authority, but commit `6b7c62a4` contains only Case id, receipt/Case versions, lease token and association operation key. Final handlers resolve whichever route message is posted and do not compare Link versus Unlink, so the authority is transferable. Exact successful replay needs the same protected payload to remain available after Core consumes the lease. The smallest correction adds exact route message id, server-derived receipt id and one Link/Unlink discriminator to that existing payload, validates all prepared fields before Core, releases on mismatch, and retains the payload after success for exact replay.

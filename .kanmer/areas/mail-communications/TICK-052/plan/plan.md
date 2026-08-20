@@ -60,3 +60,17 @@ No Core/EF/schema/framework/swap/external-write scope is introduced.
 - **Altitude:** Web owns confirmation orchestration and presentation. Core/EF remain the sole association, conflict, idempotency, lease-consumption and history owners.
 - **Applied findings:** removed final Web freshness/lease acquisition that pre-empted Core replay; kept the lease token out of the action URL; compensated only definitive failures with `CancellationToken.None`; preserved uncertain outcomes for same-confirmation retry; put all visible result identity inside one anchor; used one TempData payload after the default serializer rejected nullable numeric properties.
 - **Unapplied findings:** none.
+
+## PR-051/052 correction plan — 2026-08-20
+
+### Governing docs
+
+FRD-08 remains the exact-message/fail-closed/history authority. No governing-doc or ADR change.
+
+1. Extend the existing protected TempData authority with exact message, receipt and Link/Unlink intent and compare all prepared command fields.
+2. Reject transfer before Core, then compensate using the existing release port; keep exact successful state for Core replay.
+3. Preserve the payload and surface a same-confirmation retry when release is unconfirmed; clear only after confirmed release.
+4. Add exact authenticated cross-message, both cross-action and fail-once release retry proofs.
+5. Run four lenses and proportional verification; reconcile PIR/traceability; push and leave all tickets in Review.
+
+No new store, schema, worker, generic authorization/recovery framework or external write.

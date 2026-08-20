@@ -1,0 +1,3 @@
+# Research
+
+`ResolveFailedAssociationLeaseAsync` uses the existing release port with `CancellationToken.None`, but its recoverable catch unconditionally falls through to `ClearAssociationLease`. A transient release failure therefore discards the only protected token needed to retry compensation. Existing Web conventions retain edit authority after an unconfirmed lease operation. The narrow correction preserves the same protected payload when release fails, surfaces a distinct recoverable message, and lets the same final confirmation retry the definitive refusal and release. A successful release clears it; no worker/store/schema is needed.
