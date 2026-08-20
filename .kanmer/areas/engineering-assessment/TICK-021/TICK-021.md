@@ -4,13 +4,14 @@ type: ticket
 title: >-
   EXT-02 — MOT chronology and mileage evidence with
   supplied-versus-external-versus-estimated classification
-status: review
+status: verifying
 area: engineering-assessment
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-20T04:05:18.234Z'
   review: '2026-08-20T04:18:27.195Z'
+  verifying: '2026-08-20T04:31:37.757Z'
 taken_at: '2026-08-20T04:04:01.021Z'
 branch: task/tick-021-ext-02-mot-chronology
 worktree: ../pegasus-worktrees/tick-021
@@ -31,7 +32,7 @@ prs:
   - '448'
 archived: false
 created: '2026-08-12T15:03:53.185Z'
-updated: '2026-08-20T04:23:32.898Z'
+updated: '2026-08-20T04:31:37.757Z'
 ---
 
 ## What
