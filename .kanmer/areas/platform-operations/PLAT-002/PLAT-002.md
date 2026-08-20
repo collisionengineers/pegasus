@@ -14,10 +14,9 @@ labels:
   - follow-up
 links:
   - SIMPLI-011
-docs_todo: true
 archived: false
 created: '2026-08-17T14:19:26.387Z'
-updated: '2026-08-20T08:42:52.536Z'
+updated: '2026-08-20T08:55:03.188Z'
 ---
 
 ## Why

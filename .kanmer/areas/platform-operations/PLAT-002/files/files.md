@@ -1,83 +1,68 @@
 # Files — PLAT-002
 
-Surveyed before planning on 2026-08-20. The named surface follows the ticket; the unresolved scope decision may expand it.
+Surveyed before planning on 2026-08-20 at c41314d9. Option 1 is final:
+complete Web-wide consolidation.
 
 ## Where the change lands
 
 | Path | Why |
 |---|---|
-| src/Pegasus.Web/Pages/StaffPageModel.cs (new) | Proposed metadata-free owner for claim-to-actor resolution and N-format operation keys. |
-| src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs | Derive from the root; remove only actor/key copies. Keep case command, lease, TempData, readiness, and logging here. |
-| src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs | Derive from the root; retain administration-only key validation. |
-| src/Pegasus.Web/Pages/Operations/Index.cshtml.cs | Derive from root; preserve role metadata and lease flow. |
-| src/Pegasus.Web/Pages/Triage/Details.cshtml.cs | Derive from root; preserve local SubjectId-to-Guid parsing. |
-| src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs | Derive from root; remove private actor/key copies. |
-| src/Pegasus.Web/Pages/Account/PasswordChange.cshtml.cs | Derive under authenticated fallback; preserve local staff-id parsing. |
-| src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml.cs | Derive from root; explicit staff authorization remains. |
-| src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs | Keep AllowAnonymous; consume only an accessible shared key generator without staff-root inheritance. |
-| tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs or existing page-model architecture owner | Protect intended common-base/one-owner shape without duplicating a string inventory. |
-| Existing focused integration/browser tests named by ticket | Verify unchanged real callers: CaseDetailsWebTests, AdministrationSearchAccountWebTests, OperationsWebTests, QdosCustodialWebTests, ImageIntakeWebTests. |
+| src/Pegasus.Web/Pages/StaffPageModel.cs (new) | Metadata-free Razor Page root. Own the single protected nullable TryGetActor implementation and the single public static NewOperationKey implementation. |
+| src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs | Derive from StaffPageModel; delete actor/key copies; retain administration-only IsOperationKeyValid. Its descendants reuse the inherited methods without edits. |
+| src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs | Derive from StaffPageModel; delete actor/key copies; retain all case command, lease, TempData, readiness, and logging behaviour. Its descendants reuse inherited methods without edits. |
+| src/Pegasus.Web/Pages/Index.cshtml.cs | Derive from StaffPageModel; replace one inline actor lookup. |
+| src/Pegasus.Web/Pages/Account/PasswordChange.cshtml.cs | Derive from StaffPageModel; replace its helper/key copy; preserve local SubjectId-to-Guid parsing. |
+| src/Pegasus.Web/Pages/Cases/Create.cshtml.cs | Derive from StaffPageModel; replace two inline actor lookups and key copy. |
+| src/Pegasus.Web/Pages/Cases/Index.cshtml.cs | Derive from StaffPageModel; delete its actor helper. |
+| src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml.cs | Derive from StaffPageModel; delete actor/key copies. |
+| src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml.cs | Derive from StaffPageModel; delete its actor helper; retain explicit staff authorization. |
+| src/Pegasus.Web/Pages/ImageIntake/Details.cshtml.cs | Derive from StaffPageModel; replace one inline actor lookup. |
+| src/Pegasus.Web/Pages/Intake/Details.cshtml.cs; src/Pegasus.Web/Pages/Intake/Source.cshtml.cs | Derive from StaffPageModel; replace five inline actor lookups while preserving fallback authentication and each handler's response. |
+| src/Pegasus.Web/Pages/Mail/Index.cshtml.cs; src/Pegasus.Web/Pages/Mail/Message.cshtml.cs | Derive from StaffPageModel; replace three inline actor lookups. |
+| src/Pegasus.Web/Pages/Operations/Index.cshtml.cs | Derive from StaffPageModel; delete actor/key copies while preserving lease flow. |
+| src/Pegasus.Web/Pages/Triage/Index.cshtml.cs; src/Pegasus.Web/Pages/Triage/Details.cshtml.cs | Derive from StaffPageModel; replace actor/key copies; Details retains local SubjectId-to-Guid parsing. |
+| src/Pegasus.Web/Pages/Unidentified/Details.cshtml.cs | Derive from StaffPageModel; replace two inline actor lookups without changing conditional action logic. |
+| src/Pegasus.Web/Pages/Upload.cshtml.cs; src/Pegasus.Web/Pages/UploadStatus.cshtml.cs; src/Pegasus.Web/Pages/UploadGroupStatus.cshtml.cs | Derive from StaffPageModel; replace three actor lookups and Upload's key copy. |
+| src/Pegasus.Web/Pages/Uploads/Request.cshtml.cs | Remain AllowAnonymous and on PageModel; delete its key copy and call StaffPageModel.NewOperationKey statically. |
+| tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs | Add a source-based one-owner guard for StaffActorFactory.TryCreate and N-format application key generation, plus reflection assertions that Uploads/Request remains AllowAnonymous and does not inherit StaffPageModel. Reuse FindRepositoryRoot. |
+| docs/current-architecture.md | Refresh the Web implementation map to name StaffPageModel as the shared request-context owner above administration, case mutation, and direct staff pages. |
 
 ## Context files
 
 | Path | What it tells the implementer |
 |---|---|
-| src/Pegasus.Web/Program.cs | Authenticated fallback protects PasswordChange; endpoint authorization does not belong on the root. |
-| StaffActorFactory definition under Pegasus.Core | Canonical claim-to-actor translation; call unchanged. |
-| src/Pegasus.Core/Identity/IdentityContracts.cs | ActionActor.SubjectId preserves the staff Guid source. |
-| src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs | Case-only mechanics must not move upward. |
-| src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs | Preferred nullable signature; key validation is a separate concern. |
-| tests/Pegasus.IntegrationTests/AdministrationSearchAccountWebTests.cs | Policy and PasswordChange route coverage. |
-| tests/Pegasus.IntegrationTests/OperationsWebTests.cs | Real HTTP coverage for actor-bound Operations actions. |
-| tests/Pegasus.IntegrationTests/QdosCustodialWebTests.cs | Password-change and custodial/download-adjacent coverage. |
-| tests/Pegasus.IntegrationTests/CaseCapabilityPagesTestSupport.cs | Shared case-page actor/refusal support; do not duplicate it. |
-| docs/engineering.md | One-owner and proportional-plan constraints. |
-| docs/current-architecture.md:591 | Current CaseMutationPageModel as-built description. |
-| SIMPLI-011 ticket documents | Proven origin, boundary, tests, and explicit deferral. |
+| src/Pegasus.Core/Actors/StaffActorFactory.cs | Canonical claim-to-actor policy; the shared Web root calls this unchanged. |
+| src/Pegasus.Core/Identity/IdentityContracts.cs | ActionActor.SubjectId is the existing source for PasswordChange and Triage staff Guid parsing. |
+| src/Pegasus.Web/Program.cs | The authenticated fallback policy protects pages without explicit Authorize metadata; authorization must not move into the root. |
+| src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs | Supplies the preferred NotNullWhen nullable-flow signature and the administration-only validation precedent. |
+| src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs | Case-only state and command mechanics stay below the new root. |
+| tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs | Existing repository-source assertion convention and FindRepositoryRoot helper. |
+| tests/Pegasus.IntegrationTests/AdministrationSearchAccountWebTests.cs | Administration policy and PasswordChange route coverage. |
+| tests/Pegasus.IntegrationTests/CaseCreateWebTests.cs; tests/Pegasus.IntegrationTests/CasesIndexWebTests.cs; tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs | Case create/list/shared-base HTTP callers. |
+| tests/Pegasus.IntegrationTests/Reports/AssessmentReportDraftWebTests.cs; tests/Pegasus.IntegrationTests/QdosCustodialWebTests.cs | Assessment and document/password caller coverage. |
+| tests/Pegasus.IntegrationTests/QdosIntakeWebTests.cs; tests/Pegasus.IntegrationTests/IntakeWebNegativeTests.cs; tests/Pegasus.IntegrationTests/ImageIntakeWebTests.cs | Intake and image-intake actor/fail-closed coverage. |
+| tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs; tests/Pegasus.IntegrationTests/OperationsWebTests.cs | Mail and Operations HTTP callers. |
+| tests/Pegasus.IntegrationTests/QdosTriageIntegrationTests.cs; tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs | Triage and Unidentified queue/action callers. |
+| tests/Pegasus.IntegrationTests/ShellAndStatusPageWebTests.cs; tests/Pegasus.IntegrationTests/StaffSignInSecurityTests.cs | Root dashboard, upload status, authentication, and forced-password paths. |
+| docs/engineering.md | One-owner, existing-convention, no-unneeded-abstraction, test-support, and simplification-pass rules. |
+| Kanmer SIMPLI-011 documents | Proven origin of CaseMutationPageModel and explicit deferral to PLAT-002. |
 
 ## Ripple effects
 
-Base changes are compile-time composition only. Routes, handlers, authorization, antiforgery, claims, key format, TempData, redirects, and Core ports remain unchanged. Namespace/using cleanup follows. Architecture tests protect ownership; focused integration tests prove callers. No database, migration, Infrastructure, Bicep, Azure, deployment, PRD, FRD, or ADR artifact follows.
+The change is compile-time Web composition. Remove obsolete Security.Claims,
+Actors, and Identity usings only where the compiler proves they are unused.
+Routes, handlers, authorization metadata, antiforgery, factory inputs, operation
+key format, failure responses, TempData, redirects, and Core calls remain
+unchanged. Existing Razor references to CaseMutationPageModel.NewOperationKey
+continue to resolve the inherited public static member.
 
-If scope expands, add the other direct actor-resolution and key-generation page files from the rg survey and map their owning tests before planning.
+Focused integration tests cover every caller family; architecture tests protect
+the one-owner result. Current architecture is refreshed because the as-built
+owner changes.
 
 ## Out of scope
 
-No Core policy change, authorization redesign, key validation redesign, case workspace behaviour, public upload workflow change, Azure/live check or write, deployment, or documentation taxonomy change. Research does not implement or plan the consolidation.
-
-## Expanded complete-consolidation surface — option 1
-
-The following actor-resolution files are now in scope in addition to the original named set.
-
-| Path group | Change and risk |
-|---|---|
-| src/Pegasus.Web/Pages/Index.cshtml.cs | Derive from StaffPageModel and replace the inline dashboard actor lookup. Shell/dashboard authorization and snapshot query must remain unchanged. |
-| src/Pegasus.Web/Pages/Intake/Details.cshtml.cs; Intake/Source.cshtml.cs | Replace five inline calls across receipt actions and source download. Preserve fallback authentication, per-handler fail-closed responses, and cancellation. |
-| src/Pegasus.Web/Pages/Mail/Index.cshtml.cs; Mail/Message.cshtml.cs | Replace three inline calls. Preserve mailbox/message query authorization and existing failure shapes. |
-| src/Pegasus.Web/Pages/ImageIntake/Details.cshtml.cs | Replace its inline actor resolution under explicit staff roles. |
-| src/Pegasus.Web/Pages/Unidentified/Details.cshtml.cs | Replace two inline calls while preserving conditional association/action logic. |
-| src/Pegasus.Web/Pages/Triage/Index.cshtml.cs | Replace its inline queue actor resolution; Triage/Details remains in the original table with local staff-Guid parsing. |
-| src/Pegasus.Web/Pages/Cases/Create.cshtml.cs; Cases/Index.cshtml.cs | Replace three actor lookups and the Create key generator. Preserve create/allocation and case-list fail-closed behaviour. |
-| src/Pegasus.Web/Pages/Upload.cshtml.cs; UploadStatus.cshtml.cs; UploadGroupStatus.cshtml.cs | Replace three actor lookups and Upload key generation. Preserve explicit roles, ownership filtering, and status visibility. |
-| src/Pegasus.Web/Pages/Administration/AdministrationPageModel.cs and all descendants | One base migration covers the administration tree; descendants should not be edited unless compilation proves a name/visibility conflict. |
-| src/Pegasus.Web/Pages/Cases/CaseMutationPageModel.cs and all descendants | One base migration covers Details, capability pages, Export, and EVA download; descendants should not be edited unless compilation proves a conflict. |
-
-Application key-generation owners in scope: Account/PasswordChange; AdministrationPageModel; Cases/Assessment; CaseMutationPageModel; Cases/Create; Operations/Index; Triage/Details; Upload; Uploads/Request. Test fixture generators remain context, not application files to edit.
-
-## Expanded test ripple
-
-| Caller family | Existing evidence to run/read |
-|---|---|
-| Root shell/dashboard | tests/Pegasus.IntegrationTests/ShellAndStatusPageWebTests.cs |
-| Case create/list/assessment/capability/download | CaseCreateWebTests.cs; CasesIndexWebTests.cs; Reports/AssessmentReportDraftWebTests.cs; CaseDetailsWebTests.cs; QdosCustodialWebTests.cs |
-| Intake and Image Intake | QdosIntakeWebTests.cs; IntakeWebNegativeTests.cs; LocalIntakeAccessTests.cs; ImageIntakeWebTests.cs |
-| Mail | MailWorkspaceWebTests.cs and applicable browser accessibility/journey coverage |
-| Operations | OperationsWebTests.cs |
-| Triage and Unidentified | QdosTriageIntegrationTests.cs; TriageQueuesWebTests.cs; applicable queue/browser coverage |
-| Account and Administration | AdministrationSearchAccountWebTests.cs; StaffSignInSecurityTests.cs; administration Web tests |
-| Upload/status | ImageIntakeWebTests.cs; UploadDropzoneBrowserTests.cs; UploadRowsBrowserTests.cs; ShellAndStatusPageWebTests.cs |
-| Ownership invariant | Pegasus.ArchitectureTests: add one-root and anonymous-non-inheritance assertions in the existing Web page-model architecture owner. |
-
-## Expanded context and exclusions
-
-StaffActorFactory remains the sole Core claim-to-actor policy. StaffPageModel is only Web request-context plumbing. Do not move authorization attributes/policies into the base, add services, change StaffActorFactory, or consolidate unrelated per-page validation/error handling. Do not change test-only operation-key generators: they construct valid inputs and do not own application behaviour. No Azure, Infrastructure, database, migration, deployment, or product-document work is in scope.
+No change to StaffActorFactory, Core policy, authorization policies or roles,
+operation-key validation, page behaviour, test-only key generators, database,
+Infrastructure, Bicep, Azure/live state, deployment, PRD, FRD, or ADR. No new
+utility/helper abstraction and no new project or top-level directory.
