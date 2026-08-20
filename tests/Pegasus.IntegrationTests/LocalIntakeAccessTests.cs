@@ -129,6 +129,7 @@ public sealed class LocalIntakeAccessTests
             ["TransportStorage:AccountName"] = "pegasustransport",
             ["CustodyStorage:AccountName"] = "pegasuscustody",
             ["CustodyStorage:ServiceUri"] = "https://pegasuscustody.blob.core.windows.net/",
+            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
             ["Box:BaseUri"] = "https://api.box.com/2.0/",
             ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
             ["Box:RootFolderId"] = "405543781910",

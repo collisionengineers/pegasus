@@ -1,12 +1,13 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The administration surface is where a mailbox identity is bound, so it is where the
-/// fail-closed and immutability rules must be visible to a person rather than only to a
-/// unit test.
+/// The administration surface is where a mailbox address is turned into an approved
+/// mailbox, so it is where the fail-closed, immutability, and no-internal-identifier
+/// rules must be visible to a person rather than only to a unit test (MAIL-002).
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed partial class ApprovedMailboxAdministrationWebTests
@@ -14,9 +15,16 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     private const string NewAddress = "estate@collisionengineers.co.uk";
 
     [Fact]
-    public async Task AddingAMailboxWithItsIdentitiesRoundTripsOntoThePage()
+    public async Task AddingAnAddressResolvesItsIdentityWithoutExposingItOnThePage()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        var resolution = new ApprovedMailboxIdentityResolution(
+            "resolved-mailbox-id",
+            "resolved-inbox-id",
+            "resolved-sent-id");
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            approvedMailboxIdentityResolver: new StubResolver(resolution));
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var page = await GetPageAsync(client);
@@ -26,8 +34,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["ExpectedVersion"] = "0",
             ["OperationKey"] = OperationKey(page),
             ["Address"] = NewAddress,
-            ["MailboxIdentity"] = "estate-mailbox",
-            ["InboxFolderIdentity"] = "estate-inbox",
             ["SelectedRouteScopes"] = "InboundIntake",
             ["SelectedState"] = "Approved",
             ["Reason"] = "Add the second approved mailbox",
@@ -37,16 +43,19 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.Found, response.StatusCode);
         var reloaded = await GetPageAsync(client);
         Assert.Contains(NewAddress, reloaded, StringComparison.Ordinal);
-        Assert.Contains("estate-mailbox", reloaded, StringComparison.Ordinal);
-        Assert.Contains("estate-inbox", reloaded, StringComparison.Ordinal);
-        // A bound identity is shown, not editable.
-        Assert.Contains("readonly", reloaded, StringComparison.OrdinalIgnoreCase);
+        // The resolved identity is bound in the database and never rendered.
+        Assert.DoesNotContain("resolved-mailbox-id", reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain("resolved-inbox-id", reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain("resolved-sent-id", reloaded, StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task AnApprovedSaveWithoutTheRequiredIdentityIsRefusedWithItsReason()
+    public async Task AnAddressThatCannotBeResolvedIsRefusedWithoutCreatingARow()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            approvedMailboxIdentityResolver: new StubResolver(resolution: null));
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var page = await GetPageAsync(client);
@@ -58,13 +67,13 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["Address"] = NewAddress,
             ["SelectedRouteScopes"] = "InboundIntake",
             ["SelectedState"] = "Approved",
-            ["Reason"] = "Approve before the tenant grant exists",
+            ["Reason"] = "Add an address the tenant does not recognise",
             ["__RequestVerificationToken"] = AntiforgeryToken(page)
         });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
-        Assert.Contains("needs its mailbox identity", html, StringComparison.Ordinal);
+        Assert.Contains("The address could not be found in the mail system.", html, StringComparison.Ordinal);
         Assert.DoesNotContain(
             $"<td>{NewAddress}</td>",
             await GetPageAsync(client),
@@ -72,9 +81,16 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
     }
 
     [Fact]
-    public async Task RebindingASavedMailboxIdentityIsRefusedWithTheImmutabilityReason()
+    public async Task RebindingAnEstablishedMailboxsAddressIsRefusedWithTheImmutabilityReason()
     {
-        using var factory = new IntakeWebApplicationFactory();
+        var resolution = new ApprovedMailboxIdentityResolution(
+            "estate-mailbox-id",
+            "estate-inbox-id",
+            "estate-sent-id");
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            approvedMailboxIdentityResolver: new StubResolver(resolution));
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var page = await GetPageAsync(client);
@@ -85,8 +101,6 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["ExpectedVersion"] = "0",
             ["OperationKey"] = OperationKey(page),
             ["Address"] = NewAddress,
-            ["MailboxIdentity"] = "estate-mailbox",
-            ["InboxFolderIdentity"] = "estate-inbox",
             ["SelectedRouteScopes"] = "InboundIntake",
             ["SelectedState"] = "Approved",
             ["Reason"] = "Add the second approved mailbox",
@@ -100,9 +114,7 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             ["MailboxId"] = mailboxId,
             ["ExpectedVersion"] = "1",
             ["OperationKey"] = Guid.NewGuid().ToString("N"),
-            ["Address"] = NewAddress,
-            ["MailboxIdentity"] = "a-different-mailbox",
-            ["InboxFolderIdentity"] = "estate-inbox",
+            ["Address"] = "a-different-address@collisionengineers.co.uk",
             ["SelectedRouteScopes"] = "InboundIntake",
             ["SelectedState"] = "Approved",
             ["Reason"] = "Attempt to point this row at another mailbox",
@@ -112,11 +124,14 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var html = await response.Content.ReadAsStringAsync();
         Assert.Contains("cannot be changed once saved", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("a-different-mailbox", await GetPageAsync(client), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "a-different-address@collisionengineers.co.uk",
+            await GetPageAsync(client),
+            StringComparison.Ordinal);
     }
 
     [Fact]
-    public async Task ThePageDoesNotDuplicateTheRunbooksTenantPermissionNarration()
+    public async Task ThePageNeverShowsMailboxOrFolderIdentifiersOrDuplicatedRunbookNarration()
     {
         using var factory = new IntakeWebApplicationFactory();
         using var client = IntakeWebDriver.CreateClient(factory);
@@ -129,8 +144,15 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         // docs/design/README.md line 160, no lede/subtitle narration).
         Assert.DoesNotContain("does not grant Exchange access", page, StringComparison.Ordinal);
         Assert.DoesNotContain("mailbox_access_denied", page, StringComparison.Ordinal);
-        // The one consequential fact stays, beside the identity fields it governs.
-        Assert.Contains("cannot be changed once saved", page, StringComparison.Ordinal);
+        // No internal identifier is ever asked for or shown, for any role
+        // (docs/design/README.md line 168; operator statement 2026-08-20).
+        Assert.DoesNotContain("Mailbox identity", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Inbox folder identity", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sent folder identity", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"MailboxIdentity\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"InboxFolderIdentity\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("name=\"SentFolderIdentity\"", page, StringComparison.Ordinal);
+        Assert.DoesNotContain("Version</th>", page, StringComparison.Ordinal);
         // The per-mailbox polling column is present for the seeded mailbox.
         Assert.Contains("Not yet polled.", page, StringComparison.Ordinal);
     }
@@ -165,6 +187,14 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         var match = ValueRegex().Match(tag);
         Assert.True(match.Success, $"No value attribute in '{tag}'.");
         return match.Groups["value"].Value;
+    }
+
+    private sealed class StubResolver(ApprovedMailboxIdentityResolution? resolution)
+        : IResolveApprovedMailboxIdentity
+    {
+        public Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
+            string address,
+            CancellationToken cancellationToken) => Task.FromResult(resolution);
     }
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)]
