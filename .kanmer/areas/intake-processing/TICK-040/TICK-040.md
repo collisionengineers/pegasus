@@ -2,12 +2,14 @@
 id: TICK-040
 type: ticket
 title: INT-15 — Automated MSG extraction
-status: preparing
+status: review
 area: intake-processing
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-20T04:15:21.968Z'
+  implementing: '2026-08-20T04:19:45.446Z'
+  review: '2026-08-20T04:20:11.459Z'
 labels:
   - capability
   - INT-15
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.590Z'
-updated: '2026-08-20T04:15:21.968Z'
+updated: '2026-08-20T04:20:11.459Z'
 ---
 
 ## What

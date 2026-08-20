@@ -4,10 +4,13 @@ type: ticket
 title: >-
   EXT-01 — DVLA/DVSA make, model, manufacture year, engine capacity, fuel type,
   MOT chronology, mileage evidence, and operator-con…
-status: backlog
+status: preparing
 area: engineering-assessment
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T04:19:27.713Z'
+branch: task/tick-020-ext-01-completion
+worktree: ../pegasus-worktrees/tick-020
 labels:
   - capability
   - EXT-01
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:03:53.163Z'
-updated: '2026-08-20T04:19:16.832Z'
+updated: '2026-08-20T04:19:27.713Z'
 ---
 
 ## What
