@@ -4,10 +4,12 @@ type: ticket
 title: >-
   INT-32 — Instruction/image halves retain separate age and chase state;
   definitive pairing notifies staff that the job is ready
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T03:49:51.314Z'
 labels:
   - capability
   - INT-32
@@ -15,9 +17,11 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:05:19.575Z'
-updated: '2026-08-17T06:43:41.440Z'
+updated: '2026-08-20T03:50:02.579Z'
 ---
 
 ## What
@@ -41,3 +45,11 @@ This is allocated to **Now / 0.1.0-alpha.1** in `docs/capabilities.md`. It is a 
 ## Notes
 
 - Source: `docs/capabilities.md` — INT-32.
+
+## Verification status (2026-08-20, PROOFS-lane audit — see research.md)
+
+**Partial — prepared, remainder open. Do not close this ticket.**
+
+- **Shipped (release 12, present at production SHA `2325ed4a`):** the derived pairing-visibility half. `ImageInitiatedCaseState` lifecycle (`src/Pegasus.Core/ImageIntake/ImageIntakeContracts.cs:31-35`, migration `20260819112914_ImageInitiatedLifecycle.cs`) and the `Associated with Case` / `Image intake registered` label (`src/Pegasus.Web/Pages/Cases/Index.cshtml.cs:209`), derived from the origin receipt so it can never disagree with it.
+- **Missing:** the age/chase-state half. `ImageIntakeSummary`/`ImageIntakeRecord` carry only `RegisteredAtUtc` — no derived age, no due-work timer, no chase state for the image side (verified: zero "age"/"chase" hits in `src/Pegasus.Web/Pages/Triage/Index.cshtml.cs`, the Not-ready/image queue page). The case-side chase machinery (`src/Pegasus.Core/Tasks/CaseWorkScheduling.cs`, `RunDueChasers.cs`) has no image-intake counterpart. There is also no active "ready" notification beyond the passive label a staff member sees by revisiting the Cases list.
+- **Next step:** an implementation lane should add an image-half due-work projection (modelled on `ICaseDueWorkQueries.GetDueAsync`) and a ready-notification, per the seam in `capability-survey.md` §4. Moved backlog → preparing only; left here for that lane.
