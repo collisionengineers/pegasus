@@ -242,3 +242,54 @@ confirmed unnecessary by the corrected design above.
 code-simplifier agent findings: recorded once the agent's run completes;
 either "no changes" with reasoning, or applied fixes, both to be listed here
 verbatim before this ticket leaves Review.
+
+## Simplification pass — code-simplifier agent results, 2026-08-19
+
+Dispatched the `code-simplifier` agent over the full branch diff (production
+code + tests). It applied six behaviour-preserving fixes and verified with a
+clean `dotnet build` (0 warnings/errors) plus `Pegasus.Core.Tests` (685
+passed) and `Pegasus.ArchitectureTests` (97 passed) — I independently
+reconfirmed all of these plus the SQL Server-tagged integration filter after
+its changes (see post-implementation-report). Applied fixes:
+
+1. `DurableIntake.cs` — deleted the `ApplyImageIntakeWithDeferralAsync`
+   wrapper: it only re-labelled `ImageIntakeAutomationOutcome(Receipt,
+   GroupPending)` as a tuple through a one-line method with no other logic.
+   Both call sites now read `imageOutcome.Receipt`/`.GroupPending` directly;
+   the load-bearing `<remarks>` explaining why deferral must never touch the
+   work item moved onto `ApplyImageIntakeAutomationAsync`, now the single
+   documented owner. Net −14 lines, one fewer indirection.
+2. `ImageIntakeAutomation.cs` — the new record's `<param>` docs had been
+   inserted under `IImageIntakeAutomation`'s existing `<summary>`, silently
+   reassigning that doc comment to the record. Gave the record its own
+   summary, restored the interface's, trimmed the `GroupPending` doc's
+   restatement of caller behaviour (now owned by `DurableIntake`), dropped
+   the redundant explicit `GroupPending: false` argument (`new(receipt)`
+   reads the same via the default).
+3. `ReconcileGroupedImageIntake.cs` — **real bug**: `IRegisterUnidentified`
+   was optional (`= null`), but the escape path incremented `Escaped` even
+   when it was null, so the log would report an escape that never happened.
+   It is registered in `Pegasus.Infrastructure/DependencyInjection.cs` for
+   both hosts, so made it a required constructor parameter and removed the
+   null branch. Also fixed two stale doc claims: a reference to the deleted
+   `ApplyImageIntakeWithDeferralAsync`, and `EscapeAfter` claiming to "reuse"
+   `ProcessQueuedIntake.RetryDelays` when it is a literal (now says it
+   matches the longest delay instead of falsely claiming reuse).
+4. `EfIntakeWorkStore.cs` — inlined `ScheduleReevaluationCoreAsync` back into
+   `ScheduleReevaluationAsync`; the extraction had exactly one caller and no
+   second was added, leftover from iteration. Diff is now purely the
+   additive `FindStagedReceiptIdForReceiptAsync`.
+5. `GroupedImageIntakeConcurrencyTests.cs` — the local `ProcessWithRetryAsync`
+   and `ImmediateEnqueuer` carried two copies of the same SqlException-1205
+   retry loop; unified into one `ProcessWithDeadlockRetryAsync` helper.
+   (`IntakeWebDriver.ImmediateIntakeWorkEnqueuer` was considered but doesn't
+   fit — it binds one processor to one scope and has no retry.)
+6. `StagedArtifactReconciliationFunctionTests.cs` — added
+   `UnreachableRegisterUnidentified`, matching the file's existing
+   unreachable-fake convention, now that the parameter is required.
+
+Reviewed, no change needed: the migration's grant-only shape/comment/`Down`
+ordering matches `20260819180000_GrantEvaHandoffDownloadOperations.cs`
+exactly; the reconciler correctly reuses `ImageIntakeLifecycleRules.IsImageOnlyMaterial`
+and `ProcessIntake.BuildUnidentifiedRegistrationRequest` rather than
+duplicating either; no debug/dead code found elsewhere.
