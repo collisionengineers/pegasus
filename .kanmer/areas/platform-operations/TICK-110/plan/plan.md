@@ -1,0 +1,3 @@
+## Plan — TICK-110 — retrospective backfill
+
+Reconcile the board with the already-documented evidence in `docs/operations.md`: the local-azd-vs-production drift (stale Key Vault references to purged predecessor vaults) was found and fixed at release 8, and the predecessor vaults are recorded as purged. TICK-115's residual live-approval action was archived/consolidated into this ticket without a fresh inventory being needed, since the specific drift it targeted is already fixed and documented. No new Azure write or live query was performed by this PROOFS-lane pass. No governing document modified; ADR-0014 already owns production-deployment authority.

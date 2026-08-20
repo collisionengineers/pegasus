@@ -2,10 +2,16 @@
 id: TICK-110
 type: ticket
 title: Reconcile local azd state against the observed production estate
-status: backlog
+status: done
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T03:51:51.528Z'
+  implementing: '2026-08-20T03:51:51.712Z'
+  review: '2026-08-20T03:52:06.972Z'
+  verifying: '2026-08-20T03:52:08.019Z'
+  done: '2026-08-20T03:52:10.114Z'
 labels:
   - now
   - source-now
@@ -18,7 +24,7 @@ refs:
   - docs/adr/0014-local-to-production-deployment.md
 archived: false
 created: '2026-08-12T15:08:02.263Z'
-updated: '2026-08-20T03:51:20.896Z'
+updated: '2026-08-20T03:52:10.114Z'
 ---
 
 ## What

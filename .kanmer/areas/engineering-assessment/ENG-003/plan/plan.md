@@ -70,3 +70,36 @@
 ## Simplification pass
 
 Recorded after implementation, dated, before the PR (per lane instructions).
+
+## Simplification pass (2026-08-20)
+
+Reviewed the branch diff (`Index.cshtml`, `Index.cshtml.cs`, `site.css`, new
+browser test — 4 files, ~250 lines, mostly the test) against reuse,
+simplification, efficiency and altitude:
+
+- **Reuse** — the summary trigger renders the existing `.status-chip
+  status-chip--amber` markup verbatim (same tone/icon `_StatusChip.cshtml`
+  already picks for "not ready") rather than a new chip component; the
+  disclosure uses the codebase's existing `<details>`/`<summary>` convention
+  (`Pages/Cases/Index.cshtml`, `Pages/Cases/Create.cshtml`,
+  `Pages/Operations/Index.cshtml`); the count list is
+  `ReportDraftPreparation.Reasons` (already a superset of `Assessment.Readiness`
+  per `AssessmentReportProjection.Project`), so no new merge/dedupe routine
+  was written; focus styling reuses the `--focus-ring` token already used
+  elsewhere for visible-focus.
+- **Simplification** — considered computing `CombinedReadiness` with an
+  explicit union/dedupe (comparing item equality) instead of the
+  `ReportDraftPreparation?.Reasons ?? Assessment?.Readiness ?? []` fallback;
+  rejected as unneeded ceremony once the superset guarantee was confirmed by
+  reading `AssessmentReportProjection.Project` (it only appends, never
+  removes, from the same `EvaluateReadiness` call).
+- **Efficiency** — no new queries; `CombinedReadiness` reads two properties
+  already computed in `OnGetAsync`, no extra allocation beyond the one list
+  reference.
+- **Altitude** — the pluralisation rule (`IssueSummaryText`) is one static
+  helper on the page model so the two surfaces (chip, "Not ready" card) can't
+  drift; not promoted to `OperatorLabels` since it is Assessment-page-local
+  copy, not a cross-page state label.
+
+No findings required a change beyond what implementation already did — no
+unapplied items to disposition.
