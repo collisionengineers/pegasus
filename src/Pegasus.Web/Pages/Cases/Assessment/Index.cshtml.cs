@@ -8,8 +8,10 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases.Assessment;
 
@@ -34,8 +36,15 @@ public sealed class IndexModel(
     IAiWorkRequestStore workRequests,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
+    IRepairSpecificationStore repairSpecifications,
+    IEstimateDocumentParser estimateParser,
+    IAddCaseDocument addCaseDocument,
+    IAcquireCaseEditLease acquireLease,
     TimeProvider timeProvider) : PageModel
 {
+    /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
+    private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
+
     public CaseDetails? Case { get; private set; }
 
     public CaseAssessmentProjection? Assessment { get; private set; }
@@ -71,6 +80,17 @@ public sealed class IndexModel(
     /// </summary>
     public IReadOnlyList<AssessmentReadinessItem> CombinedReadiness { get; private set; } = [];
 
+    /// <summary>ENG-002: the case's current repair specification, draft first.</summary>
+    public RepairSpecificationVersion? DraftSpecification { get; private set; }
+
+    public RepairSpecificationVersion? AcceptedSpecification { get; private set; }
+
+    public bool ActorIsEngineer { get; private set; }
+
+    public string ImportOperationKey { get; private set; } = NewOperationKey();
+
+    public string AcceptOperationKey { get; private set; } = NewOperationKey();
+
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -87,6 +107,9 @@ public sealed class IndexModel(
         }
 
         Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
+        DraftSpecification = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
+        AcceptedSpecification = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
+        ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
         LatestRequest = await workRequests.GetLatestForCaseAsync(id, cancellationToken);
         ReportDraftPreparation = await generateReportDraft.PrepareAsync(id, actor, cancellationToken);
         CombinedReadiness = ReportDraftPreparation?.Reasons ?? Assessment?.Readiness ?? [];
@@ -145,6 +168,267 @@ public sealed class IndexModel(
                 return File(assessmentPdf.Pdf, "application/pdf", assessmentPdf.SuggestedFileName);
         }
     }
+
+    /// <summary>
+    /// ENG-002: the drag-and-drop estimate import. The file is parsed first
+    /// (no side effects — a rejected parse retains nothing), then retained
+    /// through the existing case-document custody path, then landed as a
+    /// draft repair specification with the route, source version and hash of
+    /// the retained document. The specification stays a draft until an
+    /// Engineer accepts it; nothing feeds a report from a draft.
+    /// </summary>
+    public async Task<IActionResult> OnPostImportEstimateAsync(
+        Guid id,
+        string operationKey,
+        string? reason,
+        IFormFile? estimateFile,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["AssessmentError"] = "Only an Engineer can import an estimate.";
+            return RedirectToEstimate(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
+        {
+            TempData["AssessmentError"] = "Choose a non-empty estimate file of 10 MB or less.";
+            return RedirectToEstimate(id);
+        }
+        if (!estimateParser.CanParse(estimateFile.FileName, estimateFile.ContentType))
+        {
+            TempData["AssessmentError"] = "Only a PDF estimate can be imported at present.";
+            return RedirectToEstimate(id);
+        }
+
+        await using var buffer = new MemoryStream((int)estimateFile.Length);
+        await estimateFile.CopyToAsync(buffer, cancellationToken);
+        var content = buffer.GetBuffer().AsMemory(0, checked((int)buffer.Length));
+
+        ParsedEstimate parsed;
+        try
+        {
+            parsed = estimateParser.Parse(content);
+        }
+        catch (EstimateParseRejectedException exception)
+        {
+            TempData["AssessmentError"] = exception.Message;
+            return RedirectToEstimate(id);
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        if (await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken) is not null)
+        {
+            TempData["AssessmentError"] = "A draft repair specification already exists for this case. "
+                + "Accept it or replace its lines before importing another estimate.";
+            return RedirectToEstimate(id);
+        }
+        var accepted = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
+        var trimmedReason = reason?.Trim();
+        if (accepted is not null && string.IsNullOrEmpty(trimmedReason))
+        {
+            TempData["AssessmentError"] = "This case already has an accepted repair specification. "
+                + "Give the reason this import corrects it.";
+            return RedirectToEstimate(id);
+        }
+
+        var caseVersion = details.Workflow.Version;
+        var artifactIdentity = $"estimate-import:{operationKey}";
+        AddCaseDocumentResult retained;
+        try
+        {
+            var documentLease = await acquireLease.ExecuteAsync(
+                new(id, caseVersion, actor, NewOperationKey()),
+                cancellationToken);
+            retained = await addCaseDocument.ExecuteAsync(
+                new(
+                    id,
+                    Path.GetFileName(estimateFile.FileName),
+                    "application/pdf",
+                    content,
+                    DocumentSemanticRole.Other,
+                    DocumentSource.StaffUpload,
+                    artifactIdentity,
+                    actor,
+                    $"{operationKey}-document",
+                    caseVersion,
+                    documentLease.Token),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception,
+                "The estimate was not imported because the case changed or another editor holds it. "
+                + "Nothing was recorded; retry the import.");
+            return RedirectToEstimate(id);
+        }
+
+        try
+        {
+            var draftLease = await acquireLease.ExecuteAsync(
+                new(id, caseVersion + 1, actor, NewOperationKey()),
+                cancellationToken);
+            await repairSpecifications.StartDraftAsync(
+                new(
+                    id,
+                    caseVersion + 1,
+                    new(estimateParser.Route, artifactIdentity, parsed.SourceVersion, retained.Version.Sha256),
+                    actor,
+                    operationKey,
+                    string.IsNullOrEmpty(trimmedReason) ? "Estimate imported from a document" : trimmedReason,
+                    draftLease.Token,
+                    accepted?.SpecificationId,
+                    parsed.Lines),
+                cancellationToken);
+            TempData["AssessmentStatus"] =
+                $"The estimate was imported as a draft with {parsed.Lines.Count} lines for your review. "
+                + "The original document is kept on the case.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception,
+                "The original document was kept on the case, but the estimate lines were not "
+                + "recorded because the case changed. Retry the import.");
+        }
+
+        return RedirectToEstimate(id);
+    }
+
+    /// <summary>
+    /// ENG-002: Engineer acceptance of the current draft specification. The
+    /// money figures are typed from the retained original document — no
+    /// derivation from lines exists until EXT-09's formula authority is
+    /// accepted — and the Core policy enforces that the total equals the
+    /// typed figures plus VAT.
+    /// </summary>
+    public async Task<IActionResult> OnPostAcceptSpecificationAsync(
+        Guid id,
+        string operationKey,
+        Guid specificationId,
+        int specificationVersion,
+        decimal labour,
+        decimal parts,
+        decimal paintMaterials,
+        decimal specialistOther,
+        decimal vat,
+        string? repairerVatRegistered,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["AssessmentError"] = "Only an Engineer can accept a repair specification.";
+            return RedirectToEstimate(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        if (repairerVatRegistered is not ("true" or "false"))
+        {
+            TempData["AssessmentError"] = "Answer whether the repairer is VAT registered.";
+            return RedirectToEstimate(id);
+        }
+
+        var draft = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
+        if (draft is null || draft.SpecificationId != specificationId)
+        {
+            TempData["AssessmentError"] = "The draft repair specification changed. Review it again.";
+            return RedirectToEstimate(id);
+        }
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var lease = await acquireLease.ExecuteAsync(
+                new(id, details.Workflow.Version, actor, NewOperationKey()),
+                cancellationToken);
+            var basis = new RepairCalculationBasis(
+                labour,
+                parts,
+                paintMaterials,
+                specialistOther,
+                repairerVatRegistered == "true",
+                vat,
+                labour + parts + paintMaterials + specialistOther + vat,
+                $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}");
+            await repairSpecifications.AcceptAsync(
+                new(
+                    id,
+                    details.Workflow.Version,
+                    specificationId,
+                    specificationVersion,
+                    draft.Source,
+                    basis,
+                    actor,
+                    operationKey,
+                    string.IsNullOrWhiteSpace(reason) ? "Repair specification accepted" : reason.Trim(),
+                    lease.Token),
+                cancellationToken);
+            TempData["AssessmentStatus"] = "The repair specification was accepted.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception,
+                "The repair specification was not accepted because the case changed or another "
+                + "editor holds it. Review it again.");
+        }
+
+        return RedirectToEstimate(id);
+    }
+
+    /// <summary>
+    /// The repair-specification policy refuses with complete operator-safe
+    /// sentences; version and lease conflicts carry internals, so they get
+    /// the fallback instead.
+    /// </summary>
+    private static string MutationRefusalMessage(Exception exception, string fallback) =>
+        exception is InvalidOperationException
+            and not CaseVersionConflictException
+            and not CaseEditLeaseConflictException
+            and not CaseEditLeaseExpiredException
+            and not CaseOperationConflictException
+            ? exception.Message
+            : fallback;
+
+    private RedirectToPageResult RedirectToEstimate(Guid id) =>
+        RedirectToPage(new { id, section = "estimate" });
 
     public async Task<IActionResult> OnPostSendAsync(
         Guid id,
