@@ -2,10 +2,12 @@
 id: TICK-028
 type: ticket
 title: 'Establish database backup, restore, RPO, and RTO capability'
-status: preparing
+status: implementing
 area: platform-operations
 assignee: claude-code
 profile: feature
+stageEntered:
+  implementing: '2026-08-20T05:35:08.583Z'
 taken_at: '2026-08-20T05:34:06.267Z'
 branch: task/tick-028-ops-09-backup
 worktree: ../pegasus-worktrees/tick-028
@@ -21,7 +23,7 @@ refs:
   - docs/prd/pegasus-product.md
 archived: false
 created: '2026-08-12T15:03:53.347Z'
-updated: '2026-08-20T05:34:06.267Z'
+updated: '2026-08-20T05:35:08.583Z'
 ---
 
 ## What

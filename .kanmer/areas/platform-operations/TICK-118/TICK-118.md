@@ -2,10 +2,12 @@
 id: TICK-118
 type: ticket
 title: 'Activate live completeness and Review, Not ready, and Held queues'
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T05:34:52.385Z'
 labels:
   - now
   - source-now
@@ -14,9 +16,12 @@ groups:
   - EPIC-003
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
+  - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-12T15:08:02.439Z'
-updated: '2026-08-17T06:41:55.659Z'
+updated: '2026-08-20T05:34:52.385Z'
 ---
 
 ## What
