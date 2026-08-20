@@ -1,5 +1,6 @@
 [features]
 apps = false
+remote_plugin = false
 
 [mcp_servers.mcp_microsoftdocs]
 url = "https://learn.microsoft.com/api/mcp"
