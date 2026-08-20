@@ -2,13 +2,14 @@
 id: TICK-051
 type: ticket
 title: MAIL-09 — Automatic association of related email and attachments with a case
-status: review
+status: verifying
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:44.582Z'
   review: '2026-08-20T19:24:43.526Z'
+  verifying: '2026-08-20T20:27:38.048Z'
 taken_at: '2026-08-20T19:03:31.754Z'
 branch: task/tick-051-mail-09-automatic-case-association
 worktree: ../pegasus-worktrees/tick-051
@@ -34,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/486'
 archived: false
 created: '2026-08-12T15:05:19.257Z'
-updated: '2026-08-20T19:48:51.220Z'
+updated: '2026-08-20T20:27:38.048Z'
 ---
 
 ## What
