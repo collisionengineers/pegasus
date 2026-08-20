@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
@@ -102,6 +103,7 @@ public static class DependencyInjection
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
+        services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());
@@ -150,8 +152,9 @@ public static class DependencyInjection
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
-        services.AddScoped<IStaffAccountQueries>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
+        // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
+        // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
+        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
@@ -267,6 +270,7 @@ public static class DependencyInjection
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
@@ -464,7 +468,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         Func<IServiceProvider, Azure.Storage.Blobs.BlobContainerClient> intakeContainerFactory,
         Func<IServiceProvider, bool> allowContainerCreateIfNotExists,
-        BoxCustodyOptions boxOptions)
+        Func<IServiceProvider, BoxCustodyOptions> boxOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(intakeContainerFactory);
@@ -484,15 +488,18 @@ public static class DependencyInjection
     /// Registers the approved Box custody root as both the case custody adapter and
     /// the managed-document content store. Both composition roots call this so Web
     /// and Worker resolve the same fenced Box client rather than diverging.
+    /// The options factory runs at first Box resolution, not at host build: an
+    /// invalid or still-unresolved Box secret fails the Box work item, never the
+    /// whole process (PLAT-013 — the worker exit-134 crash loop).
     /// </summary>
     public static IServiceCollection AddProductionBoxCustody(
         this IServiceCollection services,
-        BoxCustodyOptions boxOptions)
+        Func<IServiceProvider, BoxCustodyOptions> boxOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(boxOptions);
 
-        services.AddSingleton(boxOptions);
+        services.AddSingleton(provider => boxOptions(provider));
         services.TryAddSingleton(static _ => new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(100)

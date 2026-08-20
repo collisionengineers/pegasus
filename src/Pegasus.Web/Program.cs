@@ -119,7 +119,6 @@ if (!developmentOfflineProfile && !productionProfile)
     throw new InvalidOperationException(
         $"Unsupported Runtime:Profile '{configuredRuntimeProfile}' for environment '{builder.Environment.EnvironmentName}'.");
 }
-BoxCustodyOptions? productionBoxCustodyOptions = null;
 if (productionProfile)
 {
     if (!builder.Environment.IsProduction())
@@ -182,12 +181,6 @@ if (productionProfile)
     // the Worker-only pollers that go with AddProductionExternalAdapters).
     builder.Services.AddSingleton<TokenCredential>(credential);
     builder.Services.AddProductionApprovedMailboxResolver(builder.Configuration["Graph:BaseUri"]);
-    productionBoxCustodyOptions = BoxCustodyOptions.Create(
-        builder.Configuration["Box:BaseUri"],
-        builder.Configuration["Box:UploadUri"],
-        builder.Configuration["Box:RootFolderId"],
-        builder.Configuration["Box:ConfigJson"],
-        builder.Configuration["Box:ClientSecret"]);
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
@@ -541,18 +534,33 @@ evaMappingAcceptanceFactory: serviceProvider =>
         configuration.GetValue<int?>("Eva:AcceptedMapping:Version"),
         configuration["Eva:AcceptedMapping:EvidenceReference"]);
 },
-documentStorage: productionBoxCustodyOptions is null
+documentStorage: !productionProfile
     ? null
     : (Action<IServiceCollection>)(registrations => registrations.AddProductionDocumentStorage(
         provider => provider.GetRequiredService<BlobContainerClient>(),
         // Web never provisions the container; the Worker owns that.
         static _ => false,
-        productionBoxCustodyOptions)));
+        // Deferred to first Box use: parsing this at host build aborted the
+        // process whenever the platform handed over an unresolved Key Vault
+        // reference (PLAT-013).
+        _ => BoxCustodyOptions.Create(
+            builder.Configuration["Box:BaseUri"],
+            builder.Configuration["Box:UploadUri"],
+            builder.Configuration["Box:RootFolderId"],
+            builder.Configuration["Box:ConfigJson"],
+            builder.Configuration["Box:ClientSecret"]))));
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
     builder.Services.AddSingleton<IResolveApprovedMailboxIdentity, LocalApprovedMailboxIdentityResolver>();
+}
+else
+{
+    // The production profile enables staff vehicle lookup requests. The Web only
+    // records the request; the production Worker owns the live DVLA/DVSA adapter
+    // and executes it from the recorded work item.
+    builder.Services.AddSingleton(VehicleLookupAvailability.ProductionLive);
 }
 builder.Services.AddScoped<EfIdentityAuditStore>();
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>

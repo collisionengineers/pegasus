@@ -23,11 +23,20 @@ public sealed class UploadGroupStatusModel(
     /// <summary>
     /// The confirmation outcome per member, built independently per file —
     /// a grouped image upload can terminal-decide its members independently
-    /// (a Core routing race tracked separately), so this makes no group-wide
-    /// assumption and reports each member's own outcome.
+    /// (a mixed batch's instruction document takes its own route), so this
+    /// makes no group-wide assumption and reports each member's own outcome.
     /// </summary>
     public IReadOnlyDictionary<Guid, UploadOutcomeView?> Outcomes { get; private set; } =
         new Dictionary<Guid, UploadOutcomeView?>();
+
+    /// <summary>
+    /// Set only when every member's outcome is the same Image-initiated Case
+    /// registration. The group is the registration unit (one reference for
+    /// the whole submission), so the page reports that registration once for
+    /// the group instead of repeating the identical outcome per file. Any
+    /// other mix of outcomes keeps the per-file report.
+    /// </summary>
+    public UploadOutcomeView? GroupRegistrationOutcome { get; private set; }
 
     public bool RefreshAutomatically => Statuses.Values.Any(status =>
         status is null
@@ -68,6 +77,14 @@ public sealed class UploadGroupStatusModel(
 
         Statuses = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.status);
         Outcomes = memberResults.ToDictionary(result => result.StagedReceiptId, result => result.outcome);
+        var outcomes = memberResults.Select(result => result.outcome).ToArray();
+        if (outcomes.Length > 1
+            && outcomes.All(outcome => outcome is { Kind: UploadOutcomeKind.ImageCaseRegistered })
+            && outcomes.Select(outcome => outcome!.PrimaryAction?.Url).Distinct().Count() == 1)
+        {
+            GroupRegistrationOutcome = outcomes[0];
+        }
+
         return Page();
     }
 }

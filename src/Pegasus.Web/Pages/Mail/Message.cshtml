@@ -84,7 +84,7 @@
             <div><dt>Destination policy</dt><dd>@destination.PolicyKey version @destination.PolicyVersion</dd></div>
             <div><dt>Reason</dt><dd>@dossier.Current.Reason</dd></div>
             <div><dt>Decision version</dt><dd>@dossier.Version</dd></div>
-            <div><dt>Decided by</dt><dd>@dossier.CurrentActor</dd></div>
+            <div><dt>Decided by</dt><dd>@dossier.CurrentActorDisplayName</dd></div>
             <div><dt>Decided at</dt><dd><time datetime="@dossier.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(dossier.CurrentDecidedAtUtc)</time></dd></div>
         </dl>
         @if (dossier.Current.Predicates.Count > 0)
@@ -145,7 +145,7 @@
                         <strong>Version @entry.Version:</strong>
                         @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.Before)
                         → @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.After).
-                        @entry.Reason — @entry.Actor,
+                        @entry.Reason — @entry.ActorDisplayName,
                         <time datetime="@entry.CorrectedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.CorrectedAtUtc)</time>
                     </li>
                 }
