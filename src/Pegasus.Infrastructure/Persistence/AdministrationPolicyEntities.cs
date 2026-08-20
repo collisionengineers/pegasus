@@ -38,3 +38,12 @@ internal sealed class ApprovedMailboxFolderBindingEntity
     public required string FolderIdentity { get; set; }
     public ApprovedMailboxEntity ApprovedMailbox { get; set; } = null!;
 }
+
+internal sealed class ApprovedOutlookCategoryEntity
+{
+    public Guid Id { get; set; }
+    public required string DisplayName { get; set; }
+    public required string NormalizedDisplayName { get; set; }
+    public required string State { get; set; }
+    public int Version { get; set; }
+}

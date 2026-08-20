@@ -414,7 +414,7 @@ Staff accounts, authentication, and authorisation are implemented and enforced t
 
 | Actor | Planned UI boundary |
 | --- | --- |
-| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
+| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, approved Outlook category display names, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
 | Engineer, User | Staff shell without Administration surfaces. Their ordinary Intake, Triage, Case, document, evidence, and lifecycle controls are identical. |
 | Automated processing | No UI account or interactive control. |
 | Provider API client ([API-01–API-04, `Next / 0.4.0`](../capabilities.md#capabilities)) | No staff shell, Case workspace, or Administration surface. |
@@ -959,7 +959,7 @@ The intended setting is a small office of approximately eight users. Staff accou
 
 | Actor | Planned UI boundary |
 | --- | --- |
-| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
+| Administrator | Staff shell plus Administration surfaces for accounts/access/roles, principals, configuration, approved mailbox allowlist, approved Outlook category display names, and the Automation client registration and activity review (enable/disable kill switch and permanent activity records addressable by correlation identifier; no secret display). |
 | Engineer, User | Staff shell without Administration surfaces. The ordinary case/action controls are the same for both roles. |
 | Automated processing | No UI account or interactive control. |
 | Provider API client ([API-01–API-04, `Next / 0.4.0`](../capabilities.md#capabilities)) | No staff shell or Administration surface. |
@@ -975,7 +975,7 @@ Every protected route and action visibly handles unauthenticated, disabled-sessi
 
 **Case** keeps Case/PO, principal, registration, [Inspection, standalone Audit, or Inspection + Audit identity](../frd/frd-01-case-identity-and-lifecycle.md#case-types), workflow state, due date, and EVA proxy limitation visible. It presents the accepted Case projection alongside source/provenance, data, documents/images, parties and inspection address, vehicle/MOT, tasks/reminders, outbound evidence, external-work states, and permanent history. Core owns [principal and historical case-party identity](../frd/frd-01-case-identity-and-lifecycle.md#principal-reference-organisation-and-case-party-identity), [lifecycle closure and correspondence](../frd/frd-01-case-identity-and-lifecycle.md#lifecycle-closure-and-correspondence), [outbound correspondence evidence](../frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence), and one-case [edit authority and recovery](../frd/frd-01-case-identity-and-lifecycle.md#case-edit-authority-and-recovery). The workspace identifies the active editor and stale version, becomes read-only after lease loss or named closure, and offers only the authorised retry/reopen/reacquire routes; one control mutates one current Case at a time.
 
-**Administration** is an Administrator-only surface implementing the linked role matrix. It exposes account/access/role, principal successor, configuration, and approved-mailbox-allowlist controls, but no generic rules editor, credential/cloud operation, bulk predecessor import, bulk Case edit, or direct external Case-edit surface.
+**Administration** is an Administrator-only surface implementing the linked role matrix. It exposes account/access/role, principal successor, configuration, approved-mailbox-allowlist, and the global Active/Disabled Outlook category display-name allowlist consumed by MAIL-13. The category form exposes no Graph identifier or colour and performs no synchronization. Administration remains without a generic rules editor, credential/cloud operation, bulk predecessor import, bulk Case edit, or direct external Case-edit surface.
 
 ### UI-07 search and filters
 

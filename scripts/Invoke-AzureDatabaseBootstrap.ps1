@@ -278,6 +278,12 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedMailboxFolderBindings")
     }
+    # 20260820114412_ApprovedOutlookCategoryCatalogue: Web administrators
+    # maintain the global allowlist; disable replaces deletion. Worker has no caller.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedOutlookCategories")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|ApprovedOutlookCategories')
     return @($expected | Sort-Object -Unique)
 }
 

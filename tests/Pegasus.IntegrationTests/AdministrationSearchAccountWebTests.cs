@@ -23,6 +23,7 @@ public sealed class AdministrationSearchAccountWebTests
                  {
                      "/Administration/Configuration",
                      "/Administration/Mailboxes",
+                     "/Administration/MailCategories",
                      "/Account/PasswordChange"
                  })
         {
@@ -36,6 +37,7 @@ public sealed class AdministrationSearchAccountWebTests
         var administrationHtml = await administration.Content.ReadAsStringAsync();
         Assert.Contains("/Administration/Configuration", administrationHtml, StringComparison.Ordinal);
         Assert.Contains("/Administration/Mailboxes", administrationHtml, StringComparison.Ordinal);
+        Assert.Contains("/Administration/MailCategories", administrationHtml, StringComparison.Ordinal);
 
         using var shell = await client.GetAsync("/");
         var shellHtml = await shell.Content.ReadAsStringAsync();
@@ -53,6 +55,7 @@ public sealed class AdministrationSearchAccountWebTests
                  {
                      "/Administration/Configuration",
                      "/Administration/Mailboxes",
+                     "/Administration/MailCategories",
                      "/Account/PasswordChange"
                  })
         {
@@ -83,7 +86,8 @@ public sealed class AdministrationSearchAccountWebTests
         foreach (var route in new[]
                  {
                      "/Administration/Configuration",
-                     "/Administration/Mailboxes"
+                     "/Administration/Mailboxes",
+                     "/Administration/MailCategories"
                  })
         {
             using var response = await client.GetAsync(route);
@@ -100,6 +104,9 @@ public sealed class AdministrationSearchAccountWebTests
         Assert.Equal(
             StaffRoleNames.Administrator,
             typeof(MailboxesModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
+        Assert.Equal(
+            StaffRoleNames.Administrator,
+            typeof(MailCategoriesModel).GetCustomAttribute<AuthorizeAttribute>()?.Policy);
     }
 
     [Fact]

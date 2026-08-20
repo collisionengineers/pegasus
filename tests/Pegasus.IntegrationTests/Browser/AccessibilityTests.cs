@@ -33,6 +33,7 @@ public sealed class AccessibilityTests
         "/Administration/Principals/Create",
         "/Administration/Configuration",
         "/Administration/Mailboxes",
+        "/Administration/MailCategories",
         "/Administration/Automation",
         "/Administration/Automation/Activity",
         "/Account/PasswordChange",
