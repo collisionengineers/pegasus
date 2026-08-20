@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-20T00:37:10.289Z'
   verifying: '2026-08-20T00:57:15.252Z'
   done: '2026-08-20T01:29:45.309Z'
-taken_at: '2026-08-19T23:18:29.012Z'
-branch: task/intk-010-upload-flow-v2
-worktree: ../pegasus-worktrees/intk-010-upload-flow-v2
 labels:
   - upload
   - ui
@@ -37,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T23:17:07.323Z'
-updated: '2026-08-20T01:29:45.309Z'
+updated: '2026-08-20T03:14:41.646Z'
 ---
 
 ## What

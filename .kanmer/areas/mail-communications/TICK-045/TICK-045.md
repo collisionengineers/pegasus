@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-19T11:34:21.837Z'
   verifying: '2026-08-19T21:45:27.373Z'
   done: '2026-08-20T01:29:42.035Z'
-taken_at: '2026-08-19T13:10:13.120Z'
-branch: task/tick-045-shared-classification-policy
-worktree: ../pegasus-worktrees/tick-045-shared-classification-policy
 labels:
   - capability
   - MAIL-03
@@ -35,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.689Z'
-updated: '2026-08-20T01:29:42.035Z'
+updated: '2026-08-20T03:14:43.775Z'
 ---
 
 ## What

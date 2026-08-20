@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-19T23:45:18.497Z'
   verifying: '2026-08-19T23:57:44.880Z'
   done: '2026-08-20T01:29:45.856Z'
-taken_at: '2026-08-19T23:02:40.159Z'
-branch: task/plat-009-mailboxes-layout
-worktree: ../pegasus-worktrees/plat-009-mailboxes-layout
 labels:
   - ui
   - administration
@@ -30,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T22:58:23.870Z'
-updated: '2026-08-20T01:29:45.856Z'
+updated: '2026-08-20T03:14:45.632Z'
 ---
 
 ## What

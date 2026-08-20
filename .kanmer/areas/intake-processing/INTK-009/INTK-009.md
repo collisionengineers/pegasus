@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-19T23:59:46.931Z'
   verifying: '2026-08-20T00:16:02.719Z'
   done: '2026-08-20T01:29:44.762Z'
-taken_at: '2026-08-19T23:13:07.344Z'
-branch: task/intk-009-queues-restructure
-worktree: ../pegasus-worktrees/intk-009-queues-restructure
 labels:
   - ui
   - queues
@@ -36,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T23:12:15.125Z'
-updated: '2026-08-20T01:29:44.762Z'
+updated: '2026-08-20T03:14:40.689Z'
 ---
 
 ## What

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-19T11:39:29.235Z'
   verifying: '2026-08-19T21:57:48.272Z'
   done: '2026-08-20T01:29:44.217Z'
-taken_at: '2026-08-19T13:10:09.500Z'
-branch: intk-008-image-initiated-lifecycle
-worktree: ../pegasus-worktrees/intk-008
 labels:
   - image-initiated
   - image-intake
@@ -42,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T11:11:41.336Z'
-updated: '2026-08-20T01:29:44.217Z'
+updated: '2026-08-20T03:14:40.223Z'
 ---
 
 ## What

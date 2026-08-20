@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-19T10:29:04.017Z'
   verifying: '2026-08-19T21:45:20.164Z'
   done: '2026-08-20T01:29:43.252Z'
-taken_at: '2026-08-19T13:09:59.107Z'
-branch: intk-005-grouped-upload
-worktree: ../pegasus-worktrees/intk-005
 labels:
   - upload
   - ui
@@ -34,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-20T01:29:43.252Z'
+updated: '2026-08-20T03:14:38.566Z'
 ---
 
 ## What

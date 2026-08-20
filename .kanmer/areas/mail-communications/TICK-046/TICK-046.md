@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-19T10:52:46.993Z'
   verifying: '2026-08-19T11:24:00.818Z'
   done: '2026-08-20T01:29:42.695Z'
-taken_at: '2026-08-19T10:35:23.458Z'
-branch: task/tick-046-classification-history
-worktree: ../pegasus-worktrees/tick-046-classification-history
 labels:
   - capability
   - MAIL-04
@@ -38,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.708Z'
-updated: '2026-08-20T01:29:42.695Z'
+updated: '2026-08-20T03:14:44.231Z'
 ---
 
 ## What

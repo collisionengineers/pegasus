@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-19T07:45:40.074Z'
   verifying: '2026-08-19T08:08:14.794Z'
   done: '2026-08-20T01:29:40.398Z'
-taken_at: '2026-08-19T07:13:57.445Z'
-branch: task/plat-006-shell-upload
-worktree: ../pegasus-worktrees/plat-006-shell-upload
 labels:
   - ui
   - design
@@ -30,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T07:13:42.039Z'
-updated: '2026-08-20T01:29:40.398Z'
+updated: '2026-08-20T03:14:44.918Z'
 ---
 
 ## What

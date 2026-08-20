@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-19T08:36:43.063Z'
   verifying: '2026-08-19T09:03:23.751Z'
   done: '2026-08-20T01:29:41.489Z'
-taken_at: '2026-08-19T08:29:24.733Z'
-branch: task/tick-044-classification-catalogue
-worktree: ../pegasus-worktrees/tick-044-classification-catalogue
 labels:
   - capability
   - MAIL-02
@@ -37,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.669Z'
-updated: '2026-08-20T01:29:41.489Z'
+updated: '2026-08-20T03:14:43.504Z'
 ---
 
 ## What

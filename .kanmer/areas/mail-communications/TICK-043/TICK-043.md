@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-19T09:25:07.280Z'
   verifying: '2026-08-19T10:34:21.101Z'
   done: '2026-08-20T01:29:40.942Z'
-taken_at: '2026-08-19T09:04:22.276Z'
-branch: task/tick-043-mailbox-identity
-worktree: ../pegasus-worktrees/tick-043-mailbox-identity
 labels:
   - capability
   - MAIL-01
@@ -39,7 +36,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.649Z'
-updated: '2026-08-20T01:29:40.942Z'
+updated: '2026-08-20T03:14:42.796Z'
 ---
 
 ## What

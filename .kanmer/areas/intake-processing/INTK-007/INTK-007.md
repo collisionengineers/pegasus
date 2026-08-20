@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-19T12:05:55.914Z'
   verifying: '2026-08-20T01:29:46.946Z'
   done: '2026-08-20T01:29:49.388Z'
-taken_at: '2026-08-19T13:10:05.908Z'
-branch: intk-007-unidentified-intake
-worktree: ../pegasus-worktrees/intk-007
 labels:
   - unidentified
   - queues
@@ -55,7 +52,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-20T01:29:49.388Z'
+updated: '2026-08-20T03:14:39.973Z'
 ---
 
 ## What

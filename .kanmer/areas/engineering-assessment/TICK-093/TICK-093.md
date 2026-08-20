@@ -15,9 +15,6 @@ stageEntered:
   implementing: '2026-08-19T11:17:31.308Z'
   verifying: '2026-08-19T12:16:19.642Z'
   done: '2026-08-20T01:29:43.129Z'
-taken_at: '2026-08-19T09:48:52.496Z'
-branch: task/tick-093-versioned-repair-spec
-worktree: ../pegasus-worktrees/tick-093-versioned-repair-spec
 labels:
   - capability
   - ENG-01
@@ -49,7 +46,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-20T01:29:43.129Z'
+updated: '2026-08-20T03:14:37.854Z'
 ---
 
 ## Outcome

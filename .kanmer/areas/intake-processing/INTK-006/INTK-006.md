@@ -13,9 +13,6 @@ stageEntered:
   implementing: '2026-08-19T10:49:31.628Z'
   verifying: '2026-08-19T21:45:23.480Z'
   done: '2026-08-20T01:29:43.678Z'
-taken_at: '2026-08-19T13:10:02.565Z'
-branch: intk-006-grouped-image-routing
-worktree: ../pegasus-worktrees/intk-006
 labels:
   - upload
   - production-diagnostics
@@ -42,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T09:13:45.922Z'
-updated: '2026-08-20T01:29:43.678Z'
+updated: '2026-08-20T03:14:39.270Z'
 ---
 
 ## What
