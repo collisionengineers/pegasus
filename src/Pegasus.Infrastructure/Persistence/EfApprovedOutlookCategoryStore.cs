@@ -35,6 +35,10 @@ public sealed class EfApprovedOutlookCategoryStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+        // Serialize every update/replay for one category before reading its operation
+        // history. A concurrent retry with the same key then observes the committed
+        // history, while a competing key observes the committed version.
+        var entity = await FindForUpdateAsync(context, request.CategoryId, cancellationToken);
         var replay = await context.ActionHistory.AsNoTracking().SingleOrDefaultAsync(
             item => item.AggregateType == AggregateType && item.CorrelationId == request.OperationKey,
             cancellationToken);
@@ -51,8 +55,6 @@ public sealed class EfApprovedOutlookCategoryStore(
             cancellationToken))
             throw new ApprovedOutlookCategoryUpdateException(ApprovedOutlookCategoryUpdateError.DuplicateDisplayName);
 
-        var entity = await context.Set<ApprovedOutlookCategoryEntity>()
-            .SingleOrDefaultAsync(item => item.Id == request.CategoryId, cancellationToken);
         Snapshot? before = null;
         if (request.ExpectedVersion == 0)
         {
@@ -90,6 +92,19 @@ public sealed class EfApprovedOutlookCategoryStore(
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return Map(after);
+    }
+
+    private static Task<ApprovedOutlookCategoryEntity?> FindForUpdateAsync(
+        PegasusDbContext context,
+        Guid categoryId,
+        CancellationToken cancellationToken)
+    {
+        var categories = context.Set<ApprovedOutlookCategoryEntity>();
+        return context.Database.IsSqlServer()
+            ? categories.FromSqlInterpolated(
+                    $"SELECT * FROM [dbo].[ApprovedOutlookCategories] WITH (UPDLOCK, HOLDLOCK) WHERE [Id] = {categoryId}")
+                .SingleOrDefaultAsync(cancellationToken)
+            : categories.SingleOrDefaultAsync(item => item.Id == categoryId, cancellationToken);
     }
 
     private static ApprovedOutlookCategory Replay(UpdateApprovedOutlookCategoryRequest request, ActionHistoryEntity history)

@@ -800,6 +800,17 @@ approved mailbox. It is not an ordinary staff mailbox workspace, message-level f
 recommendation/confirmation/move control, deployment claim, or authority for a live
 Outlook write; MAIL-05, MAIL-06, and MAIL-07 remain deferred to their own gates.
 
+The same 2026-08-20 programme review and instruction to implement the plan activates
+one further local prerequisite for MAIL-13: the Administrator-only Outlook categories
+card and `/Administration/MailCategories` form. The selected design reuses the existing
+Administration card, panel, labelled form, error-summary and status-notice pattern;
+alternatives rejected were a generic mailbox-rules editor and an ordinary-staff mail
+workspace. Independent PR #473 review (PR-026) required this explicit re-entry record
+and the local rendered desktop/200%-zoom inspection recorded by MAIL-004. This is
+local visual/manual-review evidence for the narrow administration control, not operator
+release acceptance, deployment, Graph permission, category synchronization, or Outlook
+message-mutation authority. MAIL-13 keeps those separate delivery gates.
+
 ### Deferred casework and advanced surfaces
 
 There is no alpha control, route or placeholder for:
