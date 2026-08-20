@@ -17,36 +17,33 @@
         {
             @* The whole submission registered as one vehicle-image case:
                report that once for the group rather than repeating the
-               identical outcome under every file. *@
+               identical outcome under every file, which then lists by name
+               alone below. *@
             <partial name="Shared/_UploadOutcome" model="@groupOutcome" />
-            <ol class="upload-outcome-list">
-                @foreach (var member in Model.Group.Members)
-                {
-                    <li>
+        }
+        <ol class="upload-outcome-list">
+            @foreach (var member in Model.Group.Members)
+            {
+                var memberOutcome = Model.GroupRegistrationOutcome is null
+                    && Model.Outcomes.TryGetValue(member.StagedReceiptId, out var outcome)
+                    ? outcome
+                    : null;
+                <li>
+                    @if (Model.GroupRegistrationOutcome is not null || memberOutcome is not null)
+                    {
                         <p class="upload-outcome__file">@member.SourceFileName</p>
-                    </li>
-                }
-            </ol>
-        }
-        else
-        {
-            <ol class="upload-outcome-list">
-                @foreach (var member in Model.Group.Members)
-                {
-                    <li>
-                        @if (Model.Outcomes.TryGetValue(member.StagedReceiptId, out var outcome) && outcome is not null)
-                        {
-                            <p class="upload-outcome__file">@member.SourceFileName</p>
-                            <partial name="Shared/_UploadOutcome" model="@outcome" />
-                        }
-                        else
-                        {
-                            <a asp-page="/UploadStatus" asp-route-id="@member.StagedReceiptId">@member.SourceFileName</a>
-                            <span class="field-hint">@(Model.Statuses[member.StagedReceiptId]?.Status.ToString() ?? "Received")</span>
-                        }
-                    </li>
-                }
-            </ol>
-        }
+                    }
+                    else
+                    {
+                        <a asp-page="/UploadStatus" asp-route-id="@member.StagedReceiptId">@member.SourceFileName</a>
+                        <span class="field-hint">@(Model.Statuses[member.StagedReceiptId]?.Status.ToString() ?? "Received")</span>
+                    }
+                    @if (memberOutcome is not null)
+                    {
+                        <partial name="Shared/_UploadOutcome" model="@memberOutcome" />
+                    }
+                </li>
+            }
+        </ol>
     </section>
 </div>

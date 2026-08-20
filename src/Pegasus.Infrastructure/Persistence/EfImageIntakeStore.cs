@@ -605,17 +605,7 @@ public sealed class EfImageIntakeStore(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await FindForReceiptAsync(context, intakeReceiptId, cancellationToken);
-        if (entity is null)
-        {
-            return null;
-        }
-
-        var association = await AssociationAsync(context, entity.OriginReceiptId, cancellationToken);
-        return new ImageIntakeDetail(
-            Map(entity),
-            entity.CreatedAtUtc,
-            association?.CaseId,
-            association?.CaseReference);
+        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
     }
 
     /// <summary>
@@ -710,11 +700,14 @@ public sealed class EfImageIntakeStore(
         var entity = await context.ImageIntakes
             .AsNoTracking()
             .SingleOrDefaultAsync(predicate, cancellationToken);
-        if (entity is null)
-        {
-            return null;
-        }
+        return entity is null ? null : await ToDetailAsync(context, entity, cancellationToken);
+    }
 
+    private static async Task<ImageIntakeDetail> ToDetailAsync(
+        PegasusDbContext context,
+        ImageIntakeEntity entity,
+        CancellationToken cancellationToken)
+    {
         var association = await AssociationAsync(context, entity.OriginReceiptId, cancellationToken);
         return new ImageIntakeDetail(
             Map(entity),
