@@ -28,4 +28,13 @@ internal sealed class ApprovedMailboxEntity
     public string? InboxFolderIdentity { get; set; }
     public string? SentFolderIdentity { get; set; }
     public int Version { get; set; }
+    public ICollection<ApprovedMailboxFolderBindingEntity> FolderBindings { get; } = [];
+}
+
+internal sealed class ApprovedMailboxFolderBindingEntity
+{
+    public Guid ApprovedMailboxId { get; set; }
+    public required string FolderType { get; set; }
+    public required string FolderIdentity { get; set; }
+    public ApprovedMailboxEntity ApprovedMailbox { get; set; } = null!;
 }

@@ -278,6 +278,12 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_web_runtime_role|G|INSERT|ImageIntakeLifecycleEvents')
     $expected.Add('pegasus_web_runtime_role|D|UPDATE|ImageIntakeLifecycleEvents')
     $expected.Add('pegasus_web_runtime_role|D|DELETE|ImageIntakeLifecycleEvents')
+    # 20260820100056_ApprovedMailboxLogicalFolderBindings: the existing Web
+    # mailbox-administration transaction reads and replaces the mailbox-owned
+    # binding rows. The Worker has no caller and receives no grant.
+    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedMailboxFolderBindings")
+    }
     return @($expected | Sort-Object -Unique)
 }
 
