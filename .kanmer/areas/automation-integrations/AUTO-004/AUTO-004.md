@@ -2,12 +2,13 @@
 id: AUTO-004
 type: ticket
 title: Restore Automation Actor parity for Unidentified and Triage
-status: implementing
+status: review
 area: automation-integrations
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-20T10:10:55.935Z'
+  review: '2026-08-20T11:31:27.243Z'
 taken_at: '2026-08-20T10:37:15.247Z'
 branch: task/auto-004-automation-parity
 worktree: ../pegasus-worktrees/auto-004
@@ -26,9 +27,14 @@ refs:
   - docs/adr/0011-restrict-mcp-to-automation-actor.md
   - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
   - docs/frd/frd-03-triage.md
+commits:
+  - 05e698bc
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/470'
+deployment: not-deployed
 archived: false
 created: '2026-08-20T09:27:47.730Z'
-updated: '2026-08-20T10:37:15.247Z'
+updated: '2026-08-20T11:31:27.243Z'
 ---
 
 ## Why

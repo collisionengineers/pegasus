@@ -2,12 +2,13 @@
 id: AUTO-005
 type: ticket
 title: Expose Triage casework through the Automation Actor
-status: implementing
+status: review
 area: automation-integrations
 assignee: codex-mcp-client
 profile: spike
 stageEntered:
   preparing: '2026-08-20T10:23:17.577Z'
+  review: '2026-08-20T11:31:28.400Z'
 taken_at: '2026-08-20T10:37:15.283Z'
 branch: task/auto-004-automation-parity
 worktree: ../pegasus-worktrees/auto-004
@@ -23,9 +24,14 @@ refs:
   - docs/frd/frd-03-triage.md
   - docs/adr/0011-restrict-mcp-to-automation-actor.md
   - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
+commits:
+  - 05e698bc
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/470'
+deployment: not-deployed
 archived: false
 created: '2026-08-20T10:12:42.306Z'
-updated: '2026-08-20T10:37:15.283Z'
+updated: '2026-08-20T11:31:28.400Z'
 ---
 
 ## What
