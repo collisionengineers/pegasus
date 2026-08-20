@@ -353,3 +353,33 @@ Replacement CI at exact head `eaf2f9f4` currently has green changes, documentati
 ### Verdict
 
 **Needs changes.** Do not merge PR #469. Keep TICK-053 and every shared-PR blocker in Review; [[PR-037]] now blocks TICK-053. Re-review after that narrow validation fix lands, the PIR remains exact, and replacement CI is fully green.
+
+## Independent re-review — PASS — 2026-08-20
+
+**PR:** #469  
+**Reviewed head:** `6aaf2418c30defc1fb21111a10b954e70f74eea3`  
+**Base:** `dev`
+
+### Scope and reconciliation
+
+- Re-read the full TICK-053 ticket documents, group constraints, blocker documents, plan, checklist and PIR, including [[PR-037]].
+- Reconciled all prior review blockers [[PR-015]]–[[PR-022]], [[PR-024]], [[PR-025]], and [[PR-029]]–[[PR-037]]. Their planned corrections are present at this exact head.
+- [[PR-037]] closes the remaining malformed-Graph-envelope gap at the existing Graph client boundary: non-object roots, missing/non-array `value`, and invalid/non-absolute next links become the existing `InvalidDataException` path and therefore the existing unavailable state. Focused Graph and authenticated Web tests cover those cases without broad exception swallowing.
+- The PIR inventory matches the branch exactly: 31 changed files relative to `origin/dev`; `git diff --check origin/dev...HEAD` is clean.
+- The merged MAIL-05/dev behavior coexists with MAIL-11: search normalization/query remains upstream of folder recommendation and both existing fakes/conventions are preserved.
+- Governing-doc alignment passes against FRD-08 and the canonical design/capability owners. The implementation remains GET-only at the mailbox boundary, validates exact approved mailbox/folder scopes, preserves cancellation and fixed bounds, and keeps SQL privileges at Web SELECT and Worker SELECT/INSERT/DELETE.
+- Simplicity passes: existing parsing sites, `InvalidDataException`, URI validation, authenticated host, and HTTP fakes are reused. No generic response-validation framework, broad catch, retry layer, new store/parser/backfill, permission expansion, or speculative abstraction was added. The recorded simplification dispositions are honest.
+
+### Required review questions
+
+1. **Did the plan miss anything implied by the ticket?** The earlier malformed-successful-response shape omission was identified in review and is now fully closed by [[PR-037]]; no remaining omission found.
+2. **Did implementation miss anything in the plan?** No. The final 31-file diff implements the planned behavior and evidence.
+3. **Did the simplification pass run honestly?** Yes. Reuse, simplification, efficiency, and altitude findings are recorded with applied or justified dispositions; no unapplied finding remains hidden.
+
+### CI
+
+Exact-head repository-check run `32373963328`, final attempt 3, is fully green: changes, documentation, local-development-scripts, reference-data, infrastructure, unit, browser, SQL integration shards 1–3, and SQL integration coverage all succeeded. The first SQL attempt had unrelated LocalDB contention/timeouts; the targeted replacements passed at the unchanged head.
+
+### Verdict
+
+**PASS.** No unresolved review finding remains. PR #469 is eligible to merge to `dev`.
