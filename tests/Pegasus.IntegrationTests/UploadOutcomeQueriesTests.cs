@@ -299,6 +299,10 @@ public sealed class UploadOutcomeQueriesTests
             string reference, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
+        public Task<IReadOnlyList<UnidentifiedQueueRow>> ListQueueAsync(
+            UnidentifiedMediaKind? mediaKind, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
         public Task<UnidentifiedItem?> GetByOriginAsync(
             UnidentifiedOrigin origin, CancellationToken cancellationToken = default) =>
             Task.FromResult(origin.Kind == UnidentifiedOriginKind.Receipt ? byReceipt : byGroup);
