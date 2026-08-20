@@ -1,3 +1,4 @@
+using Pegasus.Core.Actors;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Identity;
 
@@ -256,7 +257,16 @@ public sealed record TriageHistoryEntry(
     long AfterVersion,
     TriageState AfterState,
     Guid? AfterAssigneeId,
-    Guid? AfterLinkedCaseId);
+    Guid? AfterLinkedCaseId)
+{
+    /// <summary>
+    /// The operator-facing name for <see cref="Actor"/> — a raw staff subject id
+    /// on every current mutation path — resolved by <c>GetTriage</c>. Defaults to
+    /// the same honest fallback a missing account gets, so a caller that forgets
+    /// to populate it never renders the raw subject id.
+    /// </summary>
+    public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
+}
 
 public sealed record TriageSummary(
     Guid Id,
