@@ -4,13 +4,14 @@ type: ticket
 title: >-
   RPT-03 — Render Audit reports identically to Inspection reports with Audit
   reference provenance
-status: review
+status: verifying
 area: documents-reports
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:06:03.452Z'
   review: '2026-08-20T09:04:09.292Z'
+  verifying: '2026-08-20T09:12:54.093Z'
 taken_at: '2026-08-20T09:01:50.844Z'
 branch: task/tick-098-rpt-03-audit-report-parity
 worktree: ../pegasus-worktrees/tick-098
@@ -38,7 +39,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.682Z'
-updated: '2026-08-20T09:04:09.292Z'
+updated: '2026-08-20T09:12:54.093Z'
 ---
 
 ## What

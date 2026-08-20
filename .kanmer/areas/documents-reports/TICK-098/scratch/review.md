@@ -26,3 +26,5 @@ Reviewer is independent of the implementation.
 ## Verdict
 
 **Pass.** PR #466 may be merged into `dev` when authorised. It was deliberately not merged by this reviewer because no merge authorization was supplied. After an authorised merge, move TICK-098 one stage to Verifying and hand off to `kanmer-verify` for merged-main proof.
+
+2026-08-20 — PR #466 merged into `dev` as `b36c66662288adb0727299276f675337442a1e22` after final clean-merge, ancestry, check, and comment guards passed. Ticket moved to Verifying; branch and worktree retained for proof.

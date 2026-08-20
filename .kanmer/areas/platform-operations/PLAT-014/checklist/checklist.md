@@ -1,7 +1,7 @@
 # Checklist — PLAT-014
 
 - [ ] Update only the Windows branch of `Get-PegasusDatabaseState` to recognize the explicit, requested-instance LocalDB missing diagnostic while preserving all existing state, `Unknown`, Linux/Docker, and caller behavior.
-- [ ] Add `scripts/Test-PegasusPlatform.ps1` assertions for zero-exit requested-instance missing, wrong-instance missing, unrelated output, Running, Stopped, and non-zero missing outcomes without mutating LocalDB.
+- [ ] Add `scripts/Test-PegasusPlatform.ps1` assertions for zero-exit requested-instance missing, wrong-instance missing, unrelated output, Running, Stopped, contradictory state-plus-missing, and non-zero missing outcomes without mutating LocalDB.
 - [ ] Add an always-run `windows-latest` CI job that explicitly invokes `./scripts/Test-PegasusPlatform.ps1`, without adding conditional change-classification plumbing.
 - [ ] Run the focused PowerShell test plus the runbook's canonical locked restore, Release build, and non-corpus test commands; record exact results.
 - [ ] Run the required reuse, simplification, efficiency, and altitude pass over the branch diff and append dated findings/dispositions to plan.md.
