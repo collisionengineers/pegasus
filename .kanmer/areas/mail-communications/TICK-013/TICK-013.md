@@ -8,6 +8,9 @@ assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-20T05:43:44.797Z'
+  implementing: '2026-08-20T05:44:56.863Z'
+  review: '2026-08-20T05:45:12.206Z'
+  verifying: '2026-08-20T05:45:15.446Z'
 labels:
   - capability
   - MAIL-14
@@ -20,7 +23,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:53.026Z'
-updated: '2026-08-20T05:43:44.797Z'
+updated: '2026-08-20T05:45:15.504Z'
 ---
 
 ## What
