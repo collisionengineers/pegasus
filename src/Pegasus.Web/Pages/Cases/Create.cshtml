@@ -163,12 +163,7 @@ else
                 @* A rule that will override whatever the instruction says, so
                    it is a notice rather than a paragraph. *@
                 <aside class="notice">
-                    <p>
-                        This work provider uses Image Based Assessment: the inspection address is
-                        recorded as &ldquo;Image Based Assessment&rdquo; even if the instruction
-                        mentions a physical location. A physical address can be recorded on the
-                        case afterwards, with a reason.
-                    </p>
+                    <p>This work provider uses Image Based Assessment: the inspection address is recorded as &ldquo;Image Based Assessment&rdquo; even if the instruction mentions a physical location; a physical address can be added afterwards, with a reason.</p>
                 </aside>
             }
             else if (Model.AddressAlreadySettled)
@@ -210,11 +205,7 @@ else
             }
             else
             {
-                <p>
-                    Nothing in this file said where the vehicle is. Pegasus will not infer an address
-                    from a spreadsheet, geocoder or model, so enter the location yourself; it is
-                    retained as yours.
-                </p>
+                <p>Nothing in this file said where the vehicle is, so enter the location yourself; it is retained as yours.</p>
                 @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
                 {
                     <p class="failure-detail">The file offered more than one address, so none of them is being used:</p>

@@ -30,7 +30,45 @@ public sealed class DetailsModel(
     /// </summary>
     public IntakeReceipt? SourceReceipt { get; private set; }
 
-    public string OriginKindLabel => OperatorLabels.UnidentifiedOriginKind(Item.Origin.Kind);
+    /// <summary>
+    /// What the retained material is, classified the same way the Queues
+    /// page's Unidentified rows are (<see cref="UnidentifiedMediaKindPolicy"/>,
+    /// whose nullable overload also owns the no-receipt fallback) so a row
+    /// and its detail page never disagree.
+    /// </summary>
+    public UnidentifiedMediaKind MediaKind =>
+        UnidentifiedMediaKindPolicy.Classify(SourceReceipt?.SourceIdentity.Channel, SourceReceipt?.MediaType);
+
+    public string MediaKindLabel => OperatorLabels.UnidentifiedMediaKind(MediaKind);
+
+    /// <summary>
+    /// The operator-meaningful handle for the retained file or message this
+    /// item concerns: the original filename for an image or document, or the
+    /// subject and sender for an e-mail (formatted by the one shared rule,
+    /// <see cref="OperatorLabels.EmailHandle"/>). Never a GUID or internal
+    /// reference.
+    /// </summary>
+    public string Handle
+    {
+        get
+        {
+            if (SourceReceipt is not { } receipt)
+            {
+                return "Not available";
+            }
+
+            if (MediaKind == UnidentifiedMediaKind.Email)
+            {
+                var subject = receipt.Evidence
+                    .FirstOrDefault(item => item.Source == IntakeEvidenceSource.Subject)
+                    ?.Detail;
+                var sender = receipt.MailRouteDecision?.EffectiveSender?.Address;
+                return OperatorLabels.EmailHandle(subject, sender);
+            }
+
+            return receipt.SourceFileName;
+        }
+    }
 
     [BindProperty]
     public long ExpectedVersion { get; set; }
