@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Answer /Cases/Create without a receipt with the designed status page, not a
   500
-status: verifying
+status: done
 area: case-reference-workflow
 assignee: ''
 profile: fix
@@ -13,6 +13,7 @@ stageEntered:
   implementing: '2026-08-20T01:30:43.193Z'
   review: '2026-08-20T01:31:08.509Z'
   verifying: '2026-08-20T01:31:13.615Z'
+  done: '2026-08-20T01:31:25.968Z'
 labels:
   - ui
   - robustness
@@ -25,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T07:48:36.354Z'
-updated: '2026-08-20T01:31:13.615Z'
+updated: '2026-08-20T01:31:25.968Z'
 ---
 
 ## What
