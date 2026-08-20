@@ -42,3 +42,16 @@ Extraction runs over every fragment (email body + all attachment pages). Any lab
 ## Verification note on the ticket's first checkbox
 
 Re-running extraction over the real QDOS26002 document is a production action after merge (verify stage); fixtures use realistic text shapes derived from the existing fixture corpus and the recorded production provenance labels, per the no-fabricated-domain-data rule.
+
+## Simplification pass — 2026-08-20
+
+Lenses applied over the branch's own diff (reuse / simplification / efficiency / altitude):
+
+- **Reuse:** conflict narrowing reuses `ParseMileage`/`ParseDate` and a registration-shape check beside them; the VRM fallback follows the engine's existing zero-candidate special case (`Instruction date` default) rather than a new hook; resolution extends the existing candidate array with a fragment rank instead of a new type. Applied by construction.
+- **Abstraction check:** `IsValidTyped` joins `AcceptsValue` on the existing `FieldDefinition` record with five concrete wirings in the same commit — no speculative surface. A generic per-field "fallback finder" hook was considered for the VRM scan and rejected (one caller; the in-engine special case is the existing convention).
+- **Simplification:** the two-step label match (positioned bare label, else anywhere-label with explicit `:`/`-`) is written as two sequential `Regex.Match` calls rather than one alternation — chosen deliberately for readability; disposition: kept.
+- **Efficiency:** `TruncateAtFollowingFieldLabel` runs one small regex per known label over a single already-matched value (≤ ~30 labels, values are single lines, 100 ms timeouts) — a combined precompiled alternation was considered and rejected as premature for bounded input. No other findings.
+- **Altitude:** the current-format registration shape exists once as `CurrentFormatRegistrationRegex` (scan and validity check share it via two anchored variants); resolution rules live only in `ResolveConflictingCandidates`.
+- **Findings applied:** none outstanding.
+
+Verification: Release build 0 warnings / 0 errors; `Pegasus.Core.Tests` 706/706 (red-first: 8 new fixtures failed before implementation); focused `InstructionDraftWebTests` integration run noted in the post-implementation report.

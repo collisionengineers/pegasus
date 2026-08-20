@@ -1,0 +1,3 @@
+## Open
+
+- [ ] The four marks (`activity`, `brand`, `calendar`, `casefolder`) are recorded as supplied — in this ticket's body and in `docs/design/README.md` ("supplied and not yet placed") — but no asset files exist in the repository, in its git history, or in the ticket's board assets folder (`.kanmer/areas/platform-operations/PLAT-008/assets/`, which does not exist). Please provide the files (e.g. export `assets/icons/{activity,brand,calendar,casefolder}.png` from Claude Design project `710bb42f`, the recorded upstream source for the ten already-placed marks) so placement can proceed without redrawing or substituting them.
