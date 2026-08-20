@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Mailbox administration hides mailbox identifiers and adds addresses by email
   alone
-status: review
+status: verifying
 area: mail-communications
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-20T03:49:15.419Z'
   review: '2026-08-20T04:28:26.194Z'
+  verifying: '2026-08-20T06:12:58.799Z'
 taken_at: '2026-08-20T04:20:47.934Z'
 branch: task/mail-002-admin-no-identifiers
 worktree: ../pegasus-worktrees/mail-002
@@ -27,7 +28,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/451'
 archived: false
 created: '2026-08-20T03:16:37.641Z'
-updated: '2026-08-20T04:28:26.194Z'
+updated: '2026-08-20T06:12:58.799Z'
 ---
 
 ## What
