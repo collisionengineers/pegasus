@@ -1,4 +1,4 @@
-@model Pegasus.Web.Pages.Cases.DetailsModel
+﻿@model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Cases
 @using Pegasus.Core.Vehicle
 @using Pegasus.Web.Presentation
@@ -119,7 +119,7 @@
             @{ DataRow("Incident date", data?.Accident.IncidentDate, value => value.ToString("d MMM yyyy")); }
             @{ DataRow("Instruction date", data?.Instruction.InstructionDate, value => value.ToString("d MMM yyyy")); }
             @{ PlainRow("Received", OperatorLabels.OfficeTime(summary.ReceivedAtUtc)); }
-            @{ PlainRow("Origin", summary.Origin); }
+            @{ PlainRow("Origin", OperatorLabels.SourceChannel(summary.Origin)); }
         </div>
     </section>
 
@@ -195,7 +195,7 @@
         <h2 id="case-due-work-title" class="section-label">Chase history</h2>
         <dl class="detail-list">
             <div><dt>Reason</dt><dd>@dueWork.MissingMaterialReason</dd></div>
-            <div><dt>State</dt><dd>@dueWork.State</dd></div>
+            <div><dt>State</dt><dd>@OperatorLabels.Humanise(dueWork.State.ToString())</dd></div>
             <div><dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd></div>
             <div><dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd></div>
             <div><dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd></div>

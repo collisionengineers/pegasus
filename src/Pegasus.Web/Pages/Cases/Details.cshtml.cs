@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -166,7 +166,7 @@ public sealed partial class DetailsModel(
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
             TempData.Remove(ReleaseLeaseOperationKeyName);
-            TempData["CaseStatus"] = $"Edit mode is active until {lease.ExpiresAtUtc:u}.";
+            TempData["CaseStatus"] = $"Edit mode is active until {Presentation.OperatorLabels.OfficeTime(lease.ExpiresAtUtc)}.";
         }
         catch (StaffAuthorizationException)
         {
@@ -212,7 +212,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
-            TempData["CaseStatus"] = $"Edit mode was renewed until {lease.ExpiresAtUtc:u}.";
+            TempData["CaseStatus"] = $"Edit mode was renewed until {Presentation.OperatorLabels.OfficeTime(lease.ExpiresAtUtc)}.";
         }
         catch (StaffAuthorizationException)
         {
