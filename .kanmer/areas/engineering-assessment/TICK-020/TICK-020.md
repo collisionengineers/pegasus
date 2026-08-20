@@ -17,9 +17,11 @@ groups:
   - HZN-002
   - HZN-003
 links: []
+refs:
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:03:53.163Z'
-updated: '2026-08-17T06:40:49.203Z'
+updated: '2026-08-20T04:19:16.832Z'
 ---
 
 ## What

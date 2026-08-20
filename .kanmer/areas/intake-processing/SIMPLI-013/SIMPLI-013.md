@@ -22,9 +22,14 @@ links:
 blocks: []
 refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+commits:
+  - c7457628
+  - d999277d
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/449'
 archived: false
 created: '2026-08-13T14:38:42.313Z'
-updated: '2026-08-20T03:42:12.960Z'
+updated: '2026-08-20T04:19:06.314Z'
 ---
 
 ## What

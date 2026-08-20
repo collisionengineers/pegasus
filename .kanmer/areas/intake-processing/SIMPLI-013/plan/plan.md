@@ -26,3 +26,20 @@ The imported suites arrive as MSTest; the repo convention is xunit. They are con
 ## Simplification pass
 
 (to be recorded before the PR)
+
+## Simplification pass — 2026-08-20
+
+Run over the branch's own diff with two lenses: author self-review plus an independent `code-simplifier` agent (reuse, simplification, efficiency, altitude), scoped to the new application/test-support code (imported parser sources reviewed but not restructured — they carry the deliberate Phase A fixes only). Verified after fixes: Infrastructure and IntegrationTests builds zero warnings; DocumentExtraction suites 136/136.
+
+Applied (commit d999277d):
+1. `MimeKitPdfPigOpenXmlIntakeSourceReader.DocMsg.cs` — `SanitizeText(senderAddress)` computed twice; hoisted to a local and reshaped the guard to match the sibling `subject` block's `TryGetValue && !IsNullOrWhiteSpace` convention.
+2. Same file — replaced the one fully-qualified `System.Globalization.CultureInfo` with a using directive (dominant repo convention, incl. the sibling `MsgReader.cs`).
+3. `TextSanitation.ReplaceLoneSurrogates` — collapsed the duplicated detect-then-replace two-pass scan into one traversal with a lazily materialised `char[]`; same allocation profile (no array when clean), pair-skipping rule now stated once. Edge cases (lone high/low, trailing surrogate, `\uD800𐀀`) re-checked; covered by `ExtractLoneSurrogateInUnicodePieceIsReplacedAndVisible`.
+
+Considered, not applied (with reasons):
+4. Duplicated unreadable-container message strings in `ReadDoc`/`ReadMsgAsync` (catch + switch default) — hoisting would allocate the interpolated string on every successful read; a shared helper across the two methods would be an abstraction without a third caller.
+5. Unifying the two outcome switches — only the control-flow shape is shared; outcome enums, codes, and operator wording all differ. A delegate/parameter-object mapper would read worse (no-abstraction rail).
+6. `out bool replaced` on `ReplaceLoneSurrogates` looked dead from the adapter (`out _`) but has a genuine second caller (`WordBinaryExtractor` raising `doc-lone-surrogate-replaced`). Kept.
+7. `MsgFileBuilder` — left as is; layout logic each stated once; remaining nits are fixture-only micro-allocations not worth churn.
+
+Plan deviations noted during execution: step 4 (OperatorLabels) turned out to be unnecessary — issue reasons are self-carried sentences, matching the `pdf-engine`/`openxml-engine` precedent, and the fail-closed design introduces no new failure codes; the `CompoundFile` folder was renamed `Cfb` because the namespace segment collided with the `CompoundFile` type; imported test method names were de-underscored to satisfy the repo's enforced CA1707 convention.
