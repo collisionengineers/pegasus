@@ -4,12 +4,13 @@ type: ticket
 title: >-
   UI-14 — Detailed classified-email views with distinct Unidentified and Triage
   queues
-status: implementing
+status: review
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:48.884Z'
+  review: '2026-08-20T22:46:54.024Z'
 taken_at: '2026-08-20T22:09:11.799Z'
 branch: task/tick-057-ui-14-mail-queues
 worktree: ../pegasus-worktrees/tick-057
@@ -34,7 +35,7 @@ prs:
   - '491'
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-20T22:46:49.028Z'
+updated: '2026-08-20T22:46:54.024Z'
 ---
 
 ## What
