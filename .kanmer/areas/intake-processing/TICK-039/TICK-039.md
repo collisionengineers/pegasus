@@ -2,7 +2,7 @@
 id: TICK-039
 type: ticket
 title: INT-14 — Automated legacy DOC extraction
-status: verifying
+status: done
 area: intake-processing
 assignee: ''
 profile: feature
@@ -11,6 +11,7 @@ stageEntered:
   implementing: '2026-08-20T04:19:45.309Z'
   review: '2026-08-20T04:20:10.430Z'
   verifying: '2026-08-20T04:46:39.891Z'
+  done: '2026-08-20T12:48:05.549Z'
 labels:
   - capability
   - INT-14
@@ -20,9 +21,12 @@ links:
   - SIMPLI-013
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+prs:
+  - '449'
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.571Z'
-updated: '2026-08-20T04:46:39.891Z'
+updated: '2026-08-20T12:48:05.549Z'
 ---
 
 ## What

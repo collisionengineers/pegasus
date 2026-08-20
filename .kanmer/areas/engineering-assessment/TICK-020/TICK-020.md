@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-20T04:25:34.367Z'
   verifying: '2026-08-20T04:41:52.854Z'
   done: '2026-08-20T12:47:25.773Z'
-taken_at: '2026-08-20T04:19:27.713Z'
-branch: task/tick-020-ext-01-completion
-worktree: ../pegasus-worktrees/tick-020
 labels:
   - capability
   - EXT-01
@@ -34,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.163Z'
-updated: '2026-08-20T12:47:25.773Z'
+updated: '2026-08-20T12:47:29.192Z'
 ---
 
 ## What
