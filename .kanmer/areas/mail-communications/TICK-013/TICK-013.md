@@ -2,7 +2,7 @@
 id: TICK-013
 type: ticket
 title: MAIL-14 — Detect an exact Outlook Sent item as report-sent evidence
-status: preparing
+status: done
 area: mail-communications
 assignee: ''
 profile: feature
@@ -11,6 +11,7 @@ stageEntered:
   implementing: '2026-08-20T05:44:56.863Z'
   review: '2026-08-20T05:45:12.206Z'
   verifying: '2026-08-20T05:45:15.446Z'
+  done: '2026-08-20T05:46:23.320Z'
 labels:
   - capability
   - MAIL-14
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:03:53.026Z'
-updated: '2026-08-20T05:45:15.504Z'
+updated: '2026-08-20T05:46:23.320Z'
 ---
 
 ## What

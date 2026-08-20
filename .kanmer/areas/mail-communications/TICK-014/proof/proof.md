@@ -1,0 +1,10 @@
+# Proof — MAIL-16 (VERIFY2, 2026-08-20) — written against merged origin/main, production release 13 = 2325ed4a
+
+- **File presence on origin/main (2325ed4a ancestor path):** auto-link branch in `src/Pegasus.Core/Workflow/PollSentEvidence.cs` (`HandleItemAsync` ~L479–524: retain via `retainReportEvidence.ExecuteAsync`; exactly-one case identity → `autoLinkReportEvidence.ExecuteAsync` → `ReportEvidenceAutoLinked`; ambiguous → retained unlinked/`Ambiguous`); `CaseReportSentEvidence` table from migration `20260729160000_CaseWorkflowRuntime.cs`; tests `PollSentEvidenceTests.ExactCaseIdentityAutoLinksRetainedReportEvidence`, `IneligibleExactCaseRetainsReportEvidenceVisibleAndUnlinked`, `AmbiguousCaseIdentitiesRetainOneVisibleUnlinkedReportItem`, `AutoLinkReportEvidenceTests` — confirmed via `git ls-tree origin/main`.
+- **FRD conformance:** auto-link fires only for exactly one authoritative case identity; ambiguous/absent matches remain unconfirmed for the staff manual path — matching `docs/frd/frd-08-email-mailbox-and-background-processing.md#outbound-correspondence-evidence` verbatim ("When automatic matching is absent, ambiguous, late, duplicated, or conflicting, the item remains unconfirmed…").
+- **Live production readback (read-only SQL, 2026-08-20):** same live poll instance as [[TICK-013]] (`LastCompletedAtUtc = 2026-08-20 05:39:15Z`, no failure code). `CaseReportSentEvidence` = 0 rows; 1 historical `Unmatched` outcome.
+
+**Residuals (named):**
+1. The auto-match branch has never fired against real traffic — no report has ever been sent through the approved mailbox, so there are zero live auto-links. The code path is deployed, polling, and unit-tested; live exercise awaits the first genuine report send. Expected business state, not a defect.
+2. The case auto-link path has unit coverage only (integration suite covers the Triage reply path + lease/cursor durability) — candidate for a future test ticket.
+3. Shares [[TICK-013]]'s residuals (MAIL-003 hardening on dev only; approval not recorded in runbook).
