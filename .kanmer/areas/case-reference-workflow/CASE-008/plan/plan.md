@@ -9,3 +9,14 @@ Branch `task/case-008-auto-vehicle-lookup` from origin/dev, worktree `../pegasus
 5. **Tests**: store-level sweep tests (enqueues on Fact registration; skips already-requested, archived, terminal, invalid; second run enqueues nothing; corrected registration enqueues one new); assessment web test asserting prefilled values; suites: CaseVehicleWebTests, VehicleWorkflowTerminalTests, new file, assessment web slice; Release build 0/0.
 
 Acceptance: ticket's "How to verify". Deviation: subagents barred — self-review recorded.
+
+## Simplification pass — 2026-08-20 (self, subagents barred)
+
+Lenses over `origin/dev...HEAD` (10 files, +564/−19):
+
+- **Reuse** — the sweep reuses the staff path's row shapes, fingerprint, `VehicleLookupRequest` validation, `ActionActor.Automation`, the existing dispatch timer, external-work queue and lookup processor; prefill reuses `IVehicleEvidenceQueries` and `CaseAssessmentProjection.Field`. No new tables, no migration, no new app settings. ✔ nothing to apply.
+- **Simplification** — one deliberate divergence recorded: `EnqueueAutomaticAsync` opens its own context per case so a failed insert can't poison the batch's change tracker; the sweep is a reconcile loop, matching `ReconcileGroupedImageIntake`'s per-candidate isolation. ✔ nothing further.
+- **Efficiency** — one candidate query + one existing-request query per pass; per-case inserts only for new pairs; batch-capped at 50 on the existing timer. ✔.
+- **Altitude** — availability gating sits in Core (`ReconcileAutomaticVehicleLookups`), row mechanics in the store, labels in the view; the staff path's Confirmed-only invariant is untouched. ✔.
+
+No BOM/whitespace drift vs dev (checked byte-wise). All findings applied; none deferred.
