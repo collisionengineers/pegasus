@@ -36,3 +36,9 @@ pipeline was never walked; it cannot advance past `preparing` under its
 `fix` profile gates (`files`, `plan` required to leave Preparing) without
 those documents being written, which is outside this proof-writing pass's
 scope.
+
+## Live production readback — 2026-08-20 01:31Z
+
+Signed-in fetch of `/Cases/Create` (no receiptId) against the deployed
+release-13 revision returned **`{"status":404}`** — the designed status page,
+not a 500. Verification item satisfied on the running estate, not only in tests.
