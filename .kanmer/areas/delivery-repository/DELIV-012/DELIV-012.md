@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Release 12: quality-review every post-release-10 ticket, integrate all open
   PRs, restore git hygiene, deploy and verify production
-status: implementing
+status: verifying
 area: delivery-repository
 assignee: claude-code
 profile: custom
@@ -22,6 +22,8 @@ requires:
     - questions-resolved
 stageEntered:
   preparing: '2026-08-19T12:12:51.866Z'
+  review: '2026-08-20T01:24:04.681Z'
+  verifying: '2026-08-20T01:24:10.331Z'
 taken_at: '2026-08-19T13:09:02.340Z'
 branch: task/deliv-012-release-12
 worktree: ../pegasus-worktrees/deliv-012-release-12
@@ -39,7 +41,7 @@ refs:
   - docs/operations.md
 archived: false
 created: '2026-08-19T12:12:34.359Z'
-updated: '2026-08-19T13:09:02.340Z'
+updated: '2026-08-20T01:24:10.331Z'
 ---
 
 ## What

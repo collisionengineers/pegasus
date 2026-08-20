@@ -83,3 +83,62 @@ Previous digest `sha256:4bd50f66…` and suffix `d8de29cb94f3` re-provision the
 release-10 revision; the release-10 worker package redeploys by config-zip; the
 eight migrations are additive with no-op backfills verified on production data
 beforehand (0 estimate lines, 0 duplicate canonical Message-IDs, 12 receipts).
+
+---
+
+# Appendix — Release 13 (the operator-review remediation release)
+
+The operator reviewed deployed release 12 live and reported six defects (their
+verbatim words are in the tickets). All six were fixed, independently reviewed,
+merged, and deployed as release 13 the same night, with the same authorisation
+discipline: **MERGE AUTH GRANTED** for `2325ed4a31d7dad65a00a7ae5ea0c41ca869bfa5`
+and the four Azure writes approved via the question tool.
+
+## Promotion and deployment readbacks
+
+| Item | Evidence |
+|---|---|
+| Promotion | `ed3be51c..2325ed4a`; readback `main == dev == 2325ed4a…`; PR #435 lane set 11/11 SUCCESS on that exact SHA |
+| Image | digest `sha256:7efa46fdc21d6c308a516038cf726b19c922e0c6fc5af0e506496c0c6d0846e3` — ACR readback equals the manifest |
+| Migration | one, grant-only: head readback `20260819234014_GrantWorkerIntakeSubmissionGroupRead`; `sys.database_permissions` readback shows `pegasus_worker_runtime_role` SELECT on `IntakeSubmissionGroups` (the gap INTK-011 proved) |
+| Bootstrap | **498 catalogued rows / 334 effective DML rows verified** |
+| Provision preview | **byte-identical to release 12's stored preview except `revisionSuffix ed3be51c95bc → 2325ed4a31d7`** |
+| Web revision | `--2325ed4a31d7` Healthy, 100 % traffic; `/diagnostics/version` → `2325ed4a…` |
+| Worker | deployment `5d8da582` active/success `01:16:33–01:17:41Z`; Sent poll readback advancing on the new package (`Last completed 2026-08-20 01:19:45Z` on the admin page) |
+| Smoke | `Invoke-ProductionSmoke` **exit 0** |
+| Manifest | SHA-256 `E40933DE331BB92765B94E1D8FA25FA5E613E437FAB634C84545100F2D88E628` |
+
+## The operator's six defects, verified fixed in production (signed-in browser)
+
+1. **Mailboxes giant box** — compact one-row policy table, edit panel below,
+   no banner, route-scope labels de-jargoned ("New instructions and Triage
+   mail (Inbox)"). Screenshot `release13-mailboxes.png`.
+2. **UI narration** — swept estate-wide; the Upload page now returns
+   `hasReceiptCopy=false, hasIntake=false` from a DOM text probe.
+3. **Unidentified slop** — now a **Queues tab** (`Not ready 1 · Review 0 ·
+   Held 0 · Triage 0 · Unidentified 6`) with **All/Images/E-mails** filters and
+   one-line rows: `U1 | E-mail | (No subject) — from nduncombe@qdosassist.co.uk
+   | 12 Aug 2026 15:26 | No usable identification`. No GUIDs, no "intake" —
+   and both properties are regression-tested. Screenshot
+   `release13-queues-unidentified.png`.
+4. **Not-ready origin filters** — Instruction-initiated / Image-initiated,
+   live on the tab.
+5. **Drag-and-drop** — the whole upload panel is the drop target
+   (`panelIsDropTarget=true` verified in the deployed DOM); a stray drop can no
+   longer navigate the tab away.
+6. **The vanished images** — root cause was a swallowed sequence-contention
+   race (INTK-011, 36/36 concurrency trials green). **The stranded production
+   JPEG was recovered by the product's own reconciliation as `U6`**
+   (`OriginId = 5b4c8cbd…` readback), via the >2h escalation branch — honest
+   note: the ticket's ideal was absorption into `G6KDL-01`, but this member
+   predated the fix by more than the escalation bound; it is now visible,
+   referenced, and staff-resolvable into the case, where before it was
+   invisible. Future race victims within the bound are re-driven into their
+   group's outcome.
+
+## End state (the original request, finally exact)
+
+`origin`: `main`, `dev`, `kanmer-board`. Local: the same three. Worktrees: the
+main checkout and `.worktrees/kanmer` (the release-13 worktree removed at
+closeout). Open PRs: 0 after the release-13 docs PR (#436) merges. `main` =
+release 13; `dev` = `main` + the docs row, riding the next release by policy.
