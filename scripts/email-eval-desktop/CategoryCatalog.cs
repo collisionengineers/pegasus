@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.EmailEvaluation.Desktop;
 
@@ -7,15 +7,14 @@ public sealed record EmailCategory(string Family, string Name)
     public string DisplayName => $"{Family} / {Name}";
 }
 
+/// <summary>
+/// The reviewer-facing taxonomy, sourced from the same settled mailbox taxonomy
+/// Pegasus.Core owns (<see cref="MailTaxonomy"/>) rather than a standalone copy —
+/// one list per concept. Reply is context on its underlying category (ADR-0016)
+/// and never becomes a third family here.
+/// </summary>
 public sealed class CategoryCatalog
 {
-    private static readonly Regex FamilyRegex = new(
-        "^\\s*[12]\\.\\s+(Received|Sent)\\s*$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-    private static readonly Regex CategoryRegex = new(
-        "^\\s*-\\s+([^\\[]+?)(?:\\s*\\[.*)?\\s*$",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant);
-
     public CategoryCatalog(IReadOnlyList<EmailCategory> categories)
     {
         Categories = categories;
@@ -29,48 +28,13 @@ public sealed class CategoryCatalog
 
     public IReadOnlyList<EmailCategory> Categories { get; }
 
-    public static CategoryCatalog Load(string repositoryRoot)
+    public static CategoryCatalog Load()
     {
-        var path = Path.Combine(repositoryRoot, "docs", "reference", "CollisionSPikeCurrenttree.txt");
-        if (!File.Exists(path))
-        {
-            throw new FileNotFoundException("The retained email taxonomy could not be found.", path);
-        }
-
-        var categories = new List<EmailCategory>();
-        string? family = null;
-        var inCategorySection = false;
-        foreach (var line in File.ReadLines(path))
-        {
-            var familyMatch = FamilyRegex.Match(line);
-            if (familyMatch.Success)
-            {
-                family = familyMatch.Groups[1].Value;
-                inCategorySection = true;
-                continue;
-            }
-
-            if (line.TrimStart().StartsWith("3.", StringComparison.Ordinal))
-            {
-                inCategorySection = false;
-                continue;
-            }
-
-            if (family is null || !inCategorySection)
-            {
-                continue;
-            }
-
-            var categoryMatch = CategoryRegex.Match(line);
-            if (categoryMatch.Success)
-            {
-                var name = categoryMatch.Groups[1].Value.Trim();
-                if (!string.IsNullOrWhiteSpace(name))
-                {
-                    categories.Add(new(family, name));
-                }
-            }
-        }
+        var categories = Enum.GetValues<ReceivedMailFamily>()
+            .Select(family => new EmailCategory("Received", MailTaxonomy.CategoryName(family)))
+            .Concat(Enum.GetValues<SentMailFamily>()
+                .Select(family => new EmailCategory("Sent", MailTaxonomy.CategoryName(family))))
+            .ToList();
 
         return new CategoryCatalog(categories);
     }

@@ -150,6 +150,55 @@ public sealed class TriageQueuesWebTests
         Assert.Equal(badgeCount, int.Parse(tileMatch.Groups[1].Value, CultureInfo.InvariantCulture));
     }
 
+    /// <summary>
+    /// TICK-065 (INT-32): the Not ready tab's Image-initiated table renders a
+    /// derived chase-state column (<c>ImageIntakeChaseSchedule</c>) alongside
+    /// the existing Received column. A record registered moments ago is well
+    /// inside the seven-day window, so it must read "Not yet due" rather than
+    /// "Chase due" — the boundary itself is covered at the Core level
+    /// (<c>ImageIntakeChaseScheduleTests</c>).
+    /// </summary>
+    [Fact]
+    public async Task NotReadyImageTableRendersChaseColumnForARecentRegistration()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var imageUpload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "vehicle.png",
+            "image/png",
+            TinyPng,
+            Guid.NewGuid().ToString("N"));
+        var imageReceiptId = IntakeWebDriver.ReceiptId(imageUpload);
+        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
+        var register = services.GetRequiredService<IRegisterImageIntake>();
+        var origin = await resolver.ResolveOriginAsync(imageReceiptId, CancellationToken.None);
+        var imageIntake = await register.ExecuteAsync(
+            new(
+                origin!,
+                "CD34EFG",
+                StaffActor(),
+                $"image-intake-register:{Guid.NewGuid():N}",
+                "Staff confirmed the registration from the retained image."),
+            CancellationToken.None);
+
+        using var response = await client.GetAsync("/Triage?queue=not_ready&origin=image");
+        var html = await response.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Contains(imageIntake.ImageIntakeReference, html, StringComparison.Ordinal);
+        Assert.Contains("Chase", html, StringComparison.Ordinal);
+        Assert.Contains("Not yet due", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Chase due", html, StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task UnidentifiedRouteRedirectsPermanentlyToTheQueuesTab()
     {

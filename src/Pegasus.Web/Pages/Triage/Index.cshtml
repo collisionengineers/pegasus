@@ -253,6 +253,7 @@ else
                             <th scope="col">Registration</th>
                             <th scope="col">Status</th>
                             <th scope="col">Received</th>
+                            <th scope="col">Chase</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -263,6 +264,12 @@ else
                             <td>@item.NormalizedVehicleRegistration</td>
                             <td>@OperatorLabels.ImageIntakeLifecycleState(item.State)</td>
                             <td><time datetime="@item.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.RegisteredAtUtc)</time></td>
+                            <td>
+                                @* Awaiting instruction is a derived read from RegisteredAtUtc,
+                                   not a persisted state (see ImageIntakeChaseSchedule): there is
+                                   no held/stopped chase machinery for the image half. *@
+                                <partial name="Shared/_StatusChip" model="@Pegasus.Web.Presentation.OperatorLabels.ImageChaseState(Model.IsImageIntakeChaseDue(item.RegisteredAtUtc))" />
+                            </td>
                         </tr>
                     }
                     </tbody>

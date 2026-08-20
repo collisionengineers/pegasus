@@ -33,14 +33,13 @@
     {
         <div class="table-wrap">
             <table>
-                <caption class="vh">Versioned approved-mailbox policies</caption>
+                <caption class="vh">Approved-mailbox policies</caption>
                 <thead>
                     <tr>
                         <th scope="col">Address</th>
                         <th scope="col">Route scope</th>
                         <th scope="col">State</th>
                         <th scope="col">Polling</th>
-                        <th scope="col">Version</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -51,7 +50,6 @@
                         <td>@string.Join(", ", mailbox.RouteScopes.Select(Pegasus.Web.Presentation.OperatorLabels.RouteScope))</td>
                         <td><partial name="Shared/_StatusChip" model="@mailbox.State.ToString()" /></td>
                         <td>@Model.PollStatusFor(mailbox)</td>
-                        <td class="tabular">@mailbox.Version</td>
                     </tr>
                 }
                 </tbody>
@@ -80,23 +78,8 @@
                         Approved address
                         <input name="Address" value="@Model.AddressFor(mailbox)" required maxlength="320" inputmode="email" readonly="@mailbox.IdentityIsBound" />
                     </label>
-                    @* Once an identity is saved it is the primary key of this
-                       mailbox's cursor row, so rebinding it would orphan or
-                       alias that cursor. Saved identities are shown, not edited. *@
-                    <label>
-                        Mailbox identity
-                        <input name="MailboxIdentity" value="@Model.MailboxIdentityFor(mailbox)" maxlength="100" spellcheck="false" readonly="@(mailbox.MailboxIdentity is not null)" />
-                    </label>
-                    <label>
-                        Inbox folder identity
-                        <input name="InboxFolderIdentity" value="@Model.InboxFolderIdentityFor(mailbox)" maxlength="200" spellcheck="false" readonly="@(mailbox.InboxFolderIdentity is not null)" />
-                    </label>
-                    <label>
-                        Sent folder identity
-                        <input name="SentFolderIdentity" value="@Model.SentFolderIdentityFor(mailbox)" maxlength="200" spellcheck="false" readonly="@(mailbox.SentFolderIdentity is not null)" />
-                    </label>
                     <fieldset class="role-choices role-choices--stacked">
-                        <legend>Read-only route scope</legend>
+                        <legend>Route scope</legend>
                         <label class="choice">
                             <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsRouteSelected(mailbox, ApprovedMailboxRouteScope.InboundIntake)" />
                             <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.InboundIntake)</span>
@@ -137,21 +120,8 @@
                 Approved address
                 <input name="Address" value="@Model.NewAddress" required maxlength="320" inputmode="email" />
             </label>
-            <p class="field-hint">Identities cannot be changed once saved: disable this row and add a new one to move a mailbox.</p>
-            <label>
-                Mailbox identity
-                <input name="MailboxIdentity" value="@Model.NewMailboxIdentity" maxlength="100" spellcheck="false" />
-            </label>
-            <label>
-                Inbox folder identity
-                <input name="InboxFolderIdentity" value="@Model.NewInboxFolderIdentity" maxlength="200" spellcheck="false" />
-            </label>
-            <label>
-                Sent folder identity
-                <input name="SentFolderIdentity" value="@Model.NewSentFolderIdentity" maxlength="200" spellcheck="false" />
-            </label>
             <fieldset class="role-choices role-choices--stacked">
-                <legend>Read-only route scope</legend>
+                <legend>Route scope</legend>
                 <label class="choice">
                     <input type="checkbox" name="SelectedRouteScopes" value="InboundIntake" checked="@Model.IsNewRouteSelected(ApprovedMailboxRouteScope.InboundIntake)" />
                     <span>@Pegasus.Web.Presentation.OperatorLabels.RouteScope(ApprovedMailboxRouteScope.InboundIntake)</span>

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Azure.Core;
 using MimeKit;
+using Microsoft.Extensions.Logging;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
@@ -25,7 +26,19 @@ public sealed record GraphApprovedMailboxOptions(
         string? mailboxId,
         string? mailboxAddress,
         string? inboxFolderId,
-        string? sentFolderId)
+        string? sentFolderId) => new(
+        ParseBaseUri(baseUri),
+        Require(mailboxId, "Graph:MailboxId", 200),
+        ApprovedMailboxAddress.Normalize(Require(mailboxAddress, "Graph:MailboxAddress", 320)),
+        Require(inboxFolderId, "Graph:InboxFolderId", 500),
+        Require(sentFolderId, "Graph:SentFolderId", 500));
+
+    /// <summary>
+    /// Shared with <see cref="GraphApprovedMailboxResolver"/>'s composition: one place
+    /// validates that a configured Graph base URI is the real Microsoft Graph HTTPS
+    /// endpoint, whether the caller also needs a fixed polling mailbox or not.
+    /// </summary>
+    internal static Uri ParseBaseUri(string? baseUri)
     {
         if (!Uri.TryCreate(baseUri, UriKind.Absolute, out var parsedBaseUri)
             || parsedBaseUri.Scheme != Uri.UriSchemeHttps
@@ -34,12 +47,7 @@ public sealed record GraphApprovedMailboxOptions(
             throw new InvalidOperationException("Graph:BaseUri must be the Microsoft Graph HTTPS endpoint.");
         }
 
-        return new(
-            EnsureTrailingSlash(parsedBaseUri),
-            Require(mailboxId, "Graph:MailboxId", 200),
-            ApprovedMailboxAddress.Normalize(Require(mailboxAddress, "Graph:MailboxAddress", 320)),
-            Require(inboxFolderId, "Graph:InboxFolderId", 500),
-            Require(sentFolderId, "Graph:SentFolderId", 500));
+        return EnsureTrailingSlash(parsedBaseUri);
     }
 
     private static Uri EnsureTrailingSlash(Uri value) =>
@@ -56,6 +64,79 @@ public sealed record GraphApprovedMailboxOptions(
             throw new InvalidOperationException($"{key} is required and must be a valid exact identity.");
         }
         return value.Trim();
+    }
+}
+
+/// <summary>
+/// Resolves an address to its exact Graph mailbox and well-known folder identities for
+/// the mailbox-administration "add an address" flow. Independent of
+/// <see cref="GraphApprovedMailboxOptions"/> — that type names one fixed polling
+/// mailbox; this resolves any address the tenant directory recognizes. A 404 (address not
+/// in the tenant) or any other transport/authorization failure both resolve to null: the
+/// caller fails closed either way, and never learns which one happened.
+/// </summary>
+internal sealed partial class GraphApprovedMailboxResolver(
+    TokenCredential credential,
+    Uri baseUri,
+    HttpClient httpClient,
+    ILogger<GraphApprovedMailboxResolver> logger) : IResolveApprovedMailboxIdentity
+{
+    private static readonly TokenRequestContext TokenContext =
+        new(["https://graph.microsoft.com/.default"]);
+
+    public async Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
+        string address,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(address);
+        try
+        {
+            var mailboxId = await GetIdAsync(
+                new Uri(baseUri, $"users/{Uri.EscapeDataString(address)}?$select=id"),
+                cancellationToken);
+            if (mailboxId is null)
+            {
+                return null;
+            }
+
+            var inboxId = await GetIdAsync(
+                new Uri(baseUri, $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/inbox?$select=id"),
+                cancellationToken);
+            var sentId = await GetIdAsync(
+                new Uri(baseUri, $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/sentitems?$select=id"),
+                cancellationToken);
+            return inboxId is null || sentId is null
+                ? null
+                : new ApprovedMailboxIdentityResolution(mailboxId, inboxId, sentId);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            LogResolutionFailed(logger, exception);
+            return null;
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Approved-mailbox address resolution failed.")]
+    private static partial void LogResolutionFailed(ILogger logger, Exception exception);
+
+    private async Task<string?> GetIdAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        return document.RootElement.TryGetProperty("id", out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString()
+                : null;
     }
 }
 
