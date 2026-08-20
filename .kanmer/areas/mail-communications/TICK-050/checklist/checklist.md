@@ -6,4 +6,4 @@
 - [x] Add focused Core and authenticated Web evidence for eligible, absent, re-derived and delegation behavior.
 - [x] Update capabilities/current architecture only to local evidence; no deployment/live claim.
 - [x] Run focused/proportional verification, diff checks and four simplification lenses.
-- [ ] Write PIR/traceability, push one PR to `dev`, move exactly to Review and hand off to `kanmer-review`.
+- [x] Write PIR/traceability, push one PR to `dev`, move exactly to Review and hand off to `kanmer-review`.

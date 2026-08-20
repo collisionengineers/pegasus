@@ -39,3 +39,9 @@ The dated plan records all four lenses with no unapplied finding. The advisory i
 ## Handoff
 
 Commit/PR traceability will be appended after publication. Independent review should verify the optional Core projection, the absence paths and that the existing POST remains the only mutation route. Deployment and the separately accepted read-only production viewer check are not claimed.
+
+## Commit and pull request
+
+- `75c9f3a0576b73c722c03b6e1a71b39205711602` — derive the optional suggested Move and render it through MAIL-07.
+- PR #480 targets `dev`: https://github.com/collisionengineers/pegasus/pull/480
+- Replacement CI run 32401331139 started after the push and remains for independent review.
