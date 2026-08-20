@@ -736,8 +736,11 @@ internal sealed class EfRetainedMailboxMessageStore(
                         ? null
                         : EfIntakeReceiptStore.ParseDecision(receipt.Decision),
                     receipt?.Id,
-                    linkedCase?.CaseId,
-                    linkedCase?.Reference,
+                    // The manual acceptance route writes a CaseIntakeLinks row;
+                    // the automatic allocation route records its created case on
+                    // the succeeded attempt instead. Either one is the case.
+                    linkedCase?.CaseId ?? allocationState?.CaseId,
+                    linkedCase?.Reference ?? allocationState?.CaseReference,
                     allocationState,
                     row.SearchMatches,
                     row.CurrentFolderType is null

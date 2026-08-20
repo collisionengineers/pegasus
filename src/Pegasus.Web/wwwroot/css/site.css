@@ -2394,3 +2394,5 @@ label.req::after { content: " *"; color: var(--ce-red); }
 .damage-region { min-height: 44px; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; }
 .damage-region:hover { border-color: var(--charcoal); }
 .damage-region[aria-pressed="true"] { background: var(--ce-red); border-color: var(--ce-red); color: #fff; font-weight: 600; }
+/* MAIL-005: the Inbox outcome cell aligns its chip and case link on one row. */
+.outcome-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }

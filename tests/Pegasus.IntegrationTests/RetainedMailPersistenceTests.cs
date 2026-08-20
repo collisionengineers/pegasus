@@ -432,6 +432,61 @@ public sealed class RetainedMailPersistenceTests
         Assert.Null(summary.CaseId);
     }
 
+    /// <summary>
+    /// MAIL-005: the automatic allocation route records its created case on the
+    /// succeeded attempt and writes no CaseIntakeLinks row — the summary must
+    /// still resolve the case, so the Inbox never shows an allocated message
+    /// as waiting for allocation.
+    /// </summary>
+    [Fact]
+    public async Task ASucceededAllocationAttemptResolvesTheCaseWithoutALinkRow()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("message-1");
+        await RetainAsync(database, message);
+
+        var stored = await database.StoreAsync(new(
+            SourceFileName: "message-1.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: new string('A', 64),
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, message.ExternalReceiptToken),
+            ReceivedAtUtc: ReceivedAtUtc,
+            ProcessedAtUtc: ReceivedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.CaseCreated,
+            DecisionReason: "Fixture allocation-eligible instruction.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: []));
+
+        var caseId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {stored.Id}, {1L}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {false}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {"mail-005-fixture"}, {new string('B', 64)}, {"Automatic allocation fixture."}, {ReceivedAtUtc}, {ReceivedAtUtc}, {caseId}, {"QDOS26099"})");
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var page = await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
+
+        var summary = Assert.Single(page.Items);
+        Assert.Equal(caseId, summary.CaseId);
+        Assert.Equal("QDOS26099", summary.CaseReference);
+        Assert.Equal("Case created", Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary));
+    }
+
     [Fact]
     public async Task CorrectionIsAtomicAppendOnlyAndProtectedFromAutomatedReevaluation()
     {
