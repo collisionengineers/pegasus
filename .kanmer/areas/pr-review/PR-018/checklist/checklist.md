@@ -1,6 +1,7 @@
-# Checklist — PR-018
+# Checklist — PR-018 re-review
 
-- [x] Persist attachment ordinal in the existing projection/migration.
-- [x] Use ordinal for retained and Deleted searchability/matches.
-- [x] Add duplicate-filename evidence and run focused checks.
-- [x] Record simplification, PIR/traceability and move to Review.
+- [x] Persist and correlate the existing attachment ordinal.
+- [ ] Preserve nameless display attachment occurrences in the same ordinal domain.
+- [ ] Render retained per-attachment `IsSearchable` disclosure.
+- [ ] Prove nameless-before-named identity and rendered disclosure.
+- [ ] Run focused checks, update simplification/PIR, and move back to Review.

@@ -1,6 +1,6 @@
-# Checklist — PR-017
+# Checklist — PR-017 re-review
 
 - [x] Expose canonical approved mailbox refinements for Deleted scope.
-- [x] Add zero-retained-row mailbox evidence.
-- [x] Run focused checks and record simplification.
-- [x] Write PIR/traceability and move to Review.
+- [ ] Prove a zero-retained-row approved mailbox is rendered/selectable through authenticated `/Inbox`.
+- [ ] Run focused caller verification and record updated simplification/PIR.
+- [ ] Move back to Review.

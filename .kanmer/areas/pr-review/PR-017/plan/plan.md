@@ -16,3 +16,11 @@ FRD-08 mailbox refinement is supplied from the canonical approved estate; retain
 - Simplification: no second mailbox query service or persisted list.
 - Efficiency: one approved-estate read for Deleted tabs.
 - Altitude: Web selects the correct existing source by folder; authorization remains in Core.
+
+## Re-review completion plan
+
+Add the authenticated `/Inbox` evidence in [[PR-025]]'s single existing Web test file, then rerun the focused caller test. Estimated incremental diff: shared test, no production lines.
+
+## Governing docs
+
+This closes FRD-08's caller-evidence gap without changing mailbox ownership.

@@ -8,3 +8,7 @@
 | `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs`, `ProductionGraphSourceTests.cs` | Empty approved mailbox scope evidence. |
 
 Context: retained mailbox listing remains unchanged for Inbox/Sent. Out of scope: invented retained rows.
+
+## Re-review file delta
+
+- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` — add the missing authenticated zero-retained-row mailbox caller proof. No production file changes.

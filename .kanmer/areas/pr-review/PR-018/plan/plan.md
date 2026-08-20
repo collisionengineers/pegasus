@@ -16,3 +16,16 @@ FRD-08's per-attachment searchable/unsupported disclosure becomes exact without 
 - Simplification: one nullable ordinal carries exact identity; no second parser, projection, table, or backfill.
 - Efficiency: ordinal sets replace filename sets and preserve the existing query shape.
 - Altitude: identity is produced by Core's projection contract, persisted by Infrastructure, and only labelled by Web.
+
+## Re-review completion plan
+
+1. Reuse the existing display-reader attachment enumeration but replace its nameless `continue` with a deterministic `Unnamed attachment N` label, preserving every occurrence in order.
+2. Add a Search content column to the existing retained attachment table using `RetainedMailAttachment.IsSearchable`.
+3. Prove a nameless attachment before a named attachment does not shift the named occurrence, and prove per-row disclosure in authenticated detail.
+4. Run focused checks and update four-lens/PIR evidence.
+
+Estimated incremental diff: four existing files, under 100 lines.
+
+## Governing docs
+
+FRD-08's honest per-attachment searchable/unsupported disclosure is rendered without changing retention history.

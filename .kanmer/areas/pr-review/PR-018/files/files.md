@@ -8,3 +8,13 @@
 | `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `ProductionGraphSourceTests.cs` | Duplicate-filename evidence. |
 
 Context: attachment ordinal is already canonical in retained metadata. Out of scope: new identity/store.
+
+## Re-review file delta
+
+| Path | Change / risk |
+|---|---|
+| `src/Pegasus.Infrastructure/Intake/LocalEmailDisplayReader.cs` | Keep nameless attachment occurrences so display/persisted ordinals do not shift. |
+| `src/Pegasus.Web/Pages/Mail/Message.cshtml` | Render `IsSearchable` per retained attachment. |
+| `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`, `MailWorkspaceWebTests.cs` | Prove nameless-before-named identity and rendered disclosure. |
+
+No schema, second parser/projection/store, or backfill.
