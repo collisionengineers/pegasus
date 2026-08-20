@@ -2,12 +2,13 @@
 id: PLAT-017
 type: ticket
 title: 'Wipe all test case, intake, image and mail data from the Azure estate'
-status: implementing
+status: review
 area: platform-operations
 assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-20T19:59:21.680Z'
+  review: '2026-08-20T20:01:10.363Z'
 taken_at: '2026-08-20T19:59:28.047Z'
 branch: n/a-operations
 worktree: n/a-operations
@@ -20,7 +21,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-20T19:59:01.329Z'
-updated: '2026-08-20T19:59:28.047Z'
+updated: '2026-08-20T20:01:10.363Z'
 ---
 
 ## Why
