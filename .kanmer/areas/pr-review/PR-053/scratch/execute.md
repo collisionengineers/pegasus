@@ -1,0 +1,1 @@
+Implemented on PR #491 branch: removed only the new Current view field hint, queue-specific empty-state branch, and now-unused ActiveViewLabel. Authenticated UI-14 proof retains one selected native option and queue context and asserts both copy additions absent. Focused test green.
