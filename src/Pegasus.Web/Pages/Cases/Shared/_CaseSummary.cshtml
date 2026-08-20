@@ -193,16 +193,16 @@
             <div><dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd></div>
             <div><dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd></div>
         </dl>
-        <p>Recording a chase is an attributable manual assertion. It does not send correspondence or prove delivery.</p>
+        <p>Recording a chase is an attributable manual assertion; it does not send correspondence or prove delivery.</p>
     </section>
 }
 
 @if (workflow.ReportApproval is { } approval)
 {
     <section class="panel section-gap" aria-labelledby="case-report-approval-title">
-        <h2 id="case-report-approval-title" class="section-label">Approved report artifact</h2>
+        <h2 id="case-report-approval-title" class="section-label">Approved report</h2>
         <dl class="detail-list">
-            <div><dt>Artifact</dt><dd>@approval.ArtifactIdentity</dd></div>
+            <div><dt>Report</dt><dd>@approval.ArtifactIdentity</dd></div>
             <div><dt>SHA-256</dt><dd><code>@approval.ArtifactSha256</code></dd></div>
             <div><dt>Approved</dt><dd>@OperatorLabels.OfficeTime(approval.ApprovedAtUtc)</dd></div>
             <div><dt>Actor</dt><dd>@approval.ApprovedBy.SubjectId</dd></div>

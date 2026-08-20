@@ -4,7 +4,7 @@
 @using Pegasus.Core.ImageIntake
 @using Pegasus.Core.Intake
 @{
-    ViewData["Title"] = "Intake review";
+    ViewData["Title"] = "Received review";
 
     @* Allocation runs after the decision is persisted and is deliberately
        non-blocking, so a definitive receipt can exist with no case behind it —
@@ -18,34 +18,35 @@
 
 <header class="page-heading">
     <div>
-        <p class="eyebrow">Intake review</p>
+        <p class="eyebrow">Received review</p>
         @if (allocationSucceeded)
         {
             <h1>Case created</h1>
-            <p class="lede">This received item is linked to its immutable Case/PO.</p>
         }
         else if (allocationIncomplete)
         {
-            @* The create-case form renders for Unidentified material only (below), and
-               the handler refuses anything else, so this copy describes what
-               exists today rather than pointing at a control that is not on the
-               page. The recovery action belongs to the upload/inbox claim. *@
             <h1>Case not created</h1>
-            <p class="lede">
-                This is a definitive instruction, but no case reference was
-                allocated for it. Ask an Administrator to check that its
-                Principal exists and is active; the instruction can be turned
-                into a case once it is resolved.
-            </p>
         }
         else
         {
             <h1>@DetailsModel.DecisionLabel(Model.Receipt.Decision)</h1>
-            <p class="lede">@Model.Receipt.DecisionReason</p>
         }
     </div>
     <a class="secondary-action" asp-page="/Operations">Back to Operations</a>
 </header>
+
+@if (allocationIncomplete)
+{
+    @* The create-case form renders for Unidentified material only (below), and
+       the handler refuses anything else, so this copy describes what exists
+       today rather than pointing at a control that is not on the page. The
+       recovery action belongs to the upload/inbox claim. *@
+    <div class="status-card status-card--attention" role="status">No case reference was allocated; ask an Administrator to check that its Principal exists and is active.</div>
+}
+@if (!allocationSucceeded && !allocationIncomplete && !string.IsNullOrEmpty(Model.Receipt.DecisionReason))
+{
+    <div class="status-card" role="status">@Model.Receipt.DecisionReason</div>
+}
 
 @if (Model.IsDuplicate)
 {
@@ -168,7 +169,7 @@
 {
     <section class="panel form-panel section-gap" aria-labelledby="register-image-intake-title">
         <h2 id="register-image-intake-title" class="section-label">Register Image intake</h2>
-        <p>Image-only material with a usable normalised registration becomes a pre-Case Image intake with a permanent reference. It never becomes a Case by itself.</p>
+        <p>Image-only material with a usable registration becomes an Image-initiated Case with a permanent reference; it never becomes a formal Case by itself.</p>
         <form method="post" asp-page-handler="RegisterImageIntake" asp-route-id="@Model.Receipt.Id">
             <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
             <label for="register-vrm">Vehicle registration</label>
@@ -184,7 +185,7 @@
 {
     <section class="panel section-gap" aria-labelledby="vrm-suggestions-title">
         <h2 id="vrm-suggestions-title" class="section-label">Registration reading results</h2>
-        <p>Each retained image was read automatically. A suggestion never registers, links or identifies anything on its own; an unreadable image, an unavailable engine and a technical failure remain distinct recorded outcomes.</p>
+        <p>A suggestion never registers, links or identifies anything on its own; an unreadable image, an unavailable engine and a technical failure remain distinct recorded outcomes.</p>
         <ul class="evidence-list">
             @foreach (var suggestion in Model.VrmSuggestions)
             {
@@ -215,7 +216,7 @@
 @if (Model.Receipt.AcceptedCaseId is null)
 {
     <section class="panel form-panel section-gap" aria-labelledby="intake-resolution-title">
-        <h2 id="intake-resolution-title" class="section-label">Intake resolution</h2>
+        <h2 id="intake-resolution-title" class="section-label">Resolution</h2>
         <p>Every correction, block and re-evaluation is versioned and retained in permanent history.</p>
 
         @* Correcting the detail belongs on the create screen now, where the
@@ -246,9 +247,9 @@
         <form method="post" asp-page-handler="Block" asp-route-id="@Model.Receipt.Id">
             <input type="hidden" name="expectedVersion" value="@Model.Receipt.Version" />
             <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
-            <label for="block-reason">Reason for blocking intake</label>
+            <label for="block-reason">Reason for blocking</label>
             <textarea id="block-reason" name="reason" maxlength="500" rows="2" required></textarea>
-            <button type="submit" class="secondary-action">Block intake</button>
+            <button type="submit" class="secondary-action">Block</button>
         </form>
     </section>
 }
@@ -261,7 +262,7 @@
     }
     else
     {
-        <p>This intake receipt is not currently linked to a case.</p>
+        <p>This received item is not currently linked to a case.</p>
     }
 
     @if (Model.AssociationCandidates.Count > 0 && Model.Receipt.CurrentCaseId is null)
@@ -325,7 +326,7 @@
         }
         else
         {
-            <p class="failure-detail">The claimed case does not match the current association. Reload and enter edit mode for the current case.</p>
+            <p class="failure-detail">The claimed case does not match the current association; reload and enter edit mode for the current case.</p>
         }
     }
 </section>
@@ -354,12 +355,7 @@
     <h2 id="inspection-address-title" class="section-label">Inspection-address confirmation</h2>
     @if (Model.ProviderIsImageBased)
     {
-        <p>
-            This work provider uses Image Based Assessment. The inspection address will be recorded as
-            &ldquo;Image Based Assessment&rdquo; automatically when the case is created, even if the
-            instruction mentions a physical location. A physical address can still be recorded on the
-            case afterwards with a reason.
-        </p>
+        <p>The inspection address is recorded as &ldquo;Image Based Assessment&rdquo; automatically, even if the instruction mentions a physical location; a physical address can still be added afterwards with a reason.</p>
     }
     else if (Model.AddressResolution.Evaluation.Suggestion is { } addressSuggestion)
     {
@@ -395,9 +391,7 @@
     }
     else
     {
-        <p class="failure-detail">
-            Missing or conflicting physical-address evidence remains unresolved. Pegasus will not infer an address from a spreadsheet, geocoder or model. A member of staff can enter the location when the case is created.
-        </p>
+        <p class="failure-detail">Missing or conflicting physical-address evidence remains unresolved; a member of staff can enter the location when the case is created.</p>
         @if (Model.AddressResolution.Evaluation.ConflictingEvidence.Count > 0)
         {
             <ul class="evidence-list">
@@ -431,7 +425,7 @@
 {
     <section class="panel section-gap" aria-labelledby="assets-title">
         <h2 id="assets-title" class="section-label">Source and extracted assets</h2>
-        <p>Each attachment, inline image and discrete embedded image remains a separate review occurrence. Matching hashes are grouped, not removed.</p>
+        <p>Each attachment, inline image and discrete embedded image remains a separate review occurrence; matching hashes are grouped, not removed.</p>
         <div class="field-grid">
             @foreach (var asset in Model.Receipt.AssetRecords)
             {

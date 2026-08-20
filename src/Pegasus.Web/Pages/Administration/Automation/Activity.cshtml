@@ -12,15 +12,15 @@
 
 <partial name="Shared/_PageHeader" />
 
-@* Why the correlation identifier is worth filtering by: it is what gives one
+@* Why the activity reference is worth filtering by: it is what gives one
    operation a stable address in a permanent record. *@
 <aside class="notice">
-    <p>The consolidated permanent record of the Automation actor: every recorded action and every denied request. Each operation carries a correlation identifier, and filtering by it gives that operation a stable address.</p>
+    <p>Every recorded Automation action and denied request is listed here; each carries an activity reference you can filter by.</p>
 </aside>
 
 <form method="get" class="section-gap">
     <label>
-        Correlation identifier
+        Activity reference
         <input name="correlationId" value="@Model.CorrelationId" maxlength="100" />
     </label>
     <div class="button-row">
@@ -36,7 +36,7 @@
     <h2 id="automation-activity-heading" class="section-label">Recorded activity</h2>
     @if (Model.Result.Records.Count == 0)
     {
-        <p class="empty-state">No Automation activity is recorded@(string.IsNullOrEmpty(Model.CorrelationId) ? "" : " for this correlation identifier").</p>
+        <p class="empty-state">No Automation activity is recorded@(string.IsNullOrEmpty(Model.CorrelationId) ? "" : " for this activity reference").</p>
     }
     else
     {
@@ -51,7 +51,7 @@
                         <th scope="col">Subject</th>
                         <th scope="col">Outcome</th>
                         <th scope="col">Target</th>
-                        <th scope="col">Correlation</th>
+                        <th scope="col">Reference</th>
                         <th scope="col">Reason</th>
                     </tr>
                 </thead>
