@@ -31,7 +31,7 @@ prs:
   - '448'
 archived: false
 created: '2026-08-12T15:03:53.185Z'
-updated: '2026-08-20T04:18:27.877Z'
+updated: '2026-08-20T04:23:32.898Z'
 ---
 
 ## What
@@ -49,11 +49,12 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 
 ## Verification
 
-- [ ] A task-level plan records the exact feature contract, caller, failure behavior, and required tests.
-- [ ] The activation criteria have been satisfied or explicitly accepted before implementation begins.
+- [x] A task-level plan records the exact feature contract, caller, failure behavior, and required tests. (Ticket plan, 2026-08-20.)
+- [x] The activation criteria have been satisfied or explicitly accepted before implementation begins. (EXT-02's display halves need no live activation: they render evidence already persisted by the existing replay/production adapters; the live-adapter boundary is EXT-01's, worked as [[TICK-020]].)
 
 ## Notes
 
 - Source: `docs/capabilities.md` — EXT-02.
 - Canonical owner: [Vehicle data and MOT enrichment](docs/frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)
 - Activation/boundary: Never invent mileage; live adapter/provider contract remains unresolved.
+- Delivered by PR #448 (`64dbfc2f`); found bug filed as [[ENG-005]].

@@ -26,7 +26,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:03:53.163Z'
-updated: '2026-08-20T04:20:31.015Z'
+updated: '2026-08-20T04:23:43.422Z'
 ---
 
 ## What
@@ -44,11 +44,12 @@ The capability inventory allocates this outcome to **Now / 0.1.0-alpha.1**. This
 
 ## Verification
 
-- [ ] A task-level plan records the exact feature contract, caller, failure behavior, and required tests.
-- [ ] The activation criteria have been satisfied or explicitly accepted before implementation begins.
+- [x] A task-level plan records the exact feature contract, caller, failure behavior, and required tests. (Ticket plan, 2026-08-20: the workflow, adapters, Worker path, persistence and UI already exist; the plan completes the production Web availability composition and the observation's vehicle-detail display.)
+- [x] The activation criteria have been satisfied or explicitly accepted before implementation begins. (Provider/API/credentials were already resolved and deployed — official DVLA VES v1.2 + DVSA MOT History v1, production Key Vault references live-verified per `docs/operations.md`; the remaining gate, live acceptance evidence from a real production lookup after release, is explicitly NOT claimed by this ticket and stays approval-gated.)
 
 ## Notes
 
 - Source: `docs/capabilities.md` — EXT-01.
 - Canonical owner: [Vehicle data and MOT enrichment](docs/frd/frd-06-vehicle-and-engineering-evidence.md#vehicle-data-and-mot-enrichment)
 - Activation/boundary: Live adapter/provider contract remains unresolved; approved local replay returns explicit unavailable when evidence is absent.
+- Shares the observation display block with [[TICK-021]] — branch stacked on `task/tick-021-ext-02-mot-chronology` (PR #448 merges first).
