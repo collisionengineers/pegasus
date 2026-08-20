@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.IntegrationTests;
 
@@ -157,6 +158,58 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
         Assert.Contains("Not yet polled.", page, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task AdministratorRefreshesOnlyServerResolvedLogicalFolderBindings()
+    {
+        var resolver = new SequencedResolver(
+            Resolution(new(MailLogicalFolderType.Instructions, "instructions-id")),
+            Resolution(new(MailLogicalFolderType.Billing, "billing-id")));
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            approvedMailboxIdentityResolver: resolver);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var page = await GetPageAsync(client);
+        var mailboxId = NewMailboxId(page);
+        var created = await PostAsync(client, new()
+        {
+            ["MailboxId"] = mailboxId,
+            ["ExpectedVersion"] = "0",
+            ["OperationKey"] = OperationKey(page),
+            ["Address"] = NewAddress,
+            ["SelectedRouteScopes"] = "InboundIntake",
+            ["SelectedState"] = "Approved",
+            ["Reason"] = "Add the second approved mailbox",
+            ["__RequestVerificationToken"] = AntiforgeryToken(page)
+        });
+        Assert.Equal(HttpStatusCode.Found, created.StatusCode);
+
+        var configured = await GetPageAsync(client);
+        Assert.Contains("Instructions — Configured", configured, StringComparison.Ordinal);
+        Assert.Contains("Billing — Not configured", configured, StringComparison.Ordinal);
+        Assert.DoesNotContain("instructions-id", configured, StringComparison.Ordinal);
+        var operationKeys = OperationKeyTagRegex().Matches(configured);
+        var refreshed = await client.PostAsync(
+            "/Administration/Mailboxes?handler=ResolveFolders",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["MailboxId"] = mailboxId,
+                ["ExpectedVersion"] = "1",
+                ["OperationKey"] = Value(operationKeys[^2].Value),
+                ["Address"] = NewAddress,
+                ["SelectedState"] = "Approved",
+                ["Reason"] = "Refresh approved logical folder bindings",
+                ["__RequestVerificationToken"] = AntiforgeryToken(configured)
+            }));
+
+        Assert.Equal(HttpStatusCode.Found, refreshed.StatusCode);
+        var reloaded = await GetPageAsync(client);
+        Assert.Contains("Instructions — Not configured", reloaded, StringComparison.Ordinal);
+        Assert.Contains("Billing — Configured", reloaded, StringComparison.Ordinal);
+        Assert.DoesNotContain("billing-id", reloaded, StringComparison.Ordinal);
+    }
+
     private static async Task<string> GetPageAsync(HttpClient client)
     {
         using var response = await client.GetAsync("/Administration/Mailboxes");
@@ -196,6 +249,25 @@ public sealed partial class ApprovedMailboxAdministrationWebTests
             string address,
             CancellationToken cancellationToken) => Task.FromResult(resolution);
     }
+
+    private sealed class SequencedResolver(params ApprovedMailboxIdentityResolution[] resolutions)
+        : IResolveApprovedMailboxIdentity
+    {
+        private int _index;
+
+        public Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
+            string address,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ApprovedMailboxIdentityResolution?>(
+                resolutions[Math.Min(_index++, resolutions.Length - 1)]);
+    }
+
+    private static ApprovedMailboxIdentityResolution Resolution(
+        ApprovedMailboxFolderBinding binding) => new(
+        "resolved-mailbox-id",
+        "resolved-inbox-id",
+        "resolved-sent-id",
+        [binding]);
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase)]
     private static partial Regex AntiforgeryTagRegex();

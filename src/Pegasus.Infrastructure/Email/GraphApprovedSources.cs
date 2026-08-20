@@ -105,9 +105,13 @@ internal sealed partial class GraphApprovedMailboxResolver(
             var sentId = await GetIdAsync(
                 new Uri(baseUri, $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders/sentitems?$select=id"),
                 cancellationToken);
-            return inboxId is null || sentId is null
-                ? null
-                : new ApprovedMailboxIdentityResolution(mailboxId, inboxId, sentId);
+            if (inboxId is null || sentId is null)
+            {
+                return null;
+            }
+
+            var folderBindings = await GetFolderBindingsAsync(mailboxId, cancellationToken);
+            return new ApprovedMailboxIdentityResolution(mailboxId, inboxId, sentId, folderBindings);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -138,6 +142,100 @@ internal sealed partial class GraphApprovedMailboxResolver(
                 ? value.GetString()
                 : null;
     }
+
+    private async Task<IReadOnlyList<ApprovedMailboxFolderBinding>> GetFolderBindingsAsync(
+        string mailboxId,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new Dictionary<MailLogicalFolderType, List<string>>();
+        var pending = new Queue<Uri>();
+        var visitedFolders = new HashSet<string>(StringComparer.Ordinal);
+        pending.Enqueue(FolderListUri(mailboxId, parentFolderId: null));
+
+        while (pending.TryDequeue(out var pageUri))
+        {
+            do
+            {
+                ValidateFolderListUri(pageUri, mailboxId);
+                var token = await credential.GetTokenAsync(TokenContext, cancellationToken);
+                using var request = new HttpRequestMessage(HttpMethod.Get, pageUri);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token.Token);
+                using var response = await httpClient.SendAsync(request, cancellationToken);
+                response.EnsureSuccessStatusCode();
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+                foreach (var folder in document.RootElement.GetProperty("value").EnumerateArray())
+                {
+                    var id = folder.TryGetProperty("id", out var idValue) ? idValue.GetString() : null;
+                    var displayName = folder.TryGetProperty("displayName", out var displayValue)
+                        ? displayValue.GetString()
+                        : null;
+                    if (!IsExactFolderIdentity(id))
+                    {
+                        continue;
+                    }
+
+                    var definition = MailLogicalFolders.All.SingleOrDefault(item =>
+                        string.Equals(item.Label, displayName, StringComparison.OrdinalIgnoreCase));
+                    if (definition is not null)
+                    {
+                        candidates.TryAdd(definition.Type, []);
+                        candidates[definition.Type].Add(id!);
+                    }
+
+                    if (folder.TryGetProperty("childFolderCount", out var count)
+                        && count.TryGetInt32(out var childCount)
+                        && childCount > 0
+                        && visitedFolders.Add(id!))
+                    {
+                        pending.Enqueue(FolderListUri(mailboxId, id));
+                    }
+                }
+
+                pageUri = document.RootElement.TryGetProperty("@odata.nextLink", out var next)
+                    && Uri.TryCreate(next.GetString(), UriKind.Absolute, out var parsed)
+                        ? parsed
+                        : null;
+            }
+            while (pageUri is not null);
+        }
+
+        return candidates
+            .Where(item => item.Value.Distinct(StringComparer.Ordinal).Count() == 1)
+            .OrderBy(item => item.Key)
+            .Select(item => new ApprovedMailboxFolderBinding(item.Key, item.Value[0]))
+            .ToArray();
+    }
+
+    private Uri FolderListUri(string mailboxId, string? parentFolderId)
+    {
+        var root = $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders";
+        var path = parentFolderId is null
+            ? root
+            : $"{root}/{Uri.EscapeDataString(parentFolderId)}/childFolders";
+        return new Uri(
+            baseUri,
+            $"{path}?$select=id,displayName,childFolderCount&$top=200&includeHiddenFolders=true");
+    }
+
+    private void ValidateFolderListUri(Uri uri, string mailboxId)
+    {
+        var approvedRoot = new Uri(
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/mailFolders").AbsolutePath;
+        if (uri.Scheme != Uri.UriSchemeHttps
+            || !uri.Host.Equals(baseUri.Host, StringComparison.OrdinalIgnoreCase)
+            || !uri.AbsolutePath.StartsWith(approvedRoot, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException(
+                "Microsoft Graph returned a folder page outside the exact approved mailbox.");
+        }
+    }
+
+    private static bool IsExactFolderIdentity(string? value) =>
+        !string.IsNullOrWhiteSpace(value)
+        && value.Length <= 200
+        && !value.Any(character => char.IsControl(character) || char.IsWhiteSpace(character));
 }
 
 /// <summary>

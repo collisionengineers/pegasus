@@ -17,7 +17,10 @@ public sealed class LocalApprovedMailboxIdentityResolverTests
         var second = await resolver.ResolveAsync("Estate@CollisionEngineers.co.uk", CancellationToken.None);
 
         Assert.NotNull(first);
-        Assert.Equal(first, second);
+        Assert.Equal(first!.MailboxIdentity, second!.MailboxIdentity);
+        Assert.Equal(first.InboxFolderIdentity, second.InboxFolderIdentity);
+        Assert.Equal(first.SentFolderIdentity, second.SentFolderIdentity);
+        Assert.Equal(first.FolderBindings, second.FolderBindings);
     }
 
     [Fact]
