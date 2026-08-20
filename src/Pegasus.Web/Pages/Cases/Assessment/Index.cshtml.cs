@@ -39,6 +39,7 @@ public sealed class IndexModel(
     IAddCaseDocument addCaseDocument,
     IAcquireCaseEditLease acquireLease,
     IVehicleEvidenceQueries vehicleEvidence,
+    ISaveAssessment saveAssessment,
     TimeProvider timeProvider) : StaffPageModel
 {
     /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
@@ -143,6 +144,82 @@ public sealed class IndexModel(
             "vehicle.fuel" => details?.FuelType,
             _ => null
         };
+    }
+
+    public string DamageOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>The saved damage location, highlighted on the diagram (ENG-006).</summary>
+    public string? SavedImpactLocation =>
+        Assessment?.Field(AssessmentVocabulary.ImpactLocation)?.Value;
+
+    /// <summary>The case's recorded inspection mode, preselecting the method radios.</summary>
+    public CaseInspectionMode? RecordedInspectionMode =>
+        Case?.Data?.Inspection.Mode.Current?.Value;
+
+    /// <summary>
+    /// ENG-006: one click on a damage region saves it as the case's impact
+    /// location through the assessment save seam, under a lease this handler
+    /// acquires — the same value the report prints and the Impact location
+    /// dropdown edits.
+    /// </summary>
+    public async Task<IActionResult> OnPostSaveDamageAsync(
+        Guid id,
+        string operationKey,
+        string? impactLocation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToPage(new { id, section = "report" });
+        }
+        if (string.IsNullOrWhiteSpace(impactLocation))
+        {
+            TempData["AssessmentError"] = "Choose where the damage is.";
+            return RedirectToPage(new { id, section = "report" });
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var lease = await acquireLease.ExecuteAsync(
+                new(id, details.Workflow.Version, actor, NewOperationKey()),
+                cancellationToken);
+            await saveAssessment.ExecuteAsync(
+                new(
+                    id,
+                    details.Workflow.Version,
+                    actor,
+                    operationKey,
+                    "Damage location marked on the assessment diagram.",
+                    lease.Token,
+                    new Dictionary<string, string?>
+                    {
+                        [AssessmentVocabulary.ImpactLocation] = impactLocation
+                    }),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = exception.Message;
+            return RedirectToPage(new { id, section = "report" });
+        }
+
+        TempData["AssessmentStatus"] = "Damage location saved.";
+        return RedirectToPage(new { id, section = "report" });
     }
 
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
