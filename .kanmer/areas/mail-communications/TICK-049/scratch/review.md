@@ -114,3 +114,25 @@ The full PR remains the same 23-file inventory recorded in the final TICK-049 PI
 ## Verdict
 
 **Needs changes.** PR #477 was not merged and no ticket moved. [[PR-044]] is the sole new blocking finding at this head. After it is fixed with cancellation evidence and the replacement CI run is fully green, run another independent review of the exact new head.
+
+## Final independent re-review — 2026-08-20 — head `1cc0927d22bc4976ecb4e8b5491658a9db3eedd3`
+
+### Changes
+- Re-reviewed the complete 23-file PR inventory against the ticket plan, governing documents, and post-implementation report.
+- Reviewed the PR-044 correction in `EfRetainedMailFolderMoveStore`: after a durable Pending reservation, request cancellation hands the operation off to a bounded independent context/token and conditionally changes only Pending to Uncertain before rethrowing the caller cancellation.
+- Reviewed the two SQL-backed cancellation tests covering cancellation during the provider move and during the Success save.
+
+### Comments
+- PR-044 is fixed. The conditional `Outcome == pending` update cannot downgrade a concurrently committed Success, while a cancelled Pending operation becomes durably Uncertain. The original caller cancellation remains observable.
+- Same-key replay can recover Uncertain by probing current location; a different operation key remains excluded while the active row exists. Pending is not treated as replayable Uncertain, preserving the concurrent-claim proof.
+- PR-038 through PR-043 remain fixed: filtered per-message active claim, reachable same-key recovery, reclassification retry, MAIL-11 destination-search findability, exact server-side binding resolution, restrictive migration/bootstrap grants, disabled production Graph composition, and corrected fake/local-only evidence claims.
+- The final plan/PIR and 23-file inventory match the diff. The change reuses the existing Graph client, retained-mail query path, MAIL-11 search, typed binding, and dialog conventions. It adds no worker, lease framework, second search implementation, duplicate taxonomy, or speculative abstraction.
+- Replacement CI run 32398656817 passed completely: changes, reference-data, local-development-scripts, documentation, infrastructure, unit, browser, SQL shards 1–3, and SQL shard coverage.
+
+### Disposition
+- PR-044: fixed in PR.
+- PR-038 through PR-043: remain fixed in PR.
+- No new findings.
+
+### Verdict
+PASS — the plan, implementation, PIR, simplification evidence, and complete CI satisfy the review gate.

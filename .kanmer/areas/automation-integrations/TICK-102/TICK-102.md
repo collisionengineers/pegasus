@@ -6,6 +6,7 @@ title: >-
   request bound to an immutable case/version stamp…
 status: verifying
 area: automation-integrations
+order: 290
 assignee: ''
 profile: feature
 stageEntered:
@@ -27,7 +28,7 @@ refs:
   - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-12T15:06:02.768Z'
-updated: '2026-08-20T05:46:39.396Z'
+updated: '2026-08-20T17:50:48.554Z'
 ---
 
 ## What

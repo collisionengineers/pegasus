@@ -6,6 +6,7 @@ title: >-
   in the app, including read-only search of accepted D…
 status: verifying
 area: mail-communications
+order: 270
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -47,7 +48,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/469'
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-20T14:15:45.734Z'
+updated: '2026-08-20T17:50:48.528Z'
 ---
 
 ## What

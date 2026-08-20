@@ -6,6 +6,7 @@ title: >-
   Outlook folders
 status: verifying
 area: mail-communications
+order: 280
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -42,7 +43,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-12T15:05:19.554Z'
-updated: '2026-08-20T11:37:57.789Z'
+updated: '2026-08-20T17:50:48.539Z'
 ---
 
 ## What

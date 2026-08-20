@@ -4,6 +4,7 @@ type: ticket
 title: Correct missing LocalDB detection in Offline lifecycle
 status: verifying
 area: platform-operations
+order: 20
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -27,7 +28,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/471'
 archived: false
 created: '2026-08-20T08:56:51.802Z'
-updated: '2026-08-20T11:54:13.473Z'
+updated: '2026-08-20T17:50:48.134Z'
 ---
 
 ## Why
