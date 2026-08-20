@@ -51,6 +51,19 @@ internal sealed class ImageIntakeEntity
     public DateTimeOffset? CustodyMergedAtUtc { get; set; }
 }
 
+/// <summary>
+/// The one list of persisted <see cref="ImageIntakeEntity.CustodyState"/>
+/// values. Null on the entity means the registration predates image-case
+/// custody.
+/// </summary>
+internal static class ImageCustodyStates
+{
+    public const string Pending = "pending";
+    public const string Confirmed = "confirmed";
+    public const string Merged = "merged";
+    public const string Failed = "failed";
+}
+
 internal sealed class ImageIntakeLifecycleEventEntity
 {
     public Guid Id { get; set; }

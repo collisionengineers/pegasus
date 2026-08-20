@@ -422,8 +422,10 @@ internal sealed class EfExternalWorkStore(
         {
             return;
         }
-        var workflow = await context.CaseWorkflows
-            .SingleOrDefaultAsync(item => item.CaseId == work.CaseId, cancellationToken);
+        var workflow = work.CaseId is { } workflowCaseId
+            ? await context.CaseWorkflows
+                .SingleOrDefaultAsync(item => item.CaseId == workflowCaseId, cancellationToken)
+            : null;
 
         switch (work.Kind)
         {
@@ -492,7 +494,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 break;
 
             case ExternalWorkKinds.CreateImageCaseCustody:
-                if (work.ImageIntake is { CustodyState: "confirmed" or "merged" })
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Confirmed or ImageCustodyStates.Merged })
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -505,12 +507,12 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     "Image evidence storage could not complete after queue delivery failed.");
                 if (work.ImageIntake is not null)
                 {
-                    work.ImageIntake.CustodyState = "failed";
+                    work.ImageIntake.CustodyState = ImageCustodyStates.Failed;
                 }
                 break;
 
             case ExternalWorkKinds.MergeImageCaseCustody:
-                if (work.ImageIntake is { CustodyState: "merged" })
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Merged })
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -582,8 +584,10 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         {
             return;
         }
-        var workflow = await context.CaseWorkflows
-            .SingleOrDefaultAsync(item => item.CaseId == work.CaseId, cancellationToken);
+        var workflow = work.CaseId is { } workflowCaseId
+            ? await context.CaseWorkflows
+                .SingleOrDefaultAsync(item => item.CaseId == workflowCaseId, cancellationToken)
+            : null;
 
         switch (work.Kind)
         {
@@ -644,7 +648,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 break;
 
             case ExternalWorkKinds.CreateImageCaseCustody:
-                if (work.ImageIntake is { CustodyState: "confirmed" or "merged" })
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Confirmed or ImageCustodyStates.Merged })
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -655,13 +659,13 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     FailWork(work, failedAtUtc, failureCode, failureReason);
                     if (work.ImageIntake is not null)
                     {
-                        work.ImageIntake.CustodyState = "failed";
+                        work.ImageIntake.CustodyState = ImageCustodyStates.Failed;
                     }
                 }
                 break;
 
             case ExternalWorkKinds.MergeImageCaseCustody:
-                if (work.ImageIntake is { CustodyState: "merged" })
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Merged })
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -685,35 +689,18 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         await transaction.CommitAsync(cancellationToken);
     }
 
-    // Image-case custody has no staff-facing case surface to re-arm it from,
-    // so a dependency-shaped failure retries itself with the same
-    // pending-with-future-due convention vehicle lookup uses, up to a cap.
-    private static readonly TimeSpan[] ImageCustodyRetryDelays =
-    [
-        TimeSpan.FromMinutes(1),
-        TimeSpan.FromMinutes(5),
-        TimeSpan.FromMinutes(15),
-        TimeSpan.FromHours(1),
-        TimeSpan.FromHours(6)
-    ];
-
-    private const int MaximumImageCustodyAttempts = 6;
-
     private static bool TryRearmImageCustody(
         ExternalWorkItemEntity work,
         DateTimeOffset failedAtUtc,
         string failureCode,
         string failureReason)
     {
-        if (work.AttemptCount >= MaximumImageCustodyAttempts
-            || failureCode is not (
-                "custody_dependency_failure" or "custody_lease_lost" or "custody_cancelled"))
+        if (ImageCustodyRetryPolicy.NextAttemptDelay(work.AttemptCount, failureCode)
+            is not { } delay)
         {
             return false;
         }
 
-        var delay = ImageCustodyRetryDelays[
-            Math.Clamp(work.AttemptCount - 1, 0, ImageCustodyRetryDelays.Length - 1)];
         work.State = "pending";
         work.DueAtUtc = failedAtUtc.Add(delay);
         work.LeaseToken = null;

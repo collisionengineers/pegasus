@@ -14,6 +14,35 @@ public static class ExternalWorkKinds
 
 public sealed record QueuedExternalWork(Guid Id, string Kind);
 
+/// <summary>
+/// The one owner of image-case custody re-arm decisions: which persisted
+/// failure codes may retry, the attempt cap, and the backoff schedule.
+/// Image-case custody has no staff-facing case surface to re-arm it from, so
+/// a dependency-shaped failure retries itself the same way vehicle lookup
+/// does — pending with a future due time — until the cap makes it terminal.
+/// </summary>
+public static class ImageCustodyRetryPolicy
+{
+    private static readonly TimeSpan[] RetryDelays =
+    [
+        TimeSpan.FromMinutes(1),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(15),
+        TimeSpan.FromHours(1),
+        TimeSpan.FromHours(6)
+    ];
+
+    public static int MaximumAttempts => RetryDelays.Length + 1;
+
+    public static TimeSpan? NextAttemptDelay(int attemptCount, string failureCode) =>
+        attemptCount < 1
+        || attemptCount >= MaximumAttempts
+        || failureCode is not (
+            "custody_dependency_failure" or "custody_lease_lost" or "custody_cancelled")
+            ? null
+            : RetryDelays[attemptCount - 1];
+}
+
 public interface IQueuedExternalWorkReader
 {
     Task<QueuedExternalWork?> GetAsync(Guid workItemId, CancellationToken cancellationToken);
