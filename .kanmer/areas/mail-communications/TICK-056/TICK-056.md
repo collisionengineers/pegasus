@@ -2,13 +2,16 @@
 id: TICK-056
 type: ticket
 title: UI-10 — Full email-management workspace
-status: preparing
+status: implementing
 area: mail-communications
 order: 60
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:47.998Z'
+taken_at: '2026-08-20T23:32:08.760Z'
+branch: task/tick-056-ui-10-mail-workspace
+worktree: ../pegasus-worktrees/tick-056
 labels:
   - capability
   - UI-10
@@ -24,7 +27,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-19T08:10:47.998Z'
+updated: '2026-08-20T23:32:08.760Z'
 ---
 
 ## What

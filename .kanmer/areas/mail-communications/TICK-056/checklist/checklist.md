@@ -1,14 +1,11 @@
-# Checklist — UI-10
+# Checklist — TICK-056
 
-- [ ] Revalidate prerequisites and the exact existing Core/Infrastructure/Web helpers to reuse.
-- [ ] Implement the minimal Core contract/policy with fail-closed validation.
-- [ ] Implement the mailbox-scoped persistence/projection/adapter boundary with idempotency and durable evidence.
-- [ ] Wire the real caller without duplicating business rules.
-- [ ] Add focused acceptance tests for default/refined views, preview accessibility, refresh/freshness, navigation context and exact-message-only actions.
-- [ ] Run `dotnet restore` and `dotnet build --configuration Release`.
-- [ ] Run focused tests and the relevant full suite.
-- [ ] Run and record the four-lens simplification pass.
-- [ ] Update governing/current-state documentation only to the evidence tier actually reached.
-- [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
+- [ ] Add the thin authenticated exact-message preview handler using `GetRetainedMail`.
+- [ ] Add progressive table-row/adjacent-preview markup, JavaScript and responsive CSS while preserving the no-JS detail link.
+- [ ] Add exact authenticated Web and Browser evidence for payload, no mutation, keyboard/pointer/focus, no-JS, axe and constrained layout.
+- [ ] Run locked restore/build and proportional focused/full verification; complete the four simplification lenses.
+- [ ] Update narrow UI-10 capability evidence, write the PIR/traceability, push and open the PR to `dev` in Review.
 
-- [ ] After deployment, record the full authenticated production UI-10 browser journey; execute mutations only under the separately recorded exact-target approval of each owning MAIL ticket.
+## Progress notes
+
+- 2026-08-21: Plan refreshed after UI-14 merged at `ee88c70c`. Parent-approved UX constraint is table-primary, selected-row, adjacent preview with responsive stacking; no speculative modes/toolbars/cards/actions and no bitmap asset.

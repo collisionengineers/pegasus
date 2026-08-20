@@ -46,3 +46,27 @@ Action branches may land before or after this assembly. They need serialization 
 ## Acceptance direction
 
 Prove one authenticated journey through default and refined list states, accessible pagination/refresh, pointer and keyboard preview opening, focus-away dismissal, no preview mutation controls, exact detail/back-context preservation, attachment/thread evidence, and axe/constrained-desktop/200%-zoom behavior. Verify only controls whose owning capability has landed, with no fabricated messages or external mailbox mutation.
+
+# Post-merge research refresh — 2026-08-21
+
+## Question
+
+After MAIL-11, MAIL-10 and UI-14 landed on `origin/dev`, what is the smallest UI-10-owned slice that completes the accessible mail workspace without duplicating policy or persistence?
+
+## Findings
+
+- **Exact baseline verified:** `origin/dev` is `ee88c70c42e38a8e18d57f73afffabfd81ac0f95`, the merge of UI-14 PR #491. `TICK-053` and `TICK-057` therefore no longer overlap an unmerged implementation branch.
+- **The landed list already owns the workspace state:** `Mail/Index.cshtml.cs` parses mailbox, folder, queue, search and page context before calling `ListRetainedMail`; `Index.cshtml` preserves that context through folder tabs, queue selection, search, paging and full-detail links. No Core, EF, schema, query or message-action change is needed.
+- **The list projection already carries six of seven preview facts:** sender, subject, timestamp, excerpt, current classification and Case association are on `RetainedMailSummary`. Only attachment names require the exact authorized detail read. The smallest seam is one `OnGetPreviewAsync` handler on `IndexModel` delegating to landed `GetRetainedMail`; a new store, projection, service, partial or preview framework would be larger.
+- **Existing Web conventions carry enhancement:** `_Layout.cshtml` already loads same-origin `wwwroot/js/site.js`; `site.js` contains DOM-ready progressive enhancements; `site.css` owns the existing tokens, focus and responsive rules. The full-detail subject link remains the no-JavaScript path.
+- **The refined imagegen preview was used only as a transient UX constraint:** it kept the dense table primary, made the selected row explicit, placed evidence preview adjacent at desktop width and stacked it after the result at constrained/200% layouts. No generated bitmap is a repository asset.
+- **Governing behavior is already canonical:** FRD-08 requires pointer/keyboard intent, screen-reader access, focus-departure dismissal, no clipping/obscuring, exact preview facts and no mutation; `docs/design/README.md` requires dense panes at 1280+, ordered sections at constrained desktop/200%, visible focus and no bulk actions.
+- **Test seams already exist:** `MailWorkspaceWebTests` supplies authenticated retained-message fixtures and exact no-mutation evidence; `BrowserTestSupport` supplies authenticated Playwright, axe, constrained viewport and JavaScript-disabled execution. A focused `MailWorkspaceBrowserTests` file avoids broad harness changes.
+
+## Implications
+
+Implement only `Mail/Index.cshtml.cs`, `Mail/Index.cshtml`, the existing `site.js` and `site.css`, focused Web/browser tests, and the UI-10 capability evidence row. The handler returns evidence-only JSON for an authorized exact retained message. JavaScript selects/fetches on pointer or keyboard focus, updates accessible state, and dismisses on focus departure; CSS uses a two-column table/preview relationship that collapses to document order. No action appears in the preview and no external write is exercised.
+
+## Open questions
+
+None. The parent instruction supplies the approved user-visible layout constraint and forbids the speculative modes, toolbars, cards, page-size control and actions.

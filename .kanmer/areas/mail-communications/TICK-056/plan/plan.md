@@ -1,42 +1,29 @@
-# Plan — UI-10
+# Plan — TICK-056: UI-10 full email-management workspace
 
-## Chosen approach
+## Approach
 
-assemble the accessible workspace around the delivered retained-mail queries and Core actions. Reuse `src/Pegasus.Core/Intake/RetainedMail.cs`, keep Web/MCP callers thin, and place persistence or external mechanics only in `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs`. This follows the repository's one-Core-owner rule and the existing convention rather than adding a workspace-specific policy copy.
-
-A parallel UI-owned implementation was rejected because UI-10, Automation MCP and background processing would diverge. A generic mail-action framework was rejected because each action already has a concrete Core boundary and no second abstraction caller is proven.
+Complete only the missing quick-preview composition around the landed mailbox/folder/queue/search table. Reuse `RetainedMailSummary` for list evidence, delegate the one missing attachment-name read to the existing authorized `GetRetainedMail`, and progressively enhance the unchanged full-detail link through the existing `site.js`/`site.css` conventions. This is smaller than widening the SQL projection or adding a preview abstraction and keeps every mutation on the exact message-detail page.
 
 ## Governing docs
 
-- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: implement its exact-message, fail-closed, durable-history and workspace behaviour. Any unresolved mapping/mutation behaviour remains conditional on the checked operator answer; do not silently amend the FRD.
-- `docs/design/README.md`: apply the established confirmation, error, focus, navigation and accessibility conventions.
-- No new ADR is planned: the existing Core/Infrastructure/Web boundary carries the change.
+- **Meets `docs/frd/frd-08-email-mailbox-and-background-processing.md`:** the handler returns sender, subject, timestamp, excerpt, classification, association and attachment names for one authorized retained message; preview is GET-only, contains no controls, preserves full-detail navigation and changes no mail/Case state.
+- **Uses `docs/design/README.md` as the existing UI convention:** dense table plus adjacent preview at desktop width; an ordered stacked section at constrained width/200% zoom; pointer and keyboard intent, visible selected/focus state, screen-reader status and focus-departure dismissal.
+- **No governing document modification or ADR:** the accepted Web/Core boundary and behavior already cover the change. `docs/capabilities.md` receives evidence wording only.
 
-## Ordered implementation
+## Steps
 
-1. Re-read the current target files after prerequisite branches land and name the exact existing contracts/helpers/tests being reused.
-2. Add or extend the smallest Core contract/policy required to assemble the accessible workspace around the delivered retained-mail queries and Core actions; validate identity, actor, reason, state and version before any write.
-3. Implement the Infrastructure projection/transaction/adapter in src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs; preserve mailbox scope, idempotency, optimistic concurrency and append-only evidence.
-4. Wire the real caller (src/Pegasus.Web/Pages/Mail/Index.cshtml and Message.cshtml) through the Core use case with no duplicated taxonomy, mapping or authorization logic.
-5. Add focused Core and integration/Web tests for default/refined views, preview accessibility, refresh/freshness, navigation context and exact-message-only actions.
-6. Run the locked restore/build and focused tests, then the relevant full suite; perform the four-lens simplification pass and record honest dispositions.
-7. Update FRD/capabilities only where the delivered behaviour/evidence warrants it; do not claim deployment, live Outlook verification or operator acceptance from local tests.
+1. Add the thin authenticated `IndexModel.OnGetPreviewAsync` using `GetRetainedMail`, returning only canonical display facts and fail-closed not-found/forbidden results.
+2. Enhance the existing list markup, `site.js` and `site.css` so rows select on pointer/keyboard intent, the adjacent evidence-only preview is announced and dismissed on focus departure, responsive stacking works, and the subject remains the no-JS detail link.
+3. Add focused authenticated Web and Browser tests for exact payload/markup, no mutation controls or state changes, pointer/keyboard/focus behavior, no-JS navigation, axe and constrained/200%-equivalent layout.
+4. Run locked restore/Release build and proportional focused/full tests; apply and record reuse, simplification, efficiency and altitude lenses; update only the UI-10 capability evidence and write the PIR/traceability/PR.
 
-## Dependencies and sequencing
+## Verification
 
-integrate incrementally after MAIL-01/02/04/05/07/09/10/11.
+Run `dotnet restore --locked-mode`, `dotnet build --configuration Release --no-restore`, focused `MailWorkspaceWebTests`, focused `MailWorkspaceBrowserTests`, then the relevant IntegrationTests project (or the repository runbook's proportional split if SQL/browser profiles are separate). Inspect the rendered DOM at desktop, constrained viewport and browser zoom; prove no horizontal document overflow, axe violations or state mutation from preview GET. Record exact commands/results in the PIR; merged-main proof remains for `kanmer-verify`.
 
-## Proof
+## Risks / open questions
 
-The post-implementation report will cite focused test output, Release build output, real-caller integration evidence and simplification findings. External-mailbox behaviour requires separately approved live verification and cannot be inferred from adapter tests.
-
-## Risks and mitigations
-
-- Identity or stale-state mistakes: exact mailbox/message keys plus optimistic concurrency and fail-closed validation.
-- Policy duplication: one Core result consumed by Web, Worker and MCP.
-- External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
-- Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
-
-## Full production workspace journey — operator decision 2026-08-19
-
-After deployment, verify the complete authenticated UI-10 browser journey against the linked production mailbox: default/refined lists, filters, pagination, freshness and refresh, accessible preview, exact-message detail, attachments and scoped thread, classification/destination, folder recommendation, suggestions, search, and navigation-state preservation. Inspect every available action control and its confirmation/error states. Execute a write only as part of the separately exact-target-approved acceptance journey owned by that MAIL capability; UI-10 must not broaden or duplicate write approval.
+- Fetch races could show the wrong row: abort the prior request and update only if the same row remains selected.
+- Pointer dismissal must not break keyboard use: treat focus as authoritative and dismiss only after focus leaves the row/preview relationship.
+- The generated UX image is a preview-only constraint, not an asset or authority; implementation follows FRD/design and existing CSS tokens.
+- No open product question remains.
