@@ -518,6 +518,17 @@ internal static partial class IntakeWebDriver
         return Assert.Single(all.Items).Id;
     }
 
+    /// <summary>GETs a page, asserts 200, and returns its HTML.</summary>
+    public static async Task<string> GetHtmlAsync(
+        HttpClient client,
+        string url,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await client.GetAsync(url, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public static async Task<string> GetAntiforgeryTokenAsync(
         HttpClient client,
         CancellationToken cancellationToken = default) =>
@@ -637,6 +648,23 @@ internal static partial class IntakeWebDriver
     /// </summary>
     internal static ProcessQueuedIntake CreateProcessor(IServiceProvider services) =>
         ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
+
+    /// <summary>
+    /// Runs the Worker's grouped-image reconcile sweep once, standing in for
+    /// its timer. A grouped upload's members can drain in an order that
+    /// leaves a member's group outcome pending for this sweep (the ordinal-
+    /// zero member's group lookup resolves only through it), so a test about
+    /// a group's settled state must run it just as production does.
+    /// </summary>
+    internal static async Task ReconcileGroupedImageIntakeAsync(
+        IServiceProvider services,
+        CancellationToken cancellationToken = default)
+    {
+        var reconcile = ActivatorUtilities.CreateInstance<ReconcileGroupedImageIntake>(
+            services,
+            (IProcessQueuedIntake)CreateProcessor(services));
+        _ = await reconcile.ExecuteAsync(50, cancellationToken);
+    }
 
     /// <summary>
     /// Dispatches and processes one staged receipt to its completed evaluation,
