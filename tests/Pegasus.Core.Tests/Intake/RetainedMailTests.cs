@@ -302,7 +302,7 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
-    public async Task GetDerivesTheExactConfiguredFolderFromTheCurrentClassificationAndMailboxBinding()
+    public async Task GetDerivesTheExactConfiguredFolderAndSuggestedMoveFromCurrentState()
     {
         var detail = ClassifiedDetail(
             "mailbox-a",
@@ -315,15 +315,33 @@ public sealed class RetainedMailTests
             new ApprovedMailboxFolderBinding(
                 MailLogicalFolderType.Instructions,
                 "outlook-folder-instructions"));
-
-        var result = await new GetRetainedMail(
+        var folderMoves = new FolderMoveState();
+        var sut = new GetRetainedMail(
             new Queries { DetailToReturn = detail },
             new NoStaffAccounts(),
-            new MailboxStore(mailbox)).ExecuteAsync(Caseworker(), detail.Summary.Id);
+            new MailboxStore(mailbox),
+            folderMoves,
+            folderMoves);
+
+        var result = await sut.ExecuteAsync(Caseworker(), detail.Summary.Id);
+        folderMoves.IsAtDestination = true;
+        var atDestination = await sut.ExecuteAsync(Caseworker(), detail.Summary.Id);
+        folderMoves.IsAtDestination = false;
+        folderMoves.Latest = new(
+            RetainedMailFolderMoveOutcome.Uncertain,
+            MailLogicalFolderType.Instructions,
+            "Confirmed after review.",
+            NowUtc);
+        var unresolved = await sut.ExecuteAsync(Caseworker(), detail.Summary.Id);
 
         Assert.Equal(MailLogicalFolderType.Instructions, result!.FolderRecommendation!.FolderType);
         Assert.Equal(MailLogicalFolderPolicy.Key, result.FolderRecommendation.PolicyKey);
         Assert.True(result.FolderRecommendation.IsAvailable);
+        Assert.Equal(MailLogicalFolderType.Instructions, result.SuggestedMove!.FolderType);
+        Assert.Equal(result.FolderRecommendation.Reason, result.SuggestedMove.Reason);
+        Assert.Null(atDestination!.SuggestedMove);
+        Assert.Null(unresolved!.SuggestedMove);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Uncertain, unresolved.LatestFolderMove!.Outcome);
     }
 
     [Fact]
@@ -345,6 +363,7 @@ public sealed class RetainedMailTests
 
         Assert.False(result!.FolderRecommendation!.IsAvailable);
         Assert.Null(result.FolderRecommendation.FolderType);
+        Assert.Null(result.SuggestedMove);
         Assert.Contains("absent or ambiguous", result.FolderRecommendation.Reason, StringComparison.Ordinal);
         Assert.Equal(0, mailboxes.ListCount);
     }
@@ -370,6 +389,7 @@ public sealed class RetainedMailTests
 
         Assert.False(result!.FolderRecommendation!.IsAvailable);
         Assert.Null(result.FolderRecommendation.FolderType);
+        Assert.Null(result.SuggestedMove);
         Assert.Contains(expectedReason, result.FolderRecommendation.Reason, StringComparison.Ordinal);
     }
 
@@ -394,6 +414,7 @@ public sealed class RetainedMailTests
 
         Assert.True(result!.FolderRecommendation!.IsAvailable);
         Assert.Equal(MailLogicalFolderType.NoAction, result.FolderRecommendation.FolderType);
+        Assert.Null(result.SuggestedMove);
     }
 
     [Fact]
@@ -675,6 +696,42 @@ public sealed class RetainedMailTests
         public Task<ApprovedMailbox> UpdateAsync(
             UpdateApprovedMailboxRequest request,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FolderMoveState(bool isAtDestination = false)
+        : IRetainedMailFolderMoveStore, IRetainedMailFolderMover
+    {
+        internal bool IsAtDestination { get; set; } = isAtDestination;
+        internal RetainedMailFolderMoveResult? Latest { get; set; }
+        public bool IsAvailable => true;
+
+        public Task<RetainedMailFolderMoveResult?> GetLatestAsync(
+            Guid messageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Latest);
+
+        public Task<bool> IsCurrentLocationAsync(
+            Guid messageId,
+            string folderIdentity,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(IsAtDestination);
+
+        public Task<RetainedMailFolderMoveResult?> MoveAsync(
+            ActionActor actor,
+            MoveRetainedMailFolderRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Viewing a suggestion must not execute a move.");
+
+        public Task MoveAsync(
+            RetainedMailFolderMoveCoordinates coordinates,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Viewing a suggestion must not execute a move.");
+
+        public Task<string?> GetParentFolderIdAsync(
+            string mailboxId,
+            string immutableMessageId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Viewing a suggestion must not probe the provider.");
     }
 
     private sealed class ClassificationStore(MailClassificationDossier dossier)

@@ -351,6 +351,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("<h2 id=\"folder-recommendation-heading\">Folder recommendation</h2>", html, StringComparison.Ordinal);
         Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Unavailable —", html, StringComparison.Ordinal);
         Assert.Contains("no current classification decision", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggested next action", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
     }
@@ -420,6 +421,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Instructions</dd>", html, StringComparison.Ordinal);
         Assert.Contains("mail_logical_folder version 1", html, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggested next action", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -445,9 +447,12 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
 
+        Assert.Contains("<h3>Suggested next action</h3>", html, StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(html, "Suggested next action"));
         Assert.Contains("Move to Instructions", html, StringComparison.Ordinal);
         Assert.Contains("Confirm Outlook folder move", html, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
+        Assert.Equal(0, mover.MoveCalls);
         var action = Regex.Match(
             html,
             "<form method=\"post\" action=\"([^\"]*handler=MoveToRecommendedFolder[^\"]*)\"",
@@ -480,13 +485,14 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Theory]
-    [InlineData("outlook-folder-instructions", "Message moved to the recommended Outlook folder.", false)]
-    [InlineData("inbox", "The message was not moved. You can retry with a new confirmation.", false)]
-    [InlineData("unresolved-folder", "The move result is uncertain. Retry this same confirmation to check its current location.", true)]
+    [InlineData("outlook-folder-instructions", "Message moved to the recommended Outlook folder.", false, false)]
+    [InlineData("inbox", "The message was not moved. You can retry with a new confirmation.", false, true)]
+    [InlineData("unresolved-folder", "The move result is uncertain. Retry this same confirmation to check its current location.", true, false)]
     public async Task AuthenticatedUncertainMoveReusesTheSameConfirmationForExactRecovery(
         string recoveredParent,
         string expectedNotice,
-        bool remainsUncertain)
+        bool remainsUncertain,
+        bool showsSuggestedMove)
     {
         var mover = new SequenceRecoveryFolderMover(recoveredParent);
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
@@ -521,6 +527,7 @@ public sealed class MailWorkspaceWebTests
 
         var uncertain = await GetHtmlAsync(client, confirmation.Headers.Location!.ToString());
         Assert.Contains("Check move status", uncertain, StringComparison.Ordinal);
+        Assert.DoesNotContain("Suggested next action", uncertain, StringComparison.Ordinal);
         Assert.Contains("value=\"Confirmed after reviewing the message.\"", uncertain, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", uncertain, StringComparison.Ordinal);
         var recoveryAction = WebUtility.HtmlDecode(Regex.Match(
@@ -545,6 +552,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(expectedNotice, final, StringComparison.Ordinal);
         Assert.Equal(1, mover.MoveCalls);
         Assert.Equal(remainsUncertain, final.Contains("Check move status", StringComparison.Ordinal));
+        Assert.Equal(showsSuggestedMove, final.Contains("Suggested next action", StringComparison.Ordinal));
     }
 
     [Fact]

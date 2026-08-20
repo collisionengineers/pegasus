@@ -129,10 +129,9 @@
                 <button class="btn btn--dark" type="submit">Check move status</button>
             </form>
         }
-        else if (Model.Detail.FolderRecommendation is
+        else if (Model.Detail.SuggestedMove is { } suggestedMove
+            && Model.Detail.FolderRecommendation is
             {
-                IsAvailable: true,
-                CanMove: true,
                 MailboxVersion: { } mailboxVersion
             } moveRecommendation)
         {
@@ -160,8 +159,10 @@
                 ["DialogActionUrl"] = moveAction,
                 ["DialogConsequence"] = "This moves the message to the current designated Outlook folder."
             };
+            <h3>Suggested next action</h3>
+            <p>@suggestedMove.Reason</p>
             <button class="btn btn--dark" type="button" data-dialog-open="moveRecommendedFolderDialog">
-                Move to @Pegasus.Core.Intake.MailLogicalFolders.Definition(moveRecommendation.FolderType!.Value).Label
+                Move to @Pegasus.Core.Intake.MailLogicalFolders.Definition(suggestedMove.FolderType).Label
             </button>
             <partial name="Shared/_ReasonDialog" view-data="moveDialogData" />
         }
