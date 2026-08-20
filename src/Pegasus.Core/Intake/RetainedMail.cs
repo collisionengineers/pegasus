@@ -55,7 +55,8 @@ public sealed record RetainedMailSummary(
     Guid? CaseId,
     string? CaseReference,
     IntakeAllocationState? AllocationState = null,
-    IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null)
+    IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,
+    MailLogicalFolderType? CurrentFolderType = null)
 {
     public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
 }
@@ -105,7 +106,9 @@ public sealed record RetainedMailFolderRecommendation(
     MailLogicalFolderType? FolderType,
     string PolicyKey,
     int PolicyVersion,
-    string Reason)
+    string Reason,
+    int? MailboxVersion = null,
+    bool CanMove = false)
 {
     public bool IsAvailable => FolderType is not null;
 }
@@ -121,7 +124,8 @@ public sealed record RetainedMailDetail(
     MailClassificationOutcome? ClassificationOutcome,
     MailRouteDisposition? RouteDisposition,
     MailClassificationDossier? Classification = null,
-    RetainedMailFolderRecommendation? FolderRecommendation = null);
+    RetainedMailFolderRecommendation? FolderRecommendation = null,
+    RetainedMailFolderMoveResult? LatestFolderMove = null);
 
 public sealed record MailClassificationHistoryEntry(
     int Version,
@@ -442,7 +446,9 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
 public sealed class GetRetainedMail(
     IRetainedMailQueries queries,
     IStaffAccountQueries staffAccountQueries,
-    IApprovedMailboxStore approvedMailboxStore)
+    IApprovedMailboxStore approvedMailboxStore,
+    IRetainedMailFolderMoveStore? folderMoveStore = null,
+    IRetainedMailFolderMover? folderMover = null)
 {
     private readonly IRetainedMailQueries queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
@@ -450,6 +456,9 @@ public sealed class GetRetainedMail(
         staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
     private readonly IApprovedMailboxStore approvedMailboxStore =
         approvedMailboxStore ?? throw new ArgumentNullException(nameof(approvedMailboxStore));
+    private readonly IRetainedMailFolderMoveStore folderMoveStore =
+        folderMoveStore ?? EmptyRetainedMailFolderMoveStore.Instance;
+    private readonly IRetainedMailFolderMover? folderMover = folderMover;
 
     public async Task<RetainedMailDetail?> ExecuteAsync(
         ActionActor actor,
@@ -484,9 +493,14 @@ public sealed class GetRetainedMail(
         }
 
         var recommendation = await RecommendFolderAsync(detail, cancellationToken);
+        var latestMove = await folderMoveStore.GetLatestAsync(messageId, cancellationToken);
         if (detail.Classification is not { } dossier)
         {
-            return detail with { FolderRecommendation = recommendation };
+            return detail with
+            {
+                FolderRecommendation = recommendation,
+                LatestFolderMove = latestMove
+            };
         }
 
         var packedActors = new[] { dossier.CurrentActor }
@@ -500,6 +514,7 @@ public sealed class GetRetainedMail(
         return detail with
         {
             FolderRecommendation = recommendation,
+            LatestFolderMove = latestMove,
             Classification = dossier with
             {
                 CurrentActorDisplayName = ResolveActorLabel(dossier.CurrentActor, staffNames),
@@ -550,11 +565,17 @@ public sealed class GetRetainedMail(
                 $"The designated {label} folder is not configured for this mailbox.");
         }
 
+        var isCurrentLocation = await folderMoveStore.IsCurrentLocationAsync(
+            detail.Summary.Id,
+            binding.FolderIdentity,
+            cancellationToken);
         return new(
             folderType,
             policy.PolicyKey,
             policy.PolicyVersion,
-            policy.Reason);
+            policy.Reason,
+            mailbox.Version,
+            folderMover?.IsAvailable == true && !isCurrentLocation);
     }
 
     private static RetainedMailFolderRecommendation Unavailable(

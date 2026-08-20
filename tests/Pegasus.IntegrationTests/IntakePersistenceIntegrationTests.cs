@@ -85,7 +85,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260820040337_SendToAiConnectorSettings",
                 "20260820055900_ImageCaseCustody",
                 "20260820100056_ApprovedMailboxLogicalFolderBindings",
-                "20260820100724_RetainedMailSearchDocuments"
+                "20260820100724_RetainedMailSearchDocuments",
+                "20260820144004_RetainedMailFolderMoves"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
