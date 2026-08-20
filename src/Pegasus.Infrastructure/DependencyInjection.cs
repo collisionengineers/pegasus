@@ -150,8 +150,9 @@ public static class DependencyInjection
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
-        services.AddScoped<IStaffAccountQueries>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
+        // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
+        // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
+        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
