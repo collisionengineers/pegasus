@@ -562,20 +562,11 @@ internal sealed class EfQueuedCustodyProcessor(
         ImageIntakeEntity intake,
         CancellationToken cancellationToken)
     {
-        var ordered = new List<Guid>();
-        if (intake.SubmissionGroupId is { } groupId)
-        {
-            ordered.AddRange(
-                (await EfImageIntakeStore.ResolveGroupMemberReceiptsAsync(
-                    context, groupId, cancellationToken))
-                .Select(pair => pair.ProcessedReceiptId));
-        }
-        if (!ordered.Contains(intake.OriginReceiptId))
-        {
-            ordered.Insert(0, intake.OriginReceiptId);
-        }
-
-        var receiptIds = ordered.Distinct().ToArray();
+        var receiptIds = await EfImageIntakeStore.ResolveOrderedImageReceiptIdsAsync(
+            context,
+            intake.OriginReceiptId,
+            intake.SubmissionGroupId,
+            cancellationToken);
         var receipts = await context.IntakeReceipts
             .AsNoTracking()
             .Where(receipt => receiptIds.Contains(receipt.Id))

@@ -49,7 +49,7 @@ public sealed class DownloadIntakeSource(
         return new(
             content,
             SafeFileName(receipt.SourceFileName),
-            "application/octet-stream",
+            sourceAsset.MediaType,
             content.Length,
             actualHash);
     }

@@ -119,5 +119,13 @@ Case, and Staff-closed. Details show preserved filenames/group evidence, custody
 and chronological merge/closure history. Staff closure is a reasoned action and
 terminal records are read-only; it is not a generic Close control.
 
+Retained vehicle images are viewable in Pegasus (CASE-006): the
+Image-initiated Case page and a case's evidence view render each record's
+registered images as a gallery of lazy-loaded thumbnail previews that expand
+to the full-size image when activated, with the original filename as the
+accessible name. Images are served only by an authorised staff endpoint that
+returns the stored image media type inline; material that is not a true image
+media type is never rendered inline and stays on the forced-download route.
+
 The durable interaction, visual, component, and source/runtime rules are owned
 by [design](../design/README.md).

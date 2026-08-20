@@ -168,11 +168,30 @@ public sealed record CloseImageInitiatedCaseRequest(
     string Reason,
     long ExpectedVersion);
 
+/// <summary>
+/// One retained image of an Image-initiated Case, in stored group order. The
+/// receipt id addresses the bytes through the authorised intake image
+/// endpoint; the file name is the operator-facing identity (and alt text).
+/// </summary>
+public sealed record ImageIntakeImage(
+    Guid ReceiptId,
+    string FileName);
+
 public interface IImageIntakeQueries
 {
     Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(
         bool? associated,
         CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The registered image receipts this Image intake covers — its origin
+    /// plus, for a group registration, every registered image-only member —
+    /// ordered by the submission ordinal and restricted to image media.
+    /// </summary>
+    Task<IReadOnlyList<ImageIntakeImage>> ListImagesAsync(
+        Guid imageIntakeId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<ImageIntakeImage>>([]);
 
     Task<ImageIntakeDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
 
