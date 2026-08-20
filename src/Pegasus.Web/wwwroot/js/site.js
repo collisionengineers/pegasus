@@ -532,6 +532,9 @@
         if (dirtyForm) {
             dirtyForm.requestSubmit();
         }
+    });
+})();
+
 // INTK-022: a filter form marked data-auto-submit submits itself when any of
 // its selects change; the noscript Apply button covers the rest.
 (function () {
