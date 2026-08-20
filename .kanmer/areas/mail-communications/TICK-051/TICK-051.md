@@ -2,12 +2,15 @@
 id: TICK-051
 type: ticket
 title: MAIL-09 — Automatic association of related email and attachments with a case
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:10:44.582Z'
+taken_at: '2026-08-20T19:03:31.754Z'
+branch: task/tick-051-mail-09-automatic-case-association
+worktree: ../pegasus-worktrees/tick-051
 labels:
   - capability
   - MAIL-09
@@ -25,7 +28,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.257Z'
-updated: '2026-08-20T09:48:08.405Z'
+updated: '2026-08-20T19:03:31.754Z'
 ---
 
 ## What

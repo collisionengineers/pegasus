@@ -2,45 +2,37 @@
 
 ## Chosen approach
 
-reuse the existing Case-match policy/transaction for conservative automatic mail association. Reuse `src/Pegasus.Core/Intake/CaseMatching/EvaluateIntakeCaseMatch.cs`, keep Web/MCP callers thin, and place persistence or external mechanics only in `src/Pegasus.Infrastructure/Persistence/EfIntakeMutationStore.cs`. This follows the repository's one-Core-owner rule and the existing convention rather than adding a workspace-specific policy copy.
+Add one focused Core `AssociateRetainedMailWithCase` use case. Its evidence port reads the current mailbox receipt, normalized VRM candidates across current non-archived Cases and exact mailbox-thread current Case candidates. Core accepts one target only when each qualifying evidence source is unique and all qualifying sources agree; zero evidence, multiplicity or contradiction abstains. It then calls the existing `IAutomaticCaseAssociationStore`.
 
-A parallel UI-owned implementation was rejected because UI-10, Automation MCP and background processing would diverge. A generic mail-action framework was rejected because each action already has a concrete Core boundary and no second abstraction caller is proven.
+Extend that existing request with an optional evidence fingerprint. `EfIntakeMutationStore` reloads the same evidence inside its existing serializable transaction and refuses a changed fingerprint before writing the existing manual-association row/history. Provider/QDOS callers omit the seam and preserve their established request hash and behavior.
 
 ## Governing docs
 
-- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: implement its exact-message, fail-closed, durable-history and workspace behaviour. Any unresolved mapping/mutation behaviour remains conditional on the checked operator answer; do not silently amend the FRD.
-- `docs/design/README.md`: apply the established confirmation, error, focus, navigation and accessibility conventions.
-- No new ADR is planned: the existing Core/Infrastructure/Web boundary carries the change.
+- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: add the already accepted MAIL-09 system-wide normalized-VRM / exact mailbox-thread rule, agreement and fail-closed behavior; preserve one current association and permanent history.
+- `docs/design/README.md`: no new control; the existing message Case link remains the read surface and TICK-052 owns manual confirmation.
+- No ADR: the accepted Core/Infrastructure transaction boundary already carries the change.
 
-## Ordered implementation
+## Steps
 
-1. Re-read the current target files after prerequisite branches land and name the exact existing contracts/helpers/tests being reused.
-2. Add or extend the smallest Core contract/policy required to reuse the existing Case-match policy/transaction for conservative automatic mail association; validate identity, actor, reason, state and version before any write.
-3. Implement the Infrastructure projection/transaction/adapter in src/Pegasus.Infrastructure/Persistence/EfIntakeMutationStore.cs; preserve mailbox scope, idempotency, optimistic concurrency and append-only evidence.
-4. Wire the real caller (retained-mail processing after classification/evidence extraction) through the Core use case with no duplicated taxonomy, mapping or authorization logic.
-5. Add focused Core and integration/Web tests for unique exact match, zero/multiple/conflict abstention, replay and immutable history.
-6. Run the locked restore/build and focused tests, then the relevant full suite; perform the four-lens simplification pass and record honest dispositions.
-7. Update FRD/capabilities only where the delivered behaviour/evidence warrants it; do not claim deployment, live Outlook verification or operator acceptance from local tests.
+1. Extract the existing Case registration normalizer for reuse, then add the focused Core evidence/result/use case with no Case/PO input or generic matcher registry.
+2. Implement the evidence query in the existing EF automatic-association store, using current Case data, exact retained mailbox/conversation identity and one shared current-association precedence helper.
+3. Add the expected fingerprint to the existing automatic-association request; on non-replay MAIL-09 writes, re-read/compare inside the current serializable transaction before its existing association/history logic.
+4. Invoke MAIL-09 from `ProcessQueuedIntake` after the provider-specific attempt on both live and completed-replay paths, only while no current Case exists. Treat abstention/failure as advisory; preserve cancellation.
+5. Use the shared precedence helper in retained-mail list/detail so the landed Web/MCP readers show the system-worker association. Update FRD/capabilities/current architecture without deployment/live claims.
+6. Prove Core policy, exact query scope, stale/contradictory abstention, transaction replay/history/reversal and retained/queued caller behavior with local SQL/fakes. Run locked restore, Release build, focused/proportional suites, four lenses, PIR and one PR to `dev`.
 
-## Dependencies and sequencing
+## Acceptance
 
-operator threshold answer and MAIL-01 identity.
+- Unique normalized VRM associates system-wide even before the thread has an association.
+- With no VRM, one Case already current in the exact mailbox/thread associates; cross-mailbox identity never qualifies.
+- Multiple candidates or disagreeing unique VRM/thread evidence abstain; Case/PO text is unused.
+- Evidence changed between read/write refuses before mutation; stable replay remains idempotent and history append-only.
+- Existing staff reversal/current-association precedence wins and retained detail shows the same current Case.
+- No external system or production data is written.
 
-## Proof
+## Risks
 
-The post-implementation report will cite focused test output, Release build output, real-caller integration evidence and simplification findings. External-mailbox behaviour requires separately approved live verification and cannot be inferred from adapter tests.
-
-## Risks and mitigations
-
-- Identity or stale-state mistakes: exact mailbox/message keys plus optimistic concurrency and fail-closed validation.
-- Policy duplication: one Core result consumed by Web, Worker and MCP.
-- External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
-- Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
-
-## Operator decision — 2026-08-19
-
-Do not use Case/PO references as inbound matching evidence: they are internal references. Automatic association uses (a) a VRM only when it resolves to exactly one Case system-wide, or (b) mailbox-scoped exact thread identity when that retained thread already resolves to exactly one Case. Zero, multiple, stale, or contradictory results fail closed without association.
-
-## Live association acceptance — operator decision 2026-08-19
-
-TICK-051 requires one production automatic-association journey. Immediately before executing it, name and obtain exact-target approval for the retained message and Case, then prove the evidence satisfies the accepted unique-VRM or mailbox-scoped exact-thread rule. Capture before/after association state, permanent history, attribution, and idempotent replay. Abort without writing on ambiguity, staleness, or contradictory evidence. This decision does not itself authorize an unspecified production write.
+- **Stale read:** fingerprint revalidated under the existing serializable transaction.
+- **Policy duplication:** Core chooses the candidate; EF only gathers facts and verifies unchanged evidence.
+- **Normalizer drift:** share the existing Case-search convention.
+- **Scope growth:** no migration/table/index/framework/manual UI/MCP/external operation.

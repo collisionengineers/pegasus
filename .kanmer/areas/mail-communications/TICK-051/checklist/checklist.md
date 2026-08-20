@@ -1,15 +1,11 @@
 # Checklist — MAIL-09
 
-- [ ] Revalidate prerequisites and the exact existing Core/Infrastructure/Web helpers to reuse.
-- [ ] Implement the minimal Core contract/policy with fail-closed validation.
-- [ ] Implement the mailbox-scoped persistence/projection/adapter boundary with idempotency and durable evidence.
-- [ ] Wire the real caller without duplicating business rules.
-- [ ] Add focused acceptance tests for unique exact match, zero/multiple/conflict abstention, replay and immutable history.
-- [ ] Run `dotnet restore` and `dotnet build --configuration Release`.
-- [ ] Run focused tests and the relevant full suite.
-- [ ] Run and record the four-lens simplification pass.
-- [ ] Update governing/current-state documentation only to the evidence tier actually reached.
-- [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
-
-- [ ] Immediately before live execution, record exact-target approval naming the retained message and Case.
-- [ ] Run one live automatic association, capture before/after/history evidence, and prove replay is idempotent; abort on ambiguous, stale, or contradictory evidence.
+- [ ] Create the TICK-051 branch/worktree from exact origin/dev 09b42a57 and take the ticket.
+- [ ] Share Case registration normalization and add the focused Core MAIL-09 evidence/evaluator.
+- [ ] Reuse EfIntakeMutationStore with an in-transaction expected-evidence fingerprint check.
+- [ ] Reuse one current-association precedence query for thread evidence and retained projection.
+- [ ] Wire live/replay queued-intake callers after the existing provider-specific association attempt.
+- [ ] Add local Core/SQL/retained/queued-caller evidence for unique, zero/multiple, contradiction, stale, replay/history and no external write.
+- [ ] Update FRD/capabilities/current architecture only to local evidence.
+- [ ] Run focused/proportional verification and four simplification lenses.
+- [ ] Write PIR/traceability, push one PR to dev, move exactly to Review and hand off to kanmer-review.

@@ -51,3 +51,15 @@ Against `origin/dev`, which current Case-match/query/write owners can MAIL-09 re
 ## Open questions
 
 No unresolved operator question remains. Planning must decide the smallest atomic revalidation shape inside the existing store boundary, but it may not alter the accepted keys, uniqueness scope, fail-closed behavior or exact live-approval requirement.
+
+## Post-merge implementation refresh — 2026-08-20
+
+- Fetched and inspected current `origin/dev` at `09b42a57dba19853361732d4e17ca111d14fba90`, including the merged TICK-053 search projection, TICK-049 move/current-location store and TICK-050 suggested-Move detail state.
+- `ProcessQueuedIntake` already invokes provider/QDOS automatic association after a durable evaluation and on replay. MAIL-09 can run immediately after that existing attempt only while the receipt still has no current Case; no new worker/function/queue is required.
+- `AutomaticCaseAssociationRequest` plus `IAutomaticCaseAssociationStore.AssociateFromMatchAsync` and `EfIntakeMutationStore` already own system-worker attribution, stable operation keys, serializable locking, active-or-reversed association guards, archived/lease checks, append-only mutation history and replay. The smallest stale seam is an optional expected evidence fingerprint on this existing request, reloaded and compared inside that same transaction before the write. Existing provider requests omit it and retain their legacy fingerprint.
+- Current system-wide registrations are available from the canonical current Case-data `vehicle_registration` field. Extracting the same non-alphanumeric/uppercase normalizer already used by Case search gives two concrete callers and removes any MAIL-09 grammar copy.
+- Exact mail evidence is retained as mailbox id + durable conversation identity and receipt token. Thread candidates must use each receipt's current association precedence: any manual-association row supersedes the accepted link, with inactive meaning no current Case.
+- A focused Infrastructure current-association query helper can serve both the MAIL-09 evidence query and retained-mail list/detail projection; this avoids duplicating precedence or adding a new table/store.
+- The Core rule is: a present normalized VRM must resolve to exactly one current non-archived Case; an already-associated exact mailbox thread may independently resolve to one. Multiple VRM/thread candidates or disagreement abstain. A unique VRM may qualify the first message before its thread has any association; thread-only matching qualifies when the incoming receipt has no VRM. Case/PO text is never read.
+- Viewing remains unchanged except that the already-landed Case link becomes honest for system-worker/manual association rows. Attachments remain receipt-owned; no copy, Box, Graph or mailbox operation occurs.
+- No TICK-051 worktree/branch or active overlapping claim exists on the refreshed base. TICK-052 remains sequenced after this ticket.
