@@ -1,7 +1,7 @@
 ---
 id: AUTO-005
 type: ticket
-title: Decide the Automation Actor boundary for Triage material
+title: Expose Triage casework through the Automation Actor
 status: preparing
 area: automation-integrations
 assignee: ''
@@ -18,23 +18,30 @@ links:
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
   - docs/frd/frd-03-triage.md
+  - docs/adr/0011-restrict-mcp-to-automation-actor.md
+  - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-20T10:12:42.306Z'
-updated: '2026-08-20T10:23:17.577Z'
+updated: '2026-08-20T10:24:08.277Z'
 ---
 
 ## What
 
-Determine whether the Automation Actor may list, inspect, retrieve retained material from, or mutate the distinct Triage workflow, and define the smallest typed Core-backed inventory if permitted.
+Expose the Triage workflow through typed Automation Actor tools that call the same Core queries and commands as the staff Web caller, and deliver it in the same task/worktree as [[AUTO-004]].
 
 ## Why
 
-AUTO-004 confirms that Triage has no MCP tool surface at all. Triage is a separate pre-case workflow rather than an Unidentified state, so adding it to the Unidentified fix would collapse product boundaries and silently broaden actor authority.
+ADR-0011 requires MCP tools to call the same Core use cases as Web and forbids a second policy engine. ADR-0021 grants `ActorKind.Automation` exactly `PerformCasework` and requires a comprehensive toolset with logging parity. Triage is ordinary casework, but currently has no MCP surface, so this is an implementation omission rather than an unresolved authority decision.
+
+## Scope
+
+Research the exact parity inventory: list/detail, retained source retrieval, state transitions, findings/corrections, response-evidence links, completion/cancellation/reopen, and Case association through existing leases. Preserve explicit identity constraints: the Automation Actor never impersonates staff, so the staff-only “assign to me” interaction is not converted into an Automation assignee or an arbitrary-staff assignment tool.
 
 ## Verification
 
-- The governing FRDs explicitly permit or reject each proposed Triage read/retrieval/mutation.
-- Any permitted caller is mapped to the existing Core query/command and staff caller rather than duplicating policy.
-- Denied or deferred operations remain absent from the registered MCP inventory.
+- Every in-scope tool calls the existing Triage/Core owner used by Web.
+- Automation receives the same `PerformCasework` authorization, version, reason, operation-key, evidence, and Case-lease guards.
+- Staff-only identity semantics and explicitly prohibited external/management actions remain absent.
+- Real `/mcp` success, denial, validation, replay, attribution, and history evidence covers the Triage inventory.
 
 ## Outcome

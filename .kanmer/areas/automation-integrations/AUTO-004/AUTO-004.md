@@ -18,9 +18,11 @@ links:
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
   - docs/frd/frd-02-intake-and-source-identity.md
+  - docs/adr/0011-restrict-mcp-to-automation-actor.md
+  - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-20T09:27:47.730Z'
-updated: '2026-08-20T10:13:57.210Z'
+updated: '2026-08-20T10:24:02.108Z'
 ---
 
 ## Why
