@@ -5,3 +5,5 @@
 2026-08-20 CI follow-up: repository `changes` detected the grant-carrying migration was not yet enumerated in the exhaustive database-bootstrap matrix. Added exactly the migration-defined Web SELECT/INSERT/UPDATE and Web/Worker DELETE denials, with no new permission or deployment behavior. Local deployment-plan and migration-grant scripts pass. Pushed `5e8217a1`; replacement CI pending.
 
 Review-blocker implementation completed locally. Added SQL active-claim serialization, post-reservation exact source probe, same-key uncertain Web recovery, reclassification-aware latest-success source, retained-search findability, and exact negative/preservation tests. Release build, focused Core/persistence/Web and migration checks are green; proportional broader retained-mail verification is running. No live Graph/mailbox/cloud/deployment writes occurred.
+
+Pushed final blocker-fix head `fc3b651eda785ad37fbe7c302aec38e2876abc20` to PR #477. GitHub confirms OPEN, non-draft, base `dev`, exact head match. Replacement repository-check run 32391719482 is in progress at handoff. No self-review or merge performed.
