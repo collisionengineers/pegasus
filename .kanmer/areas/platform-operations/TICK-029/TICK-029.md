@@ -2,7 +2,7 @@
 id: TICK-029
 type: ticket
 title: OPS-14 — Production cutover and previous-artifact rollback procedure
-status: done
+status: verifying
 area: platform-operations
 assignee: ''
 profile: feature
@@ -25,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.369Z'
-updated: '2026-08-20T05:41:46.094Z'
+updated: '2026-08-20T05:50:10.719Z'
 ---
 
 ## What
