@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Dashboard received counters count only their own channel — manual uploads
   never increment emails received
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-20T05:06:52.820Z'
   review: '2026-08-20T05:10:57.978Z'
+  verifying: '2026-08-20T05:38:15.035Z'
 taken_at: '2026-08-20T05:05:17.879Z'
 branch: task/plat-012-channel-counters
 worktree: ../pegasus-worktrees/plat-012
@@ -25,7 +26,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/457'
 archived: false
 created: '2026-08-20T03:16:37.586Z'
-updated: '2026-08-20T05:10:57.978Z'
+updated: '2026-08-20T05:38:15.035Z'
 ---
 
 ## What

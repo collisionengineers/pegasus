@@ -2,7 +2,7 @@
 id: TICK-120
 type: ticket
 title: Activate production due-by and seven-day chasing
-status: verifying
+status: done
 area: mail-communications
 assignee: ''
 profile: feature
@@ -11,6 +11,7 @@ stageEntered:
   implementing: '2026-08-20T05:37:13.661Z'
   review: '2026-08-20T05:37:20.946Z'
   verifying: '2026-08-20T05:37:24.071Z'
+  done: '2026-08-20T05:37:33.193Z'
 labels:
   - now
   - source-now
@@ -21,9 +22,10 @@ links:
   - TICK-116
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
+deployment: production
 archived: false
 created: '2026-08-12T15:08:02.478Z'
-updated: '2026-08-20T05:37:24.071Z'
+updated: '2026-08-20T05:37:34.093Z'
 ---
 
 ## What

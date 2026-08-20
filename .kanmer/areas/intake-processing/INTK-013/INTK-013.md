@@ -2,13 +2,14 @@
 id: INTK-013
 type: ticket
 title: Make the Not ready tab count match its rows across both case origins
-status: review
+status: verifying
 area: intake-processing
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-20T05:01:28.038Z'
   review: '2026-08-20T05:05:03.996Z'
+  verifying: '2026-08-20T05:38:14.252Z'
 taken_at: '2026-08-20T04:58:55.284Z'
 branch: task/intk-013-notready-badge
 worktree: ../pegasus-worktrees/intk-013
@@ -25,7 +26,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/456'
 archived: false
 created: '2026-08-20T03:16:37.482Z'
-updated: '2026-08-20T05:05:03.996Z'
+updated: '2026-08-20T05:38:14.252Z'
 ---
 
 ## What

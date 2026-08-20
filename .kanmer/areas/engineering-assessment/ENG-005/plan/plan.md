@@ -10,3 +10,14 @@ No new abstractions, no schema change — this is a one-line literal fix reusing
 ## Simplification pass
 
 n/a until implementation diff exists — pass recorded before PR per lane instructions.
+
+## Simplification pass (2026-08-20)
+
+Diff is a 2-file, ~60-line change (1 production line, 1 new test + 1 backward-compatible optional parameter on an existing test helper). Reviewed against the four lenses:
+
+- **Reuse.** Fix reuses the existing single owner constant `CaseDataCodes.StaffCorrection` (no new constant, no new list). Test reuses the existing `VehicleField<T>` fixture helper, extended with an optional `sourceKind` parameter (default preserves every existing call site) rather than adding a second helper or duplicating the record construction.
+- **Simplification.** No further reduction possible — this is already the minimal one-line literal fix.
+- **Efficiency.** No behavioural/perf-relevant change beyond the corrected comparison.
+- **Altitude.** No abstraction, no interface, no new file added. Nothing to flatten.
+
+No findings to disposition — nothing applied beyond the plan's own steps.
