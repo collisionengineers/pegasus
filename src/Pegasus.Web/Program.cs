@@ -117,7 +117,6 @@ if (!developmentOfflineProfile && !productionProfile)
     throw new InvalidOperationException(
         $"Unsupported Runtime:Profile '{configuredRuntimeProfile}' for environment '{builder.Environment.EnvironmentName}'.");
 }
-BoxCustodyOptions? productionBoxCustodyOptions = null;
 if (productionProfile)
 {
     if (!builder.Environment.IsProduction())
@@ -174,12 +173,6 @@ if (productionProfile)
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
-    productionBoxCustodyOptions = BoxCustodyOptions.Create(
-        builder.Configuration["Box:BaseUri"],
-        builder.Configuration["Box:UploadUri"],
-        builder.Configuration["Box:RootFolderId"],
-        builder.Configuration["Box:ConfigJson"],
-        builder.Configuration["Box:ClientSecret"]);
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
@@ -533,13 +526,21 @@ evaMappingAcceptanceFactory: serviceProvider =>
         configuration.GetValue<int?>("Eva:AcceptedMapping:Version"),
         configuration["Eva:AcceptedMapping:EvidenceReference"]);
 },
-documentStorage: productionBoxCustodyOptions is null
+documentStorage: !productionProfile
     ? null
     : (Action<IServiceCollection>)(registrations => registrations.AddProductionDocumentStorage(
         provider => provider.GetRequiredService<BlobContainerClient>(),
         // Web never provisions the container; the Worker owns that.
         static _ => false,
-        productionBoxCustodyOptions)));
+        // Deferred to first Box use: parsing this at host build aborted the
+        // process whenever the platform handed over an unresolved Key Vault
+        // reference (PLAT-013).
+        _ => BoxCustodyOptions.Create(
+            builder.Configuration["Box:BaseUri"],
+            builder.Configuration["Box:UploadUri"],
+            builder.Configuration["Box:RootFolderId"],
+            builder.Configuration["Box:ConfigJson"],
+            builder.Configuration["Box:ClientSecret"]))));
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
