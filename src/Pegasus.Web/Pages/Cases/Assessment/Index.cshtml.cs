@@ -423,37 +423,12 @@ public sealed class IndexModel(
             and not CaseVersionConflictException
             and not CaseEditLeaseConflictException
             and not CaseEditLeaseExpiredException
+            and not CaseOperationConflictException
             ? exception.Message
             : fallback;
 
     private RedirectToPageResult RedirectToEstimate(Guid id) =>
         RedirectToPage(new { id, section = "estimate" });
-
-    /// <summary>Operator wording for the specification's provenance route.</summary>
-    public static string RouteLabel(RepairSpecificationSourceRoute route) => route switch
-    {
-        RepairSpecificationSourceRoute.Manual => "entered by hand",
-        RepairSpecificationSourceRoute.Glasses => "imported from Glass's",
-        RepairSpecificationSourceRoute.AudatexPdf => "imported from Audatex",
-        RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
-        _ => "recorded before source tracking",
-    };
-
-    /// <summary>The same names the estimate line-type choices show.</summary>
-    public static string LineTypeLabel(string type) => type switch
-    {
-        "rnr" => "Remove and refit",
-        "repair" => "Repair",
-        "new_part" => "New part",
-        "check_labour" => "Check",
-        "paint_new" => "Paint — new part",
-        "paint_repair" => "Paint — repair",
-        "paint_blend" => "Paint — blend",
-        "paint_prep" => "Paint — preparation",
-        "specialist_fixed" => "Specialist, fixed price",
-        "specialist_wu" => "Specialist, by work units",
-        _ => type,
-    };
 
     public async Task<IActionResult> OnPostSendAsync(
         Guid id,

@@ -633,7 +633,7 @@
                 @if (Model.AcceptedSpecification is { } acceptedSpec)
                 {
                     <div class="status-card" role="status">
-                        Version @acceptedSpec.Version, @IndexModel.RouteLabel(acceptedSpec.Source.Route), accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt ? $" {acceptedAt:d MMM yyyy}" : "").
+                        Version @acceptedSpec.Version, @OperatorLabels.RepairSpecificationRoute(acceptedSpec.Source.Route), accepted@(acceptedSpec.AcceptedAtUtc is { } acceptedAt ? $" {acceptedAt:d MMM yyyy}" : "").
                     </div>
                     @if (acceptedSpec.CalculationBasis is { } basis)
                     {
@@ -652,7 +652,7 @@
                 @if (Model.DraftSpecification is { } draftSpec)
                 {
                     <div class="status-card status-card--attention" role="status">
-                        Version @draftSpec.Version, @IndexModel.RouteLabel(draftSpec.Source.Route), awaiting an Engineer&#8217;s acceptance.
+                        Version @draftSpec.Version, @OperatorLabels.RepairSpecificationRoute(draftSpec.Source.Route), awaiting an Engineer&#8217;s acceptance.
                     </div>
                     RenderSpecificationLines(draftSpec, "draft");
 
@@ -1455,7 +1455,7 @@
                     {
                         <tr>
                             <th scope="row">@line.Position</th>
-                            <td>@IndexModel.LineTypeLabel(line.Type)</td>
+                            <td>@OperatorLabels.EstimateLineType(line.Type)</td>
                             <td>@(line.GuideCode ?? "")</td>
                             <td>@(line.Description ?? "")</td>
                             <td class="tabular">@(line.WorkUnits is { } workUnits ? workUnits.ToString("0.0") : "")</td>

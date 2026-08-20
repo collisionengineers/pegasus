@@ -73,11 +73,13 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
                 .OrderByDescending(group => group.Key);
             foreach (var group in grouped)
             {
+                var words = group.OrderBy(word => word.BoundingBox.Left)
+                    .Select(word => new PlacedWord(word.BoundingBox.Left, word.Text))
+                    .ToArray();
                 rows.Add(new VisualRow(
                     group.Key,
-                    group.OrderBy(word => word.BoundingBox.Left)
-                        .Select(word => new PlacedWord(word.BoundingBox.Left, word.Text))
-                        .ToArray()));
+                    words,
+                    string.Join(' ', words.Select(word => word.Text))));
             }
         }
 
@@ -86,10 +88,11 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
 
     private sealed record PlacedWord(double X, string Text);
 
-    private sealed record VisualRow(double Y, IReadOnlyList<PlacedWord> Words)
-    {
-        public string JoinedText => string.Join(' ', Words.Select(word => word.Text));
-    }
+    /// <summary>
+    /// One baseline's words in reading order. The joined text is built once at
+    /// collection, because every classification step below reads it again.
+    /// </summary>
+    private sealed record VisualRow(double Y, IReadOnlyList<PlacedWord> Words, string JoinedText);
 
     private enum Section
     {
@@ -210,7 +213,7 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
 
         public ParsedEstimate Complete()
         {
-            var lastState = sections.TryGetValue(current, out var last) ? last : null;
+            var lastState = sections.GetValueOrDefault(current);
             ResolveBare(lastState);
             FlushPending(lastState);
             if (!sawAudatexFooter || sections.Values.All(state => state.Lines.Count == 0))
@@ -269,21 +272,28 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
 
         private void CaptureIdentity(VisualRow row)
         {
-            for (var index = 0; index < row.Words.Count - 1; index++)
+            if (documentVersion is null
+                && row.Words.Count > 1
+                && row.Words[0].Text == "Version:"
+                && row.Words[1].X < 400)
             {
-                var word = row.Words[index];
+                documentVersion = row.Words[1].Text;
+            }
+            if (assessmentNumber is not null)
+            {
+                return;
+            }
+
+            // "Assessment Number:" carries its value as the next word along.
+            for (var index = 1; index < row.Words.Count - 1; index++)
+            {
                 var next = row.Words[index + 1];
-                if (assessmentNumber is null
-                    && word.Text == "Number:"
-                    && index > 0
+                if (row.Words[index].Text == "Number:"
                     && row.Words[index - 1].Text == "Assessment"
                     && next.X < 400)
                 {
                     assessmentNumber = next.Text;
-                }
-                if (documentVersion is null && index == 0 && word.Text == "Version:" && next.X < 400)
-                {
-                    documentVersion = next.Text;
+                    return;
                 }
             }
         }
@@ -316,7 +326,7 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
                 return false;
             }
 
-            var previousState = sections.TryGetValue(current, out var previous) ? previous : null;
+            var previousState = sections.GetValueOrDefault(current);
             ResolveBare(previousState);
             FlushPending(previousState);
             current = target;
@@ -491,14 +501,13 @@ public sealed class AudatexEstimatePdfParser : IEstimateDocumentParser
                 Betterment = betterment.Count == 0 ? null : string.Join(' ', betterment),
                 Value = inlineValue,
             };
+            ResolveBare(state);
             if (line is { GuideCode: null, PartNumber: null, Betterment: null, Value: null })
             {
-                ResolveBare(state);
                 bare = line;
                 return;
             }
 
-            ResolveBare(state);
             FlushPending(state);
             pending = line;
         }
