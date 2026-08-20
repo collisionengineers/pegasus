@@ -85,9 +85,17 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
+        // "Received today" sits under the Dashboard's E-mail activity
+        // section, so it counts mail arrivals only. Without a channel filter
+        // this also counted manual uploads — a receipt is a receipt
+        // regardless of channel — so uploading images visibly inflated the
+        // emails-received tile (PLAT-012).
+        var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
         var receivedToday = await context.IntakeReceipts
             .AsNoTracking()
-            .CountAsync(item => item.ReceivedAtUtc >= dayStartUtc, cancellationToken);
+            .CountAsync(
+                item => item.ReceivedAtUtc >= dayStartUtc && item.SourceChannel == mailboxChannel,
+                cancellationToken);
 
         // The persisted decision is the snake_case code, not the enum name.
         // Comparing against `IntakeDecision.NeedsSorting.ToString()` matched
