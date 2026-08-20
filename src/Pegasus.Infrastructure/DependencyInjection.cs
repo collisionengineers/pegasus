@@ -214,6 +214,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
         services.AddScoped<IVehicleEvidenceQueries>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
+        services.AddScoped<IAutomaticVehicleLookupStore>(
+            provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
+        services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();

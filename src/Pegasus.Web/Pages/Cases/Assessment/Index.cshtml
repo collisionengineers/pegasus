@@ -304,17 +304,17 @@
                     </div>
                     <div>
                         <label for="vehicle-make">Make</label>
-                        <input type="text" id="vehicle-make" name="vehicle.make" aria-describedby="vehicle-make-hint" />
+                        <input type="text" id="vehicle-make" name="vehicle.make" aria-describedby="vehicle-make-hint" value='@Model.VehiclePrefill("vehicle.make")' />
                         <small id="vehicle-make-hint">Required.</small>
                     </div>
                     <div>
                         <label for="vehicle-model">Model</label>
-                        <input type="text" id="vehicle-model" name="vehicle.model" aria-describedby="vehicle-model-hint" />
+                        <input type="text" id="vehicle-model" name="vehicle.model" aria-describedby="vehicle-model-hint" value='@Model.VehiclePrefill("vehicle.model")' />
                         <small id="vehicle-model-hint">Required.</small>
                     </div>
                     <div>
                         <label for="vehicle-year">Year</label>
-                        <input type="text" id="vehicle-year" name="vehicle.year" class="tabular" aria-describedby="vehicle-year-hint" />
+                        <input type="text" id="vehicle-year" name="vehicle.year" class="tabular" aria-describedby="vehicle-year-hint" value='@Model.VehiclePrefill("vehicle.year")' />
                         <small id="vehicle-year-hint">Required.</small>
                     </div>
                     <div>
@@ -324,31 +324,29 @@
                     </div>
                     <div>
                         <label for="vehicle-engine">Engine size</label>
-                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" aria-describedby="vehicle-engine-hint" />
+                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" aria-describedby="vehicle-engine-hint" value='@Model.VehiclePrefill("vehicle.engine_cc")' />
                         <small id="vehicle-engine-hint">Optional. In cc.</small>
                     </div>
                     <div>
                         <label for="vehicle-fuel">Fuel</label>
-                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" aria-describedby="vehicle-fuel-hint" />
+                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" aria-describedby="vehicle-fuel-hint" value='@Model.VehiclePrefill("vehicle.fuel")' />
                         <small id="vehicle-fuel-hint">Optional.</small>
                     </div>
                     <div>
-                        <label for="vehicle-odometer">Odometer reading</label>
-                        <input type="number" id="vehicle-odometer" name="vehicle.odometer_miles" min="0" step="1" class="tabular" aria-describedby="vehicle-odometer-hint" />
-                        <small id="vehicle-odometer-hint">In miles. Required unless the mileage source is To be confirmed.</small>
+                        <label for="vehicle-odometer">Mileage</label>
+                        <input type="number" id="vehicle-odometer" name="vehicle.odometer_miles" min="0" step="1" class="tabular" value="@Model.MileagePrefill" />
                     </div>
                     <div>
-                        <label for="vehicle-mileage-source">Mileage source</label>
-                        <select id="vehicle-mileage-source" name="vehicle.mileage_source" aria-describedby="vehicle-mileage-source-hint">
+                        <label for="vehicle-mileage-source">Source</label>
+                        <select id="vehicle-mileage-source" name="vehicle.mileage_source">
                             <option value=""></option>
-                            <option value="online_data">Online data</option>
-                            <option value="owner">Owner</option>
-                            <option value="repairer">Repairer</option>
-                            <option value="principal">Principal</option>
-                            <option value="average">Average</option>
-                            <option value="tbc">To be confirmed</option>
+                            <option value="online_data" selected="@(Model.MileageSourcePrefill == "online_data" ? "selected" : null)">Online data</option>
+                            <option value="owner" selected="@(Model.MileageSourcePrefill == "owner" ? "selected" : null)">Owner</option>
+                            <option value="repairer" selected="@(Model.MileageSourcePrefill == "repairer" ? "selected" : null)">Repairer</option>
+                            <option value="principal" selected="@(Model.MileageSourcePrefill == "principal" ? "selected" : null)">Principal</option>
+                            <option value="average" selected="@(Model.MileageSourcePrefill == "average" ? "selected" : null)">Average</option>
+                            <option value="tbc" selected="@(Model.MileageSourcePrefill == "tbc" ? "selected" : null)">To be confirmed</option>
                         </select>
-                        <small id="vehicle-mileage-source-hint">Required. Sets the mileage sentence in the Engineer's comments.</small>
                     </div>
                     <div>
                         <label for="vehicle-condition">Pre-incident condition</label>

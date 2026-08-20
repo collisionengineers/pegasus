@@ -437,3 +437,39 @@ public sealed class ConfirmedVehicleFieldConflictException(
     public Guid CaseId { get; } = caseId;
     public string FieldName { get; } = fieldName;
 }
+
+/// <summary>
+/// The store boundary for the automatic-lookup sweep: enqueue one lookup for
+/// every active case whose current registration has no request yet, up to the
+/// batch limit, and report how many were enqueued.
+/// </summary>
+public interface IAutomaticVehicleLookupStore
+{
+    Task<int> EnqueueDueAsync(int maximumItems, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Enqueues a vehicle lookup automatically whenever a case has a known current
+/// registration (confirmed, else an extracted fact) that has never been looked
+/// up — so DVSA/DVLA evidence and the mileage estimate arrive without a staff
+/// request. Idempotent per case and registration; a corrected registration is
+/// a new pair and gets one new lookup. Does nothing where lookups are not
+/// composed.
+/// </summary>
+public sealed class ReconcileAutomaticVehicleLookups(
+    IAutomaticVehicleLookupStore store,
+    VehicleLookupAvailability availability)
+{
+    private readonly IAutomaticVehicleLookupStore store =
+        store ?? throw new ArgumentNullException(nameof(store));
+    private readonly VehicleLookupAvailability availability =
+        availability ?? throw new ArgumentNullException(nameof(availability));
+
+    public Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken = default)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        return availability.RequestsEnabled
+            ? store.EnqueueDueAsync(maximumItems, cancellationToken)
+            : Task.FromResult(0);
+    }
+}

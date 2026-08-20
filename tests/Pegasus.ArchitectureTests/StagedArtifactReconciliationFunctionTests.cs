@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
 using Pegasus.Worker;
@@ -30,17 +31,21 @@ public sealed class StagedArtifactReconciliationFunctionTests
             new EmptyIntakeReceiptQueries(),
             new UnreachableImageIntakeQueries(),
             TimeProvider.System);
+        var vehicleLookupReconciler = new ReconcileAutomaticVehicleLookups(
+            new UnreachableAutomaticVehicleLookupStore(),
+            VehicleLookupAvailability.Unavailable);
         var logger = new RecordingLogger<StagedArtifactReconciliationFunction>();
         var function = new StagedArtifactReconciliationFunction(
             reconciler,
             groupedImageReconciler,
             unidentifiedReconciler,
+            vehicleLookupReconciler,
             logger);
 
         await function.RunAsync(null!, CancellationToken.None);
 
         Assert.Equal(50, workStore.MaximumItems);
-        Assert.Equal(3, logger.States.Count);
+        Assert.Equal(4, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
         Assert.Equal(7, state["RecoveredLeases"]);
         Assert.Equal(0, state["Completed"]);
@@ -59,6 +64,9 @@ public sealed class StagedArtifactReconciliationFunctionTests
         Assert.Equal(0, unidentifiedState["Candidates"]);
         Assert.Equal(0, unidentifiedState["Resolved"]);
         Assert.Equal(0, unidentifiedState["Failures"]);
+
+        var vehicleLookupState = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[3]);
+        Assert.Equal(0, vehicleLookupState["Enqueued"]);
     }
 
     [Fact]
@@ -72,9 +80,17 @@ public sealed class StagedArtifactReconciliationFunctionTests
                 typeof(ReconcileStagedArtifacts),
                 typeof(ReconcileGroupedImageIntake),
                 typeof(ReconcileUnidentifiedDestinations),
+                typeof(ReconcileAutomaticVehicleLookups),
                 typeof(ILogger<StagedArtifactReconciliationFunction>)
             ],
             constructor.GetParameters().Select(parameter => parameter.ParameterType));
+    }
+
+    private sealed class UnreachableAutomaticVehicleLookupStore : IAutomaticVehicleLookupStore
+    {
+        public Task<int> EnqueueDueAsync(int maximumItems, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException(
+                "The sweep store must not be reached while lookups are unavailable.");
     }
 
     private sealed class ReconciliationWorkStore(int recoveredLeases) : IIntakeWorkStore

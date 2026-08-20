@@ -1,3 +1,4 @@
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
 using Microsoft.Azure.Functions.Worker;
@@ -68,6 +69,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileStagedArtifacts reconcileStagedArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
     ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
+    ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     [Function(nameof(StagedArtifactReconciliationFunction))]
@@ -110,7 +112,19 @@ public sealed partial class StagedArtifactReconciliationFunction(
             unidentifiedResult.Candidates,
             unidentifiedResult.Resolved,
             unidentifiedResult.Failures);
+
+        // CASE-008: any active case whose current registration has never been
+        // looked up gets one automatic vehicle lookup enqueued; the existing
+        // dispatch timer and external-work queue carry it from there. Same
+        // existing timer trigger deliberately; this is not a new schedule.
+        var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
+        LogAutomaticVehicleLookups(logger, vehicleLookups);
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Enqueued {Enqueued} automatic vehicle lookups.")]
+    private static partial void LogAutomaticVehicleLookups(ILogger logger, int enqueued);
 
     [LoggerMessage(
         Level = LogLevel.Information,
