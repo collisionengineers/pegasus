@@ -1,2 +1,3 @@
-- [x] A task-level plan records the exact feature contract, caller, failure behavior, and required tests — recorded in `research.md` against `CategoryCatalog.cs`, `EmailEvaluationWorkflow.cs`, `MainForm.cs`, `DesktopEvaluatorTests.cs`.
-- [x] The activation criteria have been satisfied or explicitly accepted before implementation begins — ADR-0016 already accepted this as the correct standalone artifact; implementation matches it exactly.
+- [x] A task-level plan records the exact feature contract, caller, failure behavior, and required tests — recorded in `plan.md`; fix implemented and covered by `dotnet test` (9/9 passing).
+- [x] The activation criteria have been satisfied or explicitly accepted before implementation begins — ADR-0016's own ownership statement (Core owns classification policy) is what the fix now honours; taxonomy is Core-sourced rather than an external file.
+- [x] The evaluator starts and the taxonomy renders from the current tree — verified: `CategoryCatalog.Load()` no longer depends on any file; `CatalogParsesAllTwelveCategoriesWithoutReplyFolder` passes against a clean `origin/dev` worktree.

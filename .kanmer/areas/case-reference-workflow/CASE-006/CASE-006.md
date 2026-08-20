@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Case images are viewable in Pegasus: thumbnail preview, click to expand,
   Box-backed storage
-status: backlog
+status: preparing
 area: case-reference-workflow
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T06:02:14.163Z'
+branch: task/case-006-image-viewing
+worktree: ../pegasus-worktrees/case-006
 labels:
   - images
   - case-detail
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-20T03:16:37.709Z'
-updated: '2026-08-20T03:16:44.513Z'
+updated: '2026-08-20T06:02:14.163Z'
 ---
 
 ## What
