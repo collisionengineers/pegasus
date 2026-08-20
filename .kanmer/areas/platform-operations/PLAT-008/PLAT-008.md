@@ -2,10 +2,13 @@
 id: PLAT-008
 type: ticket
 title: Place the four remaining supplied Pegasus interface marks
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T03:56:59.676Z'
+branch: task/plat-008-place-marks
+worktree: ../pegasus-worktrees/plat-008
 labels:
   - ui
   - design
@@ -19,7 +22,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-19T11:01:40.581Z'
-updated: '2026-08-19T11:01:40.581Z'
+updated: '2026-08-20T03:56:59.676Z'
 ---
 
 ## What

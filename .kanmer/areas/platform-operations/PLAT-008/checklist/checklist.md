@@ -1,0 +1,5 @@
+- [ ] Operator supplies (or points to) the four source asset files (blocked — see open-questions)
+- [ ] Map each mark to its surface and record checksums in `docs/design/README.md`
+- [ ] Place runtime copies following the existing ten-mark convention
+- [ ] Accessibility check (decorative marks `aria-hidden`, empty `alt`)
+- [ ] Browser + AccessibilityTests stay green

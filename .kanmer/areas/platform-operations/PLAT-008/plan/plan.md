@@ -1,0 +1,3 @@
+Blocked before planning. The asset search recorded in `research.md` found no trace of the four supplied mark files (`activity`, `brand`, `calendar`, `casefolder`) anywhere in the repository, its git history, or the ticket's board assets folder. `docs/design/README.md` itself records their bytes as not yet in the tree.
+
+Per the ticket's own Approach step ("do not redraw, regenerate, recolour, or substitute them") and the operating instruction not to fabricate marks, no plan can be written until the operator supplies the source files (or points to where the agent can retrieve them, e.g. export from Claude Design project `710bb42f`). See the open question.

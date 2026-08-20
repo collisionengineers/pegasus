@@ -1,0 +1,1 @@
+No files identified for change. Placement (edits to `src/Pegasus.Web/wwwroot/images/marks/`, the relevant `.cshtml` surfaces, and `docs/design/README.md`'s source-to-runtime mapping table) cannot be scoped until the four supplied source asset files exist in the repository or ticket assets — see `research.md` and the open question below.

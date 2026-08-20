@@ -2,17 +2,21 @@
 id: TICK-199
 type: ticket
 title: Retire .infisical.json or document its active owner
-status: backlog
+status: preparing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: feature
+taken_at: '2026-08-20T03:56:49.826Z'
+branch: task/tick-199-infisical
+worktree: ../pegasus-worktrees/tick-199
 labels:
   - now
   - source-now
 links: []
+docs_todo: true
 archived: false
 created: '2026-08-12T15:08:04.949Z'
-updated: '2026-08-17T06:42:11.000Z'
+updated: '2026-08-20T03:56:49.826Z'
 ---
 
 ## What
