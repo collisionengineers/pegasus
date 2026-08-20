@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Release 15: deploy the feedback-round-2 fixes, verify every issue live,
   promote to main
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-20T20:02:47.675Z'
+taken_at: '2026-08-20T20:02:52.883Z'
+branch: task/deliv-014-release-15
+worktree: ../pegasus-worktrees/deliv-014
 labels:
   - release
   - deployment
@@ -19,7 +22,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-20T20:02:19.215Z'
-updated: '2026-08-20T20:02:47.675Z'
+updated: '2026-08-20T20:02:52.883Z'
 ---
 
 ## Why
