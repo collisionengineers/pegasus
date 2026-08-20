@@ -98,6 +98,9 @@
                 <div><dt>Claim number</dt><dd>@(currentCase.Summary.ClaimNumber ?? "Not recorded")</dd></div>
             </dl>
             @if (Model.AssociationLeaseCaseId == currentCase.Summary.CaseId
+                && Model.AssociationLeaseMessageId == summary.Id
+                && Model.AssociationLeaseReceiptId == associationReceipt.Id
+                && Model.AssociationLeaseAction == Pegasus.Web.Pages.Mail.MessageModel.UnlinkAssociationAction
                 && Model.AssociationLeaseCaseVersion is { } unlinkCaseVersion
                 && Model.AssociationLeaseIntakeVersion is { } unlinkIntakeVersion
                 && Model.AssociationLeaseToken is { } unlinkLeaseToken
@@ -197,6 +200,9 @@
                     <div><dt>State</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></div>
                 </dl>
                 @if (Model.AssociationLeaseCaseId == targetCase.Summary.CaseId
+                    && Model.AssociationLeaseMessageId == summary.Id
+                    && Model.AssociationLeaseReceiptId == associationReceipt.Id
+                    && Model.AssociationLeaseAction == Pegasus.Web.Pages.Mail.MessageModel.LinkAssociationAction
                     && Model.AssociationLeaseCaseVersion is { } linkCaseVersion
                     && Model.AssociationLeaseIntakeVersion is { } linkIntakeVersion
                     && Model.AssociationLeaseToken is { } linkLeaseToken
