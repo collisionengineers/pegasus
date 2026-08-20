@@ -30,9 +30,16 @@ links:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
+commits:
+  - ad1ecb1f
+  - 4f1503eb
+  - ef5186a0
+  - 777d2762
+prs:
+  - '434'
 archived: false
 created: '2026-08-19T23:21:58.876Z'
-updated: '2026-08-20T00:39:12.877Z'
+updated: '2026-08-20T00:40:51.611Z'
 ---
 
 ## What
