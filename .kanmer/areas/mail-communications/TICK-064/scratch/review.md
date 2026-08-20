@@ -32,3 +32,33 @@ Created [[PR-013]] and [[PR-014]] in the PR Review area; both structurally block
 ### Verdict
 
 **Changes requested.** PR #468 must not merge and TICK-064 must remain in Review until both blocking tickets are resolved and the full required CI set is green.
+
+## Independent re-review — PR #468 at `268f94bc` (2026-08-20)
+
+### Changes since the first review
+
+- `EfApprovedMailboxStore.cs`: replaces clear/recreate with a keyed diff over the loaded navigation; retained keys update in place, absent keys are removed, and only genuinely new keys create entities.
+- `AdministrationPolicyPersistenceTests.cs`: relationally covers unchanged Billing, changed Instructions, removed Audits, and added Other bindings in one refresh, then verifies preservation through the next update.
+- `docs/capabilities.md`: records operator-activated local MAIL-23 policy/binding/admin evidence while retaining separate recommendation, confirmation, move, deployment, live-verification, and live-write gates.
+- `docs/design/README.md`: records the same narrow Administrator Mailboxes exception without activating an ordinary mailbox workspace or message action.
+- TICK-064's plan, refs, and PIR now name the governing capability/design owners and the activation qualification.
+
+### Comments and disposition
+
+- Original blocking [[PR-013]]: **fixed in PR** by commit `0f4ccd96`; focused relational test passes 2/2.
+- Original blocking [[PR-014]]: **fixed in PR** by commit `268f94bc`; documentation links pass across 192 files and Markdown placement passes for `origin/dev..HEAD`.
+- No new blocking or non-blocking comment.
+
+### Checks
+
+The complete replacement CI run is green: changes, documentation, reference-data, infrastructure, unit, browser, SQL integration shards 1–3, and SQL integration coverage. `git diff --check` is clean. The refreshed report matches the complete diff through its changes table and delivery/governing addenda. Runtime grants remain Web-only SELECT/INSERT/DELETE with no Worker caller/grant; no retained-message state, Graph mutation, or downstream recommendation/move behavior entered scope.
+
+### Repository review questions
+
+1. **Did the plan miss anything implied by the ticket?** No after the PR-014 governing-doc addendum.
+2. **Did implementation miss anything in the plan?** No after PR-013's tracked-key replacement fix and relational coverage.
+3. **Did the simplification pass run with honest dispositions?** Yes. The original four lenses and delivery addendum are honest, and both review fixes have their own proportionate four-lens records with no unapplied finding.
+
+### Verdict
+
+**Pass.** Both prior blockers are resolved, evidence is green, and PR #468 may merge to `dev`. TICK-064 then moves one stage to Verifying; proof, main promotion, live verification, and closeout remain out of scope.
