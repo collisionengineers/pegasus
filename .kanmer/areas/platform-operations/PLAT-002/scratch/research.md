@@ -3,3 +3,5 @@
 Option 1 selected by user. Expanded survey on checkout c41314d9: 20 files / 27 StaffActorFactory.TryCreate calls; 9 application Pages files with Guid N-format generators. Every actor caller is explicitly or fallback authenticated. Uploads/Request is the only relevant anonymous page and has key generation only. Research/files extended; scope question checked resolved.
 
 Canonicalized research.md after option 1: removed superseded eight-owner count and unresolved narrow-scope narrative; retained verified 20 files/27 actor calls, nine application key owners, authenticated caller classification, anonymous boundary, exact reuse/test implications.
+
+2026-08-20 thoroughness re-audit at c41314d9: corrected the N-format inventory. Upload.ExternalReceiptToken is a distinct grouped-intake replay/receipt identity, not an operation key. Updated research/files/open-questions/plan/checklist so complete consolidation leaves exactly two intentional application GUID-N generation sites (StaffPageModel operation keys and Upload receipt tokens), and corrected proof timing to merged main plus canonical runbook command paths.

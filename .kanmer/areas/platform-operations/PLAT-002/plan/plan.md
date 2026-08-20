@@ -7,82 +7,89 @@ no user-visible, Core, database, Infrastructure, or deployment change.
 
 Add one metadata-free StaffPageModel above every staff Razor Page that currently
 parses claims. It reuses StaffActorFactory unchanged and owns the one public
-N-format operation-key generator. AdministrationPageModel and
-CaseMutationPageModel derive from it; the remaining actor callers derive from it
-directly. The AllowAnonymous upload-request page remains on PageModel and calls
-the static generator by type. This beats a neutral utility because there is no
-second policy or external boundary to justify another abstraction, and it beats
-the rejected narrow option because the user selected complete consolidation.
+operation-key generator. AdministrationPageModel and CaseMutationPageModel
+derive from it; the remaining actor callers derive directly. Anonymous
+Uploads/Request remains on PageModel and calls the static operation-key method.
+Upload keeps its local ExternalReceiptToken generation because receipt identity
+is a separate concept despite sharing the GUID-N representation.
+
+This is smaller and clearer than a neutral key utility: there is no second
+operation-key policy or external boundary. It also satisfies the user-selected
+complete consolidation without pulling unrelated receipt semantics into a
+staff-page abstraction.
 
 ## Governing docs
 
-PLAT-002 has no linked PRD, FRD, or ADR and its resolved chore profile does not
-require one. The change preserves product behaviour and makes no durable
-architectural choice: it applies the existing AGENTS.md and
-docs/engineering.md one-owner/simplicity rules inside the existing Web project.
-No governing document is modified or created. docs/current-architecture.md is
+PLAT-002 has no linked PRD, FRD, or ADR, and its resolved chore profile does not
+require one. Behaviour and durable architecture are unchanged; this applies the
+existing AGENTS.md and docs/engineering.md one-owner rules within Web.
+No governing document is created or modified. docs/current-architecture.md is
 updated only as the downstream as-built snapshot.
 
 ## Steps
 
-1. Add src/Pegasus.Web/Pages/StaffPageModel.cs by reusing the exact claim inputs
-   and StaffActorFactory call from AdministrationPageModel. Give TryGetActor the
-   existing NotNullWhen nullable signature and move the exact
-   Guid.NewGuid().ToString("N") generator here as public static. Add no
-   authorization metadata, service, validation, or unrelated helper.
-2. Make AdministrationPageModel and CaseMutationPageModel derive from the new
-   root and delete only their duplicate actor/key implementations and obsolete
-   usings. Build before migrating direct pages so the two existing inheritance
-   trees and Case Details Razor static calls are proved unchanged.
-3. Migrate all 18 direct actor-calling page models in files.md to
-   StaffPageModel. Replace inline factory blocks/private helpers with
-   TryGetActor; preserve each existing condition and failure result. In
-   PasswordChange and Triage/Details, keep local parsing of actor.SubjectId for
-   the existing staff Guid. Delete the remaining application key copies.
+1. Add `src/Pegasus.Web/Pages/StaffPageModel.cs`, reusing the exact claim
+   inputs and StaffActorFactory call from AdministrationPageModel. Use the
+   existing `[NotNullWhen(true)] out ActionActor?` signature and the exact
+   public static GUID-N operation-key generator. Add no authorization metadata,
+   service, validation, receipt-token logic, or unrelated helper.
+2. Derive AdministrationPageModel and CaseMutationPageModel from the root and
+   remove only duplicate actor/operation-key code and obsolete usings. Run a
+   Release build now to prove both inheritance trees and existing Case Details
+   Razor static calls before wider migration; if Razor requires it, name
+   StaffPageModel directly at those view calls.
+3. Migrate all 18 direct actor callers in files.md to StaffPageModel. Replace
+   only factory clauses/helpers, retaining operand order, short-circuiting,
+   failure results, and authorization. Keep local SubjectId-to-Guid parsing in
+   PasswordChange and Triage/Details. Replace the remaining operation-key
+   copies. In Upload, change actor resolution only and preserve its distinct
+   ExternalReceiptToken generation and validation.
 4. Keep Uploads/Request explicitly AllowAnonymous and deriving from PageModel;
-   replace only its private generator with StaffPageModel.NewOperationKey. Add
-   architecture coverage in DependencyDirectionTests using the existing
-   FindRepositoryRoot/source-scan convention: exactly one Web factory call,
-   exactly one application Pages N-format generator, and reflection proof that
-   RequestModel is anonymous and not a StaffPageModel.
-5. Refresh docs/current-architecture.md with the new as-built Web owner. Run the
-   required simplification pass over the branch diff (reuse, simplification,
-   efficiency, altitude), apply behaviour-preserving findings, and record every
-   disposition under a dated Simplification pass section appended here.
-6. Run the exact verification below after all simplification changes. Record
-   changed files, preservation claims, simplification dispositions, command
-   results, and deviations in the post-implementation report before the PR.
+   replace its private operation-key method with
+   StaffPageModel.NewOperationKey. In DependencyDirectionTests, reuse
+   FindRepositoryRoot/source inspection to assert: the sole Web
+   StaffActorFactory call is in StaffPageModel; Pages have exactly the two
+   intentional GUID-N application sites (StaffPageModel operation keys and
+   Upload receipt tokens); RequestModel remains anonymous and outside the staff
+   inheritance tree.
+5. Refresh docs/current-architecture.md. Run all four simplification lenses
+   (reuse, simplification, efficiency, altitude) over the branch diff and
+   immediate surroundings. Apply behaviour-preserving findings and append a
+   dated Simplification pass section here with every finding disposition.
+6. After simplification, run the exact verification below. Record changed files,
+   preservation claims, simplification dispositions, command results, and any
+   deviation in the post-implementation report before opening the PR.
 
 ## Verification
 
-Proof is produced from the final task-branch state and later repeated on merged
-dev:
+On the final task branch:
 
-- dotnet restore --locked-mode
-- dotnet build --configuration Release
-- dotnet test tests/Pegasus.ArchitectureTests --configuration Release --no-build
-- dotnet test tests/Pegasus.IntegrationTests --configuration Release --no-build --filter "FullyQualifiedName~ShellAndStatusPageWebTests|FullyQualifiedName~AdministrationSearchAccountWebTests|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~AssessmentReportDraftWebTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~QdosIntakeWebTests|FullyQualifiedName~IntakeWebNegativeTests|FullyQualifiedName~ImageIntakeWebTests|FullyQualifiedName~MailWorkspaceWebTests|FullyQualifiedName~OperationsWebTests|FullyQualifiedName~QdosTriageIntegrationTests|FullyQualifiedName~TriageQueuesWebTests"
-- rg "StaffActorFactory.TryCreate" src/Pegasus.Web returns only StaffPageModel.cs.
-- rg 'Guid.NewGuid\(\)\.ToString\("N"\)' src/Pegasus.Web/Pages returns only
-  StaffPageModel.cs; test-only generators are intentionally excluded.
-- rg verifies Uploads/Request still contains AllowAnonymous, derives from
-  PageModel rather than StaffPageModel, and calls StaffPageModel.NewOperationKey.
+- `dotnet restore ./Pegasus.slnx --locked-mode`
+- `dotnet build ./Pegasus.slnx --configuration Release --no-restore`
+- `dotnet test ./tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build`
+- `dotnet test ./tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --configuration Release --no-build --filter "FullyQualifiedName~ShellAndStatusPageWebTests|FullyQualifiedName~AdministrationSearchAccountWebTests|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~CaseCreateWebTests|FullyQualifiedName~CasesIndexWebTests|FullyQualifiedName~CaseDetailsWebTests|FullyQualifiedName~AssessmentReportDraftWebTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~QdosIntakeWebTests|FullyQualifiedName~IntakeWebNegativeTests|FullyQualifiedName~ImageIntakeWebTests|FullyQualifiedName~MailWorkspaceWebTests|FullyQualifiedName~OperationsWebTests|FullyQualifiedName~QdosTriageIntegrationTests|FullyQualifiedName~TriageQueuesWebTests"`
+- `rg -n "StaffActorFactory\.TryCreate" src/Pegasus.Web` returns only
+  StaffPageModel.cs.
+- The GUID-N inventory returns exactly StaffPageModel.cs (operation key) and
+  Upload.cshtml.cs (receipt token); no duplicate operation-key owner remains.
+- Uploads/Request remains AllowAnonymous, derives from PageModel rather than
+  StaffPageModel, and calls StaffPageModel.NewOperationKey.
 
-proof.md records these checks on merged dev.
+Per repository workflow, proof.md repeats the required evidence on merged
+`main`, not on the pre-merge branch or merged `dev`.
 
 ## Risks / open questions
 
-- Static member access through CaseMutationPageModel is expected C# inheritance
-  behaviour; the Step 2 build is the early stop check. If it does not compile,
-  update Razor calls to StaffPageModel.NewOperationKey without changing values.
-- Inline call sites combine actor resolution with other conditions. Replace only
-  the factory clause and retain operand order so short-circuit behaviour stays
-  unchanged.
-- The root must stay metadata-free. Authorization remains explicit or supplied
-  by Program.cs fallback; architecture coverage protects the anonymous
-  exception.
-- Re-run both rg inventories in the task worktree before editing. Add a newly
-  discovered application caller to this mechanical slice; stop if it represents
-  a materially different policy.
-- No open user question remains; complete consolidation was selected on
-  2026-08-20.
+- Static access through CaseMutationPageModel should compile by C# inheritance;
+  Step 2 is the early stop check and the direct StaffPageModel name is the
+  behaviour-neutral fallback.
+- Inline factory calls participate in compound conditions; replace only that
+  clause and preserve operand order.
+- StaffPageModel must remain metadata-free. Existing explicit/fallback
+  authorization stays authoritative; the anonymous exception is guarded.
+- A raw GUID-N search crosses two concepts. Do not “simplify” Upload's receipt
+  token into the operation-key owner; assert both intentional sites.
+- Re-run both inventories in the task worktree before editing. Include newly
+  found instances only when they share these verified semantics; stop on a
+  materially different policy.
+- No open user question remains.
