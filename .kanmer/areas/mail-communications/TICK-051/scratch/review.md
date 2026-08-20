@@ -28,3 +28,7 @@
 ## Verdict
 
 Needs changes. Reviewed the complete ticket and both epic contexts, resolved gates/open questions, governing FRD and scheduling authority, exact PR head/diff, Core/Infrastructure ownership, transaction/replay/reversal behavior, runtime grants, tests, and the dated four-lens simplification disposition. PR #486 must not merge until [[PR-045]], [[PR-046]], and [[PR-047]] are resolved and a full replacement CI run is green.
+
+## CI state at needs-changes handoff
+
+Initial exact-head run 32408607514 for `33aa2dfb` had unit, changes, documentation, reference-data and local-development-scripts green; SQL shards 1–3 and browser were still in progress when the implementer began the blocker fixes. This run is superseded by any blocker commit and cannot satisfy the required replacement-head gate. Re-review must wait for the full replacement run on the final head.
