@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 15 | 2026-08-20 | `6d04f89d…` | `sha256:07c05faa…` | `pegasus-prod-web-252ow37gij--6d04f89d4d30` | `20260820100724_RetainedMailSearchDocuments`, `20260820144004_RetainedMailFolderMoves` |
   | 14 | 2026-08-20 | `d91fd7d7…` | `sha256:949797d4…` | `pegasus-prod-web-252ow37gij--d91fd7d7835a` | `20260820034652_ImageIntakeSubmissionGroup`, `20260820040337_SendToAiConnectorSettings`, `20260820055900_ImageCaseCustody`, `20260820100056_ApprovedMailboxLogicalFolderBindings` |
   | 13 | 2026-08-20 | `2325ed4a…` | `sha256:7efa46fd…` | `pegasus-prod-web-252ow37gij--2325ed4a31d7` | `20260819234014_GrantWorkerIntakeSubmissionGroupRead` |
   | 12 | 2026-08-19 | `ed3be51c…` | `sha256:6dcf3ca1…` | `pegasus-prod-web-252ow37gij--ed3be51c95bc` | `20260819093019_RetainedMailboxInternetMessageIdentity`, `20260819101344_GroupedIntakeSubmission`, `20260819104953_MailClassificationCorrectionHistory`, `20260819112640_VersionedRepairSpecifications`, `20260819112914_ImageInitiatedLifecycle`, `20260819115323_UnidentifiedWork`, `20260819140113_ImageIntakeGroupExpectedMemberCount`, `20260819180000_GrantEvaHandoffDownloadOperations` |
@@ -327,6 +328,36 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   What each release proved beyond smoke:
 
+  - **Release 15** (2026-08-20, manifest SHA-256 `3D652838…`) carried the
+    2026-08-20 operator feedback-round-2 remediations, each verified against
+    its ticket before the cut (PRs #476, #478, #479, #481–#485, #487, #488):
+    the design authority gained the binding no-explanatory-copy and
+    page-economy rules and every touched page was brought under them; one
+    upload submission is one decision card with image thumbnails; instruction
+    extraction writes unambiguous typed-valid values as facts (auto-added case
+    details) with claimant/claim-number/vehicle-description coverage measured
+    on the real corpus; parallel same-receipt allocation retries are
+    serialised by a per-receipt application lock (the recurring CI deadlock's
+    root cause); the case page renders only populated sections with an
+    edit-mode toggle and unsaved-changes dialog; every active case with a
+    known registration gets an automatic DVSA/DVLA lookup via a reconciliation
+    sweep and the assessment page prefills Mileage/Source from the evidence;
+    Queues shows one merged Not-ready table with dropdown filters and sortable
+    newest-first columns; the assessment page carries no hint sentences, a
+    contained estimate grid, a clickable damage diagram that saves the
+    case's impact location, and a preselected assessment method; the Inbox
+    resolves automatically allocated cases from the allocation attempt so an
+    allocated message can no longer read as awaiting allocation; Box custody
+    writes no binding marker files (database folder id is the identity
+    authority) and retains each instruction attachment beside the source —
+    the eight legacy binding JSONs were deleted from the four live case
+    folders after the deploy. The same day, the operator-approved test-data
+    wipe removed 1,211 rows across 66 case/intake/image/mail data tables and
+    all 159 transient-intake blobs, preserving identity, configuration,
+    reference and sequence tables so references are never reused. Post-deploy
+    smoke passed (health, exact version/SHA `6d04f89d`, anonymous-denial,
+    https redirect, Worker `approved-live-worker`); live checks confirmed the
+    new Queues surface, the empty wiped estate, and working staff sign-in.
   - **Release 14** (2026-08-20, manifest SHA-256 `87667CB7…`) carried the
     2026-08-20 operator-review remediations, each independently verified
     against its ticket before the cut (PRs #437–#468, #471, #472): the
