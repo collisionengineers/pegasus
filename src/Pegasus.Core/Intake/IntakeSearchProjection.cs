@@ -6,7 +6,9 @@ namespace Pegasus.Core.Intake;
 /// </summary>
 public static class IntakeSearchProjection
 {
-    public static IReadOnlyList<IntakeSearchDocument> Create(IntakeSourceReadResult readResult)
+    public static IReadOnlyList<IntakeSearchDocument> Create(
+        IntakeSourceReadResult readResult,
+        MailRouteEvaluationResult? routeDecision)
     {
         ArgumentNullException.ThrowIfNull(readResult);
 
@@ -30,9 +32,31 @@ public static class IntakeSearchProjection
         }
 
         var documents = new List<IntakeSearchDocument>();
-        if (grouped.TryGetValue(string.Empty, out var rootFragments))
+        var effectiveSender = routeDecision?.EffectiveSender;
+        var isStaffForward = effectiveSender is not null
+            && routeDecision?.TransportIdentities.All(identity =>
+                !string.Equals(
+                    identity.Address,
+                    effectiveSender.Address,
+                    StringComparison.OrdinalIgnoreCase)) == true;
+        List<IntakeContentFragment>? rootFragments = null;
+        if (isStaffForward
+            && effectiveSender is not null
+            && grouped.TryGetValue(effectiveSender.SourceLabel, out var originalFragments))
         {
-            documents.Add(new("message body", null, CombineSearchText(rootFragments)));
+            rootFragments = originalFragments;
+        }
+        else
+        {
+            grouped.TryGetValue(string.Empty, out rootFragments);
+        }
+        if (rootFragments is not null)
+        {
+            var body = CombineSearchText(rootFragments);
+            documents.Add(new(
+                "message body",
+                null,
+                body is null ? null : StaffForwardBodyCleaner.Clean(body, isStaffForward)));
         }
         foreach (var descriptor in readResult.AttachmentRecords.OrderBy(item => item.Ordinal))
         {

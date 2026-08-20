@@ -338,7 +338,10 @@ public interface IRetainedMailQueries
         int pageSize,
         CancellationToken cancellationToken);
 
-    Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<RetainedMailDetail?> GetAsync(
+        Guid id,
+        CancellationToken cancellationToken,
+        string? searchTerm = null);
 
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
@@ -379,13 +382,7 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope),
                 "The mail folder scope is not recognized.");
         }
-        if (scope.SearchTerm is { } searchTerm
-            && (string.IsNullOrWhiteSpace(searchTerm) || searchTerm.Trim().Length > 200))
-        {
-            throw new ArgumentException(
-                "A mail search term must contain 1 to 200 characters.",
-                nameof(scope));
-        }
+        var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
         if (scope.MailboxId is { } mailboxId
             && (string.IsNullOrWhiteSpace(mailboxId) || mailboxId.Length > 100))
         {
@@ -396,9 +393,25 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
 
         var normalizedScope = scope with
         {
-            SearchTerm = scope.SearchTerm?.Trim()
+            SearchTerm = searchTerm
         };
         return await queries.ListAsync(normalizedScope, page, pageSize, cancellationToken);
+    }
+
+    internal static string? NormalizeSearchTerm(string? value, string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        var term = value.Trim();
+        if (term.Length is 0 or > 200)
+        {
+            throw new ArgumentException(
+                "A mail search term must contain 1 to 200 characters.",
+                parameterName);
+        }
+        return term;
     }
 
     public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
@@ -423,6 +436,13 @@ public sealed class GetRetainedMail(
         ActionActor actor,
         Guid messageId,
         CancellationToken cancellationToken = default)
+        => await ExecuteAsync(actor, messageId, searchTerm: null, cancellationToken);
+
+    public async Task<RetainedMailDetail?> ExecuteAsync(
+        ActionActor actor,
+        Guid messageId,
+        string? searchTerm,
+        CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
         if (messageId == Guid.Empty)
@@ -432,7 +452,13 @@ public sealed class GetRetainedMail(
                 nameof(messageId));
         }
 
-        var detail = await queries.GetAsync(messageId, cancellationToken);
+        var normalizedSearchTerm = ListRetainedMail.NormalizeSearchTerm(
+            searchTerm,
+            nameof(searchTerm));
+        var detail = await queries.GetAsync(
+            messageId,
+            cancellationToken,
+            normalizedSearchTerm);
         if (detail?.Classification is not { } dossier)
         {
             return detail;

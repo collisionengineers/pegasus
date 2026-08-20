@@ -1,11 +1,14 @@
 using System.Net;
 using System.Text.RegularExpressions;
+using Azure.Core;
+using Azure.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
@@ -188,10 +191,48 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
+    public async Task AuthenticatedDeletedSearchRendersUnavailableWhenCredentialAcquisitionFails()
+    {
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(
+                new FailingCredential(),
+                new Uri("https://graph.microsoft.com/v1.0/"),
+                new HttpClient(new UnexpectedHttpHandler())),
+            new ApprovedMailboxEstate(
+                [new("empty-mailbox", "empty@example.invalid", "inbox-folder")]),
+            new Pegasus.Infrastructure.Intake.MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDeletedMailSearchSource>();
+                services.AddSingleton<IDeletedMailSearchSource>(source);
+            }));
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(
+            client,
+            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+
+        Assert.Contains(
+            "Deleted Items search is unavailable. Retained Inbox mail remains available.",
+            html,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SearchFiltersRetainedRowsAndCarriesTheTermThroughPagingAndDetail()
     {
         using var factory = new IntakeWebApplicationFactory();
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
+        for (var index = 0; index < 30; index++)
+        {
+            await StoreSearchProjectionAsync(
+                factory,
+                FirstMailboxId,
+                $"{FirstMailboxId}-{index}",
+                "Please inspect the vehicle at the address supplied.");
+        }
         using var client = IntakeWebDriver.CreateClient(factory);
 
         var html = await GetHtmlAsync(client, "/Inbox?search=inspect");
@@ -419,6 +460,38 @@ public sealed class MailWorkspaceWebTests
         using var response = await client.GetAsync(route);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         return await response.Content.ReadAsStringAsync();
+    }
+
+    [Fact]
+    public async Task ANonmatchingThreadMemberIsMarkedOutsideTheActiveSearchView()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
+        await StoreSearchProjectionAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxId + "-1",
+            "Needle appears in the matching message.");
+        await StoreSearchProjectionAsync(
+            factory,
+            FirstMailboxId,
+            FirstMailboxId + "-0",
+            "Different thread message body.");
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var matching = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?search=needle&section=thread");
+        var nonmatching = await GetHtmlAsync(client, $"/Inbox/{ids[1]:D}?search=needle&section=thread");
+
+        Assert.Contains("search=needle", matching, StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "This message is no longer in the view you opened it from.",
+            matching,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "This message is no longer in the view you opened it from.",
+            nonmatching,
+            StringComparison.Ordinal);
+        Assert.Contains("search=needle", nonmatching, StringComparison.Ordinal);
     }
 
     private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
@@ -649,6 +722,42 @@ public sealed class MailWorkspaceWebTests
         public override DateTimeOffset GetUtcNow() => now;
     }
 
+    private static async Task StoreSearchProjectionAsync(
+        IntakeWebApplicationFactory factory,
+        string mailboxId,
+        string messageId,
+        string body)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        await scope.ServiceProvider.GetRequiredService<IIntakeReceiptStore>().StoreAsync(
+            new(
+                SourceFileName: "search.eml",
+                MediaType: "message/rfc822",
+                SourceLength: 1,
+                SourceHash: new string('F', 64),
+                SourceIdentity: new(
+                    IntakeSourceChannel.Mailbox,
+                    mailboxId.Length + ":" + mailboxId + messageId),
+                ReceivedAtUtc: NowUtc,
+                ProcessedAtUtc: NowUtc,
+                Actor: "system-worker:approved-inbox-poller",
+                Decision: IntakeDecision.NeedsSorting,
+                DecisionReason: "Fixture evaluation.",
+                Evidence: [],
+                Fields: [],
+                InstructionDraft: null,
+                MissingFields: [],
+                FailureCode: null,
+                FailureReason: null,
+                SourceReaderKey: "protocol_reader",
+                SourceReaderVersion: "1",
+                ExtractionPolicyKey: "protocol_policy",
+                ExtractionPolicyVersion: 1,
+                Assets: [],
+                SearchDocuments: [new("message body", null, body)]),
+            CancellationToken.None);
+    }
+
     private sealed class RecordingDeletedMailSearchSource : IDeletedMailSearchSource
     {
         internal string? MailboxId { get; private set; }
@@ -692,5 +801,32 @@ public sealed class MailWorkspaceWebTests
             MaximumMessages = maximumMessages;
             return Task.FromResult(Result);
         }
+    }
+
+    private sealed class FailingCredential : TokenCredential
+    {
+        public override AccessToken GetToken(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken) => throw new AuthenticationFailedException("Credential unavailable.");
+
+        public override ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken) => ValueTask.FromException<AccessToken>(
+                new AuthenticationFailedException("Credential unavailable."));
+    }
+
+    private sealed class UnexpectedHttpHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken) => throw new InvalidOperationException(
+                "HTTP must not be called after credential acquisition fails.");
+    }
+
+    private sealed class ApprovedMailboxEstate(IReadOnlyList<ApprovedIntakeMailbox> mailboxes)
+        : IApprovedIntakeMailboxes
+    {
+        public Task<IReadOnlyList<ApprovedIntakeMailbox>> ListPollableAsync(
+            CancellationToken cancellationToken) => Task.FromResult(mailboxes);
     }
 }

@@ -28,7 +28,7 @@ public sealed class RetainedMailTests
                 new("estimate.pdf", "application/octet-stream", 10, 1)
             ]);
 
-        var attachments = IntakeSearchProjection.Create(read)
+        var attachments = IntakeSearchProjection.Create(read, routeDecision: null)
             .Where(item => item.AttachmentOrdinal is not null)
             .OrderBy(item => item.AttachmentOrdinal)
             .ToArray();
@@ -36,6 +36,37 @@ public sealed class RetainedMailTests
         Assert.True(attachments[0].IsSearchable);
         Assert.False(attachments[1].IsSearchable);
         Assert.Equal([0, 1], attachments.Select(item => item.AttachmentOrdinal));
+    }
+
+    [Fact]
+    public void SearchProjectionCleansTheSameForwardedBodyThatDetailDisplays()
+    {
+        const string body = "Wrapper [cid:signature]\r\nFrom: Provider <sender@qdosassist.co.uk>\r\n"
+            + "Sent: yesterday\r\nTo: intake\r\nSubject: Instruction\r\n\r\nVisible instruction";
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.EmailBody, "message, email body", body)],
+            [],
+            [],
+            false);
+        var route = new MailRouteEvaluationResult(
+            MailRouteDisposition.Accepted,
+            new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+            [],
+            "Accepted.",
+            "policy",
+            1,
+            [new("forwarder@collisionengineers.co.uk", "message")],
+            [new("sender@qdosassist.co.uk", "message, inline forwarded-message header")],
+            new("sender@qdosassist.co.uk", "message, inline forwarded-message header"));
+
+        var root = Assert.Single(IntakeSearchProjection.Create(read, route));
+
+        Assert.Equal(
+            StaffForwardBodyCleaner.Clean(body, isStaffForward: true),
+            root.Text);
+        Assert.DoesNotContain("Wrapper", root.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("cid:", root.Text, StringComparison.OrdinalIgnoreCase);
     }
 
     private static readonly DateTimeOffset NowUtc = new(2031, 9, 1, 8, 0, 0, TimeSpan.Zero);
@@ -417,7 +448,10 @@ public sealed class RetainedMailTests
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
         }
 
-        public Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        public Task<RetainedMailDetail?> GetAsync(
+            Guid id,
+            CancellationToken cancellationToken,
+            string? searchTerm = null) =>
             Task.FromResult(DetailToReturn);
 
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(

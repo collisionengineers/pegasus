@@ -65,6 +65,38 @@ public sealed class ProductionGraphSourceTests
             request => Assert.Equal("IdType=\"ImmutableId\"", request.Prefer));
         Assert.Contains(requests, request => request.Path.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal));
         Assert.Contains(requests, request => request.Path.Contains("/mailFolders/deleted-folder/messages", StringComparison.Ordinal));
+        Assert.Contains(requests, request => request.Path.EndsWith(
+            "/mailFolders/deleted-folder/messages/deleted-1/$value",
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DeletedSearchBecomesUnavailableWhenTheMessageMovesBeforeItsFolderScopedMimeRead()
+    {
+        var handler = new DelegateHandler(request =>
+        {
+            if (request.RequestUri!.AbsolutePath.EndsWith("/mailFolders/deleteditems", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.OK, """{"id":"deleted-folder"}""");
+            }
+            if (request.RequestUri.AbsolutePath.EndsWith("/$value", StringComparison.Ordinal))
+            {
+                return Response(HttpStatusCode.NotFound, "{}");
+            }
+            return Response(
+                HttpStatusCode.OK,
+                """{"value":[{"id":"moved-1","parentFolderId":"deleted-folder","receivedDateTime":"2026-07-31T10:00:00Z","isRead":false}]}""");
+        });
+        var options = Options();
+        var source = new GraphDeletedMailSearchSource(
+            new GraphMailClient(new FixedCredential(), options.BaseUri, new HttpClient(handler)),
+            new MailboxEstate([new(options.MailboxId, options.MailboxAddress, options.InboxFolderId)]),
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+
+        var result = await source.SearchAsync(null, "needle", 100, CancellationToken.None);
+
+        Assert.Equal(DeletedMailSearchState.Unavailable, result.State);
+        Assert.Empty(result.Items);
     }
 
     [Fact]
@@ -123,7 +155,10 @@ public sealed class ProductionGraphSourceTests
 
         Assert.Equal("newer", Assert.Single(result.Items).ImmutableMessageId);
         Assert.Single(mimePaths);
-        Assert.Contains("mailbox-two/messages/newer", mimePaths[0], StringComparison.Ordinal);
+        Assert.Contains(
+            "mailbox-two/mailFolders/deleted-two/messages/newer",
+            mimePaths[0],
+            StringComparison.Ordinal);
         Assert.True(result.IsTruncated);
     }
 

@@ -254,7 +254,7 @@ public sealed class ProcessIntake(
             assessment.MailClassificationDecision,
             assessment.CaseMatchDecision,
             safeSource.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
-                ? IntakeSearchProjection.Create(readResult)
+                ? IntakeSearchProjection.Create(readResult, assessment.MailRouteDecision)
                 : []);
 
         IntakeReceipt receipt;
