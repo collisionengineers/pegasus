@@ -27,9 +27,10 @@ links:
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+  - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
 archived: false
 created: '2026-08-12T15:05:40.146Z'
-updated: '2026-08-20T09:45:44.347Z'
+updated: '2026-08-20T11:13:07.769Z'
 ---
 
 ## What
