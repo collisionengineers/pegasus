@@ -2,20 +2,24 @@
 id: TICK-039
 type: ticket
 title: INT-14 — Automated legacy DOC extraction
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T04:15:21.809Z'
 labels:
   - capability
   - INT-14
   - next
   - post-alpha
-  - blocked
-links: []
+links:
+  - SIMPLI-013
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.571Z'
-updated: '2026-08-17T06:41:39.899Z'
+updated: '2026-08-20T04:15:21.809Z'
 ---
 
 ## What

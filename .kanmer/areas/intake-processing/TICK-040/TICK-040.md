@@ -2,20 +2,24 @@
 id: TICK-040
 type: ticket
 title: INT-15 — Automated MSG extraction
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-20T04:15:21.968Z'
 labels:
   - capability
   - INT-15
   - next
   - post-alpha
-  - blocked
-links: []
+links:
+  - SIMPLI-013
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.590Z'
-updated: '2026-08-17T06:41:40.065Z'
+updated: '2026-08-20T04:15:21.968Z'
 ---
 
 ## What

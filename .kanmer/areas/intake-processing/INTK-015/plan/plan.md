@@ -28,3 +28,20 @@ One ImageIntake per `IntakeSubmissionGroup` when the group resolves to registrat
 
 - Production AU17SEO-01…-07 consolidation is deploy-verification work, not code — recorded for the post-implementation report.
 - Ordinal-0 group-lookup miss is [[INTK-012]] (this lane, next); the store's adopt-by-origin branch keeps the interim window convergent instead of divergent.
+
+## Simplification pass — 2026-08-20
+
+Run with the `code-simplifier` agent over `git diff origin/dev...HEAD` (reuse / simplification / efficiency / altitude), behaviour-preserving only; build zero-warning and focused ImageIntake suites green after applying. Commit `0605c431`.
+
+Applied:
+- `ImageIntakeAutomation.cs` — extracted `SelectAssociationTarget(candidates, read)`: the exact-match/lone-candidate completion rule existed twice (group + single paths) as a nested ternary; now one owner, both call sites one line. Comments trimmed to call-site-local content, mechanics on the helper's summary.
+- `ImageIntakeAutomation.cs` — `TryRegisterGroupAsync` took the whole `imageReceipts` array but used only element 0; parameter is now `IntakeReceipt primary`.
+- `EfImageIntakeStore.cs` — extracted `ToDetailAsync`: the new group-aware `GetByOriginReceiptAsync` duplicated `GetDetailAsync`'s association+projection tail.
+- `UploadGroupStatus.cshtml` — collapsed the duplicated member `<ol>`/loop between the group-outcome and per-file branches into one list; identical rendered HTML.
+
+Not applied (with reasons):
+- `RegisterGroupMemberReceiptsAsync` vs `EnsureRegisteredReceiptDecisionAsync` share the flip+history shape — a shared helper would need ~8 parameters for ~15 lines with different event types/keys/actors; over-abstraction for two copies.
+- `submissionGroupId` parameter on `RegisterGroupMemberReceiptsAsync` duplicates `request.SubmissionGroupId` — deriving it inside needs a null-forgiving deref; explicit parameter clearer.
+- Per-member `EnsureRegisteredReceiptDecisionAsync` calls after a fresh registration — documented replay-path safety net, asserted by a test; removing would change behaviour.
+- `now` hoisted above the replay probe / tracked `existing` query — trivial cost, enables the adopt path without a second round trip.
+- Group path does not set the `image_intake.case_candidates` telemetry tag (single path does) — telemetry gap noted for review, not a behaviour-preserving cleanup.
