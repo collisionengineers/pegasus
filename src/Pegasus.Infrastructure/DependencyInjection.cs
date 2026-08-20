@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
@@ -102,6 +103,7 @@ public static class DependencyInjection
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
+        services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());
@@ -150,8 +152,9 @@ public static class DependencyInjection
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
-        services.AddScoped<IStaffAccountQueries>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
+        // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
+        // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
+        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
@@ -267,6 +270,7 @@ public static class DependencyInjection
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
@@ -558,6 +562,30 @@ public static class DependencyInjection
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
             provider.GetRequiredService<HttpClient>(),
             provider.GetRequiredService<TimeProvider>()));
+        return services;
+    }
+
+    /// <summary>
+    /// The mailbox-administration "add an address" resolve port alone — independent of
+    /// <see cref="AddProductionExternalAdapters"/>, which also composes the single
+    /// configured polling mailbox and its Worker-only pollers. Web composes only this:
+    /// it never polls, it only resolves an address the operator just typed.
+    /// </summary>
+    public static IServiceCollection AddProductionApprovedMailboxResolver(
+        this IServiceCollection services,
+        string? graphBaseUri)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        var baseUri = GraphApprovedMailboxOptions.ParseBaseUri(graphBaseUri);
+        services.TryAddSingleton(static _ => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(100)
+        });
+        services.AddSingleton<IResolveApprovedMailboxIdentity>(provider => new GraphApprovedMailboxResolver(
+            provider.GetRequiredService<TokenCredential>(),
+            baseUri,
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<ILogger<GraphApprovedMailboxResolver>>()));
         return services;
     }
 }

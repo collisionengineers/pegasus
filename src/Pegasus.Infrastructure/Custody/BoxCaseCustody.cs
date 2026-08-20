@@ -173,16 +173,20 @@ internal sealed class BoxContentClient(
             ?? await CreateFolderAsync(parentId, name, cancellationToken);
     }
 
-    public async Task<BoxItem?> FindChildAsync(
+    public Task<IReadOnlyList<BoxItem>> ListChildrenAsync(
         string parentId,
-        string name,
-        string type,
+        CancellationToken cancellationToken) =>
+        CollectChildrenAsync(parentId, nameFilter: null, cancellationToken);
+
+    private async Task<IReadOnlyList<BoxItem>> CollectChildrenAsync(
+        string parentId,
+        string? nameFilter,
         CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(parentId, cancellationToken);
         const int pageLimit = 1000;
         var offset = 0;
-        var matches = new List<BoxItem>();
+        var children = new List<BoxItem>();
         while (true)
         {
             var uri = new Uri(options.BaseUri,
@@ -190,8 +194,8 @@ internal sealed class BoxContentClient(
             using var response = await SendAsync(HttpMethod.Get, uri, null, cancellationToken);
             using var document = await ReadSuccessJsonAsync(response, cancellationToken);
             var entries = document.RootElement.GetProperty("entries").EnumerateArray().ToArray();
-            matches.AddRange(entries
-                .Where(item => ReadString(item, "name") == name)
+            children.AddRange(entries
+                .Where(item => nameFilter is null || ReadString(item, "name") == nameFilter)
                 .Select(ParseItem));
             if (entries.Length < pageLimit)
             {
@@ -199,6 +203,16 @@ internal sealed class BoxContentClient(
             }
             offset += entries.Length;
         }
+        return children;
+    }
+
+    public async Task<BoxItem?> FindChildAsync(
+        string parentId,
+        string name,
+        string type,
+        CancellationToken cancellationToken)
+    {
+        var matches = await CollectChildrenAsync(parentId, name, cancellationToken);
         var match = matches.Count switch
         {
             0 => null,
@@ -330,6 +344,54 @@ internal sealed class BoxContentClient(
             throw new HttpRequestException($"Box download returned {(int)response.StatusCode}.");
         }
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
+    }
+
+    public async Task<BoxItem> MoveFileAsync(
+        string fileId,
+        string newParentId,
+        string name,
+        CancellationToken cancellationToken)
+    {
+        await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
+        await EnsureDescendantAsync(newParentId, cancellationToken);
+        using var content = JsonContent.Create(new { name, parent = new { id = newParentId } });
+        using var response = await SendAsync(
+            HttpMethod.Put,
+            new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}"),
+            content,
+            cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Conflict)
+        {
+            throw new InvalidDataException(
+                "The Box destination already holds a different item with the moved file's name.");
+        }
+        using var document = await ReadSuccessJsonAsync(response, cancellationToken);
+        var file = ParseItem(document.RootElement);
+        await EnsureDescendantAsync(file.Id, cancellationToken, isFile: true);
+        return file;
+    }
+
+    public async Task DeleteFolderAsync(string folderId, CancellationToken cancellationToken)
+    {
+        if (folderId.Equals(options.RootFolderId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("The approved custody root can never be removed.");
+        }
+        await EnsureDescendantAsync(folderId, cancellationToken);
+        // Deliberately non-recursive: Box refuses to delete a non-empty
+        // folder, so anything unexpectedly still inside fails the removal
+        // closed instead of being destroyed with it.
+        using var response = await SendAsync(
+            HttpMethod.Delete,
+            new Uri(options.BaseUri, $"folders/{Uri.EscapeDataString(folderId)}"),
+            null,
+            cancellationToken);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.NoContent
+            || response.IsSuccessStatusCode)
+        {
+            return;
+        }
+        throw new HttpRequestException($"Box folder delete returned {(int)response.StatusCode}.");
     }
 
     public async Task DeleteFileAsync(string fileId, CancellationToken cancellationToken)
@@ -538,17 +600,7 @@ internal sealed class BoxCaseCustody(
         ArgumentNullException.ThrowIfNull(source);
         ValidateOperation(operationKey);
         await ValidateRootAsync(root, cancellationToken);
-        var content = await artifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
-            ?? throw new FileNotFoundException("The retained intake source is unavailable.");
-        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
-        if (!actualHash.Equals(source.SourceHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("The retained intake source failed its custody integrity check.");
-        }
-        if (source.SourceLength >= 0 && source.SourceLength != content.Length)
-        {
-            throw new InvalidDataException("The retained intake source failed its custody length check.");
-        }
+        var (content, actualHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
 
         var evidence = await GetOrCreateFolderAsync(root.RemoteId, "Evidence", leaseGuard, cancellationToken);
         var instruction = await GetOrCreateFolderAsync(
@@ -576,24 +628,150 @@ internal sealed class BoxCaseCustody(
                 sourceBinding,
                 cancellationToken);
         }
-        var existing = await client.FindChildAsync(instruction.Id, fileName, "file", cancellationToken);
-        BoxContentClient.BoxItem file;
-        if (existing is null)
+        var file = await UploadOrVerifyFileAsync(
+            instruction.Id, fileName, content, source.MediaType, leaseGuard, cancellationToken);
+        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+    }
+
+    public async Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken)
+        => await RetainImageCaseAssetCoreAsync(
+            root, source, ordinal, operationKey, null, cancellationToken);
+
+    public async Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        int ordinal,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+        => await RetainImageCaseAssetCoreAsync(
+            root, source, ordinal, operationKey, leaseGuard, cancellationToken);
+
+    private async Task<CustodyDocumentVersion> RetainImageCaseAssetCoreAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        int ordinal,
+        string operationKey,
+        CustodyEffectLeaseGuard? leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 1);
+        ValidateOperation(operationKey);
+        await ValidateRootAsync(root, cancellationToken);
+        var (content, actualHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
+
+        var fileName = $"{ordinal:000} {SafeName(source.SourceFileName)}";
+        var file = await UploadOrVerifyFileAsync(
+            root.RemoteId, fileName, content, source.MediaType, leaseGuard, cancellationToken);
+        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+    }
+
+    public async Task MergeImageCaseContentsAsync(
+        CaseCustodyRoot imageRoot,
+        CaseCustodyRoot caseRoot,
+        string operationKey,
+        CancellationToken cancellationToken)
+        => await MergeImageCaseContentsCoreAsync(
+            imageRoot, caseRoot, operationKey, null, cancellationToken);
+
+    public async Task MergeImageCaseContentsAsync(
+        CaseCustodyRoot imageRoot,
+        CaseCustodyRoot caseRoot,
+        string operationKey,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+        => await MergeImageCaseContentsCoreAsync(
+            imageRoot, caseRoot, operationKey, leaseGuard, cancellationToken);
+
+    private async Task MergeImageCaseContentsCoreAsync(
+        CaseCustodyRoot imageRoot,
+        CaseCustodyRoot caseRoot,
+        string operationKey,
+        CustodyEffectLeaseGuard? leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(imageRoot);
+        ArgumentNullException.ThrowIfNull(caseRoot);
+        ValidateOperation(operationKey);
+        // A previous attempt that emptied and removed the image-case folder
+        // but could not persist its completion replays as an already-complete
+        // fold; the non-recursive removal below proves the folder was empty.
+        var imageFolder = await client.FindChildAsync(
+            client.RootFolderId,
+            CaseFolderName(imageRoot.Reference),
+            "folder",
+            cancellationToken);
+        if (imageFolder is null)
+        {
+            return;
+        }
+        ValidateCase(imageRoot.CaseId, imageRoot.Reference);
+        if (!imageFolder.Id.Equals(imageRoot.RemoteId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("The custody root does not match the retained case identity.");
+        }
+        await VerifyBoundFolderAsync(
+            imageFolder,
+            client.RootFolderId,
+            CaseBindingFileName,
+            CaseBinding(imageRoot.CaseId, imageRoot.Reference),
+            cancellationToken);
+        await ValidateRootAsync(caseRoot, cancellationToken);
+
+        var evidence = await GetOrCreateFolderAsync(
+            caseRoot.RemoteId, "Evidence", leaseGuard, cancellationToken);
+        var destination = await GetOrCreateFolderAsync(
+            evidence.Id, "Images", leaseGuard, cancellationToken);
+
+        var children = await client.ListChildrenAsync(imageRoot.RemoteId, cancellationToken);
+        var destinationNames = new HashSet<string>(
+            (await client.ListChildrenAsync(destination.Id, cancellationToken))
+                .Select(item => item.Name),
+            StringComparer.Ordinal);
+        foreach (var child in children)
+        {
+            if (!string.Equals(child.Type, "file", StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "The image-case custody folder holds an unexpected non-file child; the fold fails closed.");
+            }
+            if (string.Equals(child.Name, CaseBindingFileName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            // A same-named file already folded from another Image intake keeps
+            // its name unique by prefixing the source reference.
+            string targetName;
+            if (destinationNames.Add(child.Name))
+            {
+                targetName = child.Name;
+            }
+            else
+            {
+                targetName = $"{CaseFolderName(imageRoot.Reference)} {child.Name}";
+                destinationNames.Add(targetName);
+            }
+            await RequireLeaseAsync(leaseGuard, cancellationToken);
+            await client.MoveFileAsync(child.Id, destination.Id, targetName, cancellationToken);
+        }
+
+        var binding = await client.FindChildAsync(
+            imageRoot.RemoteId, CaseBindingFileName, "file", cancellationToken);
+        if (binding is not null)
         {
             await RequireLeaseAsync(leaseGuard, cancellationToken);
-            file = await client.UploadAsync(instruction.Id, fileName, content, source.MediaType, cancellationToken);
+            await client.DeleteFileAsync(binding.Id, cancellationToken);
         }
-        else
-        {
-            await VerifyFileAsync(
-                existing,
-                instruction.Id,
-                source.MediaType,
-                content,
-                cancellationToken);
-            file = existing;
-        }
-        return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
+        await RequireLeaseAsync(leaseGuard, cancellationToken);
+        await client.DeleteFolderAsync(imageRoot.RemoteId, cancellationToken);
     }
 
     public async Task<string> CreateAuditReferenceFolderAsync(
@@ -657,6 +835,42 @@ internal sealed class BoxCaseCustody(
             CaseBindingFileName,
             CaseBinding(root.CaseId, root.Reference),
             cancellationToken);
+    }
+
+    private async Task<(ReadOnlyMemory<byte> Content, string Hash)> ReadVerifiedSourceAsync(
+        IntakeSourceCustodyReference source,
+        CancellationToken cancellationToken)
+    {
+        var content = await artifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
+            ?? throw new FileNotFoundException("The retained intake source is unavailable.");
+        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span));
+        if (!actualHash.Equals(source.SourceHash, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("The retained intake source failed its custody integrity check.");
+        }
+        if (source.SourceLength >= 0 && source.SourceLength != content.Length)
+        {
+            throw new InvalidDataException("The retained intake source failed its custody length check.");
+        }
+        return (content, actualHash);
+    }
+
+    private async Task<BoxContentClient.BoxItem> UploadOrVerifyFileAsync(
+        string parentId,
+        string fileName,
+        ReadOnlyMemory<byte> content,
+        string mediaType,
+        CustodyEffectLeaseGuard? leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        var existing = await client.FindChildAsync(parentId, fileName, "file", cancellationToken);
+        if (existing is not null)
+        {
+            await VerifyFileAsync(existing, parentId, mediaType, content, cancellationToken);
+            return existing;
+        }
+        await RequireLeaseAsync(leaseGuard, cancellationToken);
+        return await client.UploadAsync(parentId, fileName, content, mediaType, cancellationToken);
     }
 
     private async Task<BoxContentClient.BoxItem> GetOrCreateBoundFolderAsync(

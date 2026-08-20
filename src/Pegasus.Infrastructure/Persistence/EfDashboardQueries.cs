@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Operations;
 using Pegasus.Core.Workflow;
@@ -40,7 +41,24 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
         int For(string state) =>
             counts.SingleOrDefault(item => item.State == state)?.Count ?? 0;
 
-        return new(For(notReady), For(review), For(held));
+        // Not ready has two case origins (INTK-008/INTK-009): a formal Case
+        // in CaseWorkflows (instruction-initiated), and an unmerged Image
+        // Intake still awaiting instruction (image-initiated) — the latter
+        // has no CaseWorkflows row at all until it merges. The Not ready tab
+        // and the Dashboard tile both read this one count, so both must
+        // include both origins or the badge disagrees with the rows the tab
+        // lists (INTK-013). This mirrors the exact filter
+        // `Triage/Index.cshtml.cs LoadNotReadyAsync` applies to the rows:
+        // unassociated (`MergedIntoCaseId is null`) and still
+        // AwaitingInstruction.
+        var awaitingInstruction = EfImageIntakeStore.ToCode(ImageInitiatedCaseState.AwaitingInstruction);
+        var imageInitiatedNotReady = await context.ImageIntakes
+            .AsNoTracking()
+            .CountAsync(
+                item => item.MergedIntoCaseId == null && item.LifecycleState == awaitingInstruction,
+                cancellationToken);
+
+        return new(For(notReady) + imageInitiatedNotReady, For(review), For(held));
     }
 
     public async Task<CaseActivityCounts> GetCaseActivityCountsAsync(
@@ -85,9 +103,17 @@ internal sealed class EfDashboardQueries(IDbContextFactory<PegasusDbContext> con
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
+        // "Received today" sits under the Dashboard's E-mail activity
+        // section, so it counts mail arrivals only. Without a channel filter
+        // this also counted manual uploads — a receipt is a receipt
+        // regardless of channel — so uploading images visibly inflated the
+        // emails-received tile (PLAT-012).
+        var mailboxChannel = EfIntakeReceiptStore.ToCode(IntakeSourceChannel.Mailbox);
         var receivedToday = await context.IntakeReceipts
             .AsNoTracking()
-            .CountAsync(item => item.ReceivedAtUtc >= dayStartUtc, cancellationToken);
+            .CountAsync(
+                item => item.ReceivedAtUtc >= dayStartUtc && item.SourceChannel == mailboxChannel,
+                cancellationToken);
 
         // The persisted decision is the snake_case code, not the enum name.
         // Comparing against `IntakeDecision.NeedsSorting.ToString()` matched

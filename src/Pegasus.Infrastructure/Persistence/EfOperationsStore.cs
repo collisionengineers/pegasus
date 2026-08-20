@@ -282,7 +282,7 @@ internal sealed class EfOperationsStore(
         var workRows = await (
                 from item in context.ExternalWorkItems.AsNoTracking()
                 join workflow in context.CaseWorkflows.AsNoTracking()
-                    on item.CaseId equals workflow.CaseId
+                    on item.CaseId equals (Guid?)workflow.CaseId
                 where item.State == "failed"
                     && ((item.LeaseToken == null && item.LeaseExpiresAtUtc == null)
                         || (item.LeaseToken != null && item.LeaseExpiresAtUtc <= nowUtc))
@@ -290,9 +290,9 @@ internal sealed class EfOperationsStore(
                 select new ExternalWorkRow(
                     item.Id,
                     item.State,
-                    item.CaseId,
-                    item.Case.Reference,
-                    item.Case.Principal.Code,
+                    workflow.CaseId,
+                    item.Case!.Reference,
+                    item.Case!.Principal.Code,
                     item.Kind,
                     item.AttemptCount,
                     item.DueAtUtc,

@@ -67,6 +67,7 @@ public sealed class IntakePoisonFunction(ReconcilePoisonedQueueWork reconcilePoi
 public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileStagedArtifacts reconcileStagedArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
+    ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     [Function(nameof(StagedArtifactReconciliationFunction))]
@@ -97,6 +98,18 @@ public sealed partial class StagedArtifactReconciliationFunction(
             groupedImageResult.Retried,
             groupedImageResult.Escaped,
             groupedImageResult.Failures);
+
+        // INTK-018: resolves an open Unidentified item whose origin receipt
+        // was promoted outside its own processing pass (a sibling group
+        // member's registration, a staff action, or a historic stale row) —
+        // the product's own reconciliation, never manual SQL. Same existing
+        // timer trigger deliberately; this is not a new schedule.
+        var unidentifiedResult = await reconcileUnidentifiedDestinations.ExecuteAsync(50, cancellationToken);
+        LogUnidentifiedDestinationReconciliation(
+            logger,
+            unidentifiedResult.Candidates,
+            unidentifiedResult.Resolved,
+            unidentifiedResult.Failures);
     }
 
     [LoggerMessage(
@@ -119,6 +132,15 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int candidates,
         int retried,
         int escaped,
+        int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Reconciled Unidentified destinations: {Candidates} candidates, {Resolved} resolved, {Failures} failures.")]
+    private static partial void LogUnidentifiedDestinationReconciliation(
+        ILogger logger,
+        int candidates,
+        int resolved,
         int failures);
 }
 

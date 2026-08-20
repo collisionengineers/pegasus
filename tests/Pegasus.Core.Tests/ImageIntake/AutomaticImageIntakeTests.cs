@@ -348,6 +348,33 @@ public sealed class AutomaticImageIntakeTests
     }
 
     [Fact]
+    public async Task AOneMemberGroupKeepsTheSingleImageAssociationRule()
+    {
+        // Every manual upload is a submission group (INTK-005), so a single
+        // uploaded image arrives as a one-member group — and now that the
+        // ordinal-0 lookup finds it (INTK-012), the automation must still
+        // apply the single-image candidate rule: an exact confirmed match
+        // beats a one-character-longer fuzzy candidate and associates. The
+        // group decision table would count two eligible cases and fail
+        // closed — that table scopes itself to more than one image.
+        var harness = new GroupHarness(memberCount: 1);
+        harness.Engine.Enqueue(Suggested("BX69YLM", 0.95));
+        var exactCaseId = Guid.NewGuid();
+        harness.CaseCandidates.Candidates =
+        [
+            new(exactCaseId, "QDS26014", 1, "BX69YLM"),
+            new(Guid.NewGuid(), "QDS26015", 1, "BX69YLMA")
+        ];
+
+        await harness.ApplyAsync(triggerOrdinal: 0);
+
+        var registration = Assert.Single(harness.Register.Requests);
+        Assert.Equal("BX69YLM", registration.NormalizedVehicleRegistration);
+        var link = Assert.Single(harness.MutationStore.AutoLinks);
+        Assert.Equal(exactCaseId, link.CaseId);
+    }
+
+    [Fact]
     public async Task AGroupWithFewerStagedMembersThanDeclaredNeverFinalizes()
     {
         // The originating submission declared three files; only the one

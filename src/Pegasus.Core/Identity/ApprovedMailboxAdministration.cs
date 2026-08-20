@@ -68,6 +68,30 @@ public interface IApprovedMailboxPollStatusQueries
     Task<IReadOnlyList<ApprovedMailboxPollStatus>> ListAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The exact Graph identities behind one mailbox address: the tenant mailbox id and its
+/// well-known Inbox and Sent-items folder ids. Administration never asks an operator for
+/// these — see <see cref="IResolveApprovedMailboxIdentity"/>.
+/// </summary>
+public sealed record ApprovedMailboxIdentityResolution(
+    string MailboxIdentity,
+    string InboxFolderIdentity,
+    string SentFolderIdentity);
+
+/// <summary>
+/// Resolves an approved-mailbox address to its exact Graph mailbox and well-known folder
+/// identities, so the administration surface can add a mailbox from an address alone.
+/// Returns null when the address cannot be resolved — not found in the tenant, or the
+/// resolution transport itself failed — and the caller fails closed: no row is created,
+/// and the operator sees only that the address could not be resolved, never why.
+/// </summary>
+public interface IResolveApprovedMailboxIdentity
+{
+    Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
+        string address,
+        CancellationToken cancellationToken);
+}
+
 public interface IApprovedMailboxPolicy
 {
     Task<bool> IsApprovedAsync(

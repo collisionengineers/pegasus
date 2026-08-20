@@ -2831,7 +2831,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nchar(26)")
                         .IsFixedLength();
 
-                    b.Property<Guid>("CaseId")
+                    b.Property<Guid?>("CaseId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("CaseRootCreationToken")
@@ -2856,6 +2856,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("FailureReason")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid?>("ImageIntakeId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Kind")
                         .IsRequired()
@@ -2882,6 +2885,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CaseId");
+
+                    b.HasIndex("ImageIntakeId");
 
                     b.HasIndex("OperationKey")
                         .IsUnique();
@@ -2933,6 +2938,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTimeOffset?>("CustodyConfirmedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("CustodyMergedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("CustodyRootRemoteId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("CustodyState")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
 
                     b.Property<Guid>("EvaluationRevisionId")
                         .HasColumnType("uniqueidentifier");
@@ -4827,8 +4846,22 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(40)
                         .HasColumnType("nvarchar(40)");
 
+                    b.Property<string>("ChannelBaseUrl")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ChannelTokenProtected")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
                     b.Property<bool>("Enabled")
                         .HasColumnType("bit");
+
+                    b.Property<double?>("TimeoutSeconds")
+                        .HasColumnType("float");
+
+                    b.Property<DateTimeOffset?>("TokenRotatedAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<int>("Version")
                         .IsConcurrencyToken()
@@ -6267,10 +6300,16 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.CaseEntity", "Case")
                         .WithMany("ExternalWork")
                         .HasForeignKey("CaseId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ImageIntakeEntity", "ImageIntake")
+                        .WithMany()
+                        .HasForeignKey("ImageIntakeId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Case");
+
+                    b.Navigation("ImageIntake");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ImageIntakeEntity", b =>

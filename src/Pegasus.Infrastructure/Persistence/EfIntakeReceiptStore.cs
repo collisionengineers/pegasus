@@ -1215,7 +1215,12 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         _ => throw UnknownCode("decision", value)
     };
 
-    private static string ToCode(IntakeSourceChannel value) => value switch
+    /// <summary>
+    /// Internal rather than private: <c>EfDashboardQueries</c> reuses this so
+    /// a channel-scoped count (e.g. mail received today) asks the one place
+    /// this mapping is defined instead of duplicating the channel code.
+    /// </summary>
+    internal static string ToCode(IntakeSourceChannel value) => value switch
     {
         IntakeSourceChannel.ManualUpload => "manual_upload",
         IntakeSourceChannel.Mailbox => "mailbox",

@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
@@ -192,9 +193,26 @@ public sealed class EfImageIntakeStore(
             CreationOperationKey = operationKey,
             RequestFingerprint = requestFingerprint,
             LifecycleState = ToCode(ImageInitiatedCaseState.AwaitingInstruction),
-            LifecycleVersion = 0
+            LifecycleVersion = 0,
+            CustodyState = ImageCustodyStates.Pending
         };
         context.ImageIntakes.Add(entity);
+
+        // Same durable outbox convention as EfCaseAcceptanceStore.AcceptAsync:
+        // the Box folder for this Image-initiated Case is created by queued
+        // external work, so an unreachable Box can never block registration.
+        context.ExternalWorkItems.Add(new ExternalWorkItemEntity
+        {
+            Id = Guid.NewGuid(),
+            ImageIntake = entity,
+            ImageIntakeId = entity.Id,
+            Kind = ExternalWorkKinds.CreateImageCaseCustody,
+            OperationKey = $"image-case-custody:{entity.Id:N}",
+            State = "pending",
+            AttemptCount = 0,
+            DueAtUtc = now,
+            CaseRootCreationToken = CustodyCreationOwner.Create()
+        });
 
         var beforeVersion = receipt.Version;
         var beforeJson = Snapshot(receipt);
@@ -277,32 +295,9 @@ public sealed class EfImageIntakeStore(
         DateTimeOffset now,
         CancellationToken cancellationToken)
     {
-        var memberStagedIds = await context.IntakeSubmissionGroupMembers
-            .AsNoTracking()
-            .Where(member => member.GroupId == submissionGroupId)
-            .Select(member => member.StagedReceiptId)
-            .ToArrayAsync(cancellationToken);
-        if (memberStagedIds.Length == 0)
-        {
-            return;
-        }
-
-        var evaluations = await context.IntakeEvaluations
-            .AsNoTracking()
-            .Where(evaluation => memberStagedIds.Contains(evaluation.StagedReceiptId))
-            .Select(evaluation => new
-            {
-                evaluation.StagedReceiptId,
-                evaluation.ProcessedReceiptId,
-                evaluation.Revision
-            })
-            .ToArrayAsync(cancellationToken);
-        var memberReceiptIds = evaluations
-            .GroupBy(evaluation => evaluation.StagedReceiptId)
-            .Select(grouping => grouping
-                .OrderByDescending(evaluation => evaluation.Revision)
-                .First()
-                .ProcessedReceiptId)
+        var memberReceiptIds =
+            (await ResolveGroupMemberReceiptsAsync(context, submissionGroupId, cancellationToken))
+            .Select(pair => pair.ProcessedReceiptId)
             .Where(receiptId => receiptId != originReceiptId)
             .Distinct()
             .ToArray();
@@ -355,6 +350,55 @@ public sealed class EfImageIntakeStore(
                 AfterJson = Snapshot(receipt)
             });
         }
+    }
+
+    /// <summary>
+    /// Resolves a submission group's member receipts through the durable
+    /// membership itself (member → latest evaluation → processed receipt),
+    /// ordered by member ordinal. The one implementation of that rule:
+    /// registration above and the queued image-case custody processor both
+    /// resolve members through it.
+    /// </summary>
+    internal static async Task<IReadOnlyList<(int Ordinal, Guid ProcessedReceiptId)>>
+        ResolveGroupMemberReceiptsAsync(
+            PegasusDbContext context,
+            Guid submissionGroupId,
+            CancellationToken cancellationToken)
+    {
+        var members = await context.IntakeSubmissionGroupMembers
+            .AsNoTracking()
+            .Where(member => member.GroupId == submissionGroupId)
+            .Select(member => new { member.Ordinal, member.StagedReceiptId })
+            .ToArrayAsync(cancellationToken);
+        if (members.Length == 0)
+        {
+            return [];
+        }
+
+        var stagedIds = members.Select(member => member.StagedReceiptId).ToArray();
+        var evaluations = await context.IntakeEvaluations
+            .AsNoTracking()
+            .Where(evaluation => stagedIds.Contains(evaluation.StagedReceiptId))
+            .Select(evaluation => new
+            {
+                evaluation.StagedReceiptId,
+                evaluation.ProcessedReceiptId,
+                evaluation.Revision
+            })
+            .ToArrayAsync(cancellationToken);
+        var latestByStaged = evaluations
+            .GroupBy(evaluation => evaluation.StagedReceiptId)
+            .ToDictionary(
+                grouping => grouping.Key,
+                grouping => grouping
+                    .OrderByDescending(evaluation => evaluation.Revision)
+                    .First()
+                    .ProcessedReceiptId);
+        return members
+            .Where(member => latestByStaged.ContainsKey(member.StagedReceiptId))
+            .Select(member => (member.Ordinal, latestByStaged[member.StagedReceiptId]))
+            .OrderBy(pair => pair.Ordinal)
+            .ToArray();
     }
 
     public async Task EnsureRegisteredReceiptDecisionAsync(
@@ -543,6 +587,22 @@ public sealed class EfImageIntakeStore(
         });
         if (caseId is { } linkedCaseId)
         {
+            // Fold the image-case Box folder into the paired case through the
+            // same durable outbox that created it: the transition commits here
+            // regardless of Box availability, and the queued work moves the
+            // contents and removes the emptied folder (INTK-014).
+            context.ExternalWorkItems.Add(new ExternalWorkItemEntity
+            {
+                Id = Guid.NewGuid(),
+                ImageIntake = entity,
+                ImageIntakeId = entity.Id,
+                CaseId = linkedCaseId,
+                Kind = ExternalWorkKinds.MergeImageCaseCustody,
+                OperationKey = $"image-case-custody-merge:{entity.Id:N}",
+                State = "pending",
+                AttemptCount = 0,
+                DueAtUtc = now
+            });
             context.CaseHistory.Add(new CaseHistoryEntity
             {
                 Id = Guid.NewGuid(),
@@ -906,7 +966,12 @@ public sealed class EfImageIntakeStore(
         _ => throw new InvalidDataException($"Unknown intake source channel code '{value}'.")
     };
 
-    private static string ToCode(ImageInitiatedCaseState state) => state switch
+    /// <summary>
+    /// Reused by <c>EfDashboardQueries</c> so the Not ready count agrees with
+    /// this store's own definition of "image-initiated, awaiting
+    /// instruction" instead of duplicating the state-code literal.
+    /// </summary>
+    internal static string ToCode(ImageInitiatedCaseState state) => state switch
     {
         ImageInitiatedCaseState.AwaitingInstruction => "awaiting_instruction",
         ImageInitiatedCaseState.MergedIntoInstructionCase => "merged_into_instruction_case",
