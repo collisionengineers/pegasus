@@ -24,3 +24,24 @@ Fail-closed rules carried throughout: wrong money is worse than no money — any
 ## Simplification pass
 
 (to be recorded before the PR)
+
+## Simplification pass — 2026-08-20
+
+Run over the branch's own diff with the four lenses (`code-simplifier` agent + own review). Build stayed zero warnings; the 17 focused parser/import tests stayed green after every applied fix.
+
+Applied (behaviour-preserving):
+1. **Efficiency, parser** — `VisualRow.JoinedText` was recomputed up to four times per row per classification step; now built once in `CollectRows`.
+2. **Simplification, parser** — `sections.TryGetValue(...) ? x : null` → `GetValueOrDefault` in `Complete()` and `TrySwitchSection`.
+3. **Simplification+efficiency, parser** — `CaptureIdentity` hoists the version rule out of the per-word loop and stops once the assessment number is captured (same captures, same column guards).
+4. **Simplification, parser** — `ResolveBare(state)` hoisted above the branch in `ReadLineRow` (both arms called it identically first).
+5. **Altitude/reuse, Web** — the two new operator-label tables moved off the PageModel into the repository's single label home, `Pegasus.Web.Presentation.OperatorLabels` (`RepairSpecificationRoute`, `EstimateLineType`), text unchanged; Razor call sites updated.
+
+Found by the pass, fixed as a defect (not behaviour-preserving, so recorded separately): `MutationRefusalMessage` would have surfaced `CaseOperationConflictException`'s message — which carries a raw case GUID and operation key — to the operator on a duplicate submit. Added `and not CaseOperationConflictException` so it gets the honest fallback sentence instead (the no-raw-identifiers design rule).
+
+Found and left, with reasons:
+6. **Reuse** — `EstimateLineType`'s labels duplicate the `<option>` list in the still-unbound EXT-09 estimate form on the same page; left because that form is EXT-09's unwired scope (recommendation recorded: EXT-09 renders those options from `OperatorLabels.EstimateLineType`).
+7. **Reuse** — `MaximumEstimateUploadBytes` is a fourth private copy of the 10 MB ceiling (`Custody.cshtml.cs`, `DocumentMcpTools.cs`, `IntakeContracts`); a shared owner is outside this diff's scope.
+8. **Simplification** — the actor/Engineer/operation-key guard triple repeats across the page's handlers; matches the page's existing convention (`OnPostSendAsync`, `OnPostReconcileAsync`), so the existing convention wins.
+9. **Simplification** — `ToLine`'s four section arms read as the section table they describe; collapsing them would trade clarity for brevity.
+10. **Simplification** — nested ternary in the Razor price cell left; unpacking moves rendered markup for no gain.
+11. **Efficiency** — defensive `checked` cast after the size gate left; free.
