@@ -51,3 +51,11 @@ The focused assertions prove all classifier outcomes without state mutation, inc
 - **A live lifecycle failure could leave owned local artifacts.** Mitigation: retain the exact generated run id, use only supported Status/Reset actions, and preserve diagnostics for a failed owned run; never broaden cleanup to unrelated instances.
 - **CI placement could grow into conditional-lane plumbing.** Mitigation: use one dedicated always-run Windows job; do not edit `Get-CiChangeFlags.ps1` or its test.
 - No operator or product decision remains.
+
+## Simplification pass — 2026-08-20
+
+- **Reuse:** Reused the existing shared `Get-PegasusDatabaseState` owner and its `-Command` test seam; no lifecycle caller or second classifier was introduced.
+- **Simplification:** Kept one narrow requested-instance diagnostic match and a small assertion helper reused across cases. No new production abstraction, bypass, or change-classification plumbing is needed.
+- **Efficiency:** The parser remains in-process and side-effect free. One five-minute Windows job is the smallest honest CI caller for the Windows-only contract; it avoids unrelated build or cloud work.
+- **Altitude:** The diff is limited to local tooling, its focused test, and CI registration. No application, deployment, or governing-document behavior was changed.
+- **Disposition:** No behavior-preserving simplification was identified.
