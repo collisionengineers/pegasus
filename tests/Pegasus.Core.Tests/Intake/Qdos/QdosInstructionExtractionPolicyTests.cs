@@ -53,6 +53,100 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
+    public void FlattenedMotTableRowsAreNeverOfferedAsMakeOrModel()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 7: bodyshop report, page 1",
+                """
+                Brake test results
+                Make AUDI NSF : Footbrake : SATISFACTORY
+                Model A4 OSR : Handbrake : SATISFACTORY
+                """)),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var make = Assert.Single(result.Fields, field => field.Name == "Vehicle make");
+        var model = Assert.Single(result.Fields, field => field.Name == "Vehicle model");
+        Assert.Null(make.SuggestedValue);
+        Assert.Empty(make.Candidates);
+        Assert.Null(model.SuggestedValue);
+        Assert.Empty(model.Candidates);
+        Assert.Contains("Vehicle make", result.MissingFields);
+        Assert.Contains("Vehicle model", result.MissingFields);
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
+    }
+
+    [Fact]
+    public void InstructionFieldsWinOverAppendedMotTableWithoutConflict()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.DocumentContent,
+                    "instruction attachment",
+                    "Vehicle Make: Audi\nVehicle Model: A4"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: bodyshop report, page 1",
+                    """
+                    Brake test results
+                    Make AUDI NSF : Footbrake : SATISFACTORY
+                    Model A4 OSR : Handbrake : SATISFACTORY
+                    """)),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var make = Assert.Single(result.Fields, field => field.Name == "Vehicle make");
+        var model = Assert.Single(result.Fields, field => field.Name == "Vehicle model");
+        Assert.False(make.HasConflict);
+        Assert.False(model.HasConflict);
+        Assert.Equal("Audi", make.SuggestedValue);
+        Assert.Equal("A4", model.SuggestedValue);
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Audi", draft.VehicleMake);
+        Assert.Equal("A4", draft.VehicleModel);
+    }
+
+    [Fact]
+    public void LabelledValueStopsAtColumnBoundary()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.DocumentContent,
+                "instruction attachment",
+                "Vehicle Make: Audi | Colour Blue\nVehicle Model: A4 Avant  Fuel Diesel")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Audi",
+            Assert.Single(result.Fields, field => field.Name == "Vehicle make").SuggestedValue);
+        Assert.Equal(
+            "A4 Avant",
+            Assert.Single(result.Fields, field => field.Name == "Vehicle model").SuggestedValue);
+    }
+
+    [Fact]
+    public void MidLineLabelTokenAfterSingleSpaceIsNotALabel()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 3: MOT history, page 2",
+                "The vehicle Make recorded at test time was unreadable")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var make = Assert.Single(result.Fields, field => field.Name == "Vehicle make");
+        Assert.Null(make.SuggestedValue);
+        Assert.Empty(make.Candidates);
+    }
+
+    [Fact]
     public void QdosTextDoesNotBecomePrincipalEvidence()
     {
         var result = new QdosInstructionExtractionPolicy().Extract(
