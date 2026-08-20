@@ -1,0 +1,1 @@
+2026-08-20 — Opened PR https://github.com/collisionengineers/pegasus/pull/466 from `task/tick-098-rpt-03-audit-report-parity` (commit `fa2e4435`). Docs-only correction; active Audit rendering remains closed.
