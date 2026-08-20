@@ -1,4 +1,4 @@
-# Design authority
+﻿# Design authority
 
 This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../prd/README.md) and [capabilities](../capabilities.md); architecture and deployed state remain with [architecture](../current-architecture.md) and [operations](../operations.md), procedures with the [runbook](../runbook.md), operator truth with [operator notes](../operator-notes.md), and repository workflow with [engineering](../engineering.md).
 
@@ -416,6 +416,31 @@ automated check — nothing in CI enforces it today, and claiming otherwise
 would be the kind of false assurance the evidence discipline above exists to
 prevent. The words remain valid as internal code identifiers; the ban is on
 what an operator reads.
+
+## No explanatory copy and page economy
+
+Operator direction, 2026-08-20: stop explaining pages. These are review rules
+with the same force as the banned-words list above — a change violating one
+does not merge.
+
+- **A field is a label and a control, nothing more.** No hint sentence under a
+  field, no "Required." or "Optional." text, no format guidance, no
+  restatement of what the label already says. Required state is shown
+  visually (the `required`-marker styling on the label plus `aria-required`),
+  never as prose.
+- **No how-it-works copy.** A page never describes its own mechanics,
+  workings, derivations, or what will happen when a button is pressed. No
+  worked-example tables, no "how this figure is calculated" prose, no
+  introductory sentences under headings. The one exception stands above: a
+  single consequence sentence on a destructive or irreversible action.
+- **Only populated, relevant sections render.** In read-only view, a section
+  with nothing recorded and no available action is absent — not an
+  empty-state panel. Edit-only sections render only in edit context. A long
+  page of empty panels is a defect, not a layout choice.
+- **Filters are dropdowns; tables sort newest first.** Table filtering uses
+  labelled `select` controls (auto-submit with a no-script fallback), not
+  rows of pill tabs. Tables default to newest first, and column headers are
+  sort links that toggle direction server-side.
 
 ## Access and permissions
 
