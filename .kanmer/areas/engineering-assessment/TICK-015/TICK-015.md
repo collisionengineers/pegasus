@@ -4,11 +4,15 @@ type: ticket
 title: >-
   CASE-21 — First successful manual EVA bundle generation records the
   once-per-case First sent to Engineer handoff proxy; EVA owns…
-status: implementing
+status: done
 area: engineering-assessment
 order: 10
 assignee: ''
 profile: feature
+stageEntered:
+  review: '2026-08-20T03:35:18.170Z'
+  verifying: '2026-08-20T03:35:21.044Z'
+  done: '2026-08-20T03:35:21.239Z'
 labels:
   - capability
   - CASE-21
@@ -18,9 +22,10 @@ groups:
   - HZN-003
 links: []
 blocks: []
+deployment: production
 archived: false
 created: '2026-08-12T15:03:53.066Z'
-updated: '2026-08-19T11:17:31.151Z'
+updated: '2026-08-20T03:35:23.230Z'
 ---
 
 ## What
