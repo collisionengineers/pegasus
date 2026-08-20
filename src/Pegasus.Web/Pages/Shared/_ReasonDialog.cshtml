@@ -13,6 +13,8 @@
     var title = ViewData["DialogTitle"] as string ?? "Required Reason";
     var actionUrl = ViewData["DialogActionUrl"] as string ?? "#";
     var consequence = ViewData["DialogConsequence"] as string ?? "A reason is required to perform this permanent business action.";
+    var hiddenFields = ViewData["DialogHiddenFields"] as IReadOnlyDictionary<string, string?>
+        ?? new Dictionary<string, string?>();
 }
 <div id="@dialogId" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title" data-reason-dialog hidden>
     <div class="reason-dialog">
@@ -23,6 +25,10 @@
         <p class="notice">@consequence</p>
         <form method="post" action="@actionUrl" class="form-grid">
             @Html.AntiForgeryToken()
+            @foreach (var field in hiddenFields)
+            {
+                <input type="hidden" name="@field.Key" value="@field.Value" />
+            }
             <div>
                 @* `--red` was never declared, so the required marker rendered in
                    the inherited text colour. It now uses the same approved dark
