@@ -14,3 +14,29 @@ Each step names what it reuses. Whole-task acceptance = the ticket's Verificatio
 ## Verification commands
 
 `dotnet build ./Pegasus.slnx -c Release --no-restore` (zero warnings); `dotnet test --filter "FullyQualifiedName~UploadConfirmation|FullyQualifiedName~UploadOutcome|FullyQualifiedName~GroupedIntake"`; Browser suites `--filter "FullyQualifiedName~Browser.Upload|FullyQualifiedName~AccessibilityTests"`.
+
+## Simplification pass — 2026-08-20 (four parallel lenses over the branch diff vs origin/dev)
+
+Ran /simplify with four independent agents (reuse, simplification, efficiency, altitude) over the full branch diff. Findings and dispositions:
+
+**Applied:**
+- *Reuse/Altitude:* the byte-identical CaseSearch/Attach handlers in the two status page models moved to one abstract `UploadConfirmationPageModel` (the `CaseMutationPageModel`/`AdministrationPageModel` precedent) with `TryGetActor` (`[NotNullWhen]`, no more `actor!`) and an abstract `RedirectToSurface`.
+- *Altitude:* the Attached branch now reads Core's `receipt.CurrentCaseId` alone (the `status.CaseId ??` union re-admitted a case Core's derivation deliberately drops); provenance moved into Core as `IntakeReceipt.AssociationWasStaffDecision` beside `CurrentCaseId` instead of Web comparing actor kinds.
+- *Altitude:* the `MediaType.StartsWith("image/")` sniff replaced with the Core-owned `ImageIntakeLifecycleRules.IsImageOnlyMaterial`, additionally gated on `submissionGroupId is not null` (*Efficiency:* the group-membership fallback only exists for grouped uploads, so single-file misses stop paying its two extra queries).
+- *Efficiency:* `UploadCaseDecision.AttachAsync`'s already-linked replay short-circuits moved above the heavy `IGetCase` read (the receipt already carries the reference both messages need); superseded autocomplete fetches now `AbortController`-abort so the server cancels the abandoned search (debounce, 2-char floor, and stale-response sequencing were verified already present).
+- *Altitude:* the auto-refresh hold is a generic `[data-refresh-hold][open]` opt-in contract instead of site.js naming `.upload-attach`.
+- *Reuse:* summary marker resets consolidated onto the existing `details > summary.btn` selector list; the `[hidden]`-override comment corrected to cite the stylesheet's own ordering contract, not the user agent.
+- *Simplification:* one `OperatorLabels.AssociatedWithCase(reference, byStaffDecision)` owns the five-site association sentence (2×2 tuple switch collapsed with it); success notices use the layout's existing one-time `TempData["Confirmation"]` slot instead of a duplicated per-page banner; dead `duplicate` handler parameter and unread `data-case-search-list-id` attribute removed; dead `_ = caseId;` test local replaced with a real case-link assertion.
+- *Reuse (tests):* page-fetch helper promoted to `IntakeWebDriver.GetHtmlAsync`; instruction-case seeding moved to `ImageIntakeTestData.SeedInstructionCaseAsync`.
+
+**Skipped, with reasons:**
+- Extracting the Intake/Details lease+link+recover sequence into a shared orchestrator that both surfaces call: `Intake/Details` deliberately runs a two-step leased flow with lease preservation across failures; unifying it is a behaviour-affecting refactor of an untouched page — follow-up candidate, not this diff.
+- Deeper store fix (make `EfImageIntakeStore.FindForReceiptAsync` itself test image-only material so no caller gates): touches an untouched INTK-015 query — noted for a future ticket; the Web caller now consumes the Core predicate rather than a second rule copy.
+- Lazy per-`<details>` combobox initialisation and `setActive` DOM re-query: marginal memory/CPU at ≤8 rows and ≤ a handful of forms; complexity not worth it.
+- Cancel link: kept — an operator-specified option, not a no-op (it is the honest "change nothing" exit).
+- Redundant ARIA writes in `render`/`setActive` and the triple "exactly one" shape in `ResolveReferenceAsync`: cosmetic; kept for clarity.
+- Two case-seeding routes in tests: the browser host cannot reach the HTTP-driver upload path, so its `ProcessIntake`-based seeding stays separate, now sharing `ImageIntakeTestData`.
+
+**Fixed during the pass (behaviour-preserving stabilisation):** the group merge web test intermittently observed an unsettled group (a member drain order leaves the ordinal-zero member's group outcome pending for the Worker's `ReconcileGroupedImageIntake` sweep, whose registration then adopts the single-path row into the group). The test now runs that sweep exactly as the production Worker does (`IntakeWebDriver.ReconcileGroupedImageIntakeAsync`); 5/5 consecutive green.
+
+**Verification after the pass:** Release build zero warnings; Core 715/715; Architecture 97/97; focused integration + browser filters green (UploadConfirmationWebTests 6, UploadOutcomeQueriesTests 13, UploadCaseSearchBrowserTests 1, GroupedIntake 1, AccessibilityTests 24/24, Upload browser suites 7/7).
