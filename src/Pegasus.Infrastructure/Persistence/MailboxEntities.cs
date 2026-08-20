@@ -83,6 +83,31 @@ internal sealed class RetainedMailboxAttachmentEntity
     public long ContentLength { get; set; }
 }
 
+internal sealed class RetainedMailFolderMoveEntity
+{
+    public Guid Id { get; set; }
+    public Guid RetainedMailboxMessageId { get; set; }
+    public RetainedMailboxMessageEntity RetainedMailboxMessage { get; set; } = null!;
+    public required string OperationKey { get; set; }
+    public required string RequestHash { get; set; }
+    public int ExpectedClassificationVersion { get; set; }
+    public required string ExpectedRecommendationPolicyKey { get; set; }
+    public int ExpectedRecommendationPolicyVersion { get; set; }
+    public int ExpectedMailboxVersion { get; set; }
+    public required string MailboxId { get; set; }
+    public required string ImmutableMessageId { get; set; }
+    public required string SourceFolderId { get; set; }
+    public required string DestinationFolderId { get; set; }
+    public required string FolderType { get; set; }
+    public required string Actor { get; set; }
+    public required string ActorRolesJson { get; set; }
+    public required string Reason { get; set; }
+    public required string Outcome { get; set; }
+    public string? FailureReason { get; set; }
+    public DateTimeOffset RecordedAtUtc { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
+}
+
 internal sealed class ApprovedSentPollStateEntity
 {
     public required string MailboxId { get; set; }

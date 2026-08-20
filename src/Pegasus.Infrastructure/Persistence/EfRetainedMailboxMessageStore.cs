@@ -100,15 +100,20 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         ArgumentNullException.ThrowIfNull(scope);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var searchTerm = scope.SearchTerm?.Trim();
         var folderScope = ToCode(scope.Folder);
         var matches = context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.FolderScope == folderScope);
+        if (scope.Folder == MailFolderScope.Inbox && searchTerm is null)
+        {
+            matches = matches.Where(item => !context.RetainedMailFolderMoves.Any(move =>
+                move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded"));
+        }
         if (scope.MailboxId is { } mailboxId)
         {
             matches = matches.Where(item => item.MailboxId == mailboxId);
         }
-        var searchTerm = scope.SearchTerm?.Trim();
         if (searchTerm is not null)
         {
             matches = matches.Where(item =>
@@ -149,7 +154,13 @@ internal sealed class EfRetainedMailboxMessageStore(
                         && receipt.SearchDocuments.Any(document =>
                             document.AttachmentFileName == null
                             && document.Text != null
-                            && document.Text.Contains(searchTerm)))))
+                            && document.Text.Contains(searchTerm))),
+                context.RetainedMailFolderMoves
+                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
+                    .OrderByDescending(move => move.RecordedAtUtc)
+                    .ThenByDescending(move => move.Id)
+                    .Select(move => move.FolderType)
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         if (searchTerm is not null && rows.Count > 0)
@@ -219,6 +230,12 @@ internal sealed class EfRetainedMailboxMessageStore(
                     .SingleOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
+        var currentFolderType = await context.RetainedMailFolderMoves.AsNoTracking()
+            .Where(move => move.RetainedMailboxMessageId == entity.Id && move.Outcome == "succeeded")
+            .OrderByDescending(move => move.RecordedAtUtc)
+            .ThenByDescending(move => move.Id)
+            .Select(move => move.FolderType)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var summaryRows = new List<SummaryRow>
         {
@@ -237,7 +254,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                 searchTerm is not null
                     && receipt?.BodySearchText?.Contains(
                         searchTerm,
-                        StringComparison.OrdinalIgnoreCase) == true)
+                        StringComparison.OrdinalIgnoreCase) == true,
+                currentFolderType)
         };
         if (searchTerm is not null)
         {
@@ -721,7 +739,10 @@ internal sealed class EfRetainedMailboxMessageStore(
                     linkedCase?.CaseId,
                     linkedCase?.Reference,
                     allocationState,
-                    row.SearchMatches);
+                    row.SearchMatches,
+                    row.CurrentFolderType is null
+                        ? null
+                        : Enum.Parse<MailLogicalFolderType>(row.CurrentFolderType));
             })
             .ToArray();
     }
@@ -819,6 +840,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         int AttachmentCount,
         string ExternalReceiptToken,
         bool BodyMatched,
+        string? CurrentFolderType,
         IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null);
 
     private static async Task<List<SummaryRow>> AddSearchMatchesAsync(

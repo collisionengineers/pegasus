@@ -289,7 +289,7 @@ public sealed class MailWorkspaceWebTests
         await GetHtmlAsync(client, "/Inbox?search=%20%20%20");
         var overlong = await GetHtmlAsync(client, $"/Inbox?search={new string('x', 201)}");
 
-        Assert.Contains("No retained mail in this mailbox and folder matched", noMatch, StringComparison.Ordinal);
+        Assert.Contains("No retained mail in this mailbox matched", noMatch, StringComparison.Ordinal);
         Assert.DoesNotContain("No mail has been received.", noMatch, StringComparison.Ordinal);
         Assert.Contains("Search terms must be 200 characters or fewer.", overlong, StringComparison.Ordinal);
     }
@@ -421,6 +421,130 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("mail_logical_folder version 1", html, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
         Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AuthenticatedStaffConfirmsTheServerDerivedFolderWithoutPostingTransportIdentity()
+    {
+        var mover = new RecordingFolderMover();
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassifiedInstructionAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-0");
+        await ConfigureFolderBindingAsync(
+            baseFactory,
+            FirstMailboxId,
+            MailLogicalFolderType.Instructions,
+            "outlook-folder-instructions");
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IRetainedMailFolderMover>();
+                services.AddSingleton<IRetainedMailFolderMover>(mover);
+            }));
+        using var client = CreateClient(factory);
+
+        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+
+        Assert.Contains("Move to Instructions", html, StringComparison.Ordinal);
+        Assert.Contains("Confirm Outlook folder move", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
+        var action = Regex.Match(
+            html,
+            "<form method=\"post\" action=\"([^\"]*handler=MoveToRecommendedFolder[^\"]*)\"",
+            RegexOptions.IgnoreCase).Groups[1].Value;
+        Assert.NotEmpty(action);
+        action = WebUtility.HtmlDecode(action);
+        using var response = await client.PostAsync(
+            action,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(html),
+                ["Reason"] = "Confirmed after reviewing the message."
+            }));
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal(1, mover.MoveCalls);
+        Assert.Equal(FirstMailboxId, mover.Coordinates!.MailboxId);
+        Assert.Equal("inbox", mover.Coordinates.SourceFolderId);
+        Assert.Equal("outlook-folder-instructions", mover.Coordinates.DestinationFolderId);
+        await using var scope = baseFactory.Services.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+        var searchHtml = await GetHtmlAsync(client, "/Inbox?search=estimate");
+        Assert.Contains(
+            "Search includes retained messages in their current Outlook folders.",
+            searchHtml,
+            StringComparison.Ordinal);
+        Assert.Contains($"Message 0 from {FirstMailboxId}", searchHtml, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("outlook-folder-instructions", "Message moved to the recommended Outlook folder.", false)]
+    [InlineData("inbox", "The message was not moved. You can retry with a new confirmation.", false)]
+    [InlineData("unresolved-folder", "The move result is uncertain. Retry this same confirmation to check its current location.", true)]
+    public async Task AuthenticatedUncertainMoveReusesTheSameConfirmationForExactRecovery(
+        string recoveredParent,
+        string expectedNotice,
+        bool remainsUncertain)
+    {
+        var mover = new SequenceRecoveryFolderMover(recoveredParent);
+        using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var ids = await SeedAsync(baseFactory, FirstMailboxId, FirstMailboxAddress, count: 1);
+        await StoreClassifiedInstructionAsync(baseFactory, FirstMailboxId, FirstMailboxId + "-0");
+        await ConfigureFolderBindingAsync(
+            baseFactory,
+            FirstMailboxId,
+            MailLogicalFolderType.Instructions,
+            "outlook-folder-instructions");
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IRetainedMailFolderMover>();
+                services.AddSingleton<IRetainedMailFolderMover>(mover);
+            }));
+        using var client = CreateClient(factory);
+
+        var initial = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
+        var confirmationAction = WebUtility.HtmlDecode(Regex.Match(
+            initial,
+            "<form method=\"post\" action=\"([^\"]*handler=MoveToRecommendedFolder[^\"]*)\"",
+            RegexOptions.IgnoreCase).Groups[1].Value);
+        using var confirmation = await client.PostAsync(
+            confirmationAction,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(initial),
+                ["Reason"] = "Confirmed after reviewing the message."
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, confirmation.StatusCode);
+
+        var uncertain = await GetHtmlAsync(client, confirmation.Headers.Location!.ToString());
+        Assert.Contains("Check move status", uncertain, StringComparison.Ordinal);
+        Assert.Contains("value=\"Confirmed after reviewing the message.\"", uncertain, StringComparison.Ordinal);
+        Assert.DoesNotContain("outlook-folder-instructions", uncertain, StringComparison.Ordinal);
+        var recoveryAction = WebUtility.HtmlDecode(Regex.Match(
+            uncertain,
+            "<form method=\"post\" action=\"([^\"]*handler=MoveToRecommendedFolder[^\"]*)\"",
+            RegexOptions.IgnoreCase).Groups[1].Value);
+        using var recovery = await client.PostAsync(
+            recoveryAction,
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryToken(uncertain),
+                ["ExpectedClassificationVersion"] = HiddenValue(uncertain, "ExpectedClassificationVersion"),
+                ["ExpectedRecommendationPolicyKey"] = HiddenValue(uncertain, "ExpectedRecommendationPolicyKey"),
+                ["ExpectedRecommendationPolicyVersion"] = HiddenValue(uncertain, "ExpectedRecommendationPolicyVersion"),
+                ["ExpectedMailboxVersion"] = HiddenValue(uncertain, "ExpectedMailboxVersion"),
+                ["MoveOperationKey"] = HiddenValue(uncertain, "MoveOperationKey"),
+                ["Reason"] = HiddenValue(uncertain, "Reason")
+            }));
+        Assert.Equal(HttpStatusCode.Redirect, recovery.StatusCode);
+        var final = await GetHtmlAsync(client, recovery.Headers.Location!.ToString());
+
+        Assert.Contains(expectedNotice, final, StringComparison.Ordinal);
+        Assert.Equal(1, mover.MoveCalls);
+        Assert.Equal(remainsUncertain, final.Contains("Check move status", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -643,6 +767,16 @@ public sealed class MailWorkspaceWebTests
         return WebUtility.HtmlDecode(match.Groups[1].Value);
     }
 
+    private static string HiddenValue(string html, string name)
+    {
+        var match = Regex.Match(
+            html,
+            $"<input[^>]*name=\"{Regex.Escape(name)}\"[^>]*value=\"([^\"]*)\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        Assert.True(match.Success, $"The hidden input '{name}' was not rendered.");
+        return WebUtility.HtmlDecode(match.Groups[1].Value);
+    }
+
     private static async Task<Guid[]> SeedAsync(
         IntakeWebApplicationFactory factory,
         string mailboxId,
@@ -856,6 +990,42 @@ public sealed class MailWorkspaceWebTests
         internal void Advance(TimeSpan amount) => now = now.Add(amount);
 
         public override DateTimeOffset GetUtcNow() => now;
+    }
+
+    private sealed class RecordingFolderMover : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+        public RetainedMailFolderMoveCoordinates? Coordinates { get; private set; }
+        private bool moved;
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            Coordinates = coordinates;
+            moved = true;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(moved ? Coordinates?.DestinationFolderId : "inbox");
+    }
+
+    private sealed class SequenceRecoveryFolderMover(string recoveredParent) : IRetainedMailFolderMover
+    {
+        private readonly Queue<string> parents = new(["inbox", "unresolved-folder", recoveredParent]);
+
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            throw new InvalidOperationException("The provider response was interrupted.");
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(parents.Count == 0 ? recoveredParent : parents.Dequeue());
     }
 
     private static async Task StoreSearchProjectionAsync(

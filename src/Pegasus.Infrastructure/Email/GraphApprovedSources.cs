@@ -331,6 +331,49 @@ internal sealed class GraphMailClient(
         return await ReadMimeAsync(uri, cancellationToken);
     }
 
+    public async Task MoveMessageAsync(
+        RetainedMailFolderMoveCoordinates coordinates,
+        CancellationToken cancellationToken)
+    {
+        var uri = new Uri(
+            baseUri,
+            $"users/{Uri.EscapeDataString(coordinates.MailboxId)}/mailFolders/{Uri.EscapeDataString(coordinates.SourceFolderId)}" +
+            $"/messages/{Uri.EscapeDataString(coordinates.ImmutableMessageId)}/move");
+        using var request = new HttpRequestMessage(HttpMethod.Post, uri);
+        request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        request.Content = new StringContent(
+            JsonSerializer.Serialize(new { destinationId = coordinates.DestinationFolderId }),
+            Encoding.UTF8,
+            "application/json");
+        using var response = await SendAsync(request, cancellationToken);
+        await ThrowForFailureAsync(response, cancellationToken);
+        if (response.StatusCode != HttpStatusCode.Created)
+        {
+            throw new HttpRequestException("Microsoft Graph did not create the moved message.");
+        }
+    }
+
+    public async Task<string?> ReadMessageParentFolderAsync(
+        string mailboxId,
+        string immutableMessageId,
+        CancellationToken cancellationToken)
+    {
+        var uri = new Uri(
+            baseUri,
+            $"users/{Uri.EscapeDataString(mailboxId)}/messages/{Uri.EscapeDataString(immutableMessageId)}?$select=parentFolderId");
+        using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+        using var response = await SendAsync(request, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+        await ThrowForFailureAsync(response, cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        return RequiredString(document.RootElement, "parentFolderId");
+    }
+
     public async Task<string> ResolveDeletedItemsFolderAsync(
         string mailboxId,
         CancellationToken cancellationToken)
@@ -1030,6 +1073,17 @@ internal sealed class GraphApprovedSentSource(
 
 internal sealed record GraphDeltaPage(IReadOnlyList<GraphDeltaItem> Items, Uri NextUri);
 internal sealed record GraphFolderPage(IReadOnlyList<GraphDeltaItem> Items, Uri? NextUri);
+
+internal sealed class GraphRetainedMailFolderMover(GraphMailClient client) : IRetainedMailFolderMover
+{
+    public bool IsAvailable => true;
+
+    public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken) =>
+        client.MoveMessageAsync(coordinates, cancellationToken);
+
+    public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
+        client.ReadMessageParentFolderAsync(mailboxId, immutableMessageId, cancellationToken);
+}
 internal sealed class GraphDeltaResetRequiredException : Exception;
 internal sealed record GraphDeltaItem(
     string Id,
