@@ -284,6 +284,14 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
         $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedMailboxFolderBindings")
     }
+    # 20260820144004_RetainedMailFolderMoves: Web owns the confirmed move
+    # operation and its durable recovery state. Worker has no caller. Both
+    # runtime roles are denied deletion so the operation history is permanent.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|RetainedMailFolderMoves")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|RetainedMailFolderMoves')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|RetainedMailFolderMoves')
     return @($expected | Sort-Object -Unique)
 }
 
