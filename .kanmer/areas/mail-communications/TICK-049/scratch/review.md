@@ -51,3 +51,43 @@ The chosen thin Core/Infrastructure/Web design is authorized by FRD-08 and does 
 ### CI status correction at handoff
 
 GitHub subsequently finalized the documentation job as **cancelled**, not failed; it still ended inside `actions/checkout@v7` before repository documentation checks ran. SQL shard 2 also completed green. SQL shard 3 remained in progress. This does not change the needs-changes verdict or no-merge decision.
+
+# Independent re-review — PR #477 at `fc3b651eda785ad37fbe7c302aec38e2876abc20` — 2026-08-20
+
+This is an independent re-review; I did not implement the replacement head.
+
+## Changes since the previous reviewed head
+
+- `src/Pegasus.Core/Intake/RetainedMail.cs`: projects current logical folder and makes move availability compare the exact approved destination with durable current location.
+- `src/Pegasus.Core/Intake/RetainedMailFolderMove.cs`: carries safe operation/recovery freshness fields and adds the current-location query.
+- `src/Pegasus.Infrastructure/Persistence/EfRetainedMailFolderMoveStore.cs`: chains source from the latest success, reserves before provider probing, supports replay material, and permits later reclassification moves.
+- `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs`: keeps ordinary Inbox browse exclusive while including moved retained rows through non-empty MAIL-11 search and projecting current logical folder.
+- `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs`: persists the safe freshness material needed for same-key recovery.
+- `src/Pegasus.Infrastructure/Persistence/MailboxModelConfiguration.cs`: adds the filtered unique active-operation index and freshness-field configuration.
+- `src/Pegasus.Infrastructure/Persistence/Migrations/20260820144004_RetainedMailFolderMoves.cs`, its Designer, and `PegasusDbContextModelSnapshot.cs`: carry the filtered index and recovery columns in the existing unmerged migration stream.
+- `src/Pegasus.Web/Pages/Mail/Index.cshtml`: explains that retained Inbox search spans current folders.
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml`: renders failure detail and an authenticated same-key status-check form for uncertain results.
+- `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs`: keeps a moved matching message inside its originating search context.
+- `tests/Pegasus.Core.Tests/Intake/RetainedMailFolderMoveTests.cs`: updates the focused test fake for the current-location query.
+- `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs`: proves destination/source/unresolved same-key uncertain recovery and current-folder search presentation.
+- `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs`: proves different-key claim serialization, stale/current-location refusal, provider failure/new-key retry, immutable classification/arrival evidence, repeat move after reclassification, and search inclusion/paging/mailbox scope.
+
+## Comments and disposition
+
+1. **PR-038 — fixed-in-PR for different keys.** The filtered unique index covers pending/uncertain rows per retained message, terminal failure releases the slot, reservation precedes the exact provider-location probe, and the overlapping different-key test plus schema assertion proves one provider call. The new PR-043 finding below is a distinct same-key in-flight race.
+2. **PR-039 — fixed-in-PR for genuinely uncertain operations.** The page posts the original operation key, reason and safe freshness values; the request hash rejects tampering; destination/source/unresolved authenticated cases probe only and assert one move.
+3. **PR-040 — fixed-in-PR.** Current source derives from latest successful destination, exact current/destination comparison controls `CanMove`, and the test proves two separate confirmations after reclassification while immutable arrival identity remains unchanged.
+4. **PR-041 — fixed-in-PR.** Non-empty retained Inbox search reuses MAIL-11’s canonical query, includes each moved row once, preserves mailbox scope/count/paging, and projects current logical folder. Ordinary Inbox browsing continues to exclude it; no new taxonomy/search store/tab was introduced.
+5. **PR-042 — fixed-in-PR.** Named persistence and Web tests now cover material stale/conflict/failure/recovery/retry/preservation paths. TICK-049’s final PIR lists all 23 final changed files in accurate grouped rationales and gives qualified observed counts, including the corrected stale-copy assertion.
+6. **Blocking — same-key replay can resolve a live provider call.** At `EfRetainedMailFolderMoveStore.cs:59-62`, both `pending` and `uncertain` immediately call `RecoverAsync`. A duplicate same-key POST during the original provider call can see the source folder, mark the shared row failed, release the filtered slot, and admit a new-key retry before the original call completes. **Disposition:** filed [[PR-043]], which blocks TICK-049.
+7. **Simplicity — pass.** The fixes reuse the one concrete MAIL-07 store, MAIL-05 recommendation, MAIL-11 retained search, exact typed bindings, existing Graph mover/probe and shared dialog. The filtered index is the database boundary required by the external side effect; no generic operation framework, worker, second search implementation, category/folder list or destination UI was added.
+8. **Safety/composition — pass.** Graph identities remain server-resolved; the browser receives no transport destination/source identity; the live Graph mover remains unregistered in production composition; migration/bootstrap grants remain Web SELECT/INSERT/UPDATE with Web/Worker DELETE denial and no Worker write grant; all evidence is fake/local.
+9. **CI status.** Replacement run 32391719482 was still active when this needs-changes verdict was finalized. Changes, reference-data, local-development-scripts and infrastructure were green; documentation, unit, browser and SQL shards 1–3 were still running. A later replacement head must obtain a complete green run.
+
+## Governing docs and report check
+
+The replacement satisfies FRD-08’s separate confirmation, later reclassification move, destination/search findability, preserved classification/arrival evidence, and no arbitrary destination. Its Core/Infrastructure/Web placement and existing Graph client extension remain within the accepted architecture, so no ADR is missing. The final plan’s governing-doc and simplification sections match the diff, and the PIR inventory matches the 23 files in the full PR diff. PR-043 remains the sole blocking correctness gap found at this head.
+
+## Verdict
+
+**Needs changes.** PR #477 was not merged. TICK-049 and PR-038 through PR-042 remain in Review; [[PR-043]] blocks TICK-049 from passing. Fix PR-043, run complete replacement CI, and independently re-review the next exact head.
