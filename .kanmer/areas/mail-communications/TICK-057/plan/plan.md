@@ -41,3 +41,12 @@ Local Core tests, populated disposable SQL tests and authenticated Web tests; lo
 - **Altitude:** Kept one narrow read-scope extension and one selector. No schema, migration, store, write operation, generic filter/action framework, quick preview, MCP surface, Graph call, or deployment change. The small Core criterion record is justified by the existing Core→Infrastructure boundary and keeps the business mapping single-owned.
 
 No unapplied simplification finding remains.
+
+## PR-053/054 correction pass — 2026-08-21
+
+- **Reuse:** Preserved the native selected option as the sole active-view presentation and composed the existing folder/queue parsers into one page-boundary helper.
+- **Simplification:** Removed the new read-only field hint, queue-specific empty copy, and unused label helper; consolidated GET/reload validation and reused one test POST assertion across all handler cases.
+- **Efficiency:** Every invalid exact-message POST now returns before reads, lease operations, or mutation; valid behavior adds no extra I/O beyond parsing two already-bound strings.
+- **Altitude:** Changes remain in Razor/PageModel and authenticated Web tests only. No policy, Core, persistence, schema, generic framework, or external behavior changed.
+
+Exact correction proof covers both unknown queue and Deleted Items plus queue across all six exact-message POST handlers, with classification/move/association/lease no-effect evidence. All findings applied; no deferred simplification item.

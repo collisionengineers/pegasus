@@ -12,3 +12,12 @@
 4. Run focused/proportional verification and update TICK-057 traceability/PIR.
 
 No background work, framework, parser copy, or policy redesign.
+
+## Simplification pass — 2026-08-21
+
+- **Reuse:** One `TryParseListContext` composes the existing `TryParseFolder` and `ParseQueueFilter`; every GET/POST/reload caller uses it.
+- **Simplification:** Consolidated the duplicated GET/reload parser pair. The test reuses existing association-form, antiforgery, fake-mover, and database-state helpers; a small repeated POST/404 assertion helper serves all six handlers.
+- **Efficiency:** Invalid context returns before exact-message reads, lease work, classification, association, or provider-move operations.
+- **Altitude:** Page-boundary validation only. No second parser, authorization layer, Core/EF/schema/background mechanism, or action framework.
+
+No unapplied finding remains.

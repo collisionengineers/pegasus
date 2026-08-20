@@ -12,3 +12,12 @@
 3. Run the focused Web proof and record the correction in TICK-057 plan/PIR.
 
 No replacement component or wording is introduced.
+
+## Simplification pass — 2026-08-21
+
+- **Reuse:** Kept the existing labelled native selector and selected option; added no replacement component or explanatory copy.
+- **Simplification:** Removed both redundant text blocks and the now-unused `ActiveViewLabel` helper. Applied in full.
+- **Efficiency:** Removes rendering and one unused label computation; no query or state change.
+- **Altitude:** Presentation-only correction in the existing Inbox and authenticated test. No policy or framework.
+
+No unapplied finding remains.
