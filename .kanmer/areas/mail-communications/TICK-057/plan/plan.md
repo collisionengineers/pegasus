@@ -2,45 +2,33 @@
 
 ## Chosen approach
 
-add operational-queue navigation and filtering without copying the mapping. Reuse `MAIL-02 operational-destination result in RetainedMail projections`, keep Web/MCP callers thin, and place persistence or external mechanics only in `query filtering in EfRetainedMailboxMessageStore`. This follows the repository's one-Core-owner rule and the existing convention rather than adding a workspace-specific policy copy.
+Extend the existing retained-mail read scope with one optional view: an aggregate operational destination or one exact known category whose canonical policy result is DetailedClassification. MailOperationalDestinationPolicy owns compact query criteria and uses the same criteria for its Map result; the EF adapter translates those criteria against existing classification columns before Count/Skip/Take. After paging, the landed decision projection supplies each row's current classification and policy-derived destination. Web reuses MailClassificationSelection for named options and the existing query-string context convention.
 
-A parallel UI-owned implementation was rejected because UI-10, Automation MCP and background processing would diverge. A generic mail-action framework was rejected because each action already has a concrete Core boundary and no second abstraction caller is proven.
+This is smaller and safer than persisting a destination, filtering a materialized page, copying the mapping into EF/Web, or adding a generic mail-filter framework.
 
 ## Governing docs
 
-- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: implement its exact-message, fail-closed, durable-history and workspace behaviour. Any unresolved mapping/mutation behaviour remains conditional on the checked operator answer; do not silently amend the FRD.
-- `docs/design/README.md`: apply the established confirmation, error, focus, navigation and accessibility conventions.
-- No new ADR is planned: the existing Core/Infrastructure/Web boundary carries the change.
+- docs/frd/frd-08-email-mailbox-and-background-processing.md: preserves classification/destination separation, canonical detailed views, reasoned Other, distinct Unidentified/Triage, SQL-honest counts and active filter context.
+- docs/design/README.md: semantic accessible navigation, visible active state, honest empty state, accessible pagination and exact list/detail return.
+- No ADR: existing Core read contract, EF adapter and Razor caller carry the change.
 
-## Ordered implementation
+## Steps
 
-1. Re-read the current target files after prerequisite branches land and name the exact existing contracts/helpers/tests being reused.
-2. Add or extend the smallest Core contract/policy required to add operational-queue navigation and filtering without copying the mapping; validate identity, actor, reason, state and version before any write.
-3. Implement the Infrastructure projection/transaction/adapter in query filtering in EfRetainedMailboxMessageStore; preserve mailbox scope, idempotency, optimistic concurrency and append-only evidence.
-4. Wire the real caller (/Inbox queue filters) through the Core use case with no duplicated taxonomy, mapping or authorization logic.
-5. Add focused Core and integration/Web tests for Receiving/Queries/Other plus distinct Needs sorting/Triage, counts, paging and preserved filters.
-6. Run the locked restore/build and focused tests, then the relevant full suite; perform the four-lens simplification pass and record honest dispositions.
-7. Update FRD/capabilities only where the delivered behaviour/evidence warrants it; do not claim deployment, live Outlook verification or operator acceptance from local tests.
+1. Extend MailOperationalDestinationPolicy with the smallest immutable SQL-query criterion and prove the criterion agrees with Map for every destination.
+2. Extend MailWorkspaceScope/ListRetainedMail with zero-or-one destination/detail filter and fail-closed validation; reuse MailCategory validation.
+3. Apply the policy criterion or exact category against existing classification decision columns before SQL count/paging, then reuse the current classification mapper for row projection.
+4. Add one accessible queue/detail filter surface to /Inbox and carry its key through mailbox/folder/search/page/manual refresh and /Inbox/{id} return/action context.
+5. Add focused Core, disposable SQL and authenticated Web tests for Receiving work, Queries, reasoned Other, Unidentified, Triage, a named detailed view, current corrections, counts/paging and context preservation.
+6. Reconcile only canonical UI-14/Unidentified wording in ticket/capabilities/design, run locked restore/Release build and proportional suites, then perform and record the four simplification lenses.
+7. Write the exact PIR, push one branch, open a PR to dev and leave TICK-057 in Review for independent review.
 
-## Dependencies and sequencing
+## Risks and mitigation
 
-TICK-044 and TICK-064.
+- Mapping drift: Map and SQL criteria share one Core-owned descriptor; tests enumerate all destinations.
+- False totals/pages: filter is composed before CountAsync, Skip and Take.
+- Context loss: extend the existing explicit query-string convention and prove list→detail→return.
+- Scope growth: no writes, new persistence, action framework, quick preview, MCP or external behavior.
 
 ## Proof
 
-The post-implementation report will cite focused test output, Release build output, real-caller integration evidence and simplification findings. External-mailbox behaviour requires separately approved live verification and cannot be inferred from adapter tests.
-
-## Risks and mitigations
-
-- Identity or stale-state mistakes: exact mailbox/message keys plus optimistic concurrency and fail-closed validation.
-- Policy duplication: one Core result consumed by Web, Worker and MCP.
-- External side effects: local fakes/fixtures by default; no real Outlook/cloud write without exact approval.
-- Scope growth: keep this ticket to its named capability and file follow-ups for independent behaviour.
-
-## Operator decision — 2026-08-19
-
-Do not collapse known classifications into a generic Other queue. UI-14 consumes FRD-08's canonical classification registry and offers detailed category/subtype views, while Needs sorting remains a distinct fail-closed work queue and Triage remains its separate workflow. A reasoned custom Other classification appears under its recorded new category name and reasoning.
-
-## Production queue acceptance — operator decision 2026-08-19
-
-After deployment, authenticate to the production mailbox workspace and verify detailed classification views plus distinct Receiving work, Queries, Needs sorting, and Triage queues against current retained mail. Capture counts, filters, paging, preserved mailbox/folder scope, and exact detailed classifications where real examples exist. Treat an empty queue as an evidenced empty state, not a failure and not licence to fabricate or mutate data.
+Local Core tests, populated disposable SQL tests and authenticated Web tests; locked Release build and diff check. No deployment or live mailbox claim.

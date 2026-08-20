@@ -1,14 +1,13 @@
 # Checklist — UI-14
 
-- [ ] Revalidate prerequisites and the exact existing Core/Infrastructure/Web helpers to reuse.
-- [ ] Implement the minimal Core contract/policy with fail-closed validation.
-- [ ] Implement the mailbox-scoped persistence/projection/adapter boundary with idempotency and durable evidence.
-- [ ] Wire the real caller without duplicating business rules.
-- [ ] Add focused acceptance tests for Receiving/Queries/Other plus distinct Needs sorting/Triage, counts, paging and preserved filters.
-- [ ] Run `dotnet restore` and `dotnet build --configuration Release`.
-- [ ] Run focused tests and the relevant full suite.
-- [ ] Run and record the four-lens simplification pass.
-- [ ] Update governing/current-state documentation only to the evidence tier actually reached.
-- [ ] Write the post-implementation report with commands, results, residual risks and deployment qualification.
-
-- [ ] After deployment, record an authenticated read-only production journey through detailed classification views and every distinct queue, preserving honest empty states and causing no mutation.
+- [ ] Add policy-owned aggregate query criteria and Core agreement tests.
+- [ ] Add fail-closed zero-or-one destination/detail list scope.
+- [ ] Filter existing classification rows in SQL before count and pagination.
+- [ ] Project current classification and derived destination onto retained-mail rows.
+- [ ] Add accessible aggregate and named-detail navigation with visible active state.
+- [ ] Preserve queue context through mailbox/folder/search/page/refresh/message detail and actions.
+- [ ] Add focused populated SQL and authenticated Web evidence.
+- [ ] Reconcile only canonical UI-14/Unidentified terminology.
+- [ ] Run locked restore, Release build and proportional tests.
+- [ ] Run and record reuse, simplification, efficiency and altitude lenses.
+- [ ] Write exact PIR/traceability, push PR to dev and leave Review.

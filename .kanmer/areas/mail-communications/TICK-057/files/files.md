@@ -1,42 +1,34 @@
-# Files — TICK-057: UI-14 categorised mail queues
+# Files — UI-14 post-merge map
 
-*Surveyed on current `origin/dev` (`b36c6666`) and compared with `origin/main` (`2325ed4a`). The local `dev` checkout is stale and is not an implementation base.*
+Base: origin/dev 4baae5f0.
 
-## Where the change lands
+## Change files
 
-| Path | Why |
-|---|---|
-| `src/Pegasus.Core/Intake/RetainedMail.cs` | Extend the existing authorized workspace scope and list projection to represent an optional operational destination or named detailed classification. Preserve mailbox/folder scope and reject invalid filter values in `ListRetainedMail`. |
-| `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` | Join the current classification decision and apply the selected queue/category before SQL count and pagination. Reuse the Core mapping definition; do not persist a derived destination or duplicate the classification-to-destination table. |
-| `src/Pegasus.Web/Pages/Mail/Index.cshtml.cs` | Parse the queue query parameter, pass it through the Core use case, and preserve it through mailbox/folder changes, pagination and manual refresh. |
-| `src/Pegasus.Web/Pages/Mail/Index.cshtml` | Render accessible queue navigation, active-filter state, detailed classification identity, and honest filtered empty states using existing tab/table conventions. Use **Unidentified** and keep **Triage** distinct. |
-| `src/Pegasus.Web/Pages/Mail/Message.cshtml.cs` and `Message.cshtml` | Carry the originating queue/category through opened-message detail, correction posts, and return links so classification changes do not silently lose list context. Do not add another destination calculation. |
-| `tests/Pegasus.Core.Tests/Intake/Classification/MailOperationalDestinationPolicyTests.cs` | Extend only if the existing policy needs a reusable query description; keep one exhaustive mapping table and prove Unidentified/Triage separation. |
-| `tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs` | Prove queue/category filtering happens before count/page, remains mailbox/folder scoped, and returns the current corrected classification. |
-| `tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs` | Prove the real authenticated caller, named detailed views, separate Receiving work/Queries/Other/Unidentified/Triage filters, paging/refresh/detail-return preservation, invalid filter refusal, and empty states. |
+| Path | Narrow change and reuse |
+| --- | --- |
+| src/Pegasus.Core/Intake/RetainedMail.cs | Extend MailWorkspaceScope with zero-or-one destination/detail filter; validate through ListRetainedMail. |
+| src/Pegasus.Core/Intake/Classification/MailOperationalDestinationPolicy.cs | Expose one policy-owned query criterion per aggregate destination and have Map consume it; no second mapping list. |
+| src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs | Translate the policy criterion/exact category against existing decision columns before SQL count/paging; project current classification/destination after paging with EfIntakeReceiptStore.MapMailClassificationDecision. |
+| src/Pegasus.Web/Pages/Mail/Index.cshtml.cs | Parse one queue key using existing MailClassificationSelection and pass the Core scope; preserve the key in refresh context. |
+| src/Pegasus.Web/Pages/Mail/Index.cshtml | Accessible queue/detail navigation, active filter and row classification/destination; preserve queue through message links and pagination. |
+| src/Pegasus.Web/Pages/Mail/Message.cshtml.cs | Bind and carry the originating queue key through existing redirects/return-context helpers only. |
+| src/Pegasus.Web/Pages/Mail/Message.cshtml | Preserve queue through Back, correction, move and association links/forms; no new action. |
+| tests/Pegasus.Core.Tests/Intake/Classification/MailOperationalDestinationPolicyTests.cs | Prove criteria and Map agree, especially Unidentified versus Triage. |
+| tests/Pegasus.IntegrationTests/RetainedMailPersistenceTests.cs | Prove destination/detail filtering, corrected current decision, mailbox/folder scope and SQL count/page behavior. |
+| tests/Pegasus.IntegrationTests/MailWorkspaceWebTests.cs | Authenticated accessible navigation, visible row projection, invalid-filter refusal and exact list/detail context preservation. |
+| docs/capabilities.md | Reconcile UI-14 wording/evidence to the delivered local read-only slice. |
+| docs/design/README.md | Replace the remaining operator-facing broad Needs sorting wording only where it means Unidentified. |
 
 ## Context files
 
-| Path | What it tells the implementer |
-|---|---|
-| `src/Pegasus.Core/Intake/Classification/MailOperationalDestinationPolicy.cs` | The sole classification-to-operational-destination owner. Its result retains the detailed `MailCategory`; list filtering must consume this owner rather than recreate its switch in Web or Infrastructure. |
-| `src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs` | MAIL-22’s canonical Received/Sent families, subtypes and reasoned Other validation. Do not create a second category list. |
-| `src/Pegasus.Web/Presentation/OperatorLabels.cs` | Existing operational-destination labels, including canonical Unidentified and distinct Triage. |
-| `docs/frd/frd-08-email-mailbox-and-background-processing.md` | Governs the catalogue, detailed views, queue/filter persistence, exact-message semantics and no automatic folder action. MAIL-23 owns approved Outlook-folder identity binding, not UI-14’s queue filter. |
-| `docs/operator-notes.md` and `docs/prd/pegasus-product.md` | INTK-007’s binding vocabulary: Unidentified replaces only the old broad Needs sorting outcome; U-reference identity and Triage remain distinct. |
-| `docs/design/README.md` | Existing tabs, keyboard navigation, empty/error/focus states, desktop/zoom acceptance and the rule against duplicated UI policy. |
-| EPIC-006 `context.md` | One Core implementation across Web/Worker/Automation and no local-alpha mailbox mutation. |
-| [[INTK-007]] proof and [[TICK-044]] proof | Confirm the canonical rename is on both remote branches and the Core destination policy already has a real message-detail caller. |
-
-## Ripple effects and exact overlaps
-
-- Hard prerequisites already complete: [[TICK-009]], [[TICK-010]], [[TICK-044]], and [[INTK-007]].
-- [[TICK-053]] and downstream [[TICK-056]] overlap exactly on `RetainedMail.cs`, `EfRetainedMailboxMessageStore.cs`, `Mail/Index.cshtml.cs`, and `MailWorkspaceWebTests.cs`.
-- [[TICK-064]] overlaps on `EfRetainedMailboxMessageStore.cs` and `Mail/Index.cshtml.cs`; [[TICK-050]] overlaps on `RetainedMail.cs` and the retained-mail store.
-- [[TICK-047]], [[TICK-049]], [[TICK-051]], [[TICK-052]], [[TICK-054]], and [[TICK-088]] all name `Mail/Message.cshtml.cs`; do not run UI-14 concurrently with those branches without explicit coordination.
-- Accepted sequencing: land MAIL-23 and MAIL-11 first, refresh this map from merged `origin/dev`, then implement UI-14 before UI-10 assembly. MAIL-23 is a coordination/file-overlap predecessor, not a behavioural prerequisite for queue mapping.
-- `docs/capabilities.md` changes only when delivered evidence changes the UI-14 row. Deployment/current-state documentation belongs to the owning release ticket.
+| Path | Constraint |
+| --- | --- |
+| docs/frd/frd-08-email-mailbox-and-background-processing.md | Canonical catalogue, distinct facts, filter preservation and SQL-honest counts. |
+| docs/operator-notes.md; docs/prd/pegasus-product.md | Unidentified replaces only broad Needs sorting; Triage remains distinct. |
+| src/Pegasus.Web/Presentation/MailClassificationSelection.cs | Existing canonical presentation list/parser; do not add another. |
+| src/Pegasus.Core/Intake/Classification/MailClassificationContracts.cs | MailTaxonomy is the category/subtype owner. |
+| landed TICK-053/049/050/051/052 symbols | Preserve search, folder, advisory and Case-association context. |
 
 ## Out of scope
 
-No taxonomy change, new queue policy, stored destination column, migration, generic mail-filter framework, folder recommendation/move, search implementation, Case association, message mutation, compose/send, bulk action, Automation tool, Graph/cloud write, deployment claim, or rewrite of internal legacy enum names whose operator presentation is already canonical.
+No persisted destination, EF model/migration, taxonomy edit, second mapping, new store/service/framework, mailbox mutation, action matrix, Automation/MCP, deployment or live evidence.

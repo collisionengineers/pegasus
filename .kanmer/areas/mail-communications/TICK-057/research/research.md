@@ -49,3 +49,28 @@ Detailed views must expose the canonical MAIL-22 category/subtype identity. The 
 ### Open questions
 
 None. The governing terminology, mapping owner, filter persistence, paging behaviour, and dependency order are settled. Any implementation design that would duplicate the mapping or persist derived destination state must stop and return to planning.
+
+## Focused post-merge refresh — 2026-08-20
+
+### Exact base and landed overlap
+
+- Read-only fetch resolves current origin/dev to 4baae5f0, the merge of TICK-052 / PR #490. TICK-053 landed at c025b39a, TICK-049 at e4d56d9e, TICK-050 at 09b42a57, TICK-051 at 708706b8, and TICK-052 at 4baae5f0.
+- TICK-053 owns the current mailbox/folder/search/page list shape and the query-string return convention. TICK-049 adds current logical-folder projection; TICK-050 adds the read-only detail advisory; TICK-051 adds current automatic Case association; TICK-052 adds manual association. UI-14 must preserve all of those fields and handlers rather than redesign them.
+- INTK-007 is Done. Canonical operator wording is Unidentified for the broad abstention only; Triage remains a distinct accepted workflow. The old ticket title, plan and checklist wording is superseded.
+
+### Existing owners to reuse
+
+- MailOperationalDestinationPolicy is the sole mapping from current MailClassificationResult to Receiving work, Queries, named detailed classification, reasoned Other, Unidentified or Triage.
+- EfIntakeReceiptStore.MapMailClassificationDecision is the current persisted-decision projection already used by retained-message detail. The list must reuse it after paging for display.
+- MailTaxonomy is the sole Core category/subtype catalogue. MailClassificationSelection is the existing presentation option projection and parser; detailed list views may filter its canonical non-Other options only when the policy maps them to DetailedClassification.
+- MailWorkspaceScope, ListRetainedMail, IRetainedMailQueries, EfRetainedMailboxMessageStore and the existing Index/Message query-string convention are the narrow extension seams.
+
+### Smallest SQL-safe design
+
+Add an optional operational destination or exact canonical detailed classification to MailWorkspaceScope. ListRetainedMail rejects unknown, contradictory, reasoned-Other-as-detail, and non-detailed category scopes. MailOperationalDestinationPolicy exposes its own small immutable query criteria, and Map consumes the same criteria; Infrastructure translates those criteria against the existing classification-decision columns. Thus the mapping remains one Core-owned list while SQL filters before Count/Skip/Take. No destination is stored.
+
+After paging, the existing receipt projection also maps the current classification and calls the policy for row display. Web parses one visible queue key, renders the five aggregate destinations plus policy-qualified named detailed views from MailClassificationSelection, and carries the key through mailbox/folder/search/page/refresh/detail/POST return context.
+
+### Verified boundaries
+
+This is read-only local Core/SQL/Web work. No taxonomy change, second policy, destination column, migration, write transaction, message action, generic filter framework, MCP surface, Graph/Box/cloud/deployment or external write. Documentation changes are limited to canonical UI-14 capability/title wording and stale operator-facing Needs sorting phrasing.
