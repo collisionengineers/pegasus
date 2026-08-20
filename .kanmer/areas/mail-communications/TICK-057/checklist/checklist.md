@@ -10,4 +10,4 @@
 - [x] Reconcile only canonical UI-14/Unidentified terminology.
 - [x] Run locked restore, Release build and proportional tests.
 - [x] Run and record reuse, simplification, efficiency and altitude lenses.
-- [ ] Write exact PIR/traceability, push PR to dev and leave Review.
+- [x] Write exact PIR/traceability, push PR to dev and leave Review.

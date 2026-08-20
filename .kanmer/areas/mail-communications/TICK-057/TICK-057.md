@@ -28,9 +28,13 @@ blocks:
   - TICK-056
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - 4b851ded
+prs:
+  - '491'
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-20T22:09:11.799Z'
+updated: '2026-08-20T22:46:49.028Z'
 ---
 
 ## What
@@ -50,10 +54,10 @@ The current exact-message detail derives its operational destination from the ca
 
 ## Verification
 
-- [ ] Receiving work, Queries, reasoned Other, Unidentified and Triage are distinct, and a named detailed classification is selectable.
-- [ ] Unidentified replaces only the old broad Needs sorting wording; Triage remains separate.
-- [ ] Populated SQL tests prove current corrected classification, counts and paging.
-- [ ] Authenticated Web tests prove accessible active navigation and exact detail/return context.
+- [x] Receiving work, Queries, reasoned Other, Unidentified and Triage are distinct, and a named detailed classification is selectable.
+- [x] Unidentified replaces only the old broad Needs sorting wording; Triage remains separate.
+- [x] Populated SQL tests prove current corrected classification, counts and paging.
+- [x] Authenticated Web tests prove accessible active navigation and exact detail/return context.
 
 ## Notes
 
