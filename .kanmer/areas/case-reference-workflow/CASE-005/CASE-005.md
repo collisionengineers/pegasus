@@ -2,13 +2,14 @@
 id: CASE-005
 type: ticket
 title: Resolve the SQL deadlock in parallel Qdos case allocation retries
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-20T16:45:06.386Z'
   review: '2026-08-20T17:40:51.357Z'
+  verifying: '2026-08-20T18:22:38.218Z'
 taken_at: '2026-08-20T16:45:00.646Z'
 branch: task/case-005-allocation-deadlock
 worktree: ../pegasus-worktrees/case-005
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-19T14:05:43.815Z'
-updated: '2026-08-20T17:40:51.357Z'
+updated: '2026-08-20T18:22:38.218Z'
 ---
 
 ## What
