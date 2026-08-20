@@ -74,6 +74,7 @@ public sealed class AdministrationPolicyPersistenceTests
             "instructions-sent",
             [
                 new(MailLogicalFolderType.Instructions, "folder-instructions"),
+                new(MailLogicalFolderType.Audits, "folder-audits"),
                 new(MailLogicalFolderType.Billing, "folder-billing")
             ]);
 
@@ -105,18 +106,41 @@ public sealed class AdministrationPolicyPersistenceTests
                 request with { OperationKey = "approved-mailbox-stale-1" },
                 default));
 
+        var refreshed = await command.ExecuteAsync(
+            request with
+            {
+                ExpectedVersion = updated.Version,
+                FolderBindings =
+                [
+                    new(MailLogicalFolderType.Instructions, "folder-instructions-refreshed"),
+                    new(MailLogicalFolderType.Billing, "folder-billing"),
+                    new(MailLogicalFolderType.Other, "folder-other")
+                ],
+                Reason = "Refresh exact logical folder identities",
+                OperationKey = "approved-mailbox-refresh-1"
+            },
+            default);
+        Assert.Equal(updated.Version + 1, refreshed.Version);
+        Assert.Equal(
+            [
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Instructions, "folder-instructions-refreshed"),
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Billing, "folder-billing"),
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Other, "folder-other")
+            ],
+            refreshed.FolderBindings);
+
         var disabled = await command.ExecuteAsync(
             request with
             {
                 State = ApprovedMailboxState.Disabled,
-                ExpectedVersion = updated.Version,
+                ExpectedVersion = refreshed.Version,
                 FolderBindings = null,
                 Reason = "Disable both approved read routes",
                 OperationKey = "approved-mailbox-disable-1"
             },
             default);
         Assert.Equal(ApprovedMailboxState.Disabled, disabled.State);
-        Assert.Equal(updated.FolderBindings, disabled.FolderBindings);
+        Assert.Equal(refreshed.FolderBindings, disabled.FolderBindings);
         Assert.False(await policy.IsApprovedAsync(
             initial.Address,
             ApprovedMailboxRouteScope.InboundIntake,

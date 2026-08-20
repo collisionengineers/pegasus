@@ -319,8 +319,20 @@ public sealed class EfApprovedMailboxStore(
         ApprovedMailboxEntity entity,
         IReadOnlyCollection<ApprovedMailboxFolderBinding> bindings)
     {
-        entity.FolderBindings.Clear();
-        foreach (var binding in bindings)
+        var requested = bindings.ToDictionary(item => item.FolderType.ToString(), StringComparer.Ordinal);
+        foreach (var existing in entity.FolderBindings.ToArray())
+        {
+            if (requested.Remove(existing.FolderType, out var binding))
+            {
+                existing.FolderIdentity = binding.FolderIdentity;
+            }
+            else
+            {
+                entity.FolderBindings.Remove(existing);
+            }
+        }
+
+        foreach (var binding in requested.Values)
         {
             entity.FolderBindings.Add(new ApprovedMailboxFolderBindingEntity
             {
