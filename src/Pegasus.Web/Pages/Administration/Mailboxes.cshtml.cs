@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Identity;
@@ -206,9 +206,9 @@ public sealed class MailboxesModel(
         }
 
         var completed = status.LastCompletedAtUtc is { } lastCompletedAtUtc
-            ? $"Last completed {lastCompletedAtUtc:u}."
+            ? $"Last completed {Presentation.OperatorLabels.OfficeTime(lastCompletedAtUtc)}."
             : "No completed poll yet.";
-        var due = $" Next due {status.DueAtUtc:u}.";
+        var due = $" Next due {Presentation.OperatorLabels.OfficeTime(status.DueAtUtc)}.";
         var failure = status.LastFailureCode switch
         {
             null => string.Empty,
@@ -216,7 +216,7 @@ public sealed class MailboxesModel(
                 " The tenant has not granted this application access to this mailbox.",
             "mailbox_not_approved" =>
                 " The last attempt stopped because this mailbox was no longer approved.",
-            var code => $" Last failure: {code}."
+            var code => $" Last failure: {Presentation.OperatorLabels.Humanise(code)}."
         };
         return $"{completed}{due}{failure}";
     }

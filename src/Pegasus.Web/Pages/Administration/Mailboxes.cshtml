@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model Pegasus.Web.Pages.Administration.MailboxesModel
 @using Pegasus.Core.Identity
 @{
@@ -48,7 +48,7 @@
                     <tr>
                         <td>@mailbox.Address</td>
                         <td>@string.Join(", ", mailbox.RouteScopes.Select(Pegasus.Web.Presentation.OperatorLabels.RouteScope))</td>
-                        <td><partial name="Shared/_StatusChip" model="@mailbox.State.ToString()" /></td>
+                        <td><partial name="Shared/_StatusChip" model="@Pegasus.Web.Presentation.OperatorLabels.Humanise(mailbox.State.ToString())" /></td>
                         <td>@Model.PollStatusFor(mailbox)</td>
                     </tr>
                 }
