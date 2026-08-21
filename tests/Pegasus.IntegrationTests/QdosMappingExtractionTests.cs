@@ -24,26 +24,31 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
         string? Make,
         string? Model,
         long? Mileage,
-        DateOnly? IncidentDate);
+        DateOnly? IncidentDate,
+        string? CircumstancesStart = null);
 
     // Keyed by the leading "(EREFn) …" prefix that uniquely names each mapped
     // file. Values come from the letters themselves (see the mapping document).
     private static readonly ExpectedInstruction[] Expectations =
     [
         new("(EREF10) RTA on 14_08_2026", "Mr Paul Larcombe", "AMA/47857/1", "PG18BTY",
-            "FORD", "TRANSIT CUSTOM 290 SPORT", null, new(2026, 8, 14)),
+            "FORD", "TRANSIT CUSTOM 290 SPORT", null, new(2026, 8, 14),
+            "Our client was stationary in their car on Badger Avenue"),
         new("(EREF12) RTA on 25_06_2026", "Mr Liam Kinnear", "KAD//46384/1", "YD14VGJ",
             null, null, null, new(2026, 6, 25)),
         new("(EREF19) RTA on 02_08_2026", "Lookers", "JF/ND/47684/1", "DE23XKP",
             "AUDI", "A4 S LN BLACK ED 35TDI MHEV SA", 28000, new(2026, 8, 2)),
         new("(EREF5) RTA on 14_08_2026", "A B C Central", "JF//47847/1", "M555MJF",
-            null, null, null, new(2026, 8, 14)),
+            "SKODA", "SUPERB SE TDI", null, new(2026, 8, 14),
+            "Our client was stationary on Kinross Avenue in Port Glasgow."),
         new("(EREF8) RTA on 19_08_2026", "Mr Derek King", "AKH/SBU/47856/1", "FC55DEL",
-            null, null, null, new(2026, 8, 19)),
+            "VAUXHALL", "ASTRA GS TURBO", null, new(2026, 8, 19),
+            "Our client's car was parked and unattended in the Academy Street Car Park"),
         new("(EREF9) RTA on 11_08_2026", "Mr Tomasz Mydlowski", "AKH/ND/47630/1", "MD22DDU",
             "FORD", "RANGER WILDTRAK ECOBLUE 4X4 A", null, new(2026, 8, 11)),
         new("(EREF9) RTA on 15_08_2026", "Miss Dionne Harvey", "AMA/47808/1", "SB71LSK",
-            "PEUGEOT", "208 GT PURETECH S/S", null, new(2026, 8, 15))
+            "PEUGEOT", "208 GT PURETECH S/S", null, new(2026, 8, 15),
+            "Our client was stationary, queuing in their car")
     ];
 
     public static TheoryData<string> MappedFilePrefixes()
@@ -85,7 +90,8 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
         output.WriteLine(
             $"{Path.GetFileName(path)} => claimant='{draft.ClaimantName}' claim='{draft.ClaimNumber}' " +
             $"reg='{draft.VehicleRegistration}' make='{draft.VehicleMake}' model='{draft.VehicleModel}' " +
-            $"mileage={draft.VehicleMileage} incident={draft.DateOfIncident:yyyy-MM-dd}");
+            $"mileage={draft.VehicleMileage} incident={draft.DateOfIncident:yyyy-MM-dd} " +
+            $"circ='{draft.AccidentCircumstances?[..Math.Min(60, draft.AccidentCircumstances.Length)]}'");
 
         Assert.Equal(expected.Claimant, draft.ClaimantName);
         Assert.Equal(expected.ClaimNumber, draft.ClaimNumber);
@@ -102,6 +108,13 @@ public sealed class QdosMappingExtractionTests(ITestOutputHelper output)
         }
 
         Assert.Equal(expected.IncidentDate, draft.DateOfIncident);
+        if (expected.CircumstancesStart is not null)
+        {
+            Assert.StartsWith(
+                expected.CircumstancesStart,
+                draft.AccidentCircumstances ?? string.Empty,
+                StringComparison.Ordinal);
+        }
     }
 
     private static string MappingRoot => Path.Combine(QdosCorpus.Root, "qdosmapping");
