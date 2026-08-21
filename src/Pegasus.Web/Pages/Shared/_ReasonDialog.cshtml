@@ -12,7 +12,6 @@
     var dialogId = ViewData["DialogId"] as string ?? "reasonModal";
     var title = ViewData["DialogTitle"] as string ?? "Required Reason";
     var actionUrl = ViewData["DialogActionUrl"] as string ?? "#";
-    var consequence = ViewData["DialogConsequence"] as string ?? "A reason is required to perform this permanent business action.";
     var hiddenFields = ViewData["DialogHiddenFields"] as IReadOnlyDictionary<string, string?>
         ?? new Dictionary<string, string?>();
 }
@@ -22,7 +21,6 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"/></svg>
             <span>@title</span>
         </h2>
-        <p class="notice">@consequence</p>
         <form method="post" action="@actionUrl" class="form-grid">
             @Html.AntiForgeryToken()
             @foreach (var field in hiddenFields)
@@ -37,8 +35,7 @@
                     Reason for action
                     <span class="field-validation" aria-hidden="true">*</span>
                 </label>
-                <textarea id="@(dialogId)_reason" name="Reason" rows="3" required aria-describedby="@(dialogId)_reason_hint" placeholder="Enter clear business reason…"></textarea>
-                <small id="@(dialogId)_reason_hint">Required.</small>
+                <textarea id="@(dialogId)_reason" name="Reason" rows="3" required></textarea>
             </div>
             <div class="button-row button-row--end">
                 <button type="button" class="secondary-action" data-dialog-dismiss>Cancel</button>
@@ -47,82 +44,3 @@
         </form>
     </div>
 </div>
-<script>
-    // Initial focus, focus containment, Escape, and focus return to the control
-    // that opened the dialog. Written in the same shape as the refresh feedback
-    // in _FreshnessBanner: one small block beside the markup it belongs to, with
-    // no inline handler on any control.
-    document.querySelectorAll('[data-reason-dialog]').forEach(function (dialog) {
-        if (dialog.dataset.dialogBound === 'true') {
-            return;
-        }
-        dialog.dataset.dialogBound = 'true';
-
-        var invoker = null;
-
-        function focusable() {
-            return Array.prototype.filter.call(
-                dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
-                function (element) { return !element.disabled && !element.hidden; });
-        }
-
-        function open(source) {
-            invoker = source;
-            dialog.hidden = false;
-            document.addEventListener('keydown', onKeydown, true);
-            var items = focusable();
-            if (items.length > 0) {
-                items[0].focus();
-            }
-        }
-
-        function close() {
-            dialog.hidden = true;
-            document.removeEventListener('keydown', onKeydown, true);
-            if (invoker) {
-                invoker.focus();
-            }
-        }
-
-        function onKeydown(event) {
-            if (event.key === 'Escape') {
-                // Safe: closing abandons an unsent reason and changes nothing.
-                event.preventDefault();
-                close();
-                return;
-            }
-            if (event.key !== 'Tab') {
-                return;
-            }
-            var items = focusable();
-            if (items.length === 0) {
-                return;
-            }
-            var first = items[0];
-            var last = items[items.length - 1];
-            if (event.shiftKey && document.activeElement === first) {
-                event.preventDefault();
-                last.focus();
-            } else if (!event.shiftKey && document.activeElement === last) {
-                event.preventDefault();
-                first.focus();
-            }
-        }
-
-        dialog.querySelectorAll('[data-dialog-dismiss]').forEach(function (control) {
-            control.addEventListener('click', close);
-        });
-
-        dialog.addEventListener('click', function (event) {
-            if (event.target === dialog) {
-                close();
-            }
-        });
-
-        document.querySelectorAll('[data-dialog-open="' + dialog.id + '"]').forEach(function (control) {
-            control.addEventListener('click', function () {
-                open(control);
-            });
-        });
-    });
-</script>
