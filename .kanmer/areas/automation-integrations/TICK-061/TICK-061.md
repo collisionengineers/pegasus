@@ -2,10 +2,12 @@
 id: TICK-061
 type: ticket
 title: 'API-04 — Provider API credential issue, rotation, and revocation'
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-21T14:20:04.602Z'
 labels:
   - capability
   - API-04
@@ -17,9 +19,11 @@ groups:
   - HZN-002
 links:
   - TICK-058
+refs:
+  - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-08-17T06:41:43.851Z'
+updated: '2026-08-21T14:20:04.602Z'
 ---
 
 ## What

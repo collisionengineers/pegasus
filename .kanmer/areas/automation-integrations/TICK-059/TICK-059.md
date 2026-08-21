@@ -1,7 +1,7 @@
 ---
 id: TICK-059
 type: ticket
-title: API-02 — Provider API receipt and processing-status lookup
+title: Retired — API-02 provider processing-status lookup
 status: backlog
 area: automation-integrations
 assignee: ''
@@ -17,30 +17,32 @@ groups:
   - HZN-002
 links:
   - TICK-058
-archived: false
+  - TICK-060
+  - AUTO-008
+archived: true
 created: '2026-08-12T15:05:19.443Z'
-updated: '2026-08-17T06:41:43.476Z'
+updated: '2026-08-21T14:19:47.999Z'
 ---
 
 ## What
 
-Plan and research **API-02**: Provider API receipt and processing-status lookup
+Retired **API-02** as a standalone provider processing-status capability.
 
 ## Why
 
-This is allocated to **Next / 0.4.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+The operator determined that ordinary processing is expected to finish in under five seconds and that a separately modelled provider-facing Processing experience is disproportionate. The durable submission receipt remains owned by [[TICK-058]], while terminal Case/PO or bounded-failure retrieval remains owned by [[TICK-060]].
 
-## Approach
+## Disposition
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+- No transient provider-facing Processing state or dedicated status feature.
+- Measure queue wait and processing cost in [[AUTO-008]] before changing architecture.
+- Update FRD-09, ADR-0004 through a superseding ADR, and the capability registry during implementation of the surviving API tickets.
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [x] Responsibilities are retained by API-01 and API-03 without a standalone status capability.
+- [x] Performance investigation is separately tracked.
 
-## Notes
+## Outcome
 
-- Source: `docs/capabilities.md` — API-02.
-- Blocked by: [[TICK-058]] — Submission-status lookup depends on the principal-scoped submission contract.
+Archived by operator decision on 2026-08-21.

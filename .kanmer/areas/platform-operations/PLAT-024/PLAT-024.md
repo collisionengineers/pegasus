@@ -1,7 +1,7 @@
 ---
 id: PLAT-024
 type: ticket
-title: Redesign Administration organizations
+title: Retired — separate Organizations administration redesign
 status: backlog
 area: platform-operations
 assignee: ''
@@ -14,28 +14,22 @@ labels:
   - operator-requested
 groups:
   - EPIC-008
-links: []
+links:
+  - PLAT-028
 docs_todo: true
-archived: false
+archived: true
 created: '2026-08-21T13:19:14.311Z'
-updated: '2026-08-21T13:19:14.311Z'
+updated: '2026-08-21T14:19:48.023Z'
 ---
 
 ## What
 
-Redesign the Administration Organizations surface.
+Retired the separate Organizations administration redesign in favour of [[PLAT-028]].
 
 ## Why
 
-Organization administration requires a focused redesign within the shared programme.
-
-## Approach
-
-- Research current organization-management behaviour and its governing requirements.
-- Record any uncovered backend needs as linked follow-up tickets.
-
-## Verification
-
-- [ ] The approved redesign supports the required organization administration workflows.
+Organizations and Principals form one administration experience, and the surviving ticket also owns the requested redesign and provider API credential controls.
 
 ## Outcome
+
+Archived as a duplicate of PLAT-028 on 2026-08-21.

@@ -2,10 +2,12 @@
 id: TICK-060
 type: ticket
 title: API-03 — Provider API resulting Case/PO lookup
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-21T14:20:04.506Z'
 labels:
   - capability
   - API-03
@@ -17,9 +19,11 @@ groups:
   - HZN-002
 links:
   - TICK-058
+refs:
+  - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.465Z'
-updated: '2026-08-17T06:41:43.656Z'
+updated: '2026-08-21T14:20:04.506Z'
 ---
 
 ## What
