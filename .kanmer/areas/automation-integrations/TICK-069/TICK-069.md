@@ -2,10 +2,12 @@
 id: TICK-069
 type: ticket
 title: EXT-15 — Automated WhatsApp ingestion and coexistence
-status: backlog
+status: preparing
 area: automation-integrations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-21T12:30:17.048Z'
 labels:
   - capability
   - EXT-15
@@ -16,9 +18,11 @@ labels:
 groups:
   - HZN-002
 links: []
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:05:39.851Z'
-updated: '2026-08-17T06:40:49.583Z'
+updated: '2026-08-21T12:30:17.048Z'
 ---
 
 ## What
