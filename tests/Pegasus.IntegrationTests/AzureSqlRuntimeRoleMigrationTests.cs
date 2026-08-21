@@ -560,6 +560,29 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task LatestMigrationGrantsImageIntakeLifecycleUpdatesToBothRuntimeRoles()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        foreach (var role in new[] { WebRole, WorkerRole })
+        {
+            Assert.Equal(
+                [
+                    "ImageIntakes:INSERT",
+                    "ImageIntakes:SELECT",
+                    "ImageIntakes:UPDATE"
+                ],
+                (await ReadGrantedPermissionsAsync(database, role))
+                    .Where(value => value.StartsWith("ImageIntakes:", StringComparison.Ordinal))
+                    .ToArray());
+            Assert.Contains("ImageIntakes", await ReadDeniedDeleteTablesAsync(database, role));
+        }
+    }
+
+    [Fact]
     public async Task TerminalDowngradeRestoresTheExactPreTerminalPermissionState()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
