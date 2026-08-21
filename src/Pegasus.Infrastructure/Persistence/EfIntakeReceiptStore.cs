@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> contextFactory)
-    : IIntakeReceiptStore, IIntakeReceiptQueries
+    : IIntakeReceiptStore, IIntakeReceiptQueries, ICaseEvidenceImageQueries
 {
     private const int JsonVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -1010,7 +1010,7 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                 : null);
     }
 
-    private static IntakeAssetRecord MapAsset(IntakeAssetEntity entity) => new(
+    internal static IntakeAssetRecord MapAsset(IntakeAssetEntity entity) => new(
         entity.Id,
         entity.SourceLabel,
         entity.FileName,
@@ -1353,6 +1353,51 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         IntakeAssetKind.EmbeddedImage => "embedded_image",
         _ => throw UnknownEnum(value)
     };
+
+    /// <summary>
+    /// The evidence photographs of a case's instruction receipts (origin
+    /// receipt plus manually linked ones), resolved through the one
+    /// <see cref="InstructionEvidenceImages"/> selection rule.
+    /// </summary>
+    public async Task<IReadOnlyList<CaseEvidenceImage>> ListForCaseAsync(
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var originIds = await context.Cases
+            .AsNoTracking()
+            .Where(item => item.Id == caseId)
+            .Select(item => item.OriginIntakeReceiptId)
+            .ToListAsync(cancellationToken);
+        var linkedIds = await context.CaseIntakeLinks
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => item.IntakeReceiptId)
+            .ToListAsync(cancellationToken);
+        var receiptIds = originIds
+            .Concat(linkedIds)
+            .Distinct()
+            .ToArray();
+        if (receiptIds.Length == 0)
+        {
+            return [];
+        }
+
+        var assets = await context.IntakeAssets
+            .AsNoTracking()
+            .Where(item => receiptIds.Contains(item.IntakeReceiptId)
+                && (item.Kind == "attachment" || item.Kind == "embedded_image"))
+            .ToListAsync(cancellationToken);
+        var byRecordId = assets.ToDictionary(item => item.Id, item => item.IntakeReceiptId);
+        return InstructionEvidenceImages.Select(assets.Select(MapAsset))
+            .Select(record => new CaseEvidenceImage(
+                byRecordId[record.Id],
+                record.Id,
+                record.FileName,
+                record.MediaType,
+                record.ContentLength))
+            .ToArray();
+    }
 
     private static IntakeAssetKind ParseAssetKind(string value) => value switch
     {
