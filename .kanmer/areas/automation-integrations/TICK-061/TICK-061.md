@@ -19,11 +19,14 @@ groups:
   - HZN-002
 links:
   - TICK-058
+blocks:
+  - TICK-058
+  - PLAT-028
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-08-21T14:20:04.602Z'
+updated: '2026-08-21T14:24:21.564Z'
 ---
 
 ## What

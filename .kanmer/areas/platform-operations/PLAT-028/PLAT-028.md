@@ -2,10 +2,12 @@
 id: PLAT-028
 type: ticket
 title: Redesign Organizations and Principals with provider API controls
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-21T14:23:40.633Z'
 labels:
   - ui
   - redesign
@@ -21,10 +23,13 @@ links:
   - TICK-058
   - TICK-061
   - PLAT-024
+refs:
+  - docs/frd/frd-04-parties-accounts-and-access.md
+  - docs/frd/frd-09-provider-and-intermediary-routes.md
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-08-21T14:19:48.055Z'
+updated: '2026-08-21T14:23:40.633Z'
 ---
 
 ## What

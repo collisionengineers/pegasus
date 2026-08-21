@@ -18,11 +18,13 @@ labels:
 groups:
   - HZN-002
 links: []
+blocks:
+  - TICK-060
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.421Z'
-updated: '2026-08-21T14:20:03.598Z'
+updated: '2026-08-21T14:24:21.602Z'
 ---
 
 ## What
