@@ -112,7 +112,7 @@ public sealed class EfCaseDataStore(
         if (evaluation.SatisfiesPolicy)
         {
             workflow.State = nameof(CaseLifecycleState.Review);
-            StopDueWork(workflow);
+            CaseChaseState.Stop(workflow);
         }
         else
         {
@@ -480,19 +480,6 @@ public sealed class EfCaseDataStore(
     private static void ClearLease(CaseWorkflowEntity workflow) =>
         CaseMutationGuard.ClearLease(workflow);
 
-    private static void StopDueWork(CaseWorkflowEntity workflow)
-    {
-        if (workflow.DueWork is not { } due)
-        {
-            return;
-        }
-
-        due.State = nameof(CaseDueWorkState.Stopped);
-        due.NextChaseAtUtc = null;
-        due.HeldAtUtc = null;
-        due.RemainingChaseIntervalTicks = null;
-        due.Version++;
-    }
 
     private static void ScheduleDueWork(
         PegasusDbContext context,
