@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Grant production runtime roles their required vehicle-lookup and image-custody
   writes
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-21T09:58:24.209Z'
+taken_at: '2026-08-21T10:00:08.531Z'
+branch: task/plat-020-runtime-grants
+worktree: ../pegasus-worktrees/plat-020
 labels:
   - defect
   - production
@@ -26,7 +29,7 @@ refs:
   - docs/adr/0007-direct-terminal-azure-deployment.md
 archived: false
 created: '2026-08-21T09:57:53.143Z'
-updated: '2026-08-21T09:58:24.209Z'
+updated: '2026-08-21T10:00:08.531Z'
 ---
 
 ## Why

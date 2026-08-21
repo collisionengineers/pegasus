@@ -1,0 +1,9 @@
+- [ ] Remove the duplicate IVehicleEvidenceQueries dependency and query.
+- [ ] Read shared vehicle fields and evidence from the IGetCase result.
+- [ ] Implement saved → Confirmed → Fact → lookup precedence without Suggestion.
+- [ ] Keep mileage value, unit, and source provenance-consistent.
+- [ ] Retain lookup fallback for year, engine capacity, and fuel.
+- [ ] Expand Assessment vehicle-prefill integration tests for every tier and disagreement.
+- [ ] Run focused tests, Release build, full non-corpus tests, and simplification pass.
+- [ ] Record the post-implementation report and open the reviewed PR to dev.
+- [ ] Verify the merged behavior and record proof.

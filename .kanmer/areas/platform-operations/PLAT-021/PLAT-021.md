@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Deduplicate application exceptions and page only for failed or persistent
   operations
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-21T09:58:24.302Z'
+taken_at: '2026-08-21T10:00:08.703Z'
+branch: task/plat-021-exception-alert
+worktree: ../pegasus-worktrees/plat-021
 labels:
   - production
   - monitoring
@@ -24,7 +27,7 @@ refs:
   - docs/adr/0002-dotnet-modular-monolith-on-azure.md
 archived: false
 created: '2026-08-21T09:57:55.118Z'
-updated: '2026-08-21T09:58:24.302Z'
+updated: '2026-08-21T10:00:08.703Z'
 ---
 
 ## Why

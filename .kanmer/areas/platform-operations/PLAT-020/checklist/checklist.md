@@ -1,0 +1,10 @@
+- [ ] Add the append-only Web/Worker runtime grant reconciliation migration.
+- [ ] Update exhaustive role-grant and DELETE-denial tests.
+- [ ] Restrict EnqueueDueAsync suppression to SQL duplicate-key errors 2601/2627.
+- [ ] Add focused automatic-lookup and ImageIntakes role-backed tests.
+- [ ] Run restore, Release build, focused tests, full non-corpus tests, and simplification pass.
+- [ ] Record the post-implementation report and open the reviewed PR to dev.
+- [ ] After exact approval, deploy the migration and verify effective production grants.
+- [ ] After exact queue-write approval, recover the stranded custody work and verify due lookups drain.
+- [ ] Observe two scheduled sweeps and refresh current-state documentation.
+- [ ] Record merged-main production proof.
