@@ -292,6 +292,11 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|RetainedMailFolderMoves')
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|RetainedMailFolderMoves')
+    # 20260821095500_GrantWorkerVehicleLookupRequests: the Worker's
+    # automatic vehicle-lookup sweep (CASE-008) inserts the request row;
+    # the reconciliation baseline held only SELECT. DELETE stays denied
+    # via the baseline matrix.
+    $expected.Add('pegasus_worker_runtime_role|G|INSERT|VehicleLookupRequests')
     return @($expected | Sort-Object -Unique)
 }
 

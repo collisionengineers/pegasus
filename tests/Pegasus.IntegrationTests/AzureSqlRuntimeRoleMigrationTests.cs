@@ -541,6 +541,25 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
     }
 
     [Fact]
+    public async Task LatestMigrationGrantsWorkerAutomaticVehicleLookupInsert()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(
+            [
+                "VehicleLookupRequests:INSERT",
+                "VehicleLookupRequests:SELECT"
+            ],
+            (await ReadGrantedPermissionsAsync(database, WorkerRole))
+                .Where(value => value.StartsWith("VehicleLookupRequests:", StringComparison.Ordinal))
+                .ToArray());
+        Assert.Contains("VehicleLookupRequests", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
+    }
+
+    [Fact]
     public async Task TerminalDowngradeRestoresTheExactPreTerminalPermissionState()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
