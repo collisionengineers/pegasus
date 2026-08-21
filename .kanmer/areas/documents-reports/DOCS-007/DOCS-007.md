@@ -2,10 +2,12 @@
 id: DOCS-007
 type: ticket
 title: Register instruction attachments and photographs as case documents in Box
-status: preparing
+status: implementing
 area: documents-reports
 assignee: ''
 profile: fix
+stageEntered:
+  implementing: '2026-08-21T21:37:46.695Z'
 labels:
   - regression
   - qdos26008
@@ -14,7 +16,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T18:17:19.280Z'
-updated: '2026-08-21T18:17:19.280Z'
+updated: '2026-08-21T21:37:46.695Z'
 ---
 
 ## Why
