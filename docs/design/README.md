@@ -410,7 +410,7 @@ Permanent consequences must be visible without hover or colour alone. Illustrati
 These words are banned from operator-facing copy in
 `src/Pegasus.Web/Pages/**/*.cshtml` and PageModel label maps, and a change
 introducing one does not merge: `intake`, `bounded`, `projection`, `lease`,
-`opaque`, `ingress`, `composed`, `artifact`, `durable`, `aggregate`, `queue`,
+`opaque`, `ingress`, `composed`, `artifact`, `durable`, `aggregate`,
 `caller`, `correlation identifier`, `bytes`. This is a review rule, not an
 automated check — nothing in CI enforces it today, and claiming otherwise
 would be the kind of false assurance the evidence discipline above exists to
@@ -431,8 +431,8 @@ does not merge.
 - **No how-it-works copy.** A page never describes its own mechanics,
   workings, derivations, or what will happen when a button is pressed. No
   worked-example tables, no "how this figure is calculated" prose, no
-  introductory sentences under headings. The one exception stands above: a
-  single consequence sentence on a destructive or irreversible action.
+  introductory sentences under headings. The only exception is an individually
+  approved consequence sentence from the closed necessary-copy list above.
 - **Only populated, relevant sections render.** In read-only view, a section
   with nothing recorded and no available action is absent — not an
   empty-state panel. Edit-only sections render only in edit context. A long
