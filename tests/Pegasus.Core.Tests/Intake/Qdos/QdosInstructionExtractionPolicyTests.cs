@@ -552,6 +552,106 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.Equal("RANGER WILDTRAK ECOBLUE 4X4 A", draft.VehicleModel);
     }
 
+    [Fact]
+    public void AReportsVehicleLineFillsTheDetailsTheLetterLacks()
+    {
+        // INTK-025: the bodyshop report's own grammar backfills make/model
+        // when the letter carries no description — and only from a
+        // report-named document.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 6: instruction letter, page 1",
+                    "Our Ref: JF/47862/1\nOur Client: Mr Stuart Mcwalters"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: Bodyshopreport555017-V1.pdf, page 1",
+                    "Vehicle: FORD RANGER WILDTRAK Colour: Black Speedo: Miles\nReg No: MD22DDU")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("FORD", draft.VehicleMake);
+        Assert.Equal("RANGER WILDTRAK", draft.VehicleModel);
+        Assert.Equal("MD22DDU", draft.VehicleRegistration);
+        // "Speedo: Miles" carries no digits and contributes nothing.
+        Assert.Null(draft.VehicleMileage);
+    }
+
+    [Fact]
+    public void TheLetterOutranksTheReportsVehicleLine()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 6: instruction letter, page 1",
+                    "Our Client's Vehicle: PEUGEOT RCZ GT"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: Bodyshopreport-V1.pdf, page 1",
+                    "Vehicle: FORD RANGER WILDTRAK")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("PEUGEOT", draft.VehicleMake);
+        Assert.Equal("RCZ GT", draft.VehicleModel);
+    }
+
+    [Fact]
+    public void AVehicleLineOutsideAReportContributesNothing()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Vehicle: FORD RANGER WILDTRAK")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
+    }
+
+    [Fact]
+    public void TheCircumstancesParagraphLandsAndStopsAtTheDamageBlock()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 2",
+                "Please could you check the damage for consistency with the following accident circumstances?\n" +
+                "Our client was stationary at traffic lights on Badger Avenue.\n" +
+                "Your insured failed to stop and collided with the rear of our client's car.\n" +
+                "Damage Area - Rear: Moderate\n" +
+                "TP Vehicle: BMW X5")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(
+            "Our client was stationary at traffic lights on Badger Avenue. " +
+            "Your insured failed to stop and collided with the rear of our client's car.",
+            draft.AccidentCircumstances);
+    }
+
+    [Fact]
+    public void ALetterWithoutThePromptLeavesCircumstancesEmpty()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Our Client: Mr Stuart Mcwalters")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+    }
+
     private static IntakeSourceReadResult ReadableWithSubject(
         string subject,
         params IntakeContentFragment[] content) =>
