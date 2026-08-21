@@ -1,0 +1,3 @@
+# Proof — PR-027 (closed with MAIL-004 at release 16, 2026-08-21)
+
+Type: test-output. The expanded acceptance evidence this ticket demanded (Core catalogue policy behaviour, persistence version/operation conflict + replay/concurrency + immutable history, authenticated Web add/update/disable/validation/stale-conflict/denied-POST, role-matrix DELETE-denial and no-Worker-grant) was delivered on the MAIL-004 branch (commits 0b112237, 90cc72cd) and merged green in PR #473 (squash 4d00c3b7), deployed at release 16 ([[DELIV-015]] proof). Live grant readback confirms the exact `ApprovedOutlookCategories` permission shape in production.
