@@ -1,22 +1,39 @@
 using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using System.Text.Json;
 using Pegasus.Core.Documents;
 
 namespace Pegasus.Infrastructure.Custody;
 
 /// <summary>
-/// Production managed-document content storage beneath the one bound Case/PO
-/// root. Names contain persisted business role, occurrence ordinal, business
-/// revision and original filename; remote/internal identifiers stay in SQL and
-/// provenance rather than Box names.
+/// Production managed-document content storage: the files sit directly in the
+/// one bound Case/PO folder, named by occurrence ordinal, business revision
+/// and original filename. Remote and internal identifiers stay in SQL and
+/// provenance rather than in Box names or sidecar files.
 /// </summary>
 internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocumentContentStore
 {
-    private const string OccurrenceBindingFileName = "pegasus-document-binding.json";
-    private const string VersionBindingFileName = "pegasus-version-binding.json";
-    private const string BindingMediaType = "application/json";
     private readonly ConcurrentDictionary<Guid, CreatedFile> createdFiles = [];
+
+    /// <summary>
+    /// The document's name in the flat case folder: its occurrence ordinal,
+    /// then the original file name. A later revision of the same occurrence
+    /// says so in its own name, because a flat folder has nowhere else to
+    /// put it and two revisions must never collide. The name is derived
+    /// wholly from the persisted address, so a read finds exactly what the
+    /// write produced without needing a binding file to tell it.
+    /// </summary>
+    internal static string FlatFileName(ManagedDocumentContentAddress address)
+    {
+        var safe = CustodyNames.SafeName(address.FileName);
+        if (address.Version <= 1)
+        {
+            return $"{address.OccurrenceOrdinal:000} {safe}";
+        }
+
+        var extension = Path.GetExtension(safe);
+        var stem = Path.GetFileNameWithoutExtension(safe);
+        return $"{address.OccurrenceOrdinal:000} {stem} (revision {address.Version:000}){extension}";
+    }
 
     public async Task<DocumentContentWriteResult> StoreVersionAsync(
         ManagedDocumentContentAddress address,
@@ -27,22 +44,21 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Validate(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
         Verify(content.Span, normalizedHash, content.Length);
-        var versionFolder = await ResolveVersionFolderAsync(
-                address, normalizedHash, content.Length, create: true, cancellationToken)
+        var caseFolder = await ResolveCaseFolderAsync(address, create: true, cancellationToken)
             ?? throw new InvalidOperationException("The managed document folder could not be resolved.");
-        var fileName = CustodyNames.SafeName(address.FileName);
-        var existing = await client.FindChildAsync(versionFolder, fileName, "file", cancellationToken);
+        var fileName = FlatFileName(address);
+        var existing = await client.FindChildAsync(caseFolder, fileName, "file", cancellationToken);
         if (existing is not null)
         {
             await VerifyFileMetadataAsync(
-                existing, versionFolder, address.MediaType, content.Length, cancellationToken);
+                existing, caseFolder, address.MediaType, content.Length, cancellationToken);
             var retained = await client.DownloadAsync(existing.Id, cancellationToken);
             Verify(retained, normalizedHash, content.Length);
             return new(DocumentContentWriteDisposition.Replay, existing.Id);
         }
 
         var created = await client.UploadAsync(
-            versionFolder,
+            caseFolder,
             fileName,
             content,
             address.MediaType,
@@ -64,20 +80,19 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     {
         Validate(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
-        var versionFolder = await ResolveVersionFolderAsync(
-            address, normalizedHash, expectedLength, create: false, cancellationToken);
-        if (versionFolder is null)
+        var caseFolder = await ResolveCaseFolderAsync(address, create: false, cancellationToken);
+        if (caseFolder is null)
         {
             throw new FileNotFoundException("The document content is unavailable.");
         }
         var file = await client.FindChildAsync(
-            versionFolder,
-            CustodyNames.SafeName(address.FileName),
+            caseFolder,
+            FlatFileName(address),
             "file",
             cancellationToken)
             ?? throw new FileNotFoundException("The document content is unavailable.");
         await VerifyFileMetadataAsync(
-            file, versionFolder, address.MediaType, expectedLength, cancellationToken);
+            file, caseFolder, address.MediaType, expectedLength, cancellationToken);
         var content = await client.DownloadAsync(file.Id, cancellationToken);
         Verify(content, normalizedHash, expectedLength);
         return new MemoryStream(content, writable: false);
@@ -124,10 +139,8 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         await client.DeleteFileAsync(created.FileId, cancellationToken);
     }
 
-    private async Task<string?> ResolveVersionFolderAsync(
+    private async Task<string?> ResolveCaseFolderAsync(
         ManagedDocumentContentAddress address,
-        string expectedSha256,
-        long expectedLength,
         bool create,
         CancellationToken cancellationToken)
     {
@@ -149,95 +162,14 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         // DOCS-005: the case root carries no binding file; the reference-named
         // folder resolved under the custody root is the case's, and the durable
         // folder identity lives in the database.
-        var evidence = await ResolvePlainFolderAsync(root.Id, "Evidence", create, cancellationToken);
-        if (evidence is null)
-        {
-            return null;
-        }
-        var role = await ResolvePlainFolderAsync(
-            evidence, RoleName(address.SemanticRole), create, cancellationToken);
-        if (role is null)
-        {
-            return null;
-        }
-        var occurrence = await ResolveBoundFolderAsync(
-            role,
-            $"{address.OccurrenceOrdinal:000} {CustodyNames.SafeName(address.FileName)}",
-            OccurrenceBindingFileName,
-            OccurrenceBinding(address),
-            create,
-            cancellationToken);
-        if (occurrence is null)
-        {
-            return null;
-        }
-        return await ResolveBoundFolderAsync(
-            occurrence,
-            $"Revision {address.Version:000}",
-            VersionBindingFileName,
-            VersionBinding(address, expectedSha256, expectedLength),
-            create,
-            cancellationToken);
-    }
-
-    private async Task<string?> ResolvePlainFolderAsync(
-        string parentId,
-        string name,
-        bool create,
-        CancellationToken cancellationToken)
-    {
-        var child = await client.FindChildAsync(parentId, name, "folder", cancellationToken);
-        if (child is not null)
-        {
-            return child.Id;
-        }
-        return create
-            ? (await client.CreateFolderAsync(parentId, name, cancellationToken)).Id
-            : null;
-    }
-
-    private async Task<string?> ResolveBoundFolderAsync(
-        string parentId,
-        string name,
-        string bindingName,
-        byte[] binding,
-        bool create,
-        CancellationToken cancellationToken)
-    {
-        var folder = await client.FindChildAsync(parentId, name, "folder", cancellationToken);
-        if (folder is null)
-        {
-            if (!create)
-            {
-                return null;
-            }
-            folder = await client.CreateFolderAsync(parentId, name, cancellationToken);
-            await client.UploadAsync(
-                folder.Id, bindingName, binding, BindingMediaType, cancellationToken);
-            return folder.Id;
-        }
-
-        var bindingFile = await client.FindChildAsync(
-            folder.Id, bindingName, "file", cancellationToken)
-            ?? throw new InvalidDataException(
-                "A managed Box custody folder is missing its immutable identity binding.");
-        await VerifyBindingAsync(folder.Id, bindingFile, binding, cancellationToken);
-        return folder.Id;
-    }
-
-    private async Task VerifyBindingAsync(
-        string parentId,
-        BoxContentClient.BoxItem file,
-        ReadOnlyMemory<byte> expected,
-        CancellationToken cancellationToken)
-    {
-        await VerifyFileMetadataAsync(
-            file, parentId, BindingMediaType, expected.Length, cancellationToken);
-        var actual = await client.DownloadAsync(file.Id, cancellationToken);
-        if (!actual.AsSpan().SequenceEqual(expected.Span))
-        {
-            throw new InvalidDataException("A managed Box custody binding has different immutable content.");
-        }
+        // Operator direction (2026-08-21): the case folder holds the files
+        // themselves. The Evidence / role / occurrence / revision folders
+        // and their two binding sidecars were never asked for; they put
+        // three folders and two extra files around every single document.
+        // The occurrence and revision identity that the bindings carried is
+        // in SQL, which is already where the case root's own identity
+        // lives, and it is expressed in the file's name.
+        return root.Id;
     }
 
     private async Task VerifyFileMetadataAsync(
@@ -256,44 +188,6 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 "Managed Box custody type, ancestry, or length metadata is inconsistent.");
         }
     }
-
-    internal static byte[] OccurrenceBinding(ManagedDocumentContentAddress address) =>
-        JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            schemaVersion = 1,
-            address.CaseId,
-            address.CaseReference,
-            address.OccurrenceId,
-            address.OccurrenceOrdinal,
-            address.DocumentId,
-            semanticRole = address.SemanticRole.ToString(),
-            address.FileName
-        });
-
-    internal static byte[] VersionBinding(
-        ManagedDocumentContentAddress address,
-        string sha256,
-        long contentLength) => JsonSerializer.SerializeToUtf8Bytes(new
-        {
-            schemaVersion = 1,
-            address.CaseId,
-            address.OccurrenceId,
-            address.DocumentId,
-            address.VersionId,
-            address.Version,
-            address.FileName,
-            address.MediaType,
-            contentLength,
-            sha256
-        });
-
-    private static string RoleName(DocumentSemanticRole role) => role switch
-    {
-        DocumentSemanticRole.Image => "Images",
-        DocumentSemanticRole.Correspondence => "Correspondence",
-        DocumentSemanticRole.EngineerReport or DocumentSemanticRole.AuditReport => "Reports",
-        _ => "Other evidence"
-    };
 
     private static void Validate(ManagedDocumentContentAddress address)
     {

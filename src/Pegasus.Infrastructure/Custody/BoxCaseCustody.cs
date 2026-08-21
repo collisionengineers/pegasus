@@ -590,12 +590,11 @@ internal sealed class BoxCaseCustody(
         await ValidateRootAsync(root, cancellationToken);
         var (content, actualHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
 
-        var evidence = await GetOrCreateFolderAsync(root.RemoteId, "Evidence", leaseGuard, cancellationToken);
-        var instruction = await GetOrCreateFolderAsync(
-            evidence.Id, "Original instruction", leaseGuard, cancellationToken);
+        // Operator direction (2026-08-21): the case folder holds the files.
+        // The Evidence / Original instruction nesting was never asked for.
         var fileName = $"001 {SafeName(source.SourceFileName)}";
         var file = await UploadOrVerifyFileAsync(
-            instruction.Id, fileName, content, source.MediaType, leaseGuard, cancellationToken);
+            root.RemoteId, fileName, content, source.MediaType, leaseGuard, cancellationToken);
         return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
     }
 
@@ -633,12 +632,9 @@ internal sealed class BoxCaseCustody(
         await ValidateRootAsync(root, cancellationToken);
         var (content, actualHash) = await ReadVerifiedSourceAsync(attachment, cancellationToken);
 
-        var evidence = await GetOrCreateFolderAsync(root.RemoteId, "Evidence", leaseGuard, cancellationToken);
-        var instruction = await GetOrCreateFolderAsync(
-            evidence.Id, "Original instruction", leaseGuard, cancellationToken);
         var fileName = $"{ordinal:D3} {SafeName(attachment.SourceFileName)}";
         var file = await UploadOrVerifyFileAsync(
-            instruction.Id, fileName, content, attachment.MediaType, leaseGuard, cancellationToken);
+            root.RemoteId, fileName, content, attachment.MediaType, leaseGuard, cancellationToken);
         return new(root.CaseId, file.Id, actualHash, file.ETag ?? actualHash);
     }
 
@@ -728,14 +724,15 @@ internal sealed class BoxCaseCustody(
         }
         await ValidateRootAsync(caseRoot, cancellationToken);
 
-        var evidence = await GetOrCreateFolderAsync(
-            caseRoot.RemoteId, "Evidence", leaseGuard, cancellationToken);
-        var destination = await GetOrCreateFolderAsync(
-            evidence.Id, "Images", leaseGuard, cancellationToken);
+        // Flat, like everything else in the case folder (operator direction,
+        // 2026-08-21). The folded images join the instruction's files rather
+        // than going into an Evidence/Images pocket of their own; the
+        // existing name-collision rule below already keeps them distinct.
+        var destination = caseRoot.RemoteId;
 
         var children = await client.ListChildrenAsync(imageRoot.RemoteId, cancellationToken);
         var destinationNames = new HashSet<string>(
-            (await client.ListChildrenAsync(destination.Id, cancellationToken))
+            (await client.ListChildrenAsync(destination, cancellationToken))
                 .Select(item => item.Name),
             StringComparer.Ordinal);
         foreach (var child in children)
@@ -763,7 +760,7 @@ internal sealed class BoxCaseCustody(
                 destinationNames.Add(targetName);
             }
             await RequireLeaseAsync(leaseGuard, cancellationToken);
-            await client.MoveFileAsync(child.Id, destination.Id, targetName, cancellationToken);
+            await client.MoveFileAsync(child.Id, destination, targetName, cancellationToken);
         }
 
         var binding = await client.FindChildAsync(

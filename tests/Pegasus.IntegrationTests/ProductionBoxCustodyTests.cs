@@ -135,14 +135,6 @@ public sealed class ProductionBoxCustodyTests
             }
             if (path == "/2.0/folders/case-folder/items")
             {
-                return Json("""{"entries":[{"id":"evidence","name":"Evidence","type":"folder","etag":"1"}]}""");
-            }
-            if (path == "/2.0/folders/evidence/items")
-            {
-                return Json("""{"entries":[{"id":"instruction","name":"Original instruction","type":"folder","etag":"1"}]}""");
-            }
-            if (path == "/2.0/folders/instruction/items")
-            {
                 return Json("""{"entries":[]}""");
             }
             if (path == "/api/2.0/files/content")
@@ -246,11 +238,11 @@ public sealed class ProductionBoxCustodyTests
         await documents.StoreVersionAsync(Address(caseId, 3, 1, sameName), other, Sha256(other), default);
 
         Assert.False(box.PathExists("QDOS31001/pegasus-case-binding.json"));
-        Assert.True(box.PathExists("QDOS31001/Evidence/Original instruction/001 instruction.eml"));
-        Assert.True(box.PathExists("QDOS31001/Evidence/Original instruction/002 estimate.pdf"));
-        Assert.True(box.PathExists("QDOS31001/Evidence/Images/002 damage photo.jpg/Revision 001/damage photo.jpg"));
-        Assert.True(box.PathExists("QDOS31001/Evidence/Images/002 damage photo.jpg/Revision 002/damage photo.jpg"));
-        Assert.True(box.PathExists("QDOS31001/Evidence/Images/003 damage photo.jpg/Revision 001/damage photo.jpg"));
+        Assert.True(box.PathExists("QDOS31001/001 instruction.eml"));
+        Assert.True(box.PathExists("QDOS31001/002 estimate.pdf"));
+        Assert.True(box.PathExists("QDOS31001/002 damage photo.jpg"));
+        Assert.True(box.PathExists("QDOS31001/002 damage photo (revision 002).jpg"));
+        Assert.True(box.PathExists("QDOS31001/003 damage photo.jpg"));
         Assert.False(box.PathExists("QDOS31001/AUD31001/pegasus-audit-binding.json"));
         Assert.True(box.PathExists("QDOS31001/AUD31001"));
         Assert.Equal(2, box.RenameCount);
@@ -261,12 +253,12 @@ public sealed class ProductionBoxCustodyTests
             || (segment.Length == 64 && segment.All(char.IsAsciiHexDigit)));
 
         box.SetMediaType(
-            "QDOS31001/Evidence/Original instruction/001 instruction.eml",
+            "QDOS31001/001 instruction.eml",
             "application/octet-stream");
         await Assert.ThrowsAsync<InvalidDataException>(() => custody.RetainAcceptedIntakeSourceAsync(
             root, source, "source-wrong-media", default));
         box.SetMediaType(
-            "QDOS31001/Evidence/Original instruction/001 instruction.eml",
+            "QDOS31001/001 instruction.eml",
             "message/rfc822");
         var lostSourceResponse = new StatefulBox();
         var lostResponseCustody = new BoxCaseCustody(
@@ -480,7 +472,7 @@ public sealed class ProductionBoxCustodyTests
             "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "case-root", default);
 
         await custody.MergeImageCaseContentsAsync(firstImageRoot, caseRoot, "first-fold", default);
-        Assert.True(box.PathExists("QDOS31001/Evidence/Images/001 photo one.jpg"));
+        Assert.True(box.PathExists("QDOS31001/001 photo one.jpg"));
         Assert.False(box.PathExists("AB12CDE-01"));
 
         // A replayed fold after the folder is gone is an idempotent no-op.
@@ -491,7 +483,7 @@ public sealed class ProductionBoxCustodyTests
         // A same-named file from a second Image intake keeps a unique name by
         // carrying its source reference.
         await custody.MergeImageCaseContentsAsync(secondImageRoot, caseRoot, "second-fold", default);
-        Assert.True(box.PathExists("QDOS31001/Evidence/Images/AB12CDE-02 001 photo one.jpg"));
+        Assert.True(box.PathExists("QDOS31001/AB12CDE-02 001 photo one.jpg"));
         Assert.False(box.PathExists("AB12CDE-02"));
     }
 
