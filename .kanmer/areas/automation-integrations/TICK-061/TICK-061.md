@@ -1,7 +1,7 @@
 ---
 id: TICK-061
 type: ticket
-title: 'API-04 — Provider API credential issue, rotation, and revocation'
+title: 'API-04 — Issue, reset, revoke, pause, and resume provider credentials'
 status: preparing
 area: automation-integrations
 assignee: ''
@@ -26,28 +26,33 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.485Z'
-updated: '2026-08-21T14:24:21.564Z'
+updated: '2026-08-21T14:26:04.290Z'
 ---
 
 ## What
 
-Plan and research **API-04**: Provider API credential issue, rotation, and revocation
+Deliver and plan **API-04**: Principal-scoped provider credential issue, reset/rotation, revocation, pause, resume, and authentication.
 
 ## Why
 
-This is allocated to **Next / 0.4.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+API-01 and API-03 need a real Principal-scoped machine identity. Administrators also need safe lifecycle controls without storing or redisplaying clear secrets.
 
 ## Approach
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+- Add one credential per Principal with one-time secret display and hash-only storage.
+- Reset immediately invalidates the previous secret; revocation invalidates authentication.
+- Pause blocks new submissions while authenticated reads of prior receipts/results remain available.
+- Reuse existing Core Administrator authorization, expected-version, reason, operation-key, and permanent-history conventions.
+- Supply the backend contracts consumed by [[PLAT-028]], then unblock [[TICK-058]].
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [ ] Core, persistence, authentication, migration, and architecture plans/tests cover the complete lifecycle and fail-closed isolation.
+- [ ] No live credential is issued without separate exact-target approval.
 
 ## Notes
 
 - Source: `docs/capabilities.md` — API-04.
-- Blocked by: [[TICK-058]] — Credential lifecycle belongs to the principal-scoped provider API contract.
+- Blocks API-01 and PLAT-028 through structured dependencies.
+
+## Outcome
