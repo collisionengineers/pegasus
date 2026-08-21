@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Resolve the effective sender at retention so the inbox never shows the desk
   address
-status: implementing
+status: review
 area: mail-communications
 assignee: ''
 profile: fix
 stageEntered:
   implementing: '2026-08-21T21:37:48.999Z'
+  review: '2026-08-21T22:06:55.555Z'
 labels:
   - regression
   - qdos26008
@@ -18,7 +19,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T18:17:18.571Z'
-updated: '2026-08-21T21:37:48.999Z'
+updated: '2026-08-21T22:06:55.555Z'
 ---
 
 ## Why

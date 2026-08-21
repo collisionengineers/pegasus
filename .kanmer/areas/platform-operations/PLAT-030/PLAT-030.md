@@ -2,12 +2,13 @@
 id: PLAT-030
 type: ticket
 title: Cut the intake processing chain from 30-60s to seconds
-status: implementing
+status: review
 area: platform-operations
 assignee: ''
 profile: fix
 stageEntered:
   implementing: '2026-08-21T21:37:51.048Z'
+  review: '2026-08-21T22:06:58.740Z'
 labels:
   - regression
   - qdos26008
@@ -17,7 +18,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T18:17:18.391Z'
-updated: '2026-08-21T21:37:51.048Z'
+updated: '2026-08-21T22:06:58.740Z'
 ---
 
 ## Why
