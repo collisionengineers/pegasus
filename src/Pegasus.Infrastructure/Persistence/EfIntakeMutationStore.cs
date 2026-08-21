@@ -422,14 +422,7 @@ internal sealed class EfIntakeMutationStore(
             .SingleAsync(item => item.CaseId == @case.Id, cancellationToken);
         workflow.State = nameof(CaseLifecycleState.SourceEmailUnlinked);
         workflow.ClosureOutcome = nameof(CaseClosureOutcome.SourceEmailUnlinked);
-        if (workflow.DueWork is { } due)
-        {
-            due.State = nameof(CaseDueWorkState.Stopped);
-            due.NextChaseAtUtc = null;
-            due.HeldAtUtc = null;
-            due.RemainingChaseIntervalTicks = null;
-            due.Version++;
-        }
+        CaseChaseState.Stop(workflow);
     }
 
     /// <summary>
