@@ -633,4 +633,51 @@ public static class OperatorLabels
             _ => ("Unknown", "icon-info")
         };
     }
+
+    /// <summary>
+    /// A mail classification in operator words: the settled family label, with
+    /// the subtype appended after a separator dot ("New instruction ·
+    /// Inspection"). Other categories carry the operator's own name verbatim.
+    /// </summary>
+    public static string MailClassification(Pegasus.Core.Intake.MailCategory category)
+    {
+        if (category.IsOther)
+        {
+            return category.OtherName!;
+        }
+
+        var family = category.ReceivedFamily is { } received
+            ? received switch
+            {
+                Pegasus.Core.Intake.ReceivedMailFamily.General => "General",
+                Pegasus.Core.Intake.ReceivedMailFamily.Billing => "Billing",
+                Pegasus.Core.Intake.ReceivedMailFamily.NewInstructionReceived => "New instruction",
+                Pegasus.Core.Intake.ReceivedMailFamily.NonClientRelated => "Not client related",
+                Pegasus.Core.Intake.ReceivedMailFamily.InProgressCases => "In-progress case",
+                Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
+                Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
+                Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
+            }
+            : category.SentFamily switch
+            {
+                Pegasus.Core.Intake.SentMailFamily.ReportSent => "Report sent",
+                Pegasus.Core.Intake.SentMailFamily.CaseRejected => "Case rejected",
+                Pegasus.Core.Intake.SentMailFamily.QuerySent => "Query sent",
+                Pegasus.Core.Intake.SentMailFamily.AdditionalImageRequest => "Additional image request",
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
+            };
+        var prefixed = category.Direction == Pegasus.Core.Intake.MailDirection.Sent
+            ? $"Sent · {family}"
+            : family;
+        return category.Subtype is { } subtype
+            ? $"{prefixed} · {HumanizeSlug(subtype)}"
+            : prefixed;
+    }
+
+    private static string HumanizeSlug(string slug)
+    {
+        var words = slug.Replace('-', ' ').Replace('_', ' ');
+        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
+    }
 }
