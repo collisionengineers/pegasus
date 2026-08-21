@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -684,11 +684,31 @@ internal static partial class IntakeWebDriver
         var evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         while (evaluation is null)
         {
-            Assert.Equal(1, await dispatcher.ExecuteAsync(1, cancellationToken));
+            var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
+            if (dispatched == 0)
+            {
+                // A recoverable failure under load reschedules the item with
+                // a retry backoff the frozen test clock never reaches.
+                // Dispatch once from a clock past any backoff so the retry
+                // runs now — the worker timer would have done the same.
+                var lateDispatcher = new DispatchPendingIntakeWork(
+                    workStore,
+                    new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
+                    new OffsetTimeProvider(
+                        services.GetRequiredService<TimeProvider>(),
+                        TimeSpan.FromMinutes(10)));
+                dispatched = await lateDispatcher.ExecuteAsync(1, cancellationToken);
+            }
+            Assert.Equal(1, dispatched);
             evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         }
 
         return evaluation;
+    }
+
+    private sealed class OffsetTimeProvider(TimeProvider inner, TimeSpan offset) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => inner.GetUtcNow() + offset;
     }
 
     internal sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)

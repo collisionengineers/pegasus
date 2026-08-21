@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model Pegasus.Web.Pages.Administration.Automation.IndexModel
 @{
     ViewData["Title"] = "Automation";
@@ -117,33 +117,29 @@
     }
 </section>
 
+@if (Model.ConnectorSettings is { } connector)
+{
 <section class="panel section-gap" aria-labelledby="send-to-ai-connector-heading">
     <h2 id="send-to-ai-connector-heading" class="section-label">Send to AI connector</h2>
-    @if (Model.ConnectorSettings is not { } connector)
-    {
-        <p>The Send to AI hand-off is not part of this deployment, so there is no connector to configure.</p>
-    }
-    else
-    {
         <dl class="detail-list">
             <div>
                 <dt>Channel address</dt>
-                <dd>@(connector.ChannelBaseUrl ?? "From deployment configuration")</dd>
+                <dd>@(connector.ChannelBaseUrl ?? "Standard setting")</dd>
             </div>
             <div>
                 <dt>Timeout</dt>
-                <dd>@(connector.TimeoutSeconds is { } timeout ? $"{timeout:0.#} seconds" : "From deployment configuration")</dd>
+                <dd>@(connector.TimeoutSeconds is { } timeout ? $"{timeout:0.#} seconds" : "Standard setting")</dd>
             </div>
             <div>
                 <dt>Channel token</dt>
                 <dd>
                     @if (connector.TokenHeld)
                     {
-                        <text>Entered from Administration@(connector.TokenRotatedAtUtc is { } rotated ? $" on {rotated:d MMMM yyyy}" : string.Empty)</text>
+                        <text>Entered from Administration@(connector.TokenRotatedAtUtc is { } rotated ? $" on {Pegasus.Web.Presentation.OperatorLabels.OfficeDate(rotated)}" : string.Empty)</text>
                     }
                     else
                     {
-                        <text>From deployment configuration</text>
+                        <text>Standard setting</text>
                     }
                 </dd>
             </div>
@@ -152,7 +148,7 @@
             <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
             <label>
                 Channel address
-                <input name="ChannelAddress" value="@connector.ChannelBaseUrl" maxlength="200" placeholder="http://127.0.0.1:8629/" />
+                <input name="ChannelAddress" value="@connector.ChannelBaseUrl" maxlength="200" />
             </label>
             <span asp-validation-for="ChannelAddress"></span>
             <label>
@@ -168,7 +164,7 @@
                 <button type="submit" class="secondary-action">Save connector settings</button>
             </div>
         </form>
-        <p class="section-gap">Saved values replace the deployment configuration from the next hand-off; leaving a field empty returns it to the deployment configuration.</p>
+        <p class="section-gap">Saved values apply from the next hand-off; an empty field returns to the standard setting.</p>
         <form method="post" asp-page-handler="RotateChannelToken" class="section-gap" autocomplete="off">
             <input type="hidden" name="OperationKey" value="@Model.OperationKey" />
             <label>
@@ -197,10 +193,10 @@
                     <button type="submit" class="secondary-action">Remove the administration token</button>
                 </div>
             </form>
-            <p class="section-gap">Removing it returns the connector to the deployment configuration token from the next hand-off.</p>
+            <p class="section-gap">Removing it returns the connector to the standard token from the next hand-off.</p>
         }
-    }
 </section>
+}
 
 <section class="panel section-gap" aria-labelledby="automation-activity-link-heading">
     <h2 id="automation-activity-link-heading" class="section-label">Activity</h2>

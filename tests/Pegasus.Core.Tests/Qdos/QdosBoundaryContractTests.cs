@@ -132,7 +132,7 @@ public sealed class QdosBoundaryContractTests
         Assert.False(mapping.IsReady);
         Assert.Null(mapping.Source);
         Assert.Contains(
-            "Instruction and image completeness must both be confirmed.",
+            "Completeness has not been confirmed.",
             mapping.BlockingReasons);
         Assert.Contains(
             "The inspection address or exact Image Based Assessment mode is unresolved.",

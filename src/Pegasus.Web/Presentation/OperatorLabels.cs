@@ -32,6 +32,9 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    public static string AttachmentSearchability(bool isSearchable) =>
+        isSearchable ? "Searchable content" : "Content unavailable for search";
+
     public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
     {
         UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",
@@ -154,7 +157,7 @@ public static class OperatorLabels
     /// Core operational-destination policy.
     /// </summary>
     /// <remarks>
-    /// The abstention case reuses the exact "Needs sorting" wording this page
+    /// The abstention case reuses the exact "Unidentified" wording this page
     /// already shows for the unmatched Queue and Filed-to states
     /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.QueueLabel"/> and
     /// <see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
@@ -476,6 +479,22 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// A stored chase reason for display. Maps the pre-release-15 wording
+    /// (which used a banned word) without a data migration; anything else is
+    /// already operator text.
+    /// </summary>
+    public static string ChaseReason(string? reason) =>
+        reason == "Accepted intake is incomplete" ? "Details are incomplete" : reason ?? string.Empty;
+
+    /// <summary>The operator words for a recorded inspection mode.</summary>
+    public static string InspectionMode(CaseInspectionMode value) => value switch
+    {
+        CaseInspectionMode.PhysicalAddress => "Physical address",
+        CaseInspectionMode.ImageBasedAssessment => "Image Based Assessment",
+        _ => Humanise(value.ToString())
+    };
+
+    /// <summary>
     /// Turns a persisted code into a sentence: <c>case_returned_to_review</c>
     /// becomes "Case returned to review", <c>PostReportComplete</c> becomes
     /// "Post report complete".
@@ -562,6 +581,38 @@ public static class OperatorLabels
         _ => Humanise(value.ToString())
     };
 
+    /// <summary>
+    /// The unit word a mileage figure carries ("12,345 miles").
+    /// </summary>
+    public static string MileageUnit(VehicleMileageUnit value) => value switch
+    {
+        VehicleMileageUnit.Miles => "miles",
+        VehicleMileageUnit.Kilometres => "km",
+        _ => Humanise(value.ToString())
+    };
+
+    /// <summary>
+    /// The operator word for how material arrived. One owner for the channel
+    /// vocabulary; the string overload accepts the persisted channel code.
+    /// </summary>
+    public static string SourceChannel(IntakeSourceChannel channel) => channel switch
+    {
+        IntakeSourceChannel.ManualUpload => "Manual upload",
+        IntakeSourceChannel.Mailbox => "Approved inbox",
+        IntakeSourceChannel.Automation => "Automation",
+        _ => throw new InvalidOperationException(
+            $"Unknown intake source channel value '{(int)channel}'.")
+    };
+
+    /// <inheritdoc cref="SourceChannel(IntakeSourceChannel)" />
+    public static string SourceChannel(string? code) => code switch
+    {
+        "manual_upload" => "Manual upload",
+        "mailbox" => "Approved inbox",
+        "automation" => "Automation",
+        _ => Humanise(code)
+    };
+
     public static (string Word, string Icon) Provenance(CaseDataSource? source)
     {
         var isAiReader = source is not null
@@ -581,5 +632,52 @@ public static class OperatorLabels
             CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
             _ => ("Unknown", "icon-info")
         };
+    }
+
+    /// <summary>
+    /// A mail classification in operator words: the settled family label, with
+    /// the subtype appended after a separator dot ("New instruction ·
+    /// Inspection"). Other categories carry the operator's own name verbatim.
+    /// </summary>
+    public static string MailClassification(Pegasus.Core.Intake.MailCategory category)
+    {
+        if (category.IsOther)
+        {
+            return category.OtherName!;
+        }
+
+        var family = category.ReceivedFamily is { } received
+            ? received switch
+            {
+                Pegasus.Core.Intake.ReceivedMailFamily.General => "General",
+                Pegasus.Core.Intake.ReceivedMailFamily.Billing => "Billing",
+                Pegasus.Core.Intake.ReceivedMailFamily.NewInstructionReceived => "New instruction",
+                Pegasus.Core.Intake.ReceivedMailFamily.NonClientRelated => "Not client related",
+                Pegasus.Core.Intake.ReceivedMailFamily.InProgressCases => "In-progress case",
+                Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
+                Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
+                Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
+            }
+            : category.SentFamily switch
+            {
+                Pegasus.Core.Intake.SentMailFamily.ReportSent => "Report sent",
+                Pegasus.Core.Intake.SentMailFamily.CaseRejected => "Case rejected",
+                Pegasus.Core.Intake.SentMailFamily.QuerySent => "Query sent",
+                Pegasus.Core.Intake.SentMailFamily.AdditionalImageRequest => "Additional image request",
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
+            };
+        var prefixed = category.Direction == Pegasus.Core.Intake.MailDirection.Sent
+            ? $"Sent · {family}"
+            : family;
+        return category.Subtype is { } subtype
+            ? $"{prefixed} · {HumanizeSlug(subtype)}"
+            : prefixed;
+    }
+
+    private static string HumanizeSlug(string slug)
+    {
+        var words = slug.Replace('-', ' ').Replace('_', ' ');
+        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
 }

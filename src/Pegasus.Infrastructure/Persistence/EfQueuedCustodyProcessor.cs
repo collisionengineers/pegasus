@@ -192,6 +192,8 @@ internal sealed class EfQueuedCustodyProcessor(
                     leaseGuard,
                     cancellationToken);
                 await leaseGuard.RequireCurrentAsync(cancellationToken);
+                await RetainInstructionAttachmentsAsync(
+                    root, casePayload, leaseGuard, cancellationToken);
                 var auditFolderRemoteId = isAuditCase
                     ? root.RemoteId
                     : string.IsNullOrWhiteSpace(casePayload.AuditReference)
@@ -234,6 +236,76 @@ internal sealed class EfQueuedCustodyProcessor(
                 GetFailureReason(exception),
                 CancellationToken.None);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// DOCS-005: each attachment of the accepted instruction lands beside the
+    /// retained source as its own file. The assets were retained at intake
+    /// (attachment kind); ordinals follow the source at 002 onward, in stable
+    /// file-name order, and replay verifies rather than re-uploads.
+    /// </summary>
+    private async Task RetainInstructionAttachmentsAsync(
+        CaseCustodyRoot root,
+        WorkPayload casePayload,
+        CustodyEffectLeaseGuard leaseGuard,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+        var candidates = await context.Set<IntakeAssetEntity>()
+            .AsNoTracking()
+            .Where(asset => asset.IntakeReceiptId == casePayload.IntakeReceiptId
+                && (asset.Kind == "attachment" || asset.Kind == "embedded_image"))
+            .ToListAsync(cancellationToken);
+        var attachments = candidates
+            .Where(asset => asset.Kind == "attachment")
+            .OrderBy(asset => asset.FileName)
+            .ThenBy(asset => asset.Id)
+            .ToList();
+        for (var index = 0; index < attachments.Count; index++)
+        {
+            var attachment = attachments[index];
+            await caseCustody.RetainAcceptedIntakeAttachmentAsync(
+                root,
+                new(
+                    casePayload.IntakeReceiptId,
+                    attachment.FileName,
+                    attachment.MediaType,
+                    attachment.ContentHash,
+                    attachment.StorageKey,
+                    attachment.ContentLength),
+                index + 2,
+                $"{casePayload.OperationKey}:attachment:{attachment.Id:N}",
+                leaseGuard,
+                cancellationToken);
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
+        }
+
+        // DOCS-006: photographs embedded in the instruction's documents land
+        // as their own files after the attachments, resolved through the one
+        // evidence-image selection (which also drops letterhead art and any
+        // photo already retained as an attached file).
+        var photographs = InstructionEvidenceImages
+            .Select(candidates.Select(EfIntakeReceiptStore.MapAsset))
+            .Where(record => record.Kind == IntakeAssetKind.EmbeddedImage)
+            .ToArray();
+        for (var index = 0; index < photographs.Length; index++)
+        {
+            var photograph = photographs[index];
+            await caseCustody.RetainAcceptedIntakeAttachmentAsync(
+                root,
+                new(
+                    casePayload.IntakeReceiptId,
+                    photograph.FileName,
+                    photograph.MediaType,
+                    photograph.ContentHash,
+                    photograph.StorageKey,
+                    photograph.ContentLength),
+                attachments.Count + index + 2,
+                $"{casePayload.OperationKey}:embedded:{photograph.Id:N}",
+                leaseGuard,
+                cancellationToken);
+            await leaseGuard.RequireCurrentAsync(cancellationToken);
         }
     }
 

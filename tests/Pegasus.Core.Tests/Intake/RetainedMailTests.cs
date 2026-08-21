@@ -10,6 +10,65 @@ namespace Pegasus.Core.Tests.Intake;
 /// </summary>
 public sealed class RetainedMailTests
 {
+    [Fact]
+    public void SearchProjectionKeepsDuplicateAttachmentNamesAsDistinctOccurrences()
+    {
+        const string readableLabel = "message, attachment 1: estimate.pdf";
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.PdfContent, readableLabel, "searchable text")],
+            [],
+            [],
+            false,
+            Assets: [new(readableLabel, "estimate.pdf", "application/pdf", ReadOnlyMemory<byte>.Empty,
+                IntakeAssetKind.Attachment, IntakeAssetDisposition.Attachment)],
+            Attachments:
+            [
+                new("estimate.pdf", "application/pdf", 10, 0, readableLabel),
+                new("estimate.pdf", "application/octet-stream", 10, 1)
+            ]);
+
+        var attachments = IntakeSearchProjection.Create(read, routeDecision: null)
+            .Where(item => item.AttachmentOrdinal is not null)
+            .OrderBy(item => item.AttachmentOrdinal)
+            .ToArray();
+
+        Assert.True(attachments[0].IsSearchable);
+        Assert.False(attachments[1].IsSearchable);
+        Assert.Equal([0, 1], attachments.Select(item => item.AttachmentOrdinal));
+    }
+
+    [Fact]
+    public void SearchProjectionCleansTheSameForwardedBodyThatDetailDisplays()
+    {
+        const string body = "Wrapper [cid:signature]\r\nFrom: Provider <sender@qdosassist.co.uk>\r\n"
+            + "Sent: yesterday\r\nTo: intake\r\nSubject: Instruction\r\n\r\nVisible instruction";
+        var read = new IntakeSourceReadResult(
+            IntakeSourceReadStatus.Readable,
+            [new(IntakeEvidenceSource.EmailBody, "message, email body", body)],
+            [],
+            [],
+            false);
+        var route = new MailRouteEvaluationResult(
+            MailRouteDisposition.Accepted,
+            new("QDOS", MailRouteKind.DirectProvider, "QDOS"),
+            [],
+            "Accepted.",
+            "policy",
+            1,
+            [new("forwarder@collisionengineers.co.uk", "message")],
+            [new("sender@qdosassist.co.uk", "message, inline forwarded-message header")],
+            new("sender@qdosassist.co.uk", "message, inline forwarded-message header"));
+
+        var root = Assert.Single(IntakeSearchProjection.Create(read, route));
+
+        Assert.Equal(
+            StaffForwardBodyCleaner.Clean(body, isStaffForward: true),
+            root.Text);
+        Assert.DoesNotContain("Wrapper", root.Text, StringComparison.Ordinal);
+        Assert.DoesNotContain("cid:", root.Text, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static readonly DateTimeOffset NowUtc = new(2031, 9, 1, 8, 0, 0, TimeSpan.Zero);
 
     [Theory]
@@ -100,17 +159,160 @@ public sealed class RetainedMailTests
     }
 
     [Fact]
+    public async Task ListPassesOneTrimmedSearchTermThroughToTheExistingQueryPort()
+    {
+        var queries = new Queries();
+
+        await new ListRetainedMail(queries).ExecuteAsync(
+            Caseworker(),
+            new("mailbox-a", MailFolderScope.Inbox, "  estimate  "),
+            1,
+            25,
+            CancellationToken.None);
+
+        Assert.Equal("estimate", Assert.Single(queries.Scopes).Scope.SearchTerm);
+    }
+
+    [Fact]
+    public async Task ListAcceptsOnlyOneCanonicalMailView()
+    {
+        var queries = new Queries();
+        var list = new ListRetainedMail(queries);
+        var detailed = MailCategory.Received(ReceivedMailFamily.General, "autoreply");
+
+        await list.ExecuteAsync(
+            Caseworker(),
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.Triage),
+            1,
+            25,
+            CancellationToken.None);
+        await list.ExecuteAsync(
+            Caseworker(),
+            new(null, MailFolderScope.Inbox, DetailedClassification: detailed),
+            1,
+            25,
+            CancellationToken.None);
+
+        Assert.Equal(2, queries.Scopes.Count);
+        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
+            Caseworker(),
+            new(
+                null,
+                MailFolderScope.Inbox,
+                Destination: MailOperationalDestination.Queries,
+                DetailedClassification: detailed),
+            1,
+            25,
+            CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
+            Caseworker(),
+            new(
+                null,
+                MailFolderScope.Inbox,
+                DetailedClassification: MailCategory.Received(
+                    ReceivedMailFamily.NewInstructionReceived,
+                    "inspection")),
+            1,
+            25,
+            CancellationToken.None));
+        await Assert.ThrowsAsync<ArgumentException>(() => list.ExecuteAsync(
+            Caseworker(),
+            new(
+                null,
+                MailFolderScope.Inbox,
+                Destination: MailOperationalDestination.DetailedClassification),
+            1,
+            25,
+            CancellationToken.None));
+        Assert.Equal(2, queries.Scopes.Count);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public async Task ListRefusesAnEmptySearchTerm(string searchTerm)
+    {
+        var queries = new Queries();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            new ListRetainedMail(queries).ExecuteAsync(
+                Caseworker(),
+                new(null, MailFolderScope.Inbox, searchTerm),
+                1,
+                25,
+                CancellationToken.None));
+
+        Assert.Empty(queries.Scopes);
+    }
+
+    [Fact]
+    public async Task DeletedSearchIsAuthorizedBoundedAndPagedAfterNewestFirstOrdering()
+    {
+        var source = new DeletedSource(new(
+            [
+                Deleted("old", NowUtc.AddMinutes(-2)),
+                Deleted("new", NowUtc),
+                Deleted("middle", NowUtc.AddMinutes(-1))
+            ],
+            true));
+
+        var page = await new SearchDeletedMail(source).ExecuteAsync(
+            Caseworker(),
+            " mailbox-a ",
+            " estimate ",
+            2,
+            2,
+            CancellationToken.None);
+
+        Assert.Equal("mailbox-a", source.MailboxId);
+        Assert.Equal("estimate", source.SearchTerm);
+        Assert.Equal(SearchDeletedMail.MaximumMessages, source.MaximumMessages);
+        Assert.Equal(["old"], page.Items.Select(item => item.ImmutableMessageId));
+        Assert.Equal(3, page.TotalCount);
+        Assert.True(page.IsTruncated);
+    }
+
+    [Fact]
+    public async Task DeletedSearchRequiresCaseworkAuthorizationBeforeCallingItsSource()
+    {
+        var source = new DeletedSource(new([], false));
+
+        await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
+            new SearchDeletedMail(source).ExecuteAsync(
+                ActionActor.RequestLink(Guid.NewGuid()),
+                null,
+                "estimate",
+                1,
+                25));
+
+        Assert.Null(source.SearchTerm);
+    }
+
+    private static DeletedMailSearchItem Deleted(string id, DateTimeOffset receivedAtUtc) => new(
+        "mailbox-a",
+        "instructions@collisionengineers.co.uk",
+        id,
+        null,
+        null,
+        null,
+        null,
+        receivedAtUtc,
+        false,
+        [],
+        [new(MailSearchMatchKind.MessageBody)]);
+
+    [Fact]
     public async Task GetRequiresCaseworkAuthorizationAndAnIdentifier()
     {
         var queries = new Queries();
 
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
-            new GetRetainedMail(queries, new NoStaffAccounts()).ExecuteAsync(
+            new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore()).ExecuteAsync(
                 ActionActor.RequestLink(Guid.NewGuid()),
                 Guid.NewGuid(),
                 CancellationToken.None));
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            new GetRetainedMail(queries, new NoStaffAccounts()).ExecuteAsync(
+            new GetRetainedMail(queries, new NoStaffAccounts(), new MailboxStore()).ExecuteAsync(
                 Caseworker(),
                 Guid.Empty,
                 CancellationToken.None));
@@ -138,7 +340,7 @@ public sealed class RetainedMailTests
         var queries = new Queries { DetailToReturn = detail };
         var staffAccounts = new FixedStaffAccounts(staffId, "alex");
 
-        var resolved = await new GetRetainedMail(queries, staffAccounts).ExecuteAsync(
+        var resolved = await new GetRetainedMail(queries, staffAccounts, new MailboxStore()).ExecuteAsync(
             Caseworker(),
             summary.Id,
             CancellationToken.None);
@@ -151,6 +353,158 @@ public sealed class RetainedMailTests
         {
             Assert.DoesNotContain(staffId.ToString("D"), entry.ActorDisplayName, StringComparison.OrdinalIgnoreCase);
         }
+    }
+
+    [Fact]
+    public async Task GetDerivesTheExactConfiguredFolderAndSuggestedMoveFromCurrentState()
+    {
+        var detail = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            classificationVersion: 4);
+        var mailbox = ApprovedMailbox(
+            "mailbox-a",
+            ApprovedMailboxState.Approved,
+            version: 7,
+            new ApprovedMailboxFolderBinding(
+                MailLogicalFolderType.Instructions,
+                "outlook-folder-instructions"));
+        var folderMoves = new FolderMoveState();
+        var sut = new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            new MailboxStore(mailbox),
+            folderMoves,
+            folderMoves);
+
+        var result = await sut.ExecuteAsync(Caseworker(), detail.Summary.Id);
+        folderMoves.IsAtDestination = true;
+        var atDestination = await sut.ExecuteAsync(Caseworker(), detail.Summary.Id);
+        folderMoves.IsAtDestination = false;
+        folderMoves.Latest = new(
+            RetainedMailFolderMoveOutcome.Uncertain,
+            MailLogicalFolderType.Instructions,
+            "Confirmed after review.",
+            NowUtc);
+        var unresolved = await sut.ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.Equal(MailLogicalFolderType.Instructions, result!.FolderRecommendation!.FolderType);
+        Assert.Equal(MailLogicalFolderPolicy.Key, result.FolderRecommendation.PolicyKey);
+        Assert.True(result.FolderRecommendation.IsAvailable);
+        Assert.Equal(MailLogicalFolderType.Instructions, result.SuggestedMove!.FolderType);
+        Assert.Equal(result.FolderRecommendation.Reason, result.SuggestedMove.Reason);
+        Assert.Null(atDestination!.SuggestedMove);
+        Assert.Null(unresolved!.SuggestedMove);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Uncertain, unresolved.LatestFolderMove!.Outcome);
+    }
+
+    [Fact]
+    public async Task GetDoesNotConsultMailboxBindingsWhenClassificationAbstains()
+    {
+        var classification = MailClassificationResult.Ambiguous(
+            ["received:billing:invoice", "received:general:general-chase"],
+            [],
+            "Several categories matched.",
+            "classification-policy",
+            2);
+        var detail = Detail("mailbox-a", new(3, classification, "system-worker:poll", NowUtc, []));
+        var mailboxes = new MailboxStore();
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            mailboxes).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.False(result!.FolderRecommendation!.IsAvailable);
+        Assert.Null(result.FolderRecommendation.FolderType);
+        Assert.Null(result.SuggestedMove);
+        Assert.Contains("absent or ambiguous", result.FolderRecommendation.Reason, StringComparison.Ordinal);
+        Assert.Equal(0, mailboxes.ListCount);
+    }
+
+    [Theory]
+    [InlineData(ApprovedMailboxState.Approved, "different-mailbox", "currently approved")]
+    [InlineData(ApprovedMailboxState.Disabled, "mailbox-a", "currently approved")]
+    [InlineData(ApprovedMailboxState.Approved, "mailbox-a", "not configured")]
+    public async Task GetFailsClosedWhenTheExactApprovedBindingIsUnavailable(
+        ApprovedMailboxState state,
+        string mailboxIdentity,
+        string expectedReason)
+    {
+        var detail = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.Billing, "billing-query"));
+        var mailbox = ApprovedMailbox(mailboxIdentity, state, version: 2);
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            new MailboxStore(mailbox)).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.False(result!.FolderRecommendation!.IsAvailable);
+        Assert.Null(result.FolderRecommendation.FolderType);
+        Assert.Null(result.SuggestedMove);
+        Assert.Contains(expectedReason, result.FolderRecommendation.Reason, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task GetTreatsNoActionAsAConfiguredFolderRatherThanNoRecommendation()
+    {
+        var detail = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.General, "acknowledgement"));
+        var mailbox = ApprovedMailbox(
+            "mailbox-a",
+            ApprovedMailboxState.Approved,
+            version: 2,
+            new ApprovedMailboxFolderBinding(
+                MailLogicalFolderType.NoAction,
+                "outlook-folder-no-action"));
+
+        var result = await new GetRetainedMail(
+            new Queries { DetailToReturn = detail },
+            new NoStaffAccounts(),
+            new MailboxStore(mailbox)).ExecuteAsync(Caseworker(), detail.Summary.Id);
+
+        Assert.True(result!.FolderRecommendation!.IsAvailable);
+        Assert.Equal(MailLogicalFolderType.NoAction, result.FolderRecommendation.FolderType);
+        Assert.Null(result.SuggestedMove);
+    }
+
+    [Fact]
+    public async Task GetReDerivesAfterTheClassificationAndBindingChange()
+    {
+        var queries = new Queries
+        {
+            DetailToReturn = ClassifiedDetail(
+                "mailbox-a",
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"))
+        };
+        var mailboxes = new MailboxStore(ApprovedMailbox(
+            "mailbox-a",
+            ApprovedMailboxState.Approved,
+            version: 1,
+            new ApprovedMailboxFolderBinding(MailLogicalFolderType.Instructions, "instructions-folder")));
+        var sut = new GetRetainedMail(queries, new NoStaffAccounts(), mailboxes);
+
+        var before = await sut.ExecuteAsync(Caseworker(), queries.DetailToReturn.Summary.Id);
+
+        queries.DetailToReturn = ClassifiedDetail(
+            "mailbox-a",
+            MailCategory.Received(ReceivedMailFamily.Billing, "billing-query"));
+        mailboxes.Mailboxes =
+        [
+            ApprovedMailbox(
+                "mailbox-a",
+                ApprovedMailboxState.Approved,
+                version: 2,
+                new ApprovedMailboxFolderBinding(MailLogicalFolderType.Billing, "billing-folder"))
+        ];
+        var after = await sut.ExecuteAsync(Caseworker(), queries.DetailToReturn.Summary.Id);
+
+        Assert.Equal(MailLogicalFolderType.Instructions, before!.FolderRecommendation!.FolderType);
+        Assert.Equal(MailLogicalFolderType.Billing, after!.FolderRecommendation!.FolderType);
+        Assert.Equal(2, mailboxes.ListCount);
     }
 
     [Fact]
@@ -284,6 +638,45 @@ public sealed class RetainedMailTests
     private static ActionActor Caseworker() =>
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
+    private static RetainedMailDetail ClassifiedDetail(
+        string mailboxId,
+        MailCategory category,
+        int classificationVersion = 1) => Detail(
+            mailboxId,
+            new(
+                classificationVersion,
+                MailClassificationResult.Classified(category, [], "Classified.", "classification-policy", 1),
+                "system-worker:poll",
+                NowUtc,
+                []));
+
+    private static RetainedMailDetail Detail(
+        string mailboxId,
+        MailClassificationDossier dossier)
+    {
+        var summary = new RetainedMailSummary(
+            Guid.NewGuid(), mailboxId, "mailbox@example.test", true, null, null, null,
+            null, null, NowUtc, true, 0, null, null, null, null);
+        return new(summary, [], [], null, [], [], MailFolderScope.Inbox,
+            dossier.Current.Outcome, null, dossier);
+    }
+
+    private static ApprovedMailbox ApprovedMailbox(
+        string mailboxIdentity,
+        ApprovedMailboxState state,
+        int version,
+        params ApprovedMailboxFolderBinding[] bindings) => new(
+            Guid.NewGuid(),
+            "mailbox@example.test",
+            [ApprovedMailboxRouteScope.InboundIntake],
+            state,
+            mailboxIdentity,
+            "inbox-folder",
+            "sent-folder",
+            true,
+            version,
+            bindings);
+
     private sealed class Queries : IRetainedMailQueries
     {
         internal List<(MailWorkspaceScope Scope, int Page, int PageSize)> Scopes { get; } = [];
@@ -300,7 +693,10 @@ public sealed class RetainedMailTests
             return Task.FromResult(new RetainedMailPage([], page, pageSize, 0, false));
         }
 
-        public Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+        public Task<RetainedMailDetail?> GetAsync(
+            Guid id,
+            CancellationToken cancellationToken,
+            string? searchTerm = null) =>
             Task.FromResult(DetailToReturn);
 
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
@@ -310,6 +706,86 @@ public sealed class RetainedMailTests
         public Task<IReadOnlyList<MailPollHealth>> ListPollHealthAsync(
             CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<MailPollHealth>>([]);
+    }
+
+    private sealed class DeletedSource(DeletedMailSourceResult result) : IDeletedMailSearchSource
+    {
+        internal string? MailboxId { get; private set; }
+        internal string? SearchTerm { get; private set; }
+        internal int MaximumMessages { get; private set; }
+
+        public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
+
+        public Task<DeletedMailSourceResult> SearchAsync(
+            string? mailboxId,
+            string searchTerm,
+            int maximumMessages,
+            CancellationToken cancellationToken)
+        {
+            MailboxId = mailboxId;
+            SearchTerm = searchTerm;
+            MaximumMessages = maximumMessages;
+            return Task.FromResult(result);
+        }
+    }
+
+    private sealed class MailboxStore(params ApprovedMailbox[] mailboxes) : IApprovedMailboxStore
+    {
+        internal int ListCount { get; private set; }
+        internal IReadOnlyList<ApprovedMailbox> Mailboxes { get; set; } = mailboxes;
+
+        public Task<IReadOnlyList<ApprovedMailbox>> ListAsync(CancellationToken cancellationToken)
+        {
+            ListCount++;
+            return Task.FromResult(Mailboxes);
+        }
+
+        public Task<bool> IsApprovedAsync(
+            string mailboxAddress,
+            ApprovedMailboxRouteScope routeScope,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ApprovedMailbox> UpdateAsync(
+            UpdateApprovedMailboxRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class FolderMoveState(bool isAtDestination = false)
+        : IRetainedMailFolderMoveStore, IRetainedMailFolderMover
+    {
+        internal bool IsAtDestination { get; set; } = isAtDestination;
+        internal RetainedMailFolderMoveResult? Latest { get; set; }
+        public bool IsAvailable => true;
+
+        public Task<RetainedMailFolderMoveResult?> GetLatestAsync(
+            Guid messageId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(Latest);
+
+        public Task<bool> IsCurrentLocationAsync(
+            Guid messageId,
+            string folderIdentity,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(IsAtDestination);
+
+        public Task<RetainedMailFolderMoveResult?> MoveAsync(
+            ActionActor actor,
+            MoveRetainedMailFolderRequest request,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Viewing a suggestion must not execute a move.");
+
+        public Task MoveAsync(
+            RetainedMailFolderMoveCoordinates coordinates,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Viewing a suggestion must not execute a move.");
+
+        public Task<string?> GetParentFolderIdAsync(
+            string mailboxId,
+            string immutableMessageId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Viewing a suggestion must not probe the provider.");
     }
 
     private sealed class ClassificationStore(MailClassificationDossier dossier)

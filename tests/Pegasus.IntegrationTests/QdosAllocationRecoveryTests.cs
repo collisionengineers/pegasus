@@ -1,4 +1,4 @@
-using System.Net.Http.Headers;
+﻿using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -621,6 +621,250 @@ public sealed class QdosAllocationRecoveryTests
         Assert.True(spy.AutomaticCalls >= 2);
     }
 
+    [Fact]
+    public Task LiveQueuedProcessingRunsMailAssociationBeforeAllocation() =>
+        ProveQueuedMailAssociationCallerAsync(completedReplay: false);
+
+    [Fact]
+    public Task CompletedQueuedReplayRunsMailAssociationBeforeAllocation() =>
+        ProveQueuedMailAssociationCallerAsync(completedReplay: true);
+
+    private static async Task ProveQueuedMailAssociationCallerAsync(bool completedReplay)
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true,
+            initializeDevelopmentOffline: false,
+            mailClassificationPolicy: new ConsumerTypedClassificationPolicy());
+        await AllocationTestData.SeedPrincipalAsync(factory.Services, "QDOS");
+        var original = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            factory.Services,
+            CaseType.Inspection,
+            "QDOS");
+        Guid existingCaseId;
+        await using (var allocationScope = factory.Services.CreateAsyncScope())
+        {
+            var result = await allocationScope.ServiceProvider
+                .GetRequiredService<IAllocateIntake>()
+                .AttemptAutomaticAsync(original.Id, Guid.NewGuid());
+            existingCaseId = Assert.IsType<Guid>(result?.State.CaseId);
+        }
+
+        var email = IntakeTestEvidence.CreateEmail(
+            completedReplay ? "mail-09-replay.eml" : "mail-09-live.eml",
+            "QDOS instruction\r\nClaimant Name: Mail Association\r\nClaim Number: MAIL-09\r\nVehicle Registration: AB12 CDE");
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var clock = services.GetRequiredService<TimeProvider>();
+        var workStore = new RetainingWorkStore(
+            services.GetRequiredService<IIntakeWorkStore>(),
+            factory.Services);
+        var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
+        var received = await new ReceiveIntake(artifactStore, workStore, clock).ExecuteAsync(
+            new(
+                email.FileName,
+                email.MediaType,
+                email.Content,
+                clock.GetUtcNow(),
+                "system-worker:approved-inbox-poller",
+                new(IntakeSourceChannel.Mailbox, Guid.NewGuid().ToString("N"))),
+            $"mailbox-submit:{Guid.NewGuid():N}");
+        var dispatch = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await workStore.MarkDispatchedAsync(
+            dispatch.Id,
+            Assert.IsType<string>(dispatch.LeaseToken),
+            clock.GetUtcNow(),
+            CancellationToken.None);
+
+        var events = new List<string>();
+        if (completedReplay)
+        {
+            var setupProcessor = CreateMailAssociationProcessor(
+                services,
+                workStore,
+                artifactStore,
+                new RecordingProviderAssociationStore(events),
+                new NoOpAllocateIntake(),
+                clock,
+                automaticMailCaseAssociation: null);
+            await setupProcessor.ExecuteAsync(received.StagedReceiptId);
+            events.Clear();
+        }
+
+        var efStore = services.GetRequiredService<EfIntakeMutationStore>();
+        var evidence = new RecordingMailEvidenceQueries(efStore, events);
+        var automaticMailAssociation = new AssociateRetainedMailWithCase(
+            evidence,
+            efStore,
+            clock);
+        var allocation = new ObservingAllocateIntake(
+            services.GetRequiredService<IAllocateIntake>(),
+            services.GetRequiredService<IIntakeReceiptQueries>(),
+            events);
+        var processor = CreateMailAssociationProcessor(
+            services,
+            workStore,
+            artifactStore,
+            new RecordingProviderAssociationStore(events),
+            allocation,
+            clock,
+            automaticMailAssociation);
+
+        await processor.ExecuteAsync(received.StagedReceiptId);
+
+        Assert.Equal(["provider", "mail", "allocation"], events);
+        Assert.Equal(existingCaseId, allocation.CurrentCaseIdSeen);
+        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+        var completed = Assert.IsType<IntakeEvaluationRevision>(
+            await workStore.GetCompletedEvaluationAsync(received.StagedReceiptId, CancellationToken.None));
+        await using var verificationContext = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var association = Assert.Single(await verificationContext.IntakeManualAssociations
+            .AsNoTracking()
+            .Where(item => item.IntakeReceiptId == completed.ProcessedReceiptId)
+            .ToListAsync());
+        Assert.Equal(existingCaseId, association.CaseId);
+
+        events.Clear();
+        await processor.ExecuteAsync(received.StagedReceiptId);
+        Assert.Equal(["allocation"], events);
+        Assert.Equal(existingCaseId, allocation.CurrentCaseIdSeen);
+    }
+
+    private static ProcessQueuedIntake CreateMailAssociationProcessor(
+        IServiceProvider services,
+        IIntakeWorkStore workStore,
+        IIntakeArtifactStore artifactStore,
+        IAutomaticCaseAssociationStore providerAssociationStore,
+        IAllocateIntake allocateIntake,
+        TimeProvider clock,
+        AssociateRetainedMailWithCase? automaticMailCaseAssociation) => new(
+            workStore,
+            artifactStore,
+            services.GetRequiredService<ProcessIntake>(),
+            services.GetRequiredService<IIntakeReceiptQueries>(),
+            services.GetRequiredService<ICreateTriageFromIntake>(),
+            providerAssociationStore,
+            allocateIntake,
+            clock,
+            automaticMailCaseAssociation: automaticMailCaseAssociation);
+
+    private sealed class RecordingProviderAssociationStore(List<string> events)
+        : IAutomaticCaseAssociationStore
+    {
+        public Task<AutomaticCaseAssociationOutcome> AssociateFromMatchAsync(
+            AutomaticCaseAssociationRequest request,
+            DateTimeOffset occurredAtUtc,
+            CancellationToken cancellationToken)
+        {
+            // The provider attempt is deliberately recorded but does not write,
+            // leaving this fixture unassociated so MAIL-09 gets its exact turn.
+            events.Add("provider");
+            return Task.FromResult(AutomaticCaseAssociationOutcome.AlreadyAssociated);
+        }
+    }
+
+    private sealed class RecordingMailEvidenceQueries(
+        IAutomaticMailCaseAssociationEvidenceQueries inner,
+        List<string> events) : IAutomaticMailCaseAssociationEvidenceQueries
+    {
+        public Task<AutomaticMailCaseAssociationEvidence?> GetAsync(
+            Guid intakeReceiptId,
+            CancellationToken cancellationToken)
+        {
+            events.Add("mail");
+            return inner.GetAsync(intakeReceiptId, cancellationToken);
+        }
+    }
+
+    private sealed class ObservingAllocateIntake(
+        IAllocateIntake inner,
+        IIntakeReceiptQueries receipts,
+        List<string> events) : IAllocateIntake
+    {
+        public Guid? CurrentCaseIdSeen { get; private set; }
+
+        public async Task<IntakeAllocationResult?> AttemptAutomaticAsync(
+            Guid receiptId,
+            Guid evaluationId,
+            CancellationToken cancellationToken = default)
+        {
+            events.Add("allocation");
+            CurrentCaseIdSeen = (await receipts.GetAsync(receiptId, cancellationToken))?.CurrentCaseId;
+            return await inner.AttemptAutomaticAsync(receiptId, evaluationId, cancellationToken);
+        }
+
+        public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
+            AcceptIntakeRequest request,
+            CancellationToken cancellationToken = default) =>
+            inner.AttemptStaffCreateAsync(request, cancellationToken);
+
+        public Task<IntakeAllocationResult> RetryAsync(
+            RetryIntakeAllocationRequest request,
+            CancellationToken cancellationToken = default) =>
+            inner.RetryAsync(request, cancellationToken);
+    }
+
+    private sealed class NoOpAllocateIntake : IAllocateIntake
+    {
+        public Task<IntakeAllocationResult?> AttemptAutomaticAsync(
+            Guid receiptId,
+            Guid evaluationId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult<IntakeAllocationResult?>(null);
+
+        public Task<IntakeAllocationResult> AttemptStaffCreateAsync(
+            AcceptIntakeRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task<IntakeAllocationResult> RetryAsync(
+            RetryIntakeAllocationRequest request,
+            CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class RetainingWorkStore(
+        IIntakeWorkStore inner,
+        IServiceProvider services) : IIntakeWorkStore
+    {
+        public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(IntakeSourceIdentity sourceIdentity, CancellationToken cancellationToken) => inner.FindBySourceIdentityAsync(sourceIdentity, cancellationToken);
+        public Task<ReceivedIntake> ReceiveAsync(IntakeStagedReceipt receipt, string operationKey, CancellationToken cancellationToken) => inner.ReceiveAsync(receipt, operationKey, cancellationToken);
+        public Task<IntakeWorkItem?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+        public Task<IntakeWorkItem?> FindWorkItemAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => inner.FindWorkItemAsync(stagedReceiptId, cancellationToken);
+        public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset nowUtc, CancellationToken cancellationToken) => inner.MarkDispatchedAsync(workItemId, leaseToken, nowUtc, cancellationToken);
+        public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) => inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);
+        public Task<(IntakeWorkItem WorkItem, IntakeStagedReceipt Receipt)?> ClaimProcessingAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimProcessingAsync(stagedReceiptId, nowUtc, leaseDuration, cancellationToken);
+
+        public async Task<IntakeEvaluationRevision> CompleteProcessingAsync(
+            Guid workItemId,
+            string leaseToken,
+            Guid processedReceiptId,
+            DateTimeOffset completedAtUtc,
+            CancellationToken cancellationToken)
+        {
+            var result = await inner.CompleteProcessingAsync(workItemId, leaseToken, processedReceiptId, completedAtUtc, cancellationToken);
+            await using var scope = services.CreateAsyncScope();
+            var receipt = Assert.IsType<IntakeReceipt>(await scope.ServiceProvider
+                .GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(processedReceiptId, cancellationToken));
+            await AllocationTestData.SeedRetainedMessageForReceiptAsync(services, receipt);
+            return result;
+        }
+
+        public Task<IntakeEvaluationRevision?> GetCompletedEvaluationAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => inner.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
+        public Task RetryProcessingAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, string failureCode, bool terminal, CancellationToken cancellationToken) => inner.RetryProcessingAsync(workItemId, leaseToken, dueAtUtc, failureCode, terminal, cancellationToken);
+        public Task MarkPoisonedAsync(Guid stagedReceiptId, DateTimeOffset failedAtUtc, CancellationToken cancellationToken) => inner.MarkPoisonedAsync(stagedReceiptId, failedAtUtc, cancellationToken);
+        public Task<int> RecoverExpiredLeasesAsync(DateTimeOffset nowUtc, int maximumItems, CancellationToken cancellationToken) => inner.RecoverExpiredLeasesAsync(nowUtc, maximumItems, cancellationToken);
+        public Task ScheduleReevaluationAsync(Guid stagedReceiptId, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) => inner.ScheduleReevaluationAsync(stagedReceiptId, dueAtUtc, cancellationToken);
+        public Task<Guid?> FindStagedReceiptIdForReceiptAsync(Guid intakeReceiptId, CancellationToken cancellationToken) => inner.FindStagedReceiptIdForReceiptAsync(intakeReceiptId, cancellationToken);
+    }
+
     private sealed class FirstAutomaticAllocationLost(IAllocateIntake inner) : IAllocateIntake
     {
         private int automaticCalls;
@@ -747,56 +991,54 @@ public sealed class QdosAllocationRecoveryTests
     [Fact]
     public async Task DistinctParallelRetriesResolveToOneCaseAggregate()
     {
+        // Convergence under contention, repeatedly — not merely no-throw once
+        // (CASE-005). The per-receipt allocation lock makes the previously
+        // deadlocking interleaving queue instead, so no round may fail or
+        // fork a second aggregate.
         using var factory = new IntakeWebApplicationFactory();
-        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
-            factory.Services,
-            CaseType.Inspection,
-            "PARALLEL");
-        IntakeAllocationResult? failed;
-        await using (var scope = factory.Services.CreateAsyncScope())
-        {
-            failed = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
-                .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
-        }
-        await AllocationTestData.SeedPrincipalAsync(factory.Services, "PARALLEL");
         var actor = ActionActor.Staff(
             DevelopmentOfflineIdentity.AdministratorId,
             [StaffRole.Administrator]);
+        string[] principals = ["PARA", "PARB", "PARC", "PARD", "PARE"];
 
-        async Task<IntakeAllocationResult> RetryAsync(string key)
+        for (var round = 0; round < principals.Length; round++)
         {
-            const int maximumAttempts = 3;
-            for (var attempt = 1; ; attempt++)
+            var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+                factory.Services,
+                CaseType.Inspection,
+                principals[round]);
+            IntakeAllocationResult? failed;
+            await using (var scope = factory.Services.CreateAsyncScope())
             {
-                try
-                {
-                    await using var scope = factory.Services.CreateAsyncScope();
-                    return await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
-                        receipt.Id,
-                        receipt.Version,
-                        failed!.State.AttemptId,
-                        actor,
-                        key,
-                        "Parallel reasoned retry."));
-                }
-                catch (SqlException exception) when (exception.Number == 1205 && attempt < maximumAttempts)
-                {
-                    await Task.Delay(TimeSpan.FromMilliseconds(25 * attempt));
-                }
+                failed = await scope.ServiceProvider.GetRequiredService<IAllocateIntake>()
+                    .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
             }
+            await AllocationTestData.SeedPrincipalAsync(factory.Services, principals[round]);
+
+            async Task<IntakeAllocationResult> RetryAsync(string key)
+            {
+                await using var scope = factory.Services.CreateAsyncScope();
+                return await scope.ServiceProvider.GetRequiredService<IAllocateIntake>().RetryAsync(new(
+                    receipt.Id,
+                    receipt.Version,
+                    failed!.State.AttemptId,
+                    actor,
+                    key,
+                    "Parallel reasoned retry."));
+            }
+
+            var results = await Task.WhenAll(
+                RetryAsync($"parallel-a:{Guid.NewGuid():N}"),
+                RetryAsync($"parallel-b:{Guid.NewGuid():N}"));
+
+            Assert.All(results, result =>
+                Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result.State.Status));
+            Assert.Single(results.Select(result => result.State.CaseId).Distinct());
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
+            Assert.Equal(round + 1, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
         }
-
-        var results = await Task.WhenAll(
-            RetryAsync($"parallel-a:{Guid.NewGuid():N}"),
-            RetryAsync($"parallel-b:{Guid.NewGuid():N}"));
-
-        Assert.All(results, result =>
-            Assert.Equal(IntakeAllocationProjectionStatus.Succeeded, result.State.Status));
-        Assert.Single(results.Select(result => result.State.CaseId).Distinct());
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "Cases"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseIntakeLinks"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "CaseSequences"));
-        Assert.Equal(1, await AllocationTestData.CountAsync(factory.Services, "ExternalWorkItems"));
     }
 
     private sealed class AfterCommitAcceptIntake(IAcceptIntake inner, bool cancel) : IAcceptIntake

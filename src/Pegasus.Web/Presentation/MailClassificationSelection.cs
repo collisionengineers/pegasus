@@ -17,15 +17,23 @@ public static class MailClassificationSelection
     public const string OtherReceivedKey = "other-received";
     public const string OtherSentKey = "other-sent";
 
+    // Labels resolve through the one operator label map, so the picker and
+    // every read-only rendering of a classification use the same words.
     public static IReadOnlyList<SelectionOption> Options { get; } =
         [
             .. Enum.GetValues<ReceivedMailFamily>().SelectMany(family =>
                 MailTaxonomy.ConfirmedReceivedSubtypes[family].Length == 0
-                    ? [new SelectionOption($"received:{family}", MailTaxonomy.CategoryName(family))]
+                    ? [new SelectionOption(
+                        $"received:{family}",
+                        OperatorLabels.MailClassification(MailCategory.Received(family)))]
                     : MailTaxonomy.ConfirmedReceivedSubtypes[family].Select(subtype =>
-                        new SelectionOption($"received:{family}:{subtype}", $"{MailTaxonomy.CategoryName(family)}/{subtype}"))),
+                        new SelectionOption(
+                            $"received:{family}:{subtype}",
+                            OperatorLabels.MailClassification(MailCategory.Received(family, subtype))))),
             .. Enum.GetValues<SentMailFamily>().Select(family =>
-                new SelectionOption($"sent:{family}", $"Sent: {MailTaxonomy.CategoryName(family)}")),
+                new SelectionOption(
+                    $"sent:{family}",
+                    OperatorLabels.MailClassification(MailCategory.Sent(family)))),
             new(OtherReceivedKey, "Other received classification"),
             new(OtherSentKey, "Other sent classification")
         ];
