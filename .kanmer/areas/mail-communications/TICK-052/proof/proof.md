@@ -1,0 +1,3 @@
+# Proof — TICK-052 / MAIL-10 (deployed and live-verified at release 16, 2026-08-21)
+
+Type: visual + command-log. Deployment bundle: [[DELIV-015]] proof. Deployed to production at `4111ad29` (merged via PR #490; preserved through the MAIL-006 page rebuild — lost-work audit clean). Live: the message page's Case tab carries the deliberate search → business summary → reasoned confirm association flow and the reasoned unlink; the manual association surfaces render on the rebuilt page (association redirects carry the case section). The serializable idempotent association transaction and staff-reversal precedence are the merged, CI-green Core/SQL evidence; live association writes are exercised by the operator's post-wipe testing.

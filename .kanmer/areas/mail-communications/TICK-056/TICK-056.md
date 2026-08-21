@@ -2,7 +2,7 @@
 id: TICK-056
 type: ticket
 title: UI-10 — Full email-management workspace
-status: verifying
+status: done
 area: mail-communications
 order: 60
 assignee: codex-mcp-client
@@ -11,6 +11,7 @@ stageEntered:
   preparing: '2026-08-19T08:10:47.998Z'
   review: '2026-08-20T23:52:41.229Z'
   verifying: '2026-08-21T00:06:12.930Z'
+  done: '2026-08-21T15:09:19.172Z'
 taken_at: '2026-08-20T23:32:08.760Z'
 branch: task/tick-056-ui-10-mail-workspace
 worktree: ../pegasus-worktrees/tick-056
@@ -31,9 +32,10 @@ commits:
   - b78705d5b48d4f689e9981ce93ca34a6ba978c8a
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/492'
+deployment: production
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-21T00:06:12.930Z'
+updated: '2026-08-21T15:09:19.172Z'
 ---
 
 ## What
