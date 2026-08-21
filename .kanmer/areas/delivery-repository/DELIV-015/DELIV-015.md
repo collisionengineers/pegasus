@@ -4,13 +4,14 @@ type: ticket
 title: >-
   Release 16: merge all open PRs, deploy dev to production, verify every shipped
   ticket live, promote to main
-status: implementing
+status: done
 area: delivery-repository
 assignee: claude-code
 profile: chore
-taken_at: '2026-08-21T14:03:41.580Z'
-branch: task/deliv-015-release-16
-worktree: ../pegasus-worktrees/deliv-015
+stageEntered:
+  review: '2026-08-21T15:21:35.445Z'
+  verifying: '2026-08-21T15:21:41.555Z'
+  done: '2026-08-21T15:22:01.861Z'
 labels:
   - release
   - deployment
@@ -21,9 +22,10 @@ refs:
   - docs/runbook.md
   - docs/engineering.md
   - docs/operations.md
+deployment: production
 archived: false
 created: '2026-08-21T14:02:39.637Z'
-updated: '2026-08-21T14:03:41.580Z'
+updated: '2026-08-21T15:22:11.908Z'
 ---
 
 # Why
@@ -32,17 +34,17 @@ Release 15 (deployed 6d04f89d, main=dev=f0b01f39) was followed by the operator's
 
 # Scope
 
-- Phase 0 (done): local dev synced/pushed; docs/principal-rules-and-mappings/ (QDOS rules doc) committed to dev.
+- Phase 0: local dev synced/pushed; docs/principal-rules-and-mappings/ (QDOS rules doc) committed to dev.
 - Review + merge the 5 open PRs serially on green CI.
 - Lost-work audit of every merge since f0b01f39 (recorded in research).
-- Build release artifacts at the pinned dev SHA; validate; promote dev→main (exact-SHA fast-forward, MERGE AUTH GRANTED required); deploy web image via oras+azd provision, migrations via efbundle, worker via config-zip; smoke.
-- Refresh docs/current-architecture.md and docs/operations.md; second promotion.
+- Build, validate, promote dev→main (two MERGE AUTH GRANTED gates), deploy (oras + azd provision + efbundle + worker config-zip), smoke.
+- Refresh current-state docs; second promotion.
 - Live-verify and close every related ticket; prune merged branches/worktrees.
 
 # How to verify
 
-Production smoke passes at the new SHA; migration head advances to the release head; both runtime-role grant readbacks match the censuses; the six operator-reported regressions verify fixed live; board roster fully dispositioned; `git branch -a` = main/dev/kanmer-board, worktrees = pegasus + kanmer.
+Production smoke passes at the new SHA; migration head advances; grant readbacks match the censuses; the operator-reported regressions verify fixed live; board roster fully dispositioned; branches/worktrees reduced to the release-owned set.
 
 # Outcome
 
-(closeout)
+**Release 16 shipped 2026-08-21.** Production serves `4111ad29` (digest sha256:3b891b45…, revision `--4111ad291779`, migration head `20260821100623`); main = dev = `adf0237e`. All five open PRs reviewed (one real defect fixed in review: #496's missing censuses; MAIL-004's visual gate performed and recorded) and merged; smoke passed; grants, automatic vehicle lookups (3 enqueued + 3 observed within one tick), mail workspace, CSP dialog fix, categories admin, assessment prefill, retained search with match locations, and the Deleted Items honest-unavailable state all verified live. 38 roster tickets closed to done; INTK-023, INTK-025, DOCS-006 remain at verifying awaiting the operator's post-wipe fresh test mail (extraction v4 / embedded-photo custody live-tier proof). Live-found defect filed: [[INTK-027]] (re-evaluation after staging cleanup). Git hygiene: 0 open PRs; all release-owned branches and worktrees pruned; other sessions' active lanes (task/plat-018, .worktrees/UIOPER-001) deliberately untouched. Operator actions remaining: post-wipe test mail, test-data wipe.
