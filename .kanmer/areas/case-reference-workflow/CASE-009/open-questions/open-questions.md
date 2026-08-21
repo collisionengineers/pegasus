@@ -1,6 +1,6 @@
 # Open questions — CASE-009
 
-- [ ] Does “these should be auto attached from linked Query e-mails” mean CASE-009 must render a read-only list of linked emails classified as Query on Case Details, or does it explain why the existing inactive manual action should simply be removed?
+- [x] Case Details must render a read-only list of Case-linked emails classified as Query; the existing manual action is removed.
 
 ## Parked (explicitly deferred)
 

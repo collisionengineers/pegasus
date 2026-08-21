@@ -2,7 +2,7 @@
 id: CASE-009
 type: ticket
 title: >-
-  Rename Case Details Engineer Queries to Queries and remove manual query
+  Show auto-attached Query emails on Case Details and remove manual query
   creation
 status: preparing
 area: case-reference-workflow
@@ -15,23 +15,26 @@ labels:
   - case-detail
   - queries
   - operator-reported
+  - mail-association
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-21T07:51:29.215Z'
-updated: '2026-08-21T07:51:43.337Z'
+updated: '2026-08-21T07:55:33.794Z'
 ---
 
 ## Why
 
-The Case Details page currently labels the email-derived query section **Engineer Queries** and offers a **Raise a Query** action. Queries are attached automatically from linked Query emails, so the manual creation action is misleading and must not be available.
+The Case Details page must call this section **Queries**, not **Engineer Queries**. It must not offer a **Raise a Query** action: query correspondence is sourced from emails already linked to the Case and classified as a Query.
 
 ## Verify
 
-- The section heading is **Queries**.
+- The heading is **Queries**.
+- The Case Details page renders a read-only list of emails linked to that Case whose classification is Query.
+- The panel has a truthful empty state when no qualifying linked email exists.
 - No **Raise a Query** button or manual query-creation control is present.
-- Existing linked Query emails continue to populate the section. 
+- The implementation does not create, reply to, resolve, or manually associate queries, and does not mutate any mailbox.
 
 ## Outcome
