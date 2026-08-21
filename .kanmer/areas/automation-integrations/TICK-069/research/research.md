@@ -61,3 +61,34 @@ Sources: [Microsoft registration requirements](https://learn.microsoft.com/en-us
 ### Revised recommendation
 
 Use 360dialog’s documented Coexistence route for the existing number. Consider ACS only if Collision Engineers accepts a separate WhatsApp number dedicated to Pegasus. Do not test the live number through ACS: its documented onboarding requirements conflict with the current registration and could require destructive account/number changes.
+
+## Verified same-number Coexistence providers — 2026-08-21
+
+For EXT-15, **Coexistence means the existing WhatsApp Business app remains usable on the existing phone number while Cloud API events for that same number reach Pegasus.** Migration to an API number is not Coexistence. This requirement excludes Azure Communication Services and Twilio's documented migration route.
+
+| Provider | What its current documentation confirms | Pegasus suitability |
+|---|---|---|
+| **360dialog** | Existing Business App number remains in the app and is connected to Cloud API; app-originated messages are delivered as message echoes; recent chat history can be synchronized. | **Recommended first choice.** API/BSP infrastructure rather than a replacement CRM, so Pegasus remains the workflow owner. Published regular plan is 49 EUR/USD per number/month plus Meta charges. |
+| **seven.io** | Explicit choice between Full Migration and Coexistence; in Coexistence the app and Cloud API use the same number simultaneously. App messages are exposed as echo messages and can be captured by webhooks. It provides inbound WhatsApp webhooks and a REST API. | **Recommended commercial alternative.** Also API-led and a closer fit than an inbox product. Pricing is Meta fees plus seven platform fees; the exact WhatsApp rate needs a quote/current account price check. |
+| **Wati** | Explicit same-number Business App/API Coexistence, contact sync and optional recent chat-history sync; received, sent and status callbacks are available. | **Technically suitable, operationally heavier.** It adds a team inbox, automation and its own billing/credit-line relationship. Consider only if staff also want Wati as their messaging workspace. |
+| **respond.io** | Explicit same-number Coexistence with app/API send and receive and app-message echoes. Developer API is available on Growth plans and above. | **Technically suitable, poor fit for simple intake.** It is an omnichannel CRM/automation platform; echo messages can count towards its monthly-active-contact billing and it adds switching friction. |
+| **SleekFlow / similar inbox products** | Some advertise Meta Coexistence, but the reviewed material did not establish a better API, commercial or operational fit than the four providers above. | Do not shortlist without a specific commercial reason. |
+
+### Provider-independent limitations
+
+The documented restrictions are largely Meta Coexistence restrictions, not defects unique to one provider:
+
+- the primary Business App must be opened at least once every 13–14 days;
+- app features including broadcast lists, message editing/revocation, disappearing messages, view-once media and live location are disabled or restricted;
+- WhatsApp for Windows and WearOS activity may not generate webhook events;
+- Coexistence throughput is typically limited to 20 messages per second;
+- eligibility depends on Meta's assessment of the existing Business App account, region, account age and messaging quality;
+- changing BSP later can require disconnect/reconnect work because the provider credit line may not be transferable.
+
+### Recommendation
+
+Request a written eligibility and pricing confirmation from **360dialog and seven.io** for the existing UK number, explicitly asking for *WhatsApp Business App Coexistence*, message-echo webhooks, inbound media retrieval, data residency/subprocessors, support terms and offboarding. Run a disposable-number proof with the better commercial offer before touching the live number.
+
+Do not accept sales wording such as “keep your number” or “migrate your existing number.” The acceptance test is that the same number still sends and receives in the mobile Business App and that those conversations, including app-originated echoes and inbound media, reach the Pegasus webhook.
+
+Sources: [360dialog Coexistence](https://docs.360dialog.com/docs/resources/phone-numbers/coexistence), [360dialog pricing](https://docs.360dialog.com/docs/prices-plans-and-payments), [seven.io Coexistence](https://help.seven.io/en/whatsapp/whatsapp-coexistence), [seven.io WhatsApp API](https://docs.seven.io/en/rest-api/endpoints/whatsapp), [seven.io WhatsApp FAQ](https://help.seven.io/en/whatsapp/whatsapp-faq), [Wati Coexistence](https://support.wati.io/en/articles/11822402-introducing-whatsapp-coexistence), [Wati webhooks](https://support.wati.io/en/articles/14111740-how-to-set-up-and-use-webhooks-in-wati), [respond.io Coexistence](https://respond.io/help/whatsapp/whatsapp-coexistence), [respond.io Developer API](https://respond.io/help/integrations/developer-api).

@@ -1,0 +1,1 @@
+2026-08-21: Reworked provider shortlist using a strict same-number Business App + Cloud API definition. Azure ACS and Twilio migration excluded. Verified 360dialog and seven.io as API-led candidates; Wati and respond.io are genuine but heavier inbox/CRM products. Recorded Meta Coexistence limitations and a written-offer checklist.

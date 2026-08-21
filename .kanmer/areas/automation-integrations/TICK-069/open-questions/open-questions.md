@@ -1,9 +1,11 @@
 # Open questions — TICK-069
 
+The operator has confirmed that retaining the existing WhatsApp Business number and continued mobile-app use is mandatory. Migration-only services and a replacement number are therefore out of scope.
+
 ## Parked (explicitly deferred)
 
-- [ ] **Existing number:** Is keeping the current WhatsApp Business number and app mandatory? If yes, Azure Communication Services is ruled out by Microsoft’s documented number-registration requirements.
-- [ ] **Separate number:** If coexistence cannot be approved, would Collision Engineers accept a second WhatsApp number dedicated to Pegasus? ACS is suitable only for this alternative.
-- [ ] **Pilot provider:** May a future approved task obtain a 360dialog sandbox and test Coexistence with a disposable number?
-- [ ] **Scope:** Is EXT-15 inbound capture only, or should outbound replies and chasers be considered separately?
-- [ ] **Volume:** Roughly how many WhatsApp messages and media items arrive each month? This determines whether 360dialog’s fixed fee is material.
+- [ ] **Provider selection:** Which written offer from 360dialog or seven.io gives the better UK-number eligibility, support, data-handling and offboarding terms?
+- [ ] **Operating constraint:** Can staff accept opening the primary Business App at least every 13–14 days and losing the Coexistence-restricted app features?
+- [ ] **Desktop use:** Does the current workflow rely on WhatsApp for Windows? Its messages may not generate Cloud API webhooks under Coexistence.
+- [ ] **Scope:** Is EXT-15 inbound capture only, with outbound replies and chasers handled separately?
+- [ ] **Volume:** Roughly how many WhatsApp messages and media items arrive each month?

@@ -1,0 +1,1 @@
+Verification stopped before proof: after `git fetch origin`, merge commit `a0fb64955e210c7d267efaaf1e1aff112b67fefc` is not an ancestor of `origin/main` (currently `f0b01f39`, Release 15). Repository policy requires proof on merged main, so no proof.md was written and the ticket remains Verifying. Resume after an explicitly authorised dev→main promotion includes PLAT-018.
