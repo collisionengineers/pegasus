@@ -1,18 +1,8 @@
 # Open questions — TICK-069
 
-No question below may be assumed by an implementation plan. EXT-15 remains Later / post-alpha, so these activation decisions are explicitly deferred rather than answered from incomplete repository evidence.
-
 ## Parked (explicitly deferred)
 
-- [ ] **Provider and ownership:** Which approved WhatsApp product/provider, business account/number, owning team, and commercial/licence arrangement will Pegasus use? Parked because product/provider selection and approval are prerequisites to promotion.
-- [ ] **Ingress direction and caller:** Is the supported operation a verified inbound webhook, a polling/client API, an approved intermediary, or another vendor-confirmed route, and which Pegasus host owns the real caller? Parked pending provider documentation and sandbox proof.
-- [ ] **Scope:** Does EXT-15 ingest inbound material only, or also outbound chasers/replies, delivery/read receipts, edits, deletes, and conversation history? Parked because automated outbound correspondence is a separate capability/authorization and must not be inferred.
-- [ ] **Identity and grouping:** What immutable provider fields define account/channel, conversation, message occurrence, sender, reply/context, attachment placement, and submission grouping; how are edited or redelivered messages represented? Parked pending a versioned provider contract.
-- [ ] **Authentication and consent:** What webhook signature/client authentication, credential scopes, account/participant consent, allowlisting, and revocation rules are accepted? Parked pending security, operator, and provider approval.
-- [ ] **Acknowledgement and retry:** What exact acknowledgement timing, provider retry schedule, idempotency window, throttling, timeout, and recovery contract apply? Parked pending provider sandbox evidence.
-- [ ] **Accepted media:** Which provider representations of images, PDF, DOC/DOCX, typed text, captions, filenames, content types, ordering, and multi-message batches are accepted, and what limits apply? Parked pending representative approved fixtures; repository evidence must not be fabricated.
-- [ ] **Routing:** Which sender/account/conversation evidence may establish Principal/provider route identity, and which ambiguous cases must enter Unidentified? Parked pending operator-defined WhatsApp routing policy; arrival proximity and weak matches remain prohibited.
-- [ ] **Custody:** When does provider content leave WhatsApp/network-drive staging, what original representation is retained, when does Box custody begin, and what happens if download or custody fails after provider acknowledgement? Parked pending custody and recovery policy.
-- [ ] **Coexistence and deduplication:** During rollout, how do automated receipts coexist with staff-added WhatsApp evidence and network-drive staging; what proves two cross-route items are one occurrence versus equal bytes from distinct occurrences; what is the rollback path? Parked pending operator acceptance and representative coexistence evidence.
-- [ ] **Operator surface:** What bounded receipt/processing/failure/correction information is necessary beyond the existing intake, Unidentified, Image intake, and manual association surfaces? Parked until behaviour is settled; no placeholder or explanatory UI is authorised.
-- [ ] **Environments and evidence:** Which disposable sandbox and production targets are approved, who may authorize external writes, and what contract, security, licence/cost, representative-fixture, live-caller, monitoring, rollout/rollback, and operator-acceptance evidence promotes EXT-15? Parked because no exact external target is currently approved.
+- [ ] **Existing number:** Is keeping the current WhatsApp Business number and app a firm requirement? This research recommends treating it as one.
+- [ ] **Pilot provider:** May a future approved task obtain a 360dialog sandbox and test Coexistence with a disposable number?
+- [ ] **Scope:** Is EXT-15 inbound capture only, or should outbound replies and chasers be considered separately?
+- [ ] **Volume:** Roughly how many WhatsApp messages and media items arrive each month? This determines whether 360dialog’s fixed fee is material.
