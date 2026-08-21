@@ -38,3 +38,26 @@ The existing Pegasus intake pipeline already provides retention, duplicate handl
 If Coexistence is unavailable or unacceptable, use a separate number and prefer Azure Communication Services for its .NET SDK, Event Grid integration and consolidated Azure operations.
 
 Do not migrate the live number, register a webhook, or create provider credentials until the exact sandbox and account are approved.
+
+## Azure follow-up — is it Coexistence?
+
+**No. Azure Communication Services Advanced Messaging is not the same-number WhatsApp Business App/API Coexistence required by EXT-15.**
+
+Microsoft’s registration instructions distinguish an existing **WhatsApp Business Account** from an existing **phone-number registration**:
+
+- ACS can connect an existing Meta/WhatsApp Business Account.
+- The phone number supplied to ACS must not already be associated with a WhatsApp Business Account.
+- Microsoft separately states that another WhatsApp account cannot use that number.
+- Once registered, the number is shared with Microsoft and described as locked.
+
+This means “connect an existing account” allows the business to reuse its Meta business structure while adding an eligible number. It does not mean staff can keep using the same number in the WhatsApp Business mobile app.
+
+The event model confirms the distinction. ACS publishes two Advanced Messaging Event Grid events: a received-message event and a delivery-status event. Microsoft Learn does not document the history-sync or Business App message-echo events required to mirror staff activity in a Coexistence setup.
+
+ACS remains a good implementation option for a new or dedicated API number: it offers a .NET SDK, Event Grid delivery, media download, Entra ID authentication and Azure billing. It is not suitable if keeping the current Business App and number is mandatory.
+
+Sources: [Microsoft registration requirements](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/advanced-messaging/whatsapp/connect-whatsapp-business-account), [ACS WhatsApp overview](https://learn.microsoft.com/en-us/azure/communication-services/concepts/advanced-messaging/whatsapp/whatsapp-overview), [Advanced Messaging events](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/advanced-messaging/whatsapp/handle-advanced-messaging-events), [media download](https://learn.microsoft.com/en-us/azure/communication-services/quickstarts/advanced-messaging/whatsapp/download-media).
+
+### Revised recommendation
+
+Use 360dialog’s documented Coexistence route for the existing number. Consider ACS only if Collision Engineers accepts a separate WhatsApp number dedicated to Pegasus. Do not test the live number through ACS: its documented onboarding requirements conflict with the current registration and could require destructive account/number changes.
