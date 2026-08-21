@@ -1,11 +1,11 @@
 # Checklist — TICK-061
 
-- [ ] Update FRD-09/capabilities/open decisions and add ADR-0030 superseding ADR-0004's provider decision.
-- [ ] Add Core credential projections, lifecycle commands, authorization, version/reason/operation-key rules, and verification port.
-- [ ] Add the one-per-Principal EF credential model, migration, password-hash storage, concurrency/replay, and permanent history.
-- [ ] Add and compose Principal-client HTTP Basic authentication without enabling provider endpoints.
-- [ ] Add lifecycle, hash-only, reset, revoke/reissue, pause/read, concurrency, history, authentication, and architecture tests.
-- [ ] Run and disposition reuse, simplification, efficiency, and altitude findings.
-- [ ] Run locked restore, Release build, focused tests, and full tests; summarize evidence in the post-implementation report.
+- [ ] Update FRD-09/capabilities/open decisions as needed; retain ADR-0004 and allocate no new ADR.
+- [ ] Add Core lifecycle/status commands, authorization, concurrency/replay rules, and verification port.
+- [ ] Add one-per-Principal Azure SQL model/migration, verifier-only storage, and permanent history.
+- [ ] Prevent clear-secret persistence or telemetry and prove one-time command return.
+- [ ] Leave authentication-handler composition to TICK-058's real endpoint.
+- [ ] Add lifecycle, storage, isolation, migration, and architecture tests.
+- [ ] Run/disposition the simplification lenses and locked restore/build/focused/full tests.
 
 ## Progress notes

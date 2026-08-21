@@ -2,29 +2,32 @@
 
 ## Approach
 
-After TICK-061 supplies credential authentication, add one thin provider POST endpoint that translates a bounded multipart request into the existing grouped durable-intake command. Return after durable acceptance with the opaque staged receipt; never wait for or expose processing. Reusing `SubmitGroupedIntake` preserves limits, source identity, replay, and the single Core policy owner.
+After TICK-061 supplies credential lifecycle and verification, add the first provider authentication handler and submission endpoint together in the existing Web Container App. Translate one bounded request into the existing grouped durable-intake owner and return an opaque receipt only after durable acceptance. Do not wait for processing or return files.
 
 ## Governing docs
 
-- **Meets and modifies `docs/frd/frd-09-provider-and-intermediary-routes.md`**: stable Principal isolation, same Core intake policies, idempotent instruction/attachment submission, provider actor attribution, and fail-closed behavior remain; the retired transient processing-status requirement is replaced by durable receipt plus API-03 terminal retrieval. The operator explicitly authorized this on 2026-08-21.
-- Consume ADR-0030 from TICK-061; do not create another authentication or async-processing ADR.
+- Modify FRD-09 to settle the exact submission wire contract, Principal isolation, idempotency, receipt response, and disclosure-safe failures before implementation.
+- ADR-0004 remains the accepted authentication boundary; no ADR number is reserved.
+- API-02 stays retired. API-03 alone resolves the provider's own receipt to an actual linked Case/PO or failure.
 
 ## Steps
 
-1. Merge/rebase the completed TICK-061 credential/authentication contract and confirm ADR-0030/FRD-09 are current.
-2. Define the minimal Web wire contract: `POST /api/provider/submissions`, authenticated Principal, required `Idempotency-Key`, bounded multipart form with one JSON instruction part and ordered file parts, and HTTP 202 containing `receiptId` and `duplicate`.
-3. Add a thin endpoint/adapter that validates transport shape, stamps `provider:{clientId}` as actor and a Principal-scoped source identity, then delegates to `IGroupedIntakeSubmission`; reuse repository upload size/count limits.
-4. Map malformed/oversize input to 400/413, invalid or paused submission credentials to 401/403 without data disclosure, exact replay to the same 202 receipt, conflicting idempotency reuse to 409, and recoverable custody failure to bounded 503.
-5. Compose the endpoint only when provider API configuration is explicitly enabled; a closed composition exposes no route. Do not perform live issuance or cloud writes.
-6. Add contract/Core/integration/architecture tests for single/multiple files, ordering, limits, exact replay/conflict, Principal identity, actor history, pause/revoke, cross-Principal isolation, durable-before-response behavior, and absent route when disabled.
-7. Refresh current architecture for the implemented caller, run the simplification lenses, then locked restore, Release build, focused/full tests, and record the post-implementation report.
+1. Resolve the exact route, credential presentation, media type/parts, idempotency representation, response schema/statuses, and safe error mappings in FRD-09. Do not treat earlier multipart/HTTP Basic/202 suggestions as accepted defaults.
+2. Integrate TICK-061's verification port and compose one provider authentication handler only alongside this real route; staff cookies must not authenticate it.
+3. Add a thin Web adapter that enforces existing file/count/size limits, stamps Principal/client actor and source identity, and delegates to `IGroupedIntakeSubmission`.
+4. Preserve exact replay to the same durable receipt and fail closed on conflicting reuse, malformed/oversize requests, invalid/revoked credentials, paused submission permission, and custody failure.
+5. Reuse Azure SQL/outbox, transport Queue, Function Worker, custody Storage, HTTPS ingress, managed identity, and Application Insights. Add an application-level per-credential throttle with values fixed by capacity evidence.
+6. Add contract/integration/architecture tests for wire shape, single/multiple ordered files, limits, replay/conflict, actor/Principal isolation, pause/revoke, durable-before-response, throttle behavior, and absence when not activated.
+7. Refresh current-state docs after deployment, run the simplification lenses, locked restore/build/focused/full tests, and record evidence.
+
+## Azure decision
+
+No APIM, Front Door/WAF, Service Bus, extra Function, Entra app registration, or new store is justified initially. Capacity-test the existing one-replica Container App before changing scale. Reconsider APIM only for measured multi-provider traffic, centralized gateway governance, or a concrete WAF/domain requirement.
 
 ## Verification
 
-Authenticated Web integration tests submit representative repository fixtures and assert a durable staged receipt/work item before 202 returns, safe replay, no synchronous processing requirement, correct provider actor/Principal, and disabled-composition 404. No test contacts a live provider or mutates cloud services.
+Web/SQL tests prove the durable receipt exists before response, authentication is Principal-scoped, replay is safe, pause blocks only submission, and no response exposes processing details, Case data, files, or reports.
 
-## Risks / open questions
+## Deferred activation
 
-- Memory pressure is bounded by the existing intake envelope; streaming beyond those limits is not introduced.
-- AUTO-008 owns latency optimization, so this ticket does not shorten the dispatcher or bypass the SQL outbox.
-- Live hostname, throttling values, and first-provider rollout remain activation gates.
+Named provider, exact hostname/custom domain, final throttling values, capacity target, and live credential issuance require separate activation evidence/approval.

@@ -1,31 +1,33 @@
-# Plan — TICK-061: Provider API credential lifecycle
+# Plan — TICK-061: Provider credential lifecycle
 
 ## Approach
 
-Build the credential lifecycle first because API-01 and API-03 cannot have a real authenticated caller without it. Extend the existing Principal administration policy and EF transaction/history conventions with one credential per Principal; use framework password hashing and a thin Web authentication handler. This reuses the existing Core owner and avoids a parallel client registry. PLAT-028 consumes the commands later for the redesigned UI.
+Extend the existing Principal administration Core owner and EF transaction/history conventions with one credential per Principal. Generate a clear secret once, persist only its framework verifier in existing Azure SQL, and expose a verification port for the first real endpoint in TICK-058. PLAT-028 consumes the lifecycle commands and status projection. Do not compose a dormant authentication scheme.
 
 ## Governing docs
 
-- **Modifies `docs/frd/frd-09-provider-and-intermediary-routes.md`** with the operator-authorized v1 lifecycle: one Principal credential, one-time generated/reset secret, immediate rotation, revocation, and submission-only pause.
-- **New ADR**: add ADR-0030 to supersede ADR-0004's provider portion, preserving the separate staff MCP decisions while removing mandatory transient processing-status exposure and recording Principal-owned administration.
-- Update `docs/capabilities.md` to retire API-02 and clarify API-01/API-03/API-04; update ADR indexes and open decisions. This authorization was explicitly given on 2026-08-21.
+- Modify `docs/frd/frd-09-provider-and-intermediary-routes.md` with one-time issue/reset, revocation, and submission-only pause/resume behavior.
+- ADR-0004 already owns principal-scoped opaque provider credentials and remains accepted. This behavioral refinement does not need a new ADR and must not reserve ADR-0030.
+- Update capabilities/open decisions only where API-02 retirement or API-04 wording is stale.
 
 ## Steps
 
-1. Update the governing documents and add ADR-0030; link it to this ticket before implementation completes.
-2. Add Core credential status, generate/reset/revoke/pause/resume commands, one Principal-owned port, Administrator authorization, expected-version/reason/operation-key rules, and provider-client verification that distinguishes authentication from submission permission.
-3. Add one EF credential row per Principal, framework password-hasher output only, lifecycle/version timestamps, transactionally append-only administration events, replay/conflict handling, and the migration.
-4. Add a provider authentication scheme in Pegasus.Web using HTTP Basic client ID/secret over HTTPS, producing a Principal/client actor without accepting staff cookies; revoked/unknown/invalid credentials return the same authentication failure.
-5. Compose the ports and authentication scheme without enabling any provider endpoint or issuing a live credential; API-01/API-03 supply the real callers.
-6. Add Core, persistence, authentication, migration, and architecture tests for one-time return, hash-only storage, immediate reset invalidation, revocation/reissue, pause/read distinction, concurrency, replay, history, and cross-Principal denial.
-7. Run the simplification lenses over the branch diff, then locked restore, Release build, focused tests, and full tests; record results in the post-implementation report.
+1. Update FRD-09/capability wording without changing ADR-0004 or allocating an ADR number.
+2. Add Core status, generate/reset/revoke/pause/resume commands, Administrator authorization, expected-version/reason/operation-key rules, and a verification result that separates authenticated identity from permission to submit.
+3. Add one EF row per Principal in existing Azure SQL with immutable client ID, password-hasher output only, lifecycle/version timestamps, atomic permanent history, replay/conflict behavior, and migration.
+4. Return clear text only from generate/reset command results; prevent storage in entities, history, logs, telemetry, URLs, TempData, or configuration.
+5. Leave Web authentication composition to TICK-058, where the handler and first endpoint ship together; expose only the Core verification port here.
+6. Add Core/persistence/migration/architecture tests for one-time issue, immediate reset invalidation, revoke/reissue, pause/read distinction, authorization, concurrency/replay, history, hash-only storage, and cross-Principal isolation.
+7. Run the simplification lenses, locked restore, Release build, focused/full tests, and record the post-implementation report.
+
+## Azure decision
+
+Reuse Azure SQL and the Web managed identity. Do not put provider clear secrets in Key Vault: Pegasus never needs to recover them, and Key Vault would create a second lifecycle owner. Add no Azure resource or cloud write in this ticket.
 
 ## Verification
 
-Core tests prove lifecycle and authorization. SQL integration tests inspect that clear secrets never persist and history is atomic. Web tests authenticate valid/invalid/revoked credentials and prove pause is an authorization capability rather than authentication failure. Architecture tests prove Web/Infrastructure dependency direction and no provider endpoint is activated prematurely. Proof records the locked build/test output after merge.
+Tests inspect persisted state and history to prove no clear secret survives, and prove the verification port returns Principal/client identity only for valid non-revoked credentials while pause remains a submission authorization result. Architecture tests prove no provider endpoint or authentication scheme is activated by this ticket.
 
-## Risks / open questions
+## Risks / deferred
 
-- Secret exposure through logs, URLs, TempData, or entities is prevented by returning clear text only from the generate/reset command result and by explicit negative tests.
-- API-01 and PLAT-028 remain blocked until this merges.
-- Multiple concurrent credentials and live issuance remain deferred to named tickets/approval.
+Multiple simultaneous credentials and live issuance remain deferred. TICK-058 and PLAT-028 remain blocked until this backend contract merges.

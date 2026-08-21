@@ -4,27 +4,16 @@
 
 | Path | Why |
 |---|---|
-| `src/Pegasus.Core/Intake/` | Add only the provider-facing request translation contract if the existing grouped submission request cannot be used directly; preserve ReceiveIntake as the sole intake owner. |
-| `src/Pegasus.Web/` | Add principal-client authentication, the provider submission endpoint, request limits, multipart translation, response mapping, and composition. |
-| `src/Pegasus.Infrastructure/Persistence/` | Read the API-04 credential/principal binding and support any provider-source query needed by authentication; add no second intake store. |
-| `tests/Pegasus.Core.Tests/`, `tests/Pegasus.IntegrationTests/`, `tests/Pegasus.ArchitectureTests/` | Prove translation, replay/conflict, principal actor attribution, request limits, authentication, composition, and dependency direction. |
-| `docs/frd/frd-09-provider-and-intermediary-routes.md`, `docs/adr/0004-provider-api-and-staff-mcp-authentication.md`, `docs/capabilities.md`, `docs/open-decisions.md`, `docs/current-architecture.md` | Record the operator-authorized simplified receipt/result contract and as-built caller; supersede rather than rewrite ADR-0004. |
+| `src/Pegasus.Web/` | Add the first provider authentication handler and the real submission endpoint together in the existing Azure Container App. |
+| `src/Pegasus.Core/Intake/` | Reuse `IGroupedIntakeSubmission`/`ReceiveIntake`; add no second intake policy owner. |
+| `src/Pegasus.Infrastructure/Persistence/` | Consume TICK-061's credential verification port and existing SQL/outbox; add no intake store. |
+| `tests/Pegasus.Core.Tests/`, `tests/Pegasus.IntegrationTests/`, `tests/Pegasus.ArchitectureTests/` | Prove transport mapping, authentication, replay/conflict, isolation, durability, composition, and dependency direction. |
+| `docs/frd/frd-09-provider-and-intermediary-routes.md`, `docs/capabilities.md`, `docs/current-architecture.md` | Settle the exact public contract before code and record the eventual caller. |
 
-## Context files
+## Existing code/resources reused
 
-| Path | What it tells the implementer |
-|---|---|
-| `src/Pegasus.Core/Intake/DurableIntake.cs` | The durable receipt, source identity, operation-key, replay, and work-state owner already exists. |
-| `src/Pegasus.Core/Intake/GroupedIntake.cs` | Existing bounded multi-file ordering and child-token semantics must be reused. |
-| `src/Pegasus.Web/Pages/Upload.cshtml.cs` | Existing Web translation and upload limits are precedent, not a business-policy owner to copy. |
-| `src/Pegasus.Worker/IntakeFunctions.cs` | Submission completion is deliberately separate from background processing. |
-| `docs/boundaries.md` | Provider endpoints and credentials remain absent until exact activation evidence exists. |
-| `docs/design/README.md` | Provider clients receive no staff shell or Administration access. |
-
-## Ripple effects
-
-API-04 must provide an enabled credential before API-01 can authenticate. API-03 consumes the returned receipt. Migration, Web route authorization, OpenAPI/contract tests, telemetry, current-state docs, and deployment configuration follow when implemented.
+`GroupedIntake.cs`, `DurableIntake.cs`, existing upload envelope limits, Azure SQL outbox, transport Storage Queue, Function Worker, custody Storage, Web managed identity, Container App HTTPS ingress, and Application Insights.
 
 ## Out of scope
 
-Transient processing status, general Case search/read, Case workflow mutation, email-domain tenancy, live provider activation, cloud writes, report delivery, and performance optimization.
+API-02/status vocabulary, synchronous processing, general Case lookup, files/reports returned to providers, outbound delivery, APIM/Front Door/Service Bus/new Function/new store, live activation, and latency optimization.
