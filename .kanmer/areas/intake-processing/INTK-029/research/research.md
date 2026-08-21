@@ -1,89 +1,94 @@
 # Why unlink did very little
 
-The operator unlinked QDOS26008's spawning email, confirmed the dialog, and nothing
-happened. Two separate defects sit behind that, not one.
+## Correction
 
-## Defect 1 — a reversed association kept reporting its case (fixed)
+An earlier version of this document claimed a second defect: that the spawning
+email could not be unlinked at all, because it reaches its case through an accepted
+`CaseIntakeLink` and `AutoLinkAsync` refuses to give an accepted receipt a manual
+association, so `ReverseLinkAsync` would find nothing to reverse and throw.
 
-`EfRetainedMailboxMessageStore` projected the mail list's case as
-`linkedCase?.CaseId ?? allocationState?.CaseId`. The automatic allocation attempt still
-names the case it created, so once the manual association was reversed the fallback put
-the very link the operator had just removed straight back on the screen.
+**That was wrong, and it was checked rather than argued.** A pre-existing integration
+test, `AcceptedOriginCanBeUnlinkedAndRelinkedWithoutDeletingLineage`, asserted the
+opposite. Running it showed why: `EfCaseAcceptanceStore.cs:332` writes an **active
+manual association alongside** the `CaseIntakeLink` when a case is accepted. The
+spawning receipt therefore has both rows, and the existing manual-association branch
+already handles its unlink.
+
+The reasoning that produced the wrong conclusion was sound about `AutoLinkAsync` and
+about `CurrentCaseId`; it simply never checked what acceptance itself writes. The test
+was the check that caught it, before the dead branch it had motivated could ship.
+
+## The one real defect
+
+The mail projection resolved the case as `linkedCase?.CaseId ?? allocationState?.CaseId`.
+The automatic allocation attempt still names the case it created, so once the
+association was reversed the fallback put the very link the operator had just removed
+straight back on the screen. Unlink worked; it just never looked like it had.
 
 Fixed in `1a86f5db`: `IntakeAssociations.AllocationMayStandIn(receiptId)` refuses the
 allocation fallback for a receipt whose association has been reversed
 (`CurrentIntakeAssociations.cs`).
 
-## Defect 2 — the spawning email cannot be unlinked at all
+## What the operator asked for on top
 
-This is the one the operator actually hit, and it was not in the original diagnosis.
+Unlinking the email that created a case should cancel that case, with a warning first.
+That is new behaviour, not a defect fix, and it is where the terminal outcome goes.
 
-A receipt reaches a case by one of two routes, and they are not the same row:
+The rule is decided once, on the receipt:
+`UnlinkCancelsCase => AcceptedCaseId is not null && AcceptedCaseId == CurrentCaseId`.
+It is true only while the receipt's current link is the case its own acceptance
+created. A receipt since relinked elsewhere is not that case's source, so unlinking it
+leaves that case alone.
 
-| Route | Row written | Written by |
-| --- | --- | --- |
-| Its allocation created/accepted the case — the **spawning** email | `CaseIntakeLinks` (the accepted origin) | `EfCaseAcceptanceStore.cs:316` |
-| A later related email matched to an existing case (MAIL-09) | `IntakeManualAssociations` | `EfIntakeMutationStore.AutoLinkAsync` |
+**The accepted origin row is never deleted.** Release validation requires intake to
+preserve "reversible source associations and both origins"; what clears the link is
+the reversed manual association, through the precedence rule that already exists in
+`IntakeReceipt.CurrentCaseId`.
 
-`AutoLinkAsync` explicitly **refuses** a receipt that already has an accepted case link
-("An accepted intake receipt cannot be associated automatically"), so the spawning
-receipt has an accepted origin link and **no manual association**.
+### A capability this removes, stated plainly
 
-`IntakeReceipt.CurrentCaseId` (`IntakeContracts.cs:406`) resolves
-`ManualAssociationVersion is null ? AcceptedCaseId : ManualLinkedCaseId`. For the
-spawning receipt that yields the case — so:
+`AcceptedOriginCanBeUnlinkedAndRelinkedWithoutDeletingLineage` proved you could unlink
+the origin and relink it freely. Once unlinking cancels the case, that is no longer
+possible: the case is terminal and the relink is refused. Recovery is a deliberate
+reopen with a reason, then a relink.
 
-1. `Mail/Message.cshtml:430` renders the **Unlink** button;
-2. `OnPostPrepareUnlinkCaseAsync` passes its `binding.CurrentCaseId == caseId` guard,
-   takes a case edit lease and shows the confirm dialog;
-3. `ReverseLinkAsync` (`EfIntakeMutationStore.cs:364-371`) reads
-   `receipt.ManualAssociation`, finds `null`, and throws
-   `IntakeAssociationConflictException("The requested active intake-to-case association
-   does not exist.")`.
-
-The UI offers an action the store refuses. That is "unlink did very little": a lease
-taken, a dialog confirmed, an error, and no change.
-
-## What the fix must therefore do
-
-Make the accepted origin reversible, and make reversing it cancel the case — which is
-what the operator asked for and what the evidence says the route was missing.
-
-**The origin link is not deleted.** Release validation requires that intake "preserves
-reversible source associations and both origins". Writing an *inactive*
-`IntakeManualAssociation` row for the spawning receipt makes `CurrentCaseId` resolve to
-`null` through the precedence rule that already exists — `manualIsActive is null ?
-accepted : (active ? manual : none)` — while `CaseIntakeLinks` survives untouched as
-history. The Defect-1 projection fix then reports it as reversed with no further change.
+That is the unavoidable consequence of the operator's decision — an unlink cannot both
+cancel the case and leave it available for relinking — and the stronger guard is
+arguably the point: an accidental unlink now costs a reopen instead of passing
+unnoticed. `SourceEmailUnlinked` is deliberately **not** added to the reopen bar, so
+that recovery path exists. The approved dialog sentence says the case is cancelled and
+does not claim it cannot be reopened, which is consistent.
 
 ## The dead end resolves itself
 
 `Mail/Message.cshtml:444-459` already renders a case search-and-link form whenever no
-case is associated. The operator saw a dead end only because the link never actually
+case is associated. The operator saw a dead end only because the link never visibly
 cleared. No new "next action" UI is needed.
 
-## Terminal states are written in three places
+## Terminal states were written in three places
 
-Adding a terminal state is only safe once this is fixed, because missing one copy makes
-the new state silently non-terminal:
+Adding a terminal state was only safe once this was fixed, because a state missing
+from one copy is silently non-terminal for whatever that copy guards:
 
-- `CaseLifecycleRules.IsTerminal` — `Lifecycle/CaseLifecycle.cs:393` (the owner)
-- `EvaHandoffStore.IsTerminalWorkflow` — `:1018`
-- `EfVehicleWorkflowStore.EnqueueDueAsync` — `:795` (a `string[]` for a LINQ query)
+- `CaseLifecycleRules.IsTerminal` — `Lifecycle/CaseLifecycle.cs` (the owner)
+- `EvaHandoffStore.IsTerminalWorkflow`
+- `EfVehicleWorkflowStore.EnqueueDueAsync` (a `string[]` for a LINQ query)
+
+Both copies now read Core, and `TerminalStateNames()` is *derived from* `IsTerminal`
+rather than restating it, so drift is impossible by construction.
 
 ## Checked, not assumed
 
 - `State` and `ClosureOutcome` are `string?` columns, `HasMaxLength(40)`
-  (`CaseWorkflowModelConfiguration.cs:25,27`) — **no EF migration is needed** for a new
-  enum value. The earlier plan's "lifecycle state plus a migration" was wrong.
+  (`CaseWorkflowModelConfiguration.cs:25,27`) — **no EF migration is needed**. The
+  earlier plan's "lifecycle state plus a migration" was wrong on this too.
 - QDOS26008 itself could not be re-queried: the Azure test data was cleared earlier in
-  this session. The diagnosis above is from the code path, and every citation is a read
-  of the current source rather than a recollection.
+  this session, so the diagnosis is from the code path and from running the tests.
 
 ## Operator decisions taken
 
-- New terminal outcome, not `CreatedInError` (which requires the atomic corrected-
-  principal replacement and refuses the generic close).
+- New terminal outcome, not `CreatedInError` (which requires the atomic
+  corrected-principal replacement and is refused by the generic close).
 - State label `Cancelled — email unlinked`; dialog sentence
-  `Unlinking this email cancels case QDOS26008.` This is a fourth entry on the closed
-  necessary-copy list, so `docs/design/README.md` is amended in the same change.
+  `Unlinking this email cancels case <reference>.` — a fourth entry on the closed
+  necessary-copy list, recorded in `docs/design/README.md` in both places it appears.

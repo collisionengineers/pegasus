@@ -1,55 +1,69 @@
 # Plan
 
-Two defects, one branch (`task/qdos26008-regressions`, shared with the other seven
-QDOS26008 fixes). The projection half is already committed; this is the cancel half.
+Two commits on `task/qdos26008-regressions`, shared with the other seven QDOS26008
+fixes. `1a86f5db` fixed the projection; `db1055a3` adds cancel-on-unlink.
 
-## Order matters
+## Order mattered
 
-1. **Consolidate the terminal taxonomy before adding to it.** Give
-   `CaseLifecycleRules` a `TerminalStateNames` list beside `IsTerminal`, and have
-   `EvaHandoffStore.IsTerminalWorkflow` and `EfVehicleWorkflowStore.EnqueueDueAsync`
-   read it instead of keeping their own copies. Behaviour-preserving on its own, and it
-   is what makes step 2 safe rather than a silent three-way divergence.
-2. **Add `SourceEmailUnlinked`** to `CaseLifecycleState` and `CaseClosureOutcome` — both,
-   because every other terminal outcome appears in both.
-3. **Refuse it from the generic close.** `CaseLifecycleRules.ValidateClose` rejects it in
-   the same shape it already rejects `CreatedInError`: this outcome is reached by the
-   unlink action, never chosen from a Close dialog.
-4. **Make the accepted origin reversible.** In `ReverseLinkAsync`, when the receipt has
-   no manual association but an accepted `CaseIntakeLink` names `request.CaseId`, write
-   an **inactive** `IntakeManualAssociation` row for it and close the case in the same
-   transaction — `State`/`ClosureOutcome` = `SourceEmailUnlinked`, stop due work, bump
-   version, clear the lease, add the workflow event. This mirrors
-   `EfLinkedCaseReplacementStore.cs:220-221`, which is the codebase's existing pattern
-   for a terminal outcome reached by a specific business action. The origin link itself
-   is never deleted. Guard: refuse if the case is already terminal.
-5. **Warn before the mutation.** `_ReasonDialog` gains an optional `DialogConsequence`
-   slot rendered only when supplied — the partial's own header already claims it carries
-   "a named requirement and consequence" and does not. One shared slot serves every
-   destructive dialog instead of a bespoke warning on one page.
-   `OnPostPrepareUnlinkCaseAsync` decides whether this unlink cancels and supplies
-   `Unlinking this email cancels case <reference>.`
-6. **Label and copy.** `OperatorLabels.CaseStage` gains `Cancelled — email unlinked`;
-   `docs/design/README.md` gains the sentence as a fourth approved entry, in both places
-   the closed list appears.
+1. **Consolidate the terminal taxonomy before adding to it.** `EvaHandoffStore` and
+   `EfVehicleWorkflowStore` each kept their own copy of the terminal-state list, so a
+   new state added only to `CaseLifecycleRules.IsTerminal` would have been silently
+   non-terminal for EVA hand-off and for the vehicle-work sweep. Both now read Core, and
+   `TerminalStateNames()` is derived from `IsTerminal` rather than restating it, so the
+   two cannot drift by construction.
+2. **Add `SourceEmailUnlinked`** to `CaseLifecycleState` and `CaseClosureOutcome` —
+   both, because every other terminal outcome appears in both.
+3. **Refuse it from the generic close**, in Core and in the store, exactly as
+   `CreatedInError` is refused: the outcome belongs to the unlink action.
+4. **Cancel inside the unlink's own transaction.** `ReverseLinkAsync`'s existing
+   envelope already holds the case version, the edit lease, the terminal guard, replay
+   protection and history writing, so the change is one conditional plus
+   `CancelOnSourceUnlinkAsync`. Mirrors `EfLinkedCaseReplacementStore`, the codebase's
+   pattern for a terminal outcome reached by a specific business action.
+5. **Decide the rule once.** `IntakeReceipt.UnlinkCancelsCase` sits beside the other
+   association derivations, so the warning the UI shows and the cancellation the store
+   performs read the same rule.
+6. **Warn through the shared dialog.** `_ReasonDialog` gains an optional
+   `DialogConsequence` slot — the partial's own header always claimed it carried "a
+   named requirement and consequence" and it did not. One slot serves every destructive
+   dialog. It reuses the existing `.notice` class, so no new CSS.
+7. **Label and copy.** `OperatorLabels.CaseStage`, and the sentence added to the closed
+   necessary-copy list in `docs/design/README.md` in both places it appears.
+
+## What research changed
+
+A second defect was diagnosed — that the spawning email could not be unlinked at all —
+and then **disproved** by a pre-existing test before the dead code path it motivated
+could ship. `EfCaseAcceptanceStore.cs:332` writes an active manual association alongside
+the accepted link. The helper written for that phantom defect was deleted, and the
+cancel moved into the branch that actually runs.
 
 ## Deliberately not done
 
-- **No new "next action" UI.** `Mail/Message.cshtml:444-459` already renders the case
-  search-and-link form when no case is associated; the dead end was the link never
-  clearing. Confirmed by reading the view, not assumed.
-- **No EF migration.** `State`/`ClosureOutcome` are `string?`/`HasMaxLength(40)`.
-- **No second close path.** Nothing new is added to `CloseCase`.
+- **No new "next action" UI** — `Mail/Message.cshtml:444-459` already renders the case
+  search-and-link form when no case is associated. Confirmed by reading the view.
+- **No EF migration** — string columns.
+- **No second close path** — nothing added to `CloseCase`.
+- **`SourceEmailUnlinked` is not on the reopen bar**, so an accidental unlink is
+  recoverable by a deliberate reopen with a reason.
 
 ## Acceptance
 
-- Unlinking the spawning email closes the case as `Cancelled — email unlinked`, the
-  accepted origin link survives, and the mail list stops naming the case.
-- Unlinking a non-spawning email behaves exactly as today and leaves the case open.
-- The generic close refuses the outcome; the case cannot be reopened.
-- `IsTerminal` agrees at all three former call sites.
-- The dialog sentence appears only when the unlink cancels.
+- Unlinking the accepted origin closes the case as `Cancelled — email unlinked`, the
+  `CaseIntakeLinks` row survives, and the mail list stops naming the case. ✅
+- A receipt relinked elsewhere does not cancel that other case. ✅
+- The generic close refuses the outcome. ✅
+- `TerminalStateNames()` and `IsTerminal` agree exactly. ✅
+- The dialog sentence appears only when the unlink cancels. ✅ (view-level; live-checked
+  in Phase 6)
+
+## Evidence
+
+- `dotnet build Pegasus.slnx --configuration Release` — 0 warnings, 0 errors.
+- `Pegasus.Core.Tests` — 908 passed, 0 failed.
+- `UnlinkingTheAcceptedOriginCancelsTheCaseAndKeepsItsLineage` — passed (38 s).
+- Full integration suite: Phase 4, before the PR.
 
 ## Simplification pass
 
-Recorded here after the branch diff is complete, before the PR.
+Recorded here once the whole branch diff is complete, before the PR.
