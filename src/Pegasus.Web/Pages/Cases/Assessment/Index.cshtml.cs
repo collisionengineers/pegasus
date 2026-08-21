@@ -38,7 +38,6 @@ public sealed class IndexModel(
     IEstimateDocumentParser estimateParser,
     IAddCaseDocument addCaseDocument,
     IAcquireCaseEditLease acquireLease,
-    IVehicleEvidenceQueries vehicleEvidence,
     ISaveAssessment saveAssessment,
     TimeProvider timeProvider) : StaffPageModel
 {
@@ -91,9 +90,6 @@ public sealed class IndexModel(
 
     public string AcceptOperationKey { get; private set; } = NewOperationKey();
 
-    /// <summary>The case's vehicle-lookup evidence, for prefilling the vehicle section.</summary>
-    public CaseVehicleEvidence? VehicleEvidence { get; private set; }
-
     /// <summary>A saved assessment value for one vocabulary path, or null.</summary>
     public string? SavedValue(string path) => Assessment?.Field(path)?.Value;
 
@@ -109,12 +105,17 @@ public sealed class IndexModel(
             {
                 return saved;
             }
-            if (VehicleEvidence?.Confirmed?.Mileage is { } confirmed
-                && VehicleEvidence.Confirmed.MileageUnit?.Value is null or VehicleMileageUnit.Miles)
+            if (Case?.Data?.Vehicle.Mileage.Confirmed is { Value: var confirmed }
+                && IsMiles(Case.Data.Vehicle.MileageUnit.Confirmed?.Value))
             {
-                return confirmed.Value.ToString(CultureInfo.InvariantCulture);
+                return confirmed.ToString(CultureInfo.InvariantCulture);
             }
-            return VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles } estimate
+            if (Case?.Data?.Vehicle.Mileage.Fact is { Value: var fact }
+                && IsMiles(Case.Data.Vehicle.MileageUnit.Fact?.Value))
+            {
+                return fact.ToString(CultureInfo.InvariantCulture);
+            }
+            return Case?.VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles } estimate
                 ? estimate.Value.ToString(CultureInfo.InvariantCulture)
                 : null;
         }
@@ -122,9 +123,9 @@ public sealed class IndexModel(
 
     /// <summary>The Source prefill: saved, else online data when the mileage came from evidence.</summary>
     public string? MileageSourcePrefill =>
-        SavedValue("vehicle.mileage_source") is { Length: > 0 } saved
-            ? saved
-            : MileagePrefill is null ? null : "online_data";
+        SavedValue("vehicle.odometer_miles") is { Length: > 0 }
+            ? SavedValue("vehicle.mileage_source")
+            : CaseMileageSourcePrefill();
 
     /// <summary>A vehicle-detail prefill: the saved assessment value, else lookup evidence.</summary>
     public string? VehiclePrefill(string path)
@@ -134,17 +135,35 @@ public sealed class IndexModel(
             return saved;
         }
 
-        var details = VehicleEvidence?.LatestObservation?.Vehicle;
+        var vehicle = Case?.Data?.Vehicle;
+        var details = Case?.VehicleEvidence?.LatestObservation?.Vehicle;
         return path switch
         {
-            "vehicle.make" => VehicleEvidence?.Confirmed?.Make?.Value ?? details?.Make,
-            "vehicle.model" => VehicleEvidence?.Confirmed?.Model?.Value ?? details?.Model,
+            "vehicle.make" => vehicle?.Make.Confirmed?.Value ?? vehicle?.Make.Fact?.Value ?? details?.Make,
+            "vehicle.model" => vehicle?.Model.Confirmed?.Value ?? vehicle?.Model.Fact?.Value ?? details?.Model,
             "vehicle.year" => details?.ManufactureYear?.ToString(CultureInfo.InvariantCulture),
             "vehicle.engine_cc" => details?.EngineCapacityCc?.ToString(CultureInfo.InvariantCulture),
             "vehicle.fuel" => details?.FuelType,
             _ => null
         };
     }
+
+    private string? CaseMileageSourcePrefill()
+    {
+        var mileage = Case?.Data?.Vehicle.Mileage;
+        var selected = mileage?.Confirmed ?? mileage?.Fact;
+        if (selected is not null)
+        {
+            return selected.Source.Kind == CaseDataSourceKind.VehicleLookup ? "online_data" : null;
+        }
+
+        return Case?.VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles }
+            ? "online_data"
+            : null;
+    }
+
+    private static bool IsMiles(string? unit) =>
+        unit is null || string.Equals(unit, "miles", StringComparison.OrdinalIgnoreCase);
 
     public string DamageOperationKey { get; private set; } = NewOperationKey();
 
@@ -238,7 +257,6 @@ public sealed class IndexModel(
         }
 
         Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
-        VehicleEvidence = await vehicleEvidence.GetAsync(id, cancellationToken);
         DraftSpecification = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
         AcceptedSpecification = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
         ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
