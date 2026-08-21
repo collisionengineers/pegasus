@@ -15,7 +15,8 @@ internal static partial class InstructionFieldEngine
         string[] Labels,
         bool IsRequired = true,
         Func<string, bool>? AcceptsValue = null,
-        Func<string, bool>? IsValidTyped = null);
+        Func<string, bool>? IsValidTyped = null,
+        Func<string, string?>? CanonicalValue = null);
 
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
@@ -130,7 +131,11 @@ internal static partial class InstructionFieldEngine
         FieldDefinition definition,
         IReadOnlyList<FieldDefinition> definitions)
     {
+        // The real correspondence writes typographic apostrophes (\u2019); labels
+        // and lookaheads reason in ASCII, so the line text is normalized once here.
         var lines = fragment.Text
+            .Replace('\u2019', '\'')
+            .Replace('\u2018', '\'')
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')
             .Split('\n', StringSplitOptions.TrimEntries);
@@ -142,16 +147,18 @@ internal static partial class InstructionFieldEngine
                 // A bare label token must sit at a plausible label position (line
                 // start or after a clear separator); a label immediately followed by
                 // an explicit ':' or '-' is a label wherever it sits on the line.
+                // A "TP "-prefixed label is the third party's row, never the
+                // claimant field (letters carry "TP Vehicle:"/"TP Registration:").
                 var match = Regex.Match(
                     lines[index],
-                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){Regex.Escape(label)}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
+                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}})(?<!\bTP\s){Regex.Escape(label)}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromMilliseconds(100));
                 if (!match.Success)
                 {
                     match = Regex.Match(
                         lines[index],
-                        $@"(?i)(?:^|\s){Regex.Escape(label)}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
+                        $@"(?i)(?:^|\s)(?<!\bTP\s){Regex.Escape(label)}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
                         RegexOptions.CultureInvariant,
                         TimeSpan.FromMilliseconds(100));
                 }
@@ -224,11 +231,49 @@ internal static partial class InstructionFieldEngine
             }
         }
 
+        // Distinct spellings of one typed value ("15 August 2026" beside
+        // "15/08/2026", "V2 MTM" beside "V2MTM") are not a conflict: when every
+        // remaining candidate canonicalizes to the same value, the first in
+        // document order wins.
+        if (definition.CanonicalValue is not null)
+        {
+            var canonicals = pool
+                .Select(entry => definition.CanonicalValue(entry.Candidate.Value))
+                .ToArray();
+            if (canonicals.All(value => value is not null)
+                && canonicals.Distinct(StringComparer.Ordinal).Count() == 1)
+            {
+                return pool[0].Candidate;
+            }
+        }
+
         var earliestRank = pool.Min(entry => entry.FragmentRank);
         var earliest = pool
             .Where(entry => entry.FragmentRank == earliestRank)
             .ToArray();
-        return earliest.Length == 1 ? earliest[0].Candidate : null;
+        if (earliest.Length == 1)
+        {
+            return earliest[0].Candidate;
+        }
+
+        // The letters wrap long values across physical lines ("Client's
+        // Vehicle: MERCEDES-BENZ E 220" continued on the next line), so the
+        // repeated details block yields a truncated prefix of the full value.
+        // Within the winning fragment, when every other candidate is a
+        // word-boundary prefix of the longest one, the longest is the value,
+        // not a conflict.
+        var longest = earliest
+            .OrderByDescending(entry => entry.Candidate.Value.Length)
+            .First();
+        if (earliest.All(entry => entry.Candidate == longest.Candidate
+                || longest.Candidate.Value.StartsWith(
+                    entry.Candidate.Value + " ",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return longest.Candidate;
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -359,8 +404,18 @@ internal static partial class InstructionFieldEngine
         return normalized.Length <= 20 && RegistrationRegex().IsMatch(normalized) ? normalized : null;
     }
 
+    internal static string? CanonicalDate(string value) =>
+        ParseDate(value)?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
     internal static DateOnly? ParseDate(string? value)
     {
+        if (value is not null)
+        {
+            // "27th April 2026" — the correspondence writes ordinal day
+            // suffixes that DateOnly parsing rejects.
+            value = OrdinalDaySuffixRegex().Replace(value, string.Empty);
+        }
+
         if (DateOnly.TryParseExact(
                 value,
                 "yyyy-MM-dd",
@@ -403,6 +458,9 @@ internal static partial class InstructionFieldEngine
 
     [GeneratedRegex(@"\s+", RegexOptions.CultureInvariant)]
     private static partial Regex WhitespaceRegex();
+
+    [GeneratedRegex(@"(?<=\d)(?:st|nd|rd|th)\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex OrdinalDaySuffixRegex();
 
     [GeneratedRegex(@"^\s*(?:\d+|\d{1,3}(?:,\d{3})+)\s*(?:miles?|mi)?\s*$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex MileageRegex();
