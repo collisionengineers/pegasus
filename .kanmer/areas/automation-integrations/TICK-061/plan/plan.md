@@ -7,7 +7,7 @@ Extend the existing Principal administration Core owner and EF transaction/histo
 ## Governing docs
 
 - Modify `docs/frd/frd-09-provider-and-intermediary-routes.md` with one-time issue/reset, revocation, and submission-only pause/resume behavior.
-- ADR-0004 already owns principal-scoped opaque provider credentials and remains accepted. This behavioral refinement does not need a new ADR and must not reserve ADR-0030.
+- ADR-0004 already owns principal-scoped opaque provider credentials and remains accepted. This behavioral refinement does not need a new ADR and must not reserve a new ADR number.
 - Update capabilities/open decisions only where API-02 retirement or API-04 wording is stale.
 
 ## Steps

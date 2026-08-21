@@ -2,31 +2,33 @@
 
 ## Approach
 
-After TICK-061 provides Core credential commands, make Organizations the single Administration entry point and its detail page the consolidated Organization/Principal workspace. Preserve separate create and immutable replacement actions, remove the duplicate Principal index destination, and add thin credential controls per Principal. A one-time secret is rendered only in the immediate POST result; it is never persisted in UI state.
+After TICK-061 supplies Core commands/status, make Organizations the single Administration entry point and Organization detail the consolidated Organization/Principal workspace. Preserve separate create and immutable replacement actions. Add thin Principal credential controls and render a generated/reset secret only in the immediate response.
 
 ## Governing docs
 
-- **Modifies `docs/frd/frd-04-parties-accounts-and-access.md`**: narrow the Administrator prohibition so provider credential generation/reset/revocation/pause/resume is allowed, while cloud/release secrets and non-administrators remain excluded. Explicitly authorized by the operator on 2026-08-21.
-- **Modifies `docs/frd/frd-09-provider-and-intermediary-routes.md`**: add the accepted Principal-owned administration workflow and pause semantics.
-- Update `docs/design/README.md` to place these administrator controls on the consolidated Principal surface while provider clients continue to receive no staff shell.
+- Modify FRD-04 narrowly to allow Administrators to manage Principal provider credentials while retaining prohibitions on cloud/release secrets and non-administrator access.
+- Modify FRD-09 with Principal-owned lifecycle/pause behavior.
+- Update the design authority only if the durable layout rule is genuinely new; otherwise follow existing page-economy/no-explanatory-copy rules.
 
 ## Steps
 
-1. Integrate TICK-061 projections/commands, update FRD-04/FRD-09/design authority, and clear the ticket's governing-doc debt.
-2. Redesign the Organization list as the sole entry point using existing page-header, filter, table, status, form, and responsive primitives; remove explanatory empty-state panels.
-3. Redesign Organization detail to show roles and its Principals together, with clear create and immutable replacement actions and credential status/actions on each Principal.
-4. Retire the separate Principal index navigation and provide a safe redirect to Organizations; preserve create/replace URLs or replace them with equivalent consolidated routes without changing Core behavior.
-5. Add Administrator-only generate/reset/revoke/pause/resume handlers delegating to TICK-061 commands with expected version, reason, operation key, and concise destructive confirmation.
-6. Render generated/reset clear text exactly once in the immediate response, with no TempData/session/URL/log/database copy; refresh/back navigation shows status only.
-7. Add Razor/integration/browser tests for existing workflows, authorization, stale/replay behavior, each credential action, one-time secret non-retention, no provider/staff leakage, keyboard/focus flow, axe, constrained width/200% equivalent, and no document overflow.
-8. Refresh current architecture/design evidence, run the simplification lenses, locked restore, Release build, focused/full tests, and record visual/test evidence in the post-implementation report.
+1. Integrate TICK-061 and update/link the governing FRDs, clearing `docs_todo` when those repo changes land.
+2. Redesign the Organization list as the sole entry point using existing header/filter/table/status/form/responsive primitives.
+3. Consolidate roles, Principals, create, and immutable replacement on Organization detail; remove the duplicate Principal-index destination with a safe redirect.
+4. Add Administrator-only generate/reset/revoke/pause/resume handlers delegating to Core with expected version, reason, and operation key.
+5. Render generated/reset text once in the immediate HTTPS response; persist or emit it nowhere else. Subsequent navigation shows status only.
+6. Use labels, values, and at most one destructive consequence sentence; add no explanatory panels or provider self-service/staff-shell surface.
+7. Add Razor/integration/browser tests for authorization, legacy workflows, lifecycle controls, replay/stale state, secret non-retention, keyboard/focus, axe, constrained width, and overflow.
+8. Refresh current-state/design evidence after deployment and run simplification plus locked restore/build/focused/full tests.
+
+## Azure decision
+
+The existing Web Container App and Azure SQL carry this feature. Do not add an Azure Portal workflow, Key Vault per-Principal secrets, App Configuration, a second app, or another deployment unit. Live issuance is a separately approved external write.
 
 ## Verification
 
-Authenticated integration tests cover Administrator versus Engineer/User and exercise create/update/replace plus all credential controls. A real browser proves the consolidated information architecture, one-time secret view, confirmations, keyboard order, axe, and responsive/no-overflow behavior. Screenshots use repository fixtures only.
+Administrator and non-administrator integration tests plus a real browser prove consolidated navigation, unchanged Principal invariants, safe action confirmations, once-only secret display, and accessible responsive behavior.
 
-## Risks / open questions
+## Deferred
 
-- The clear secret must not cross a redirect or durable UI store; tests inspect response, logs where available, and subsequent reload.
-- TICK-061 blocks implementation.
-- Multiple keys, provider self-service, live issuance, and generic credential/cloud administration remain deferred.
+Multiple keys, provider self-service, live issuance, and generic credential/cloud administration remain out of scope.
