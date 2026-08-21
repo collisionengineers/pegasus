@@ -154,16 +154,10 @@
                         <div class="facts">
                             <h2>Decision</h2>
                             <dl>
-                                <div>
-                                    <dt>Classification</dt>
-                                    <dd>@(dossier is { } d ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(d.Current) : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome))</dd>
-                                </div>
+                                <div><dt>Classification</dt><dd>@(dossier is { } d ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(d.Current) : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome))</dd></div>
                                 @if (dossier is { } destinationDossier)
                                 {
-                                    <div>
-                                        <dt>Destination</dt>
-                                        <dd>@OperatorLabels.MailOperationalDestinationLabel(Pegasus.Web.Pages.Mail.MessageModel.Destination(destinationDossier.Current).Destination)</dd>
-                                    </div>
+                                    <div><dt>Destination</dt><dd>@OperatorLabels.MailOperationalDestinationLabel(Pegasus.Web.Pages.Mail.MessageModel.Destination(destinationDossier.Current).Destination)</dd></div>
                                 }
                                 <div>
                                     <dt>Filed to</dt>
@@ -190,17 +184,11 @@
                                 }
                                 else if (Model.Detail.LatestFolderMove is { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Succeeded, FolderType: { } movedFolder })
                                 {
-                                    <div>
-                                        <dt>Folder</dt>
-                                        <dd>@Pegasus.Core.Intake.MailLogicalFolders.Definition(movedFolder).Label</dd>
-                                    </div>
+                                    <div><dt>Folder</dt><dd>@Pegasus.Core.Intake.MailLogicalFolders.Definition(movedFolder).Label</dd></div>
                                 }
                                 else if (Model.Detail.FolderRecommendation is { IsAvailable: true, FolderType: { } recommendedFolder })
                                 {
-                                    <div>
-                                        <dt>Folder</dt>
-                                        <dd class="quiet">@Pegasus.Core.Intake.MailLogicalFolders.Definition(recommendedFolder).Label — not moved</dd>
-                                    </div>
+                                    <div><dt>Folder</dt><dd class="quiet">@Pegasus.Core.Intake.MailLogicalFolders.Definition(recommendedFolder).Label — not moved</dd></div>
                                 }
                                 @if (dossier is { } decidedDossier)
                                 {
@@ -249,9 +237,7 @@
                                 else if (Model.Detail.SuggestedMove is { } suggestedMove
                                     && Model.Detail.FolderRecommendation is { MailboxVersion: not null })
                                 {
-                                    <button class="btn" type="button" data-dialog-open="moveFolderDialog">
-                                        Move to @Pegasus.Core.Intake.MailLogicalFolders.Definition(suggestedMove.FolderType).Label
-                                    </button>
+                                    <button class="btn" type="button" data-dialog-open="moveFolderDialog">Move to @Pegasus.Core.Intake.MailLogicalFolders.Definition(suggestedMove.FolderType).Label</button>
                                 }
                             </div>
                         }
@@ -611,13 +597,14 @@
             <h2 id="correctClassificationDialog_title" class="reason-dialog__title">
                 <span>Correct classification</span>
             </h2>
-            <form method="post" class="form-grid"
+            <form method="post"
                   asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
                   asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
                   asp-route-search="@Model.SearchTerm"
                   asp-route-queue="@Model.QueueFilter"
                   asp-route-pageNumber="@Model.PageNumber">
                 <input type="hidden" asp-for="ExpectedClassificationVersion" value="@correctionDossier.Version" />
+                <div class="form-grid">
                 <div class="field-wide">
                     <label asp-for="ClassificationKey">Classification</label>
                     <select asp-for="ClassificationKey" data-other-toggle>
@@ -645,6 +632,7 @@
                 <div class="field-wide button-row button-row--end">
                     <button type="button" class="btn" data-dialog-dismiss>Cancel</button>
                     <button type="submit" class="btn btn--dark">Save correction</button>
+                </div>
                 </div>
             </form>
         </div>

@@ -74,13 +74,15 @@ public sealed class StaffForwardBodyCleanerTests
     [Fact]
     public void SplitForwardedHeaderSeparatesTheLeadingBlock()
     {
-        const string body = "From: Neil Duncombe <n@qdosassist.co.uk>
-Sent: 12 August 2026
-To: Desk <desk@ce.co.uk>
-Subject: (EREF9) RTA
+        const string body = """
+            From: Neil Duncombe <n@qdosassist.co.uk>
+            Sent: 12 August 2026
+            To: Desk <desk@ce.co.uk>
+            Subject: (EREF9) RTA
 
-Neil Duncombe
-Senior Claims Handler";
+            Neil Duncombe
+            Senior Claims Handler
+            """;
 
         var (header, rest) = StaffForwardBodyCleaner.SplitForwardedHeader(body);
 
@@ -93,12 +95,14 @@ Senior Claims Handler";
     [Fact]
     public void SplitForwardedHeaderLeavesABodyWithoutTheLeadingBlockIntact()
     {
-        const string body = "Good morning
+        const string body = """
+            Good morning
 
-From: someone quoted later
-Sent: x
-To: y
-Subject: z";
+            From: someone quoted later
+            Sent: x
+            To: y
+            Subject: z
+            """;
 
         var (header, rest) = StaffForwardBodyCleaner.SplitForwardedHeader(body);
 
