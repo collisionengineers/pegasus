@@ -2,12 +2,13 @@
 id: PLAT-018
 type: ticket
 title: Correct two self-contradictory rules in the design authority
-status: implementing
+status: review
 area: platform-operations
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-21T13:57:30.823Z'
+  review: '2026-08-21T14:02:38.758Z'
 taken_at: '2026-08-21T14:01:07.563Z'
 branch: task/plat-018
 worktree: ../pegasus-worktrees/plat-018
@@ -20,9 +21,11 @@ links:
 docs_todo: true
 commits:
   - 892fe6a798c808dc110fdf91fbaeeb3140f577aa
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/502'
 archived: false
 created: '2026-08-21T08:25:11.433Z'
-updated: '2026-08-21T14:02:03.161Z'
+updated: '2026-08-21T14:02:38.758Z'
 ---
 
 ## What
