@@ -324,7 +324,7 @@ internal static partial class IntakeWebDriver
     }
 
     public static async Task<UploadResult> UploadAndProcessAsync(
-        IntakeWebApplicationFactory factory,
+        WebApplicationFactory<Program> factory,
         HttpClient client,
         GenuineCorpusSample sample,
         string? externalReceiptToken = null,
@@ -339,7 +339,7 @@ internal static partial class IntakeWebDriver
     }
 
     public static async Task<UploadResult> UploadAndProcessAsync(
-        IntakeWebApplicationFactory factory,
+        WebApplicationFactory<Program> factory,
         HttpClient client,
         string uploadName,
         string mediaType,
@@ -369,7 +369,7 @@ internal static partial class IntakeWebDriver
     /// upload itself landed is asked with <see cref="Landing"/>.
     /// </remarks>
     public static async Task<UploadResult> ProcessQueuedAsync(
-        IntakeWebApplicationFactory factory,
+        WebApplicationFactory<Program> factory,
         UploadResult upload,
         CancellationToken cancellationToken = default)
     {

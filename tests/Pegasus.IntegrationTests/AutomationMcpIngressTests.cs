@@ -34,7 +34,24 @@ public sealed class AutomationMcpIngressTests
         "pegasus_eva_handoff_status",
         "pegasus_mail_list",
         "pegasus_mail_get",
-        "pegasus_mail_correct_classification"
+        "pegasus_mail_correct_classification",
+        "pegasus_unidentified_list",
+        "pegasus_unidentified_get",
+        "pegasus_unidentified_resolve",
+        "pegasus_unidentified_source_download",
+        "pegasus_triage_list",
+        "pegasus_triage_get",
+        "pegasus_triage_source_download",
+        "pegasus_triage_await_information",
+        "pegasus_triage_record_finding",
+        "pegasus_triage_supersede_finding",
+        "pegasus_triage_response_link",
+        "pegasus_triage_response_unlink",
+        "pegasus_triage_complete",
+        "pegasus_triage_cancel",
+        "pegasus_triage_reopen",
+        "pegasus_triage_case_link",
+        "pegasus_triage_case_unlink"
     ];
 
     [Fact]

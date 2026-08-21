@@ -3,10 +3,28 @@
 ## Unidentified automation contract
 
 Automation may list and look up Unidentified items by exact U reference, including
-canonical reason, origin, state, and history. Any resolution mutation uses the same
+canonical reason, origin, state, history, and retained source metadata. Receipt
+origins expose their exact receipt; submission-group origins enumerate every member
+and require an exact member receipt for download. Source bytes use the same
+integrity-checked, bounded download owner as the staff application. Any resolution mutation uses the same
 Core command as Web and requires an authorised actor, expected version, bounded
 reason, and operation key. U references are never accepted where a Case/PO, Audit,
 Image Intake, or Principal identifier is required.
+
+## Triage automation contract
+
+Triage is ordinary `PerformCasework`. Automation may list and inspect Triage,
+retrieve its retained origin source, mark it Awaiting information, record or
+supersede a finding, link or unlink exact response evidence, complete, cancel or
+reopen it, and link or unlink a Case through the normal Case edit-lease and version
+guards. Each action invokes the same Core query or command used by staff, supplies
+the resolved Automation identity rather than caller-provided actor data, and keeps
+Triage distinct from Unidentified.
+
+Assignment is an explicit selected-Engineer relationship, separate from the acting
+principal. Actor-relative `Assign to me` is not an Automation contract and is being
+retired under INTK-019; this tool tranche does not preserve that shortcut or create
+an alternative assignment policy.
 > Owner capabilities: MCP · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
 
 ## MCP automation and actor boundary
@@ -27,7 +45,7 @@ with an authenticated accepted MCP submission. Each occurrence follows ordinary
 source-occurrence, idempotency, matching, classification, and action-history
 policy. Scanning neither associates material nor allocates a Case or reference.
 
-MCP registration, a tool schema, or an endpoint file is not proof. Each tool
+MCP registration, a tool schema, or an endpoint file is not proof. Each tool tranche
 requires an exercised real caller, expected success result, authorization
 failure, validation failure, and action-history proof.
 
