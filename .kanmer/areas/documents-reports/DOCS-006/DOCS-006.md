@@ -2,16 +2,14 @@
 id: DOCS-006
 type: ticket
 title: Retain extracted instruction images as case evidence and Box files
-status: review
+status: verifying
 area: documents-reports
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-21T11:45:42.776Z'
   review: '2026-08-21T12:12:54.749Z'
-taken_at: '2026-08-21T11:43:34.046Z'
-branch: task/docs-006-instruction-images-evidence
-worktree: ../pegasus-worktrees/docs-006
+  verifying: '2026-08-21T13:22:57.885Z'
 labels:
   - custody
   - evidence
@@ -21,7 +19,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-21T11:43:29.114Z'
-updated: '2026-08-21T12:12:54.749Z'
+updated: '2026-08-21T13:23:02.641Z'
 ---
 
 ## What
