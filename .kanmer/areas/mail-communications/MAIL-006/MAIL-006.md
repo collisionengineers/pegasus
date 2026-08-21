@@ -2,10 +2,12 @@
 id: MAIL-006
 type: ticket
 title: Rebuild the Inbox message page on the record container
-status: preparing
+status: implementing
 area: mail-communications
 assignee: claude-code
 profile: feature
+stageEntered:
+  implementing: '2026-08-21T10:41:40.061Z'
 taken_at: '2026-08-21T10:40:37.152Z'
 branch: task/mail-006-inbox-message-page
 worktree: ../pegasus-worktrees/mail-006
@@ -26,7 +28,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-21T08:24:32.333Z'
-updated: '2026-08-21T10:40:37.152Z'
+updated: '2026-08-21T10:41:40.061Z'
 ---
 
 ## What
