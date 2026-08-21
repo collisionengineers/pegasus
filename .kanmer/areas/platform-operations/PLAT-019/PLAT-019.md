@@ -18,9 +18,10 @@ links: []
 blocks:
   - MAIL-006
 docs_todo: true
+deployment: production
 archived: false
 created: '2026-08-21T09:37:37.987Z'
-updated: '2026-08-21T12:15:27.564Z'
+updated: '2026-08-21T15:06:25.396Z'
 ---
 
 ## What

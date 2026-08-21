@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Grant the Worker INSERT on VehicleLookupRequests so the automatic lookup sweep
   enqueues
-status: verifying
+status: done
 area: case-reference-workflow
 assignee: ''
 profile: fix
+stageEntered:
+  done: '2026-08-21T15:05:31.862Z'
 labels:
   - regression
   - least-privilege
@@ -20,7 +22,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T10:45:00.010Z'
-updated: '2026-08-21T15:05:26.871Z'
+updated: '2026-08-21T15:05:31.862Z'
 ---
 
 ## What

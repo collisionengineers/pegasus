@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Suppress signature, disclaimer and wrapper content in the displayed message
   body
-status: verifying
+status: done
 area: mail-communications
 assignee: claude-code
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-21T12:16:45.658Z'
   review: '2026-08-21T12:49:27.096Z'
   verifying: '2026-08-21T13:03:18.920Z'
+  done: '2026-08-21T15:06:13.955Z'
 labels:
   - ui
   - web
@@ -21,9 +22,10 @@ links:
   - MAIL-006
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+deployment: production
 archived: false
 created: '2026-08-21T08:24:54.993Z'
-updated: '2026-08-21T13:03:23.204Z'
+updated: '2026-08-21T15:06:13.955Z'
 ---
 
 ## What

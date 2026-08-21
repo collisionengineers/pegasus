@@ -2,7 +2,7 @@
 id: MAIL-006
 type: ticket
 title: Rebuild the Inbox message page on the record container
-status: verifying
+status: done
 area: mail-communications
 assignee: claude-code
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   implementing: '2026-08-21T10:41:40.061Z'
   review: '2026-08-21T11:42:21.833Z'
   verifying: '2026-08-21T12:14:58.007Z'
+  done: '2026-08-21T15:05:56.866Z'
 labels:
   - ui
   - web
@@ -25,9 +26,10 @@ links:
   - PLAT-019
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+deployment: production
 archived: false
 created: '2026-08-21T08:24:32.333Z'
-updated: '2026-08-21T12:15:16.637Z'
+updated: '2026-08-21T15:05:56.866Z'
 ---
 
 ## What
