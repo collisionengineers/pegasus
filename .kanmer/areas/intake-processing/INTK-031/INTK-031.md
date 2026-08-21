@@ -12,10 +12,12 @@ labels:
   - corpus
 links:
   - INTK-028
+  - INTK-032
+  - CASE-014
 docs_todo: true
 archived: false
 created: '2026-08-21T20:10:24.265Z'
-updated: '2026-08-21T20:15:08.871Z'
+updated: '2026-08-21T23:30:55.367Z'
 ---
 
 ## What
@@ -32,6 +34,27 @@ QDOS is the principal we have seen audits from first, but another principal may
 send an audit carrying a report from the same firm, and the same firm's layout
 must be recognised either way. Nothing here belongs under a principal's
 direct-provider namespace.
+
+## The report's outcome is a required fact, not an optional one
+
+Operator direction, 2026-08-22:
+
+> "Audits are either a. or ap. depending on whether the original report said it
+> was Repairable or Total Loss."
+
+So the extractor must read, per issuer, **whether the report declares the vehicle
+Repairable or a Total Loss** — and confirm it, not infer it. That fact decides the
+case's own reference prefix ([[CASE-014]]), and a reference is immutable once
+allocated, so a wrong or guessed reading cannot be corrected afterwards.
+
+This raises the bar for this ticket in two ways:
+
+- the per-issuer record must include **where and how each firm states the
+  outcome**, and the vocabulary each uses for it — firms will not all write
+  "Total Loss";
+- abstention matters more than coverage. A report whose outcome cannot be read
+  must say so rather than defaulting to either prefix. What happens then is
+  [[INTK-032]]'s subject.
 
 ## Why
 
@@ -58,7 +81,8 @@ whatever firms are already recognised, instead of restarting the survey.
   (letterhead, footer, issuer block), never from the file name and never from
   which principal forwarded it.
 - Record, per issuer: the layout tells that identify it, which facts its reports
-  carry (vehicle, registration, speedo, make/model, colour, VIN), and where.
+  carry (vehicle, registration, speedo, make/model, colour, VIN), where they sit,
+  **and how that issuer states Repairable versus Total Loss**.
 - Turn that into an issuer identification step in the intake extraction route
   that names the issuer on the extracted facts' provenance, and abstains rather
   than guessing when no issuer matches.
@@ -78,11 +102,16 @@ its rules, never corpus content or excerpts of it.
 - [ ] Corpus survey recorded in the ticket's research: audit instructions found,
       issuers identified, count per issuer, which principal each arrived via,
       and which reports could not be attributed.
+- [ ] The survey records, per issuer, how Repairable and Total Loss are stated,
+      including the wording each firm uses.
 - [ ] Extraction tests cover at least two distinct issuers' real layouts, plus
       an unattributable report that still extracts what it can.
 - [ ] The same issuer is recognised identically regardless of which principal
       sent the audit.
 - [ ] Extracted report facts carry the identified issuer in their provenance.
+- [ ] The Repairable/Total Loss outcome is extracted with its issuer and its
+      location cited, and a report that does not state it clearly **abstains**
+      rather than choosing a default.
 - [ ] A report from an unknown issuer produces no issuer attribution and no
       regression against current extraction.
 
