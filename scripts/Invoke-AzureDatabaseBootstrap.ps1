@@ -303,6 +303,11 @@ function Get-MigrationPermissionMatrix {
     # the reconciliation baseline held only SELECT. DELETE stays denied
     # via the baseline matrix.
     $expected.Add('pegasus_worker_runtime_role|G|INSERT|VehicleLookupRequests')
+    # 20260821100623_GrantImageIntakeLifecycleUpdates: both runtime roles
+    # update ImageIntakes lifecycle state (PLAT-020); DELETE stays denied
+    # via the baseline matrix.
+    $expected.Add('pegasus_web_runtime_role|G|UPDATE|ImageIntakes')
+    $expected.Add('pegasus_worker_runtime_role|G|UPDATE|ImageIntakes')
     return @($expected | Sort-Object -Unique)
 }
 
