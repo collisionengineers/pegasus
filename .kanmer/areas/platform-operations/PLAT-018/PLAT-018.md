@@ -2,12 +2,15 @@
 id: PLAT-018
 type: ticket
 title: Correct two self-contradictory rules in the design authority
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-21T13:57:30.823Z'
+taken_at: '2026-08-21T14:01:07.563Z'
+branch: task/plat-018
+worktree: ../pegasus-worktrees/plat-018
 labels:
   - docs
   - design-authority
@@ -17,7 +20,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-21T08:25:11.433Z'
-updated: '2026-08-21T13:57:30.823Z'
+updated: '2026-08-21T14:01:07.563Z'
 ---
 
 ## What
