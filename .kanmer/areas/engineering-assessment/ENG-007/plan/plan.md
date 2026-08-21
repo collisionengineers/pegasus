@@ -22,3 +22,7 @@ Use the already-composed CaseDetails object as the sole shared case/vehicle inpu
 - Suggestion accidentally treated as accepted: address Confirmed and Fact explicitly rather than using Current.
 - Existing lookup-only fields regress: retain observation fallback for fields absent from CaseData.
 - Over-abstraction: keep the resolver on this single presentation boundary.
+
+## Simplification pass — 2026-08-21
+
+Reuse: removed the second vehicle-evidence query and reused IGetCase/CaseDetails. Simplification: kept selection page-local because there is one caller. Efficiency: one fewer database query per Assessment GET. Altitude: preserved route and assessment-owned boundary. Finding applied: mileage units are compared case-insensitively because intake stores `miles` while lookup confirmation stores `Miles`.

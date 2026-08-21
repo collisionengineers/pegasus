@@ -24,3 +24,7 @@ Repair the two proven permission drifts in one append-only runtime-role migratio
 - Duplicate race regression: retain only SQL 2601/2627 suppression.
 - Recovery duplication: use existing idempotent operation/work identifiers and verify exact targets before replay.
 - Production proof unavailable before approval: merge code proof separately; keep deployment/recovery unfinished until authorized.
+
+## Simplification pass — 2026-08-21
+
+Reuse: preserved PR #493's vehicle grant and duplicate filter rather than duplicating them. Simplification: one SQL-only migration with two exact grants. Efficiency: no runtime path changed. Altitude: no new role abstraction. No unapplied findings.

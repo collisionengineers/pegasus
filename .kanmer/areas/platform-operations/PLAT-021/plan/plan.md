@@ -24,3 +24,7 @@ Keep one scheduled-query alert and replace count-all KQL with an operation-aware
 - Signature cardinality: normalize using stable exception type and outer message, not stack traces.
 - KQL escaping in Bicep: use the repository's multiline string convention and compile the template.
 - Unproven live behavior: require read-only historical comparison before approved deployment.
+
+## Simplification pass — 2026-08-21
+
+Reuse: retained the existing alert resource/action group. Simplification: one KQL rule with three explicit branches. Efficiency: deduplicates before persistence aggregation. Altitude: no application instrumentation changes. Finding applied: corrected the resource-local window so Web 5xx remains PT5M and only application exceptions use PT15M.
