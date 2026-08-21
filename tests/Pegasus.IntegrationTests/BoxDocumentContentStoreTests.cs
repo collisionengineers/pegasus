@@ -39,7 +39,7 @@ public sealed class BoxDocumentContentStoreTests
 
         await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
-        var expectedPath = $"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg";
+        var expectedPath = $"{CaseReference}/002 evidence.jpg";
         Assert.True(box.PathExists(expectedPath), $"Expected Box path {expectedPath} to exist.");
 
         await using var stream = await store.OpenReadVersionAsync(
@@ -64,8 +64,10 @@ public sealed class BoxDocumentContentStoreTests
 
         Assert.Equal(DocumentContentWriteDisposition.Created, first.Disposition);
         Assert.Equal(DocumentContentWriteDisposition.Replay, replay.Disposition);
-        Assert.Equal(4, uploadsAfterFirst); // Case, occurrence, version bindings plus content
-        Assert.Equal(4, box.UploadCount);
+        // Flat layout: the case binding and the content. The occurrence and
+        // version binding sidecars went with the folders that held them.
+        Assert.Equal(2, uploadsAfterFirst);
+        Assert.Equal(2, box.UploadCount);
     }
 
     [Fact]
@@ -92,7 +94,7 @@ public sealed class BoxDocumentContentStoreTests
         var hash = Sha256(content);
         await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
 
-        box.CorruptFile($"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg");
+        box.CorruptFile($"{CaseReference}/002 evidence.jpg");
 
         await Assert.ThrowsAsync<InvalidDataException>(() => store.OpenReadVersionAsync(
             Address(), hash, content.Length, CancellationToken.None));
@@ -112,34 +114,25 @@ public sealed class BoxDocumentContentStoreTests
         await store.DeleteAsync(CaseId, CaseReference, VersionId, CancellationToken.None);
 
         Assert.Equal(DocumentContentWriteDisposition.Created, created.Disposition);
-        Assert.False(box.PathExists($"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg"));
+        Assert.False(box.PathExists($"{CaseReference}/002 evidence.jpg"));
         Assert.True(box.PathExists($"{CaseReference}/pegasus-case-binding.json"));
         Assert.Equal(1, box.DeleteCount);
         await Assert.ThrowsAsync<FileNotFoundException>(() => store.OpenReadVersionAsync(
             Address(), hash, content.Length, CancellationToken.None));
-
-        var wrongBinding = new InMemoryBox();
-        wrongBinding.BindCaseRoot();
-        var wrongBindingStore = CreateStore(wrongBinding);
-        await wrongBindingStore.StoreVersionAsync(Address(), content, hash, default);
-        wrongBinding.CorruptFile(
-            $"{CaseReference}/Evidence/Images/002 evidence.jpg/pegasus-document-binding.json");
-        await Assert.ThrowsAsync<InvalidDataException>(() =>
-            wrongBindingStore.StoreVersionAsync(Address(), content, hash, default));
 
         var wrongMedia = new InMemoryBox();
         wrongMedia.BindCaseRoot();
         var wrongMediaStore = CreateStore(wrongMedia);
         await wrongMediaStore.StoreVersionAsync(Address(), content, hash, default);
         wrongMedia.SetMediaType(
-            $"{CaseReference}/Evidence/Images/002 evidence.jpg/Revision 001/evidence.jpg",
+            $"{CaseReference}/002 evidence.jpg",
             "application/octet-stream");
         await Assert.ThrowsAsync<InvalidDataException>(() =>
             wrongMediaStore.StoreVersionAsync(Address(), content, hash, default));
 
         var lostResponse = new InMemoryBox();
         lostResponse.BindCaseRoot();
-        lostResponse.LoseNextUploadResponseForName = "evidence.jpg";
+        lostResponse.LoseNextUploadResponseForName = "002 evidence.jpg";
         var lostResponseStore = CreateStore(lostResponse);
         await Assert.ThrowsAsync<HttpRequestException>(() =>
             lostResponseStore.StoreVersionAsync(Address(), content, hash, default));
