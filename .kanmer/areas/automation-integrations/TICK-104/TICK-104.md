@@ -4,7 +4,7 @@ type: ticket
 title: >-
   MCP-07 — Administration-configurable Send to AI channel connector setup: base
   URL, token entry/rotation, and timeout configured…
-status: verifying
+status: done
 area: automation-integrations
 order: 300
 assignee: claude-code
@@ -13,6 +13,7 @@ stageEntered:
   preparing: '2026-08-20T03:55:39.646Z'
   review: '2026-08-20T04:14:51.142Z'
   verifying: '2026-08-20T05:40:51.533Z'
+  done: '2026-08-21T22:21:53.637Z'
 labels:
   - capability
   - MCP-07
@@ -30,7 +31,7 @@ prs:
   - '#446'
 archived: false
 created: '2026-08-12T15:06:02.806Z'
-updated: '2026-08-20T17:50:48.565Z'
+updated: '2026-08-21T22:21:53.637Z'
 ---
 
 ## What
