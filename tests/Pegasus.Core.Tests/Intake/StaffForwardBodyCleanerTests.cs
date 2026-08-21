@@ -111,6 +111,68 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
+    public void ProviderFooterIsTrimmedAtTheEarliestMarkerKeepingTheSignOff()
+    {
+        // The letter-with-signature shape measured in the corpus: the
+        // provider's message and sign-off, then the signature block opening
+        // with an image placeholder and running through decorated contact
+        // links, membership, registration and the disclaimer.
+        const string body = """
+            Our Client: Mr Cheddae Singh
+            Registration: J16DET
+
+            Please let us have your report as soon as possible.
+
+            Yours faithfully
+            Neil Duncombe
+            [https://www.qdosassist.co.uk/ASSIST-EMAIL-SIGNATURES/QAA%20Logo%2050.png]
+            0800 093 0982<tel:0800%20093%200982>
+            nduncombe@qdosassist.co.uk<mailto:nduncombe@qdosassist.co.uk>
+            Proud members of:
+            You are dealing with QDOS Accident Assistance Limited, registration number 5179995.
+            The registered office is C/O Higsons Chartered Accountants.
+            This email and any attachments are for the exclusive use of the intended recipient.
+            """;
+
+        var trimmed = StaffForwardBodyCleaner.TrimProviderFooter(body);
+
+        Assert.Contains("Our Client: Mr Cheddae Singh", trimmed, StringComparison.Ordinal);
+        Assert.Contains("Please let us have your report as soon as possible.", trimmed, StringComparison.Ordinal);
+        Assert.EndsWith("Neil Duncombe", trimmed.TrimEnd(), StringComparison.Ordinal);
+        Assert.DoesNotContain("You are dealing with", trimmed, StringComparison.Ordinal);
+        Assert.DoesNotContain("[https://", trimmed, StringComparison.Ordinal);
+        Assert.DoesNotContain("<tel:", trimmed, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ASignatureOnlyBodyIsShownWhole()
+    {
+        // Nine corpus bodies are footer from the first line — the live
+        // signature-only QDOS instructions. Trimming would leave nothing, so
+        // nothing is trimmed.
+        const string body = """
+            [https://www.qdosassist.co.uk/ASSIST-EMAIL-SIGNATURES/QAA%20Logo%2050.png]
+            0800 093 0982<tel:0800%20093%200982>
+            You are dealing with QDOS Accident Assistance Limited.
+            """;
+
+        Assert.Equal(body, StaffForwardBodyCleaner.TrimProviderFooter(body));
+    }
+
+    [Fact]
+    public void AMarkerlessBodyIsShownWhole()
+    {
+        const string body = """
+            Please cancel this inspection for vehicle AB12 CDE.
+
+            Thanks,
+            Dawn
+            """;
+
+        Assert.Equal(body, StaffForwardBodyCleaner.TrimProviderFooter(body));
+    }
+
+    [Fact]
     public void EmptyBodyIsReturnedEmpty()
     {
         Assert.Equal(string.Empty, StaffForwardBodyCleaner.Clean(string.Empty, isStaffForward: true));

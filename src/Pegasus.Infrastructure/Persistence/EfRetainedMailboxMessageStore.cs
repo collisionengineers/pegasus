@@ -718,10 +718,12 @@ internal sealed class EfRetainedMailboxMessageStore(
                 // Only when no receipt resolved does the stored raw excerpt
                 // stand in, cleaned of the forwarder wrapper.
                 var cleanedExcerpt = receipt?.BodyHead is { } bodyHead
-                    ? Excerpt(StaffForwardBodyCleaner.SplitForwardedHeader(bodyHead).Body)
+                    ? Excerpt(StaffForwardBodyCleaner.TrimProviderFooter(
+                        StaffForwardBodyCleaner.SplitForwardedHeader(bodyHead).Body))
                     : row.BodyExcerpt is { } excerpt
-                        ? Excerpt(StaffForwardBodyCleaner.SplitForwardedHeader(
-                            StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)).Body)
+                        ? Excerpt(StaffForwardBodyCleaner.TrimProviderFooter(
+                            StaffForwardBodyCleaner.SplitForwardedHeader(
+                                StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)).Body))
                         : null;
                 if (string.IsNullOrWhiteSpace(cleanedExcerpt))
                 {
