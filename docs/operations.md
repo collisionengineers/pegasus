@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 16 | 2026-08-21 | `4111ad29…` | `sha256:3b891b45…` | `pegasus-prod-web-252ow37gij--4111ad291779` | `20260820114412_ApprovedOutlookCategoryCatalogue`, `20260821095500_GrantWorkerVehicleLookupRequests`, `20260821100623_GrantImageIntakeLifecycleUpdates` |
   | 15 | 2026-08-20 | `6d04f89d…` | `sha256:07c05faa…` | `pegasus-prod-web-252ow37gij--6d04f89d4d30` | `20260820100724_RetainedMailSearchDocuments`, `20260820144004_RetainedMailFolderMoves` |
   | 14 | 2026-08-20 | `d91fd7d7…` | `sha256:949797d4…` | `pegasus-prod-web-252ow37gij--d91fd7d7835a` | `20260820034652_ImageIntakeSubmissionGroup`, `20260820040337_SendToAiConnectorSettings`, `20260820055900_ImageCaseCustody`, `20260820100056_ApprovedMailboxLogicalFolderBindings` |
   | 13 | 2026-08-20 | `2325ed4a…` | `sha256:7efa46fd…` | `pegasus-prod-web-252ow37gij--2325ed4a31d7` | `20260819234014_GrantWorkerIntakeSubmissionGroupRead` |
@@ -328,6 +329,35 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   What each release proved beyond smoke:
 
+  - **Release 16** (2026-08-21, manifest SHA-256 `D89EDF32…`) carried the
+    post-release-15 intake-regression remediation and the merged open work
+    (PRs #490–#502 and the reviewed #470, #473, #495–#497): instruction
+    extraction reads the real QDOS letter grammar (typographic apostrophes,
+    third-party-row guard, typed-date dedupe, wrapped-line subsumption) and
+    the report-sourced vehicle/mileage backfill plus the circumstances
+    paragraph as QDOS policy Version 4 rules; the Worker holds INSERT on
+    `VehicleLookupRequests` so the automatic DVSA/DVLA sweep enqueues (a
+    permission failure now fails the function visibly instead of being
+    swallowed as already-done) — within one reconcile tick of the deploy
+    the three stranded lookups were enqueued; both runtime roles hold
+    UPDATE on `ImageIntakes` for the image-custody lifecycle; the Inbox
+    message page was rebuilt on the record container with the effective
+    original sender, structured forwarded headers, provider-footer
+    trimming of the displayed body and list excerpt, exhaustive
+    family · subtype classification labels, and CSP-compliant dialog
+    binding in site.js; embedded instruction photographs (≥40 KB, hash-
+    deduped) are promoted to case evidence beside the source in Box and
+    render on the case Evidence tab; the Administrator-only approved
+    Outlook category catalogue is live at `/Administration/MailCategories`;
+    the Automation Actor gained registered Unidentified and Triage parity
+    tools over the same Core owners (ingress composition remains gated);
+    the application-exception alert deduplicates by operation and
+    normalized signature and pages only for failed or persistent
+    operations; Assessment vehicle prefills come from the shared Case
+    projection. Post-deploy smoke passed (health, exact version/SHA
+    `4111ad29`, anonymous-denial, https redirect, Worker
+    `approved-live-worker`); the migration head, both roles' grant
+    readback, and the fresh inbox poll state were verified live.
   - **Release 15** (2026-08-20, manifest SHA-256 `3D652838…`) carried the
     2026-08-20 operator feedback-round-2 remediations, each verified against
     its ticket before the cut (PRs #476, #478, #479, #481–#485, #487, #488):
@@ -663,6 +693,11 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 - **Monitoring/cost:** 31-day retention, adaptive sampling, 0.1 GB/day
   Application Insights cap, £75 monthly budget notifying
   `digital@collisionengineers.co.uk` at actual 50/80/100% and forecast 100%.
+  Since release 16 the Sev1 application-exception scheduled-query rule
+  deduplicates by operation and normalized signature over a 15-minute
+  window and fires only for a failed recent operation, a signature
+  persisting across ≥3 distinct operations, or ≥3 minute-buckets of
+  uncorrelated telemetry; the Web 5xx rule keeps its 5-minute window.
   Alerts never stop resources.
 - **Recovery:** the OPS-09 recovery proof is deferred and gates no release
   (removed as a gate 2026-08-03); the procedure remains in
