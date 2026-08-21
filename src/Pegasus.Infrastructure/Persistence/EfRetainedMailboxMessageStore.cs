@@ -657,7 +657,13 @@ internal sealed class EfRetainedMailboxMessageStore(
                 Classification = item.MailClassificationDecision,
                 EffectiveSenderAddress = item.MailRouteDecision == null
                     ? null
-                    : item.MailRouteDecision.EffectiveSenderAddress
+                    : item.MailRouteDecision.EffectiveSenderAddress,
+                // Enough cleaned body to excerpt from once the forwarded
+                // header block is skipped; never the whole document text.
+                BodyHead = item.SearchDocuments
+                    .Where(document => document.AttachmentFileName == null && document.Text != null)
+                    .Select(document => document.Text!.Substring(0, 600))
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
         var receiptsByToken = receipts.ToDictionary(
@@ -707,9 +713,15 @@ internal sealed class EfRetainedMailboxMessageStore(
                     : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification);
                 var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
                     && !string.Equals(effectiveSender, row.SenderAddress, StringComparison.OrdinalIgnoreCase);
-                var cleanedExcerpt = row.BodyExcerpt is { } excerpt
-                    ? StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)
-                    : null;
+                // The preview line is the message as its sender wrote it: the
+                // receipt's cleaned body with the forwarded header skipped.
+                // Only when no receipt resolved does the stored raw excerpt
+                // stand in, cleaned of the forwarder wrapper.
+                var cleanedExcerpt = receipt?.BodyHead is { } bodyHead
+                    ? Excerpt(StaffForwardBodyCleaner.SplitForwardedHeader(bodyHead).Body)
+                    : row.BodyExcerpt is { } excerpt
+                        ? StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)
+                        : null;
                 if (string.IsNullOrWhiteSpace(cleanedExcerpt))
                 {
                     cleanedExcerpt = null;

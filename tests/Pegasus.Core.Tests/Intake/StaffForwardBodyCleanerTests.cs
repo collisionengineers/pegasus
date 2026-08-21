@@ -72,6 +72,41 @@ public sealed class StaffForwardBodyCleanerTests
     }
 
     [Fact]
+    public void SplitForwardedHeaderSeparatesTheLeadingBlock()
+    {
+        const string body = "From: Neil Duncombe <n@qdosassist.co.uk>
+Sent: 12 August 2026
+To: Desk <desk@ce.co.uk>
+Subject: (EREF9) RTA
+
+Neil Duncombe
+Senior Claims Handler";
+
+        var (header, rest) = StaffForwardBodyCleaner.SplitForwardedHeader(body);
+
+        Assert.Equal(4, header.Count);
+        Assert.StartsWith("From: Neil Duncombe", header[0], StringComparison.Ordinal);
+        Assert.StartsWith("Subject: (EREF9) RTA", header[3], StringComparison.Ordinal);
+        Assert.StartsWith("Neil Duncombe", rest, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SplitForwardedHeaderLeavesABodyWithoutTheLeadingBlockIntact()
+    {
+        const string body = "Good morning
+
+From: someone quoted later
+Sent: x
+To: y
+Subject: z";
+
+        var (header, rest) = StaffForwardBodyCleaner.SplitForwardedHeader(body);
+
+        Assert.Empty(header);
+        Assert.Equal(body, rest);
+    }
+
+    [Fact]
     public void EmptyBodyIsReturnedEmpty()
     {
         Assert.Equal(string.Empty, StaffForwardBodyCleaner.Clean(string.Empty, isStaffForward: true));

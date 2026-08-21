@@ -956,6 +956,7 @@ public sealed class MessageModel(
     {
         "attachments" => "attachments",
         "thread" => "thread",
+        "case" => "case",
         _ => "message"
     };
 
@@ -986,7 +987,7 @@ public sealed class MessageModel(
         : ClassificationLabel(result.Outcome);
 
     public static string DecisionLabel(MailCategory category) =>
-        $"{(category.Direction == MailDirection.Sent ? "Sent: " : string.Empty)}{category.Name}{(category.Subtype is null ? string.Empty : "/" + category.Subtype)}";
+        OperatorLabels.MailClassification(category);
 
     public static string QueueLabel(MailRouteDisposition? disposition) => disposition switch
     {
