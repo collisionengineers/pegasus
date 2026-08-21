@@ -147,6 +147,99 @@ public interface ISendToAiControl
         CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The one owner of the Send to AI channel connector bounds. Composition
+/// options and Administration entry both validate against these, so the two
+/// entry routes cannot drift: a loopback http origin without path or query,
+/// a bearer token of at least 32 characters, and a 1-60 second timeout.
+/// The loopback restriction is ADR-0021's research-preview transport
+/// decision, not a connector-administration choice.
+/// </summary>
+public static class AiChannelConnectorRules
+{
+    public const int MinimumTokenLength = 32;
+    public const double MinimumTimeoutSeconds = 1;
+    public const double MaximumTimeoutSeconds = 60;
+
+    public static bool TryParseBaseUrl(string? candidate, out Uri? baseUrl)
+    {
+        baseUrl = null;
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var parsed)
+            || parsed.Scheme != Uri.UriSchemeHttp
+            || !parsed.IsLoopback
+            || !string.IsNullOrEmpty(parsed.Query)
+            || parsed.AbsolutePath != "/")
+        {
+            return false;
+        }
+
+        baseUrl = parsed;
+        return true;
+    }
+
+    public static bool IsValidTimeoutSeconds(double seconds) =>
+        seconds is >= MinimumTimeoutSeconds and <= MaximumTimeoutSeconds;
+
+    public static bool IsValidToken(string? token) =>
+        !string.IsNullOrWhiteSpace(token) && token.Length >= MinimumTokenLength;
+}
+
+/// <summary>
+/// What Administration may see of the connector: whether an
+/// administration-entered token is held and when it last changed — never the
+/// token itself, which is write-only from entry onward.
+/// </summary>
+public sealed record AiChannelConnectorSettings(
+    string? ChannelBaseUrl,
+    double? TimeoutSeconds,
+    bool TokenHeld,
+    DateTimeOffset? TokenRotatedAtUtc,
+    int Version);
+
+/// <summary>
+/// What the outbound transport reads at each hand-off. A null member means
+/// Administration has not set it and the composed configuration value
+/// applies.
+/// </summary>
+public sealed record AiChannelConnectorRuntime(
+    Uri? ChannelBaseUrl,
+    TimeSpan? Timeout,
+    string? ChannelToken);
+
+public sealed record UpdateAiChannelConnectorCommand(
+    ActionActor Actor,
+    string Reason,
+    string OperationKey,
+    string? ChannelBaseUrl,
+    double? TimeoutSeconds);
+
+public sealed record RotateAiChannelTokenCommand(
+    ActionActor Actor,
+    string Reason,
+    string OperationKey,
+    string? NewToken);
+
+/// <summary>
+/// Administration-held connector settings stored beside the Send to AI
+/// switch. Updates and rotations are attributed permanent history; the token
+/// is stored protected and surfaces only through the runtime view consumed
+/// by the transport.
+/// </summary>
+public interface IAiChannelConnectorStore
+{
+    Task<AiChannelConnectorSettings> GetAsync(CancellationToken cancellationToken);
+
+    Task<AiChannelConnectorRuntime> GetRuntimeAsync(CancellationToken cancellationToken);
+
+    Task<AiChannelConnectorSettings> UpdateAsync(
+        UpdateAiChannelConnectorCommand command,
+        CancellationToken cancellationToken);
+
+    Task<AiChannelConnectorSettings> RotateTokenAsync(
+        RotateAiChannelTokenCommand command,
+        CancellationToken cancellationToken);
+}
+
 public enum SendCaseToAiOutcome
 {
     HandedOff,

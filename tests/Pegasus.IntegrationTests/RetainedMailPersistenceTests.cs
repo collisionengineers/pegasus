@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using MimeKit;
 using Pegasus.Core.Identity;
@@ -21,6 +22,111 @@ public sealed class RetainedMailPersistenceTests
 
     private static readonly DateTimeOffset ReceivedAtUtc =
         new(2031, 7, 8, 9, 10, 0, TimeSpan.Zero);
+
+    [Fact]
+    public async Task NamelessAttachmentsKeepTheirOccurrenceSoLaterAttachmentIdentityDoesNotShift()
+    {
+        var message = new MimeMessage();
+        message.From.Add(MimeKit.MailboxAddress.Parse("sender@example.invalid"));
+        message.To.Add(MimeKit.MailboxAddress.Parse(MailboxAddress));
+        message.Subject = "Nameless attachment occurrence";
+        message.MessageId = "<nameless@example.invalid>";
+
+        var nameless = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream([1, 2, 3])),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64
+        };
+        var named = new MimePart("application", "octet-stream")
+        {
+            Content = new MimeContent(new MemoryStream([4, 5, 6])),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = "named.bin"
+        };
+        var attachedText = new TextPart("plain")
+        {
+            Text = "Attached notes",
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            FileName = "notes.txt"
+        };
+        var contentIdImage = new MimePart("image", "png")
+        {
+            Content = new MimeContent(new MemoryStream(Convert.FromBase64String(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nXQAAAAASUVORK5CYII="))),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            ContentId = "attached-image@example.invalid",
+            FileName = "attached.png"
+        };
+        var searchablePdf = new MimePart("application", "pdf")
+        {
+            Content = new MimeContent(new MemoryStream(AudatexEstimateFixture.Build())),
+            ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+            ContentTransferEncoding = ContentEncoding.Base64,
+            FileName = "searchable.pdf"
+        };
+        message.Body = new Multipart("mixed")
+        {
+            new TextPart("plain") { Text = "Body" },
+            nameless,
+            attachedText,
+            contentIdImage,
+            searchablePdf,
+            named
+        };
+
+        await using var stream = new MemoryStream();
+        await message.WriteToAsync(stream);
+        var bytes = stream.ToArray();
+        await using var displayStream = new MemoryStream(bytes);
+        var display = await LocalEmailDisplayReader.ReadAsync(displayStream, CancellationToken.None);
+        var canonical = await new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System)
+            .ReadAsync(
+                new(
+                    "message.eml",
+                    "message/rfc822",
+                    bytes,
+                    ReceivedAtUtc,
+                    "test",
+                    new(IntakeSourceChannel.Mailbox, "mailbox:test")),
+                CancellationToken.None);
+
+        Assert.Collection(
+            Assert.IsAssignableFrom<IReadOnlyList<RetainedMailboxAttachment>>(display.Attachments),
+            first => Assert.Equal("Unnamed attachment 1", first.FileName),
+            second => Assert.Equal("notes.txt", second.FileName),
+            third => Assert.Equal("attached.png", third.FileName),
+            fourth => Assert.Equal("searchable.pdf", fourth.FileName),
+            fifth => Assert.Equal("named.bin", fifth.FileName));
+        Assert.Collection(
+            canonical.AttachmentRecords,
+            first => Assert.Equal(0, first.Ordinal),
+            second =>
+            {
+                Assert.Equal(1, second.Ordinal);
+                Assert.Equal("notes.txt", second.FileName);
+            },
+            third =>
+            {
+                Assert.Equal(2, third.Ordinal);
+                Assert.Equal("attached.png", third.FileName);
+            },
+            fourth =>
+            {
+                Assert.Equal(3, fourth.Ordinal);
+                Assert.Equal("searchable.pdf", fourth.FileName);
+            },
+            fifth =>
+            {
+                Assert.Equal(4, fifth.Ordinal);
+                Assert.Equal("named.bin", fifth.FileName);
+            });
+        Assert.Contains(
+            IntakeSearchProjection.Create(canonical, routeDecision: null),
+            document => document.AttachmentOrdinal == 3 && document.IsSearchable);
+    }
 
     [Fact]
     public async Task ARetainedMessageRoundTripsThroughTheMigration()
@@ -57,6 +163,215 @@ public sealed class RetainedMailPersistenceTests
         var attachment = Assert.Single(detail.Attachments);
         Assert.Equal("estimate.pdf", attachment.FileName);
         Assert.Equal(2048, attachment.ContentLength);
+    }
+
+    [Fact]
+    public async Task OperationalAndDetailedViewsUseTheCurrentClassificationProjection()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var fixtures = new[]
+        {
+            ("receiving", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"), [], "fixture", "test", 1)),
+            ("queries", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PostReportEmails, "query"), [], "fixture", "test", 1)),
+            ("other", MailClassificationResult.Classified(
+                MailCategory.Other(MailDirection.Received, "supplier-newsletter", "No known class fits."), [], "fixture", "test", 1)),
+            ("unidentified", MailClassificationResult.Unclassified([], "fixture", "test", 1)),
+            ("triage", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.PreInstructionEmails, "triage-request"), [], "fixture", "test", 1)),
+            ("detailed", MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.General, "autoreply"), [], "fixture", "test", 1))
+        };
+        foreach (var (key, classification) in fixtures)
+        {
+            var message = Message(key, subject: key);
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, classification);
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        foreach (var (key, destination) in new[]
+        {
+            ("receiving", MailOperationalDestination.ReceivingWork),
+            ("queries", MailOperationalDestination.Queries),
+            ("other", MailOperationalDestination.Other),
+            ("unidentified", MailOperationalDestination.Unidentified),
+            ("triage", MailOperationalDestination.Triage)
+        })
+        {
+            var item = Assert.Single((await queries.ListAsync(
+                new(null, MailFolderScope.Inbox, Destination: destination),
+                1,
+                25,
+                CancellationToken.None)).Items);
+            Assert.Equal(key, item.Subject);
+            Assert.Equal(destination, item.OperationalDestination?.Destination);
+            Assert.NotNull(item.Classification);
+        }
+
+        var detailed = Assert.Single((await queries.ListAsync(
+            new(
+                null,
+                MailFolderScope.Inbox,
+                DetailedClassification: MailCategory.Received(
+                    ReceivedMailFamily.General,
+                    "autoreply")),
+            1,
+            25,
+            CancellationToken.None)).Items);
+        Assert.Equal("detailed", detailed.Subject);
+        Assert.Equal(
+            MailOperationalDestination.DetailedClassification,
+            detailed.OperationalDestination?.Destination);
+    }
+
+    [Fact]
+    public async Task OperationalViewFiltersBeforeSqlCountAndPagingAndUsesCorrections()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var instruction = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+            [],
+            "fixture",
+            "test",
+            1);
+        for (var index = 0; index < 6; index++)
+        {
+            var message = Message(
+                $"instruction-{index}",
+                subject: $"instruction-{index}",
+                receivedAtUtc: ReceivedAtUtc.AddMinutes(index));
+            await RetainAsync(database, message);
+            await StoreClassifiedReceiptAsync(database, message, instruction);
+        }
+        var correctedMessage = Message(
+            "corrected",
+            subject: "corrected",
+            receivedAtUtc: ReceivedAtUtc.AddMinutes(10));
+        await RetainAsync(database, correctedMessage);
+        var before = MailClassificationResult.Classified(
+            MailCategory.Received(ReceivedMailFamily.General, "autoreply"),
+            [],
+            "fixture",
+            "test",
+            1);
+        await StoreClassifiedReceiptAsync(database, correctedMessage, before);
+        var unrelated = Message("unrelated", subject: "unrelated");
+        await RetainAsync(database, unrelated);
+        await StoreClassifiedReceiptAsync(database, unrelated, before);
+
+        await using (var correctionScope = database.CreateAsyncScope())
+        {
+            var queries = correctionScope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+            var messageId = (await queries.ListAsync(
+                new(null, MailFolderScope.Inbox),
+                1,
+                25,
+                CancellationToken.None)).Items.Single(item => item.Subject == "corrected").Id;
+            await correctionScope.ServiceProvider
+                .GetRequiredService<IRetainedMailClassificationStore>()
+                .AppendCorrectionAsync(
+                    messageId,
+                    1,
+                    before,
+                    instruction,
+                    "staff:fixture",
+                    "Corrected fixture.",
+                    ReceivedAtUtc.AddMinutes(20),
+                    CancellationToken.None);
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var retained = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var first = await retained.ListAsync(
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.ReceivingWork),
+            1,
+            3,
+            CancellationToken.None);
+        var third = await retained.ListAsync(
+            new(null, MailFolderScope.Inbox, Destination: MailOperationalDestination.ReceivingWork),
+            3,
+            3,
+            CancellationToken.None);
+
+        Assert.Equal(7, first.TotalCount);
+        Assert.Equal(3, first.TotalPages);
+        Assert.Equal(3, first.Items.Count);
+        Assert.Contains(first.Items, item => item.Subject == "corrected");
+        Assert.Single(third.Items);
+        Assert.DoesNotContain(first.Items.Concat(third.Items), item => item.Subject == "unrelated");
+    }
+
+    [Fact]
+    public async Task SearchFiltersBeforePagingAndIdentifiesBodyFileNameAndProjectedContentMatches()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message(
+            "message-search",
+            bodyPlainText: "Canonical wrapper only. Please inspect the vehicle.");
+        await RetainAsync(database, message);
+        await database.StoreAsync(new(
+            SourceFileName: "message-search.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: new string('D', 64),
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, message.ExternalReceiptToken),
+            ReceivedAtUtc: ReceivedAtUtc,
+            ProcessedAtUtc: ReceivedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.NeedsSorting,
+            DecisionReason: "Fixture evaluation.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: [],
+            SearchDocuments:
+            [
+                new("message body", null, "Please inspect the vehicle."),
+                new("message, attachment 1", "estimate.pdf", "Repair estimate for replacement wing", 0)
+            ]));
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+
+        var body = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "inspect"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(body.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
+
+        var fileName = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(fileName.Matches, match =>
+            match.Kind == MailSearchMatchKind.AttachmentFileName
+            && match.AttachmentFileName == "estimate.pdf");
+
+        var content = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "replacement"), 1, 25, CancellationToken.None)).Items);
+        Assert.Contains(content.Matches, match =>
+            match.Kind == MailSearchMatchKind.AttachmentContent
+            && match.AttachmentFileName == "estimate.pdf");
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "not present"), 1, 25, CancellationToken.None)).Items);
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "Canonical wrapper only"), 1, 25, CancellationToken.None)).Items);
+
+        var detail = Assert.IsType<RetainedMailDetail>(
+            await queries.GetAsync(content.Id, CancellationToken.None, "inspect"));
+        Assert.Equal("Please inspect the vehicle.", detail.BodyPlainText);
+        Assert.Contains(detail.Summary.Matches, match => match.Kind == MailSearchMatchKind.MessageBody);
+        Assert.True(Assert.Single(detail.Attachments).IsSearchable);
+        Assert.Equal(2L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeSearchDocuments"));
     }
 
     [Fact]
@@ -256,6 +571,61 @@ public sealed class RetainedMailPersistenceTests
         Assert.Equal(IntakeDecision.NeedsSorting, summary.ProcessingOutcome);
         Assert.NotNull(summary.IntakeReceiptId);
         Assert.Null(summary.CaseId);
+    }
+
+    /// <summary>
+    /// MAIL-005: the automatic allocation route records its created case on the
+    /// succeeded attempt and writes no CaseIntakeLinks row — the summary must
+    /// still resolve the case, so the Inbox never shows an allocated message
+    /// as waiting for allocation.
+    /// </summary>
+    [Fact]
+    public async Task ASucceededAllocationAttemptResolvesTheCaseWithoutALinkRow()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("message-1");
+        await RetainAsync(database, message);
+
+        var stored = await database.StoreAsync(new(
+            SourceFileName: "message-1.eml",
+            MediaType: "message/rfc822",
+            SourceLength: 1,
+            SourceHash: new string('A', 64),
+            SourceIdentity: new(IntakeSourceChannel.Mailbox, message.ExternalReceiptToken),
+            ReceivedAtUtc: ReceivedAtUtc,
+            ProcessedAtUtc: ReceivedAtUtc,
+            Actor: "system-worker:approved-inbox-poller",
+            Decision: IntakeDecision.CaseCreated,
+            DecisionReason: "Fixture allocation-eligible instruction.",
+            Evidence: [],
+            Fields: [],
+            InstructionDraft: null,
+            MissingFields: [],
+            FailureCode: null,
+            FailureReason: null,
+            SourceReaderKey: "protocol_reader",
+            SourceReaderVersion: "1",
+            ExtractionPolicyKey: "protocol_policy",
+            ExtractionPolicyVersion: 1,
+            Assets: []));
+
+        var caseId = Guid.NewGuid();
+        await using (var context = await database.CreateContextAsync())
+        {
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO IntakeAllocationAttempts (Id, IntakeReceiptId, AttemptNumber, Kind, Status, ExpectedReceiptVersion, CaseType, PrincipalCode, InstructionComplete, ImagesComplete, InstructionConfirmedByStaff, ImagesConfirmedByStaff, ActorKind, ActorSubjectId, ActorRolesJson, OperationKey, CommandHash, Reason, StartedAtUtc, CompletedAtUtc, CaseId, CaseReference) VALUES ({Guid.NewGuid()}, {stored.Id}, {1L}, {"automatic"}, {"succeeded"}, {0L}, {"inspection"}, {"QDOS"}, {true}, {false}, {false}, {false}, {"Automation"}, {"intake-processing"}, {"[]"}, {"mail-005-fixture"}, {new string('B', 64)}, {"Automatic allocation fixture."}, {ReceivedAtUtc}, {ReceivedAtUtc}, {caseId}, {"QDOS26099"})");
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var page = await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None);
+
+        var summary = Assert.Single(page.Items);
+        Assert.Equal(caseId, summary.CaseId);
+        Assert.Equal("QDOS26099", summary.CaseReference);
+        Assert.Equal("Case created", Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary));
     }
 
     [Fact]
@@ -505,6 +875,327 @@ public sealed class RetainedMailPersistenceTests
     }
 
     [Fact]
+    public async Task ConfirmedFolderMoveIsDurableReplayableAndPreservesArrivalEvidence()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        await SeedPollStateAsync(database);
+        var message = Message("message-move");
+        await RetainAsync(database, message);
+        await StoreClassifiedReceiptAsync(
+            database,
+            message,
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                [],
+                "Instruction identified.",
+                "shared-mail-policy",
+                4));
+
+        int mailboxVersion;
+        await using (var context = await database.CreateContextAsync())
+        {
+            var mailbox = await context.ApprovedMailboxes
+                .Include(item => item.FolderBindings)
+                .SingleAsync(item => item.Address == MailboxAddress);
+            mailbox.MailboxIdentity = MailboxId;
+            mailbox.InboxFolderIdentity = "inbox";
+            mailbox.State = ApprovedMailboxState.Approved.ToString();
+            mailbox.Version++;
+            mailbox.FolderBindings.Add(new()
+            {
+                ApprovedMailboxId = mailbox.Id,
+                ApprovedMailbox = mailbox,
+                FolderType = MailLogicalFolderType.Instructions.ToString(),
+                FolderIdentity = "folder-instructions"
+            });
+            mailboxVersion = mailbox.Version;
+            await context.SaveChangesAsync();
+        }
+
+        await using var scope = database.CreateAsyncScope();
+        var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        var retained = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+        var mover = new RecordingFolderMover("folder-instructions");
+        var store = new EfRetainedMailFolderMoveStore(
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            mover,
+            TimeProvider.System);
+        var command = new MoveRetainedMailFolder(store);
+        var request = new MoveRetainedMailFolderRequest(
+            retained.Id,
+            1,
+            MailLogicalFolderPolicy.Key,
+            MailLogicalFolderPolicy.Version,
+            mailboxVersion,
+            Guid.NewGuid().ToString("D"),
+            "Confirmed by staff.");
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+
+        var moved = await command.ExecuteAsync(actor, request);
+        var replay = await command.ExecuteAsync(actor, request);
+        await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+            command.ExecuteAsync(actor, request with { Reason = "Different inputs." }));
+
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, moved!.Outcome);
+        Assert.True(replay!.IsReplay);
+        Assert.Equal(request.OperationKey, replay.OperationKey);
+        Assert.Equal(1, mover.MoveCalls);
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+        var searchResult = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
+        Assert.Equal(MailLogicalFolderType.Instructions, searchResult.CurrentFolderType);
+        Assert.Empty((await queries.ListAsync(
+            new("different-mailbox", MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
+        await using var verification = await database.CreateContextAsync();
+        Assert.Equal("inbox", await verification.RetainedMailboxMessages
+            .Where(item => item.Id == retained.Id)
+            .Select(item => item.FolderIdentity)
+            .SingleAsync());
+        Assert.Equal(1, await verification.RetainedMailFolderMoves.CountAsync());
+        Assert.Equal(1, await verification.ActionHistory.CountAsync(item =>
+            item.AggregateId == retained.Id.ToString("D")
+            && item.EventKind == "outlook-folder-move"));
+    }
+
+    [Fact]
+    public async Task ConcurrentDifferentKeysHaveOneActiveClaimAndOneProviderMove()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        Assert.Equal(
+            1,
+            await database.ScalarAsync<int>(
+                """
+                SELECT COUNT(*) FROM sys.indexes
+                WHERE object_id = OBJECT_ID(N'RetainedMailFolderMoves')
+                  AND name = N'IX_RetainedMailFolderMoves_RetainedMailboxMessageId'
+                  AND is_unique = 1
+                  AND has_filter = 1
+                """));
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new BlockingFolderMover();
+        await using var firstScope = database.CreateAsyncScope();
+        await using var secondScope = database.CreateAsyncScope();
+        var first = FolderMoveCommand(firstScope, mover).ExecuteAsync(seed.Actor, seed.Request);
+        await mover.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+                FolderMoveCommand(secondScope, mover).ExecuteAsync(
+                    seed.Actor,
+                    seed.Request with { OperationKey = Guid.NewGuid().ToString("D") }));
+        }
+        finally
+        {
+            mover.Release.TrySetResult();
+        }
+
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, (await first)!.Outcome);
+        Assert.Equal(1, mover.MoveCalls);
+        await using var verification = await database.CreateContextAsync();
+        Assert.Single(await verification.RetainedMailFolderMoves.ToListAsync());
+    }
+
+    [Fact]
+    public async Task ConcurrentSameKeyReplayCannotResolveOrReleaseThePendingMove()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new BlockingFolderMover();
+        await using var firstScope = database.CreateAsyncScope();
+        await using var replayScope = database.CreateAsyncScope();
+        await using var newKeyScope = database.CreateAsyncScope();
+        var first = FolderMoveCommand(firstScope, mover).ExecuteAsync(seed.Actor, seed.Request);
+        await mover.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        try
+        {
+            var replayError = await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+                FolderMoveCommand(replayScope, mover).ExecuteAsync(seed.Actor, seed.Request));
+            Assert.Equal("The folder move is still being processed.", replayError.Message);
+            await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+                FolderMoveCommand(newKeyScope, mover).ExecuteAsync(
+                    seed.Actor,
+                    seed.Request with { OperationKey = Guid.NewGuid().ToString("D") }));
+
+            await using var inFlight = await database.CreateContextAsync();
+            var operation = Assert.Single(await inFlight.RetainedMailFolderMoves.ToListAsync());
+            Assert.Equal("pending", operation.Outcome);
+            Assert.Equal(1, mover.ParentCalls);
+            Assert.Equal(1, mover.MoveCalls);
+        }
+        finally
+        {
+            mover.Release.TrySetResult();
+        }
+
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, (await first)!.Outcome);
+        await using var completedReplayScope = database.CreateAsyncScope();
+        var completedReplay = await FolderMoveCommand(completedReplayScope, mover)
+            .ExecuteAsync(seed.Actor, seed.Request);
+        Assert.True(completedReplay!.IsReplay);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, completedReplay.Outcome);
+        Assert.Equal(1, mover.ParentCalls);
+        Assert.Equal(1, mover.MoveCalls);
+    }
+
+    [Fact]
+    public async Task CancellationDuringProviderMoveLeavesAnUncertainSameKeyRecovery()
+    {
+        using var cancellation = new CancellationTokenSource();
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new CancellationRecoveryFolderMover(cancellation.Cancel);
+        await using var scope = database.CreateAsyncScope();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            FolderMoveCommand(scope, mover).ExecuteAsync(seed.Actor, seed.Request, cancellation.Token));
+
+        Assert.True(cancellation.IsCancellationRequested);
+        await AssertUncertainBlocksNewKeyAndRecoversAsync(database, seed, mover);
+    }
+
+    [Fact]
+    public async Task CancellationDuringSuccessSaveLeavesAnUncertainSameKeyRecovery()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var interceptor = new CancelFolderMoveSuccessSaveInterceptor();
+        await using var database = await LocalDbTestDatabase.CreateAsync(
+            configureDatabase: options => options.AddInterceptors(interceptor));
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new CancellationRecoveryFolderMover(static () => { });
+        interceptor.CancelNextSuccessSave(cancellation);
+        await using var scope = database.CreateAsyncScope();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            FolderMoveCommand(scope, mover).ExecuteAsync(seed.Actor, seed.Request, cancellation.Token));
+
+        Assert.True(cancellation.IsCancellationRequested);
+        await AssertUncertainBlocksNewKeyAndRecoversAsync(database, seed, mover);
+    }
+
+    [Fact]
+    public async Task FreshnessAndCurrentLocationRefusalsNeverIssueTheMove()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new StatefulFolderMover("unexpected-folder");
+        await using var scope = database.CreateAsyncScope();
+        var command = FolderMoveCommand(scope, mover);
+
+        foreach (var stale in new[]
+        {
+            seed.Request with { ExpectedClassificationVersion = seed.Request.ExpectedClassificationVersion + 1 },
+            seed.Request with { ExpectedRecommendationPolicyKey = "stale-policy" },
+            seed.Request with { ExpectedMailboxVersion = seed.Request.ExpectedMailboxVersion + 1 }
+        })
+        {
+            await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+                command.ExecuteAsync(seed.Actor, stale with { OperationKey = Guid.NewGuid().ToString("D") }));
+        }
+
+        Assert.Equal(0, mover.MoveCalls);
+        Assert.Equal(0, mover.ParentCalls);
+        var locationFailure = await command.ExecuteAsync(seed.Actor, seed.Request);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Failed, locationFailure!.Outcome);
+        Assert.Equal(0, mover.MoveCalls);
+        Assert.Equal(1, mover.ParentCalls);
+    }
+
+    [Fact]
+    public async Task ProviderFailurePreservesClassificationAndAllowsANewKeyRetry()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var seed = await SeedFolderMoveAsync(database);
+        var mover = new FailOnceFolderMover();
+        await using var scope = database.CreateAsyncScope();
+        var command = FolderMoveCommand(scope, mover);
+
+        var failed = await command.ExecuteAsync(seed.Actor, seed.Request);
+        var retried = await command.ExecuteAsync(
+            seed.Actor,
+            seed.Request with { OperationKey = Guid.NewGuid().ToString("D") });
+
+        Assert.Equal(RetainedMailFolderMoveOutcome.Failed, failed!.Outcome);
+        Assert.Equal("Provider move failed.", failed.FailureReason);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, retried!.Outcome);
+        Assert.Equal(2, mover.MoveCalls);
+        await using var verification = await database.CreateContextAsync();
+        var decision = await verification.IntakeReceipts
+            .Where(item => item.ExternalReceiptToken == seed.ExternalReceiptToken)
+            .Select(item => item.MailClassificationDecision!)
+            .SingleAsync();
+        Assert.Equal(1, decision.Version);
+        Assert.Equal("new-instruction-received", decision.Family);
+        Assert.Empty(verification.IntakeMailClassificationHistory);
+        Assert.Equal(2, await verification.ActionHistory.CountAsync(item =>
+            item.AggregateId == seed.MessageId.ToString("D")
+            && item.EventKind == "outlook-folder-move"));
+    }
+
+    [Fact]
+    public async Task ReclassificationUsesLatestSuccessfulDestinationAsTheNextSource()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var seed = await SeedFolderMoveAsync(
+            database,
+            (MailLogicalFolderType.Instructions, "folder-instructions"),
+            (MailLogicalFolderType.Billing, "folder-billing"));
+        var mover = new StatefulFolderMover("inbox");
+        await using var scope = database.CreateAsyncScope();
+        var command = FolderMoveCommand(scope, mover);
+
+        Assert.Equal(
+            RetainedMailFolderMoveOutcome.Succeeded,
+            (await command.ExecuteAsync(seed.Actor, seed.Request))!.Outcome);
+        var classificationStore = scope.ServiceProvider.GetRequiredService<IRetainedMailClassificationStore>();
+        await new CorrectRetainedMailClassification(classificationStore, TimeProvider.System).ExecuteAsync(
+            seed.Actor,
+            new(seed.MessageId, 1, MailCategory.Received(ReceivedMailFamily.Billing), "Billing evidence reviewed."));
+        Assert.Equal(
+            RetainedMailFolderMoveOutcome.Succeeded,
+            (await command.ExecuteAsync(
+                seed.Actor,
+                seed.Request with
+                {
+                    ExpectedClassificationVersion = 2,
+                    OperationKey = Guid.NewGuid().ToString("D"),
+                    Reason = "Confirmed after reclassification."
+                }))!.Outcome);
+
+        Assert.Collection(
+            mover.Coordinates,
+            first =>
+            {
+                Assert.Equal("inbox", first.SourceFolderId);
+                Assert.Equal("folder-instructions", first.DestinationFolderId);
+            },
+            second =>
+            {
+                Assert.Equal("folder-instructions", second.SourceFolderId);
+                Assert.Equal("folder-billing", second.DestinationFolderId);
+            });
+        await using var verification = await database.CreateContextAsync();
+        Assert.Equal("inbox", await verification.RetainedMailboxMessages
+            .Where(item => item.Id == seed.MessageId)
+            .Select(item => item.FolderIdentity)
+            .SingleAsync());
+        await using var queryScope = database.CreateAsyncScope();
+        var queries = queryScope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+        var found = Assert.Single((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "estimate"), 1, 1, CancellationToken.None)).Items);
+        Assert.Equal(MailLogicalFolderType.Billing, found.CurrentFolderType);
+        Assert.Equal(1, (await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "estimate"), 1, 1, CancellationToken.None)).TotalCount);
+        Assert.Empty((await queries.ListAsync(
+            new(null, MailFolderScope.Inbox, "estimate"), 2, 1, CancellationToken.None)).Items);
+    }
+
+    [Fact]
     public async Task SentAndDeletedScopesHoldNothingAndDoNotClaimUnretainedHistory()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -619,7 +1310,8 @@ public sealed class RetainedMailPersistenceTests
         string? senderDisplayName = "A Sender",
         string? internetMessageIdentity = null,
         string mailboxId = MailboxId,
-        string mailboxAddress = MailboxAddress) => new(
+        string mailboxAddress = MailboxAddress,
+        string? bodyPlainText = "Please inspect the vehicle.") => new(
         mailboxId,
         mailboxAddress,
         immutableMessageId,
@@ -636,7 +1328,7 @@ public sealed class RetainedMailPersistenceTests
             ["intake@collisionengineers.co.uk"],
             ["copied@collisionengineers.co.uk"],
             subject,
-            "Please inspect the vehicle.",
+            bodyPlainText,
             [new("estimate.pdf", "application/pdf", 2048)],
             IsRead: false),
         receivedAtUtc ?? ReceivedAtUtc);
@@ -745,6 +1437,224 @@ public sealed class RetainedMailPersistenceTests
         await context.SaveChangesAsync();
     }
 
+    private static async Task<FolderMoveSeed> SeedFolderMoveAsync(
+        LocalDbTestDatabase database,
+        params (MailLogicalFolderType FolderType, string FolderIdentity)[] bindings)
+    {
+        if (bindings.Length == 0)
+        {
+            bindings = [(MailLogicalFolderType.Instructions, "folder-instructions")];
+        }
+        await SeedPollStateAsync(database);
+        var message = Message("message-move-review");
+        await RetainAsync(database, message);
+        await StoreClassifiedReceiptAsync(
+            database,
+            message,
+            MailClassificationResult.Classified(
+                MailCategory.Received(ReceivedMailFamily.NewInstructionReceived, "inspection"),
+                [],
+                "Instruction identified.",
+                "shared-mail-policy",
+                4));
+        int mailboxVersion;
+        await using (var context = await database.CreateContextAsync())
+        {
+            var mailbox = await context.ApprovedMailboxes
+                .Include(item => item.FolderBindings)
+                .SingleAsync(item => item.Address == MailboxAddress);
+            mailbox.MailboxIdentity = MailboxId;
+            mailbox.InboxFolderIdentity = "inbox";
+            mailbox.State = ApprovedMailboxState.Approved.ToString();
+            mailbox.Version++;
+            foreach (var binding in bindings)
+            {
+                mailbox.FolderBindings.Add(new()
+                {
+                    ApprovedMailboxId = mailbox.Id,
+                    ApprovedMailbox = mailbox,
+                    FolderType = binding.FolderType.ToString(),
+                    FolderIdentity = binding.FolderIdentity
+                });
+            }
+            mailboxVersion = mailbox.Version;
+            await context.SaveChangesAsync();
+        }
+        await using var scope = database.CreateAsyncScope();
+        var retained = Assert.Single((await scope.ServiceProvider
+            .GetRequiredService<IRetainedMailQueries>()
+            .ListAsync(new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+        return new(
+            retained.Id,
+            message.ExternalReceiptToken,
+            ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+            new(
+                retained.Id,
+                1,
+                MailLogicalFolderPolicy.Key,
+                MailLogicalFolderPolicy.Version,
+                mailboxVersion,
+                Guid.NewGuid().ToString("D"),
+                "Confirmed by staff."));
+    }
+
+    private static MoveRetainedMailFolder FolderMoveCommand(
+        AsyncServiceScope scope,
+        IRetainedMailFolderMover mover) => new(new EfRetainedMailFolderMoveStore(
+            scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>(),
+            mover,
+            TimeProvider.System));
+
+    private static async Task AssertUncertainBlocksNewKeyAndRecoversAsync(
+        LocalDbTestDatabase database,
+        FolderMoveSeed seed,
+        CancellationRecoveryFolderMover mover)
+    {
+        await using (var verification = await database.CreateContextAsync())
+        {
+            var operation = Assert.Single(await verification.RetainedMailFolderMoves.ToListAsync());
+            Assert.Equal("uncertain", operation.Outcome);
+        }
+
+        await using var newKeyScope = database.CreateAsyncScope();
+        await Assert.ThrowsAsync<RetainedMailFolderMoveException>(() =>
+            FolderMoveCommand(newKeyScope, mover).ExecuteAsync(
+                seed.Actor,
+                seed.Request with { OperationKey = Guid.NewGuid().ToString("D") }));
+
+        await using var replayScope = database.CreateAsyncScope();
+        var replay = await FolderMoveCommand(replayScope, mover).ExecuteAsync(seed.Actor, seed.Request);
+        Assert.True(replay!.IsReplay);
+        Assert.Equal(RetainedMailFolderMoveOutcome.Succeeded, replay.Outcome);
+        Assert.Equal(1, mover.MoveCalls);
+        Assert.Equal(2, mover.ParentCalls);
+    }
+
+    private sealed record FolderMoveSeed(
+        Guid MessageId,
+        string ExternalReceiptToken,
+        ActionActor Actor,
+        MoveRetainedMailFolderRequest Request);
+
+    private sealed class BlockingFolderMover : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+        public int ParentCalls { get; private set; }
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private string currentFolder = "inbox";
+
+        public async Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(cancellationToken);
+            currentFolder = coordinates.DestinationFolderId;
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
+        {
+            ParentCalls++;
+            return Task.FromResult<string?>(currentFolder);
+        }
+    }
+
+    private sealed class StatefulFolderMover(string currentFolder) : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+        public int ParentCalls { get; private set; }
+        public List<RetainedMailFolderMoveCoordinates> Coordinates { get; } = [];
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            Coordinates.Add(coordinates);
+            currentFolder = coordinates.DestinationFolderId;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
+        {
+            ParentCalls++;
+            return Task.FromResult<string?>(currentFolder);
+        }
+    }
+
+    private sealed class FailOnceFolderMover : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+        private string currentFolder = "inbox";
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            if (MoveCalls == 1)
+            {
+                throw new InvalidOperationException("Provider move failed.");
+            }
+            currentFolder = coordinates.DestinationFolderId;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(currentFolder);
+    }
+
+    private sealed class CancellationRecoveryFolderMover(Action afterMove) : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+        public int ParentCalls { get; private set; }
+        private string currentFolder = "inbox";
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            currentFolder = coordinates.DestinationFolderId;
+            afterMove();
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken)
+        {
+            ParentCalls++;
+            return Task.FromResult<string?>(currentFolder);
+        }
+    }
+
+    private sealed class CancelFolderMoveSuccessSaveInterceptor : SaveChangesInterceptor
+    {
+        private CancellationTokenSource? cancellation;
+
+        public void CancelNextSuccessSave(CancellationTokenSource source) =>
+            cancellation = source;
+
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData,
+            InterceptionResult<int> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (eventData.Context is not null
+                && eventData.Context.ChangeTracker.Entries<RetainedMailFolderMoveEntity>()
+                    .Any(entry => entry.State == EntityState.Modified
+                        && entry.Entity.Outcome == "succeeded"))
+            {
+                var source = Interlocked.Exchange(ref cancellation, null);
+                if (source is not null)
+                {
+                    source.Cancel();
+                    throw new OperationCanceledException(source.Token);
+                }
+            }
+
+            return base.SavingChangesAsync(eventData, result, cancellationToken);
+        }
+    }
+
     private sealed class SequenceInboxSource(params ApprovedInboxMessage[] messages)
         : IApprovedInboxSource
     {
@@ -763,5 +1673,24 @@ public sealed class RetainedMailPersistenceTests
             var message = remaining.Dequeue();
             return Task.FromResult(new ApprovedInboxPage([message], message.NextCursor));
         }
+    }
+
+    private sealed class RecordingFolderMover(string parentFolderId) : IRetainedMailFolderMover
+    {
+        public bool IsAvailable => true;
+        public int MoveCalls { get; private set; }
+        private bool moved;
+
+        public Task MoveAsync(RetainedMailFolderMoveCoordinates coordinates, CancellationToken cancellationToken)
+        {
+            MoveCalls++;
+            Assert.Equal("inbox", coordinates.SourceFolderId);
+            Assert.Equal("folder-instructions", coordinates.DestinationFolderId);
+            moved = true;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetParentFolderIdAsync(string mailboxId, string immutableMessageId, CancellationToken cancellationToken) =>
+            Task.FromResult<string?>(moved ? parentFolderId : "inbox");
     }
 }

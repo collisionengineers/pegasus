@@ -1,15 +1,15 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Vehicle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases.Assessment;
 
@@ -34,8 +34,17 @@ public sealed class IndexModel(
     IAiWorkRequestStore workRequests,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
-    TimeProvider timeProvider) : PageModel
+    IRepairSpecificationStore repairSpecifications,
+    IEstimateDocumentParser estimateParser,
+    IAddCaseDocument addCaseDocument,
+    IAcquireCaseEditLease acquireLease,
+    IVehicleEvidenceQueries vehicleEvidence,
+    ISaveAssessment saveAssessment,
+    TimeProvider timeProvider) : StaffPageModel
 {
+    /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
+    private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
+
     public CaseDetails? Case { get; private set; }
 
     public CaseAssessmentProjection? Assessment { get; private set; }
@@ -61,6 +70,158 @@ public sealed class IndexModel(
 
     public string ReportDraftOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>
+    /// ENG-003: the one readiness list the page renders. <see cref="ReportDraftPreparation"/>'s
+    /// <c>Reasons</c> already reuses <see cref="AssessmentPolicy.EvaluateReadiness"/> as its
+    /// base and only appends report-specific requirements on top
+    /// (<see cref="Pegasus.Core.Reports.AssessmentReportProjection.Project"/>), so it is always a
+    /// superset of <see cref="Assessment"/>'s own <c>Readiness</c> for the same case — using it
+    /// here loses nothing the readiness rail previously showed on its own.
+    /// </summary>
+    public IReadOnlyList<AssessmentReadinessItem> CombinedReadiness { get; private set; } = [];
+
+    /// <summary>ENG-002: the case's current repair specification, draft first.</summary>
+    public RepairSpecificationVersion? DraftSpecification { get; private set; }
+
+    public RepairSpecificationVersion? AcceptedSpecification { get; private set; }
+
+    public bool ActorIsEngineer { get; private set; }
+
+    public string ImportOperationKey { get; private set; } = NewOperationKey();
+
+    public string AcceptOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>The case's vehicle-lookup evidence, for prefilling the vehicle section.</summary>
+    public CaseVehicleEvidence? VehicleEvidence { get; private set; }
+
+    /// <summary>A saved assessment value for one vocabulary path, or null.</summary>
+    public string? SavedValue(string path) => Assessment?.Field(path)?.Value;
+
+    /// <summary>
+    /// The Mileage prefill: the saved assessment value, else confirmed vehicle
+    /// evidence, else the DVSA estimate (miles only) — CASE-008.
+    /// </summary>
+    public string? MileagePrefill
+    {
+        get
+        {
+            if (SavedValue("vehicle.odometer_miles") is { Length: > 0 } saved)
+            {
+                return saved;
+            }
+            if (VehicleEvidence?.Confirmed?.Mileage is { } confirmed
+                && VehicleEvidence.Confirmed.MileageUnit?.Value is null or VehicleMileageUnit.Miles)
+            {
+                return confirmed.Value.ToString(CultureInfo.InvariantCulture);
+            }
+            return VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles } estimate
+                ? estimate.Value.ToString(CultureInfo.InvariantCulture)
+                : null;
+        }
+    }
+
+    /// <summary>The Source prefill: saved, else online data when the mileage came from evidence.</summary>
+    public string? MileageSourcePrefill =>
+        SavedValue("vehicle.mileage_source") is { Length: > 0 } saved
+            ? saved
+            : MileagePrefill is null ? null : "online_data";
+
+    /// <summary>A vehicle-detail prefill: the saved assessment value, else lookup evidence.</summary>
+    public string? VehiclePrefill(string path)
+    {
+        if (SavedValue(path) is { Length: > 0 } saved)
+        {
+            return saved;
+        }
+
+        var details = VehicleEvidence?.LatestObservation?.Vehicle;
+        return path switch
+        {
+            "vehicle.make" => VehicleEvidence?.Confirmed?.Make?.Value ?? details?.Make,
+            "vehicle.model" => VehicleEvidence?.Confirmed?.Model?.Value ?? details?.Model,
+            "vehicle.year" => details?.ManufactureYear?.ToString(CultureInfo.InvariantCulture),
+            "vehicle.engine_cc" => details?.EngineCapacityCc?.ToString(CultureInfo.InvariantCulture),
+            "vehicle.fuel" => details?.FuelType,
+            _ => null
+        };
+    }
+
+    public string DamageOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>The saved damage location, highlighted on the diagram (ENG-006).</summary>
+    public string? SavedImpactLocation =>
+        Assessment?.Field(AssessmentVocabulary.ImpactLocation)?.Value;
+
+    /// <summary>The case's recorded inspection mode, preselecting the method radios.</summary>
+    public CaseInspectionMode? RecordedInspectionMode =>
+        Case?.Data?.Inspection.Mode.Current?.Value;
+
+    /// <summary>
+    /// ENG-006: one click on a damage region saves it as the case's impact
+    /// location through the assessment save seam, under a lease this handler
+    /// acquires — the same value the report prints and the Impact location
+    /// dropdown edits.
+    /// </summary>
+    public async Task<IActionResult> OnPostSaveDamageAsync(
+        Guid id,
+        string operationKey,
+        string? impactLocation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToPage(new { id, section = "report" });
+        }
+        if (string.IsNullOrWhiteSpace(impactLocation))
+        {
+            TempData["AssessmentError"] = "Choose where the damage is.";
+            return RedirectToPage(new { id, section = "report" });
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var lease = await acquireLease.ExecuteAsync(
+                new(id, details.Workflow.Version, actor, NewOperationKey()),
+                cancellationToken);
+            await saveAssessment.ExecuteAsync(
+                new(
+                    id,
+                    details.Workflow.Version,
+                    actor,
+                    operationKey,
+                    "Damage location marked on the assessment diagram.",
+                    lease.Token,
+                    new Dictionary<string, string?>
+                    {
+                        [AssessmentVocabulary.ImpactLocation] = impactLocation
+                    }),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = exception.Message;
+            return RedirectToPage(new { id, section = "report" });
+        }
+
+        TempData["AssessmentStatus"] = "Damage location saved.";
+        return RedirectToPage(new { id, section = "report" });
+    }
+
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -77,8 +238,13 @@ public sealed class IndexModel(
         }
 
         Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
+        VehicleEvidence = await vehicleEvidence.GetAsync(id, cancellationToken);
+        DraftSpecification = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
+        AcceptedSpecification = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
+        ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
         LatestRequest = await workRequests.GetLatestForCaseAsync(id, cancellationToken);
         ReportDraftPreparation = await generateReportDraft.PrepareAsync(id, actor, cancellationToken);
+        CombinedReadiness = ReportDraftPreparation?.Reasons ?? Assessment?.Readiness ?? [];
         await EvaluatePanelStateAsync(cancellationToken);
         return Page();
     }
@@ -134,6 +300,267 @@ public sealed class IndexModel(
                 return File(assessmentPdf.Pdf, "application/pdf", assessmentPdf.SuggestedFileName);
         }
     }
+
+    /// <summary>
+    /// ENG-002: the drag-and-drop estimate import. The file is parsed first
+    /// (no side effects — a rejected parse retains nothing), then retained
+    /// through the existing case-document custody path, then landed as a
+    /// draft repair specification with the route, source version and hash of
+    /// the retained document. The specification stays a draft until an
+    /// Engineer accepts it; nothing feeds a report from a draft.
+    /// </summary>
+    public async Task<IActionResult> OnPostImportEstimateAsync(
+        Guid id,
+        string operationKey,
+        string? reason,
+        IFormFile? estimateFile,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["AssessmentError"] = "Only an Engineer can import an estimate.";
+            return RedirectToEstimate(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        if (estimateFile is null || estimateFile.Length is <= 0 or > MaximumEstimateUploadBytes)
+        {
+            TempData["AssessmentError"] = "Choose a non-empty estimate file of 10 MB or less.";
+            return RedirectToEstimate(id);
+        }
+        if (!estimateParser.CanParse(estimateFile.FileName, estimateFile.ContentType))
+        {
+            TempData["AssessmentError"] = "Only a PDF estimate can be imported at present.";
+            return RedirectToEstimate(id);
+        }
+
+        await using var buffer = new MemoryStream((int)estimateFile.Length);
+        await estimateFile.CopyToAsync(buffer, cancellationToken);
+        var content = buffer.GetBuffer().AsMemory(0, checked((int)buffer.Length));
+
+        ParsedEstimate parsed;
+        try
+        {
+            parsed = estimateParser.Parse(content);
+        }
+        catch (EstimateParseRejectedException exception)
+        {
+            TempData["AssessmentError"] = exception.Message;
+            return RedirectToEstimate(id);
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+        if (await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken) is not null)
+        {
+            TempData["AssessmentError"] = "A draft repair specification already exists for this case. "
+                + "Accept it or replace its lines before importing another estimate.";
+            return RedirectToEstimate(id);
+        }
+        var accepted = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
+        var trimmedReason = reason?.Trim();
+        if (accepted is not null && string.IsNullOrEmpty(trimmedReason))
+        {
+            TempData["AssessmentError"] = "This case already has an accepted repair specification. "
+                + "Give the reason this import corrects it.";
+            return RedirectToEstimate(id);
+        }
+
+        var caseVersion = details.Workflow.Version;
+        var artifactIdentity = $"estimate-import:{operationKey}";
+        AddCaseDocumentResult retained;
+        try
+        {
+            var documentLease = await acquireLease.ExecuteAsync(
+                new(id, caseVersion, actor, NewOperationKey()),
+                cancellationToken);
+            retained = await addCaseDocument.ExecuteAsync(
+                new(
+                    id,
+                    Path.GetFileName(estimateFile.FileName),
+                    "application/pdf",
+                    content,
+                    DocumentSemanticRole.Other,
+                    DocumentSource.StaffUpload,
+                    artifactIdentity,
+                    actor,
+                    $"{operationKey}-document",
+                    caseVersion,
+                    documentLease.Token),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception,
+                "The estimate was not imported because the case changed or another editor holds it. "
+                + "Nothing was recorded; retry the import.");
+            return RedirectToEstimate(id);
+        }
+
+        try
+        {
+            var draftLease = await acquireLease.ExecuteAsync(
+                new(id, caseVersion + 1, actor, NewOperationKey()),
+                cancellationToken);
+            await repairSpecifications.StartDraftAsync(
+                new(
+                    id,
+                    caseVersion + 1,
+                    new(estimateParser.Route, artifactIdentity, parsed.SourceVersion, retained.Version.Sha256),
+                    actor,
+                    operationKey,
+                    string.IsNullOrEmpty(trimmedReason) ? "Estimate imported from a document" : trimmedReason,
+                    draftLease.Token,
+                    accepted?.SpecificationId,
+                    parsed.Lines),
+                cancellationToken);
+            TempData["AssessmentStatus"] =
+                $"The estimate was imported as a draft with {parsed.Lines.Count} lines for your review. "
+                + "The original document is kept on the case.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception,
+                "The original document was kept on the case, but the estimate lines were not "
+                + "recorded because the case changed. Retry the import.");
+        }
+
+        return RedirectToEstimate(id);
+    }
+
+    /// <summary>
+    /// ENG-002: Engineer acceptance of the current draft specification. The
+    /// money figures are typed from the retained original document — no
+    /// derivation from lines exists until EXT-09's formula authority is
+    /// accepted — and the Core policy enforces that the total equals the
+    /// typed figures plus VAT.
+    /// </summary>
+    public async Task<IActionResult> OnPostAcceptSpecificationAsync(
+        Guid id,
+        string operationKey,
+        Guid specificationId,
+        int specificationVersion,
+        decimal labour,
+        decimal parts,
+        decimal paintMaterials,
+        decimal specialistOther,
+        decimal vat,
+        string? repairerVatRegistered,
+        string? reason,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!actor.IsInRole(StaffRole.Engineer))
+        {
+            TempData["AssessmentError"] = "Only an Engineer can accept a repair specification.";
+            return RedirectToEstimate(id);
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToEstimate(id);
+        }
+        if (repairerVatRegistered is not ("true" or "false"))
+        {
+            TempData["AssessmentError"] = "Answer whether the repairer is VAT registered.";
+            return RedirectToEstimate(id);
+        }
+
+        var draft = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
+        if (draft is null || draft.SpecificationId != specificationId)
+        {
+            TempData["AssessmentError"] = "The draft repair specification changed. Review it again.";
+            return RedirectToEstimate(id);
+        }
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var lease = await acquireLease.ExecuteAsync(
+                new(id, details.Workflow.Version, actor, NewOperationKey()),
+                cancellationToken);
+            var basis = new RepairCalculationBasis(
+                labour,
+                parts,
+                paintMaterials,
+                specialistOther,
+                repairerVatRegistered == "true",
+                vat,
+                labour + parts + paintMaterials + specialistOther + vat,
+                $"{RepairSpecificationPolicy.PolicyKey}/v{RepairSpecificationPolicy.PolicyVersion}");
+            await repairSpecifications.AcceptAsync(
+                new(
+                    id,
+                    details.Workflow.Version,
+                    specificationId,
+                    specificationVersion,
+                    draft.Source,
+                    basis,
+                    actor,
+                    operationKey,
+                    string.IsNullOrWhiteSpace(reason) ? "Repair specification accepted" : reason.Trim(),
+                    lease.Token),
+                cancellationToken);
+            TempData["AssessmentStatus"] = "The repair specification was accepted.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = MutationRefusalMessage(
+                exception,
+                "The repair specification was not accepted because the case changed or another "
+                + "editor holds it. Review it again.");
+        }
+
+        return RedirectToEstimate(id);
+    }
+
+    /// <summary>
+    /// The repair-specification policy refuses with complete operator-safe
+    /// sentences; version and lease conflicts carry internals, so they get
+    /// the fallback instead.
+    /// </summary>
+    private static string MutationRefusalMessage(Exception exception, string fallback) =>
+        exception is InvalidOperationException
+            and not CaseVersionConflictException
+            and not CaseEditLeaseConflictException
+            and not CaseEditLeaseExpiredException
+            and not CaseOperationConflictException
+            ? exception.Message
+            : fallback;
+
+    private RedirectToPageResult RedirectToEstimate(Guid id) =>
+        RedirectToPage(new { id, section = "estimate" });
 
     public async Task<IActionResult> OnPostSendAsync(
         Guid id,
@@ -226,6 +653,14 @@ public sealed class IndexModel(
         return RedirectToPage(new { id });
     }
 
+    /// <summary>
+    /// ENG-003: the one place the "N issues detected" pluralisation rule
+    /// lives, so the readiness panel's summary chip and the report-draft
+    /// "Not ready" card's reference back to it never drift apart.
+    /// </summary>
+    public static string IssueSummaryText(int count) =>
+        $"{count} {(count == 1 ? "issue" : "issues")} detected";
+
     public string FieldValue(string path) => Assessment?.Field(path)?.Value ?? string.Empty;
 
     public decimal? MoneyField(string path) =>
@@ -240,10 +675,15 @@ public sealed class IndexModel(
 
     private async Task EvaluatePanelStateAsync(CancellationToken cancellationToken)
     {
-        // The composition gate decides first. With Features:SendToAi off
-        // there is no reconcile handler to post to, so a persisted request
-        // must not render as an actionable Sent/Completed/Failed state.
-        if (SendComposed && LatestRequest is { } request)
+        // The composition gate decides first: an uncomposed capability is
+        // absent from the page entirely (docs/design/README.md), and with
+        // Features:SendToAi off there is no reconcile handler to post to.
+        if (!SendComposed)
+        {
+            return;
+        }
+
+        if (LatestRequest is { } request)
         {
             var expired = request.ExpiresAtUtc <= timeProvider.GetUtcNow();
             switch (request.State)
@@ -262,11 +702,7 @@ public sealed class IndexModel(
         }
 
         var reasons = new List<string>();
-        if (!SendComposed)
-        {
-            reasons.Add("Sending to AI is not part of this deployment.");
-        }
-        else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
+        if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
         {
             reasons.Add("Sending to AI is disabled by an Administrator.");
         }
@@ -280,18 +716,6 @@ public sealed class IndexModel(
         PanelState = reasons.Count == 0 ? "available" : "unavailable";
         UnavailableReasons = reasons;
     }
-
-    private bool TryGetActor(out ActionActor actor)
-    {
-        var created = StaffActorFactory.TryCreate(
-            User.FindFirstValue(ClaimTypes.NameIdentifier),
-            User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-            out var resolved);
-        actor = resolved!;
-        return created;
-    }
-
-    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
 
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;

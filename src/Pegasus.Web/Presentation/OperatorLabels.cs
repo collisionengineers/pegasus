@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.ImageIntake;
@@ -7,6 +8,7 @@ using Pegasus.Core.Intake;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake.Unidentified;
 
 namespace Pegasus.Web.Presentation;
@@ -30,6 +32,9 @@ namespace Pegasus.Web.Presentation;
 /// </remarks>
 public static class OperatorLabels
 {
+    public static string AttachmentSearchability(bool isSearchable) =>
+        isSearchable ? "Searchable content" : "Content unavailable for search";
+
     public static string UnidentifiedReason(UnidentifiedReasonCode reason) => reason switch
     {
         UnidentifiedReasonCode.UnreadableOrCorruptContent => "Unreadable or corrupt content",
@@ -79,6 +84,20 @@ public static class OperatorLabels
         _ => "(No subject)"
     };
 
+    /// <summary>
+    /// The confirmation surface's association report, worded by provenance:
+    /// a staff decision is never described as automation's doing, and what
+    /// it says happened automatically really did.
+    /// </summary>
+    public static string AssociatedWithCase(string? caseReference, bool byStaffDecision) =>
+        (byStaffDecision, caseReference) switch
+        {
+            (true, null) => "This was added to a case.",
+            (true, { } staffLinked) => $"This was added to case {staffLinked}.",
+            (false, null) => "This was automatically associated with a case.",
+            (false, { } matched) => $"This was automatically associated with case {matched}."
+        };
+
     public static string CaseStage(CaseLifecycleState state) => state switch
     {
         CaseLifecycleState.NotReady => "Not ready",
@@ -125,11 +144,20 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// The Image-initiated Case side of chase visibility
+    /// (<see cref="ImageIntakeChaseSchedule"/>): a derived due/not-due read
+    /// with no held/stopped state, reusing the exact "Chase due" wording
+    /// <see cref="ChaseState"/> already uses for the Case side rather than a
+    /// second spelling of the same fact.
+    /// </summary>
+    public static string ImageChaseState(bool chaseDue) => chaseDue ? "Chase due" : "Not yet due";
+
+    /// <summary>
     /// The application work view a classified message belongs in, from the
     /// Core operational-destination policy.
     /// </summary>
     /// <remarks>
-    /// The abstention case reuses the exact "Needs sorting" wording this page
+    /// The abstention case reuses the exact "Unidentified" wording this page
     /// already shows for the unmatched Queue and Filed-to states
     /// (<see cref="Pegasus.Web.Pages.Mail.MessageModel.QueueLabel"/> and
     /// <see cref="Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(IntakeDecision)"/>)
@@ -145,6 +173,42 @@ public static class OperatorLabels
         MailOperationalDestination.Triage => "Triage",
         MailOperationalDestination.Unidentified => "Unidentified",
         _ => Humanise(destination.ToString())
+    };
+
+    /// <summary>
+    /// Where a repair specification's lines came from (ENG-002). The
+    /// unresolved legacy route is the fallback: rows recorded before the
+    /// product tracked a source at all.
+    /// </summary>
+    public static string RepairSpecificationRoute(RepairSpecificationSourceRoute route) => route switch
+    {
+        RepairSpecificationSourceRoute.Manual => "entered by hand",
+        RepairSpecificationSourceRoute.Glasses => "imported from Glass's",
+        RepairSpecificationSourceRoute.AudatexPdf => "imported from Audatex",
+        RepairSpecificationSourceRoute.ApprovedAiProposal => "from an approved AI proposal",
+        _ => "recorded before source tracking"
+    };
+
+    /// <summary>
+    /// An estimate line's operation type, in the same words the line-type
+    /// choices offer. An unlisted code prints verbatim rather than being
+    /// humanised, because the persisted vocabulary is closed
+    /// (<see cref="EstimateLineCodes"/>) and an unknown value is a fault the
+    /// operator should be able to read back exactly.
+    /// </summary>
+    public static string EstimateLineType(string type) => type switch
+    {
+        "rnr" => "Remove and refit",
+        "repair" => "Repair",
+        "new_part" => "New part",
+        "check_labour" => "Check",
+        "paint_new" => "Paint — new part",
+        "paint_repair" => "Paint — repair",
+        "paint_blend" => "Paint — blend",
+        "paint_prep" => "Paint — preparation",
+        "specialist_fixed" => "Specialist, fixed price",
+        "specialist_wu" => "Specialist, by work units",
+        _ => type
     };
 
     public static string DocumentRole(DocumentSemanticRole role) => role switch
@@ -415,6 +479,22 @@ public static class OperatorLabels
     };
 
     /// <summary>
+    /// A stored chase reason for display. Maps the pre-release-15 wording
+    /// (which used a banned word) without a data migration; anything else is
+    /// already operator text.
+    /// </summary>
+    public static string ChaseReason(string? reason) =>
+        reason == "Accepted intake is incomplete" ? "Details are incomplete" : reason ?? string.Empty;
+
+    /// <summary>The operator words for a recorded inspection mode.</summary>
+    public static string InspectionMode(CaseInspectionMode value) => value switch
+    {
+        CaseInspectionMode.PhysicalAddress => "Physical address",
+        CaseInspectionMode.ImageBasedAssessment => "Image Based Assessment",
+        _ => Humanise(value.ToString())
+    };
+
+    /// <summary>
     /// Turns a persisted code into a sentence: <c>case_returned_to_review</c>
     /// becomes "Case returned to review", <c>PostReportComplete</c> becomes
     /// "Post report complete".
@@ -457,6 +537,24 @@ public static class OperatorLabels
     }
 
     /// <summary>
+    /// The Automation activity view's Subject column, resolved from the raw
+    /// subject id recorded on an Automation action or a denied automation
+    /// request (<see cref="Pegasus.Core.Identity.AutomationActivityRecord"/>).
+    /// There is exactly one Automation client per deployment (ADR-0011): a
+    /// subject matching its configured client id is that client; anything else
+    /// that is shaped like a GUID cannot be resolved to an identity and is never
+    /// shown raw. A non-GUID subject (for example "anonymous", written for a
+    /// request that carried no client identity at all) is already an honest
+    /// label and passes through unchanged.
+    /// </summary>
+    public static string AutomationActorLabel(string subjectId, string? configuredClientId) =>
+        configuredClientId is { Length: > 0 } && string.Equals(subjectId, configuredClientId, StringComparison.Ordinal)
+            ? Pegasus.Web.Mcp.AutomationMcp.ClientDisplayName
+            : Guid.TryParse(subjectId, out _)
+                ? "Unknown automation client"
+                : subjectId;
+
+    /// <summary>
     /// Where a value came from, as the one word the provenance icon announces
     /// and the approved Lucide glyph that carries it.
     /// </summary>
@@ -470,6 +568,51 @@ public static class OperatorLabels
     /// IntakeEvidence. It is derived from the reader identity already carried on
     /// the source label, and falls back to Extracted rather than guessing.
     /// </remarks>
+    /// <summary>
+    /// The supplied/external/estimated classification a mileage figure carries. The
+    /// binding rule sits in Core (<see cref="VehicleMileageEvidenceClassification"/>):
+    /// a derived estimate is never presented as supplied.
+    /// </summary>
+    public static string MileageEvidence(VehicleMileageEvidenceClass value) => value switch
+    {
+        VehicleMileageEvidenceClass.Supplied => "Supplied",
+        VehicleMileageEvidenceClass.External => "External",
+        VehicleMileageEvidenceClass.Estimated => "Estimated",
+        _ => Humanise(value.ToString())
+    };
+
+    /// <summary>
+    /// The unit word a mileage figure carries ("12,345 miles").
+    /// </summary>
+    public static string MileageUnit(VehicleMileageUnit value) => value switch
+    {
+        VehicleMileageUnit.Miles => "miles",
+        VehicleMileageUnit.Kilometres => "km",
+        _ => Humanise(value.ToString())
+    };
+
+    /// <summary>
+    /// The operator word for how material arrived. One owner for the channel
+    /// vocabulary; the string overload accepts the persisted channel code.
+    /// </summary>
+    public static string SourceChannel(IntakeSourceChannel channel) => channel switch
+    {
+        IntakeSourceChannel.ManualUpload => "Manual upload",
+        IntakeSourceChannel.Mailbox => "Approved inbox",
+        IntakeSourceChannel.Automation => "Automation",
+        _ => throw new InvalidOperationException(
+            $"Unknown intake source channel value '{(int)channel}'.")
+    };
+
+    /// <inheritdoc cref="SourceChannel(IntakeSourceChannel)" />
+    public static string SourceChannel(string? code) => code switch
+    {
+        "manual_upload" => "Manual upload",
+        "mailbox" => "Approved inbox",
+        "automation" => "Automation",
+        _ => Humanise(code)
+    };
+
     public static (string Word, string Icon) Provenance(CaseDataSource? source)
     {
         var isAiReader = source is not null
@@ -489,5 +632,52 @@ public static class OperatorLabels
             CaseDataSourceKind.CaseAcceptance => ("Automatic", "icon-refresh-cw"),
             _ => ("Unknown", "icon-info")
         };
+    }
+
+    /// <summary>
+    /// A mail classification in operator words: the settled family label, with
+    /// the subtype appended after a separator dot ("New instruction ·
+    /// Inspection"). Other categories carry the operator's own name verbatim.
+    /// </summary>
+    public static string MailClassification(Pegasus.Core.Intake.MailCategory category)
+    {
+        if (category.IsOther)
+        {
+            return category.OtherName!;
+        }
+
+        var family = category.ReceivedFamily is { } received
+            ? received switch
+            {
+                Pegasus.Core.Intake.ReceivedMailFamily.General => "General",
+                Pegasus.Core.Intake.ReceivedMailFamily.Billing => "Billing",
+                Pegasus.Core.Intake.ReceivedMailFamily.NewInstructionReceived => "New instruction",
+                Pegasus.Core.Intake.ReceivedMailFamily.NonClientRelated => "Not client related",
+                Pegasus.Core.Intake.ReceivedMailFamily.InProgressCases => "In-progress case",
+                Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
+                Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
+                Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
+            }
+            : category.SentFamily switch
+            {
+                Pegasus.Core.Intake.SentMailFamily.ReportSent => "Report sent",
+                Pegasus.Core.Intake.SentMailFamily.CaseRejected => "Case rejected",
+                Pegasus.Core.Intake.SentMailFamily.QuerySent => "Query sent",
+                Pegasus.Core.Intake.SentMailFamily.AdditionalImageRequest => "Additional image request",
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
+            };
+        var prefixed = category.Direction == Pegasus.Core.Intake.MailDirection.Sent
+            ? $"Sent · {family}"
+            : family;
+        return category.Subtype is { } subtype
+            ? $"{prefixed} · {HumanizeSlug(subtype)}"
+            : prefixed;
+    }
+
+    private static string HumanizeSlug(string slug)
+    {
+        var words = slug.Replace('-', ' ').Replace('_', ' ');
+        return words.Length == 0 ? words : char.ToUpperInvariant(words[0]) + words[1..];
     }
 }

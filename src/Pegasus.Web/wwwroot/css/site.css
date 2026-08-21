@@ -43,6 +43,10 @@
   --navy-line: #365f87;
   --success: #16833b;
   --success-tint: rgba(22, 131, 59, .1);
+  /* Text-on-tint green, matching the amber/red pattern of a darker fg than
+     the line colour: --success on --success-tint sits just under the 4.5:1
+     floor, which the status-card--done comment below already records. */
+  --success-fg: #11672e;
 
   /* Spacing rhythm */
   --sp-1: 4px;
@@ -833,7 +837,7 @@ a.metric:hover { border-color: var(--state-line); background: var(--state-bg); }
 .status-chip--navy, .status-chip--review { --state-line: var(--navy-line); --state-bg: var(--navy-bg); --state-fg: var(--navy-fg); }
 .status-chip--amber, .status-chip--not-ready { --state-line: var(--amber-line); --state-bg: var(--amber-tint); --state-fg: var(--amber-fg); }
 .status-chip--red, .status-chip--blocked { --state-line: var(--ce-red); --state-bg: var(--ce-red-tint); --state-fg: var(--ce-red-dark); }
-.status-chip--green, .status-chip--completed { --state-line: var(--success); --state-bg: var(--success-tint); --state-fg: var(--success); }
+.status-chip--green, .status-chip--completed { --state-line: var(--success); --state-bg: var(--success-tint); --state-fg: var(--success-fg); }
 .status-chip--neutral { --state-line: var(--line); --state-bg: var(--paper); --state-fg: var(--muted); }
 
 .status-card {
@@ -1282,6 +1286,22 @@ textarea:focus-visible,
 .blocker strong { font-size: var(--t-sm); }
 .blocker small { color: var(--muted); font-size: var(--t-xs); }
 
+/* ENG-003: one combined readiness indicator replaces a per-issue list. The
+   trigger reuses .status-chip as-is (no new chip look); this only styles the
+   <details> wrapper and hides its native marker, since the chip already
+   carries its own border and icon. */
+.readiness-summary > summary {
+  display: inline-flex;
+  cursor: pointer;
+  list-style: none;
+}
+
+.readiness-summary > summary::-webkit-details-marker { display: none; }
+.readiness-summary > summary::marker { content: ""; }
+.readiness-summary > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.readiness-summary > .blocker-list { margin: 0; }
+.readiness-summary[open] > .blocker-list { margin-top: var(--sp-3); }
+
 /* Guide evidence. Read-only, on the recessed ground, so it never reads as one
    of the three figures the engineer chooses on the panel below it. */
 .evidence-figure {
@@ -1346,7 +1366,7 @@ table tfoot th {
 /* A repair line carries eleven columns. Below this width the cells stop being
    usable, so the wrapper scrolls instead of crushing them; under 900px the
    stacked reflow takes over and the scroll never applies. */
-.line-grid { min-width: 78rem; }
+.line-grid { min-width: 56rem; }
 /* Column headers wrap here. The global `th` rule keeps headers on one line,
    which under `table-layout: fixed` makes a long header overrun its column and
    collide with the next one. */
@@ -1777,8 +1797,8 @@ table tfoot th {
 .facts dd.quiet { color: var(--muted); font-weight: 400; }
 
 .datarow { display: flex; align-items: center; gap: var(--sp-4); min-height: 32px; padding: 3px 0; border-top: var(--border); font-variant-numeric: tabular-nums; }
-.datarow__field { flex: 0 0 150px; color: var(--muted); font-size: var(--t-sm); }
-.datarow__value { flex: 0 0 210px; font-weight: 600; }
+.datarow__field { flex: 1 1 120px; min-width: 0; color: var(--muted); font-size: var(--t-sm); }
+.datarow__value { flex: 1.4 1 140px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .datarow__value.quiet { color: var(--muted); font-weight: 400; }
 .datarow__end { display: flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
 
@@ -1862,8 +1882,9 @@ table tfoot th {
 .row-confirm { display: flex; align-items: flex-end; gap: var(--sp-2); margin-top: var(--sp-2); }
 .row-confirm label { font-size: var(--t-eyebrow); font-weight: 600; }
 .row-confirm input { min-width: 12rem; }
-details > summary.btn { display: inline-flex; list-style: none; }
-details > summary.btn::-webkit-details-marker { display: none; }
+details > summary.btn, .upload-attach > summary { display: inline-flex; list-style: none; }
+details > summary.btn::-webkit-details-marker, .upload-attach > summary::-webkit-details-marker { display: none; }
+details > summary.btn::marker, .upload-attach > summary::marker { content: ""; }
 
 /* A disabled action rendered as a link: it keeps its place and its stated
    condition, and stops being a target. */
@@ -1888,6 +1909,49 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .filterbar__more summary { color: var(--charcoal); cursor: pointer; font-size: var(--t-sm); font-weight: 600; }
 .filterbar__more .form-grid { margin-top: var(--sp-4); }
 
+/* UI-10: the retained-mail table remains the primary workspace. The preview is
+   a read-only adjacent evidence region, then an ordinary ordered section when
+   constrained width or browser zoom leaves no honest room for two panes. */
+.mail-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.mail-workspace > .table-wrap { min-width: 0; }
+
+.mail-preview {
+  min-width: 0;
+  padding: var(--sp-5);
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.mail-preview h2 { margin: 0 0 var(--sp-4); font-size: var(--t-h3); }
+.mail-preview__status { margin: 0; color: var(--muted); }
+.mail-preview__facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); margin: 0; }
+.mail-preview__facts > div { min-width: 0; }
+.mail-preview__facts dt { color: var(--muted); font-size: var(--t-sm); font-weight: 700; }
+.mail-preview__facts dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
+.mail-preview__facts .plain-list { padding-left: var(--sp-4); }
+
+tr.is-preview-selected > td { background: var(--navy-bg); }
+tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 var(--navy-line); }
+
+@media (max-width: 1279px) {
+  .mail-workspace { grid-template-columns: minmax(0, 1fr); }
+  .mail-preview { order: 2; }
+}
+
+@media (forced-colors: active) {
+  tr.is-preview-selected > td { background: Highlight; color: HighlightText; }
+  tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 HighlightText; }
+  tr.is-preview-selected a { color: LinkText; }
+}
+
 .datarow__sug { color: var(--charcoal); font-size: var(--t-sm); }
 
 /* Mail workspace. Unread is carried by weight and by the words "Unread" in the
@@ -1895,8 +1959,10 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .queue-list > a[data-state="unread"] strong { font-weight: 800; }
 
 /* A retained body is flattened text. It is rendered as text and wraps like
-   text; nothing here interprets markup. */
-.mail-body {
+   text; nothing here interprets markup. The pre form is the quick preview and
+   Deleted-items rendering; the message page's div form renders paragraphs and
+   must not inherit pre-wrap. */
+pre.mail-body {
   margin: var(--sp-4) 0 0;
   font: inherit;
   white-space: pre-wrap;
@@ -2038,6 +2104,41 @@ details > summary.btn::-webkit-details-marker { display: none; }
 .upload-outcome__file { margin: 0 0 var(--sp-2); font-weight: 700; }
 .upload-outcome { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
 .upload-outcome__message { margin: 0; color: var(--charcoal); }
+
+/* The add-to-existing-case decision on the confirmation surface. The
+   summary reuses the secondary-action look and the shared summary marker
+   reset above; this lays out the search form and its suggestion list. The
+   active option is marked by background and an inset border, never colour
+   alone. */
+.upload-attach > summary:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
+.upload-attach[open] > summary { border-color: var(--charcoal); }
+.upload-attach__form { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); max-width: 480px; }
+/* This block sits after the stylesheet's own `[hidden] { display: none }`
+   ordering contract, so its display: grid would win over the attribute and
+   keep the empty suggestion box visible before any search has run. */
+.case-search-list[hidden] { display: none; }
+.case-search-list {
+  margin: 0;
+  padding: var(--sp-1);
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+.case-search-list [role="option"] {
+  padding: var(--sp-2) var(--sp-3);
+  border-left: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--t-sm);
+}
+.case-search-list [role="option"]:hover { background: var(--paper); }
+.case-search-list [role="option"].is-active { background: var(--paper); border-left-color: var(--ce-red); }
+.case-search-list__empty { padding: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--t-sm); }
 
 /* A single-purpose screen is centred and narrow; a wide column would put the
    dropzone's edges further apart than the file it accepts. */
@@ -2245,3 +2346,126 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
 /* A check that has not been run states that, rather than showing a blank
    result panel that could be mistaken for a clean report. */
 .history-check { display: grid; justify-items: start; gap: var(--sp-3); }
+
+/* Retained vehicle images: a grid of previews that each open the same
+   authorised image full-size in place. Thumbnails are the real image
+   CSS-constrained (no derived thumbnail store) and lazy-loaded. */
+.image-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--sp-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.image-gallery a {
+  display: grid;
+  gap: var(--sp-1);
+  text-decoration: none;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: var(--sp-2);
+}
+
+.image-gallery img {
+  display: block;
+  width: 100%;
+  height: 130px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--line);
+}
+
+.image-gallery__name {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Upload/receipt thumbnail tile — the gallery treatment for a single image
+   (INTK-020): same border/card language as .image-gallery, sized for a row. */
+.upload-thumb {
+  display: inline-block;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: var(--sp-1);
+  line-height: 0;
+}
+
+.upload-thumb img {
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.upload-outcome-list > li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: start;
+}
+
+.upload-outcome-list > li > .upload-thumb {
+  grid-row: span 2;
+}
+
+.upload-outcome-list > li > :not(.upload-thumb) {
+  grid-column: 2;
+}
+
+
+/* CASE-007: the action bar hosts the edit toggle forms inline. */
+.record__bar-form { display: inline-flex; }
+.record__bar-note { align-self: center; color: var(--muted); font-size: var(--t-sm); }
+/* INTK-022: queue filter dropdowns and sortable column headers. */
+.filter-row { display: flex; align-items: end; gap: var(--sp-5); }
+.filter-row label { display: flex; flex-direction: column; gap: var(--sp-2); color: var(--muted); font-size: var(--t-sm); }
+th[aria-sort] a::after { content: " \2193"; }
+th[aria-sort="ascending"] a::after { content: " \2191"; }
+th a { color: inherit; text-decoration: none; }
+th a:hover { text-decoration: underline; }
+/* ENG-006: required state is visual, not a sentence. */
+label.req::after { content: " *"; color: var(--ce-red); }
+
+/* ENG-006: the damage diagram is a grid of clickable regions; one click saves. */
+.damage-grid { display: grid; grid-template-columns: repeat(3, minmax(90px, 140px)); gap: var(--sp-2); }
+.damage-region { min-height: 44px; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+.damage-region:hover { border-color: var(--charcoal); }
+.damage-region[aria-pressed="true"] { background: var(--ce-red); border-color: var(--ce-red); color: #fff; font-weight: 600; }
+/* MAIL-005: the Inbox outcome cell aligns its chip and case link on one row. */
+.outcome-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+
+/* Inbox message page (MAIL-006). `.decision` is the right-column card that
+   carries the classification decision and its actions; the `.mail-*` set is
+   the letter treatment: sender line, muted forwarding route, quoted forwarded
+   header, and the body as paragraphs (a blank line is a paragraph break,
+   consecutive lines stay tight). */
+.decision { padding: var(--sp-4) var(--sp-5) var(--sp-5); border: var(--border); border-radius: var(--radius); background: var(--paper); }
+.decision + .decision { margin-top: var(--sp-5); }
+.decision .facts { margin-bottom: var(--sp-4); }
+.decision .facts:last-child { margin-bottom: 0; }
+/* The auto-fit facts grid splits the heading from its list once wide enough;
+   inside a card or dialog it stays one column. */
+.decision .facts, .reason-dialog .facts { grid-template-columns: 1fr; }
+
+.mail-from { font-size: var(--t-h2); font-weight: 650; overflow-wrap: anywhere; }
+.mail-route { margin-top: 2px; color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.mail-quoted { margin: var(--sp-5) 0 var(--sp-6); padding-left: var(--sp-4); border-left: 2px solid var(--line); color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.mail-quoted div { padding: 1px 0; }
+.mail-body { max-width: 68ch; overflow-wrap: anywhere; }
+.mail-body p { margin: 0 0 var(--sp-5); }
+.mail-body p.run-on { margin-bottom: var(--sp-1); }
+.mail-body p:last-child { margin-bottom: 0; }
+
+/* The Case tab's single working column. */
+.form-column { max-width: 680px; }
+
+/* A mail subject is the record title and wraps; an ellipsis read as clipping. */
+.record__head h1.wrap { overflow: visible; white-space: normal; text-overflow: clip; }

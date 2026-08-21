@@ -118,7 +118,8 @@ public sealed record AutomaticCaseAssociationRequest(
     int MatchPolicyVersion,
     string Actor,
     string OperationKey,
-    string Reason);
+    string Reason,
+    string? ExpectedEvidenceFingerprint = null);
 
 public enum AutomaticCaseAssociationOutcome
 {

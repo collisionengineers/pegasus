@@ -1,7 +1,4 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 
@@ -9,16 +6,13 @@ namespace Pegasus.Web.Pages.Intake;
 
 public sealed partial class SourceModel(
     IDownloadIntakeSource downloadSource,
-    ILogger<SourceModel> logger) : PageModel
+    ILogger<SourceModel> logger) : StaffPageModel
 {
     public async Task<IActionResult> OnGetAsync(
         Guid id,
         CancellationToken cancellationToken = default)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }

@@ -1,5 +1,4 @@
-using System.Security.Claims;
-using Pegasus.Core.Actors;
+﻿using Pegasus.Core.Actors;
 using Pegasus.Core.Address;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
@@ -7,7 +6,6 @@ using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Intake;
@@ -28,7 +26,7 @@ public sealed partial class DetailsModel(
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
     ILogger<DetailsModel> logger,
     IInspectionAddressResolutionStore addressResolutionStore,
-    IProviderInspectionModeStore providerInspectionModeStore) : PageModel
+    IProviderInspectionModeStore providerInspectionModeStore) : StaffPageModel
 {
     public ImageIntakeDetail? ImageIntake { get; private set; }
 
@@ -118,10 +116,7 @@ public sealed partial class DetailsModel(
         string reason,
         CancellationToken cancellationToken = default)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -249,10 +244,7 @@ public sealed partial class DetailsModel(
         string operationKey,
         CancellationToken cancellationToken = default)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -368,13 +360,8 @@ public sealed partial class DetailsModel(
         _ => throw new InvalidOperationException($"Unknown intake decision value '{(int)decision}'.")
     };
 
-    public static string SourceChannelLabel(IntakeSourceChannel channel) => channel switch
-    {
-        IntakeSourceChannel.ManualUpload => "Manual upload",
-        IntakeSourceChannel.Mailbox => "Approved inbox",
-        IntakeSourceChannel.Automation => "Automation",
-        _ => throw new InvalidOperationException($"Unknown intake source channel value '{(int)channel}'.")
-    };
+    public static string SourceChannelLabel(IntakeSourceChannel channel) =>
+        OperatorLabels.SourceChannel(channel);
 
     public static string CaseTypeLabel(CaseType? caseType) => caseType switch
     {
@@ -390,10 +377,7 @@ public sealed partial class DetailsModel(
         string successMessage,
         CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -466,10 +450,7 @@ public sealed partial class DetailsModel(
         Guid id,
         CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -539,10 +520,7 @@ public sealed partial class DetailsModel(
             id,
             async actor =>
             {
-                var normalized = new string((vehicleRegistration ?? string.Empty)
-                    .ToUpperInvariant()
-                    .Where(character => char.IsAsciiLetterUpper(character) || char.IsAsciiDigit(character))
-                    .ToArray());
+                var normalized = ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration);
                 var origin = await imageIntakeOriginResolver.ResolveOriginAsync(id, cancellationToken)
                     ?? throw new InvalidOperationException(
                         "The intake receipt has no completed evaluation to register from.");

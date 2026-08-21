@@ -1,4 +1,4 @@
-# Operations
+﻿# Operations
 
 This file is the current-state record for production, releases, evidence
 profiles, monitoring, and recovery. Executable setup, development, database,
@@ -54,8 +54,12 @@ business retry.
 Production server authentication uses the retained `box-config-json` JWT
 configuration and `box-client-secret` Key Vault secrets. The Box SDK obtains and
 refreshes short-lived authorization headers at runtime; a static access token is
-not an accepted setting or deployment input. Secret values remain resolved only
-inside the Worker through Key Vault references.
+not an accepted setting or deployment input. Since release 3 both hosts resolve
+their own copy of these secrets server-side only — the Worker through app
+setting Key Vault references and the Web through Key Vault-backed Container
+Apps secrets, each via its own managed identity (see the
+[production environment Secrets record](#production-environment)) — never
+client-side.
 
 The intended application staff accounts are Pegasus Identity accounts. The DevelopmentOffline profile authenticates its deterministic local Administrator fixture and enforces its Administrator role. Application staff identity initialization remains a separately controlled application operation; Entra users must not be assumed. Third-party credentials must never enter tracked settings, command-line arguments, prompts that may be retained, terminal output, telemetry, or business history.
 
@@ -288,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 13**. A branch
+- **Deployed evidence:** the estate currently serves **release 14**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -306,6 +310,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 15 | 2026-08-20 | `6d04f89d…` | `sha256:07c05faa…` | `pegasus-prod-web-252ow37gij--6d04f89d4d30` | `20260820100724_RetainedMailSearchDocuments`, `20260820144004_RetainedMailFolderMoves` |
+  | 14 | 2026-08-20 | `d91fd7d7…` | `sha256:949797d4…` | `pegasus-prod-web-252ow37gij--d91fd7d7835a` | `20260820034652_ImageIntakeSubmissionGroup`, `20260820040337_SendToAiConnectorSettings`, `20260820055900_ImageCaseCustody`, `20260820100056_ApprovedMailboxLogicalFolderBindings` |
   | 13 | 2026-08-20 | `2325ed4a…` | `sha256:7efa46fd…` | `pegasus-prod-web-252ow37gij--2325ed4a31d7` | `20260819234014_GrantWorkerIntakeSubmissionGroupRead` |
   | 12 | 2026-08-19 | `ed3be51c…` | `sha256:6dcf3ca1…` | `pegasus-prod-web-252ow37gij--ed3be51c95bc` | `20260819093019_RetainedMailboxInternetMessageIdentity`, `20260819101344_GroupedIntakeSubmission`, `20260819104953_MailClassificationCorrectionHistory`, `20260819112640_VersionedRepairSpecifications`, `20260819112914_ImageInitiatedLifecycle`, `20260819115323_UnidentifiedWork`, `20260819140113_ImageIntakeGroupExpectedMemberCount`, `20260819180000_GrantEvaHandoffDownloadOperations` |
   | 10 | 2026-08-18 | `d8de29cb…` | `sha256:4bd50f66…` | `pegasus-prod-web-252ow37gij--d8de29cb94f3` | none |
@@ -322,6 +328,62 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   What each release proved beyond smoke:
 
+  - **Release 15** (2026-08-20, manifest SHA-256 `3D652838…`) carried the
+    2026-08-20 operator feedback-round-2 remediations, each verified against
+    its ticket before the cut (PRs #476, #478, #479, #481–#485, #487, #488):
+    the design authority gained the binding no-explanatory-copy and
+    page-economy rules and every touched page was brought under them; one
+    upload submission is one decision card with image thumbnails; instruction
+    extraction writes unambiguous typed-valid values as facts (auto-added case
+    details) with claimant/claim-number/vehicle-description coverage measured
+    on the real corpus; parallel same-receipt allocation retries are
+    serialised by a per-receipt application lock (the recurring CI deadlock's
+    root cause); the case page renders only populated sections with an
+    edit-mode toggle and unsaved-changes dialog; every active case with a
+    known registration gets an automatic DVSA/DVLA lookup via a reconciliation
+    sweep and the assessment page prefills Mileage/Source from the evidence;
+    Queues shows one merged Not-ready table with dropdown filters and sortable
+    newest-first columns; the assessment page carries no hint sentences, a
+    contained estimate grid, a clickable damage diagram that saves the
+    case's impact location, and a preselected assessment method; the Inbox
+    resolves automatically allocated cases from the allocation attempt so an
+    allocated message can no longer read as awaiting allocation; Box custody
+    writes no binding marker files (database folder id is the identity
+    authority) and retains each instruction attachment beside the source —
+    the eight legacy binding JSONs were deleted from the four live case
+    folders after the deploy. The same day, the operator-approved test-data
+    wipe removed 1,211 rows across 66 case/intake/image/mail data tables and
+    all 159 transient-intake blobs, preserving identity, configuration,
+    reference and sequence tables so references are never reused. Post-deploy
+    smoke passed (health, exact version/SHA `6d04f89d`, anonymous-denial,
+    https redirect, Worker `approved-live-worker`); live checks confirmed the
+    new Queues surface, the empty wiped estate, and working staff sign-in.
+  - **Release 14** (2026-08-20, manifest SHA-256 `87667CB7…`) carried the
+    2026-08-20 operator-review remediations, each independently verified
+    against its ticket before the cut (PRs #437–#468, #471, #472): the
+    Not-ready count now includes image-initiated records and matches its rows;
+    the Dashboard e-mail counter counts the mailbox channel only; Unidentified
+    items resolve automatically when their receipt reaches a real destination
+    (the stale U7 closed on the first post-deploy sweep; genuinely
+    unidentified items stay open); one grouped upload registers one
+    image-initiated record with a group-scoped operation key and a 15-second
+    dispatch cadence; the post-upload page offers attach-to-case search;
+    image-initiated cases carry their own Box folder work items and fold into
+    the paired case on merge; case and vehicle images render as thumbnail
+    galleries served inline by the staff-only image route; mailbox
+    administration works by address alone with logical-folder visibility
+    (MAIL-23 read-only exception) and the Sent-evidence poll completes
+    cleanly; the Functions Worker no longer aborts during provisioning
+    windows (deferred Box option parsing — zero exit-134 events post-deploy);
+    assessment readiness collapses to one issues-count disclosure; MOT-table
+    rows can no longer pollute vehicle make/model suggestions; estimate
+    import (Audatex, fail-closed) and DVLA/DVSA vehicle data with MOT
+    chronology and classified mileage are live; legacy `.doc`/`.msg`
+    extraction runs in-process (ADR-0025); the Automation Actor gained
+    mail-workspace and assessment tools; operator copy was aligned with the
+    design authority (uncomposed capabilities render nothing). Send to AI and
+    its connector administration remain composed only outside Production
+    behind `Features:SendToAi`.
   - **Release 13** (2026-08-20, exact-SHA fast-forward, `main` = `dev` =
     `2325ed4a`, manifest SHA-256 `E40933DE…`) carried the six operator-review
     remediations of release 12, all reviewed independently before merge: the
@@ -632,6 +694,35 @@ Core port and rooted at the approved custody root (see
 or operator-accepted. Test cleanup and migration tests are narrower evidence.
 The accepted method for a future exercise is in the
 [runbook](runbook.md#recovery); procedure does not establish execution.
+
+**Measured backup posture** (read-only `az` readback, 2026-08-20, database
+`pegasus` on `pegasus-prod-sql-252ow37gij`, `rg-pegasus-prod`):
+
+- Short-term retention (point-in-time restore window): 7 days; observed
+  `earliestRestoreDate` 2026-08-13, exactly 7 days before the readback date —
+  PITR is live, not merely configured.
+- Backup storage redundancy: `Geo` (both `current` and `requested`); primary
+  region `uksouth`, secondary `ukwest`. `zoneRedundant`: false.
+- Long-term retention: not configured (weekly/monthly/yearly retention all
+  zero) — only the 7-day short-term window exists.
+- SKU: Standard `S0` (10 DTU). Database size: ~39.5 MiB used, ~48 MiB
+  allocated, against a 250 GB max.
+- Documented RPO for this configuration (Microsoft Learn, "Automated backups
+  in Azure SQL Database"): transaction log backups approximately every 10
+  minutes, restorable to any point within the retention window. This is under
+  the 15-minute RPO objective with a typical ~5-minute margin, but Microsoft
+  states the interval depends on compute size and activity — a documented
+  typical figure, not a guaranteed bound.
+- RTO: not yet measured by an exercise. Given the database's small size
+  (~40 MB) and the documented same-region restore-time factors (size, compute
+  size, log volume, activity replayed), a same-region restore is expected to
+  complete in minutes, comfortably inside the 4-hour objective — an inference
+  from documented factors, not a measured result.
+- The exact restore commands and verification steps are in
+  [runbook § Point-in-time restore commands](runbook.md#point-in-time-restore-commands).
+  A restore drill that would measure actual RPO/RTO end to end is an Azure
+  write and remains a separately approved exercise (parked, not run in this
+  posture check).
 
 ## Deferred capability seams
 

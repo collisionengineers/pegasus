@@ -1,9 +1,6 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
@@ -17,7 +14,7 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed partial class IndexModel(
     ISearchCases searchCases,
     IImageIntakeQueries imageIntakeQueries,
-    ILogger<IndexModel> logger) : PageModel
+    ILogger<IndexModel> logger) : StaffPageModel
 {
     private const int ResultsPerPage = 25;
 
@@ -255,21 +252,6 @@ public sealed partial class IndexModel(
         {
             values[key] = value;
         }
-    }
-
-    private bool TryGetActor(out ActionActor actor)
-    {
-        if (StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var resolved))
-        {
-            actor = resolved;
-            return true;
-        }
-
-        actor = null!;
-        return false;
     }
 
     [LoggerMessage(

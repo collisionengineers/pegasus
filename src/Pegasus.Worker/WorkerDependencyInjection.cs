@@ -56,7 +56,10 @@ public static class WorkerDependencyInjection
                     provider => provider.GetRequiredService<Azure.Storage.Blobs.BlobContainerClient>(),
                     provider => provider.GetRequiredService<WorkerStorageProvisioning>()
                         .AllowLocalCreateIfNotExists,
-                    productionOptions!.Value.Box));
+                    // Deferred to first Box use: parsing this at host build aborted
+                    // the whole worker process whenever the platform handed over an
+                    // unresolved Key Vault reference (PLAT-013).
+                    _ => CreateBoxCustodyOptions(configuration)));
         azureClientRegistration.AddTo(services);
 
         if (developmentOffline)
@@ -96,6 +99,7 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcilePoisonedIntakeWork>();
         services.AddScoped<ReconcileStagedArtifacts>();
         services.AddScoped<ReconcileGroupedImageIntake>();
+        services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<ResolveIntake>();
         services.AddScoped<ReevaluateIntake>();
         services.AddSingleton<IExternalWorkEnqueuer, AzureQueueExternalWorkQueue>();
@@ -115,12 +119,6 @@ public static class WorkerDependencyInjection
             configuration["Graph:MailboxAddress"],
             configuration["Graph:InboxFolderId"],
             configuration["Graph:SentFolderId"]);
-        var box = BoxCustodyOptions.Create(
-            configuration["Box:BaseUri"],
-            configuration["Box:UploadUri"],
-            configuration["Box:RootFolderId"],
-            configuration["Box:ConfigJson"],
-            configuration["Box:ClientSecret"]);
         var vehicleValues = new Dictionary<string, string?>(StringComparer.Ordinal)
         {
             ["Dvla:BaseUri"] = configuration["Dvla:BaseUri"],
@@ -132,8 +130,16 @@ public static class WorkerDependencyInjection
             ["Dvsa:ApiKey"] = configuration["Dvsa:ApiKey"],
             ["Dvsa:Scope"] = configuration["Dvsa:Scope"]
         };
-        return new(graph, box, DvlaDvsaProductionOptions.Create(vehicleValues));
+        return new(graph, DvlaDvsaProductionOptions.Create(vehicleValues));
     }
+
+    private static BoxCustodyOptions CreateBoxCustodyOptions(IConfiguration configuration) =>
+        BoxCustodyOptions.Create(
+            configuration["Box:BaseUri"],
+            configuration["Box:UploadUri"],
+            configuration["Box:RootFolderId"],
+            configuration["Box:ConfigJson"],
+            configuration["Box:ClientSecret"]);
 
     private static void ConfigureDatabase(
         IConfiguration configuration,
@@ -206,7 +212,6 @@ public static class WorkerDependencyInjection
     }
     private readonly record struct ProductionExternalOptions(
         GraphApprovedMailboxOptions Graph,
-        BoxCustodyOptions Box,
         DvlaDvsaProductionOptions Vehicle);
 
 }

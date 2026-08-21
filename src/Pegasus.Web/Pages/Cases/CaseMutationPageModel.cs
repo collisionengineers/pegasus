@@ -1,9 +1,6 @@
 using System.Collections.Frozen;
-using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
 
@@ -18,7 +15,7 @@ namespace Pegasus.Web.Pages.Cases;
 /// The workspace page (<see cref="DetailsModel"/>) reads that state back;
 /// the capability pages only write it.
 /// </summary>
-public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
+public abstract partial class CaseMutationPageModel(ILogger logger) : StaffPageModel
 {
     private const string LeaseTokenKey = "CaseLeaseToken";
     protected const string LeaseCaseIdKey = "CaseLeaseCaseId";
@@ -107,8 +104,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
         "instructionsReviewedByStaff",
         "imagesReviewedByStaff"
     }.ToFrozenSet(StringComparer.Ordinal);
-
-    public static string NewOperationKey() => Guid.NewGuid().ToString("N");
 
     /// <summary>A command on the case itself; a refusal names the case as the reason.</summary>
     protected Task<IActionResult> ExecuteCaseCommandAsync(
@@ -317,21 +312,6 @@ public abstract partial class CaseMutationPageModel(ILogger logger) : PageModel
     /// </summary>
     private static bool RequiresReacquisition(Exception exception) =>
         IsLeaseLoss(exception) || exception is CaseVersionConflictException;
-
-    protected bool TryGetActor(out ActionActor actor)
-    {
-        if (StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var resolved))
-        {
-            actor = resolved;
-            return true;
-        }
-
-        actor = null!;
-        return false;
-    }
 
     protected static CaseReadinessEvidence Readiness(
         bool instructionsComplete,

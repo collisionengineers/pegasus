@@ -6,7 +6,7 @@
     "Runtime__Profile": "DevelopmentOffline",
     "ConnectionStrings__Pegasus": "Server=(localdb)\\MSSQLLocalDB;Database=PegasusDevelopment;Integrated Security=True;Encrypt=False;MultipleActiveResultSets=True",
     "Intake__LocalArtifactPath": "../../artifacts/local-development/default/intake",
-    "PendingWorkDispatchSchedule": "0 * * * * *",
+    "PendingWorkDispatchSchedule": "*/15 * * * * *",
     "IntakeStagedArtifactReconciliationSchedule": "30 * * * * *",
     "ApprovedInboxPollSchedule": "45 * * * * *",
     "SentEvidencePollSchedule": "15 * * * * *",

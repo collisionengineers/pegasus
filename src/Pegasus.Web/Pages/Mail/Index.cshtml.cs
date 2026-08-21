@@ -1,7 +1,4 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Web.Presentation;
@@ -19,7 +16,9 @@ namespace Pegasus.Web.Pages.Mail;
 /// </remarks>
 public sealed class IndexModel(
     ListRetainedMail listRetainedMail,
-    GetRetainedMailFreshness getFreshness) : PageModel
+    GetRetainedMail getRetainedMail,
+    GetRetainedMailFreshness getFreshness,
+    SearchDeletedMail searchDeletedMail) : StaffPageModel
 {
     internal const int PageSize = 25;
 
@@ -43,6 +42,16 @@ public sealed class IndexModel(
     [BindProperty(SupportsGet = true, Name = "pageNumber")]
     public int? PageNumber { get; set; }
 
+    [BindProperty(SupportsGet = true, Name = "search")]
+    public string? SearchTerm { get; set; }
+
+    [BindProperty(SupportsGet = true, Name = "queue")]
+    public string? QueueFilter { get; set; }
+
+    public MailOperationalDestination? DestinationFilter { get; private set; }
+
+    public MailCategory? DetailedClassificationFilter { get; private set; }
+
     public MailFolderScope Folder { get; private set; } = MailFolderScope.Inbox;
 
     public RetainedMailPage Results { get; private set; } =
@@ -53,12 +62,13 @@ public sealed class IndexModel(
     public MailFreshness Freshness { get; private set; } =
         new(MailFreshnessState.Unavailable, null);
 
+    public DeletedMailSearchPage? DeletedResults { get; private set; }
+
+    public string? SearchValidationMessage { get; private set; }
+
     public async Task<IActionResult> OnGetAsync(CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirst(ClaimTypes.NameIdentifier)?.Value,
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
@@ -69,20 +79,68 @@ public sealed class IndexModel(
         }
 
         Folder = folder;
+        if (!TryParseQueue(
+                QueueFilter,
+                out var normalizedQueue,
+                out var destination,
+                out var detailedClassification)
+            || (folder == MailFolderScope.DeletedItems && normalizedQueue is not null))
+        {
+            return NotFound();
+        }
+        QueueFilter = normalizedQueue;
+        DestinationFilter = destination;
+        DetailedClassificationFilter = detailedClassification;
         var mailbox = string.IsNullOrWhiteSpace(MailboxFilter) ? null : MailboxFilter.Trim();
         MailboxFilter = mailbox;
         var page = Math.Clamp(PageNumber ?? 1, 1, 10_000);
         PageNumber = page;
+        if (SearchTerm is not null)
+        {
+            SearchTerm = SearchTerm.Trim();
+            SearchValidationMessage = SearchTerm.Length switch
+            {
+                0 => "Enter a search term.",
+                > 200 => "Search terms must be 200 characters or fewer.",
+                _ => null
+            };
+            if (SearchTerm.Length == 0)
+            {
+                SearchTerm = null;
+            }
+        }
 
         try
         {
-            Mailboxes = await listRetainedMail.ListMailboxesAsync(actor, cancellationToken);
-            Results = await listRetainedMail.ExecuteAsync(
-                actor,
-                new(mailbox, folder),
-                page,
-                PageSize,
-                cancellationToken);
+            Mailboxes = folder == MailFolderScope.DeletedItems
+                ? await searchDeletedMail.ListMailboxesAsync(actor, cancellationToken)
+                : await listRetainedMail.ListMailboxesAsync(actor, cancellationToken);
+            if (SearchValidationMessage is null
+                && folder == MailFolderScope.DeletedItems
+                && SearchTerm is not null)
+            {
+                DeletedResults = await searchDeletedMail.ExecuteAsync(
+                    actor,
+                    mailbox,
+                    SearchTerm,
+                    page,
+                    PageSize,
+                    cancellationToken);
+            }
+            else if (SearchValidationMessage is null)
+            {
+                Results = await listRetainedMail.ExecuteAsync(
+                    actor,
+                    new(
+                        mailbox,
+                        folder,
+                        SearchTerm,
+                        DestinationFilter,
+                        DetailedClassificationFilter),
+                    page,
+                    PageSize,
+                    cancellationToken);
+            }
             Freshness = await getFreshness.ExecuteAsync(actor, cancellationToken);
         }
         catch (StaffAuthorizationException)
@@ -95,6 +153,49 @@ public sealed class IndexModel(
         }
 
         return Page();
+    }
+
+    public async Task<IActionResult> OnGetPreviewAsync(
+        Guid id,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            var detail = await getRetainedMail.ExecuteAsync(actor, id, cancellationToken);
+            if (detail is null)
+            {
+                return NotFound();
+            }
+
+            var summary = detail.Summary;
+            return new JsonResult(new
+            {
+                id = summary.Id,
+                sender = SenderLine(summary),
+                subject = SubjectLine(summary),
+                receivedAtUtc = summary.ReceivedAtUtc,
+                received = $"{OperatorLabels.OfficeDate(summary.ReceivedAtUtc)} {OperatorLabels.OfficeClock(summary.ReceivedAtUtc)}",
+                excerpt = summary.BodyExcerpt ?? "No excerpt available",
+                classification = detail.Classification is { } dossier
+                    ? MessageModel.DecisionLabel(dossier.Current)
+                    : MessageModel.ClassificationLabel(detail.ClassificationOutcome),
+                association = summary.CaseReference ?? "Not associated",
+                attachments = detail.Attachments.Select(attachment => attachment.FileName).ToArray()
+            });
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException)
+        {
+            return NotFound();
+        }
     }
 
     /// <summary>
@@ -165,10 +266,122 @@ public sealed class IndexModel(
     {
         ["mailbox"] = MailboxFilter,
         ["folder"] = FolderRouteValue,
+        ["search"] = SearchTerm,
+        ["queue"] = QueueFilter,
         ["pageNumber"] = Results.Page > 1
             ? Results.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : DeletedResults?.Page > 1
+                ? DeletedResults.Page.ToString(System.Globalization.CultureInfo.InvariantCulture)
             : null
     };
+
+    public sealed record MailViewOption(
+        string Value,
+        string Label,
+        MailOperationalDestination? Destination = null);
+
+    public static IReadOnlyList<MailViewOption> AggregateViews { get; } =
+        Enum.GetValues<MailOperationalDestination>()
+            .Where(destination => destination != MailOperationalDestination.DetailedClassification)
+            .Select(destination => new MailViewOption(
+                DestinationKey(destination),
+                OperatorLabels.MailOperationalDestinationLabel(destination),
+                destination))
+            .ToArray();
+
+    public static IReadOnlyList<MailViewOption> DetailedViews { get; } =
+        MailClassificationSelection.Options
+            .Select(option => new
+            {
+                Option = option,
+                Parsed = MailClassificationSelection.TryParse(
+                    option.Value,
+                    otherName: null,
+                    otherReasoning: null,
+                    out var category)
+                    ? category
+                    : null
+            })
+            .Where(item => item.Parsed is not null
+                && MailOperationalDestinationPolicy.Map(item.Parsed).Destination
+                    == MailOperationalDestination.DetailedClassification)
+            .Select(item => new MailViewOption(
+                $"classification:{item.Option.Value}",
+                item.Option.Label))
+            .ToArray();
+
+    internal static bool TryParseQueue(
+        string? value,
+        out string? normalized,
+        out MailOperationalDestination? destination,
+        out MailCategory? detailedClassification)
+    {
+        normalized = null;
+        destination = null;
+        detailedClassification = null;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return true;
+        }
+
+        var candidate = value.Trim();
+        foreach (var option in AggregateViews)
+        {
+            if (!string.Equals(option.Value, candidate, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            normalized = option.Value;
+            destination = option.Destination;
+            return true;
+        }
+
+        const string prefix = "classification:";
+        if (!candidate.StartsWith(prefix, StringComparison.Ordinal)
+            || !MailClassificationSelection.TryParse(
+                candidate[prefix.Length..],
+                otherName: null,
+                otherReasoning: null,
+                out var category)
+            || category is null
+            || MailOperationalDestinationPolicy.Map(category).Destination
+                != MailOperationalDestination.DetailedClassification)
+        {
+            return false;
+        }
+
+        normalized = $"{prefix}{candidate[prefix.Length..]}";
+        detailedClassification = category;
+        return true;
+    }
+
+    private static string DestinationKey(MailOperationalDestination destination) => destination switch
+    {
+        MailOperationalDestination.ReceivingWork => "receiving-work",
+        MailOperationalDestination.Queries => "queries",
+        MailOperationalDestination.Other => "other",
+        MailOperationalDestination.Unidentified => "unidentified",
+        MailOperationalDestination.Triage => "triage",
+        MailOperationalDestination.DetailedClassification => throw new ArgumentException(
+            "Detailed views use a canonical classification key.",
+            nameof(destination)),
+        _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
+    };
+
+    public static string MatchLabel(RetainedMailSearchMatch match) => match.Kind switch
+    {
+        MailSearchMatchKind.MessageBody => "Message body",
+        MailSearchMatchKind.AttachmentFileName =>
+            $"Attachment name: {AttachmentLabel(match)}",
+        MailSearchMatchKind.AttachmentContent =>
+            $"Attachment content: {AttachmentLabel(match)}",
+        _ => "Message"
+    };
+
+    private static string AttachmentLabel(RetainedMailSearchMatch match) =>
+        match.AttachmentOrdinal is { } ordinal
+            ? $"{match.AttachmentFileName} (attachment {ordinal + 1})"
+            : match.AttachmentFileName ?? "Attachment";
 
     public static string MailFailureSentence(string? failureCode, long? sourceLength = null)
     {

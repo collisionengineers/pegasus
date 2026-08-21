@@ -25,7 +25,7 @@ internal static class AutomationMcpTestSupport
     public const string ClientSecret = "integration-test-automation-secret-0123456789";
     public const string ConnectorRedirectUri = "https://connector.example/api/mcp/auth_callback";
     public const string AllScopes =
-        "automation.cases automation.intake automation.documents automation.assessment";
+        "automation.cases automation.intake automation.documents automation.assessment automation.mail";
 
     public static readonly DateTimeOffset SeedUtcNow = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 

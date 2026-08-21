@@ -11,6 +11,14 @@ public static class AutomationMcp
 {
     public const string FeatureFlag = "Features:AutomationMcp";
     public const string AuthenticationScheme = "PegasusAutomationMcp";
+
+    /// <summary>
+    /// The single Automation client's operator-facing name. Registered as its
+    /// OpenIddict display name (<see cref="AutomationClientRegistry"/>) and used
+    /// wherever the client's raw subject id would otherwise be shown to an operator
+    /// (the Automation activity view).
+    /// </summary>
+    public const string ClientDisplayName = "Pegasus Automation Actor";
     public const string EndpointPolicy = "AutomationMcpEndpoint";
     public const string RateLimitPolicy = "AutomationMcp";
     public const string Audience = "pegasus-automation-mcp";
@@ -22,12 +30,13 @@ public static class AutomationMcp
     public const string IntakeScope = "automation.intake";
     public const string DocumentsScope = "automation.documents";
     public const string AssessmentScope = "automation.assessment";
+    public const string MailScope = "automation.mail";
     public const int RequestsPerClientPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
     public static IReadOnlyList<string> Scopes { get; } =
-        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope];
+        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope];
 }
 
 /// <summary>

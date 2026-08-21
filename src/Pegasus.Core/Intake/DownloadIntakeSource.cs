@@ -49,7 +49,7 @@ public sealed class DownloadIntakeSource(
         return new(
             content,
             SafeFileName(receipt.SourceFileName),
-            "application/octet-stream",
+            sourceAsset.MediaType,
             content.Length,
             actualHash);
     }
@@ -67,7 +67,7 @@ public sealed class DownloadIntakeSource(
         return string.IsNullOrWhiteSpace(safe) ? "intake-source.bin" : safe;
     }
 
-    private static bool FixedTimeHashEquals(string left, string right)
+    internal static bool FixedTimeHashEquals(string left, string right)
     {
         if (left.Length != 64
             || right.Length != 64

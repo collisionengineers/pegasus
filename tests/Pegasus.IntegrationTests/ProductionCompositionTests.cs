@@ -1,4 +1,5 @@
 using Azure.Storage.Blobs;
+using Azure.Core;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Custody;
@@ -9,6 +10,7 @@ using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Email;
 
 namespace Pegasus.IntegrationTests;
 
@@ -129,6 +131,26 @@ public sealed class ProductionCompositionTests
             scope.ServiceProvider.GetRequiredService<ICreateRequestUploadLink>());
         Assert.Null(scope.ServiceProvider.GetService<IDocumentContentStore>());
         Assert.Null(scope.ServiceProvider.GetService<IAddCaseDocument>());
+        Assert.IsType<UnavailableDeletedMailSearchSource>(
+            scope.ServiceProvider.GetRequiredService<IDeletedMailSearchSource>());
+    }
+
+    [Fact]
+    public void ProductionGraphRegistrationSurvivesTheInfrastructureFallback()
+    {
+        var services = NewServices();
+        services.AddSingleton<TokenCredential>(new CompositionCredential());
+        services.AddSingleton<IIntakeSourceReader>(
+            new MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
+        services.AddLogging();
+        services.AddProductionApprovedMailboxResolver("https://graph.microsoft.com/v1.0/");
+        services.AddPegasusInfrastructure(ConfigureDatabase);
+        using var provider = services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+
+        Assert.IsType<GraphDeletedMailSearchSource>(
+            scope.ServiceProvider.GetRequiredService<IDeletedMailSearchSource>());
+        Assert.Single(scope.ServiceProvider.GetServices<IDeletedMailSearchSource>());
     }
 
     [Fact]
@@ -139,7 +161,36 @@ public sealed class ProductionCompositionTests
         Assert.Throws<InvalidOperationException>(() => services.AddPegasusInfrastructure(
             ConfigureDatabase,
             _ => Path.Combine(Path.GetTempPath(), "pegasus-composition-conflict"),
-            documentStorage: registrations => registrations.AddProductionBoxCustody(BoxOptions())));
+            documentStorage: registrations => registrations.AddProductionBoxCustody(_ => BoxOptions())));
+    }
+
+    [Fact]
+    public void AnUnresolvedBoxSecretFailsTheFirstBoxUseNotHostBuild()
+    {
+        // PLAT-013: parsing the Box secret during host build aborted the whole
+        // worker process (exit 134) whenever the platform handed over an
+        // unresolved Key Vault reference. Composition must succeed and non-Box
+        // services must resolve; only the first Box resolution fails closed.
+        var services = NewServices();
+        services.AddPegasusInfrastructure(
+            ConfigureDatabase,
+            documentStorage: registrations => registrations.AddProductionDocumentStorage(
+                static _ => new BlobContainerClient(
+                    new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
+                static _ => false,
+                static _ => BoxCustodyOptions.Create(
+                    "https://api.box.com/2.0/",
+                    "https://upload.box.com/api/2.0/",
+                    "405543781910",
+                    "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
+                    "client-secret")));
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<AzureBlobIntakeArtifactStore>(
+            provider.GetRequiredService<IIntakeArtifactStore>());
+        var error = Assert.Throws<InvalidOperationException>(
+            () => provider.GetRequiredService<ICaseCustody>());
+        Assert.Contains("unresolved Key Vault reference", error.Message, StringComparison.Ordinal);
     }
 
     private static ServiceProvider BuildProduction()
@@ -151,7 +202,7 @@ public sealed class ProductionCompositionTests
                 static _ => new BlobContainerClient(
                     new Uri("https://pegasuscomposition.blob.core.windows.net/transient-intake")),
                 static _ => false,
-                BoxOptions()));
+                static _ => BoxOptions()));
         return services.BuildServiceProvider();
     }
 
@@ -166,4 +217,13 @@ public sealed class ProductionCompositionTests
         "405543781910",
         BoxConfigJson,
         "client-secret");
+
+    private sealed class CompositionCredential : TokenCredential
+    {
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            new("unused", DateTimeOffset.MaxValue);
+
+        public override ValueTask<AccessToken> GetTokenAsync(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            ValueTask.FromResult(GetToken(requestContext, cancellationToken));
+    }
 }

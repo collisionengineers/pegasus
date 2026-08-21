@@ -49,7 +49,7 @@ public sealed class EvaHandoffPersistenceTests
                 CancellationToken.None);
 
             Assert.Equal(GenerateEvaHandoffOutcome.Blocked, result.Outcome);
-            Assert.Contains(result.Reasons, reason => reason.Contains("only while the case is in Review", StringComparison.Ordinal));
+            Assert.Contains(result.Reasons, reason => reason.Contains("while the case is in Review", StringComparison.Ordinal));
         }
 
         await using var verification = await factory.CreateDbContextAsync();
@@ -306,6 +306,60 @@ public sealed class EvaHandoffPersistenceTests
     }
 
     [Fact]
+    public async Task StaffCorrectedVehicleRegistrationIsReportedAsCorrectedInGeneratedBundle()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync();
+        var factory = Factory(database.ConnectionString);
+        var caseId = await SeedCaseAsync(factory, "Review", workflowVersion: 7, hiddenCaseVersion: 7);
+        var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
+        const string lease = "eva-staff-corrected-vehicle-lease";
+        await SetLeaseAsync(factory, caseId, actor, lease);
+        var custodyRoot = Path.Combine(Path.GetTempPath(), "pegasus-eva-staff-corrected", Guid.NewGuid().ToString("N"));
+        var contentStore = new LocalDocumentContentStore(custodyRoot);
+        try
+        {
+            await SeedImageAsync(factory, contentStore, caseId, "correction.jpg", Now, false);
+            var vehicle = new CaseVehicleEvidence(
+                caseId,
+                new(
+                    VehicleField("AB12CDE", CaseDataCodes.StaffCorrection),
+                    VehicleField("Fixture"),
+                    VehicleField("Vehicle"),
+                    VehicleField(12000L),
+                    VehicleField(VehicleMileageUnit.Miles)),
+                null,
+                [],
+                []);
+            var store = new EvaHandoffStore(
+                factory,
+                new FixedCaseDataQueries(AcceptedCaseData(caseId, version: 7)),
+                new FixedVehicleEvidenceQueries(vehicle),
+                contentStore,
+                new RecordingEvaHandoffProxy(),
+                new(
+                    CaseEvaMapping.MappingKey,
+                    CaseEvaMapping.MappingVersion,
+                    "test-accepted-eva-mapping"),
+                TimeProvider.System);
+
+            var generated = await store.ExecuteAsync(new(
+                caseId, 7, actor, "eva:staff-corrected-vehicle", "Prepare Review handoff.", lease));
+
+            Assert.Equal(GenerateEvaHandoffOutcome.Generated, generated.Outcome);
+            using var provenance = JsonDocument.Parse(generated.Bundle!.ProvenanceContent);
+            var vrmField = provenance.RootElement
+                .GetProperty("fields")
+                .EnumerateArray()
+                .Single(field => field.GetProperty("name").GetString() == "VRM");
+            Assert.Equal("corrected", vrmField.GetProperty("status").GetString());
+        }
+        finally
+        {
+            if (Directory.Exists(custodyRoot)) Directory.Delete(custodyRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task BundleRevisionProxyAndDownloadCommandAreAtomicReplaySafeAndIntegrityChecked()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -508,10 +562,10 @@ public sealed class EvaHandoffPersistenceTests
             null,
             null);
 
-    private static ConfirmedVehicleField<T> VehicleField<T>(T value)
+    private static ConfirmedVehicleField<T> VehicleField<T>(T value, string sourceKind = "staff-confirmation")
         where T : notnull => new(
             value,
-            "staff-confirmation",
+            sourceKind,
             "eva-fixture-vehicle",
             "Fixture vehicle evidence",
             "fixture-vehicle",

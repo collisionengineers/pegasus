@@ -415,19 +415,22 @@ internal sealed class EfExternalWorkStore(
             cancellationToken);
         var work = await context.ExternalWorkItems
             .Include(item => item.Case)
+            .Include(item => item.ImageIntake)
             .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The external work item is unavailable.");
         if (work.State is "completed" or "failed")
         {
             return;
         }
-        var workflow = await context.CaseWorkflows
-            .SingleOrDefaultAsync(item => item.CaseId == work.CaseId, cancellationToken);
+        var workflow = work.CaseId is { } workflowCaseId
+            ? await context.CaseWorkflows
+                .SingleOrDefaultAsync(item => item.CaseId == workflowCaseId, cancellationToken)
+            : null;
 
         switch (work.Kind)
         {
             case ExternalWorkKinds.CreateCaseCustody:
-                if (string.Equals(work.Case.CustodyState, "confirmed", StringComparison.Ordinal))
+                if (string.Equals(work.Case!.CustodyState, "confirmed", StringComparison.Ordinal))
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -441,13 +444,13 @@ internal sealed class EfExternalWorkStore(
                 if (workflow is not null)
                 {
                     var beforeVersion = workflow.Version;
-                    work.Case.CustodyState = "failed";
+                    work.Case!.CustodyState = "failed";
                     workflow.State = CaseLifecycleState.NotReady.ToString();
                     CaseMutationGuard.Complete(workflow);
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),
-                        CaseId = work.CaseId,
+                        CaseId = workflow.CaseId,
                         EventType = "custody_failed",
                         Actor = "system",
                         Reason = "Case evidence storage could not complete after queue delivery failed.",
@@ -460,7 +463,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeVersion}",
                 break;
 
             case ExternalWorkKinds.CreateAuditReferenceCustody:
-                if (!string.IsNullOrWhiteSpace(work.Case.AuditCustodyRemoteId))
+                if (!string.IsNullOrWhiteSpace(work.Case!.AuditCustodyRemoteId))
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -478,7 +481,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeVersion}",
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),
-                        CaseId = work.CaseId,
+                        CaseId = workflow.CaseId,
                         EventType = "audit_custody_failed",
                         Actor = "system",
                         Reason = "Case evidence storage could not complete after queue delivery failed.",
@@ -488,6 +491,38 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                         AfterVersion = workflow.Version
                     });
                 }
+                break;
+
+            case ExternalWorkKinds.CreateImageCaseCustody:
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Confirmed or ImageCustodyStates.Merged })
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
+
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "Image evidence storage could not complete after queue delivery failed.");
+                if (work.ImageIntake is not null)
+                {
+                    work.ImageIntake.CustodyState = ImageCustodyStates.Failed;
+                }
+                break;
+
+            case ExternalWorkKinds.MergeImageCaseCustody:
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Merged })
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
+
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "Image evidence could not be folded after queue delivery failed.");
                 break;
 
             case ExternalWorkKinds.VehicleLookup:
@@ -535,6 +570,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
             cancellationToken);
         var work = await context.ExternalWorkItems
             .Include(item => item.Case)
+            .Include(item => item.ImageIntake)
             .SingleOrDefaultAsync(item => item.Id == workItemId, cancellationToken)
             ?? throw new InvalidOperationException("The external work item is unavailable.");
         if (work.State is "completed" or "failed")
@@ -548,13 +584,15 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
         {
             return;
         }
-        var workflow = await context.CaseWorkflows
-            .SingleOrDefaultAsync(item => item.CaseId == work.CaseId, cancellationToken);
+        var workflow = work.CaseId is { } workflowCaseId
+            ? await context.CaseWorkflows
+                .SingleOrDefaultAsync(item => item.CaseId == workflowCaseId, cancellationToken)
+            : null;
 
         switch (work.Kind)
         {
             case ExternalWorkKinds.CreateCaseCustody:
-                if (string.Equals(work.Case.CustodyState, "confirmed", StringComparison.Ordinal))
+                if (string.Equals(work.Case!.CustodyState, "confirmed", StringComparison.Ordinal))
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -564,13 +602,13 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 if (workflow is not null)
                 {
                     var beforeVersion = workflow.Version;
-                    work.Case.CustodyState = "failed";
+                    work.Case!.CustodyState = "failed";
                     workflow.State = CaseLifecycleState.NotReady.ToString();
                     CaseMutationGuard.Complete(workflow);
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),
-                        CaseId = work.CaseId,
+                        CaseId = workflow.CaseId,
                         EventType = "custody_failed",
                         Actor = "system",
                         Reason = failureReason,
@@ -583,7 +621,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 break;
 
             case ExternalWorkKinds.CreateAuditReferenceCustody:
-                if (!string.IsNullOrWhiteSpace(work.Case.AuditCustodyRemoteId))
+                if (!string.IsNullOrWhiteSpace(work.Case!.AuditCustodyRemoteId))
                 {
                     CompletePoisonReplay(work, failedAtUtc);
                     break;
@@ -597,7 +635,7 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     context.CaseHistory.Add(new()
                     {
                         Id = Guid.NewGuid(),
-                        CaseId = work.CaseId,
+                        CaseId = workflow.CaseId,
                         EventType = "audit_custody_failed",
                         Actor = "system",
                         Reason = failureReason,
@@ -609,6 +647,39 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                 }
                 break;
 
+            case ExternalWorkKinds.CreateImageCaseCustody:
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Confirmed or ImageCustodyStates.Merged })
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
+
+                if (!TryRearmImageCustody(work, failedAtUtc, failureCode, failureReason))
+                {
+                    FailWork(work, failedAtUtc, failureCode, failureReason);
+                    if (work.ImageIntake is not null)
+                    {
+                        work.ImageIntake.CustodyState = ImageCustodyStates.Failed;
+                    }
+                }
+                break;
+
+            case ExternalWorkKinds.MergeImageCaseCustody:
+                if (work.ImageIntake is { CustodyState: ImageCustodyStates.Merged })
+                {
+                    CompletePoisonReplay(work, failedAtUtc);
+                    break;
+                }
+
+                if (!TryRearmImageCustody(work, failedAtUtc, failureCode, failureReason))
+                {
+                    // The image-case folder still holds the evidence, so the
+                    // intake's custody state stays an honest "confirmed"; only
+                    // the fold itself is recorded as failed.
+                    FailWork(work, failedAtUtc, failureCode, failureReason);
+                }
+                break;
+
             default:
                 FailWork(work, failedAtUtc, failureCode, failureReason);
                 break;
@@ -616,6 +687,27 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private static bool TryRearmImageCustody(
+        ExternalWorkItemEntity work,
+        DateTimeOffset failedAtUtc,
+        string failureCode,
+        string failureReason)
+    {
+        if (ImageCustodyRetryPolicy.NextAttemptDelay(work.AttemptCount, failureCode)
+            is not { } delay)
+        {
+            return false;
+        }
+
+        work.State = "pending";
+        work.DueAtUtc = failedAtUtc.Add(delay);
+        work.LeaseToken = null;
+        work.LeaseExpiresAtUtc = null;
+        work.FailureCode = failureCode;
+        work.FailureReason = failureReason;
+        return true;
     }
 
     private static void CompletePoisonReplay(

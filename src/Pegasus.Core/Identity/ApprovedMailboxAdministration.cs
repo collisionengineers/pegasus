@@ -1,3 +1,5 @@
+using Pegasus.Core.Intake;
+
 namespace Pegasus.Core.Identity;
 
 public enum ApprovedMailboxRouteScope
@@ -21,7 +23,12 @@ public sealed record ApprovedMailbox(
     string? InboxFolderIdentity,
     string? SentFolderIdentity,
     bool IdentityIsBound,
-    int Version);
+    int Version,
+    IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings);
+
+public sealed record ApprovedMailboxFolderBinding(
+    MailLogicalFolderType FolderType,
+    string FolderIdentity);
 
 public sealed record UpdateApprovedMailboxRequest(
     Guid MailboxId,
@@ -34,7 +41,8 @@ public sealed record UpdateApprovedMailboxRequest(
     string OperationKey,
     string? MailboxIdentity = null,
     string? InboxFolderIdentity = null,
-    string? SentFolderIdentity = null);
+    string? SentFolderIdentity = null,
+    IReadOnlyCollection<ApprovedMailboxFolderBinding>? FolderBindings = null);
 
 /// <summary>
 /// One mailbox the approved estate says inbound-intake polling may read, with the
@@ -66,6 +74,31 @@ public sealed record ApprovedMailboxPollStatus(
 public interface IApprovedMailboxPollStatusQueries
 {
     Task<IReadOnlyList<ApprovedMailboxPollStatus>> ListAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The exact Graph identities behind one mailbox address: the tenant mailbox id and its
+/// well-known Inbox and Sent-items folder ids. Administration never asks an operator for
+/// these — see <see cref="IResolveApprovedMailboxIdentity"/>.
+/// </summary>
+public sealed record ApprovedMailboxIdentityResolution(
+    string MailboxIdentity,
+    string InboxFolderIdentity,
+    string SentFolderIdentity,
+    IReadOnlyList<ApprovedMailboxFolderBinding>? FolderBindings = null);
+
+/// <summary>
+/// Resolves an approved-mailbox address to its exact Graph mailbox and well-known folder
+/// identities, so the administration surface can add a mailbox from an address alone.
+/// Returns null when the address cannot be resolved — not found in the tenant, or the
+/// resolution transport itself failed — and the caller fails closed: no row is created,
+/// and the operator sees only that the address could not be resolved, never why.
+/// </summary>
+public interface IResolveApprovedMailboxIdentity
+{
+    Task<ApprovedMailboxIdentityResolution?> ResolveAsync(
+        string address,
+        CancellationToken cancellationToken);
 }
 
 public interface IApprovedMailboxPolicy
@@ -142,6 +175,7 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
         var mailboxIdentity = NormalizeIdentity(request.MailboxIdentity, MaximumMailboxIdentityLength);
         var inboxFolderIdentity = NormalizeIdentity(request.InboxFolderIdentity, MaximumFolderIdentityLength);
         var sentFolderIdentity = NormalizeIdentity(request.SentFolderIdentity, MaximumFolderIdentityLength);
+        var folderBindings = NormalizeFolderBindings(request.FolderBindings);
         if (request.State == ApprovedMailboxState.Approved)
         {
             // Fail closed: an approved row that cannot be read is a silent no-op.
@@ -166,6 +200,7 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
                 MailboxIdentity = mailboxIdentity,
                 InboxFolderIdentity = inboxFolderIdentity,
                 SentFolderIdentity = sentFolderIdentity,
+                FolderBindings = folderBindings,
                 Reason = RequireText(
                     request.Reason,
                     1000,
@@ -203,6 +238,35 @@ public sealed class UpdateApprovedMailbox(IApprovedMailboxStore store)
         }
 
         return normalized;
+    }
+
+    private static ApprovedMailboxFolderBinding[]? NormalizeFolderBindings(
+        IReadOnlyCollection<ApprovedMailboxFolderBinding>? bindings)
+    {
+        if (bindings is null)
+        {
+            return null;
+        }
+
+        var normalized = new List<ApprovedMailboxFolderBinding>(bindings.Count);
+        var folderTypes = new HashSet<MailLogicalFolderType>();
+        foreach (var binding in bindings)
+        {
+            ArgumentNullException.ThrowIfNull(binding);
+            if (!Enum.IsDefined(binding.FolderType) || !folderTypes.Add(binding.FolderType))
+            {
+                throw new ArgumentException(
+                    "Each supported logical folder type may be bound at most once.",
+                    nameof(bindings));
+            }
+
+            var identity = NormalizeIdentity(binding.FolderIdentity, MaximumFolderIdentityLength)
+                ?? throw new ApprovedMailboxUpdateException(
+                    ApprovedMailboxUpdateError.InvalidMailboxIdentity);
+            normalized.Add(new(binding.FolderType, identity));
+        }
+
+        return normalized.OrderBy(item => item.FolderType).ToArray();
     }
 
     private static string RequireText(string value, int maximumLength, string message)

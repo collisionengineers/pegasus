@@ -1,3 +1,5 @@
+using Pegasus.Core.Cases;
+
 namespace Pegasus.Core.Vehicle;
 
 public sealed record VehicleMileageCalculation(
@@ -74,4 +76,34 @@ public static class VehicleMileagePolicy
                 MethodVersion,
                 supportingCount);
     }
+}
+
+/// <summary>
+/// The operator-facing evidence classes for a mileage figure. The enum names are the settled
+/// operator words (design authority, Case section): a value written in instructions or entered
+/// by staff is Supplied, a recorded MOT odometer reading is External, and a value produced by
+/// <see cref="VehicleMileagePolicy"/> from MOT observations is Estimated.
+/// </summary>
+public enum VehicleMileageEvidenceClass
+{
+    Supplied,
+    External,
+    Estimated
+}
+
+/// <summary>
+/// Classifies a case mileage value by its recorded source. A lookup-sourced case mileage is by
+/// construction the derived <see cref="VehicleMileageCalculation"/> — accepting a vehicle
+/// suggestion stores the calculation, never a raw reading — so it classifies as Estimated and
+/// must never be presented as Supplied (operator truth: a mileage calculated from accepted MOT
+/// observations is a derived estimate; never relabel it as supplied mileage). A raw
+/// <see cref="MotTestObservation"/> reading displays as <see cref="VehicleMileageEvidenceClass.External"/>
+/// at its own surface; it is not a case value and has no <see cref="CaseDataSourceKind"/>.
+/// </summary>
+public static class VehicleMileageEvidenceClassification
+{
+    public static VehicleMileageEvidenceClass Classify(CaseDataSourceKind sourceKind) =>
+        sourceKind == CaseDataSourceKind.VehicleLookup
+            ? VehicleMileageEvidenceClass.Estimated
+            : VehicleMileageEvidenceClass.Supplied;
 }

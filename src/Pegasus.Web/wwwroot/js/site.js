@@ -14,7 +14,17 @@
     if (autoRefresh) {
         var delay = Number(autoRefresh.getAttribute('data-auto-refresh'));
         if (Number.isFinite(delay) && delay > 0) {
-            window.setTimeout(function () { window.location.reload(); }, delay);
+            // A page can still be moving while an operator has a form open
+            // that a reload would wipe; any element opting in with
+            // data-refresh-hold pauses the reload while it is open.
+            var reload = function () {
+                if (document.querySelector('[data-refresh-hold][open]')) {
+                    window.setTimeout(reload, delay);
+                    return;
+                }
+                window.location.reload();
+            };
+            window.setTimeout(reload, delay);
         }
     }
 
@@ -311,6 +321,160 @@
         }
     });
 
+    // Case search on the upload confirmation surface. The input is a plain
+    // required text field that the server resolves as a typed case reference,
+    // so the form keeps working without script; with script it becomes a
+    // combobox — a debounced fetch of the page's own suggestion handler, a
+    // listbox of matching cases, and a selection that fills the hidden case
+    // value. The ARIA combobox wiring is added here rather than shipped in
+    // markup, because without script there is no popup for it to describe.
+    document.querySelectorAll('[data-case-search]').forEach(function (form) {
+        var input = form.querySelector('[data-case-search-input]');
+        var list = form.querySelector('[data-case-search-list]');
+        var hidden = form.querySelector('[data-case-search-value]');
+        var url = form.getAttribute('data-case-search-url');
+        if (!input || !list || !hidden || !url || typeof fetch !== 'function') {
+            return;
+        }
+
+        input.setAttribute('role', 'combobox');
+        input.setAttribute('aria-expanded', 'false');
+        input.setAttribute('aria-controls', list.id);
+        input.setAttribute('aria-autocomplete', 'list');
+        input.setAttribute('aria-haspopup', 'listbox');
+        list.setAttribute('role', 'listbox');
+
+        var options = [];
+        var active = -1;
+        var timer = null;
+        var requestSequence = 0;
+        var inFlight = null;
+
+        var close = function () {
+            list.hidden = true;
+            list.replaceChildren();
+            options = [];
+            active = -1;
+            input.setAttribute('aria-expanded', 'false');
+            input.removeAttribute('aria-activedescendant');
+        };
+
+        var setActive = function (index) {
+            active = index;
+            list.querySelectorAll('[role="option"]').forEach(function (option, position) {
+                option.classList.toggle('is-active', position === index);
+                option.setAttribute('aria-selected', position === index ? 'true' : 'false');
+            });
+            if (index >= 0) {
+                input.setAttribute('aria-activedescendant', list.id + '-option-' + index);
+            } else {
+                input.removeAttribute('aria-activedescendant');
+            }
+        };
+
+        var choose = function (index) {
+            var chosen = options[index];
+            if (!chosen) {
+                return;
+            }
+            hidden.value = chosen.caseId;
+            input.value = chosen.reference;
+            close();
+        };
+
+        var render = function (items) {
+            options = items;
+            var rows = items.map(function (item, index) {
+                var row = document.createElement('li');
+                row.id = list.id + '-option-' + index;
+                row.setAttribute('role', 'option');
+                row.setAttribute('aria-selected', 'false');
+                row.textContent = [item.reference, item.registration, item.claimant, item.stage]
+                    .filter(function (part) { return Boolean(part); })
+                    .join(' · ');
+                // mousedown, not click: click lands after the input's blur
+                // would have closed the list.
+                row.addEventListener('mousedown', function (event) {
+                    event.preventDefault();
+                    choose(index);
+                });
+                return row;
+            });
+            if (rows.length === 0) {
+                var empty = document.createElement('li');
+                empty.className = 'case-search-list__empty';
+                empty.textContent = 'No matching cases found';
+                rows = [empty];
+            }
+            list.replaceChildren.apply(list, rows);
+            list.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+            setActive(-1);
+        };
+
+        input.addEventListener('input', function () {
+            // Typing again always invalidates any earlier selection: the
+            // submitted case is either the one just chosen or the typed
+            // reference the server resolves — never a stale hidden value.
+            hidden.value = '';
+            var term = input.value.trim();
+            if (timer) {
+                window.clearTimeout(timer);
+            }
+            if (term.length < 2) {
+                close();
+                return;
+            }
+            timer = window.setTimeout(function () {
+                var sequence = ++requestSequence;
+                // Abort the superseded request rather than merely ignoring
+                // its result: the server honours the cancellation, so the
+                // abandoned search stops running instead of completing.
+                if (inFlight) {
+                    inFlight.abort();
+                }
+                inFlight = typeof AbortController === 'function' ? new AbortController() : null;
+                fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'term=' + encodeURIComponent(term), {
+                    headers: { Accept: 'application/json' },
+                    signal: inFlight ? inFlight.signal : undefined
+                }).then(function (response) {
+                    return response.ok ? response.json() : [];
+                }).then(function (items) {
+                    if (sequence === requestSequence) {
+                        render(items);
+                    }
+                }).catch(function () {
+                    if (sequence === requestSequence) {
+                        close();
+                    }
+                });
+            }, 250);
+        });
+
+        input.addEventListener('keydown', function (event) {
+            if (list.hidden) {
+                return;
+            }
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setActive(Math.min(active + 1, options.length - 1));
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setActive(Math.max(active - 1, 0));
+            } else if (event.key === 'Enter' && active >= 0) {
+                event.preventDefault();
+                choose(active);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                close();
+            }
+        });
+
+        input.addEventListener('blur', function () {
+            close();
+        });
+    });
+
     // Live character counters for reason fields whose limit is policy.
     document.querySelectorAll('[data-counter-for]').forEach(function (counter) {
         var field = document.getElementById(counter.getAttribute('data-counter-for'));
@@ -328,3 +492,295 @@
     });
 
 }());
+
+
+// CASE-007: finishing edit mode with unsaved changes asks first. Dirty means
+// any input inside a lease-carrying form changed since load; Save submits the
+// form that changed, Discard releases the lease as posted.
+(function () {
+    var toggle = document.querySelector('[data-edit-toggle-off]');
+    var dialog = document.getElementById('edit-finish-confirm');
+    if (!toggle || !dialog) {
+        return;
+    }
+    var dirtyForm = null;
+    document.querySelectorAll('form').forEach(function (form) {
+        if (form === toggle || !form.querySelector('input[name="editLeaseToken"]')) {
+            return;
+        }
+        form.addEventListener('input', function () { dirtyForm = form; });
+        form.addEventListener('submit', function () { dirtyForm = null; });
+    });
+    var allowed = false;
+    toggle.addEventListener('submit', function (event) {
+        if (allowed || !dirtyForm) {
+            return;
+        }
+        event.preventDefault();
+        dialog.hidden = false;
+    });
+    dialog.querySelector('[data-edit-finish-keep]').addEventListener('click', function () {
+        dialog.hidden = true;
+    });
+    dialog.querySelector('[data-edit-finish-discard]').addEventListener('click', function () {
+        dialog.hidden = true;
+        allowed = true;
+        toggle.requestSubmit();
+    });
+    dialog.querySelector('[data-edit-finish-save]').addEventListener('click', function () {
+        dialog.hidden = true;
+        if (dirtyForm) {
+            dirtyForm.requestSubmit();
+        }
+    });
+})();
+
+// INTK-022: a filter form marked data-auto-submit submits itself when any of
+// its selects change; the noscript Apply button covers the rest.
+(function () {
+    document.querySelectorAll('form[data-auto-submit]').forEach(function (form) {
+        form.addEventListener('change', function (event) {
+            if (event.target instanceof HTMLSelectElement) {
+                form.submit();
+            }
+        });
+    });
+})();
+
+// UI-10: evidence-only mail preview. A subject remains an ordinary full-detail
+// link; this enhancement selects its row on pointer/keyboard intent and reads
+// the same authorized exact-message projection without moving focus or state.
+(function () {
+    document.querySelectorAll('[data-mail-preview-workspace]').forEach(function (workspace) {
+        var panel = workspace.querySelector('[data-mail-preview]');
+        var status = workspace.querySelector('[data-mail-preview-status]');
+        var facts = workspace.querySelector('[data-mail-preview-facts]');
+        var rows = Array.from(workspace.querySelectorAll('[data-mail-preview-row]'));
+        if (!panel || !status || !facts || rows.length === 0) {
+            return;
+        }
+
+        var activeRow = null;
+        var request = null;
+        var cache = new Map();
+
+        var field = function (name) {
+            return facts.querySelector('[data-mail-preview-' + name + ']');
+        };
+
+        var resetSelection = function () {
+            if (request) {
+                request.abort();
+                request = null;
+            }
+            rows.forEach(function (row) {
+                row.classList.remove('is-preview-selected');
+                var trigger = row.querySelector('[data-mail-preview-trigger]');
+                if (trigger) {
+                    trigger.setAttribute('aria-expanded', 'false');
+                }
+            });
+            activeRow = null;
+            panel.hidden = true;
+            panel.removeAttribute('aria-busy');
+        };
+
+        var render = function (data) {
+            field('sender').textContent = data.sender;
+            field('subject').textContent = data.subject;
+            field('received').textContent = data.received;
+            field('received').setAttribute('datetime', data.receivedAtUtc);
+            field('excerpt').textContent = data.excerpt;
+            field('classification').textContent = data.classification;
+            field('association').textContent = data.association;
+
+            var attachments = field('attachments');
+            attachments.replaceChildren();
+            (data.attachments.length === 0 ? ['No attachments'] : data.attachments)
+                .forEach(function (name) {
+                    var item = document.createElement('li');
+                    item.textContent = name;
+                    attachments.appendChild(item);
+                });
+
+            status.hidden = true;
+            facts.hidden = false;
+            panel.removeAttribute('aria-busy');
+        };
+
+        var select = function (row) {
+            var trigger = row.querySelector('[data-mail-preview-trigger]');
+            var url = trigger && trigger.getAttribute('data-mail-preview-url');
+            if (!trigger || !url || activeRow === row) {
+                return;
+            }
+
+            if (request) {
+                request.abort();
+            }
+            rows.forEach(function (candidate) {
+                candidate.classList.toggle('is-preview-selected', candidate === row);
+                var candidateTrigger = candidate.querySelector('[data-mail-preview-trigger]');
+                if (candidateTrigger) {
+                    candidateTrigger.setAttribute(
+                        'aria-expanded',
+                        candidate === row ? 'true' : 'false');
+                }
+            });
+            activeRow = row;
+            panel.hidden = false;
+            status.hidden = false;
+            status.textContent = 'Loading quick preview…';
+            facts.hidden = true;
+            panel.setAttribute('aria-busy', 'true');
+
+            if (cache.has(url)) {
+                render(cache.get(url));
+                return;
+            }
+
+            request = new AbortController();
+            var currentRequest = request;
+            fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                signal: currentRequest.signal
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Preview unavailable');
+                }
+                return response.json();
+            }).then(function (data) {
+                cache.set(url, data);
+                if (activeRow === row) {
+                    render(data);
+                }
+            }).catch(function (error) {
+                if (error.name === 'AbortError' || activeRow !== row) {
+                    return;
+                }
+                facts.hidden = true;
+                status.hidden = false;
+                status.textContent = 'Quick preview unavailable. Open the message for full detail.';
+                panel.removeAttribute('aria-busy');
+            }).finally(function () {
+                if (request === currentRequest) {
+                    request = null;
+                }
+            });
+        };
+
+        rows.forEach(function (row) {
+            var trigger = row.querySelector('[data-mail-preview-trigger]');
+            row.addEventListener('pointerenter', function () { select(row); });
+            row.addEventListener('pointerleave', function () {
+                if (activeRow === row && !row.contains(document.activeElement)) {
+                    resetSelection();
+                }
+            });
+            if (!trigger) {
+                return;
+            }
+            trigger.addEventListener('focus', function () { select(row); });
+            trigger.addEventListener('blur', function () {
+                setTimeout(function () {
+                    if (activeRow === row && !row.contains(document.activeElement)) {
+                        resetSelection();
+                    }
+                }, 0);
+            });
+        });
+    });
+
+    // Reason dialogs built as div backdrops ([data-reason-dialog]): open from
+    // any [data-dialog-open="<id>"] control, close on Cancel, Escape, or a
+    // backdrop click, contain focus while open, and return focus to the
+    // invoking control. This lives here rather than beside the markup because
+    // the deployed Content-Security-Policy discards inline scripts.
+    document.querySelectorAll('[data-reason-dialog]').forEach(function (dialog) {
+        if (dialog.dataset.dialogBound === 'true') {
+            return;
+        }
+        dialog.dataset.dialogBound = 'true';
+
+        var invoker = null;
+
+        function focusable() {
+            return Array.prototype.filter.call(
+                dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                function (element) { return !element.disabled && !element.hidden; });
+        }
+
+        function open(source) {
+            invoker = source;
+            dialog.hidden = false;
+            document.addEventListener('keydown', onKeydown, true);
+            var items = focusable();
+            if (items.length > 0) {
+                items[0].focus();
+            }
+        }
+
+        function close() {
+            dialog.hidden = true;
+            document.removeEventListener('keydown', onKeydown, true);
+            if (invoker) {
+                invoker.focus();
+            }
+        }
+
+        function onKeydown(event) {
+            if (event.key === 'Escape') {
+                // Safe: closing abandons an unsent reason and changes nothing.
+                event.preventDefault();
+                close();
+                return;
+            }
+            if (event.key !== 'Tab') {
+                return;
+            }
+            var items = focusable();
+            if (items.length === 0) {
+                return;
+            }
+            var first = items[0];
+            var last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        dialog.querySelectorAll('[data-dialog-dismiss]').forEach(function (control) {
+            control.addEventListener('click', close);
+        });
+
+        dialog.addEventListener('click', function (event) {
+            if (event.target === dialog) {
+                close();
+            }
+        });
+
+        document.querySelectorAll('[data-dialog-open="' + dialog.id + '"]').forEach(function (control) {
+            control.addEventListener('click', function () {
+                open(control);
+            });
+        });
+    });
+
+    // The Other classification name and reasoning fields exist only while an
+    // Other option is selected; the select drives their visibility.
+    document.querySelectorAll('[data-other-toggle]').forEach(function (select) {
+        var scope = select.closest('[data-reason-dialog]') || document;
+        function sync() {
+            var isOther = select.value === 'other-received' || select.value === 'other-sent';
+            scope.querySelectorAll('[data-other-field]').forEach(function (field) {
+                field.hidden = !isOther;
+            });
+        }
+        select.addEventListener('change', sync);
+        sync();
+    });
+})();

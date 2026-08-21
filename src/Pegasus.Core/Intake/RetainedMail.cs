@@ -1,3 +1,4 @@
+using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Intake;
@@ -19,7 +20,24 @@ public enum MailFolderScope
 /// Which slice of retained mail the operator is looking at. A null
 /// <paramref name="MailboxId"/> is the default all-mailboxes view.
 /// </summary>
-public sealed record MailWorkspaceScope(string? MailboxId, MailFolderScope Folder);
+public sealed record MailWorkspaceScope(
+    string? MailboxId,
+    MailFolderScope Folder,
+    string? SearchTerm = null,
+    MailOperationalDestination? Destination = null,
+    MailCategory? DetailedClassification = null);
+
+public enum MailSearchMatchKind
+{
+    MessageBody,
+    AttachmentFileName,
+    AttachmentContent
+}
+
+public sealed record RetainedMailSearchMatch(
+    MailSearchMatchKind Kind,
+    string? AttachmentFileName = null,
+    int? AttachmentOrdinal = null);
 
 public sealed record RetainedMailSummary(
     Guid Id,
@@ -38,7 +56,14 @@ public sealed record RetainedMailSummary(
     Guid? IntakeReceiptId,
     Guid? CaseId,
     string? CaseReference,
-    IntakeAllocationState? AllocationState = null);
+    IntakeAllocationState? AllocationState = null,
+    IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null,
+    MailLogicalFolderType? CurrentFolderType = null,
+    MailClassificationResult? Classification = null,
+    MailOperationalDestinationResult? OperationalDestination = null)
+{
+    public IReadOnlyList<RetainedMailSearchMatch> Matches => SearchMatches ?? [];
+}
 
 /// <summary>
 /// One page of retained mail.
@@ -65,7 +90,8 @@ public sealed record RetainedMailPage(
 public sealed record RetainedMailAttachment(
     string FileName,
     string MediaType,
-    long ContentLength);
+    long ContentLength,
+    bool IsSearchable = false);
 
 public sealed record RetainedMailThreadEntry(
     Guid Id,
@@ -73,6 +99,31 @@ public sealed record RetainedMailThreadEntry(
     string? SenderAddress,
     string? Subject,
     DateTimeOffset ReceivedAtUtc);
+
+/// <summary>
+/// The current read-only Outlook-folder recommendation for one retained message.
+/// A missing <see cref="FolderType"/> is an honest unavailable result, not a
+/// destination the caller may fill in. A later move command must re-read the exact
+/// current binding rather than carry an opaque identity forward from this view.
+/// </summary>
+public sealed record RetainedMailFolderRecommendation(
+    MailLogicalFolderType? FolderType,
+    string PolicyKey,
+    int PolicyVersion,
+    string Reason,
+    int? MailboxVersion = null,
+    bool CanMove = false)
+{
+    public bool IsAvailable => FolderType is not null;
+}
+
+/// <summary>
+/// The optional advisory to start the separate confirmed folder-move workflow.
+/// It carries no command, transport identity or durable operation state.
+/// </summary>
+public sealed record RetainedMailSuggestedMove(
+    MailLogicalFolderType FolderType,
+    string Reason);
 
 public sealed record RetainedMailDetail(
     RetainedMailSummary Summary,
@@ -84,7 +135,10 @@ public sealed record RetainedMailDetail(
     MailFolderScope Folder,
     MailClassificationOutcome? ClassificationOutcome,
     MailRouteDisposition? RouteDisposition,
-    MailClassificationDossier? Classification = null);
+    MailClassificationDossier? Classification = null,
+    RetainedMailFolderRecommendation? FolderRecommendation = null,
+    RetainedMailFolderMoveResult? LatestFolderMove = null,
+    RetainedMailSuggestedMove? SuggestedMove = null);
 
 public sealed record MailClassificationHistoryEntry(
     int Version,
@@ -92,14 +146,28 @@ public sealed record MailClassificationHistoryEntry(
     MailClassificationResult After,
     string Actor,
     string Reason,
-    DateTimeOffset CorrectedAtUtc);
+    DateTimeOffset CorrectedAtUtc)
+{
+    /// <summary>
+    /// The operator-facing name for <see cref="Actor"/> — a persisted
+    /// <c>"{kind}:{subjectId}"</c> pair, see <see cref="MailClassificationActor"/> —
+    /// resolved by <c>GetRetainedMail</c>. Defaults to the same honest fallback an
+    /// unresolvable actor gets, so a caller that forgets to populate it never
+    /// renders the raw subject id.
+    /// </summary>
+    public string ActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
+}
 
 public sealed record MailClassificationDossier(
     int Version,
     MailClassificationResult Current,
     string CurrentActor,
     DateTimeOffset CurrentDecidedAtUtc,
-    IReadOnlyList<MailClassificationHistoryEntry> History);
+    IReadOnlyList<MailClassificationHistoryEntry> History)
+{
+    /// <summary>The operator-facing name for <see cref="CurrentActor"/>.</summary>
+    public string CurrentActorDisplayName { get; init; } = ActorDisplayNames.UnknownStaff;
+}
 
 public sealed record CorrectMailClassificationRequest(
     Guid MessageId,
@@ -126,6 +194,70 @@ public interface IRetainedMailClassificationStore
 
 public sealed class MailClassificationConcurrencyException()
     : InvalidOperationException("The classification changed after this message was opened. Reload it before correcting it.");
+
+/// <summary>
+/// The single format for the actor persisted alongside a mail classification
+/// correction: <c>"{kind}:{subjectId}"</c>, lowercase kind. There is no dedicated
+/// actor column for this history (unlike <c>CaseWorkflowEvents</c> or Triage
+/// history), so the pair is packed into the one <c>Actor</c> string the store
+/// writes; this is the sole place that packs and unpacks it.
+/// </summary>
+public static class MailClassificationActor
+{
+    /// <summary>
+    /// The kind prefixes as the rest of the codebase already writes them
+    /// (<c>"staff:"</c> in <c>Pages/Upload.cshtml.cs</c>, <c>"automation:"</c> in
+    /// <c>Mcp/IntakeMcpTools.cs</c>, <c>"system-worker:"</c> throughout Intake and
+    /// Triage — including the pre-PLAT-011 rows this migrates,
+    /// e.g. <c>"system-worker:legacy-intake"</c>). <see cref="ActorKind"/>'s own
+    /// <c>ToString()</c> does not hyphenate <c>SystemWorker</c>, so this map, not
+    /// the enum name, is the source of truth for the prefix.
+    /// </summary>
+    private static readonly Dictionary<ActorKind, string> Prefixes = new()
+    {
+        [ActorKind.Staff] = "staff",
+        [ActorKind.SystemWorker] = "system-worker",
+        [ActorKind.Automation] = "automation",
+        [ActorKind.RequestLink] = "request-link"
+    };
+
+    public static string Format(ActionActor actor)
+    {
+        ArgumentNullException.ThrowIfNull(actor);
+        return $"{Prefixes[actor.Kind]}:{actor.SubjectId}";
+    }
+
+    public static bool TryParse(string value, out ActorKind kind, out string subjectId)
+    {
+        kind = default;
+        subjectId = string.Empty;
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        var separator = value.IndexOf(':');
+        if (separator <= 0 || separator == value.Length - 1)
+        {
+            return false;
+        }
+
+        var prefix = value[..separator];
+        foreach (var (candidateKind, candidatePrefix) in Prefixes)
+        {
+            if (!string.Equals(prefix, candidatePrefix, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            kind = candidateKind;
+            subjectId = value[(separator + 1)..];
+            return true;
+        }
+
+        return false;
+    }
+}
 
 /// <summary>
 /// The sole business operation for correcting one retained message. Persistence owns
@@ -187,7 +319,7 @@ public sealed class CorrectRetainedMailClassification(
             request.ExpectedVersion,
             current.Current,
             after,
-            $"{actor.Kind.ToString().ToLowerInvariant()}:{actor.SubjectId}",
+            MailClassificationActor.Format(actor),
             reason,
             timeProvider.GetUtcNow(),
             cancellationToken);
@@ -239,7 +371,10 @@ public interface IRetainedMailQueries
         int pageSize,
         CancellationToken cancellationToken);
 
-    Task<RetainedMailDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
+    Task<RetainedMailDetail?> GetAsync(
+        Guid id,
+        CancellationToken cancellationToken,
+        string? searchTerm = null);
 
     Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken);
@@ -280,6 +415,28 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope),
                 "The mail folder scope is not recognized.");
         }
+        if (scope.Destination is not null && scope.DetailedClassification is not null)
+        {
+            throw new ArgumentException(
+                "Choose either an operational destination or one detailed classification.",
+                nameof(scope));
+        }
+        if (scope.Destination is { } destination)
+        {
+            _ = MailOperationalDestinationPolicy.Query(destination);
+        }
+        if (scope.DetailedClassification is { } detailedClassification)
+        {
+            detailedClassification.ValidateCanonical();
+            if (MailOperationalDestinationPolicy.Map(detailedClassification).Destination
+                != MailOperationalDestination.DetailedClassification)
+            {
+                throw new ArgumentException(
+                    "The selected classification does not have its own detailed mail view.",
+                    nameof(scope));
+            }
+        }
+        var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
         if (scope.MailboxId is { } mailboxId
             && (string.IsNullOrWhiteSpace(mailboxId) || mailboxId.Length > 100))
         {
@@ -288,7 +445,27 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
                 nameof(scope));
         }
 
-        return await queries.ListAsync(scope, page, pageSize, cancellationToken);
+        var normalizedScope = scope with
+        {
+            SearchTerm = searchTerm
+        };
+        return await queries.ListAsync(normalizedScope, page, pageSize, cancellationToken);
+    }
+
+    internal static string? NormalizeSearchTerm(string? value, string parameterName)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+        var term = value.Trim();
+        if (term.Length is 0 or > 200)
+        {
+            throw new ArgumentException(
+                "A mail search term must contain 1 to 200 characters.",
+                parameterName);
+        }
+        return term;
     }
 
     public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
@@ -300,14 +477,33 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
     }
 }
 
-public sealed class GetRetainedMail(IRetainedMailQueries queries)
+public sealed class GetRetainedMail(
+    IRetainedMailQueries queries,
+    IStaffAccountQueries staffAccountQueries,
+    IApprovedMailboxStore approvedMailboxStore,
+    IRetainedMailFolderMoveStore? folderMoveStore = null,
+    IRetainedMailFolderMover? folderMover = null)
 {
     private readonly IRetainedMailQueries queries =
         queries ?? throw new ArgumentNullException(nameof(queries));
+    private readonly IStaffAccountQueries staffAccountQueries =
+        staffAccountQueries ?? throw new ArgumentNullException(nameof(staffAccountQueries));
+    private readonly IApprovedMailboxStore approvedMailboxStore =
+        approvedMailboxStore ?? throw new ArgumentNullException(nameof(approvedMailboxStore));
+    private readonly IRetainedMailFolderMoveStore folderMoveStore =
+        folderMoveStore ?? EmptyRetainedMailFolderMoveStore.Instance;
+    private readonly IRetainedMailFolderMover? folderMover = folderMover;
 
-    public Task<RetainedMailDetail?> ExecuteAsync(
+    public async Task<RetainedMailDetail?> ExecuteAsync(
         ActionActor actor,
         Guid messageId,
+        CancellationToken cancellationToken = default)
+        => await ExecuteAsync(actor, messageId, searchTerm: null, cancellationToken);
+
+    public async Task<RetainedMailDetail?> ExecuteAsync(
+        ActionActor actor,
+        Guid messageId,
+        string? searchTerm,
         CancellationToken cancellationToken = default)
     {
         StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
@@ -318,8 +514,128 @@ public sealed class GetRetainedMail(IRetainedMailQueries queries)
                 nameof(messageId));
         }
 
-        return queries.GetAsync(messageId, cancellationToken);
+        var normalizedSearchTerm = ListRetainedMail.NormalizeSearchTerm(
+            searchTerm,
+            nameof(searchTerm));
+        var detail = await queries.GetAsync(
+            messageId,
+            cancellationToken,
+            normalizedSearchTerm);
+        if (detail is null)
+        {
+            return null;
+        }
+
+        var recommendation = await RecommendFolderAsync(detail, cancellationToken);
+        var latestMove = await folderMoveStore.GetLatestAsync(messageId, cancellationToken);
+        detail = detail with
+        {
+            FolderRecommendation = recommendation,
+            LatestFolderMove = latestMove,
+            SuggestedMove = recommendation is { CanMove: true, FolderType: { } folderType }
+                && latestMove?.Outcome is not RetainedMailFolderMoveOutcome.Uncertain
+                ? new(folderType, recommendation.Reason)
+                : null
+        };
+        if (detail.Classification is not { } dossier)
+        {
+            return detail;
+        }
+
+        var packedActors = new[] { dossier.CurrentActor }
+            .Concat(dossier.History.Select(entry => entry.Actor));
+        var staffIds = packedActors.Select(TryParseStaffId).OfType<Guid>();
+        var staffNames = await ActorDisplayNames.ResolveStaffNamesAsync(
+            staffAccountQueries,
+            staffIds,
+            cancellationToken);
+
+        return detail with
+        {
+            Classification = dossier with
+            {
+                CurrentActorDisplayName = ResolveActorLabel(dossier.CurrentActor, staffNames),
+                History = dossier.History
+                    .Select(entry => entry with
+                    {
+                        ActorDisplayName = ResolveActorLabel(entry.Actor, staffNames)
+                    })
+                    .ToArray()
+            }
+        };
     }
+
+    private async Task<RetainedMailFolderRecommendation> RecommendFolderAsync(
+        RetainedMailDetail detail,
+        CancellationToken cancellationToken)
+    {
+        if (detail.Classification is not { } dossier)
+        {
+            return Unavailable(
+                null,
+                "This message has no current classification decision, so no Outlook folder can be recommended.");
+        }
+
+        var policy = MailLogicalFolderPolicy.Map(dossier.Current);
+        if (policy.FolderType is not { } folderType)
+        {
+            return Unavailable(policy, policy.Reason);
+        }
+
+        var mailboxes = await approvedMailboxStore.ListAsync(cancellationToken);
+        var mailbox = mailboxes.SingleOrDefault(item =>
+            item.MailboxIdentity is { } identity
+            && string.Equals(identity, detail.Summary.MailboxId, StringComparison.Ordinal));
+        if (mailbox is null || mailbox.State != ApprovedMailboxState.Approved)
+        {
+            return Unavailable(
+                policy,
+                "This message's mailbox is not currently approved, so its designated Outlook folder is unavailable.");
+        }
+
+        var binding = mailbox.FolderBindings.SingleOrDefault(item => item.FolderType == folderType);
+        if (binding is null)
+        {
+            var label = MailLogicalFolders.Definition(folderType).Label;
+            return Unavailable(
+                policy,
+                $"The designated {label} folder is not configured for this mailbox.");
+        }
+
+        var isCurrentLocation = await folderMoveStore.IsCurrentLocationAsync(
+            detail.Summary.Id,
+            binding.FolderIdentity,
+            cancellationToken);
+        return new(
+            folderType,
+            policy.PolicyKey,
+            policy.PolicyVersion,
+            policy.Reason,
+            mailbox.Version,
+            folderMover?.IsAvailable == true && !isCurrentLocation);
+    }
+
+    private static RetainedMailFolderRecommendation Unavailable(
+        MailLogicalFolderResult? policy,
+        string reason) => new(
+            null,
+            policy?.PolicyKey ?? MailLogicalFolderPolicy.Key,
+            policy?.PolicyVersion ?? MailLogicalFolderPolicy.Version,
+            reason);
+
+    private static string ResolveActorLabel(
+        string packedActor,
+        IReadOnlyDictionary<Guid, string> staffNames) =>
+        MailClassificationActor.TryParse(packedActor, out var kind, out var subjectId)
+            ? ActorDisplayNames.Resolve(kind, subjectId, staffNames)
+            : ActorDisplayNames.UnknownStaff;
+
+    private static Guid? TryParseStaffId(string packedActor) =>
+        MailClassificationActor.TryParse(packedActor, out var kind, out var subjectId)
+            && kind == ActorKind.Staff
+            && Guid.TryParse(subjectId, out var staffId)
+                ? staffId
+                : null;
 }
 
 public sealed class GetRetainedMailFreshness(

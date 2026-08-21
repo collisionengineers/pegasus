@@ -76,7 +76,7 @@ public sealed partial class AutomationConnectorAuthorizationTests
         {
             Assert.Equal(HttpStatusCode.OK, list.StatusCode);
             using var document = await ReadJsonRpcAsync(list);
-            Assert.Equal(15, document.RootElement.GetProperty("result").GetProperty("tools").GetArrayLength());
+            Assert.Equal(18, document.RootElement.GetProperty("result").GetProperty("tools").GetArrayLength());
         }
         using (var denied = await PostMcpAsync(
             connector,

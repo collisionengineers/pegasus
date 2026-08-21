@@ -20,6 +20,61 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class CaseDetailsWebTests
 {
+    /// <summary>
+    /// PLAT-011: the case history table shows the resolved actor name, never the
+    /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its
+    /// username and an Automation row shows the client label, not either GUID.
+    /// </summary>
+    [Fact]
+    public async Task CaseHistoryShowsResolvedActorNamesAndNeverARawSubjectId()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var staffSubjectId = Guid.NewGuid().ToString("D");
+        var automationSubjectId = Guid.NewGuid().ToString("D");
+        var store = new RecordingCaseDetailsStore
+        {
+            HistoryEntries =
+            [
+                new(
+                    "case_returned_to_review",
+                    staffSubjectId,
+                    nameof(ActorKind.Staff),
+                    new(2031, 5, 6, 9, 0, 0, TimeSpan.Zero),
+                    "Missing instructions.",
+                    3,
+                    4)
+                {
+                    ActorDisplayName = "alex"
+                },
+                new(
+                    "case_created",
+                    automationSubjectId,
+                    nameof(ActorKind.Automation),
+                    new(2031, 5, 5, 9, 0, 0, TimeSpan.Zero),
+                    "Automated intake.",
+                    0,
+                    1)
+                {
+                    ActorDisplayName = "Automation"
+                }
+            ]
+        };
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services => Substitute<IGetCase>(services, store)));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?tab=history");
+
+        Assert.Contains("alex", html, StringComparison.Ordinal);
+        Assert.Contains("Automation", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(staffSubjectId, html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(automationSubjectId, html, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task CustodyRetryEvaGenerateAndDownloadRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
@@ -110,7 +165,7 @@ public sealed partial class CaseDetailsWebTests
                }))
         {
             var recoveryHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
-            Assert.Contains("Recover edit mode", recoveryHtml, StringComparison.Ordinal);
+            Assert.Contains("Recover editing", recoveryHtml, StringComparison.Ordinal);
             Assert.Equal(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
             using var recoveryResponse = await recoveryClient.PostAsync(
                 $"/Cases/{store.CaseId:D}?handler=ClaimLease",
@@ -288,7 +343,7 @@ public sealed partial class CaseDetailsWebTests
 
         store.LeaseHolder = claimant;
         var recoveryHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Recover edit mode", recoveryHtml, StringComparison.Ordinal);
+        Assert.Contains("Recover editing", recoveryHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", recoveryHtml, StringComparison.Ordinal);
         Assert.Equal(claimOperationKey, InputValue(recoveryHtml, "operationKey"));
     }
@@ -567,7 +622,7 @@ public sealed partial class CaseDetailsWebTests
         // The authority is still this editor's on the server, so recovery is offered rather than
         // the case being handed to anyone else — but no edit form is live until it is retaken.
         Assert.DoesNotContain("name=\"editLeaseToken\"", refusedHtml, StringComparison.Ordinal);
-        Assert.Contains("Recover edit mode", refusedHtml, StringComparison.Ordinal);
+        Assert.Contains("Recover editing", refusedHtml, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -722,14 +777,14 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        var panel = EditModePanel(html);
+        var note = EditAuthorityNote(html);
 
-        Assert.Contains("Case locked - r.hughes is editing", panel, StringComparison.Ordinal);
-        Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
-        Assert.Contains("Editing cannot be taken over", panel, StringComparison.Ordinal);
-        Assert.DoesNotContain("handler=ClaimLease", panel, StringComparison.Ordinal);
+        Assert.Contains("Case locked - r.hughes is editing", note, StringComparison.Ordinal);
+        Assert.Contains("Editing becomes available at", note, StringComparison.Ordinal);
+        Assert.Contains("Editing cannot be taken over", note, StringComparison.Ordinal);
+        Assert.DoesNotContain("handler=ClaimLease", html, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotMatch(GuidRegex(), VisibleText(panel));
+        Assert.DoesNotMatch(GuidRegex(), VisibleText(note));
     }
 
     [Fact]
@@ -754,15 +809,15 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        var panel = EditModePanel(html);
+        var note = EditAuthorityNote(html);
 
         Assert.Contains(
             "Case locked - another member of staff is editing",
-            panel,
+            note,
             StringComparison.Ordinal);
-        Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
+        Assert.Contains("Editing becomes available at", note, StringComparison.Ordinal);
         Assert.DoesNotContain(holderId.ToString("D"), html, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotMatch(GuidRegex(), VisibleText(panel));
+        Assert.DoesNotMatch(GuidRegex(), VisibleText(note));
     }
 
     /// <summary>
@@ -790,13 +845,13 @@ public sealed partial class CaseDetailsWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        var panel = EditModePanel(html);
+        var note = EditAuthorityNote(html);
 
-        Assert.Contains("Case locked - AI is editing", panel, StringComparison.Ordinal);
-        Assert.Contains("Editing becomes available at", panel, StringComparison.Ordinal);
-        Assert.DoesNotContain("member of staff", panel, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Case locked - AI is editing", note, StringComparison.Ordinal);
+        Assert.Contains("Editing becomes available at", note, StringComparison.Ordinal);
+        Assert.DoesNotContain("member of staff", note, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("pegasus-automation", html, StringComparison.OrdinalIgnoreCase);
-        AssertNoBannedVocabulary(panel);
+        AssertNoBannedVocabulary(note);
     }
 
     [Fact]
@@ -824,7 +879,7 @@ public sealed partial class CaseDetailsWebTests
         });
 
         // Available: nobody is editing.
-        AssertNoBannedVocabulary(EditModePanel(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}")));
+        AssertNoBannedVocabulary(RecordBar(await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}")));
 
         // Holder: this staff member is editing, with the edit forms rendered.
         var availableHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
@@ -840,8 +895,8 @@ public sealed partial class CaseDetailsWebTests
         }
 
         var holderHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("You hold edit authority", EditModePanel(holderHtml), StringComparison.Ordinal);
-        AssertNoBannedVocabulary(EditModePanel(holderHtml));
+        Assert.Contains("Finish editing", RecordBar(holderHtml), StringComparison.Ordinal);
+        AssertNoBannedVocabulary(RecordBar(holderHtml));
 
         // Recover: the same holder without the protected browser state.
         using (var recoveryClient = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -851,8 +906,8 @@ public sealed partial class CaseDetailsWebTests
         }))
         {
             var recoverHtml = await GetHtmlAsync(recoveryClient, $"/Cases/{store.CaseId:D}");
-            Assert.Contains("Recover edit mode", EditModePanel(recoverHtml), StringComparison.Ordinal);
-            AssertNoBannedVocabulary(EditModePanel(recoverHtml));
+            Assert.Contains("Recover editing", RecordBar(recoverHtml), StringComparison.Ordinal);
+            AssertNoBannedVocabulary(RecordBar(recoverHtml));
         }
 
         // Non-holder: someone else is editing.
@@ -866,9 +921,9 @@ public sealed partial class CaseDetailsWebTests
             var nonHolderHtml = await GetHtmlAsync(otherClient, $"/Cases/{store.CaseId:D}");
             Assert.Contains(
                 "Case locked - ",
-                EditModePanel(nonHolderHtml),
+                EditAuthorityNote(nonHolderHtml),
                 StringComparison.Ordinal);
-            AssertNoBannedVocabulary(EditModePanel(nonHolderHtml));
+            AssertNoBannedVocabulary(EditAuthorityNote(nonHolderHtml));
         }
     }
 
@@ -895,8 +950,23 @@ public sealed partial class CaseDetailsWebTests
 
     private const string DetailsModelOperationKey = "3f2504e04f8911d39a0c0305e82c3301";
 
-    private static string EditModePanel(string html) =>
-        Section(html, "case-edit-mode-title");
+    private static string RecordBar(string html)
+    {
+        var start = html.IndexOf("class=\"record__bar\"", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The record bar is not rendered.");
+        var end = html.IndexOf("<nav", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The record bar is not closed before the tabs.");
+        return html[start..end];
+    }
+
+    private static string EditAuthorityNote(string html)
+    {
+        var start = html.IndexOf("data-edit-authority", StringComparison.Ordinal);
+        Assert.True(start >= 0, "The edit-authority note is not rendered.");
+        var end = html.IndexOf("</span>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The edit-authority note is not closed.");
+        return html[start..end];
+    }
 
     private static string ProposedValuesPanel(string html) =>
         Section(html, "case-proposed-values-title");
@@ -987,6 +1057,8 @@ public sealed partial class CaseDetailsWebTests
 
         public bool ExposeCustodyAndEva { get; init; }
 
+        public IReadOnlyList<CaseHistoryEntry> HistoryEntries { get; init; } = [];
+
         public string LeaseToken { get; } = "opaque-live-case-lease";
 
         public List<ClaimCaseEditLeaseRequest> Claims { get; } = [];
@@ -1030,7 +1102,7 @@ public sealed partial class CaseDetailsWebTests
                 CaseCustodyState.Pending,
                 [],
                 [],
-                [])
+                HistoryEntries)
             {
                 Data = CreateData(),
                 Custody = ExposeCustodyAndEva

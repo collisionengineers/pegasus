@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Intake;
 
@@ -24,8 +25,15 @@ public sealed record EvaluationSnapshot(
 
 public sealed class EmailEvaluationWorkflow
 {
+    /// <summary>
+    /// The Actor recorded against the advisory intake read used only to produce
+    /// the rule suggestion; never a Pegasus staff identity.
+    /// </summary>
+    private const string LocalReviewActor = "email-eval-desktop-reviewer";
+
     private readonly IIntakeSourceReader sourceReader;
     private readonly IInstructionExtractionPolicy extractionPolicy;
+    private readonly IMailClassificationPolicy classificationPolicy;
     private readonly CategoryCatalog catalog;
     private readonly TimeProvider timeProvider;
     private List<string> queue = [];
@@ -41,11 +49,13 @@ public sealed class EmailEvaluationWorkflow
     public EmailEvaluationWorkflow(
         IIntakeSourceReader sourceReader,
         IInstructionExtractionPolicy extractionPolicy,
+        IMailClassificationPolicy classificationPolicy,
         CategoryCatalog catalog,
         TimeProvider? timeProvider = null)
     {
         this.sourceReader = sourceReader;
         this.extractionPolicy = extractionPolicy;
+        this.classificationPolicy = classificationPolicy;
         this.catalog = catalog;
         this.timeProvider = timeProvider ?? TimeProvider.System;
     }
@@ -197,10 +207,11 @@ public sealed class EmailEvaluationWorkflow
         error = null;
         status = $"Reviewing {Path.GetFileName(currentPath)}";
 
+        byte[] content;
         try
         {
-            await using var displayStream = new FileStream(currentPath, FileMode.Open, FileAccess.Read, FileShare.Read);
-            var display = await LocalEmailDisplayReader.ReadAsync(displayStream, cancellationToken);
+            content = await File.ReadAllBytesAsync(currentPath, cancellationToken);
+            var display = await LocalEmailDisplayReader.ReadAsync(new MemoryStream(content), cancellationToken);
             message = new EmailDisplayMessage(
                 Path.GetFileName(currentPath),
                 display.From,
@@ -220,6 +231,58 @@ public sealed class EmailEvaluationWorkflow
             return;
         }
 
+        // The rule suggestion is advisory evidence beside the human review (ADR-0016);
+        // a fault evaluating it must never block the display or filing the message
+        // already supports, so it is isolated behind its own recoverable-fault guard.
+        try
+        {
+            var intakeSource = new IntakeSource(
+                Path.GetFileName(currentPath),
+                "message/rfc822",
+                content,
+                timeProvider.GetUtcNow(),
+                LocalReviewActor,
+                new(IntakeSourceChannel.ManualUpload, Convert.ToHexString(SHA256.HashData(content))));
+            var readResult = await sourceReader.ReadAsync(intakeSource, cancellationToken);
+            suggestion = FormatSuggestion(classificationPolicy.Classify(readResult));
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            suggestion = null;
+        }
+    }
+
+    /// <summary>
+    /// Renders the rule-generated category, subtype, matched evidence and policy
+    /// version beside the human review. Unclassified stays null (rendered as
+    /// "No category"): the reviewer's own selection remains authoritative either way.
+    /// </summary>
+    private static string? FormatSuggestion(MailClassificationResult result)
+    {
+        if (result.Outcome == MailClassificationOutcome.Unclassified)
+        {
+            return null;
+        }
+
+        var headline = result.Outcome == MailClassificationOutcome.Classified
+            ? FormatCategory(result.Category!)
+            : $"Ambiguous ({string.Join(", ", result.AmbiguousCandidates)})";
+
+        var matched = result.Predicates.Where(predicate => predicate.Matched).ToArray();
+        var evidenceLines = matched.Length == 0
+            ? "  (no matched predicates)"
+            : string.Join(
+                Environment.NewLine,
+                matched.Select(predicate => $"  - {predicate.Key}: {predicate.Detail}"));
+
+        return $"{headline} (policy {result.PolicyKey} v{result.PolicyVersion}){Environment.NewLine}Evidence:{Environment.NewLine}{evidenceLines}";
+    }
+
+    private static string FormatCategory(MailCategory category)
+    {
+        var direction = category.Direction == MailDirection.Received ? "Received" : "Sent";
+        var name = category.Subtype is null ? category.Name : $"{category.Name}/{category.Subtype}";
+        return $"{direction} / {name}";
     }
 
     private EvaluationSnapshot Clear(string messageText)

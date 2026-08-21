@@ -1,5 +1,6 @@
-@model Pegasus.Web.Pages.Cases.DetailsModel
+﻿@model Pegasus.Web.Pages.Cases.DetailsModel
 @using Pegasus.Core.Cases
+@using Pegasus.Core.Vehicle
 @using Pegasus.Web.Presentation
 @{
     var details = Model.Case!;
@@ -90,12 +91,18 @@
             @{ DataRow("Model", data?.Vehicle.Model); }
             @{
                 var mileageUnit = data?.Vehicle.MileageUnit.Current?.Value;
-                DataRow(
-                    "Odometer",
-                    data?.Vehicle.Mileage,
-                    value => mileageUnit is { Length: > 0 }
+                // The classification word travels with the figure: a derived
+                // estimate is never presented as supplied.
+                var mileageClass = data?.Vehicle.Mileage.Current is { } mileageValue
+                    ? $" — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClassification.Classify(mileageValue.Source.Kind))}"
+                    : string.Empty;
+                DataRow("Odometer", data?.Vehicle.Mileage, value =>
+                {
+                    var figure = mileageUnit is { Length: > 0 }
                         ? $"{value:N0} {mileageUnit}"
-                        : value.ToString("N0"));
+                        : value.ToString("N0");
+                    return figure + mileageClass;
+                });
             }
             <div class="history-check">
                 <button type="button" class="btn" disabled>
@@ -112,7 +119,7 @@
             @{ DataRow("Incident date", data?.Accident.IncidentDate, value => value.ToString("d MMM yyyy")); }
             @{ DataRow("Instruction date", data?.Instruction.InstructionDate, value => value.ToString("d MMM yyyy")); }
             @{ PlainRow("Received", OperatorLabels.OfficeTime(summary.ReceivedAtUtc)); }
-            @{ PlainRow("Origin", summary.Origin); }
+            @{ PlainRow("Origin", OperatorLabels.SourceChannel(summary.Origin)); }
         </div>
     </section>
 
@@ -152,7 +159,7 @@
             @{ PlainRow("State", OperatorLabels.CaseStage(workflow.State)); }
             @if (workflow.DueWork is { } standingDueWork)
             {
-                PlainRow("Outstanding", standingDueWork.MissingMaterialReason);
+                PlainRow("Outstanding", OperatorLabels.ChaseReason(standingDueWork.MissingMaterialReason));
                 PlainRow("Due by", standingDueWork.DueBy?.ToString("d MMM yyyy") ?? "Not recorded");
                 PlainRow("Next chase", OperatorLabels.OfficeTime(standingDueWork.NextChaseAtUtc, "Not scheduled"));
             }
@@ -187,8 +194,8 @@
     <section class="panel section-gap" aria-labelledby="case-due-work-title">
         <h2 id="case-due-work-title" class="section-label">Chase history</h2>
         <dl class="detail-list">
-            <div><dt>Reason</dt><dd>@dueWork.MissingMaterialReason</dd></div>
-            <div><dt>State</dt><dd>@dueWork.State</dd></div>
+            <div><dt>Reason</dt><dd>@OperatorLabels.ChaseReason(dueWork.MissingMaterialReason)</dd></div>
+            <div><dt>State</dt><dd>@OperatorLabels.Humanise(dueWork.State.ToString())</dd></div>
             <div><dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd></div>
             <div><dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd></div>
             <div><dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd></div>
@@ -205,7 +212,7 @@
             <div><dt>Report</dt><dd>@approval.ArtifactIdentity</dd></div>
             <div><dt>SHA-256</dt><dd><code>@approval.ArtifactSha256</code></dd></div>
             <div><dt>Approved</dt><dd>@OperatorLabels.OfficeTime(approval.ApprovedAtUtc)</dd></div>
-            <div><dt>Actor</dt><dd>@approval.ApprovedBy.SubjectId</dd></div>
+            <div><dt>Actor</dt><dd>@details.ReportApprovedByDisplayName</dd></div>
         </dl>
     </section>
 }

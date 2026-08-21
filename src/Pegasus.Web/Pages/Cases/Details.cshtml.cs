@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
@@ -7,6 +7,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
+using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases;
@@ -22,11 +23,25 @@ public sealed partial class DetailsModel(
     IConfirmCompleteness confirmCompleteness,
     ISaveCase saveCase,
     IImageIntakeQueries imageIntakeQueries,
+    ICaseEvidenceImageQueries caseEvidenceImageQueries,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder,
     TimeProvider timeProvider,
     ILogger<DetailsModel> logger) : CaseMutationPageModel(logger)
 {
     public IReadOnlyList<ImageIntakeSummary> ImageIntakes { get; private set; } = [];
+
+    /// <summary>
+    /// The instruction receipts' evidence photographs (attached image files
+    /// and embedded PDF photos), selected by the one Core rule.
+    /// </summary>
+    public IReadOnlyList<CaseEvidenceImage> EvidenceImages { get; private set; } = [];
+
+    /// <summary>
+    /// The gallery entries for each associated Image-initiated Case, loaded
+    /// only when the Evidence tab is the one being rendered.
+    /// </summary>
+    public IReadOnlyDictionary<Guid, IReadOnlyList<ImageIntakeImage>> ImagesByIntake { get; private set; } =
+        new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
 
     /// <summary>
     /// Which section of the case container is open.
@@ -51,7 +66,7 @@ public sealed partial class DetailsModel(
     /// Everything the case carries: files, vehicle images and linked e-mail.
     /// </summary>
     public int EvidenceCount =>
-        (Case?.Documents.Count ?? 0) + ImageIntakes.Count;
+        (Case?.Documents.Count ?? 0) + ImageIntakes.Count + EvidenceImages.Count;
 
     public CaseDetails? Case { get; private set; }
 
@@ -111,6 +126,18 @@ public sealed partial class DetailsModel(
                 return NotFound();
             }
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
+            EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
+            if (Tab == "evidence")
+            {
+                var imagesByIntake = new Dictionary<Guid, IReadOnlyList<ImageIntakeImage>>();
+                foreach (var intake in ImageIntakes)
+                {
+                    imagesByIntake[intake.Id] = await imageIntakeQueries.ListImagesAsync(
+                        intake.Id,
+                        cancellationToken);
+                }
+                ImagesByIntake = imagesByIntake;
+            }
             RestoreLeaseState(id, actor);
             RestoreProposedValues(id);
             await DescribeEditAuthorityHolderAsync(actor, cancellationToken);
@@ -148,7 +175,7 @@ public sealed partial class DetailsModel(
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
             TempData.Remove(ReleaseLeaseOperationKeyName);
-            TempData["CaseStatus"] = $"Edit mode is active until {lease.ExpiresAtUtc:u}.";
+            TempData["CaseStatus"] = $"Edit mode is active until {Presentation.OperatorLabels.OfficeTime(lease.ExpiresAtUtc)}.";
         }
         catch (StaffAuthorizationException)
         {
@@ -194,7 +221,7 @@ public sealed partial class DetailsModel(
                 cancellationToken);
             StoreLeaseAuthority(id, lease.Token);
             TempData.Remove(RenewLeaseOperationKeyName);
-            TempData["CaseStatus"] = $"Edit mode was renewed until {lease.ExpiresAtUtc:u}.";
+            TempData["CaseStatus"] = $"Edit mode was renewed until {Presentation.OperatorLabels.OfficeTime(lease.ExpiresAtUtc)}.";
         }
         catch (StaffAuthorizationException)
         {

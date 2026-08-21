@@ -12,6 +12,8 @@
         ["state"] = Model.StateFilter,
         ["kind"] = Model.ShowingUnidentified ? Model.UnidentifiedKind : null,
         ["origin"] = Model.ShowingNotReady ? Model.NotReadyOrigin : null,
+        ["principal"] = Model.ShowingNotReady ? Model.PrincipalFilter : null,
+        ["sort"] = Model.SortParam,
         ["page"] = Model.CurrentPage > 1 ? Model.CurrentPage.ToString() : null
     };
 }
@@ -162,38 +164,99 @@ else
 {
     @if (Model.ShowingNotReady)
     {
-        @* The two case origins INTK-008 settled: a formal instructed Case, or
-           an ImageIntake-backed projection awaiting one. *@
-        <nav class="subtabs section-gap" aria-label="Not ready filters">
-            <a asp-page="/Triage/Index" asp-route-queue="not_ready"
-               aria-current="@(Model.NotReadyOrigin == "all" ? "page" : null)">All</a>
-            <a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="instruction"
-               aria-current="@(Model.NotReadyOrigin == "instruction" ? "page" : null)">Instruction-initiated</a>
-            <a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="image"
-               aria-current="@(Model.NotReadyOrigin == "image" ? "page" : null)">Image-initiated</a>
-        </nav>
-    }
+        @* Dropdown filters, not pills: origin in the operator's own words
+           (what the case is waiting for), and the principals present in the
+           queue. Selects submit on change; the button is the no-script path. *@
+        <form method="get" class="filter-row section-gap" data-auto-submit>
+            <input type="hidden" name="queue" value="not_ready" />
+            @if (!string.IsNullOrEmpty(Model.SortParam))
+            {
+                <input type="hidden" name="sort" value="@Model.SortParam" />
+            }
+            <label>Waiting for
+                <select name="origin">
+                    <option value="">All</option>
+                    <option value="instruction" selected="@(Model.NotReadyOrigin == "instruction" ? "selected" : null)">Awaiting images</option>
+                    <option value="image" selected="@(Model.NotReadyOrigin == "image" ? "selected" : null)">Awaiting instructions</option>
+                </select>
+            </label>
+            <label>Principal
+                <select name="principal">
+                    <option value="">All</option>
+                    @foreach (var principal in Model.Principals)
+                    {
+                        <option value="@principal" selected="@(Model.PrincipalFilter == principal ? "selected" : null)">@principal</option>
+                    }
+                </select>
+            </label>
+            <noscript><button type="submit" class="btn">Apply</button></noscript>
+        </form>
 
-    var showBothNotReadyTables = Model.ShowingNotReady && Model.NotReadyOrigin == "all";
-
-    @if (!Model.ShowingNotReady || Model.NotReadyOrigin != "image")
-    {
-        if (showBothNotReadyTables)
+        @if (Model.NotReadyRows.Count == 0)
         {
-            <h2 class="section-label">Instruction-initiated</h2>
+            <div class="mark-empty">
+                <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
+                <p class="empty-state">No cases are waiting.</p>
+            </div>
         }
-
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <caption class="vh">Cases waiting, both origins in one table</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("reference")'>Reference</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
+                            <th scope="col">Status</th>
+                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Triage/Index" asp-route-queue="not_ready" asp-route-origin="@Model.OriginFilter" asp-route-principal="@Model.PrincipalFilter" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
+                            <th scope="col">Chase</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var row in Model.NotReadyRows)
+                    {
+                        <tr>
+                            <td><a asp-page="@row.DetailsPage" asp-route-id="@row.Id">@row.Reference</a></td>
+                            <td>@(row.Registration ?? "—")</td>
+                            <td>@(row.Claimant ?? "—")</td>
+                            <td>@(row.Principal ?? "—")</td>
+                            <td>@row.Status</td>
+                            <td><time datetime="@row.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(row.ReceivedAtUtc)</time></td>
+                            <td>
+                                @if (row.IsImageInitiated)
+                                {
+                                    @* TICK-065: the image half has no persisted chase
+                                       machinery — a derived due/not-due read on the
+                                       registration date (ImageIntakeChaseSchedule). *@
+                                    <partial name="Shared/_StatusChip" model="@OperatorLabels.ImageChaseState(Model.IsImageIntakeChaseDue(row.ReceivedAtUtc))" />
+                                }
+                                else if (row.NextChaseAtUtc is { } chase)
+                                {
+                                    @OperatorLabels.OfficeDate(chase)
+                                }
+                                else
+                                {
+                                    <text>—</text>
+                                }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+    else
+    {
         if (Model.Cases.Items.Count == 0)
         {
             <div class="mark-empty">
                 <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
                 <p class="empty-state">
-                    @(Model.Queue switch
-                    {
-                        "review" => "No cases are ready to confirm.",
-                        "held" => "No cases are held.",
-                        _ => "No cases are waiting."
-                    })
+                    @(Model.Queue == "held" ? "No cases are held." : "No cases are ready to confirm.")
                 </p>
             </div>
         }
@@ -204,11 +267,11 @@ else
                     <caption class="vh">Cases in this queue</caption>
                     <thead>
                         <tr>
-                            <th scope="col">Case</th>
-                            <th scope="col">Registration</th>
-                            <th scope="col">Claimant</th>
-                            <th scope="col">Principal</th>
-                            <th scope="col">Received</th>
+                            <th scope="col" aria-sort='@Model.AriaSort("reference")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("reference")'>Case</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("registration")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("registration")'>Registration</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("claimant")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("claimant")'>Claimant</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("principal")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("principal")'>Principal</a></th>
+                            <th scope="col" aria-sort='@Model.AriaSort("received")'><a asp-page="/Triage/Index" asp-route-queue="@Model.Queue" asp-route-sort='@Model.NextSort("received")'>Received</a></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -220,49 +283,6 @@ else
                             <td>@(item.Claimant ?? "—")</td>
                             <td>@item.Principal</td>
                             <td><time datetime="@item.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.ReceivedAtUtc)</time></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    }
-
-    @if (Model.ShowingNotReady && Model.NotReadyOrigin != "instruction")
-    {
-        if (showBothNotReadyTables)
-        {
-            <h2 class="section-label section-gap">Image-initiated</h2>
-        }
-
-        if (Model.ImageInitiatedRows.Count == 0)
-        {
-            <div class="mark-empty">
-                <img class="mark mark--md" src="~/images/marks/checkmark.png" asp-append-version="true" alt="" aria-hidden="true" />
-                <p class="empty-state">No Image-initiated Cases are waiting.</p>
-            </div>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <caption class="vh">Image-initiated Cases awaiting instruction</caption>
-                    <thead>
-                        <tr>
-                            <th scope="col">Reference</th>
-                            <th scope="col">Registration</th>
-                            <th scope="col">Status</th>
-                            <th scope="col">Received</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var item in Model.ImageInitiatedRows)
-                    {
-                        <tr>
-                            <td><a asp-page="/ImageIntake/Details" asp-route-id="@item.Id">@item.ImageIntakeReference</a></td>
-                            <td>@item.NormalizedVehicleRegistration</td>
-                            <td>@OperatorLabels.ImageIntakeLifecycleState(item.State)</td>
-                            <td><time datetime="@item.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeDate(item.RegisteredAtUtc)</time></td>
                         </tr>
                     }
                     </tbody>

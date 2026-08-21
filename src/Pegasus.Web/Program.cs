@@ -26,11 +26,13 @@ using Pegasus.Core.Identity;
 using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Uploads;
+using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Email;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -117,7 +119,6 @@ if (!developmentOfflineProfile && !productionProfile)
     throw new InvalidOperationException(
         $"Unsupported Runtime:Profile '{configuredRuntimeProfile}' for environment '{builder.Environment.EnvironmentName}'.");
 }
-BoxCustodyOptions? productionBoxCustodyOptions = null;
 if (productionProfile)
 {
     if (!builder.Environment.IsProduction())
@@ -132,6 +133,7 @@ if (productionProfile)
         "TransportStorage:AccountName",
         "CustodyStorage:AccountName",
         "CustodyStorage:ServiceUri",
+        "Graph:BaseUri",
         "Box:BaseUri",
         "Box:UploadUri",
         "Box:RootFolderId",
@@ -174,12 +176,11 @@ if (productionProfile)
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
-    productionBoxCustodyOptions = BoxCustodyOptions.Create(
-        builder.Configuration["Box:BaseUri"],
-        builder.Configuration["Box:UploadUri"],
-        builder.Configuration["Box:RootFolderId"],
-        builder.Configuration["Box:ConfigJson"],
-        builder.Configuration["Box:ClientSecret"]);
+    // The mailbox-administration "add an address" resolve port alone (AddPegasusInfrastructure
+    // below always composes ListApprovedMailboxes/UpdateApprovedMailbox; Web never composes
+    // the Worker-only pollers that go with AddProductionExternalAdapters).
+    builder.Services.AddSingleton<TokenCredential>(credential);
+    builder.Services.AddProductionApprovedMailboxResolver(builder.Configuration["Graph:BaseUri"]);
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
@@ -235,7 +236,13 @@ var sendToAiOptions = SendToAiOptions.TryCreate(
     builder.Configuration,
     developmentOfflineProfile);
 
-builder.Services.AddRazorPages();
+// RailCountsPageFilter supplies ViewData["RailCounts"] on every
+// authenticated request (PLAT-003) — the rail (PLAT-001) shipped with the
+// badge mechanism but nothing populated it until now. RazorPagesOptions has
+// no Filters collection of its own, so the global filter is added through
+// the underlying MvcOptions instead.
+builder.Services.AddRazorPages()
+    .AddMvcOptions(options => options.Filters.Add<Pegasus.Web.Presentation.RailCountsPageFilter>());
 builder.Services
     .AddIdentity<PegasusIdentityUser, IdentityRole<Guid>>(options =>
     {
@@ -533,17 +540,33 @@ evaMappingAcceptanceFactory: serviceProvider =>
         configuration.GetValue<int?>("Eva:AcceptedMapping:Version"),
         configuration["Eva:AcceptedMapping:EvidenceReference"]);
 },
-documentStorage: productionBoxCustodyOptions is null
+documentStorage: !productionProfile
     ? null
     : (Action<IServiceCollection>)(registrations => registrations.AddProductionDocumentStorage(
         provider => provider.GetRequiredService<BlobContainerClient>(),
         // Web never provisions the container; the Worker owns that.
         static _ => false,
-        productionBoxCustodyOptions)));
+        // Deferred to first Box use: parsing this at host build aborted the
+        // process whenever the platform handed over an unresolved Key Vault
+        // reference (PLAT-013).
+        _ => BoxCustodyOptions.Create(
+            builder.Configuration["Box:BaseUri"],
+            builder.Configuration["Box:UploadUri"],
+            builder.Configuration["Box:RootFolderId"],
+            builder.Configuration["Box:ConfigJson"],
+            builder.Configuration["Box:ClientSecret"]))));
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {
     builder.Services.AddSingleton(VehicleLookupAvailability.DevelopmentOfflineReplay);
+    builder.Services.AddSingleton<IResolveApprovedMailboxIdentity, LocalApprovedMailboxIdentityResolver>();
+}
+else
+{
+    // The production profile enables staff vehicle lookup requests. The Web only
+    // records the request; the production Worker owns the live DVLA/DVSA adapter
+    // and executes it from the recorded work item.
+    builder.Services.AddSingleton(VehicleLookupAvailability.ProductionLive);
 }
 builder.Services.AddScoped<EfIdentityAuditStore>();
 builder.Services.AddScoped<ISecurityEventWriter>(serviceProvider =>
@@ -568,6 +591,11 @@ builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueri
 // existing page that performs it (see Pegasus.Web.Presentation.UploadOutcome).
 builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadOutcomeQueries,
     Pegasus.Web.Presentation.UploadOutcomeQueries>();
+// The confirmation surface's one staff decision: the case search behind the
+// autocomplete, and add-to-case through the existing leased link path
+// (see Pegasus.Web.Presentation.UploadCaseDecision).
+builder.Services.AddScoped<Pegasus.Web.Presentation.IUploadCaseDecision,
+    Pegasus.Web.Presentation.UploadCaseDecision>();
 builder.Services.AddScoped<ReceiveIntake>();
 builder.Services.AddScoped<IIntakeSubmission>(serviceProvider =>
     serviceProvider.GetRequiredService<ReceiveIntake>());

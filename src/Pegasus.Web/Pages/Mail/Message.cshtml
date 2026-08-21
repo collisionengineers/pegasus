@@ -4,29 +4,20 @@
 @{
     var summary = Model.Detail.Summary;
     ViewData["Title"] = Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary);
+    var dossier = Model.Detail.Classification;
+    var isClassified = Model.Detail.ClassificationOutcome == Pegasus.Core.Intake.MailClassificationOutcome.Classified;
+    var recordState = isClassified ? "review" : "not-ready";
 }
 
-@* One record, one container: the way back is a return link above the heading,
-   the heading is the subject alone, and the action beside it is the one thing
-   worth doing from here. The sender and time were a lede repeating facts the
-   Message section states properly. *@
 <a class="back-link" asp-page="/Mail/Index"
    asp-route-mailbox="@Model.MailboxFilter"
    asp-route-folder="@Model.FolderRouteValue"
+   asp-route-search="@Model.SearchTerm"
+   asp-route-queue="@Model.QueueFilter"
    asp-route-pageNumber="@Model.PageRouteValue">
     <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
     Back to Inbox
 </a>
-
-<header class="page-heading">
-    <h1>@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h1>
-    @if (summary.CaseId is { } headingCaseId)
-    {
-        <div class="page-heading-actions">
-            <a class="btn btn--dark" asp-page="/Cases/Details" asp-route-id="@headingCaseId">Open case @summary.CaseReference</a>
-        </div>
-    }
-</header>
 
 @if (Model.OutsideListScope)
 {
@@ -36,253 +27,666 @@
     </div>
 }
 
-@if (Model.ClassificationNotice is { } classificationNotice)
-{
-    <div class="status-card" role="status">@classificationNotice</div>
-}
+<article class="record" data-state="@recordState">
+    <header class="record__head">
+        <h1 class="wrap">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(summary)</h1>
+        <span class="record__head-end">
+            @if (isClassified)
+            {
+                <span class="status-chip status-chip--neutral">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+                    Classified
+                </span>
+            }
+            else
+            {
+                <span class="status-chip status-chip--amber">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    @Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome)
+                </span>
+            }
+        </span>
+    </header>
+    <div class="record__accent"></div>
 
-@* The state before any action: what processing decided, and what it became.
-   These are read-only findings with a source, not counts, so they are evidence
-   figures rather than metric tiles. *@
-<section class="panel" aria-label="Current state">
-    <div class="evidence-row">
-        <div class="evidence-figure">
-            <span class="evidence-figure__label">Classification</span>
-            <span class="evidence-figure__value">@Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome)</span>
-            <span class="evidence-figure__source">Read from the message and its attachments</span>
-        </div>
-        <div class="evidence-figure">
-            <span class="evidence-figure__label">Queue</span>
-            <span class="evidence-figure__value">@Pegasus.Web.Pages.Mail.MessageModel.QueueLabel(Model.Detail.RouteDisposition)</span>
-        </div>
-        <div class="evidence-figure">
-            <span class="evidence-figure__label">Filed to</span>
-            <span class="evidence-figure__value">
-                @if (summary.CaseId is { } caseId)
+    <nav class="tabs" aria-label="Sections">
+        <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+           asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
+           aria-current="@(Model.ActiveSection == "message" ? "page" : null)">Message</a>
+        <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+           asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
+           asp-route-section="attachments"
+           aria-current="@(Model.ActiveSection == "attachments" ? "page" : null)">
+            Attachments
+            @if (Model.Detail.Attachments.Count > 0)
+            {
+                <span class="count">@Model.Detail.Attachments.Count</span>
+            }
+        </a>
+        <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+           asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+           asp-route-search="@Model.SearchTerm"
+           asp-route-queue="@Model.QueueFilter"
+           asp-route-section="thread"
+           aria-current="@(Model.ActiveSection == "thread" ? "page" : null)">Thread</a>
+        @if (Model.AssociationReceipt is not null)
+        {
+            <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
+               asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
+               asp-route-search="@Model.SearchTerm"
+               asp-route-queue="@Model.QueueFilter"
+               asp-route-section="case"
+               aria-current="@(Model.ActiveSection == "case" ? "page" : null)">Case</a>
+        }
+    </nav>
+
+    <div class="record__body">
+        @if (Model.ClassificationNotice is { } classificationNotice)
+        {
+            <p class="status-card" role="status">@classificationNotice</p>
+        }
+        @if (Model.FolderMoveNotice is { } folderMoveNotice)
+        {
+            <p class="status-card" role="status">@folderMoveNotice</p>
+        }
+        @if (Model.AssociationNotice is { } associationNotice)
+        {
+            <p class="status-card" role="status">@associationNotice</p>
+        }
+        <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
+
+        @if (Model.ActiveSection == "message")
+        {
+            <div class="split-main">
+                <div>
+                    <div class="mail-from">@(summary.EffectiveSenderAddress ?? summary.SenderAddress ?? "Sender not recorded")</div>
+                    @{
+                        var routeParts = new List<string>();
+                        if (Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(summary) is { } forwarder)
+                        {
+                            routeParts.Add($"Forwarded by {forwarder}");
+                        }
+                        if (Model.Detail.ToAddresses.Count > 0)
+                        {
+                            routeParts.Add($"To {string.Join(", ", Model.Detail.ToAddresses)}");
+                        }
+                        if (Model.Detail.CcAddresses.Count > 0)
+                        {
+                            routeParts.Add($"Cc {string.Join(", ", Model.Detail.CcAddresses)}");
+                        }
+                    }
+                    @if (routeParts.Count > 0)
+                    {
+                        <div class="mail-route">@string.Join(" · ", routeParts)</div>
+                    }
+
+                    @if (string.IsNullOrWhiteSpace(Model.Detail.BodyPlainText))
+                    {
+                        <p class="empty-state">This message has no readable text body.</p>
+                    }
+                    else
+                    {
+                        var presented = MailBodyPresentation.Present(Model.Detail.BodyPlainText);
+                        @if (presented.QuotedHeader.Count > 0)
+                        {
+                            <div class="mail-quoted">
+                                @foreach (var line in presented.QuotedHeader)
+                                {
+                                    <div>@line</div>
+                                }
+                            </div>
+                        }
+                        <div class="mail-body">
+                            @foreach (var paragraph in presented.Paragraphs)
+                            {
+                                <p class="@(paragraph.RunOn ? "run-on" : null)">@paragraph.Text</p>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <aside>
+                    <div class="decision">
+                        <div class="facts">
+                            <h2>Decision</h2>
+                            <dl>
+                                <div><dt>Classification</dt><dd>@(dossier is { } d ? Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(d.Current) : Pegasus.Web.Pages.Mail.MessageModel.ClassificationLabel(Model.Detail.ClassificationOutcome))</dd></div>
+                                @if (dossier is { } destinationDossier)
+                                {
+                                    <div><dt>Destination</dt><dd>@OperatorLabels.MailOperationalDestinationLabel(Pegasus.Web.Pages.Mail.MessageModel.Destination(destinationDossier.Current).Destination)</dd></div>
+                                }
+                                <div>
+                                    <dt>Filed to</dt>
+                                    @if (summary.CaseId is { } caseId)
+                                    {
+                                        <dd><a asp-page="/Cases/Details" asp-route-id="@caseId">@summary.CaseReference</a></dd>
+                                    }
+                                    else
+                                    {
+                                        <dd class="quiet">No case</dd>
+                                    }
+                                </div>
+                                @if (Model.Detail.LatestFolderMove is { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain })
+                                {
+                                    <div>
+                                        <dt>Folder</dt>
+                                        <dd>
+                                            <span class="status-chip status-chip--amber">
+                                                <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                                                Unconfirmed
+                                            </span>
+                                        </dd>
+                                    </div>
+                                }
+                                else if (Model.Detail.LatestFolderMove is { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Succeeded, FolderType: { } movedFolder })
+                                {
+                                    <div><dt>Folder</dt><dd>@Pegasus.Core.Intake.MailLogicalFolders.Definition(movedFolder).Label</dd></div>
+                                }
+                                else if (Model.Detail.FolderRecommendation is { IsAvailable: true, FolderType: { } recommendedFolder })
+                                {
+                                    <div><dt>Folder</dt><dd class="quiet">@Pegasus.Core.Intake.MailLogicalFolders.Definition(recommendedFolder).Label — not moved</dd></div>
+                                }
+                                @if (dossier is { } decidedDossier)
+                                {
+                                    var actorWord = decidedDossier.CurrentActorDisplayName == "System"
+                                        ? "Automatic"
+                                        : decidedDossier.CurrentActorDisplayName;
+                                    <div>
+                                        <dt>Decided</dt>
+                                        <dd>
+                                            <time datetime="@decidedDossier.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(decidedDossier.CurrentDecidedAtUtc)</time>
+                                            <span class="prov" data-word="@actorWord" tabindex="0" role="img" aria-label="@actorWord">
+                                                <svg class="icon" aria-hidden="true"><use href="@(actorWord == "Automatic" ? "#icon-info" : "#icon-user")" /></svg>
+                                            </span>
+                                        </dd>
+                                    </div>
+                                }
+                            </dl>
+                        </div>
+                        @if (dossier is not null)
+                        {
+                            <div class="button-row">
+                                <button class="btn btn--dark" type="button" data-dialog-open="correctClassificationDialog">Correct classification</button>
+                                @if (Model.Detail.LatestFolderMove is
+                                    {
+                                        Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain,
+                                        OperationKey: { } recoveryOperationKey,
+                                        ExpectedClassificationVersion: { } recoveryClassificationVersion,
+                                        ExpectedRecommendationPolicyKey: { } recoveryPolicyKey,
+                                        ExpectedRecommendationPolicyVersion: { } recoveryPolicyVersion,
+                                        ExpectedMailboxVersion: { } recoveryMailboxVersion
+                                    } uncertainMove)
+                                {
+                                    <form method="post" asp-page-handler="MoveToRecommendedFolder" asp-route-id="@summary.Id"
+                                          asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                                          asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
+                                          asp-route-pageNumber="@Model.PageNumber">
+                                        <input type="hidden" name="ExpectedClassificationVersion" value="@recoveryClassificationVersion" />
+                                        <input type="hidden" name="ExpectedRecommendationPolicyKey" value="@recoveryPolicyKey" />
+                                        <input type="hidden" name="ExpectedRecommendationPolicyVersion" value="@recoveryPolicyVersion" />
+                                        <input type="hidden" name="ExpectedMailboxVersion" value="@recoveryMailboxVersion" />
+                                        <input type="hidden" name="MoveOperationKey" value="@recoveryOperationKey" />
+                                        <input type="hidden" name="Reason" value="@uncertainMove.Reason" />
+                                        <button class="btn" type="submit">Check move status</button>
+                                    </form>
+                                }
+                                else if (Model.Detail.SuggestedMove is { } suggestedMove
+                                    && Model.Detail.FolderRecommendation is { MailboxVersion: not null })
+                                {
+                                    <button class="btn" type="button" data-dialog-open="moveFolderDialog">Move to @Pegasus.Core.Intake.MailLogicalFolders.Definition(suggestedMove.FolderType).Label</button>
+                                }
+                            </div>
+                        }
+                    </div>
+
+                    @if (dossier is { History.Count: > 0 } correctedDossier)
+                    {
+                        <div class="decision">
+                            <div class="facts">
+                                <h2>Corrections</h2>
+                                <dl>
+                                    @foreach (var entry in correctedDossier.History.OrderByDescending(item => item.Version))
+                                    {
+                                        <div>
+                                            <dt><time datetime="@entry.CorrectedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.CorrectedAtUtc)</time></dt>
+                                            <dd>
+                                                @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.Before)
+                                                → @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.After)
+                                                <span class="prov" data-word="@entry.ActorDisplayName" tabindex="0" role="img" aria-label="@entry.ActorDisplayName">
+                                                    <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+                                                </span>
+                                            </dd>
+                                        </div>
+                                    }
+                                </dl>
+                            </div>
+                        </div>
+                    }
+                </aside>
+            </div>
+        }
+        else if (Model.ActiveSection == "attachments")
+        {
+            @if (Model.Detail.Attachments.Count == 0)
+            {
+                <p class="empty-state">This message has no attachments.</p>
+            }
+            else
+            {
+                <div class="table-wrap">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th scope="col">File</th>
+                                <th scope="col">Type</th>
+                                <th scope="col">Size</th>
+                                <th scope="col">Search content</th>
+                                <th scope="col">Custody</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var attachment in Model.Detail.Attachments)
+                        {
+                            <tr>
+                                <td>@attachment.FileName</td>
+                                <td>@attachment.MediaType</td>
+                                <td class="tabular">@OperatorLabels.FileSize(attachment.ContentLength)</td>
+                                <td>@OperatorLabels.AttachmentSearchability(attachment.IsSearchable)</td>
+                                @* The row exists because the attachment was kept, so
+                                   custody is a fact of the row rather than a lookup. *@
+                                <td><partial name="Shared/_StatusChip" model="@("Retained")" /></td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+        else if (Model.ActiveSection == "thread")
+        {
+            @if (Model.Detail.Thread.Count <= 1)
+            {
+                @* Retained scope only: a matching conversation never reaches for a
+                   message Pegasus has not already kept. *@
+                <p class="empty-state">No other message in this conversation is kept here.</p>
+            }
+            else
+            {
+                <div class="queue-list">
+                    @foreach (var entry in Model.Detail.Thread)
+                    {
+                        <a asp-page="/Mail/Message" asp-route-id="@entry.Id"
+                           asp-route-mailbox="@Model.MailboxFilter"
+                           asp-route-folder="@Model.FolderRouteValue"
+                           asp-route-search="@Model.SearchTerm"
+                           asp-route-queue="@Model.QueueFilter"
+                           asp-route-pageNumber="@Model.PageRouteValue"
+                           aria-current="@(entry.Id == summary.Id ? "page" : null)">
+                            <span>
+                                <strong>@(entry.SenderDisplayName ?? entry.SenderAddress ?? "Sender not recorded")</strong>
+                            </span>
+                            <span>
+                                <strong>@(string.IsNullOrWhiteSpace(entry.Subject) ? "No subject" : entry.Subject)</strong>
+                            </span>
+                            <span>
+                                <time datetime="@entry.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.ReceivedAtUtc)</time>
+                            </span>
+                        </a>
+                    }
+                </div>
+            }
+        }
+        else if (Model.ActiveSection == "case" && Model.AssociationReceipt is { } associationReceipt)
+        {
+            <div class="form-column">
+                @if (Model.CurrentCase is { } currentCase)
                 {
-                    <a asp-page="/Cases/Details" asp-route-id="@caseId">@summary.CaseReference</a>
+                    <div class="decision">
+                        <div class="facts">
+                            <h2>Linked case</h2>
+                            <dl>
+                                <div><dt>Case/PO</dt><dd><a asp-page="/Cases/Details" asp-route-id="@currentCase.Summary.CaseId">@currentCase.Summary.Reference</a></dd></div>
+                                <div><dt>Principal</dt><dd>@currentCase.Summary.Principal</dd></div>
+                                <div>
+                                    <dt>Registration</dt>
+                                    @if (currentCase.Summary.Registration is { } linkedRegistration)
+                                    {
+                                        <dd>@linkedRegistration</dd>
+                                    }
+                                    else
+                                    {
+                                        <dd class="quiet">Not recorded</dd>
+                                    }
+                                </div>
+                                <div>
+                                    <dt>Claimant</dt>
+                                    @if (currentCase.Summary.Claimant is { } linkedClaimant)
+                                    {
+                                        <dd>@linkedClaimant</dd>
+                                    }
+                                    else
+                                    {
+                                        <dd class="quiet">Not recorded</dd>
+                                    }
+                                </div>
+                                <div>
+                                    <dt>Claim number</dt>
+                                    @if (currentCase.Summary.ClaimNumber is { } linkedClaim)
+                                    {
+                                        <dd>@linkedClaim</dd>
+                                    }
+                                    else
+                                    {
+                                        <dd class="quiet">Not recorded</dd>
+                                    }
+                                </div>
+                            </dl>
+                        </div>
+                        <div class="button-row">
+                            @if (Model.AssociationLeaseCaseId == currentCase.Summary.CaseId
+                                && Model.AssociationLeaseMessageId == summary.Id
+                                && Model.AssociationLeaseReceiptId == associationReceipt.Id
+                                && Model.AssociationLeaseAction == Pegasus.Web.Pages.Mail.MessageModel.UnlinkAssociationAction
+                                && Model.AssociationLeaseCaseVersion is { } unlinkCaseVersion
+                                && Model.AssociationLeaseIntakeVersion is { } unlinkIntakeVersion
+                                && Model.AssociationLeaseToken is { } unlinkLeaseToken
+                                && Model.AssociationOperationKey is { } unlinkOperationKey)
+                            {
+                                var unlinkAction = Url.Page(
+                                    "/Mail/Message",
+                                    "UnlinkCase",
+                                    new
+                                    {
+                                        id = summary.Id,
+                                        mailbox = Model.MailboxFilter,
+                                        folder = Model.FolderFilter,
+                                        pageNumber = Model.PageNumber,
+                                        search = Model.SearchTerm,
+                                        queue = Model.QueueFilter
+                                    });
+                                var unlinkDialogData = new ViewDataDictionary(ViewData)
+                                {
+                                    ["DialogId"] = "unlinkCaseDialog",
+                                    ["DialogTitle"] = $"Unlink from {currentCase.Summary.Reference}",
+                                    ["DialogActionUrl"] = unlinkAction,
+                                    ["DialogHiddenFields"] = new Dictionary<string, string?>
+                                    {
+                                        ["caseId"] = currentCase.Summary.CaseId.ToString("D"),
+                                        ["expectedIntakeVersion"] = unlinkIntakeVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                        ["expectedCaseVersion"] = unlinkCaseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                        ["editLeaseToken"] = unlinkLeaseToken,
+                                        ["operationKey"] = unlinkOperationKey
+                                    }
+                                };
+                                <button class="btn" type="button" data-dialog-open="unlinkCaseDialog">Confirm unlink</button>
+                                <partial name="Shared/_ReasonDialog" view-data="unlinkDialogData" />
+                            }
+                            else
+                            {
+                                <form method="post" asp-page-handler="PrepareUnlinkCase" asp-route-id="@summary.Id"
+                                      asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                                      asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
+                                      asp-route-pageNumber="@Model.PageNumber">
+                                    <input type="hidden" name="caseId" value="@currentCase.Summary.CaseId" />
+                                    <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
+                                    <input type="hidden" name="expectedCaseVersion" value="@currentCase.Workflow.Version" />
+                                    <input type="hidden" name="leaseOperationKey" value="@Guid.NewGuid().ToString("N")" />
+                                    <button class="btn" type="submit">Unlink</button>
+                                </form>
+                            }
+                        </div>
+                    </div>
                 }
                 else
                 {
-                    <text>Not associated with a case.</text>
+                    <form method="get" class="form-grid">
+                        <input type="hidden" name="id" value="@summary.Id" />
+                        <input type="hidden" name="mailbox" value="@Model.MailboxFilter" />
+                        <input type="hidden" name="folder" value="@Model.FolderRouteValue" />
+                        <input type="hidden" name="pageNumber" value="@Model.PageRouteValue" />
+                        <input type="hidden" name="search" value="@Model.SearchTerm" />
+                        <input type="hidden" name="queue" value="@Model.QueueFilter" />
+                        <input type="hidden" name="section" value="case" />
+                        <label class="field-wide" for="association-case-query">Case/PO, registration, claimant or claim number</label>
+                        <div class="field-wide button-row">
+                            <input id="association-case-query" name="caseQuery" value="@Model.CaseQuery" maxlength="300" required />
+                            <button class="btn" type="submit">Search</button>
+                        </div>
+                    </form>
+
+                    @if (Model.CaseResults is { } caseResults)
+                    {
+                        if (caseResults.Count == 0)
+                        {
+                            <p class="empty-state">No matching cases were found.</p>
+                        }
+                        else
+                        {
+                            <div class="queue-list section-gap">
+                                @foreach (var candidate in caseResults)
+                                {
+                                    <a asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                                       asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                                       asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                                       asp-route-queue="@Model.QueueFilter" asp-route-section="case"
+                                       asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@candidate.CaseId"
+                                       aria-current="@(Model.TargetCase?.Summary.CaseId == candidate.CaseId ? "page" : null)">
+                                        <span><strong>@candidate.Reference</strong></span>
+                                        <span>@(candidate.Registration ?? "Not recorded") · @(candidate.Claimant ?? "Not recorded")</span>
+                                        <span class="queue-list__end">@candidate.Stage</span>
+                                    </a>
+                                }
+                            </div>
+                        }
+                    }
+
+                    @if (Model.TargetCase is { } targetCase)
+                    {
+                        <div class="decision section-gap">
+                            <div class="facts">
+                                <h2>Confirm target</h2>
+                                <dl>
+                                    <div><dt>Case/PO</dt><dd>@targetCase.Summary.Reference</dd></div>
+                                    <div><dt>Principal</dt><dd>@targetCase.Summary.Principal</dd></div>
+                                    <div>
+                                        <dt>Registration</dt>
+                                        @if (targetCase.Summary.Registration is { } targetRegistration)
+                                        {
+                                            <dd>@targetRegistration</dd>
+                                        }
+                                        else
+                                        {
+                                            <dd class="quiet">Not recorded</dd>
+                                        }
+                                    </div>
+                                    <div>
+                                        <dt>Claimant</dt>
+                                        @if (targetCase.Summary.Claimant is { } targetClaimant)
+                                        {
+                                            <dd>@targetClaimant</dd>
+                                        }
+                                        else
+                                        {
+                                            <dd class="quiet">Not recorded</dd>
+                                        }
+                                    </div>
+                                    <div>
+                                        <dt>Claim number</dt>
+                                        @if (targetCase.Summary.ClaimNumber is { } targetClaim)
+                                        {
+                                            <dd>@targetClaim</dd>
+                                        }
+                                        else
+                                        {
+                                            <dd class="quiet">Not recorded</dd>
+                                        }
+                                    </div>
+                                    <div><dt>State</dt><dd>@OperatorLabels.CaseStage(targetCase.Summary.State)</dd></div>
+                                </dl>
+                            </div>
+                            <div class="button-row">
+                                @if (Model.AssociationLeaseCaseId == targetCase.Summary.CaseId
+                                    && Model.AssociationLeaseMessageId == summary.Id
+                                    && Model.AssociationLeaseReceiptId == associationReceipt.Id
+                                    && Model.AssociationLeaseAction == Pegasus.Web.Pages.Mail.MessageModel.LinkAssociationAction
+                                    && Model.AssociationLeaseCaseVersion is { } linkCaseVersion
+                                    && Model.AssociationLeaseIntakeVersion is { } linkIntakeVersion
+                                    && Model.AssociationLeaseToken is { } linkLeaseToken
+                                    && Model.AssociationOperationKey is { } linkOperationKey)
+                                {
+                                    var linkAction = Url.Page(
+                                        "/Mail/Message",
+                                        "LinkCase",
+                                        new
+                                        {
+                                            id = summary.Id,
+                                            mailbox = Model.MailboxFilter,
+                                            folder = Model.FolderFilter,
+                                            pageNumber = Model.PageNumber,
+                                            search = Model.SearchTerm,
+                                            queue = Model.QueueFilter
+                                        });
+                                    var linkDialogData = new ViewDataDictionary(ViewData)
+                                    {
+                                        ["DialogId"] = "linkCaseDialog",
+                                        ["DialogTitle"] = $"Link to {targetCase.Summary.Reference}",
+                                        ["DialogActionUrl"] = linkAction,
+                                        ["DialogHiddenFields"] = new Dictionary<string, string?>
+                                        {
+                                            ["caseId"] = targetCase.Summary.CaseId.ToString("D"),
+                                            ["expectedIntakeVersion"] = linkIntakeVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                            ["expectedCaseVersion"] = linkCaseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                                            ["editLeaseToken"] = linkLeaseToken,
+                                            ["operationKey"] = linkOperationKey
+                                        }
+                                    };
+                                    <button class="btn btn--dark" type="button" data-dialog-open="linkCaseDialog">Link to this case</button>
+                                    <partial name="Shared/_ReasonDialog" view-data="linkDialogData" />
+                                }
+                                else
+                                {
+                                    <form method="post" asp-page-handler="PrepareLinkCase" asp-route-id="@summary.Id"
+                                          asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                                          asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
+                                          asp-route-pageNumber="@Model.PageNumber"
+                                          asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@targetCase.Summary.CaseId">
+                                        <input type="hidden" name="caseId" value="@targetCase.Summary.CaseId" />
+                                        <input type="hidden" name="expectedIntakeVersion" value="@associationReceipt.Version" />
+                                        <input type="hidden" name="expectedCaseVersion" value="@targetCase.Workflow.Version" />
+                                        <input type="hidden" name="leaseOperationKey" value="@Guid.NewGuid().ToString("N")" />
+                                        <button class="btn btn--dark" type="submit">Link to this case</button>
+                                    </form>
+                                }
+                            </div>
+                        </div>
+                    }
                 }
-            </span>
-            <span class="evidence-figure__source">@Pegasus.Web.Pages.Mail.MessageModel.OutcomeLabel(summary) · <time datetime="@summary.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(summary.ReceivedAtUtc)</time></span>
+            </div>
+        }
+    </div>
+</article>
+
+@if (dossier is { } correctionDossier)
+{
+    <div id="correctClassificationDialog" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="correctClassificationDialog_title" data-reason-dialog hidden>
+        <div class="reason-dialog">
+            <h2 id="correctClassificationDialog_title" class="reason-dialog__title">
+                <span>Correct classification</span>
+            </h2>
+            <form method="post"
+                  asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
+                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
+                  asp-route-search="@Model.SearchTerm"
+                  asp-route-queue="@Model.QueueFilter"
+                  asp-route-pageNumber="@Model.PageNumber">
+                <input type="hidden" asp-for="ExpectedClassificationVersion" value="@correctionDossier.Version" />
+                <div class="form-grid">
+                <div class="field-wide">
+                    <label asp-for="ClassificationKey">Classification</label>
+                    <select asp-for="ClassificationKey" data-other-toggle>
+                        <option value="">Choose classification</option>
+                        @foreach (var option in Pegasus.Web.Pages.Mail.MessageModel.ClassificationOptions)
+                        {
+                            <option value="@option.Value">@option.Label</option>
+                        }
+                    </select>
+                    <span asp-validation-for="ClassificationKey"></span>
+                </div>
+                <div class="field-wide" data-other-field hidden>
+                    <label asp-for="OtherClassificationName">New category name</label>
+                    <input asp-for="OtherClassificationName" maxlength="200" />
+                </div>
+                <div class="field-wide" data-other-field hidden>
+                    <label asp-for="OtherClassificationReasoning">Why no existing category fits</label>
+                    <textarea asp-for="OtherClassificationReasoning" rows="2" maxlength="1000"></textarea>
+                </div>
+                <div class="field-wide">
+                    <label class="req" asp-for="CorrectionReason">Reason for correction</label>
+                    <textarea asp-for="CorrectionReason" rows="3" maxlength="500" required></textarea>
+                    <span asp-validation-for="CorrectionReason"></span>
+                </div>
+                <div class="field-wide button-row button-row--end">
+                    <button type="button" class="btn" data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--dark">Save correction</button>
+                </div>
+                </div>
+            </form>
         </div>
     </div>
-</section>
+}
 
-@if (Model.Detail.Classification is { } dossier)
+@if (Model.Detail.SuggestedMove is { } dialogSuggestedMove
+    && Model.Detail.LatestFolderMove is not { Outcome: Pegasus.Core.Intake.RetainedMailFolderMoveOutcome.Uncertain }
+    && dossier is { } moveDossier
+    && Model.Detail.FolderRecommendation is { MailboxVersion: { } dialogMailboxVersion } dialogRecommendation)
 {
-    var destination = Pegasus.Web.Pages.Mail.MessageModel.Destination(dossier.Current);
-    <section class="panel section-gap" aria-labelledby="classification-heading">
-        <h2 id="classification-heading">Classification evidence</h2>
-        <dl class="detail-list">
-            <div><dt>Current decision</dt><dd>@Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(dossier.Current)</dd></div>
-            <div><dt>Policy</dt><dd>@dossier.Current.PolicyKey version @dossier.Current.PolicyVersion</dd></div>
-            <div><dt>Operational destination</dt><dd>@OperatorLabels.MailOperationalDestinationLabel(destination.Destination)</dd></div>
-            <div><dt>Destination policy</dt><dd>@destination.PolicyKey version @destination.PolicyVersion</dd></div>
-            <div><dt>Reason</dt><dd>@dossier.Current.Reason</dd></div>
-            <div><dt>Decision version</dt><dd>@dossier.Version</dd></div>
-            <div><dt>Decided by</dt><dd>@dossier.CurrentActor</dd></div>
-            <div><dt>Decided at</dt><dd><time datetime="@dossier.CurrentDecidedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(dossier.CurrentDecidedAtUtc)</time></dd></div>
-        </dl>
-        @if (dossier.Current.Predicates.Count > 0)
-        {
-            <h3>Material evidence</h3>
-            <ul>
-                @foreach (var predicate in dossier.Current.Predicates)
-                {
-                    <li><strong>@predicate.Key:</strong> @(predicate.Matched ? "matched" : "not matched") — @predicate.Detail</li>
-                }
-            </ul>
-        }
-
-        <h3>Correct classification</h3>
-        <form method="post" asp-page-handler="CorrectClassification" asp-route-id="@summary.Id"
-              asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
-              asp-route-pageNumber="@Model.PageNumber">
-            <div asp-validation-summary="ModelOnly" class="validation-summary"></div>
-            <input type="hidden" asp-for="ExpectedClassificationVersion" value="@dossier.Version" />
-            <div class="field">
-                <label asp-for="ClassificationKey">Classification</label>
-                <select asp-for="ClassificationKey">
-                    <option value="">Choose classification</option>
-                    @foreach (var option in Pegasus.Web.Pages.Mail.MessageModel.ClassificationOptions)
+    var moveOperationKey = Guid.NewGuid().ToString("D");
+    var folderLabel = Pegasus.Core.Intake.MailLogicalFolders.Definition(dialogSuggestedMove.FolderType).Label;
+    <div id="moveFolderDialog" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="moveFolderDialog_title" data-reason-dialog hidden>
+        <div class="reason-dialog">
+            <h2 id="moveFolderDialog_title" class="reason-dialog__title">
+                <span>Move to @folderLabel</span>
+            </h2>
+            <div class="facts section-gap">
+                <dl>
+                    <div><dt>From</dt><dd>@Pegasus.Web.Pages.Mail.IndexModel.FolderLabel(Model.Detail.Folder)</dd></div>
+                    <div><dt>To</dt><dd>@folderLabel</dd></div>
+                </dl>
+            </div>
+            @{
+                // The expected decision, policy, and mailbox versions travel in
+                // the action URL, so the posted body carries only the reason —
+                // never a transport identity.
+                var moveAction = Url.Page(
+                    "/Mail/Message",
+                    "MoveToRecommendedFolder",
+                    new
                     {
-                        <option value="@option.Value">@option.Label</option>
-                    }
-                </select>
-                <span asp-validation-for="ClassificationKey"></span>
-            </div>
-            <div class="field">
-                <label asp-for="OtherClassificationName">New Other category name (only when Other is selected)</label>
-                <input asp-for="OtherClassificationName" maxlength="200" />
-            </div>
-            <div class="field">
-                <label asp-for="OtherClassificationReasoning">Why no existing category fits (only when Other is selected)</label>
-                <textarea asp-for="OtherClassificationReasoning" rows="2" maxlength="1000"></textarea>
-            </div>
-            <div class="field">
-                <label asp-for="CorrectionReason">Correction reason</label>
-                <textarea asp-for="CorrectionReason" rows="3" maxlength="500" required></textarea>
-                <span asp-validation-for="CorrectionReason"></span>
-            </div>
-            <button class="btn btn--dark" type="submit">Save classification correction</button>
-        </form>
-
-        <h3>Permanent correction history</h3>
-        @if (dossier.History.Count == 0)
-        {
-            <p class="empty-state">This classification has not been corrected.</p>
-        }
-        else
-        {
-            <ol>
-                @foreach (var entry in dossier.History.OrderByDescending(item => item.Version))
-                {
-                    <li>
-                        <strong>Version @entry.Version:</strong>
-                        @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.Before)
-                        → @Pegasus.Web.Pages.Mail.MessageModel.DecisionLabel(entry.After).
-                        @entry.Reason — @entry.Actor,
-                        <time datetime="@entry.CorrectedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.CorrectedAtUtc)</time>
-                    </li>
-                }
-            </ol>
-        }
-    </section>
-}
-
-<nav class="tabs section-gap" aria-label="Sections">
-    <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
-       asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
-       aria-current="@(Model.ActiveSection == "message" ? "page" : null)">Message</a>
-    <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
-       asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
-       asp-route-section="attachments"
-       aria-current="@(Model.ActiveSection == "attachments" ? "page" : null)">
-        @(Model.Detail.Attachments.Count > 0
-            ? $"Attachments ({Model.Detail.Attachments.Count})"
-            : "Attachments")
-    </a>
-    <a asp-page="/Mail/Message" asp-route-id="@summary.Id" asp-route-mailbox="@Model.MailboxFilter"
-       asp-route-folder="@Model.FolderRouteValue" asp-route-pageNumber="@Model.PageRouteValue"
-       asp-route-section="thread"
-       aria-current="@(Model.ActiveSection == "thread" ? "page" : null)">Thread</a>
-</nav>
-
-@if (Model.ActiveSection == "message")
-{
-    <section class="panel" aria-label="Message">
-        <dl class="detail-list">
-            <div>
-                <dt>From</dt>
-                <dd>@(summary.EffectiveSenderAddress ?? summary.SenderAddress ?? "Not recorded")</dd>
-            </div>
-            @if (Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(summary) is { } forwarder)
-            {
-                <div>
-                    <dt>Forwarded by</dt>
-                    <dd>@forwarder</dd>
-                </div>
+                        id = summary.Id,
+                        mailbox = Model.MailboxFilter,
+                        folder = Model.FolderFilter,
+                        pageNumber = Model.PageNumber,
+                        search = Model.SearchTerm,
+                        queue = Model.QueueFilter,
+                        expectedClassificationVersion = moveDossier.Version,
+                        expectedRecommendationPolicyKey = dialogRecommendation.PolicyKey,
+                        expectedRecommendationPolicyVersion = dialogRecommendation.PolicyVersion,
+                        expectedMailboxVersion = dialogMailboxVersion,
+                        moveOperationKey
+                    });
             }
-            <div>
-                <dt>To</dt>
-                <dd>@(Model.Detail.ToAddresses.Count == 0 ? "Not recorded" : string.Join(", ", Model.Detail.ToAddresses))</dd>
-            </div>
-            @if (Model.Detail.CcAddresses.Count > 0)
-            {
-                <div>
-                    <dt>Cc</dt>
-                    <dd>@string.Join(", ", Model.Detail.CcAddresses)</dd>
+            <form method="post" action="@moveAction">
+                @Html.AntiForgeryToken()
+                <input type="hidden" name="Reason" value="@dialogSuggestedMove.Reason" />
+                <div class="button-row button-row--end">
+                    <button type="button" class="btn" data-dialog-dismiss>Cancel</button>
+                    <button type="submit" class="btn btn--dark">Move</button>
                 </div>
-            }
-            <div>
-                <dt>Mailbox</dt>
-                <dd>@summary.MailboxAddress</dd>
-            </div>
-        </dl>
-        @if (string.IsNullOrWhiteSpace(Model.Detail.BodyPlainText))
-        {
-            <p class="empty-state">This message has no readable text body.</p>
-        }
-        else
-        {
-            @* Flattened text, never markup. The reader that produced it already
-               stripped every tag, and this element renders what it was given. *@
-            <pre class="mail-body">@Model.Detail.BodyPlainText</pre>
-        }
-    </section>
-}
-else if (Model.ActiveSection == "attachments")
-{
-    <section class="panel" aria-label="Attachments">
-        @if (Model.Detail.Attachments.Count == 0)
-        {
-            <p class="empty-state">This message has no attachments.</p>
-        }
-        else
-        {
-            <div class="table-wrap">
-                <table>
-                    <thead>
-                        <tr>
-                            <th scope="col">File</th>
-                            <th scope="col">Type</th>
-                            <th scope="col">Size</th>
-                            <th scope="col">Custody</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                    @foreach (var attachment in Model.Detail.Attachments)
-                    {
-                        <tr>
-                            <td>@attachment.FileName</td>
-                            <td>@attachment.MediaType</td>
-                            <td class="tabular">@OperatorLabels.FileSize(attachment.ContentLength)</td>
-                            @* The row exists because the attachment was kept, so
-                               custody is a fact of the row rather than a lookup. *@
-                            <td><partial name="Shared/_StatusChip" model="@("Retained")" /></td>
-                        </tr>
-                    }
-                    </tbody>
-                </table>
-            </div>
-        }
-    </section>
-}
-else
-{
-    <section class="panel" aria-label="Thread">
-        @if (Model.Detail.Thread.Count <= 1)
-        {
-            @* Retained scope only: a matching conversation never reaches for a
-               message Pegasus has not already kept. *@
-            <p class="empty-state">No other message in this conversation is kept here.</p>
-        }
-        else
-        {
-            <div class="queue-list">
-                @foreach (var entry in Model.Detail.Thread)
-                {
-                    <a asp-page="/Mail/Message" asp-route-id="@entry.Id"
-                       asp-route-mailbox="@Model.MailboxFilter"
-                       asp-route-folder="@Model.FolderRouteValue"
-                       asp-route-pageNumber="@Model.PageRouteValue"
-                       aria-current="@(entry.Id == summary.Id ? "page" : null)">
-                        <span>
-                            <strong>@(entry.SenderDisplayName ?? entry.SenderAddress ?? "Sender not recorded")</strong>
-                        </span>
-                        <span>
-                            <strong>@(string.IsNullOrWhiteSpace(entry.Subject) ? "No subject" : entry.Subject)</strong>
-                        </span>
-                        <span>
-                            <time datetime="@entry.ReceivedAtUtc.ToString("O")">@OperatorLabels.OfficeTime(entry.ReceivedAtUtc)</time>
-                        </span>
-                    </a>
-                }
-            </div>
-        }
-    </section>
+            </form>
+        </div>
+    </div>
 }
