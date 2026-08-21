@@ -626,11 +626,50 @@ resource applicationExceptionAlert 'Microsoft.Insights/scheduledQueryRules@2023-
     evaluationFrequency: 'PT5M'
     scopes: [logAnalytics.id]
     targetResourceTypes: ['Microsoft.OperationalInsights/workspaces']
-    windowSize: 'PT5M'
+    windowSize: 'PT15M'
     criteria: {
       allOf: [
         {
-          query: 'AppExceptions | where TimeGenerated > ago(5m) | summarize ExceptionCount=count()'
+          query: '''
+            let CorrelatedExceptions = AppExceptions
+              | where TimeGenerated > ago(15m)
+              | extend ExceptionSignature = strcat(
+                  coalesce(ExceptionType, 'UnknownException'),
+                  '|',
+                  substring(replace_regex(coalesce(OuterMessage, InnermostMessage, Message, ''), @'[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}', '<id>'), 0, 512)),
+                  CorrelationId = tostring(OperationId)
+              | where isnotempty(CorrelationId)
+              | summarize LastSeen=max(TimeGenerated), ExceptionRows=count(), AppRole=take_any(AppRoleName)
+                  by ExceptionSignature, CorrelationId;
+            let FailedRecentOperations = AppRequests
+              | where TimeGenerated > ago(5m) and Success == false
+              | where isnotempty(OperationId)
+              | summarize by CorrelationId=tostring(OperationId);
+            let FailedRecent = CorrelatedExceptions
+              | where LastSeen > ago(5m)
+              | join kind=inner FailedRecentOperations on CorrelationId
+              | project ExceptionSignature, AppRole, LastSeen, Reason='failed_operation';
+            let PersistentCorrelated = CorrelatedExceptions
+              | summarize DistinctOperations=dcount(CorrelationId), LastSeen=max(LastSeen), AppRole=take_any(AppRole)
+                  by ExceptionSignature
+              | where DistinctOperations >= 3
+              | project ExceptionSignature, AppRole, LastSeen, Reason='repeated_operations';
+            let PersistentUncorrelated = AppExceptions
+              | where TimeGenerated > ago(15m) and isempty(OperationId)
+              | extend ExceptionSignature = strcat(
+                  coalesce(ExceptionType, 'UnknownException'),
+                  '|',
+                  substring(replace_regex(coalesce(OuterMessage, InnermostMessage, Message, ''), @'[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}', '<id>'), 0, 512)),
+                  MinuteBucket=bin(TimeGenerated, 1m)
+              | summarize AppRole=take_any(AppRoleName), LastSeen=max(TimeGenerated)
+                  by ExceptionSignature, MinuteBucket
+              | summarize DistinctMinuteBuckets=count(), LastSeen=max(LastSeen), AppRole=take_any(AppRole)
+                  by ExceptionSignature
+              | where DistinctMinuteBuckets >= 3
+              | project ExceptionSignature, AppRole, LastSeen, Reason='repeated_uncorrelated';
+            union FailedRecent, PersistentCorrelated, PersistentUncorrelated
+              | summarize ExceptionCount=count()
+            '''
           timeAggregation: 'Total'
           metricMeasureColumn: 'ExceptionCount'
           operator: 'GreaterThan'
