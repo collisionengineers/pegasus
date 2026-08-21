@@ -23,3 +23,7 @@ Run `git diff --check` and inspect the path-limited diff for `docs/design/README
 - **Risk:** Removing `queue` could be read as allowing implementation terminology in operator copy. **Mitigation:** preserve the explicit `queue mechanics` restriction and make no source-copy changes in this ticket.
 - **Risk:** The exception wording could itself authorize new prose. **Mitigation:** state that the approved list is closed and leave its three entries unchanged.
 - **Open questions:** None; the ticket records the operator direction and research found no unresolved dependency.
+
+## Simplification pass — 2026-08-21
+
+n/a — docs-only. The diff is the two planned textual corrections in one existing authority file; no abstraction, runtime path, test shape, or duplicate implementation exists to simplify.
