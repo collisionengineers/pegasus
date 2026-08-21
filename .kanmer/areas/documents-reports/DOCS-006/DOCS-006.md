@@ -2,10 +2,12 @@
 id: DOCS-006
 type: ticket
 title: Retain extracted instruction images as case evidence and Box files
-status: preparing
+status: implementing
 area: documents-reports
 assignee: claude-code
 profile: feature
+stageEntered:
+  implementing: '2026-08-21T11:45:42.776Z'
 taken_at: '2026-08-21T11:43:34.046Z'
 branch: task/docs-006-instruction-images-evidence
 worktree: ../pegasus-worktrees/docs-006
@@ -18,7 +20,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-21T11:43:29.114Z'
-updated: '2026-08-21T11:43:34.046Z'
+updated: '2026-08-21T11:45:42.776Z'
 ---
 
 ## What
