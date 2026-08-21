@@ -8,7 +8,7 @@ public sealed class QdosInstructionExtractionPolicy(
     IIntakeTriageMatcher? triageMatcher = null) : IInstructionExtractionPolicy
 {
     public const string Key = "qdos_instruction";
-    public const int Version = 2;
+    public const int Version = 3;
     public const string SupportedPrincipalCode = "QDOS";
     private readonly IIntakeTriageMatcher triageMatcher =
         triageMatcher ?? new NoAcceptedIntakeTriageMatcher();
@@ -27,7 +27,8 @@ public sealed class QdosInstructionExtractionPolicy(
                 "Vehicle Registration", "Registration Number", "Registration No",
                 "Vehicle Reg No", "Vehicle Reg", "Registration", "Reg No", "VRM", "VRN"
             ],
-            IsValidTyped: InstructionFieldEngine.IsUkRegistration),
+            IsValidTyped: InstructionFieldEngine.IsUkRegistration,
+            CanonicalValue: InstructionFieldEngine.NormalizeRegistration),
         new("Vehicle make", ["Vehicle Make", "Make"],
             AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel),
         new("Vehicle model", ["Vehicle Model", "Model"],
@@ -38,15 +39,18 @@ public sealed class QdosInstructionExtractionPolicy(
         new(
             "Date of incident",
             ["Date of Incident", "Incident Date", "Accident Date", "Date of Accident", "Accident on"],
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null),
+            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
+            CanonicalValue: InstructionFieldEngine.CanonicalDate),
         new("Instruction date", ["Instruction Date", "Date of Instruction"],
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null),
+            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
+            CanonicalValue: InstructionFieldEngine.CanonicalDate),
         new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"]),
         new(
             "Inspection date",
             ["Inspection Date", "Date of Inspection", "Inspection Deadline", "Due By"],
             IsRequired: false,
-            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null),
+            IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
+            CanonicalValue: InstructionFieldEngine.CanonicalDate),
         // The real correspondence writes the vehicle as one description line
         // ("Our Client's Vehicle: PEUGEOT RCZ GT THP 156"); the split into
         // make/model/registration happens after extraction. The bare word
@@ -54,7 +58,10 @@ public sealed class QdosInstructionExtractionPolicy(
         // registration and location labels.
         new(
             "Vehicle description",
-            ["Our Client's Vehicle", "Client's Vehicle", "Client Vehicle", "Vehicle Description"],
+            [
+                "Our Client's Vehicle", "Client's Vehicle", "Claimant's Vehicle",
+                "Client Vehicle", "Vehicle Description"
+            ],
             IsRequired: false,
             AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel)
     ];

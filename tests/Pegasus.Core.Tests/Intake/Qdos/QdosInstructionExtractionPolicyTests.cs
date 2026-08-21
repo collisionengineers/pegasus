@@ -451,6 +451,107 @@ public sealed class QdosInstructionExtractionPolicyTests
         Assert.Equal("AUDI", draft.VehicleMake);
     }
 
+    [Fact]
+    public void TypographicApostropheLetterYieldsClaimantAndVehicle()
+    {
+        // The real letters write "Our Client\u2019s Vehicle" with a typographic
+        // apostrophe: before normalization the "Our Client" label swallowed the
+        // vehicle line as a garbage claimant candidate, and the description
+        // label never matched at all.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Our Ref: JF/47862/1\nOur Client: Mr Stuart Mcwalters\n" +
+                "Our Client\u2019s Vehicle: MERCEDES-BENZ E 220 D AMG LINE PREMIUM+ AUTO\n" +
+                "Registration: V2 MTM\nDate of Accident: 15 August 2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var claimant = Assert.Single(result.Fields, field => field.Name == "Claimant name");
+        Assert.False(claimant.HasConflict);
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("Mr Stuart Mcwalters", draft.ClaimantName);
+        Assert.Equal("MERCEDES-BENZ", draft.VehicleMake);
+        Assert.Equal("E 220 D AMG LINE PREMIUM+ AUTO", draft.VehicleModel);
+        Assert.Equal("V2MTM", draft.VehicleRegistration);
+        Assert.Equal(new DateOnly(2026, 8, 15), draft.DateOfIncident);
+    }
+
+    [Fact]
+    public void TwoSpellingsOfOneDateAreNotAConflict()
+    {
+        // Every letter carries the incident date twice: long form on page one
+        // ("15 August 2026") and numeric in the details block ("15/08/2026").
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Date of Accident: 15 August 2026\nAccident Date: 15/08/2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var field = Assert.Single(result.Fields, item => item.Name == "Date of incident");
+        Assert.False(field.HasConflict);
+        Assert.Equal(
+            new DateOnly(2026, 8, 15),
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).DateOfIncident);
+    }
+
+    [Fact]
+    public void ThirdPartyRowsNeverFeedClaimantFields()
+    {
+        // Letter page two lists the third party ("TP Vehicle:", "TP
+        // Registration:"); those rows must not become claimant candidates.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 2",
+                "Registration: V2 MTM\nTP Vehicle: VAUXHALL ASTRA GTC SRI TURBO S/S\n" +
+                "TP Registration: KU66XUM")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var registration = Assert.Single(result.Fields, field => field.Name == "Vehicle registration");
+        Assert.False(registration.HasConflict);
+        Assert.DoesNotContain(registration.Candidates, candidate => candidate.Value.Contains("KU66XUM"));
+        Assert.Equal(
+            "V2MTM",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+    }
+
+    [Fact]
+    public void OrdinalDaySuffixesParseAsDates()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Date of Accident: 27th April 2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            new DateOnly(2026, 4, 27),
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).DateOfIncident);
+    }
+
+    [Fact]
+    public void ClaimantsVehicleLabelDerivesTheVehicleFields()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Claimant\u2019s Vehicle: FORD RANGER WILDTRAK ECOBLUE 4X4 A")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("FORD", draft.VehicleMake);
+        Assert.Equal("RANGER WILDTRAK ECOBLUE 4X4 A", draft.VehicleModel);
+    }
+
     private static IntakeSourceReadResult ReadableWithSubject(
         string subject,
         params IntakeContentFragment[] content) =>
