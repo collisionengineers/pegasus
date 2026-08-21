@@ -65,6 +65,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<ICaseEvidenceImageQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<EfIntakeAllocationStore>();
         services.AddScoped<IIntakeAllocationStore>(
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
@@ -90,6 +91,7 @@ public static class DependencyInjection
         services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
         services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
+        services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
         services.AddScoped<EfIntakeMutationStore>();
         services.AddScoped<IIntakeMutationStore>(provider =>
             provider.GetRequiredService<EfIntakeMutationStore>());

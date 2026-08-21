@@ -20,6 +20,7 @@ public static class MailBodyPresentation
     {
         ArgumentNullException.ThrowIfNull(bodyPlainText);
         var (headerLines, body) = StaffForwardBodyCleaner.SplitForwardedHeader(bodyPlainText);
+        body = StaffForwardBodyCleaner.TrimProviderFooter(body);
         var lines = body
             .Replace("\r\n", "\n", StringComparison.Ordinal)
             .Replace('\r', '\n')

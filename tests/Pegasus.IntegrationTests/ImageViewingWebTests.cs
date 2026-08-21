@@ -140,6 +140,81 @@ public sealed class ImageViewingWebTests
         Assert.DoesNotContain(expectedSource, overview, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// DOCS-006: an instruction's retained image assets serve inline through
+    /// the receipt-scoped asset route; non-image assets and foreign
+    /// receipt/asset pairings stay off it.
+    /// </summary>
+    [Fact]
+    public async Task AssetEndpointServesOnlyTheReceiptsOwnImagesInline()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            useIntegrationTestAuthentication: true);
+        using var client = IntakeWebDriver.CreateClient(factory);
+
+        var pngBytes = Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS asset endpoint";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = "QDOS instruction\r\nClaimant Name: Asset Endpoint\r\nClaim Number: AST-001"
+        };
+        builder.Attachments.Add("damage.png", pngBytes, MimeKit.ContentType.Parse("image/png"));
+        builder.Attachments.Add(
+            "estimate.pdf", "%PDF-1.4 synthetic"u8.ToArray(), MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory,
+            client,
+            "asset-endpoint.eml",
+            "message/rfc822",
+            output.ToArray());
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = await scope.ServiceProvider
+            .GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receiptId, CancellationToken.None);
+        var imageAsset = Assert.Single(
+            receipt!.AssetRecords,
+            asset => asset.Kind == IntakeAssetKind.Attachment
+                && asset.MediaType == "image/png");
+        var pdfAsset = Assert.Single(
+            receipt.AssetRecords,
+            asset => asset.Kind == IntakeAssetKind.Attachment
+                && asset.MediaType == "application/pdf");
+
+        using var image = await client.GetAsync($"/Received/{receiptId:D}/Asset/{imageAsset.Id:D}");
+        Assert.Equal(HttpStatusCode.OK, image.StatusCode);
+        Assert.Equal("image/png", image.Content.Headers.ContentType?.MediaType);
+        Assert.Equal("inline", image.Content.Headers.ContentDisposition?.DispositionType);
+        Assert.Equal("nosniff", Assert.Single(image.Headers.GetValues("X-Content-Type-Options")));
+        Assert.Equal(pngBytes, await image.Content.ReadAsByteArrayAsync());
+
+        // Non-image assets never render inline.
+        using var refusedPdf = await client.GetAsync($"/Received/{receiptId:D}/Asset/{pdfAsset.Id:D}");
+        Assert.Equal(HttpStatusCode.NotFound, refusedPdf.StatusCode);
+
+        // An asset cannot be fetched under another receipt's identity.
+        using var foreign = await client.GetAsync($"/Received/{Guid.NewGuid():D}/Asset/{imageAsset.Id:D}");
+        Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+
+        // Anonymous is challenged; roleless is refused.
+        using var anonymousRequest = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"/Received/{receiptId:D}/Asset/{imageAsset.Id:D}");
+        anonymousRequest.Headers.Add("X-Test-Anonymous", "1");
+        using var anonymous = await client.SendAsync(anonymousRequest);
+        Assert.Equal(HttpStatusCode.Redirect, anonymous.StatusCode);
+    }
+
     private static async Task<string> GetAsync(HttpClient client, string url)
     {
         using var response = await client.GetAsync(url);

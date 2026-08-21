@@ -61,6 +61,47 @@ public static partial class StaffForwardBodyCleaner
         return (headerLines, rest);
     }
 
+    /// <summary>
+    /// Cuts the provider's trailing signature footer — image placeholders,
+    /// decorated contact links, the corporate disclaimer, membership and
+    /// registered-office lines — from an already-cleaned display body. The
+    /// boundary is the earliest line matching a measured footer marker
+    /// (MAIL-007 corpus research); the sign-off above it stays. Fails open:
+    /// a body with no marker, or one that would lose every line, is returned
+    /// unchanged. Display-side only — retained and searchable text never
+    /// pass through this.
+    /// </summary>
+    public static string TrimProviderFooter(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var lines = body
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
+        var boundary = -1;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (FooterMarkerRegex().IsMatch(lines[index].Trim()))
+            {
+                boundary = index;
+                break;
+            }
+        }
+
+        if (boundary <= 0)
+        {
+            return body;
+        }
+
+        var kept = lines[..boundary];
+        if (!kept.Any(line => !string.IsNullOrWhiteSpace(line)))
+        {
+            return body;
+        }
+
+        return string.Join('\n', kept).TrimEnd('\n', ' ', '\t');
+    }
+
     // Leaked inline-image references: `[cid:token]`, `<cid:token>`, or a bare
     // `cid:token`, including the emptied bracket the removal can leave behind.
     [GeneratedRegex("\\[?<?cid:[^\\]>\\s\"']+>?\\]?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -74,4 +115,19 @@ public static partial class StaffForwardBodyCleaner
 
     [GeneratedRegex("\\n{3,}", RegexOptions.CultureInvariant)]
     private static partial Regex BlankRunRegex();
+
+    // The measured footer boundary markers (MAIL-007): a line that is an
+    // image placeholder, carries a decorated contact link, or opens the
+    // provider's disclaimer/membership/registration block.
+    [GeneratedRegex(
+        "(?i)^\\[(?:https?://|cid:)"
+        + "|<(?:tel:|mailto:|https?://)"
+        + "|^you are dealing with\\b"
+        + "|^this e-?mail (?:and any attachments|is confidential)"
+        + "|^the registered office\\b"
+        + "|^proud members? of\\b"
+        + "|^disclaimer\\b"
+        + "|confidential and intended (?:solely|only)",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex FooterMarkerRegex();
 }
