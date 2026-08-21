@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Release 16: merge all open PRs, deploy dev to production, verify every shipped
   ticket live, promote to main
-status: backlog
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: claude-code
 profile: chore
+taken_at: '2026-08-21T14:03:41.580Z'
+branch: task/deliv-015-release-16
+worktree: ../pegasus-worktrees/deliv-015
 labels:
   - release
   - deployment
@@ -20,7 +23,7 @@ refs:
   - docs/operations.md
 archived: false
 created: '2026-08-21T14:02:39.637Z'
-updated: '2026-08-21T14:02:39.637Z'
+updated: '2026-08-21T14:03:41.580Z'
 ---
 
 # Why
