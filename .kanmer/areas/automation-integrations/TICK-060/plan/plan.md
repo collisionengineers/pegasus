@@ -1,29 +1,30 @@
-# Plan — TICK-060: Provider API terminal Case/PO lookup
+# Plan — TICK-060: Return the resulting Case/PO or fail
 
 ## Approach
 
-After API-01 establishes receipt identity, add one Core-owned Principal-scoped terminal-result query backed by the existing staged work/evaluation/Case-link data. The endpoint exposes only generic nonterminal, terminal Case/PO, or bounded terminal failure; it does not copy the staff queue-state projection or create a result store.
+After API-01 establishes the Principal-owned submission receipt, add one Core-owned result query over the existing staged work, evaluation, receipt, and actual Case link. The query is not a general lookup: it accepts only the authenticated Principal and its own submission receipt. It returns generic nonterminal while work is unfinished, succeeds only with an actual linked Case/PO, and fails terminally when completed processing did not create or link a Case. It creates no result store and returns no files or Case detail.
 
 ## Governing docs
 
-- **Meets and modifies `docs/frd/frd-09-provider-and-intermediary-routes.md`**: only the authenticated Principal's receipt/result is visible, cross-Principal lookup fails closed, and Case/PO is returned only from actual allocation authority. The operator-authorized contract removes transient Processing as a public state.
-- Consume ADR-0030 and the API-01 receipt contract; no new ADR or state taxonomy is added.
+- **Modifies `docs/frd/frd-09-provider-and-intermediary-routes.md`**: replace receipt/status/result wording with the settled rule that the provider may retrieve only its own submission's linked Case/PO; completed-without-Case is failure; files/report delivery remain separate and excluded.
+- Meet the accepted Principal security boundary in ADR-0004. Do not reserve a new ADR number or supersede an unrelated ADR decision for this behavioral change.
 
 ## Steps
 
-1. Integrate completed TICK-061 authentication and TICK-058 receipt identity/wire conventions.
-2. Add a Core query/result type accepting authenticated Principal and staged receipt ID with exactly three outcomes: nonterminal, terminal Case/PO, or terminal bounded failure.
-3. Implement one no-tracking EF projection joining the Principal-owned staged receipt, durable work/evaluation, processed receipt, and actual active Case link; unknown and foreign identifiers return the same absence.
-4. Add `GET /api/provider/submissions/{receiptId}`: nonterminal → 202 plus `Retry-After: 2`; actual Case/PO → 200; terminal failure → stable problem response; absent/foreign → 404.
-5. Ensure responses omit internal state names, attempt counts, exceptions, receipt contents, source downloads, and general Case fields.
-6. Add Core/integration/contract/architecture tests covering pending, retry-scheduled, completed-with-link, completed-without-link, terminal failure, unknown, foreign Principal, revocation, immutable references, and disabled composition.
-7. Refresh current architecture, run simplification lenses, locked restore, Release build, focused/full tests, and record the post-implementation report.
+1. Integrate the implemented API-01 receipt identity and API-04 Principal authentication contracts after their real callers exist.
+2. Add one Core query/result type accepting authenticated Principal plus its submission receipt with three outcomes: unfinished, linked Case/PO success, or terminal failure.
+3. Implement one no-tracking EF projection joining Principal ownership, staged work/evaluation, processed receipt, and actual active Case link; completed work without a Case link maps to terminal failure.
+4. Add the provider result endpoint using the separately settled wire contract: generic nonterminal while unfinished; success containing only immutable Case/PO when linked; bounded terminal failure when completed without a Case; indistinguishable absence for unknown/random/foreign identifiers.
+5. Ensure responses omit files, reports, source material, general Case fields, internal state names, attempt counts, and exception details.
+6. Add Core/integration/contract/architecture tests for unfinished work, completed-with-link success, completed-without-link failure, technical failure, unknown/random/foreign identifiers, revocation, immutable references, and disabled composition.
+7. Refresh current architecture, run the simplification lenses, locked restore, Release build, focused/full tests, and record the post-implementation report.
 
 ## Verification
 
-SQL/Web tests seed each durable state and assert the external response without calling processing. Cross-Principal and unknown responses must be indistinguishable. Success is impossible until the actual Case link exists, even if a processing decision says `case_created`.
+SQL/Web tests seed each durable outcome and assert that only an actual active Case link can produce success. Completed processing without a Case link is a terminal failure. Random and cross-Principal receipt identifiers are indistinguishable from unknown. Response assertions prove that no file, report, source, Case-detail, search, or outbound-delivery surface exists.
 
 ## Risks / open questions
 
-- A completed receipt without a Case link remains nonterminal for this contract unless it has a terminal bounded failure; it must never invent a reference.
-- Webhooks, listing/search, retention SLA, and live throttling are deferred until a real caller proves the need.
+- Exact transport mappings remain unresolved in the canonical provider wire-contract decision and must be settled before implementation.
+- A processing decision that says `case_created` is insufficient without the actual Case link.
+- Webhooks, listing/search, retention SLA, and live throttling remain deferred.
