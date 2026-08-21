@@ -2,16 +2,14 @@
 id: PLAT-019
 type: ticket
 title: Strip unapproved copy from the shared reason dialog
-status: review
+status: verifying
 area: platform-operations
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-21T10:43:07.556Z'
   review: '2026-08-21T11:42:49.723Z'
-taken_at: '2026-08-21T10:42:20.084Z'
-branch: task/mail-006-inbox-message-page
-worktree: ../pegasus-worktrees/mail-006
+  verifying: '2026-08-21T12:15:07.273Z'
 labels:
   - ui
   - web
@@ -22,7 +20,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-21T09:37:37.987Z'
-updated: '2026-08-21T11:42:49.723Z'
+updated: '2026-08-21T12:15:27.564Z'
 ---
 
 ## What
