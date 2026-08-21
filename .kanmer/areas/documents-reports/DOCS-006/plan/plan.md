@@ -30,3 +30,21 @@ Branch `task/docs-006-instruction-images-evidence` from origin/dev, worktree
 
 Sizing: ~6 source files + tests; no migration, no new grants, no new
 top-level anything.
+
+## Simplification pass — 2026-08-21
+
+- Custody processor queried the receipt's assets twice (attachments, then
+  attachments + embedded for selection); collapsed to one query split in
+  memory. Applied.
+- `_ImageGallery` gained a second concrete caller, so it generalized to a
+  `GalleryImage(Href, FileName)` view model; all three call sites project
+  into it and the partial no longer knows about image-intake records.
+  Applied. (Razor lesson re-learned: nested double quotes inside a partial's
+  `model` attribute silently mis-parse — projections live in code blocks.)
+- The fixed-time hash comparer is shared from `DownloadIntakeSource` rather
+  than copied into `DownloadIntakeAsset`. Applied.
+- `AcceptAsync` test helper gained an optional expected-version instead of a
+  second helper (the corpus email advances the receipt version before
+  acceptance where the synthetic fixtures do not). Applied.
+- Considered a Core port for the case→receipt-ids join; rejected — the query
+  lives once on `EfIntakeReceiptStore` behind `ICaseEvidenceImageQueries`.
