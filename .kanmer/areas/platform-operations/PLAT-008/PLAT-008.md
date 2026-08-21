@@ -20,9 +20,9 @@ links:
   - PLAT-001
 refs:
   - docs/frd/frd-12-operator-experience.md
-archived: false
+archived: true
 created: '2026-08-19T11:01:40.581Z'
-updated: '2026-08-20T03:56:59.676Z'
+updated: '2026-08-21T12:00:29.772Z'
 ---
 
 ## What
