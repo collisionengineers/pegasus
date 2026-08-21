@@ -14,6 +14,15 @@ internal sealed class ImageIntakeEntity
     public required string ExternalReceiptToken { get; set; }
     public required string SourceHash { get; set; }
     public Guid EvaluationRevisionId { get; set; }
+
+    /// <summary>
+    /// The submission group this registration covers, when the group is the
+    /// registration unit (INTK-015): at most one ImageIntake exists per
+    /// group, enforced by a filtered unique index. Null for a single-receipt
+    /// (non-grouped or legacy) registration.
+    /// </summary>
+    public Guid? SubmissionGroupId { get; set; }
+
     public required string NormalizedVehicleRegistration { get; set; }
     public required string ImageIntakeReference { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
@@ -28,6 +37,31 @@ internal sealed class ImageIntakeEntity
     public string? MergedIntoCaseReference { get; set; }
     public string? ClosureReason { get; set; }
     public DateTimeOffset? ClosedAtUtc { get; set; }
+
+    /// <summary>
+    /// External evidence-storage (Box) state for this Image-initiated Case:
+    /// null (registered before this capability), "pending" (folder work
+    /// queued), "confirmed" (folder + images stored), "merged" (contents
+    /// folded into the paired case and the folder removed), or "failed"
+    /// (work terminally failed; blob custody remains authoritative).
+    /// </summary>
+    public string? CustodyState { get; set; }
+    public string? CustodyRootRemoteId { get; set; }
+    public DateTimeOffset? CustodyConfirmedAtUtc { get; set; }
+    public DateTimeOffset? CustodyMergedAtUtc { get; set; }
+}
+
+/// <summary>
+/// The one list of persisted <see cref="ImageIntakeEntity.CustodyState"/>
+/// values. Null on the entity means the registration predates image-case
+/// custody.
+/// </summary>
+internal static class ImageCustodyStates
+{
+    public const string Pending = "pending";
+    public const string Confirmed = "confirmed";
+    public const string Merged = "merged";
+    public const string Failed = "failed";
 }
 
 internal sealed class ImageIntakeLifecycleEventEntity

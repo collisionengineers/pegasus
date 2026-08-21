@@ -55,6 +55,42 @@ public sealed class GroupedIntakeTests
                 .ExecuteAsync(changed));
     }
 
+    [Theory]
+    // A ':{ordinal>=1}' suffix names its parent by stripping; the bare token
+    // remains a candidate because the shape alone cannot exclude a literal
+    // colon-digit tail in a parent token.
+    [InlineData("batch:1", new[] { "batch", "batch:1" })]
+    [InlineData("batch:12", new[] { "batch", "batch:12" })]
+    // An ordinal-0 member carries the parent token verbatim (INTK-005), so
+    // the bare token IS the parent candidate.
+    [InlineData("batch", new[] { "batch" })]
+    // Shapes Create never emits are not member suffixes: ':0', a signed or
+    // non-numeric tail, and a leading colon all resolve as bare tokens only.
+    [InlineData("batch:0", new[] { "batch:0" })]
+    [InlineData("batch:+1", new[] { "batch:+1" })]
+    [InlineData("batch:abc", new[] { "batch:abc" })]
+    [InlineData(":1", new[] { ":1" })]
+    public void ParentTokenCandidatesInvertTheMemberTokenConvention(
+        string memberToken,
+        string[] expected)
+    {
+        Assert.Equal(expected, GroupedIntakeMemberToken.ParentTokenCandidates(memberToken));
+    }
+
+    [Fact]
+    public void ParentTokenCandidatesRoundTripEveryOrdinalCreateEmits()
+    {
+        // The inverse must reach the parent for every token Create can
+        // produce — the ordinal-0 gap was exactly this property failing.
+        for (var ordinal = 0; ordinal < 4; ordinal++)
+        {
+            var memberToken = GroupedIntakeMemberToken.Create("submission", ordinal);
+            Assert.Contains(
+                "submission",
+                GroupedIntakeMemberToken.ParentTokenCandidates(memberToken));
+        }
+    }
+
     private static GroupedIntakeSubmissionRequest Request(string token) =>
         new(token, "staff:test", DateTimeOffset.UtcNow,
         [

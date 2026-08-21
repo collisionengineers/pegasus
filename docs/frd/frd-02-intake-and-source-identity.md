@@ -34,8 +34,14 @@ not allocate a reference.
 Unidentified is open or resolved. Authorised staff resolution requires an operation
 key, expected version, reason, and one supported destination; it appends immutable
 history with actor, time, target, and before/after state. Replays return the original
-result; conflicting operation reuse fails closed. The U-reference is never accepted
-as a Case/PO, Audit, Image Intake, or principal identity.
+result; conflicting operation reuse fails closed. An open item whose origin receipt
+subsequently reaches a real destination — a formal Case, or a registered Image
+intake — is resolved automatically to that destination by the product's own
+reconciliation (in the receipt's own processing pass, and by a sweep for receipts
+promoted outside their own pass), with the destination recorded in the item's
+history; a receipt that is still legitimately unidentified is never force-closed.
+The U-reference is never accepted as a Case/PO, Audit, Image Intake, or principal
+identity.
 
 Every intake path must:
 
@@ -135,6 +141,8 @@ An Image-initiated Case remains Awaiting instruction until its retained evidence
 
 Image-only material with a usable VRM therefore creates a searchable Image-initiated Case reference, not a formal Case/PO. A group with no usable VRM or conflicting valid VRMs follows the Unidentified contract with its explicit reason marker instead.
 
+**Age and chase state (INT-32).** Each half of a pairing keeps its own chronology: the instruction side's opened/received timestamp and the Image-initiated Case's own `RegisteredAtUtc`, both already visible on their respective queue rows — no relative "age" figure is computed or shown anywhere in the application, so none is introduced for either half. While an Image-initiated Case is Awaiting instruction, its chase-due state is a derived read, not a persisted schedule: it is due once `RegisteredAtUtc` has stood for the same seven-calendar-day interval a Not-ready formal Case's first chase falls due at, and not-due before that. There is no held or stopped state and no generated chaser draft for the image half — those exist on the Case side because a formal Case has manual chase-pause controls and outbound chaser text; an Image-initiated Case has neither, and this ticket does not add them. Pairing completion remains visible the way INT-32's coupled INT-28 already delivered it: the derived `Associated with Case` label wherever the origin receipt's case association is shown, and the merge event recorded on the resulting Case's own history the moment it happens — not a separate notification.
+
 ### Grouped image-intake routing
 
 **Settled operator truth (2026-08-19):** a retained vehicle image either shows a
@@ -181,10 +189,12 @@ that reaches an association, a pre-Case Image intake registration, or a
      above.
   3. Exactly one distinct accepted VRM, but zero or more than one eligible
      instructed Case carries it: the VRM is usable but not uniquely matched.
-     Every member registers into the existing pre-Case Image intake identity
-     described above (allocating its Image Intake Reference); none associates
-     to any Case. This FRD does not re-specify the further searchable
-     lifecycle of that pre-Case identity.
+     The group registers as **one** pre-Case Image intake identity — exactly
+     one Image Intake Reference is allocated for the whole submission group,
+     never one per member — and every member's receipt and retained evidence
+     records against that single registration; none associates to any Case.
+     This FRD does not re-specify the further searchable lifecycle of that
+     pre-Case identity.
   4. Zero distinct accepted VRMs, or more than one (conflicting readable
      VRMs): no single usable identity exists. The intact group — every member
      together, kept as one unit — remains `Needs sorting`; no VRM-based
@@ -233,7 +243,12 @@ The decision table, evaluated once per file:
    Also always automatic (a usable VRM with no unique existing-Case match);
    reported with a link to its own searchable surface, never re-offered as a
    manual creation (an Image-initiated Case's reference is VRM-keyed and
-   cannot be hand-created without one).
+   cannot be hand-created without one). While the registration is still
+   Awaiting instruction, the surface additionally offers the staff decision
+   to add the uploaded material to an existing case found by search (below);
+   that decision links the registration's origin receipt, which carries the
+   Image-initiated Case through its normal merge transition. Once merged,
+   the surface reports the destination case instead of the registration.
 3. **Routed to Unidentified.** Automation abstained (no usable/conflicting
    VRM, or no identifiable match at all); reported with a link to the
    existing Unidentified resolution surface, which is where the staff
@@ -251,11 +266,27 @@ The decision table, evaluated once per file:
    **the file itself failed to process.** Reported plainly; no offer, since
    none is genuine.
 
-Every action the confirmation surface offers routes to an existing surface
-that already performs it (case details, the received-item screen's
+Where the staff decision is genuinely open — rows 2 (still Awaiting
+instruction), 4 and 5 — the surface also carries the decision itself:
+
+- **Add to an existing case.** A case search that suggests matching cases as
+  the operator types (the existing staff case-search query; reference,
+  registration, claimant and stage shown — never an internal identifier).
+  Selecting a case and confirming, with a required reason, is an explicit
+  staff decision: it acquires the case's edit lease and links the receipt
+  through the existing staff link path, which also runs the Image-initiated
+  Case merge transition where one is registered. The decision is replay-safe
+  (deterministic per receipt and case), and fails closed — an unresolved or
+  ambiguous typed reference, a version or lease conflict, or a receipt that
+  already has a case all report an honest error and change nothing. Nothing
+  is ever attached silently beyond the automatic bar above.
+- **Cancel.** Returns to the Upload screen and changes nothing: the material
+  stays retained and its state stays honestly reported.
+
+Every other action the confirmation surface offers routes to an existing
+surface that already performs it (case details, the received-item screen's
 attach/reverse controls, the case-creation screen, the Image-initiated Case
-and Unidentified detail screens); the confirmation step itself never mutates
-anything.
+and Unidentified detail screens).
 
 ### Global vehicle and value checks
 

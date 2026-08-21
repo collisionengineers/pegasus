@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -29,8 +29,8 @@ public sealed partial class SendToAiIntegrationTests
         using var client = CreateClient(factory);
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.Contains("Not available", html, StringComparison.Ordinal);
-        Assert.Contains("not part of this deployment", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"send-title\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"send-confirm\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("id=\"send-to-claude-form\"", html, StringComparison.Ordinal);
     }
 

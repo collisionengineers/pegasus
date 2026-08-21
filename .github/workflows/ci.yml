@@ -86,6 +86,17 @@ jobs:
         shell: pwsh
         run: ./scripts/Test-DocumentationLinks.ps1
 
+  local-development-scripts:
+    # This parser contract is Windows-specific and must be called independently
+    # of application, documentation, infrastructure, or cloud lanes.
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: LocalDB lifecycle classifier tests
+        shell: pwsh
+        run: ./scripts/Test-PegasusPlatform.ps1
+
   reference-data:
     # The provider-reference generator and tests share one scripts-owned
     # component. This job is their executable gate; no application caller or

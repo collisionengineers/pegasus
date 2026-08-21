@@ -90,6 +90,11 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(request.Actor.SubjectId, replay.Actor.SubjectId);
         Assert.Equal(request.Actor.Roles.OrderBy(role => role), replay.Actor.Roles.OrderBy(role => role));
         Assert.Equal(request.Approval, replay.Approval);
+
+        // PLAT-011: the Actor row on the case summary shows the resolved approver
+        // name, never the raw actor subject id (docs/design/README.md:168).
+        Assert.Contains(ApprovalCaseDetailsStore.ApproverDisplayName, currentHtml, StringComparison.Ordinal);
+        Assert.DoesNotContain(claimant.SubjectId, VisibleText(currentHtml), StringComparison.OrdinalIgnoreCase);
     }
 
     private static FormUrlEncodedContent ApprovalForm(
@@ -113,6 +118,13 @@ public sealed partial class CaseDetailsWebTests
         IAcquireCaseEditLease,
         IRecordCaseReportApproval
     {
+        /// <summary>
+        /// Stands in for the resolved display name <c>GetCase</c> would compute
+        /// (see <see cref="Pegasus.Core.Actors.ActorDisplayNames"/>); this fake
+        /// bypasses <c>GetCase</c> entirely, so it supplies the projection itself.
+        /// </summary>
+        internal const string ApproverDisplayName = "alex";
+
         private readonly DateTimeOffset now =
             new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
         private string? leaseHolder;
@@ -168,7 +180,10 @@ public sealed partial class CaseDetailsWebTests
                 CaseCustodyState.Pending,
                 [],
                 [],
-                []);
+                [])
+            {
+                ReportApprovedByDisplayName = approval is null ? null : ApproverDisplayName
+            };
             return Task.FromResult<CaseDetails?>(details);
         }
 

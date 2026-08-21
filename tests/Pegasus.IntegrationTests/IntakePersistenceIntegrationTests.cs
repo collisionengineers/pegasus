@@ -80,10 +80,19 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260819115323_UnidentifiedWork",
                 "20260819140113_ImageIntakeGroupExpectedMemberCount",
                 "20260819180000_GrantEvaHandoffDownloadOperations",
-                "20260819234014_GrantWorkerIntakeSubmissionGroupRead"
+                "20260819234014_GrantWorkerIntakeSubmissionGroupRead",
+                "20260820034652_ImageIntakeSubmissionGroup",
+                "20260820040337_SendToAiConnectorSettings",
+                "20260820055900_ImageCaseCustody",
+                "20260820100056_ApprovedMailboxLogicalFolderBindings",
+                "20260820100724_RetainedMailSearchDocuments",
+                "20260820144004_RetainedMailFolderMoves",
+                "20260821095500_GrantWorkerVehicleLookupRequests"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'ApprovedMailboxFolderBindings'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseAssessmentFields'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
@@ -110,6 +119,8 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'ImageVrmSuggestions'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeReceipts'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeSearchDocuments'"));
         Assert.Equal(1, await database.ScalarAsync<int>(
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'IntakeAssets'"));
         Assert.Equal(1, await database.ScalarAsync<int>(

@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Cases;
@@ -463,10 +463,15 @@ public sealed class AllocateIntake(
     {
         // A concurrent request never invokes acceptance. It waits only for the
         // already-owned durable attempt to publish its recorded outcome, so
-        // parallel staff retries converge on the same Case identity.
-        for (var poll = 0; poll < 40; poll++)
+        // parallel staff retries converge on the same Case identity. The
+        // window is bounded but generous (ten seconds): a one-second budget
+        // returned Pending to the concurrent caller whenever allocation ran
+        // slowly under load (CASE-005), which is the divergence this wait
+        // exists to prevent. Still Pending after the window is reported
+        // honestly.
+        for (var poll = 0; poll < 100; poll++)
         {
-            await Task.Delay(TimeSpan.FromMilliseconds(25), cancellationToken);
+            await Task.Delay(TimeSpan.FromMilliseconds(100), cancellationToken);
             var current = await allocationStore.GetCurrentAsync(
                 begun.Attempt.ReceiptId,
                 cancellationToken);

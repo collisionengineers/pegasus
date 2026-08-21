@@ -296,12 +296,22 @@ public sealed record IntakeSourceReadResult(
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
     bool IsIncomplete = false,
     string ReaderKey = "unspecified_reader",
-    string ReaderVersion = "1")
+    string ReaderVersion = "1",
+    IReadOnlyList<IntakeAttachmentDescriptor>? Attachments = null)
 {
     public IReadOnlyList<IntakeAssetCandidate> AssetCandidates => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+
+    public IReadOnlyList<IntakeAttachmentDescriptor> AttachmentRecords => Attachments ?? [];
 }
+
+public sealed record IntakeAttachmentDescriptor(
+    string FileName,
+    string MediaType,
+    long? ContentLength,
+    int Ordinal = 0,
+    string? SourceLabel = null);
 
 public sealed record IntakeAssetRecord(
     Guid Id,
@@ -386,7 +396,8 @@ public sealed record IntakeReceipt(
     CaseMatchEvaluationResult? CaseMatchDecision = null,
     IntakeAllocationState? AllocationState = null,
     string? AcceptedCaseReference = null,
-    string? ManualLinkedCaseReference = null)
+    string? ManualLinkedCaseReference = null,
+    ActorKind? ManualAssociationActorKind = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
@@ -394,6 +405,16 @@ public sealed record IntakeReceipt(
 
     public Guid? CurrentCaseId =>
         ManualAssociationVersion is null ? AcceptedCaseId : ManualLinkedCaseId;
+
+    /// <summary>
+    /// Whether the current case association was an explicit staff decision
+    /// rather than the pipeline's automatic one — the automatic paths record
+    /// their association under a system-worker actor. Owned here, beside the
+    /// rest of the association derivation, so no surface re-derives
+    /// provenance from raw actor identity.
+    /// </summary>
+    public bool AssociationWasStaffDecision =>
+        CurrentCaseId is not null && ManualAssociationActorKind == ActorKind.Staff;
 
     public string? CurrentCaseReference =>
         ManualAssociationVersion is null
@@ -426,11 +447,28 @@ public sealed record IntakeReceiptDraft(
     IReadOnlyList<ScannedPdfOcrCandidate>? OcrCandidates = null,
     MailRouteEvaluationResult? MailRouteDecision = null,
     MailClassificationResult? MailClassificationDecision = null,
-    CaseMatchEvaluationResult? CaseMatchDecision = null)
+    CaseMatchEvaluationResult? CaseMatchDecision = null,
+    IReadOnlyList<IntakeSearchDocument>? SearchDocuments = null)
 {
     public IReadOnlyList<IntakeAssetRecord> AssetRecords => Assets ?? [];
 
     public IReadOnlyList<ScannedPdfOcrCandidate> ScannedPdfPages => OcrCandidates ?? [];
+
+    public IReadOnlyList<IntakeSearchDocument> SearchDocumentRecords => SearchDocuments ?? [];
+}
+
+/// <summary>
+/// One queryable projection of text the canonical intake reader already produced.
+/// A null attachment name denotes the root message body; named rows are attachment
+/// content. Empty text records that an attachment was retained but not searchable.
+/// </summary>
+public sealed record IntakeSearchDocument(
+    string SourceLabel,
+    string? AttachmentFileName,
+    string? Text,
+    int? AttachmentOrdinal = null)
+{
+    public bool IsSearchable => !string.IsNullOrWhiteSpace(Text);
 }
 
 /// <summary>
@@ -720,6 +758,11 @@ public interface IGetIntake
 
 public sealed record DownloadIntakeSourceQuery(Guid ReceiptId, ActionActor Actor);
 
+/// <param name="ContentType">
+/// The stored source media type. Presentation is each endpoint's decision:
+/// the Source download forces an octet-stream attachment regardless, and the
+/// image view serves only a true image type inline.
+/// </param>
 public sealed record IntakeSourceDownload(
     ReadOnlyMemory<byte> Content,
     string FileName,

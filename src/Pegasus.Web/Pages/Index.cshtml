@@ -129,7 +129,7 @@
                 <a asp-page="/Cases/Details" asp-route-id="@item.CaseId">
                     <span>
                         <strong>@item.Reference</strong>
-                        <small>@item.MissingMaterialReason</small>
+                        <small>@Pegasus.Web.Presentation.OperatorLabels.ChaseReason(item.MissingMaterialReason)</small>
                     </span>
                     <span>
                         @* The chase schedule's own state, not the case stage:

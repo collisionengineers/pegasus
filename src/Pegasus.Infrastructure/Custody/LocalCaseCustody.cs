@@ -74,18 +74,7 @@ internal sealed class LocalCaseCustody(
         ArgumentNullException.ThrowIfNull(source);
         ValidateOperationKey(operationKey);
         await ValidateRootAsync(root, cancellationToken);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceFileName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.MediaType);
-        ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceObjectKey);
-
-        var expectedHash = NormalizeSha256(source.SourceHash);
-        var content = await intakeArtifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
-            ?? throw new FileNotFoundException("The retained intake source is unavailable.");
-        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
-        if (!string.Equals(expectedHash, actualHash, StringComparison.Ordinal))
-        {
-            throw new InvalidDataException("The retained intake source failed its custody integrity check.");
-        }
+        var (content, expectedHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
         var relativeId = $"{root.RemoteId}/documents/{source.IntakeReceiptId:N}/{expectedHash}";
         var directory = Resolve(relativeId);
         Directory.CreateDirectory(directory);
@@ -105,6 +94,117 @@ internal sealed class LocalCaseCustody(
             cancellationToken);
 
         return new(root.CaseId, relativeId, expectedHash, expectedHash);
+    }
+
+    public async Task<CustodyDocumentVersion> RetainAcceptedIntakeAttachmentAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference attachment,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(attachment);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 2);
+        ValidateOperationKey(operationKey);
+        await ValidateRootAsync(root, cancellationToken);
+        var (content, expectedHash) = await ReadVerifiedSourceAsync(attachment, cancellationToken);
+        var relativeId =
+            $"{root.RemoteId}/documents/{attachment.IntakeReceiptId:N}/attachments/{ordinal:D3}-{expectedHash}";
+        var directory = Resolve(relativeId);
+        Directory.CreateDirectory(directory);
+        var contentPath = Path.Combine(directory, "content");
+        await CreateOrVerifyContentAsync(contentPath, content, expectedHash, cancellationToken);
+
+        var metadata = new DocumentMetadata(
+            attachment.IntakeReceiptId,
+            attachment.SourceFileName,
+            attachment.MediaType,
+            expectedHash,
+            operationKey);
+        await CreateOrValidateJsonAsync(
+            Path.Combine(directory, "metadata.json"),
+            metadata,
+            existing => existing == metadata,
+            cancellationToken);
+
+        return new(root.CaseId, relativeId, expectedHash, expectedHash);
+    }
+
+    public async Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentOutOfRangeException.ThrowIfLessThan(ordinal, 1);
+        ValidateOperationKey(operationKey);
+        await ValidateRootAsync(root, cancellationToken);
+        var (content, expectedHash) = await ReadVerifiedSourceAsync(source, cancellationToken);
+
+        var relativeId = $"{root.RemoteId}/images/{ordinal:000}-{source.IntakeReceiptId:N}";
+        var directory = Resolve(relativeId);
+        Directory.CreateDirectory(directory);
+        var contentPath = Path.Combine(directory, "content");
+        await CreateOrVerifyContentAsync(contentPath, content, expectedHash, cancellationToken);
+        var metadata = new ImageAssetMetadata(
+            source.IntakeReceiptId,
+            source.SourceFileName,
+            source.MediaType,
+            expectedHash,
+            ordinal,
+            operationKey);
+        await CreateOrValidateJsonAsync(
+            Path.Combine(directory, "metadata.json"),
+            metadata,
+            existing => existing == metadata,
+            cancellationToken);
+        return new(root.CaseId, relativeId, expectedHash, expectedHash);
+    }
+
+    public async Task MergeImageCaseContentsAsync(
+        CaseCustodyRoot imageRoot,
+        CaseCustodyRoot caseRoot,
+        string operationKey,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(imageRoot);
+        ArgumentNullException.ThrowIfNull(caseRoot);
+        ValidateOperationKey(operationKey);
+        var imageDirectory = Resolve(GetCaseRelativeId(imageRoot.CaseId));
+        if (!Directory.Exists(imageDirectory))
+        {
+            // A previous fold already emptied and removed the image-case
+            // location but could not persist its completion; replay-safe.
+            return;
+        }
+        await ValidateRootAsync(imageRoot, cancellationToken);
+        await ValidateRootAsync(caseRoot, cancellationToken);
+
+        var imagesDirectory = Path.Combine(imageDirectory, "images");
+        if (Directory.Exists(imagesDirectory))
+        {
+            var destination = Path.Combine(Resolve(GetCaseRelativeId(caseRoot.CaseId)), "images");
+            Directory.CreateDirectory(destination);
+            foreach (var entry in Directory.EnumerateDirectories(imagesDirectory))
+            {
+                var name = Path.GetFileName(entry);
+                var target = Path.Combine(destination, name);
+                if (Directory.Exists(target))
+                {
+                    target = Path.Combine(destination, $"{imageRoot.Reference} {name}");
+                }
+                Directory.Move(entry, target);
+            }
+            // Non-recursive: anything unexpectedly left fails the fold closed.
+            Directory.Delete(imagesDirectory);
+        }
+
+        File.Delete(Path.Combine(imageDirectory, RootMetadataFileName));
+        Directory.Delete(imageDirectory);
     }
 
     public async Task<string> CreateAuditReferenceFolderAsync(
@@ -143,6 +243,25 @@ internal sealed class LocalCaseCustody(
             CustodyCreationOwner.Create(),
             operationKey,
             cancellationToken);
+
+    private async Task<(ReadOnlyMemory<byte> Content, string Hash)> ReadVerifiedSourceAsync(
+        IntakeSourceCustodyReference source,
+        CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceFileName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.MediaType);
+        ArgumentException.ThrowIfNullOrWhiteSpace(source.SourceObjectKey);
+
+        var expectedHash = NormalizeSha256(source.SourceHash);
+        var content = await intakeArtifactStore.ReadAsync(source.SourceObjectKey, cancellationToken)
+            ?? throw new FileNotFoundException("The retained intake source is unavailable.");
+        var actualHash = Convert.ToHexString(SHA256.HashData(content.Span)).ToLowerInvariant();
+        if (!string.Equals(expectedHash, actualHash, StringComparison.Ordinal))
+        {
+            throw new InvalidDataException("The retained intake source failed its custody integrity check.");
+        }
+        return (content, expectedHash);
+    }
 
     private async Task ValidateRootAsync(CaseCustodyRoot root, CancellationToken cancellationToken)
     {
@@ -369,6 +488,14 @@ internal sealed class LocalCaseCustody(
         string OperationKey);
 
     private sealed record AuditFolderMetadata(string AuditReference, string OperationKey);
+
+    private sealed record ImageAssetMetadata(
+        Guid IntakeReceiptId,
+        string FileName,
+        string MediaType,
+        string Sha256,
+        int Ordinal,
+        string OperationKey);
 }
 
 internal sealed class UnavailableCaseCustody : ICaseCustody
@@ -401,6 +528,21 @@ internal sealed class UnavailableCaseCustody : ICaseCustody
         string operationKey,
         CancellationToken cancellationToken) =>
         Unavailable<string>();
+
+    public Task<CustodyDocumentVersion> RetainImageCaseAssetAsync(
+        CaseCustodyRoot root,
+        IntakeSourceCustodyReference source,
+        int ordinal,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Unavailable<CustodyDocumentVersion>();
+
+    public Task MergeImageCaseContentsAsync(
+        CaseCustodyRoot imageRoot,
+        CaseCustodyRoot caseRoot,
+        string operationKey,
+        CancellationToken cancellationToken) =>
+        Unavailable<CustodyDocumentVersion>();
 
     private static Task<T> Unavailable<T>() =>
         Task.FromException<T>(new CaseCustodyUnavailableException());

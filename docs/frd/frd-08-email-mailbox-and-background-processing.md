@@ -133,7 +133,7 @@ the evidence, actor, time, policy version, and later corrections.
 | `post-report-emails/query` | Question about a delivered report | route/thread evidence or staff | Queries | Case queries |
 | `post-report-emails/dispute` | Challenge to a delivered report/finding | route/thread evidence or staff | Queries | Case queries |
 | `post-report-emails/amendment-request` | Request to amend a delivered report | route/thread evidence or staff | Queries | Case queries |
-| `pre-instruction-emails/triage-request` | Accepted Triage request; missing VRM remains Needs sorting under FRD-03 | route predicate or staff | Triage | Pre-instructions |
+| `pre-instruction-emails/triage-request` | Accepted Triage request; missing VRM remains Unidentified under FRD-03 | route predicate or staff | Triage | Pre-instructions |
 | `pre-instruction-emails/pre-formal-instruction-request` | Known pre-formal handling request, excluding Triage | staff | Detailed: `pre-instruction-emails/pre-formal-instruction-request` | Pre-instructions |
 | `pre-instruction-emails/images-received` | Images before formal instruction, excluding an accepted instruction | attachment/route evidence or staff | Detailed: `pre-instruction-emails/images-received` | Images |
 | `internal-cc` | Internal copied correspondence, not the primary actionable occurrence | header/recipient evidence or staff | Detailed: `internal-cc` | Other |
@@ -148,8 +148,9 @@ The approved logical folder types are `Instructions`, `Audits`, `Diminution`,
 `New clients`, `Case queries`, `Enquiries`, `Billing`, `Pre-instructions`, `No
 action`, `Images`, `Cancellations`, `Case updates`, and `Other`. MAIL-23 binds
 these types to administrator-approved exact Outlook folder identities and owns
-the separate confirmed move. Triage and Unidentified receive no automatic
-folder recommendation merely because they are application destinations.
+the mailbox-scoped binding. MAIL-05 derives the message-level recommendation;
+MAIL-07 owns the separate confirmed move. Triage and Unidentified receive no
+automatic folder recommendation merely because they are application destinations.
 
 Acceptance examples are a single accepted Audit instruction mapping to
 Receiving work/Audits, a billing question to Queries/Billing, and an accepted
@@ -249,6 +250,19 @@ If that move fails, the saved classification remains intact, the failure is
 visible, and only a staff-initiated retry may repeat the move.
 After a successful move, the message leaves the Inbox view and remains
 findable through its destination-folder scope or search; it is not duplicated.
+For retained inbound mail, automatic Case association is deliberately
+conservative. A message may associate only when its normalised vehicle
+registration identifies exactly one current, non-archived Case system-wide, or
+when its exact mailbox-and-conversation thread identifies exactly one current
+Case. If both forms of evidence identify a Case, they must agree. A supplied
+registration with zero or several candidates, several thread candidates,
+contradictory candidates, or evidence that changes before the serializable
+write causes abstention. The inbound Case/PO text is never a matching key. A
+first message may therefore qualify by unique registration before its thread
+has an association; a later message without a registration may qualify from
+the exact thread. The system-worker association is append-only, idempotent and
+uses the ordinary current-association and staff reversal precedence. It does
+not mutate the mailbox.
 Selecting a Case association opens that Case workspace in the same tab; Back
 returns to the exact message detail and originating list context.
 Each Case workspace also exposes its associated correspondence as a contextual

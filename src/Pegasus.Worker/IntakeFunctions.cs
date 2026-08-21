@@ -1,3 +1,4 @@
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
 using Microsoft.Azure.Functions.Worker;
@@ -67,6 +68,8 @@ public sealed class IntakePoisonFunction(ReconcilePoisonedQueueWork reconcilePoi
 public sealed partial class StagedArtifactReconciliationFunction(
     ReconcileStagedArtifacts reconcileStagedArtifacts,
     ReconcileGroupedImageIntake reconcileGroupedImageIntake,
+    ReconcileUnidentifiedDestinations reconcileUnidentifiedDestinations,
+    ReconcileAutomaticVehicleLookups reconcileAutomaticVehicleLookups,
     ILogger<StagedArtifactReconciliationFunction> logger)
 {
     [Function(nameof(StagedArtifactReconciliationFunction))]
@@ -97,7 +100,31 @@ public sealed partial class StagedArtifactReconciliationFunction(
             groupedImageResult.Retried,
             groupedImageResult.Escaped,
             groupedImageResult.Failures);
+
+        // INTK-018: resolves an open Unidentified item whose origin receipt
+        // was promoted outside its own processing pass (a sibling group
+        // member's registration, a staff action, or a historic stale row) —
+        // the product's own reconciliation, never manual SQL. Same existing
+        // timer trigger deliberately; this is not a new schedule.
+        var unidentifiedResult = await reconcileUnidentifiedDestinations.ExecuteAsync(50, cancellationToken);
+        LogUnidentifiedDestinationReconciliation(
+            logger,
+            unidentifiedResult.Candidates,
+            unidentifiedResult.Resolved,
+            unidentifiedResult.Failures);
+
+        // CASE-008: any active case whose current registration has never been
+        // looked up gets one automatic vehicle lookup enqueued; the existing
+        // dispatch timer and external-work queue carry it from there. Same
+        // existing timer trigger deliberately; this is not a new schedule.
+        var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
+        LogAutomaticVehicleLookups(logger, vehicleLookups);
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Enqueued {Enqueued} automatic vehicle lookups.")]
+    private static partial void LogAutomaticVehicleLookups(ILogger logger, int enqueued);
 
     [LoggerMessage(
         Level = LogLevel.Information,
@@ -119,6 +146,15 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int candidates,
         int retried,
         int escaped,
+        int failures);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Reconciled Unidentified destinations: {Candidates} candidates, {Resolved} resolved, {Failures} failures.")]
+    private static partial void LogUnidentifiedDestinationReconciliation(
+        ILogger logger,
+        int candidates,
+        int resolved,
         int failures);
 }
 

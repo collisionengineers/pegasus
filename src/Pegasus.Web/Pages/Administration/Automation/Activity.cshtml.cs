@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Identity;
+using Pegasus.Web.Mcp;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.Web.Pages.Administration.Automation;
 
@@ -58,4 +60,14 @@ public sealed class ActivityModel(IListAutomationActivity listActivity)
             _ => throw new InvalidOperationException(
                 $"Unknown automation activity record type '{(int)recordType}'.")
         };
+
+    /// <summary>
+    /// The Subject column's display value: the record's raw subject id, resolved
+    /// to the Automation client's name where it is that client, never rendered
+    /// as a bare GUID (docs/design/README.md:168).
+    /// </summary>
+    public string SubjectLabel(string subjectId) =>
+        OperatorLabels.AutomationActorLabel(
+            subjectId,
+            HttpContext.RequestServices.GetService<AutomationMcpOptions>()?.ClientId);
 }

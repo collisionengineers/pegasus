@@ -99,8 +99,20 @@ public sealed class EfCaseQueryStore(
         }
 
         var skip = checked((query.Page - 1) * query.PageSize);
-        var page = await rows
-            .OrderByDescending(item => item.ReceivedAtUtc)
+        IOrderedQueryable<SearchRow> ordered = query.Order switch
+        {
+            CaseSearchOrder.ReceivedAsc => rows.OrderBy(item => item.ReceivedAtUtc),
+            CaseSearchOrder.ReferenceAsc => rows.OrderBy(item => item.Reference),
+            CaseSearchOrder.ReferenceDesc => rows.OrderByDescending(item => item.Reference),
+            CaseSearchOrder.RegistrationAsc => rows.OrderBy(item => item.Registration),
+            CaseSearchOrder.RegistrationDesc => rows.OrderByDescending(item => item.Registration),
+            CaseSearchOrder.ClaimantAsc => rows.OrderBy(item => item.Claimant),
+            CaseSearchOrder.ClaimantDesc => rows.OrderByDescending(item => item.Claimant),
+            CaseSearchOrder.PrincipalAsc => rows.OrderBy(item => item.Principal),
+            CaseSearchOrder.PrincipalDesc => rows.OrderByDescending(item => item.Principal),
+            _ => rows.OrderByDescending(item => item.ReceivedAtUtc)
+        };
+        var page = await ordered
             .ThenBy(item => item.Reference)
             .ThenBy(item => item.CaseId)
             .Skip(skip)
@@ -235,7 +247,8 @@ public sealed class EfCaseQueryStore(
             ReceivedAtUtc = receipt.ReceivedAtUtc,
             InstructionDate = draft == null ? null : draft.InstructionDate,
             Origin = receipt.SourceChannel,
-            CreatedAtUtc = caseEntity.CreatedAtUtc
+            CreatedAtUtc = caseEntity.CreatedAtUtc,
+            NextChaseAtUtc = workflow.DueWork == null ? null : workflow.DueWork!.NextChaseAtUtc
         };
 
     private static async Task<IReadOnlyList<CaseDocument>> ReadDocumentsAsync(
@@ -319,7 +332,8 @@ public sealed class EfCaseQueryStore(
         item.ReceivedAtUtc,
         item.InstructionDate,
         item.Origin,
-        item.CreatedAtUtc);
+        item.CreatedAtUtc,
+        item.NextChaseAtUtc);
 
     private static CaseType ParseCaseType(string value)
     {
@@ -528,5 +542,6 @@ public sealed class EfCaseQueryStore(
         public DateOnly? InstructionDate { get; init; }
         public required string Origin { get; init; }
         public DateTimeOffset CreatedAtUtc { get; init; }
+        public DateTimeOffset? NextChaseAtUtc { get; init; }
     }
 }

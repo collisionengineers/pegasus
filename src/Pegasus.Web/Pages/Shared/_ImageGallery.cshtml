@@ -1,0 +1,23 @@
+@model IReadOnlyList<Pegasus.Web.Presentation.GalleryImage>
+@* Thumbnails are the full image CSS-constrained and lazy-loaded; each is a
+   link that opens the full-size image on its own via the same authorised
+   endpoint, so preview-and-expand works with no script and stays keyboard
+   accessible. *@
+@if (Model.Count == 0)
+{
+    <p class="empty-state">No images are available to display for this record.</p>
+}
+else
+{
+    <ul class="image-gallery">
+        @foreach (var image in Model)
+        {
+            <li>
+                <a href="@image.Href">
+                    <img src="@image.Href" alt="@image.FileName" loading="lazy" />
+                    <span class="image-gallery__name">@image.FileName</span>
+                </a>
+            </li>
+        }
+    </ul>
+}

@@ -8,7 +8,7 @@ units, or owners of Pegasus business policy.
 
 | Workspace | Role | Integration status | Activation conditions | Owner |
 | --- | --- | --- | --- | --- |
-| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI | **Integration when a caller exists ([ADR-0025](../docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md)) — not a standalone package; significant development, testing, and evaluation required** | Accepted Core adapter contract; migration/coexistence plan; representative parity, security, and licence evidence; real caller; rollback/recovery; operator acceptance | [Workspace owner](document-extraction/README.md) |
+| `document-extraction/` | CollisionDocNet document/email extraction libraries and CLI | **Integrated and retired (SIMPLI-013, [ADR-0025](../docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md)): the compound-file, legacy Word, and Outlook-item readers were folded into `Pegasus.Infrastructure` behind `IIntakeSourceReader` for `.doc`/`.msg` intake; the unused PDF/EML/DOCX/CLI projects were not carried (PdfPig, MimeKit, and OpenXml remain the live implementations)** | Met by the integrating change: Core contract (`IIntakeSourceReader`), real caller (intake reader), imported parser test suites, fail-closed fallback | Retired |
 
 ## Source provenance
 
@@ -18,8 +18,11 @@ units, or owners of Pegasus business policy.
 | `report-renderer/` | `collisionengineers/collisionsuite`, branch `main`, commit `acd3b0c28b59b60cfdbd8504daf0f5e8603bb59d`, path `active/collisionrenderer` | 108 files, 604,228 bytes, SHA-256 `a3b9b665b23b08b9dd61276d48b9f3a3c551a005213225e7941d0adf6d504471` |
 
 The report-renderer snapshot was retired after its caller-backed engine was
-integrated into the application by ADR-0025. Its immutable import provenance
-remains recorded here and in Git history; it is no longer a live workspace.
+integrated into the application by ADR-0025. The document-extraction snapshot
+was retired the same way when SIMPLI-013 integrated its `.doc`/`.msg` reader
+slice into `Pegasus.Infrastructure`. Both immutable import provenance records
+remain here and in Git history; neither is a live workspace, and no live
+workspace currently exists.
 
 The manifest hashes each tracked Git index path in UTF-8 immediately followed
 by its staged blob payload, in ordinal path order. A manifest proves source

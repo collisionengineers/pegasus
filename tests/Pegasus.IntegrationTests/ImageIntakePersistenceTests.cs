@@ -214,6 +214,102 @@ public sealed class ImageIntakePersistenceTests
             reference => Assert.Equal("AB12CDE-02", reference));
     }
 
+    [Fact]
+    public async Task GroupRegistrationCreatesOneIntakeAndMovesEveryMemberReceipt()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(client);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            client,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(TinyPngBase64))
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+
+        Guid[] stagedReceiptIds;
+        await using (var lookupScope = factory.Services.CreateAsyncScope())
+        {
+            var groups = lookupScope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
+            var group = await groups.GetAsync(groupId);
+            stagedReceiptIds = group!.Members
+                .OrderBy(member => member.Ordinal)
+                .Select(member => member.StagedReceiptId)
+                .ToArray();
+        }
+
+        var memberReceiptIds = new Guid[stagedReceiptIds.Length];
+        for (var index = 0; index < stagedReceiptIds.Length; index++)
+        {
+            await using var drainScope = factory.Services.CreateAsyncScope();
+            var evaluation = await IntakeWebDriver.DrainStagedAsync(
+                drainScope.ServiceProvider,
+                stagedReceiptIds[index]);
+            memberReceiptIds[index] = evaluation.ProcessedReceiptId;
+        }
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var resolver = services.GetRequiredService<IImageIntakeOriginResolver>();
+        var register = services.GetRequiredService<IRegisterImageIntake>();
+        var origin = await resolver.ResolveOriginAsync(memberReceiptIds[0], CancellationToken.None);
+        var record = await register.ExecuteAsync(
+            new(
+                origin!,
+                "AB12CDE",
+                StaffActor(),
+                $"image-intake-register:group:{groupId:N}",
+                "Staff registered the whole submission group.",
+                SubmissionGroupId: groupId),
+            CancellationToken.None);
+        Assert.Equal("AB12CDE-01", record.ImageIntakeReference);
+        Assert.Equal(groupId, record.SubmissionGroupId);
+
+        // Every member receipt moved to the registered decision against the
+        // ONE reference, in the registration transaction itself.
+        var receipts = services.GetRequiredService<IIntakeReceiptQueries>();
+        foreach (var memberReceiptId in memberReceiptIds)
+        {
+            var receipt = await receipts.GetAsync(memberReceiptId, CancellationToken.None);
+            Assert.Equal(IntakeDecision.ImageIntakeRegistered, receipt!.Decision);
+            Assert.Contains("AB12CDE-01", receipt.DecisionReason);
+        }
+
+        // The group-aware lookup reaches the one registration from a
+        // non-origin member's receipt.
+        var queries = services.GetRequiredService<IImageIntakeQueries>();
+        var fromSibling = await queries.GetByOriginReceiptAsync(
+            memberReceiptIds[1],
+            CancellationToken.None);
+        Assert.Equal(record.Id, fromSibling!.Record.Id);
+
+        // A second registration for the same group — different operation key,
+        // different member origin, exactly a racing sibling's attempt —
+        // returns the one existing row instead of allocating a second
+        // reference.
+        var siblingOrigin = await resolver.ResolveOriginAsync(
+            memberReceiptIds[1],
+            CancellationToken.None);
+        var replayed = await register.ExecuteAsync(
+            new(
+                siblingOrigin!,
+                "AB12CDE",
+                StaffActor(),
+                "image-intake-register-group-second-attempt",
+                "A sibling's racing registration attempt.",
+                SubmissionGroupId: groupId),
+            CancellationToken.None);
+        Assert.Equal(record.Id, replayed.Id);
+        var registered = await queries.SearchByRegistrationAsync("AB12CDE", CancellationToken.None);
+        Assert.Single(registered);
+    }
+
     private static async Task<Exception?> TryRegisterAsync(
         IServiceProvider services,
         Guid receiptId,

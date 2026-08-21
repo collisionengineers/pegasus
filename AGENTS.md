@@ -1,4 +1,4 @@
-<!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
+﻿<!-- kanmer:instructions:start — managed by kanmer-setup; edits inside will be overwritten -->
 # Kanmer operating instructions
 
 This repo's work is tracked on a Kanmer board in `.kanmer/`. In a Git repo set up
@@ -166,6 +166,16 @@ every task carries:
 - **Plans are proportional to their diff** — a plan longer than the change it
   describes, or carrying ritual steps, is itself over-engineered
   ([plan sizing](docs/engineering.md#plan-sizing)).
+- **Operator-facing explanation is a defect.** Labels, values, and at most
+  one consequence sentence on a destructive action; no field hints, no
+  how-it-works copy, no empty-state panels in read-only view. The design
+  authority's [No explanatory copy and page economy](docs/design/README.md#no-explanatory-copy-and-page-economy)
+  rules bind every UI change.
+- **Operator-facing explanation is a defect.** Labels, values, and at most
+  one consequence sentence on a destructive action; no field hints, no
+  how-it-works copy, no empty-state panels in read-only view. The design
+  authority's [No explanatory copy and page economy](docs/design/README.md#no-explanatory-copy-and-page-economy)
+  rules bind every UI change.
 - **Simplify without over-correcting** — clarity beats brevity; a helpful
   abstraction stays ([balance](docs/engineering.md#balance)).
 - **The simplification pass is quality, not correctness** — findings are

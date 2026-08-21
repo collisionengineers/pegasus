@@ -1,7 +1,5 @@
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -29,7 +27,7 @@ public sealed class DetailsModel(
     IReopenTriage reopen,
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
-    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : PageModel
+    IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
@@ -230,14 +228,8 @@ public sealed class DetailsModel(
 
     public static string StateLabel(TriageState state) => IndexModel.StateLabel(state);
 
-    public static string SourceChannelLabel(IntakeSourceChannel channel) => channel switch
-    {
-        IntakeSourceChannel.ManualUpload => "Manual upload",
-        IntakeSourceChannel.Mailbox => "Approved inbox",
-        IntakeSourceChannel.Automation => "Automation",
-        _ => throw new InvalidOperationException(
-            $"Unknown intake source channel value '{(int)channel}'.")
-    };
+    public static string SourceChannelLabel(IntakeSourceChannel channel) =>
+        Presentation.OperatorLabels.SourceChannel(channel);
 
     public static string RoadworthinessLabel(RoadworthinessFinding finding) => finding switch
     {
@@ -431,10 +423,7 @@ public sealed class DetailsModel(
 
     private bool TryGetActor(out Guid staffId, out ActionActor actor)
     {
-        if (StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var resolved)
+        if (TryGetActor(out var resolved)
             && Guid.TryParse(resolved.SubjectId, out staffId)
             && staffId != Guid.Empty)
         {
@@ -464,8 +453,6 @@ public sealed class DetailsModel(
 
         return (pollOutcomeId, sentEvidenceId);
     }
-
-    private static string NewOperationKey() => Guid.NewGuid().ToString("N");
 
     /// <summary>
     /// One wording and one clock for the case-edit disclosure, shared with the case workspace, so

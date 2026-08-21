@@ -57,18 +57,37 @@ public sealed class ProductionBoxCustodyTests
     }
 
     [Fact]
+    public void ConfigurationNamesAnUnresolvedKeyVaultReferenceDirectly()
+    {
+        // PLAT-013: during provisioning App Service can pass the literal
+        // @Microsoft.KeyVault(...) placeholder. That state must be named, not
+        // reported as a malformed Box JWT configuration.
+        var unresolvedConfig = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-config-json)",
+            "client-secret"));
+        var unresolvedSecret = Assert.Throws<InvalidOperationException>(() => BoxCustodyOptions.Create(
+            "https://api.box.com/2.0/",
+            "https://upload.box.com/api/2.0/",
+            "405543781910",
+            BoxConfigJson,
+            "@Microsoft.KeyVault(SecretUri=https://example.vault.azure.net/secrets/box-client-secret)"));
+
+        Assert.Contains("Box:ConfigJson is an unresolved Key Vault reference", unresolvedConfig.Message, StringComparison.Ordinal);
+        Assert.Contains("Box:ClientSecret is an unresolved Key Vault reference", unresolvedSecret.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ExistingCaseRootIsReturnedOnlyAfterAncestryReachesTheApprovedRoot()
     {
         var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
         var expectedName = "QDOS31001";
-        var binding = BoxCaseCustody.CaseBinding(caseId, expectedName);
         var handler = new DelegateHandler(request => request.RequestUri!.AbsolutePath switch
         {
             "/2.0/folders/405543781910/items" => Json($$"""{"entries":[{"id":"case-folder","name":"{{expectedName}}","type":"folder","etag":"1"}]}"""),
             "/2.0/folders/case-folder" => Json("""{"id":"case-folder","parent":{"id":"405543781910"},"trashed_at":null}"""),
-            "/2.0/folders/case-folder/items" => Json("""{"entries":[{"id":"case-binding","name":"pegasus-case-binding.json","type":"file","etag":"1"}]}"""),
-            "/2.0/files/case-binding" => Json("""{"id":"case-binding","parent":{"id":"case-folder"},"trashed_at":null}"""),
-            "/2.0/files/case-binding/content" => Bytes(binding),
             _ => throw new InvalidOperationException(request.RequestUri.AbsoluteUri)
         });
         var custody = Create(handler);
@@ -107,7 +126,6 @@ public sealed class ProductionBoxCustodyTests
         var hash = Convert.ToHexString(SHA256.HashData(bytes));
         var expectedCaseName = "QDOS31001";
         var expectedFileName = "001 instruction.eml";
-        var binding = BoxCaseCustody.CaseBinding(caseId, expectedCaseName);
         var handler = new DelegateHandler(request =>
         {
             var path = request.RequestUri!.AbsolutePath;
@@ -117,7 +135,7 @@ public sealed class ProductionBoxCustodyTests
             }
             if (path == "/2.0/folders/case-folder/items")
             {
-                return Json("""{"entries":[{"id":"case-binding","name":"pegasus-case-binding.json","type":"file","etag":"1"},{"id":"evidence","name":"Evidence","type":"folder","etag":"1"}]}""");
+                return Json("""{"entries":[{"id":"evidence","name":"Evidence","type":"folder","etag":"1"}]}""");
             }
             if (path == "/2.0/folders/evidence/items")
             {
@@ -127,10 +145,6 @@ public sealed class ProductionBoxCustodyTests
             {
                 return Json("""{"entries":[]}""");
             }
-            if (path == "/2.0/files/case-binding/content")
-            {
-                return Bytes(binding);
-            }
             if (path == "/api/2.0/files/content")
             {
                 Assert.Equal(HttpMethod.Post, request.Method);
@@ -139,7 +153,6 @@ public sealed class ProductionBoxCustodyTests
             return path switch
             {
                 "/2.0/folders/case-folder" => Parent("405543781910"),
-                "/2.0/files/case-binding" => Parent("case-folder"),
                 "/2.0/folders/evidence" => Parent("case-folder"),
                 "/2.0/folders/instruction" => Parent("evidence"),
                 "/2.0/files/file-version" => Parent("instruction"),
@@ -211,6 +224,15 @@ public sealed class ProductionBoxCustodyTests
             "source",
             sourceBytes.Length);
         await custody.RetainAcceptedIntakeSourceAsync(root, source, "source-retain", default);
+        var attachment = new IntakeSourceCustodyReference(
+            source.IntakeReceiptId,
+            "estimate.pdf",
+            "application/pdf",
+            Sha256(sourceBytes),
+            "source",
+            sourceBytes.Length);
+        await custody.RetainAcceptedIntakeAttachmentAsync(
+            root, attachment, 2, "attachment-retain", default);
         await custody.CreateAuditReferenceFolderAsync(
             root, "AUD31001", "123456789ABCDEFGHJKMNPQRS0", "audit-create", default);
 
@@ -223,12 +245,14 @@ public sealed class ProductionBoxCustodyTests
         await documents.StoreVersionAsync(Address(caseId, 2, 2, sameName), second, Sha256(second), default);
         await documents.StoreVersionAsync(Address(caseId, 3, 1, sameName), other, Sha256(other), default);
 
-        Assert.True(box.PathExists("QDOS31001/pegasus-case-binding.json"));
+        Assert.False(box.PathExists("QDOS31001/pegasus-case-binding.json"));
         Assert.True(box.PathExists("QDOS31001/Evidence/Original instruction/001 instruction.eml"));
+        Assert.True(box.PathExists("QDOS31001/Evidence/Original instruction/002 estimate.pdf"));
         Assert.True(box.PathExists("QDOS31001/Evidence/Images/002 damage photo.jpg/Revision 001/damage photo.jpg"));
         Assert.True(box.PathExists("QDOS31001/Evidence/Images/002 damage photo.jpg/Revision 002/damage photo.jpg"));
         Assert.True(box.PathExists("QDOS31001/Evidence/Images/003 damage photo.jpg/Revision 001/damage photo.jpg"));
-        Assert.True(box.PathExists("QDOS31001/AUD31001/pegasus-audit-binding.json"));
+        Assert.False(box.PathExists("QDOS31001/AUD31001/pegasus-audit-binding.json"));
+        Assert.True(box.PathExists("QDOS31001/AUD31001"));
         Assert.Equal(2, box.RenameCount);
         Assert.Equal(0, box.DeleteCount);
         Assert.DoesNotContain(box.FinalPathSegments, segment =>
@@ -244,10 +268,6 @@ public sealed class ProductionBoxCustodyTests
         box.SetMediaType(
             "QDOS31001/Evidence/Original instruction/001 instruction.eml",
             "message/rfc822");
-        box.CorruptFile("QDOS31001/Evidence/Original instruction/pegasus-accepted-source-binding.json");
-        await Assert.ThrowsAsync<InvalidDataException>(() => custody.RetainAcceptedIntakeSourceAsync(
-            root, source, "source-wrong-binding", default));
-
         var lostSourceResponse = new StatefulBox();
         var lostResponseCustody = new BoxCaseCustody(
             new MemoryArtifactStore(sourceBytes), CreateClient(lostSourceResponse));
@@ -263,15 +283,9 @@ public sealed class ProductionBoxCustodyTests
     }
 
     [Fact]
-    public async Task WrongBindingTypeBytesAndAncestryFailClosedWithoutMutation()
+    public async Task WrongTypeAndAncestryFailClosedWithoutMutation()
     {
         var caseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
-
-        var wrongBinding = new StatefulBox();
-        wrongBinding.SeedBoundCase("QDOS31001", Encoding.UTF8.GetBytes("wrong binding"));
-        await Assert.ThrowsAsync<InvalidDataException>(() => new BoxCaseCustody(
-            new EmptyArtifactStore(), CreateClient(wrongBinding)).GetExistingCaseRootAsync(
-                caseId, "QDOS31001", default));
 
         var wrongType = new StatefulBox();
         wrongType.SeedFileAtRoot("QDOS31001", []);
@@ -280,13 +294,12 @@ public sealed class ProductionBoxCustodyTests
                 caseId, "QDOS31001", "0123456789ABCDEFGHJKMNPQRS", "wrong-type", default));
 
         var wrongAncestry = new StatefulBox();
-        wrongAncestry.SeedBoundCase("QDOS31001", BoxCaseCustody.CaseBinding(caseId, "QDOS31001"));
+        wrongAncestry.SeedEmptyCase("QDOS31001");
         wrongAncestry.MakeCaseMetadataOutside("QDOS31001");
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => new BoxCaseCustody(
             new EmptyArtifactStore(), CreateClient(wrongAncestry)).GetExistingCaseRootAsync(
                 caseId, "QDOS31001", default));
 
-        Assert.Equal(0, wrongBinding.MutationCount);
         Assert.Equal(0, wrongType.MutationCount);
         Assert.Equal(0, wrongAncestry.MutationCount);
     }
@@ -313,18 +326,24 @@ public sealed class ProductionBoxCustodyTests
             root, "AUD31001", auditToken, "audit-create", default);
 
         Assert.NotEmpty(audit);
-        Assert.True(box.PathExists("QDOS31001/pegasus-case-binding.json"));
-        Assert.True(box.PathExists("QDOS31001/AUD31001/pegasus-audit-binding.json"));
+        Assert.True(box.PathExists("QDOS31001"));
+        Assert.True(box.PathExists("QDOS31001/AUD31001"));
+        Assert.False(box.PathExists("QDOS31001/pegasus-case-binding.json"));
+        Assert.False(box.PathExists("QDOS31001/AUD31001/pegasus-audit-binding.json"));
         Assert.False(box.PathExists($".pegasus-create-{caseToken}"));
         Assert.False(box.PathExists($"QDOS31001/.pegasus-create-{auditToken}"));
         Assert.Equal(2, box.RenameCount);
         Assert.Equal(0, box.DeleteCount);
 
-        var unrelated = new StatefulBox();
-        unrelated.SeedEmptyCase("QDOS31001");
-        await Assert.ThrowsAsync<InvalidDataException>(() => new BoxCaseCustody(
-            new EmptyArtifactStore(), CreateClient(unrelated)).CreateCaseRootAsync(
-                caseId, "QDOS31001", caseToken, "case-create", default));
+        // DOCS-005: a same-name folder is the case's — the durable identity
+        // lives in the database, not in a marker file.
+        var preExisting = new StatefulBox();
+        preExisting.SeedEmptyCase("QDOS31001");
+        var adopted = await new BoxCaseCustody(
+            new EmptyArtifactStore(), CreateClient(preExisting)).CreateCaseRootAsync(
+                caseId, "QDOS31001", caseToken, "case-create", default);
+        Assert.Equal(caseId, adopted.CaseId);
+        Assert.Equal(0, preExisting.MutationCount);
 
         var expiredBeforeCreate = new StatefulBox();
         await Assert.ThrowsAsync<CustodyProcessingLeaseLostException>(() => new BoxCaseCustody(
@@ -357,8 +376,11 @@ public sealed class ProductionBoxCustodyTests
         var guardedCustody = new BoxCaseCustody(
             new MemoryArtifactStore("accepted source"u8.ToArray()),
             CreateClient(expiresAfterPromotion));
+        // The unbound create spends two guarded effects (staging create,
+        // promotion); the budget ends exactly there so the follow-on retain is
+        // refused before it can create Evidence (DOCS-005 kept this boundary).
         var promotionGuard = new CustodyEffectLeaseGuard(_ =>
-            Task.FromResult(Interlocked.Increment(ref promotionChecks) <= 3));
+            Task.FromResult(Interlocked.Increment(ref promotionChecks) <= 2));
         var promotedRoot = await guardedCustody.CreateCaseRootAsync(
             caseId,
             "QDOS31001",
@@ -380,7 +402,7 @@ public sealed class ProductionBoxCustodyTests
                 "source-boundary",
                 promotionGuard,
                 default));
-        Assert.True(expiresAfterPromotion.PathExists("QDOS31001/pegasus-case-binding.json"));
+        Assert.True(expiresAfterPromotion.PathExists("QDOS31001"));
         Assert.False(expiresAfterPromotion.PathExists("QDOS31001/Evidence"));
     }
 
@@ -398,6 +420,102 @@ public sealed class ProductionBoxCustodyTests
 
     private static string Sha256(ReadOnlySpan<byte> content) =>
         Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
+
+    [Fact]
+    public async Task ImageCaseFolderStoresOrdinalNamedImagesIdempotently()
+    {
+        var box = new StatefulBox();
+        var imageBytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(imageBytes), CreateClient(box));
+        var imageIntakeId = Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10");
+        var imageRoot = await custody.CreateCaseRootAsync(
+            imageIntakeId, "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root-create", default);
+        var source = new IntakeSourceCustodyReference(
+            Guid.NewGuid(),
+            "photo one.jpg",
+            "image/jpeg",
+            Sha256(imageBytes),
+            "source",
+            imageBytes.Length);
+
+        await custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain-1", default);
+        Assert.False(box.PathExists("AB12CDE-01/pegasus-case-binding.json"));
+        Assert.True(box.PathExists("AB12CDE-01/001 photo one.jpg"));
+
+        // A replayed retention verifies the immutable content instead of
+        // mutating anything again.
+        var mutationsAfterFirst = box.MutationCount;
+        await custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain-1", default);
+        Assert.Equal(mutationsAfterFirst, box.MutationCount);
+
+        // Corrupted remote content fails the replay closed.
+        box.CorruptFile("AB12CDE-01/001 photo one.jpg");
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            custody.RetainImageCaseAssetAsync(imageRoot, source, 1, "image-retain-1", default));
+    }
+
+    [Fact]
+    public async Task MergeFoldsImageFilesIntoTheCaseEvidenceAndRemovesTheEmptiedFolder()
+    {
+        var box = new StatefulBox { AllowDeletes = true };
+        var imageBytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(imageBytes), CreateClient(box));
+        var source = new IntakeSourceCustodyReference(
+            Guid.NewGuid(),
+            "photo one.jpg",
+            "image/jpeg",
+            Sha256(imageBytes),
+            "source",
+            imageBytes.Length);
+        var firstImageRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10"),
+            "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "first-image-root", default);
+        await custody.RetainImageCaseAssetAsync(firstImageRoot, source, 1, "first-retain", default);
+        var secondImageRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("30213243-5465-7687-98a9-bacbdcedfe11"),
+            "AB12CDE-02", "123456789ABCDEFGHJKMNPQRS0", "second-image-root", default);
+        await custody.RetainImageCaseAssetAsync(secondImageRoot, source, 1, "second-retain", default);
+        var caseRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("40213243-5465-7687-98a9-bacbdcedfe12"),
+            "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "case-root", default);
+
+        await custody.MergeImageCaseContentsAsync(firstImageRoot, caseRoot, "first-fold", default);
+        Assert.True(box.PathExists("QDOS31001/Evidence/Images/001 photo one.jpg"));
+        Assert.False(box.PathExists("AB12CDE-01"));
+
+        // A replayed fold after the folder is gone is an idempotent no-op.
+        var mutationsAfterFold = box.MutationCount;
+        await custody.MergeImageCaseContentsAsync(firstImageRoot, caseRoot, "first-fold", default);
+        Assert.Equal(mutationsAfterFold, box.MutationCount);
+
+        // A same-named file from a second Image intake keeps a unique name by
+        // carrying its source reference.
+        await custody.MergeImageCaseContentsAsync(secondImageRoot, caseRoot, "second-fold", default);
+        Assert.True(box.PathExists("QDOS31001/Evidence/Images/AB12CDE-02 001 photo one.jpg"));
+        Assert.False(box.PathExists("AB12CDE-02"));
+    }
+
+    [Fact]
+    public async Task MergeFailsClosedOnUnexpectedContentAndTheRootCanNeverBeRemoved()
+    {
+        var box = new StatefulBox { AllowDeletes = true };
+        var imageBytes = Encoding.UTF8.GetBytes("retained image bytes");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(imageBytes), CreateClient(box));
+        var imageRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("20213243-5465-7687-98a9-bacbdcedfe10"),
+            "AB12CDE-01", "0123456789ABCDEFGHJKMNPQRS", "image-root", default);
+        var caseRoot = await custody.CreateCaseRootAsync(
+            Guid.Parse("40213243-5465-7687-98a9-bacbdcedfe12"),
+            "QDOS31001", "23456789ABCDEFGHJKMNPQRS01", "case-root", default);
+        await CreateClient(box).CreateFolderAsync(imageRoot.RemoteId, "Nested", default);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            custody.MergeImageCaseContentsAsync(imageRoot, caseRoot, "fold", default));
+        Assert.True(box.PathExists("AB12CDE-01/Nested"));
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            CreateClient(box).DeleteFolderAsync("405543781910", default));
+    }
 
     private static BoxCaseCustody Create(DelegateHandler handler, IIntakeArtifactStore? artifactStore = null) => new(
         artifactStore ?? new EmptyArtifactStore(),
@@ -487,7 +605,7 @@ public sealed class ProductionBoxCustodyTests
             public string Id { get; } = id;
             public string Name { get; set; } = name;
             public string Type { get; } = type;
-            public string? ParentId { get; } = parentId;
+            public string? ParentId { get; set; } = parentId;
             public byte[]? Content { get; set; } = content;
             public string? MediaType { get; set; } = mediaType;
             public string? MetadataParentOverride { get; set; }
@@ -501,7 +619,9 @@ public sealed class ProductionBoxCustodyTests
 
         public bool LoseNextFolderCreateResponse { get; set; }
         public string? LoseNextFileUploadResponseForName { get; set; }
+        public bool AllowDeletes { get; set; }
         public int RenameCount { get; private set; }
+        public int MoveCount { get; private set; }
         public int DeleteCount { get; private set; }
         public int MutationCount { get; private set; }
         public IEnumerable<string> FinalPathSegments => nodes.Values.Select(node => node.Name);
@@ -630,10 +750,48 @@ public sealed class ProductionBoxCustodyTests
                 MutationCount++;
                 return Item(nodes[id]);
             }
+            if (request.Method == HttpMethod.Put && path.StartsWith("/2.0/files/", StringComparison.Ordinal))
+            {
+                var id = path["/2.0/files/".Length..];
+                using var body = JsonDocument.Parse(request.Content!.ReadAsStringAsync().GetAwaiter().GetResult());
+                var name = body.RootElement.GetProperty("name").GetString()!;
+                var parent = body.RootElement.GetProperty("parent").GetProperty("id").GetString()!;
+                var conflict = Find(parent, name);
+                if (conflict is not null && !string.Equals(conflict.Id, id, StringComparison.Ordinal))
+                {
+                    return new(HttpStatusCode.Conflict) { Content = new StringContent("conflict") };
+                }
+                nodes[id].Name = name;
+                nodes[id].ParentId = parent;
+                MoveCount++;
+                MutationCount++;
+                return Item(nodes[id]);
+            }
             if (request.Method == HttpMethod.Delete)
             {
                 DeleteCount++;
-                throw new InvalidOperationException("Folder/custody deletion was not expected.");
+                if (!AllowDeletes)
+                {
+                    throw new InvalidOperationException("Folder/custody deletion was not expected.");
+                }
+                if (path.StartsWith("/2.0/folders/", StringComparison.Ordinal))
+                {
+                    var id = path["/2.0/folders/".Length..];
+                    if (nodes.Values.Any(node => node.ParentId == id))
+                    {
+                        return new(HttpStatusCode.Conflict) { Content = new StringContent("not empty") };
+                    }
+                    nodes.Remove(id);
+                    MutationCount++;
+                    return new(HttpStatusCode.NoContent);
+                }
+                if (path.StartsWith("/2.0/files/", StringComparison.Ordinal))
+                {
+                    nodes.Remove(path["/2.0/files/".Length..]);
+                    MutationCount++;
+                    return new(HttpStatusCode.NoContent);
+                }
+                throw new InvalidOperationException($"Unexpected Box delete: {request.RequestUri}");
             }
             throw new InvalidOperationException($"Unexpected Box request: {request.Method} {request.RequestUri}");
         }

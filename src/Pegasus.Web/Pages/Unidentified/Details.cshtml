@@ -1,4 +1,4 @@
-@page "/Unidentified/{id:guid}"
+﻿@page "/Unidentified/{id:guid}"
 @model Pegasus.Web.Pages.Unidentified.DetailsModel
 @using Pegasus.Core.Intake.Unidentified
 @using Pegasus.Web.Presentation
@@ -23,6 +23,12 @@
     </dl>
     @if (Model.SourceReceipt is { } receipt)
     {
+        @if (receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            <a class="upload-thumb" href="/Received/@receipt.Id/Image" target="_blank">
+                <img src="/Received/@receipt.Id/Image" loading="lazy" alt="@receipt.SourceFileName" />
+            </a>
+        }
         <a asp-page="/Intake/Details" asp-route-id="@receipt.Id">Open the received file</a>
     }
 </section>

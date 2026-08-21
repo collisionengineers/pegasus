@@ -100,14 +100,32 @@ internal sealed class EfRetainedMailboxMessageStore(
     {
         ArgumentNullException.ThrowIfNull(scope);
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var searchTerm = scope.SearchTerm?.Trim();
         var folderScope = ToCode(scope.Folder);
         var matches = context.RetainedMailboxMessages
             .AsNoTracking()
             .Where(item => item.FolderScope == folderScope);
+        if (scope.Folder == MailFolderScope.Inbox && searchTerm is null)
+        {
+            matches = matches.Where(item => !context.RetainedMailFolderMoves.Any(move =>
+                move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded"));
+        }
         if (scope.MailboxId is { } mailboxId)
         {
             matches = matches.Where(item => item.MailboxId == mailboxId);
         }
+        if (searchTerm is not null)
+        {
+            matches = matches.Where(item =>
+                item.Attachments.Any(attachment => attachment.FileName.Contains(searchTerm))
+                || context.IntakeReceipts.Any(receipt =>
+                    receipt.SourceChannel == "mailbox"
+                    && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                    && receipt.SearchDocuments.Any(document =>
+                        document.Text != null
+                        && document.Text.Contains(searchTerm))));
+        }
+        matches = ApplyClassificationFilter(matches, context, scope);
 
         // Counted and paged in SQL. Reading every row to take twenty-five of them
         // makes the list slower the more mail is retained, which is the one thing a
@@ -129,8 +147,31 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.ReceivedAtUtc,
                 item.IsRead,
                 item.Attachments.Count,
-                item.ExternalReceiptToken))
+                item.ExternalReceiptToken,
+                searchTerm != null
+                    && context.IntakeReceipts.Any(receipt =>
+                        receipt.SourceChannel == "mailbox"
+                        && receipt.ExternalReceiptToken == item.ExternalReceiptToken
+                        && receipt.SearchDocuments.Any(document =>
+                            document.AttachmentFileName == null
+                            && document.Text != null
+                            && document.Text.Contains(searchTerm))),
+                context.RetainedMailFolderMoves
+                    .Where(move => move.RetainedMailboxMessageId == item.Id && move.Outcome == "succeeded")
+                    .OrderByDescending(move => move.RecordedAtUtc)
+                    .ThenByDescending(move => move.Id)
+                    .Select(move => move.FolderType)
+                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
+
+        if (searchTerm is not null && rows.Count > 0)
+        {
+            rows = await AddSearchMatchesAsync(
+                context,
+                rows,
+                searchTerm,
+                cancellationToken);
+        }
 
         var summaries = await MapSummariesAsync(context, rows, cancellationToken);
         return new(
@@ -143,7 +184,8 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     public async Task<RetainedMailDetail?> GetAsync(
         Guid id,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? searchTerm = null)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var entity = await context.RetainedMailboxMessages
@@ -154,24 +196,6 @@ internal sealed class EfRetainedMailboxMessageStore(
         {
             return null;
         }
-
-        var summary = (await MapSummariesAsync(
-            context,
-            [
-                new(
-                    entity.Id,
-                    entity.MailboxId,
-                    entity.MailboxAddress,
-                    entity.SenderAddress,
-                    entity.SenderDisplayName,
-                    entity.Subject,
-                    entity.BodyExcerpt,
-                    entity.ReceivedAtUtc,
-                    entity.IsRead,
-                    entity.Attachments.Count,
-                    entity.ExternalReceiptToken)
-            ],
-            cancellationToken))[0];
 
         // Retained scope only: a matching conversation identity never reaches for a
         // message this application has not already retained.
@@ -200,16 +224,70 @@ internal sealed class EfRetainedMailboxMessageStore(
             {
                 Classification = item.MailClassificationDecision!.Outcome,
                 Route = item.MailRouteDecision!.Disposition,
-                EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress
+                EffectiveSenderAddress = item.MailRouteDecision!.EffectiveSenderAddress,
+                BodySearchText = item.SearchDocuments
+                    .Where(document => document.AttachmentFileName == null)
+                    .Select(document => document.Text)
+                    .SingleOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
+        var currentFolderType = await context.RetainedMailFolderMoves.AsNoTracking()
+            .Where(move => move.RetainedMailboxMessageId == entity.Id && move.Outcome == "succeeded")
+            .OrderByDescending(move => move.RecordedAtUtc)
+            .ThenByDescending(move => move.Id)
+            .Select(move => move.FolderType)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var summaryRows = new List<SummaryRow>
+        {
+            new(
+                entity.Id,
+                entity.MailboxId,
+                entity.MailboxAddress,
+                entity.SenderAddress,
+                entity.SenderDisplayName,
+                entity.Subject,
+                entity.BodyExcerpt,
+                entity.ReceivedAtUtc,
+                entity.IsRead,
+                entity.Attachments.Count,
+                entity.ExternalReceiptToken,
+                searchTerm is not null
+                    && receipt?.BodySearchText?.Contains(
+                        searchTerm,
+                        StringComparison.OrdinalIgnoreCase) == true,
+                currentFolderType)
+        };
+        if (searchTerm is not null)
+        {
+            summaryRows = await AddSearchMatchesAsync(
+                context,
+                summaryRows,
+                searchTerm,
+                cancellationToken);
+        }
+        var summary = (await MapSummariesAsync(context, summaryRows, cancellationToken))[0];
 
         // A staff forward is de-cluttered on read so existing (write-once) rows
         // are corrected too: the effective sender differs from the transport
         // sender exactly when the route unwrapped a Collision Engineers forward.
         var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
             && !string.Equals(effectiveSender, entity.SenderAddress, StringComparison.OrdinalIgnoreCase);
-        var body = StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
+        var body = receipt?.BodySearchText
+            ?? StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
+
+        var searchableAttachments = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.SourceChannel == "mailbox"
+                && item.ExternalReceiptToken == entity.ExternalReceiptToken)
+            .SelectMany(item => item.SearchDocuments)
+            .Where(item => item.AttachmentFileName != null && item.Text != null)
+            .Select(item => item.AttachmentOrdinal)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+        var searchableOrdinals = searchableAttachments.Where(item => item is not null)
+            .Select(item => item!.Value)
+            .ToHashSet();
 
         return new(
             summary,
@@ -221,7 +299,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                 .Select(item => new RetainedMailAttachment(
                     item.FileName,
                     item.MediaType,
-                    item.ContentLength))
+                    item.ContentLength,
+                    searchableOrdinals.Contains(item.Ordinal)))
                 .ToArray(),
             thread,
             ParseFolderScope(entity.FolderScope),
@@ -575,28 +654,26 @@ internal sealed class EfRetainedMailboxMessageStore(
                 item.Id,
                 item.ExternalReceiptToken,
                 item.Decision,
+                Classification = item.MailClassificationDecision,
                 EffectiveSenderAddress = item.MailRouteDecision == null
                     ? null
-                    : item.MailRouteDecision.EffectiveSenderAddress
+                    : item.MailRouteDecision.EffectiveSenderAddress,
+                // Enough cleaned body to excerpt from once the forwarded
+                // header block is skipped; never the whole document text.
+                BodyHead = item.SearchDocuments
+                    .Where(document => document.AttachmentFileName == null && document.Text != null)
+                    .Select(document => document.Text!.Substring(0, 600))
+                    .FirstOrDefault()
             })
             .ToListAsync(cancellationToken);
         var receiptsByToken = receipts.ToDictionary(
             item => item.ExternalReceiptToken,
             StringComparer.Ordinal);
         var receiptIds = receipts.Select(item => item.Id).ToArray();
-        var cases = receiptIds.Length == 0
-            ? []
-            : await context.CaseIntakeLinks
-                .AsNoTracking()
-                .Where(link => receiptIds.Contains(link.IntakeReceiptId))
-                .Select(link => new
-                {
-                    link.IntakeReceiptId,
-                    link.CaseId,
-                    link.Case.Reference
-                })
-                .ToListAsync(cancellationToken);
-        var casesByReceipt = cases.ToDictionary(item => item.IntakeReceiptId);
+        var casesByReceipt = await CurrentIntakeAssociations.ReadAsync(
+            context,
+            receiptIds,
+            cancellationToken);
         var allocationStates = receiptIds.Length == 0
             ? new Dictionary<Guid, IntakeAllocationState>()
             : (await context.IntakeAllocationAttempts
@@ -631,11 +708,23 @@ internal sealed class EfRetainedMailboxMessageStore(
                 var allocationState = receipt is null
                     ? null
                     : allocationStates.GetValueOrDefault(receipt.Id);
+                var classification = receipt?.Classification is null
+                    ? null
+                    : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification);
                 var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
                     && !string.Equals(effectiveSender, row.SenderAddress, StringComparison.OrdinalIgnoreCase);
-                var cleanedExcerpt = row.BodyExcerpt is { } excerpt
-                    ? StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)
-                    : null;
+                // The preview line is the message as its sender wrote it: the
+                // receipt's cleaned body with the forwarded header skipped.
+                // Only when no receipt resolved does the stored raw excerpt
+                // stand in, cleaned of the forwarder wrapper.
+                var cleanedExcerpt = receipt?.BodyHead is { } bodyHead
+                    ? Excerpt(StaffForwardBodyCleaner.TrimProviderFooter(
+                        StaffForwardBodyCleaner.SplitForwardedHeader(bodyHead).Body))
+                    : row.BodyExcerpt is { } excerpt
+                        ? Excerpt(StaffForwardBodyCleaner.TrimProviderFooter(
+                            StaffForwardBodyCleaner.SplitForwardedHeader(
+                                StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)).Body))
+                        : null;
                 if (string.IsNullOrWhiteSpace(cleanedExcerpt))
                 {
                     cleanedExcerpt = null;
@@ -658,11 +747,64 @@ internal sealed class EfRetainedMailboxMessageStore(
                         ? null
                         : EfIntakeReceiptStore.ParseDecision(receipt.Decision),
                     receipt?.Id,
-                    linkedCase?.CaseId,
-                    linkedCase?.Reference,
-                    allocationState);
+                    // The manual acceptance route writes a CaseIntakeLinks row;
+                    // the automatic allocation route records its created case on
+                    // the succeeded attempt instead. Either one is the case.
+                    linkedCase?.CaseId ?? allocationState?.CaseId,
+                    linkedCase?.Reference ?? allocationState?.CaseReference,
+                    allocationState,
+                    row.SearchMatches,
+                    row.CurrentFolderType is null
+                        ? null
+                        : Enum.Parse<MailLogicalFolderType>(row.CurrentFolderType),
+                    classification,
+                    classification is null
+                        ? null
+                        : MailOperationalDestinationPolicy.Map(classification));
             })
             .ToArray();
+    }
+
+    private static IQueryable<RetainedMailboxMessageEntity> ApplyClassificationFilter(
+        IQueryable<RetainedMailboxMessageEntity> messages,
+        PegasusDbContext context,
+        MailWorkspaceScope scope)
+    {
+        if (scope.Destination is null && scope.DetailedClassification is null)
+        {
+            return messages;
+        }
+
+        var query = scope.Destination is { } destination
+            ? MailOperationalDestinationPolicy.Query(destination)
+            : new MailOperationalDestinationQuery(
+                ExactClassification: scope.DetailedClassification);
+        var familyNames = query.Families
+            .Select(MailTaxonomy.CategoryName)
+            .ToArray();
+        var exact = query.ExactClassification;
+        var exactDirection = exact?.Direction.ToString().ToLowerInvariant();
+        var exactFamily = exact?.Name;
+        var exactSubtype = exact?.Subtype;
+        const string classified = "classified";
+
+        return messages.Where(message => context.IntakeReceipts.Any(receipt =>
+            receipt.SourceChannel == "mailbox"
+            && receipt.ExternalReceiptToken == message.ExternalReceiptToken
+            && receipt.MailClassificationDecision != null
+            && (query.IncludesUnidentified
+                ? receipt.MailClassificationDecision.Outcome != classified
+                : receipt.MailClassificationDecision.Outcome == classified
+                    && ((query.IncludesOther
+                            && receipt.MailClassificationDecision.OtherName != null)
+                        || (receipt.MailClassificationDecision.Direction == "received"
+                            && receipt.MailClassificationDecision.Family != null
+                            && familyNames.Contains(receipt.MailClassificationDecision.Family))
+                        || (exact != null
+                            && receipt.MailClassificationDecision.OtherName == null
+                            && receipt.MailClassificationDecision.Direction == exactDirection
+                            && receipt.MailClassificationDecision.Family == exactFamily
+                            && receipt.MailClassificationDecision.Subtype == exactSubtype)))));
     }
 
     /// <summary>
@@ -756,5 +898,62 @@ internal sealed class EfRetainedMailboxMessageStore(
         DateTimeOffset ReceivedAtUtc,
         bool IsRead,
         int AttachmentCount,
-        string ExternalReceiptToken);
+        string ExternalReceiptToken,
+        bool BodyMatched,
+        string? CurrentFolderType,
+        IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null);
+
+    private static async Task<List<SummaryRow>> AddSearchMatchesAsync(
+        PegasusDbContext context,
+        IReadOnlyList<SummaryRow> rows,
+        string searchTerm,
+        CancellationToken cancellationToken)
+    {
+        var messageIds = rows.Select(item => item.Id).ToArray();
+        var tokens = rows.Select(item => item.ExternalReceiptToken).ToArray();
+        var fileNameMatches = await context.RetainedMailboxAttachments
+            .AsNoTracking()
+            .Where(item => messageIds.Contains(item.RetainedMailboxMessageId)
+                && item.FileName.Contains(searchTerm))
+            .Select(item => new { item.RetainedMailboxMessageId, item.FileName, item.Ordinal })
+            .ToListAsync(cancellationToken);
+        var contentMatches = await context.IntakeReceipts
+            .AsNoTracking()
+            .Where(item => item.SourceChannel == "mailbox"
+                && tokens.Contains(item.ExternalReceiptToken))
+            .SelectMany(
+                receipt => receipt.SearchDocuments
+                    .Where(document => document.AttachmentFileName != null
+                        && document.Text != null
+                        && document.Text.Contains(searchTerm)),
+                (receipt, document) => new
+                {
+                    receipt.ExternalReceiptToken,
+                    document.AttachmentFileName,
+                    document.AttachmentOrdinal
+                })
+            .ToListAsync(cancellationToken);
+
+        return rows.Select(row =>
+        {
+            var found = new List<RetainedMailSearchMatch>();
+            if (row.BodyMatched)
+            {
+                found.Add(new(MailSearchMatchKind.MessageBody));
+            }
+            found.AddRange(fileNameMatches
+                .Where(item => item.RetainedMailboxMessageId == row.Id)
+                .Select(item => new RetainedMailSearchMatch(
+                    MailSearchMatchKind.AttachmentFileName,
+                    item.FileName,
+                    item.Ordinal)));
+            found.AddRange(contentMatches
+                .Where(item => item.ExternalReceiptToken == row.ExternalReceiptToken)
+                .Select(item => new RetainedMailSearchMatch(
+                    MailSearchMatchKind.AttachmentContent,
+                    item.AttachmentFileName,
+                    item.AttachmentOrdinal)));
+            return row with { SearchMatches = found.Distinct().ToArray() };
+        }).ToList();
+    }
 }

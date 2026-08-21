@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Pegasus.Core.Address;
 using Pegasus.Core.Cases;
@@ -49,7 +49,7 @@ public sealed class ProviderInspectionModeAcceptanceTests
 
         Assert.Equal(
             "1 Test Street, London",
-            projection.Inspection.Address.Suggestion?.Value);
+            projection.Inspection.Address.Fact?.Value);
 
         Assert.Equal(
             1,

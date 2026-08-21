@@ -17,7 +17,7 @@ namespace Pegasus.Infrastructure.Intake;
 public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider timeProvider) : IIntakeSourceReader
 {
     private const string ReaderKey = "mimekit_pdfpig_openxml";
-    private const string ReaderVersion = "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1";
+    private const string ReaderVersion = "mimekit-4.17.0;pdfpig-0.1.15;openxml-3.5.1;collisiondocnet-doc-msg-0.1";
     private const int MinimumReadablePdfCharacters = 80;
     private const double ScannedPageImageCoverage = 0.8;
     private const int MaximumPdfTextCharacters = 5 * 1024 * 1024;
@@ -105,17 +105,21 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 }
 
                 return ReadOutcome.Readable;
-            case SourceFormat.Deferred:
-                result.Issues.Add(new(
-                    "deferred_file_type",
-                    $"{Path.GetExtension(fileName).ToLowerInvariant()} extraction is deferred; the file is retained for operator review.",
-                    IntakeEvidenceSource.DocumentContent));
-                return ReadOutcome.Readable;
+            case SourceFormat.Doc:
+                return ReadDoc(bytes, sourceLabel, result, cancellationToken);
+            case SourceFormat.Msg:
+                return await ReadMsgAsync(
+                    bytes,
+                    sourceLabel,
+                    result,
+                    emailSenderIdentityKind
+                        ?? (isRoot ? IntakeSenderIdentityKind.Transport : null),
+                    cancellationToken);
             default:
                 if (isRoot)
                 {
                     result.FailureCode = "unsupported_file_type";
-                    result.FailureReason = "Supported sources are .eml, .pdf, .docx, .jpg, .jpeg, .png, with .doc and .msg retained for manual sorting.";
+                    result.FailureReason = "Supported sources are .eml, .msg, .pdf, .doc, .docx, .jpg, .jpeg, .png.";
                     return ReadOutcome.Unsupported;
                 }
 
@@ -809,6 +813,12 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             var nestedFileName = messagePart.ContentDisposition?.FileName
                 ?? messagePart.ContentType.Name
                 ?? $"attached-email-{nestedNumber}.eml";
+            result.Attachments.Add(new(
+                nestedFileName,
+                "message/rfc822",
+                nestedPayload.Length,
+                result.Attachments.Count,
+                nestedLabel));
             result.Assets.Add(new(
                 nestedLabel,
                 nestedFileName,
@@ -840,24 +850,49 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return;
         }
 
-        if (entity is not MimePart part || entity is TextPart)
+        if (entity is not MimePart part
+            || (entity is TextPart && !entity.IsAttachment))
         {
             return;
         }
 
         var fileName = part.FileName ?? InferFileName(part, limits);
         var format = DetectFormat(fileName, part.ContentType.MimeType);
+        var isExplicitAttachment = part.ContentDisposition?.IsAttachment == true;
         var isInlineImage = format == SourceFormat.Image
+            && !isExplicitAttachment
             && (part.ContentDisposition?.Disposition.Equals("inline", StringComparison.OrdinalIgnoreCase) == true
                 || !string.IsNullOrWhiteSpace(part.ContentId));
+        var descriptorOrdinal = result.Attachments.Count;
         var shouldRetain = format is SourceFormat.Pdf
             or SourceFormat.Email
             or SourceFormat.Docx
             or SourceFormat.Image
-            or SourceFormat.Deferred;
+            or SourceFormat.Doc
+            or SourceFormat.Msg;
         if (!shouldRetain || part.Content is null)
         {
+            if (!isInlineImage)
+            {
+                result.Attachments.Add(new(
+                    fileName,
+                    part.ContentType.MimeType,
+                    part.Content?.Stream?.CanSeek == true ? part.Content.Stream.Length : null,
+                    descriptorOrdinal));
+            }
             return;
+        }
+
+        var attachmentNumber = ++limits.AttachmentCount;
+        var attachmentLabel = $"{sourceLabel}, attachment {attachmentNumber}: {fileName}";
+        if (!isInlineImage)
+        {
+            result.Attachments.Add(new(
+                fileName,
+                part.ContentType.MimeType,
+                part.Content.Stream?.CanSeek == true ? part.Content.Stream.Length : null,
+                descriptorOrdinal,
+                attachmentLabel));
         }
 
         await using var decoded = new MemoryStream();
@@ -880,8 +915,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
             return;
         }
 
-        var attachmentNumber = ++limits.AttachmentCount;
-        var attachmentLabel = $"{sourceLabel}, attachment {attachmentNumber}: {fileName}";
         result.Assets.Add(new(
             attachmentLabel,
             fileName,
@@ -962,11 +995,15 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         }
 
         if (extension.Equals(".doc", StringComparison.OrdinalIgnoreCase)
-            || extension.Equals(".msg", StringComparison.OrdinalIgnoreCase)
-            || mediaType.Equals("application/msword", StringComparison.OrdinalIgnoreCase)
+            || mediaType.Equals("application/msword", StringComparison.OrdinalIgnoreCase))
+        {
+            return SourceFormat.Doc;
+        }
+
+        if (extension.Equals(".msg", StringComparison.OrdinalIgnoreCase)
             || mediaType.Equals("application/vnd.ms-outlook", StringComparison.OrdinalIgnoreCase))
         {
-            return SourceFormat.Deferred;
+            return SourceFormat.Msg;
         }
 
         return SourceFormat.Unsupported;
@@ -1009,7 +1046,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         Email,
         Docx,
         Image,
-        Deferred
+        Doc,
+        Msg
     }
 
     private enum ReadOutcome
@@ -1030,6 +1068,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
         public List<IntakeSourceIssue> Issues { get; } = [];
 
         public List<IntakeAssetCandidate> Assets { get; } = [];
+
+        public List<IntakeAttachmentDescriptor> Attachments { get; } = [];
 
         public List<ScannedPdfOcrCandidate> OcrCandidates { get; } = [];
 
@@ -1058,7 +1098,8 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
                 OcrCandidates,
                 IsIncomplete,
                 ReaderKey,
-                ReaderVersion);
+                ReaderVersion,
+                Attachments);
     }
 
     private sealed class MimeLimitState

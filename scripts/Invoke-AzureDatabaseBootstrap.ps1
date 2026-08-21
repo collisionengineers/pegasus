@@ -232,6 +232,12 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$role|D|$permission|UnidentifiedHistory")
         }
     }
+    # 20260820100724_RetainedMailSearchDocuments: Web searches the immutable
+    # projection; Worker creates/replaces it in the existing receipt transaction.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|IntakeSearchDocuments')
+    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|IntakeSearchDocuments")
+    }
     # 20260819180000_GrantEvaHandoffDownloadOperations: closes a live production
     # gap (verified against sys.database_permissions) -- the table was created
     # by 20260811122654_CaseCustodyEvaRecovery with no grant at all. Mirrors
@@ -272,6 +278,25 @@ function Get-MigrationPermissionMatrix {
     $expected.Add('pegasus_web_runtime_role|G|INSERT|ImageIntakeLifecycleEvents')
     $expected.Add('pegasus_web_runtime_role|D|UPDATE|ImageIntakeLifecycleEvents')
     $expected.Add('pegasus_web_runtime_role|D|DELETE|ImageIntakeLifecycleEvents')
+    # 20260820100056_ApprovedMailboxLogicalFolderBindings: the existing Web
+    # mailbox-administration transaction reads and replaces the mailbox-owned
+    # binding rows. The Worker has no caller and receives no grant.
+    foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|ApprovedMailboxFolderBindings")
+    }
+    # 20260820144004_RetainedMailFolderMoves: Web owns the confirmed move
+    # operation and its durable recovery state. Worker has no caller. Both
+    # runtime roles are denied deletion so the operation history is permanent.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|RetainedMailFolderMoves")
+    }
+    $expected.Add('pegasus_web_runtime_role|D|DELETE|RetainedMailFolderMoves')
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|RetainedMailFolderMoves')
+    # 20260821095500_GrantWorkerVehicleLookupRequests: the Worker's
+    # automatic vehicle-lookup sweep (CASE-008) inserts the request row;
+    # the reconciliation baseline held only SELECT. DELETE stays denied
+    # via the baseline matrix.
+    $expected.Add('pegasus_worker_runtime_role|G|INSERT|VehicleLookupRequests')
     return @($expected | Sort-Object -Unique)
 }
 

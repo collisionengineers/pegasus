@@ -16,7 +16,8 @@ internal sealed class EfVehicleWorkflowStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
     TimeProvider timeProvider,
     IEnumerable<Pegasus.Core.Intake.IProviderCaseMatchPolicy>? caseMatchPolicies = null)
-    : IRequestVehicleLookupStore, IAcceptVehicleSuggestionStore, IVehicleEvidenceQueries
+    : IRequestVehicleLookupStore, IAcceptVehicleSuggestionStore, IVehicleEvidenceQueries,
+        IAutomaticVehicleLookupStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly string[] VehicleFieldNames =
@@ -780,6 +781,150 @@ internal sealed class EfVehicleWorkflowStore(
             isReplay);
     }
 
+    /// <summary>
+    /// One automatic-lookup sweep pass (CASE-008): every active case whose
+    /// current registration (confirmed, else fact) has no lookup request yet
+    /// gets one pending work item under the Automation actor. Leaseless and
+    /// without a case-version bump — evidence gathering, not a staff mutation.
+    /// The (CaseId, Registration) request row is the durable already-done
+    /// marker, so the sweep is idempotent through success and failure alike.
+    /// </summary>
+    public async Task<int> EnqueueDueAsync(int maximumItems, CancellationToken cancellationToken)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
+        string[] terminalStates =
+        [
+            nameof(CaseLifecycleState.PostReportComplete),
+            nameof(CaseLifecycleState.ProviderCancelled),
+            nameof(CaseLifecycleState.CollisionEngineersRejected),
+            nameof(CaseLifecycleState.CreatedInError)
+        ];
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var candidates = await context.CaseDataFields
+            .AsNoTracking()
+            .Where(field => field.FieldName == CaseDataFieldNames.VehicleRegistration
+                && (field.ValueKind == CaseDataCodes.Confirmed || field.ValueKind == CaseDataCodes.Fact))
+            .Join(
+                context.CaseWorkflows.AsNoTracking()
+                    .Where(workflow => workflow.ArchivedAtUtc == null
+                        && !terminalStates.Contains(workflow.State)),
+                field => field.CaseId,
+                workflow => workflow.CaseId,
+                (field, workflow) => new { field.CaseId, field.ValueKind, field.Value, workflow.Version })
+            .ToListAsync(cancellationToken);
+        if (candidates.Count == 0)
+        {
+            return 0;
+        }
+
+        var caseIds = candidates.Select(candidate => candidate.CaseId).Distinct().ToArray();
+        var requested = (await context.Set<VehicleLookupRequestEntity>()
+                .AsNoTracking()
+                .Where(request => caseIds.Contains(request.CaseId))
+                .Select(request => new { request.CaseId, request.Registration })
+                .ToListAsync(cancellationToken))
+            .Select(request => (request.CaseId, request.Registration))
+            .ToHashSet();
+
+        var actor = ActionActor.Automation("vehicle-lookup-reconciliation");
+        var enqueued = 0;
+        foreach (var group in candidates.GroupBy(candidate => candidate.CaseId))
+        {
+            if (enqueued >= maximumItems)
+            {
+                break;
+            }
+
+            var tier = group.Any(candidate => candidate.ValueKind == CaseDataCodes.Confirmed)
+                ? CaseDataCodes.Confirmed
+                : CaseDataCodes.Fact;
+            var values = group
+                .Where(candidate => candidate.ValueKind == tier)
+                .Select(candidate => new string(
+                    candidate.Value.ToUpperInvariant()
+                        .Where(char.IsAsciiLetterOrDigit)
+                        .ToArray()))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            if (values.Length != 1)
+            {
+                continue;
+            }
+
+            VehicleLookupRequest request;
+            try
+            {
+                request = new VehicleLookupRequest(values[0]);
+            }
+            catch (ArgumentException)
+            {
+                continue;
+            }
+
+            if (requested.Contains((group.Key, request.Registration)))
+            {
+                continue;
+            }
+
+            var command = new RequestVehicleLookupCommand(
+                group.Key,
+                group.First().Version,
+                request.Registration,
+                actor,
+                $"vehicle-lookup:auto:{request.Registration}",
+                EditLeaseToken: "automation");
+            try
+            {
+                await EnqueueAutomaticAsync(command, cancellationToken);
+                enqueued++;
+            }
+            catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
+            {
+                // A concurrent sweep or staff request already recorded this
+                // pair; the durable marker exists, so this case is done. Any
+                // other database failure (a denied permission above all)
+                // propagates and fails the sweep visibly instead of counting
+                // the case as already done.
+            }
+        }
+
+        return enqueued;
+    }
+
+    private async Task EnqueueAutomaticAsync(
+        RequestVehicleLookupCommand command,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var nowUtc = UtcNow();
+        var workItemId = Guid.NewGuid();
+        context.ExternalWorkItems.Add(new()
+        {
+            Id = workItemId,
+            CaseId = command.CaseId,
+            Kind = Pegasus.Core.Custody.ExternalWorkKinds.VehicleLookup,
+            OperationKey = command.OperationKey,
+            State = "pending",
+            AttemptCount = 0,
+            DueAtUtc = nowUtc
+        });
+        context.Set<VehicleLookupRequestEntity>().Add(new()
+        {
+            WorkItemId = workItemId,
+            CaseId = command.CaseId,
+            Registration = command.Registration,
+            OperationKey = command.OperationKey,
+            RequestFingerprint = RequestFingerprint(command),
+            RequestedByKind = command.Actor.Kind.ToString(),
+            RequestedBySubjectId = command.Actor.SubjectId,
+            RequestedByRolesJson = RolesJson(command.Actor),
+            RequestedAtUtc = nowUtc,
+            ResultingCaseVersion = command.ExpectedCaseVersion
+        });
+        await context.SaveChangesAsync(cancellationToken);
+    }
+
     private static string RequestFingerprint(RequestVehicleLookupCommand command) => Hash(
         JsonSerializer.Serialize(new
         {
@@ -909,6 +1054,14 @@ internal sealed class EfVehicleWorkflowStore(
         "corrected" => VehicleSuggestionDecision.Correct,
         _ => throw new InvalidDataException(
             $"Persisted vehicle suggestion decision '{decision}' is invalid.")
+    };
+
+    private static bool IsDuplicateKeyFailure(Exception exception) => exception switch
+    {
+        SqlException { Number: 2601 or 2627 } => true,
+        DbUpdateException { InnerException: { } innerException } =>
+            IsDuplicateKeyFailure(innerException),
+        _ => false
     };
 
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch

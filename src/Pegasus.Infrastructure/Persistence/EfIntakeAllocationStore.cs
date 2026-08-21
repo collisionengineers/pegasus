@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -34,6 +34,25 @@ internal sealed partial class EfIntakeAllocationStore(
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
+            cancellationToken);
+        // Two parallel Begins for one receipt each take Serializable
+        // key-range shared locks on the reads below and then insert — the
+        // textbook check-then-insert deadlock (CASE-005). An exclusive
+        // transaction-scoped application lock per receipt makes them queue
+        // instead: the second transaction then sees the first's committed
+        // attempt and resolves through the existing replay/suppression
+        // branches, which is the designed convergence.
+        var lockResource = $"intake-allocation:{request.Command.ReceiptId:N}";
+        await context.Database.ExecuteSqlAsync(
+            $"""
+             DECLARE @lockResult int;
+             EXEC @lockResult = sp_getapplock
+                 @Resource = {lockResource},
+                 @LockMode = 'Exclusive',
+                 @LockOwner = 'Transaction',
+                 @LockTimeout = 15000;
+             IF @lockResult < 0 THROW 51205, 'The intake allocation lock was not granted.', 1;
+             """,
             cancellationToken);
         var existing = await context.IntakeAllocationAttempts
             .SingleOrDefaultAsync(

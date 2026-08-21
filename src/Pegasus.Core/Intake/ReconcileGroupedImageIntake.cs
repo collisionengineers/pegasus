@@ -78,9 +78,9 @@ public sealed class ReconcileGroupedImageIntake(
             var group = await groupStore.FindForMemberSourceAsync(
                 receipt.SourceIdentity,
                 cancellationToken);
-            if (group is null)
+            if (group is null || !group.HasSiblingMembers)
             {
-                // Not a grouped upload: no sibling can ever change this
+                // Not a multi-member upload: no sibling can ever change this
                 // receipt's outcome, so it is not this reconciliation's
                 // concern (the ordinary single-receipt automation already had
                 // its chance).

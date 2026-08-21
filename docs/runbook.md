@@ -1,4 +1,4 @@
-# Repository runbook
+﻿# Repository runbook
 
 ## Unidentified queue operations
 
@@ -371,13 +371,11 @@ These commands prove repository compilation and the selected non-corpus tests on
 
 ### Imported source workspaces
 
-Source workspaces validate independently and are not part of the application solution:
-
-```powershell
-Push-Location ./workspaces/document-extraction; dotnet test --solution ./CollisionDocNet.slnx --configuration Release; Pop-Location
-```
-
-These checks prove only the imported source snapshots. They do not activate an application reference, model, skill, external call, or deployment. Workspace ownership is indexed in [workspaces](../workspaces/README.md).
+No live source workspace currently exists; both imported snapshots were
+integrated and retired under ADR-0025 (see
+[workspaces](../workspaces/README.md) for the provenance records). A future
+workspace validates independently with its own solution and is never part of
+the application solution.
 
 Report rendering is part of the application solution. After a Release build,
 install its pinned Playwright Chromium and run the Browser-tagged integration proof:
@@ -551,6 +549,12 @@ rights and are not executed from this repository. They remain blocked for
 production until ADR-0024's stable-ID, scope, per-mailbox fresh-start, and
 Worker-control contracts are implemented and deployed:
 
+0. (MAIL-002) Administration's "add an address" resolve step runs as the Web
+   container's own managed identity (`webIdentity`), separate from the
+   Worker's. Until that identity's service principal also holds `User.Read.All`
+   and `Mail.Read` application permissions with tenant admin consent, every
+   address resolution fails closed (no row is created) and the operator sees
+   only the honest "could not be found" outcome.
 1. Confirm the Pegasus application registration holds the `Mail.Read`
    application permission with tenant admin consent.
 2. Add the new mailbox to the Exchange Online application access policy that
@@ -847,7 +851,7 @@ The following contracts must be proved through the owning Core policy and actual
 - no-registration Triage remains `Needs sorting` without case/reference creation;
 - reply-chain evidence uses the exact allowlist and does not fall back to subject, registration, or manual selection;
 - the in-house upload caller proves authenticated staff creation, isolated request-local upload/result presentation, expiry, revocation, bounded retry/abuse behavior, durable custody, and cross-request/non-disclosing failures without a Box File Request route;
-- Case and later-Audit custody use the immutable business reference hierarchy, reject unrelated or wrongly bound same-name folders, and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
+- Case and later-Audit custody use the immutable business reference hierarchy with the database-stored remote folder id as the identity authority (no marker files inside folders), and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
 - manual EVA generation is refused outside `Review` or without applicable confirmed custody, accepted mapping, current evidence and all eligible Case-vehicle images; download is an authenticated, reasoned, idempotent command over the rendered business revision and records permanent history;
 - the first successful EVA export generation records one `First sent to Engineer` proxy event, not receipt;
 - repeated EVA export proves byte-identical ordered UTF-8 JSON and image order for the same accepted inputs, the SHA-256 manifest, the image eligibility/duplication/video-screenshot rules, no EVA network call, and no duplicate `First sent to Engineer` event;
@@ -1115,6 +1119,33 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 
 Production releases retain the previous immutable application artifact for redeployment. Database migrations are explicit and must remain compatible with the supported prior application artifact or have an accepted recovery strategy.
 
+#### Previous-artifact rollback (Web and Worker)
+
+Rolling production back to the previous release's artifacts is a production
+mutation under the live-operation approval matrix: obtain exact-target
+approval first. The inputs are the previous release's row in
+[operations § Production environment](operations.md#production-environment)
+and its retained folder `artifacts/releases/release-<n>-<sha>` (kept on the
+release workstation; the image also remains in the production ACR by digest).
+
+1. Web: from an authorised terminal, `azd env set PEGASUS_WEB_IMAGE_DIGEST
+   <previous digest> -e pegasus-prod`, `azd env set
+   PEGASUS_WEB_REVISION_SUFFIX <previous sha12> -e pegasus-prod`, then
+   `azd provision -e pegasus-prod --preview --no-prompt` — stop unless the
+   only change is the web revision — then `azd provision -e pegasus-prod
+   --no-prompt`.
+2. Worker: `az functionapp deployment source config-zip --resource-group
+   rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
+   ./artifacts/releases/release-<n>-<sha>/worker.zip`.
+3. Database: schema is roll-forward only. Releases keep migrations additive
+   so the previous application runs against the newer schema; a migration
+   that cannot honour that must ship an accepted recovery strategy instead.
+   Restoring data is a [Production recovery](#production-recovery) exercise
+   with its own approvals, never part of an artifact rollback.
+4. Smoke: `Invoke-ProductionSmoke.ps1` with the previous release's exact
+   source revision and version, and the current Worker activation value.
+5. Record the rollback and its reason in operations in the same task.
+
 A production recovery exercise must:
 
 1. obtain exact-target approval and a fresh inventory;
@@ -1127,6 +1158,75 @@ A production recovery exercise must:
 8. retain the failed restore target for diagnosis until a separately approved cutover or cleanup.
 
 Automatic schema down-migration and deletion of source evidence or shared cloud resources are not recovery steps.
+
+#### Point-in-time restore commands
+
+These commands implement contract steps 2–7 above for the production
+database `pegasus` on server `pegasus-prod-sql-252ow37gij`
+(`rg-pegasus-prod`, subscription `e6076573-23a5-46a8-acef-7e22d264e5db`). The
+server is Entra-only (`azureAdOnlyAuthentication: true`); every step below
+authenticates with the caller's own `az` identity token, matching
+`scripts/Invoke-AzureDatabaseBootstrap.ps1`'s connection pattern — never a SQL
+login.
+
+**1. Inventory (read-only, no approval required):**
+
+```powershell
+az sql db show --resource-group rg-pegasus-prod --server pegasus-prod-sql-252ow37gij --name pegasus --query "{sku:currentServiceObjectiveName,redundancy:currentBackupStorageRedundancy,earliestRestore:earliestRestoreDate,size:maxSizeBytes}"
+az sql db str-policy show --resource-group rg-pegasus-prod --server pegasus-prod-sql-252ow37gij --name pegasus
+az sql db list-usages --resource-group rg-pegasus-prod --server pegasus-prod-sql-252ow37gij --name pegasus
+```
+
+Confirm the requested restore time is at or after `earliestRestoreDate` and
+inside the short-term retention window before proceeding.
+
+**2. Restore into a new, isolated target (write — requires exact-target
+approval per [Live-operation approval matrix](#live-operation-approval-matrix),
+row "Deploy, restore, fail over, or retire"; never overwrites `pegasus`):**
+
+```powershell
+az sql db restore `
+  --resource-group rg-pegasus-prod `
+  --server pegasus-prod-sql-252ow37gij `
+  --name pegasus `
+  --dest-name pegasus-restore-drill-<date> `
+  --time "<yyyy-MM-ddTHH:mm:ss>" `
+  --edition Standard `
+  --capacity 10 `
+  --backup-storage-redundancy Geo
+```
+
+`--time` must be UTC, within `[earliestRestoreDate, now]`. The command
+creates a brand-new database on the same server; it never touches `pegasus`.
+
+**3. Verify the restored database** (Entra access-token connection, reusing
+`Invoke-Sqlcmd -AccessToken` from `scripts/Invoke-AzureDatabaseBootstrap.ps1`):
+
+```powershell
+$accessToken = (az account get-access-token --resource https://database.windows.net/ --query accessToken --output tsv).Trim()
+Invoke-Sqlcmd -ServerInstance "tcp:pegasus-prod-sql-252ow37gij.database.windows.net,1433" -Database "pegasus-restore-drill-<date>" -AccessToken $accessToken -Query "SELECT TOP 5 MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC"
+Invoke-Sqlcmd -ServerInstance "tcp:pegasus-prod-sql-252ow37gij.database.windows.net,1433" -Database "pegasus-restore-drill-<date>" -AccessToken $accessToken -Query "SELECT COUNT(*) AS RowCount FROM Cases"
+```
+
+- `__EFMigrationsHistory` head must match the migration identity recorded for
+  the deployed application package at the restore point (contract step 2).
+- Row counts on `Cases` (and any other representative tables named by the
+  exercise) must be consistent with the source database's activity up to the
+  restore point, within the RPO's expected data-loss window.
+- Point the deployed application's connection string at the restored database
+  in a disposable/isolated configuration only, and run the named real-caller
+  smoke journey (contract step 6) — never point production traffic at the
+  restore target.
+
+**4. Record and retain.** Capture wall-clock time from restore command start
+to `status: Online`, the restored database's row counts/`__EFMigrationsHistory`
+head, and any data-loss window versus the requested restore time (contract
+step 7). Retain the restore target until diagnosis is complete (contract step
+8); do not delete it as part of the same exercise.
+
+**5. Reclaim.** Dropping `pegasus-restore-drill-<date>` is itself an Azure
+write requiring the same exact-target approval as the restore. It is not
+implied by completing verification.
 
 The allocated [OPS-09](capabilities.md) capability and its [product-quality objectives](prd/pegasus-product.md#quality-capacity-security-and-evidence) are deferred and gate no release. When the exercise runs, it must prove:
 

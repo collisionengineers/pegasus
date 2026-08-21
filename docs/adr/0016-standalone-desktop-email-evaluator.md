@@ -18,9 +18,9 @@ tags: [evaluator, tooling]
 The repository's email-evaluation page is a small local-development aid, not a
 production intake capability. Keeping it in Pegasus.Web couples a reviewer-only
 workflow to the web composition root and makes a local folder adjudication tool
-look like an application route. The retained review taxonomy is
-`docs/reference/CollisionSPikeCurrenttree.txt`; Pegasus.Core remains the owner
-of intake and classification policy.
+look like an application route. Pegasus.Core remains the owner of intake and
+classification policy; the review taxonomy is Core's own `MailTaxonomy`
+(`Pegasus.Core.Intake`), not a copy maintained inside the tool.
 
 ## Decision
 

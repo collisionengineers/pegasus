@@ -40,6 +40,68 @@ public static partial class StaffForwardBodyCleaner
         return BlankRunRegex().Replace(text, "\n\n").Trim();
     }
 
+    /// <summary>
+    /// Splits an already-cleaned body into the leading forwarded
+    /// From:/Sent:/To:/Subject: header block and the message that follows it,
+    /// so views can quote the header separately and excerpts can skip it.
+    /// Bodies that do not begin with the block come back with no header lines.
+    /// </summary>
+    public static (IReadOnlyList<string> HeaderLines, string Body) SplitForwardedHeader(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var boundary = ForwardedHeaderRegex().Match(body);
+        if (!boundary.Success || boundary.Index != 0)
+        {
+            return ([], body);
+        }
+
+        var headerLines = boundary.Value
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var rest = body[(boundary.Index + boundary.Length)..].TrimStart('\r', '\n', ' ', '\t');
+        return (headerLines, rest);
+    }
+
+    /// <summary>
+    /// Cuts the provider's trailing signature footer — image placeholders,
+    /// decorated contact links, the corporate disclaimer, membership and
+    /// registered-office lines — from an already-cleaned display body. The
+    /// boundary is the earliest line matching a measured footer marker
+    /// (MAIL-007 corpus research); the sign-off above it stays. Fails open:
+    /// a body with no marker, or one that would lose every line, is returned
+    /// unchanged. Display-side only — retained and searchable text never
+    /// pass through this.
+    /// </summary>
+    public static string TrimProviderFooter(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var lines = body
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n');
+        var boundary = -1;
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (FooterMarkerRegex().IsMatch(lines[index].Trim()))
+            {
+                boundary = index;
+                break;
+            }
+        }
+
+        if (boundary <= 0)
+        {
+            return body;
+        }
+
+        var kept = lines[..boundary];
+        if (!kept.Any(line => !string.IsNullOrWhiteSpace(line)))
+        {
+            return body;
+        }
+
+        return string.Join('\n', kept).TrimEnd('\n', ' ', '\t');
+    }
+
     // Leaked inline-image references: `[cid:token]`, `<cid:token>`, or a bare
     // `cid:token`, including the emptied bracket the removal can leave behind.
     [GeneratedRegex("\\[?<?cid:[^\\]>\\s\"']+>?\\]?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
@@ -53,4 +115,19 @@ public static partial class StaffForwardBodyCleaner
 
     [GeneratedRegex("\\n{3,}", RegexOptions.CultureInvariant)]
     private static partial Regex BlankRunRegex();
+
+    // The measured footer boundary markers (MAIL-007): a line that is an
+    // image placeholder, carries a decorated contact link, or opens the
+    // provider's disclaimer/membership/registration block.
+    [GeneratedRegex(
+        "(?i)^\\[(?:https?://|cid:)"
+        + "|<(?:tel:|mailto:|https?://)"
+        + "|^you are dealing with\\b"
+        + "|^this e-?mail (?:and any attachments|is confidential)"
+        + "|^the registered office\\b"
+        + "|^proud members? of\\b"
+        + "|^disclaimer\\b"
+        + "|confidential and intended (?:solely|only)",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex FooterMarkerRegex();
 }

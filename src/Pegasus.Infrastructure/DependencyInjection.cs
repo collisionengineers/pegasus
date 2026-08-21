@@ -5,6 +5,7 @@ using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Infrastructure.Assessment;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Eva;
 using Pegasus.Core.ImageIntake;
@@ -64,6 +65,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<ICaseEvidenceImageQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<EfIntakeAllocationStore>();
         services.AddScoped<IIntakeAllocationStore>(
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
@@ -80,10 +82,24 @@ public static class DependencyInjection
         services.AddScoped<ListRetainedMail>();
         services.AddScoped<GetRetainedMail>();
         services.AddScoped<CorrectRetainedMailClassification>();
+        services.TryAddSingleton<IRetainedMailFolderMover, UnavailableRetainedMailFolderMover>();
+        services.AddScoped<EfRetainedMailFolderMoveStore>();
+        services.AddScoped<IRetainedMailFolderMoveStore>(provider =>
+            provider.GetRequiredService<EfRetainedMailFolderMoveStore>());
+        services.AddScoped<MoveRetainedMailFolder>();
         services.AddScoped<GetRetainedMailFreshness>();
+        services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
+        services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
-        services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
-        services.AddScoped<IAutomaticCaseAssociationStore, EfIntakeMutationStore>();
+        services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
+        services.AddScoped<EfIntakeMutationStore>();
+        services.AddScoped<IIntakeMutationStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticCaseAssociationStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticMailCaseAssociationEvidenceQueries>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<IResolveIntake, ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -102,6 +118,7 @@ public static class DependencyInjection
         services.AddScoped<IUnidentifiedStore>(provider => provider.GetRequiredService<EfUnidentifiedStore>());
         services.AddScoped<IRegisterUnidentified, RegisterUnidentified>();
         services.AddScoped<IResolveUnidentified, ResolveUnidentified>();
+        services.AddScoped<ReconcileUnidentifiedDestinations>();
         services.AddScoped<EfTriageStore>();
         services.AddScoped<ITriageStore>(provider => provider.GetRequiredService<EfTriageStore>());
         services.AddScoped<ITriageQueries>(provider => provider.GetRequiredService<EfTriageStore>());
@@ -150,8 +167,9 @@ public static class DependencyInjection
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
         services.AddScoped<EfStaffAccountAdministration>();
-        services.AddScoped<IStaffAccountQueries>(provider =>
-            provider.GetRequiredService<EfStaffAccountAdministration>());
+        // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
+        // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
+        services.AddScoped<IStaffAccountQueries, EfStaffAccountQueries>();
         services.AddScoped<ICreateStaffAccountStore>(provider =>
             provider.GetRequiredService<EfStaffAccountAdministration>());
         services.AddScoped<IDisableStaffAccountStore>(provider =>
@@ -204,6 +222,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
         services.AddScoped<IVehicleEvidenceQueries>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
+        services.AddScoped<IAutomaticVehicleLookupStore>(
+            provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
+        services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();
@@ -267,6 +288,7 @@ public static class DependencyInjection
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
+        services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
@@ -464,7 +486,7 @@ public static class DependencyInjection
         this IServiceCollection services,
         Func<IServiceProvider, Azure.Storage.Blobs.BlobContainerClient> intakeContainerFactory,
         Func<IServiceProvider, bool> allowContainerCreateIfNotExists,
-        BoxCustodyOptions boxOptions)
+        Func<IServiceProvider, BoxCustodyOptions> boxOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(intakeContainerFactory);
@@ -484,15 +506,18 @@ public static class DependencyInjection
     /// Registers the approved Box custody root as both the case custody adapter and
     /// the managed-document content store. Both composition roots call this so Web
     /// and Worker resolve the same fenced Box client rather than diverging.
+    /// The options factory runs at first Box resolution, not at host build: an
+    /// invalid or still-unresolved Box secret fails the Box work item, never the
+    /// whole process (PLAT-013 — the worker exit-134 crash loop).
     /// </summary>
     public static IServiceCollection AddProductionBoxCustody(
         this IServiceCollection services,
-        BoxCustodyOptions boxOptions)
+        Func<IServiceProvider, BoxCustodyOptions> boxOptions)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(boxOptions);
 
-        services.AddSingleton(boxOptions);
+        services.AddSingleton(provider => boxOptions(provider));
         services.TryAddSingleton(static _ => new HttpClient
         {
             Timeout = TimeSpan.FromSeconds(100)
@@ -555,6 +580,35 @@ public static class DependencyInjection
             provider.GetRequiredService<DvlaDvsaProductionOptions>(),
             provider.GetRequiredService<HttpClient>(),
             provider.GetRequiredService<TimeProvider>()));
+        return services;
+    }
+
+    /// <summary>
+    /// The mailbox-administration "add an address" resolve port alone — independent of
+    /// <see cref="AddProductionExternalAdapters"/>, which also composes the single
+    /// configured polling mailbox and its Worker-only pollers. Web composes only this:
+    /// it never polls, it only resolves an address the operator just typed.
+    /// </summary>
+    public static IServiceCollection AddProductionApprovedMailboxResolver(
+        this IServiceCollection services,
+        string? graphBaseUri)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        var baseUri = GraphApprovedMailboxOptions.ParseBaseUri(graphBaseUri);
+        services.TryAddSingleton(static _ => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(100)
+        });
+        services.AddSingleton<IResolveApprovedMailboxIdentity>(provider => new GraphApprovedMailboxResolver(
+            provider.GetRequiredService<TokenCredential>(),
+            baseUri,
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<ILogger<GraphApprovedMailboxResolver>>()));
+        services.AddSingleton(provider => new GraphMailClient(
+            provider.GetRequiredService<TokenCredential>(),
+            baseUri,
+            provider.GetRequiredService<HttpClient>()));
+        services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
     }
 }

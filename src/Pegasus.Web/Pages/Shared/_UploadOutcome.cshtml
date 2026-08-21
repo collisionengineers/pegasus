@@ -1,14 +1,21 @@
-@*
+﻿@*
     One file's confirmation outcome, once processing has resolved: what
     already happened automatically (reported, not re-offered) or the staff
-    decision that is genuinely open. Every action here is a link to the
-    existing page that performs it — this partial never mutates anything.
+    decision that is genuinely open. The action links route to the existing
+    page that performs them; the one decision this partial carries itself is
+    "Add to an existing case" — an explicit staff decision, posted to the
+    hosting status page, which hands it to the existing leased link path.
     The file it is about is the caller's to label (the group page names each
     row; the single-file status page already has the name in its heading).
 
     Model: Pegasus.Web.Presentation.UploadOutcomeView
 *@
 @model Pegasus.Web.Presentation.UploadOutcomeView
+@{
+    // Set by a hosting page whose submission-level card owns the decision:
+    // the outcome renders as a report only, offering nothing per file.
+    var compact = ViewData["UploadOutcomeCompact"] is true;
+}
 <div class="upload-outcome">
     @if (Model.ChipLabel is not null)
     {
@@ -19,7 +26,7 @@
         <span class="field-hint">@Model.StateLabel</span>
     }
     <p class="upload-outcome__message">@Model.Message</p>
-    @if (Model.PrimaryAction is not null || Model.SecondaryAction is not null)
+    @if (!compact && (Model.PrimaryAction is not null || Model.SecondaryAction is not null || Model.Attach is not null))
     {
         <div class="button-row">
             @if (Model.PrimaryAction is { } primary)
@@ -30,6 +37,44 @@
             {
                 <a class="secondary-action" href="@secondary.Url">@secondary.Label</a>
             }
+            @if (Model.Attach is not null)
+            {
+                <a class="secondary-action" asp-page="/Upload">Cancel</a>
+            }
         </div>
+    }
+    @if (!compact && Model.Attach is { } attach)
+    {
+        var attachDomId = $"case-attach-{attach.ReceiptId:N}";
+        @* Native disclosure, so opening and closing the search works without
+           script; script upgrades the input inside to a combobox. *@
+        <details class="upload-attach" data-refresh-hold>
+            <summary class="secondary-action">Add to an existing case</summary>
+            <form method="post"
+                  asp-page-handler="Attach"
+                  class="upload-attach__form"
+                  data-case-search
+                  data-case-search-url="@Url.Page(null, "CaseSearch")">
+                <input type="hidden" name="receiptId" value="@attach.ReceiptId" />
+                <input type="hidden" name="caseId" value="" data-case-search-value />
+                <label for="@(attachDomId)-input">Case</label>
+                <input id="@(attachDomId)-input"
+                       name="reference"
+                       type="text"
+                       maxlength="60"
+                       required
+                       autocomplete="off"
+                       spellcheck="false"
+                       aria-describedby="@(attachDomId)-hint"
+                       data-case-search-input />
+                <p id="@(attachDomId)-hint" class="field-hint">Search by case reference, registration or claimant, then choose the case this belongs to.</p>
+                <ul id="@(attachDomId)-list" class="case-search-list" hidden data-case-search-list></ul>
+                <label for="@(attachDomId)-reason">Reason for adding to this case</label>
+                <textarea id="@(attachDomId)-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                <div class="button-row">
+                    <button type="submit" class="primary-action">Add to this case</button>
+                </div>
+            </form>
+        </details>
     }
 </div>

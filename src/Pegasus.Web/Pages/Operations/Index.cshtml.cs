@@ -1,8 +1,6 @@
 using System.Collections.Immutable;
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
@@ -22,7 +20,7 @@ public sealed class IndexModel(
     IAcquireCaseEditLease acquireCaseEditLease,
     IReleaseCaseEditLease releaseCaseEditLease,
     IRevokeRequestUploadLink revokeRequestUploadLink,
-    TimeProvider timeProvider) : PageModel
+    TimeProvider timeProvider) : StaffPageModel
 {
     private const string PreservedReasonKey = "OperationsRequestReason";
     private const string PreservedRequestIdKey = "OperationsRequestReasonId";
@@ -188,8 +186,6 @@ public sealed class IndexModel(
         _ => throw new InvalidOperationException($"Unknown request operation state value '{(int)state}'.")
     };
 
-    public static string NewOperationKey() => Guid.NewGuid().ToString("N");
-
     private async Task ReleaseQuietlyAsync(
         Guid caseId,
         ActionActor actor,
@@ -237,18 +233,4 @@ public sealed class IndexModel(
         TempData[PreservedReasonKey] = normalized;
     }
 
-    private bool TryGetActor(out ActionActor actor)
-    {
-        if (StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var resolved))
-        {
-            actor = resolved;
-            return true;
-        }
-
-        actor = null!;
-        return false;
-    }
 }

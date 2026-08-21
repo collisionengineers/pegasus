@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
@@ -15,6 +15,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
@@ -32,6 +33,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
     private readonly IInstructionExtractionPolicy? extractionPolicy;
     private readonly IMailClassificationPolicy? mailClassificationPolicy;
     private readonly IVrmRecognitionEngine? recognitionEngine;
+    private readonly IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver;
     private readonly bool useIntegrationTestAuthentication;
     private readonly bool initializeDevelopmentOffline;
     private readonly LocalDbTestDatabase database;
@@ -68,7 +70,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         bool useIntegrationTestAuthentication = false,
         bool initializeDevelopmentOffline = true,
         IVrmRecognitionEngine? recognitionEngine = null,
-        IMailClassificationPolicy? mailClassificationPolicy = null)
+        IMailClassificationPolicy? mailClassificationPolicy = null,
+        IResolveApprovedMailboxIdentity? approvedMailboxIdentityResolver = null)
     {
         this.environment = environment;
         this.localIntakeEnabled = localIntakeEnabled;
@@ -77,6 +80,7 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
         this.extractionPolicy = extractionPolicy;
         this.recognitionEngine = recognitionEngine;
         this.mailClassificationPolicy = mailClassificationPolicy;
+        this.approvedMailboxIdentityResolver = approvedMailboxIdentityResolver;
         this.useIntegrationTestAuthentication = useIntegrationTestAuthentication;
         this.initializeDevelopmentOffline = initializeDevelopmentOffline;
         // Restored from the per-run template rather than migrated here: this
@@ -175,6 +179,11 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 services.RemoveAll<IMailClassificationPolicy>();
                 services.AddSingleton(mailClassificationPolicy);
             }
+            if (approvedMailboxIdentityResolver is not null)
+            {
+                services.RemoveAll<IResolveApprovedMailboxIdentity>();
+                services.AddSingleton(approvedMailboxIdentityResolver);
+            }
         });
     }
 
@@ -249,7 +258,16 @@ internal sealed class IntegrationTestAuthenticationHandler(
             new Claim(ClaimTypes.Name, "integration-user"),
             new Claim("display_name", "Integration User")
         };
-        if (!Request.Headers.ContainsKey("X-Test-Roleless"))
+        if (Request.Headers.TryGetValue("X-Test-Roles", out var requestedRoles))
+        {
+            // ENG-002: a test that needs a specific staff role (e.g. Engineer)
+            // names it; the default identity stays Administrator-only.
+            foreach (var role in requestedRoles.ToString().Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+        }
+        else if (!Request.Headers.ContainsKey("X-Test-Roleless"))
         {
             claims.Add(new Claim(ClaimTypes.Role, "Administrator"));
         }
@@ -500,6 +518,17 @@ internal static partial class IntakeWebDriver
         return Assert.Single(all.Items).Id;
     }
 
+    /// <summary>GETs a page, asserts 200, and returns its HTML.</summary>
+    public static async Task<string> GetHtmlAsync(
+        HttpClient client,
+        string url,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await client.GetAsync(url, cancellationToken);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return await response.Content.ReadAsStringAsync(cancellationToken);
+    }
+
     public static async Task<string> GetAntiforgeryTokenAsync(
         HttpClient client,
         CancellationToken cancellationToken = default) =>
@@ -621,6 +650,23 @@ internal static partial class IntakeWebDriver
         ActivatorUtilities.CreateInstance<ProcessQueuedIntake>(services);
 
     /// <summary>
+    /// Runs the Worker's grouped-image reconcile sweep once, standing in for
+    /// its timer. A grouped upload's members can drain in an order that
+    /// leaves a member's group outcome pending for this sweep (the ordinal-
+    /// zero member's group lookup resolves only through it), so a test about
+    /// a group's settled state must run it just as production does.
+    /// </summary>
+    internal static async Task ReconcileGroupedImageIntakeAsync(
+        IServiceProvider services,
+        CancellationToken cancellationToken = default)
+    {
+        var reconcile = ActivatorUtilities.CreateInstance<ReconcileGroupedImageIntake>(
+            services,
+            (IProcessQueuedIntake)CreateProcessor(services));
+        _ = await reconcile.ExecuteAsync(50, cancellationToken);
+    }
+
+    /// <summary>
     /// Dispatches and processes one staged receipt to its completed evaluation,
     /// standing in for the Worker timer and queue trigger. A replay may already
     /// name completed work, so it reads before dispatching.
@@ -638,11 +684,31 @@ internal static partial class IntakeWebDriver
         var evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         while (evaluation is null)
         {
-            Assert.Equal(1, await dispatcher.ExecuteAsync(1, cancellationToken));
+            var dispatched = await dispatcher.ExecuteAsync(1, cancellationToken);
+            if (dispatched == 0)
+            {
+                // A recoverable failure under load reschedules the item with
+                // a retry backoff the frozen test clock never reaches.
+                // Dispatch once from a clock past any backoff so the retry
+                // runs now — the worker timer would have done the same.
+                var lateDispatcher = new DispatchPendingIntakeWork(
+                    workStore,
+                    new ImmediateIntakeWorkEnqueuer(CreateProcessor(services)),
+                    new OffsetTimeProvider(
+                        services.GetRequiredService<TimeProvider>(),
+                        TimeSpan.FromMinutes(10)));
+                dispatched = await lateDispatcher.ExecuteAsync(1, cancellationToken);
+            }
+            Assert.Equal(1, dispatched);
             evaluation = await workStore.GetCompletedEvaluationAsync(stagedReceiptId, cancellationToken);
         }
 
         return evaluation;
+    }
+
+    private sealed class OffsetTimeProvider(TimeProvider inner, TimeSpan offset) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => inner.GetUtcNow() + offset;
     }
 
     internal sealed class ImmediateIntakeWorkEnqueuer(ProcessQueuedIntake processor)
@@ -652,6 +718,19 @@ internal static partial class IntakeWebDriver
             Guid stagedReceiptId,
             CancellationToken cancellationToken) =>
             processor.ExecuteAsync(stagedReceiptId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Advances a work item from pending to dispatched without processing it,
+    /// so a test can choose exactly which member's processing pass runs when
+    /// rather than folding dispatch and processing into one call.
+    /// </summary>
+    internal sealed class NoOpIntakeWorkEnqueuer : IIntakeWorkEnqueuer
+    {
+        public Task EnqueueAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.CompletedTask;
     }
 
     [GeneratedRegex("<input[^>]*name=\"__RequestVerificationToken\"[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

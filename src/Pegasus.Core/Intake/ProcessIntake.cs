@@ -252,7 +252,10 @@ public sealed class ProcessIntake(
             readResult.ScannedPdfPages,
             assessment.MailRouteDecision,
             assessment.MailClassificationDecision,
-            assessment.CaseMatchDecision);
+            assessment.CaseMatchDecision,
+            safeSource.SourceIdentity.Channel == IntakeSourceChannel.Mailbox
+                ? IntakeSearchProjection.Create(readResult, assessment.MailRouteDecision)
+                : []);
 
         IntakeReceipt receipt;
         try

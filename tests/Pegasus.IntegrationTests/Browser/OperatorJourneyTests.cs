@@ -64,20 +64,35 @@ public sealed class OperatorJourneyTests
         Assert.Contains("Case evidence", initialText, StringComparison.Ordinal);
         Assert.Contains("failed", initialText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("temporarily unavailable", initialText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("At least one custody-confirmed current image version is required", initialText,
-            StringComparison.Ordinal);
-        Assert.Contains("Case custody has not been confirmed", initialText, StringComparison.Ordinal);
+        // CASE-007: the read-only view carries no EVA preparation detail.
+        Assert.DoesNotContain("EVA", initialText, StringComparison.Ordinal);
         AssertOperatorSafe(initialText, accepted.CaseId);
+
+        await EnterEditModeByKeyboardAsync(support.Page);
+        // The outstanding-items list is a closed disclosure; open it to read.
+        await support.Page.Locator("section:has(#case-eva-title) details.readiness-summary > summary").ClickAsync();
+        var editingText = await support.Page.Locator("main").InnerTextAsync();
+        Assert.Contains("At least one stored vehicle image is required", editingText,
+            StringComparison.Ordinal);
+        Assert.Contains("Case custody has not been confirmed", editingText, StringComparison.Ordinal);
+
+        // The seeder takes its own edit authority, so finish editing first.
+        var finishButton = support.Page.GetByRole(
+            AriaRole.Button,
+            new PageGetByRoleOptions { Name = "Finish editing", Exact = true });
+        await finishButton.FocusAsync();
+        await finishButton.PressAsync("Enter");
+        await support.Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await SeedEligibleImageAsync(
             support.Services, accepted.CaseId, repositoryFixture);
         await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
+        await EnterEditModeByKeyboardAsync(support.Page);
+        await support.Page.Locator("section:has(#case-eva-title) details.readiness-summary > summary").ClickAsync();
         Assert.DoesNotContain(
-            "At least one custody-confirmed current image version is required",
+            "At least one stored vehicle image is required",
             await support.Page.Locator("main").InnerTextAsync(),
             StringComparison.Ordinal);
-
-        await EnterEditModeByKeyboardAsync(support.Page);
         var retryButton = support.Page.GetByRole(
             AriaRole.Button,
             new PageGetByRoleOptions { Name = "Retry custody", Exact = true });
@@ -105,15 +120,15 @@ public sealed class OperatorJourneyTests
         await EnterEditModeByKeyboardAsync(support.Page);
         await SubmitGenerateByKeyboardAsync(support.Page, "Prepare the reviewed deterministic handoff.");
         var generatedText = await support.Page.Locator("main").InnerTextAsync();
-        Assert.Contains("Business revision 1", generatedText, StringComparison.Ordinal);
-        Assert.Contains("integrity verified", generatedText, StringComparison.Ordinal);
-        Assert.Contains("Revisions\n1", generatedText.Replace("\r", string.Empty), StringComparison.Ordinal);
+        // One generated handoff, integrity-verified; the page names the file,
+        // never a version integer (CASE-007 copy rules).
+        Assert.Equal(1, CountOccurrences(generatedText, "integrity verified"));
         AssertOperatorSafe(generatedText, accepted.CaseId);
 
         await EnterEditModeByKeyboardAsync(support.Page);
         await SubmitGenerateByKeyboardAsync(support.Page, "Repeat unchanged reviewed handoff preparation.");
         var replayText = await support.Page.Locator("main").InnerTextAsync();
-        Assert.Contains("Revisions\n1", replayText.Replace("\r", string.Empty), StringComparison.Ordinal);
+        Assert.Equal(1, CountOccurrences(replayText, "integrity verified"));
 
         await EnterEditModeByKeyboardAsync(support.Page);
         var downloadButton = support.Page.GetByRole(
@@ -351,15 +366,27 @@ public sealed class OperatorJourneyTests
         Assert.Equal(DocumentCustodyStatus.Confirmed, added.Version.CustodyStatus);
     }
 
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var index = 0;
+        while ((index = haystack.IndexOf(needle, index, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            index += needle.Length;
+        }
+        return count;
+    }
+
     private static async Task EnterEditModeByKeyboardAsync(IPage page)
     {
         var button = page.GetByRole(
             AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Enter edit mode", Exact = true });
+            new PageGetByRoleOptions { Name = "Edit case", Exact = true });
         await button.FocusAsync();
         await button.PressAsync("Enter");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        Assert.Contains("You hold edit authority", await page.Locator("main").InnerTextAsync(),
+        Assert.Contains("Finish editing", await page.Locator("main").InnerTextAsync(),
             StringComparison.Ordinal);
     }
 
@@ -367,7 +394,7 @@ public sealed class OperatorJourneyTests
     {
         var button = page.GetByRole(
             AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Generate deterministic EVA handoff", Exact = true });
+            new PageGetByRoleOptions { Name = "Generate EVA handoff", Exact = true });
         Assert.True(await button.IsVisibleAsync(), await page.Locator("main").InnerTextAsync());
         var form = button.Locator("xpath=ancestor::form");
         await form.GetByLabel("Reason", new() { Exact = true }).FillAsync(reason);

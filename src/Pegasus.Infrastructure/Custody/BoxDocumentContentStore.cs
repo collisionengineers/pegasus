@@ -146,19 +146,9 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             throw new InvalidOperationException(
                 "Managed content requires the already bound Case custody root.");
         }
-        var bindingFile = await client.FindChildAsync(
-            root.Id,
-            "pegasus-case-binding.json",
-            "file",
-            cancellationToken)
-            ?? throw new InvalidDataException("The Case custody root is missing its immutable binding.");
-        var binding = await client.DownloadAsync(bindingFile.Id, cancellationToken);
-        if (!binding.AsSpan().SequenceEqual(
-                BoxCaseCustody.CaseBinding(address.CaseId, address.CaseReference)))
-        {
-            throw new InvalidDataException("The Case custody root belongs to another Case identity.");
-        }
-
+        // DOCS-005: the case root carries no binding file; the reference-named
+        // folder resolved under the custody root is the case's, and the durable
+        // folder identity lives in the database.
         var evidence = await ResolvePlainFolderAsync(root.Id, "Evidence", create, cancellationToken);
         if (evidence is null)
         {

@@ -1,9 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using System.Security.Claims;
-using Pegasus.Core.Actors;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 
@@ -14,11 +11,13 @@ namespace Pegasus.Web.Pages.ImageIntake;
 public sealed class DetailsModel(
     IVrmSuggestionStore vrmSuggestionStore,
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
-    IImageIntakeStore imageIntakeStore) : PageModel
+    IImageIntakeStore imageIntakeStore) : StaffPageModel
 {
     public ImageIntakeDetail Detail { get; private set; } = null!;
 
     public IReadOnlyList<ImageIntakeLifecycleEvent> History { get; private set; } = [];
+
+    public IReadOnlyList<ImageIntakeImage> Images { get; private set; } = [];
 
     public IReadOnlyList<ImageVrmSuggestion> Suggestions { get; private set; } = [];
 
@@ -33,6 +32,7 @@ public sealed class DetailsModel(
         }
 
         Detail = detail;
+        Images = await imageIntakeStore.ListImagesAsync(id, cancellationToken);
         History = await imageIntakeStore.ListHistoryAsync(id, cancellationToken);
         Suggestions = await vrmSuggestionStore.ListForReceiptAsync(
             detail.Record.Origin.ReceiptId,
@@ -51,10 +51,7 @@ public sealed class DetailsModel(
         string reason,
         CancellationToken cancellationToken)
     {
-        if (!StaffActorFactory.TryCreate(
-                User.FindFirstValue(ClaimTypes.NameIdentifier),
-                User.FindAll(ClaimTypes.Role).Select(claim => claim.Value),
-                out var actor))
+        if (!TryGetActor(out var actor))
         {
             return Forbid();
         }
