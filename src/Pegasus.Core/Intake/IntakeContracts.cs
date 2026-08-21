@@ -416,6 +416,18 @@ public sealed record IntakeReceipt(
     public bool AssociationWasStaffDecision =>
         CurrentCaseId is not null && ManualAssociationActorKind == ActorKind.Staff;
 
+    /// <summary>
+    /// Whether unlinking this receipt cancels the case it is currently linked
+    /// to. True when that case is the one this receipt's own acceptance
+    /// created: unlinking then takes the case's only source away. A receipt
+    /// since relinked to some other case is not that case's source, so
+    /// unlinking it leaves that case alone. Derived here beside the rest of the
+    /// association rules so no surface works it out again from raw fields
+    /// (INTK-029).
+    /// </summary>
+    public bool UnlinkCancelsCase =>
+        AcceptedCaseId is not null && AcceptedCaseId == CurrentCaseId;
+
     public string? CurrentCaseReference =>
         ManualAssociationVersion is null
             ? AcceptedCaseReference

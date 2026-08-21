@@ -9,6 +9,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -1017,10 +1018,7 @@ public sealed class EvaHandoffStore(
 
     private static bool IsTerminalWorkflow(string state) =>
         Enum.TryParse<CaseLifecycleState>(state, out var parsed)
-        && parsed is CaseLifecycleState.PostReportComplete
-            or CaseLifecycleState.ProviderCancelled
-            or CaseLifecycleState.CollisionEngineersRejected
-            or CaseLifecycleState.CreatedInError;
+        && CaseLifecycleRules.IsTerminal(parsed);
 
     private static CaseLifecycleState ParseLifecycleState(string state) =>
         Enum.TryParse<CaseLifecycleState>(state, ignoreCase: false, out var parsed)
