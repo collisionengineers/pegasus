@@ -690,4 +690,97 @@
             });
         });
     });
+
+    // Reason dialogs built as div backdrops ([data-reason-dialog]): open from
+    // any [data-dialog-open="<id>"] control, close on Cancel, Escape, or a
+    // backdrop click, contain focus while open, and return focus to the
+    // invoking control. This lives here rather than beside the markup because
+    // the deployed Content-Security-Policy discards inline scripts.
+    document.querySelectorAll('[data-reason-dialog]').forEach(function (dialog) {
+        if (dialog.dataset.dialogBound === 'true') {
+            return;
+        }
+        dialog.dataset.dialogBound = 'true';
+
+        var invoker = null;
+
+        function focusable() {
+            return Array.prototype.filter.call(
+                dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                function (element) { return !element.disabled && !element.hidden; });
+        }
+
+        function open(source) {
+            invoker = source;
+            dialog.hidden = false;
+            document.addEventListener('keydown', onKeydown, true);
+            var items = focusable();
+            if (items.length > 0) {
+                items[0].focus();
+            }
+        }
+
+        function close() {
+            dialog.hidden = true;
+            document.removeEventListener('keydown', onKeydown, true);
+            if (invoker) {
+                invoker.focus();
+            }
+        }
+
+        function onKeydown(event) {
+            if (event.key === 'Escape') {
+                // Safe: closing abandons an unsent reason and changes nothing.
+                event.preventDefault();
+                close();
+                return;
+            }
+            if (event.key !== 'Tab') {
+                return;
+            }
+            var items = focusable();
+            if (items.length === 0) {
+                return;
+            }
+            var first = items[0];
+            var last = items[items.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        dialog.querySelectorAll('[data-dialog-dismiss]').forEach(function (control) {
+            control.addEventListener('click', close);
+        });
+
+        dialog.addEventListener('click', function (event) {
+            if (event.target === dialog) {
+                close();
+            }
+        });
+
+        document.querySelectorAll('[data-dialog-open="' + dialog.id + '"]').forEach(function (control) {
+            control.addEventListener('click', function () {
+                open(control);
+            });
+        });
+    });
+
+    // The Other classification name and reasoning fields exist only while an
+    // Other option is selected; the select drives their visibility.
+    document.querySelectorAll('[data-other-toggle]').forEach(function (select) {
+        var scope = select.closest('[data-reason-dialog]') || document;
+        function sync() {
+            var isOther = select.value === 'other-received' || select.value === 'other-sent';
+            scope.querySelectorAll('[data-other-field]').forEach(function (field) {
+                field.hidden = !isOther;
+            });
+        }
+        select.addEventListener('change', sync);
+        sync();
+    });
 })();
