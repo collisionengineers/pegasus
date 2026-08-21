@@ -41,11 +41,11 @@
   "HZN": 3,
   "PR": 54,
   "DELIV": 15,
-  "INTK": 31,
-  "PLAT": 32,
-  "CASE": 12,
+  "INTK": 32,
+  "PLAT": 34,
+  "CASE": 17,
   "AUTO": 8,
-  "ENG": 11,
+  "ENG": 12,
   "MAIL": 10,
-  "DOCS": 7
+  "DOCS": 8
 }
