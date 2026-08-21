@@ -2,10 +2,12 @@
 id: PLAT-018
 type: ticket
 title: Correct two self-contradictory rules in the design authority
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-21T13:57:30.823Z'
 labels:
   - docs
   - design-authority
@@ -15,7 +17,7 @@ links:
 docs_todo: true
 archived: false
 created: '2026-08-21T08:25:11.433Z'
-updated: '2026-08-21T09:39:53.697Z'
+updated: '2026-08-21T13:57:30.823Z'
 ---
 
 ## What
