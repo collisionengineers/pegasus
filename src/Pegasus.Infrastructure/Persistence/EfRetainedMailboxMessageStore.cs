@@ -720,7 +720,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                 var cleanedExcerpt = receipt?.BodyHead is { } bodyHead
                     ? Excerpt(StaffForwardBodyCleaner.SplitForwardedHeader(bodyHead).Body)
                     : row.BodyExcerpt is { } excerpt
-                        ? StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)
+                        ? Excerpt(StaffForwardBodyCleaner.SplitForwardedHeader(
+                            StaffForwardBodyCleaner.Clean(excerpt, isStaffForward)).Body)
                         : null;
                 if (string.IsNullOrWhiteSpace(cleanedExcerpt))
                 {

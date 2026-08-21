@@ -1959,8 +1959,10 @@ tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 var(--navy-l
 .queue-list > a[data-state="unread"] strong { font-weight: 800; }
 
 /* A retained body is flattened text. It is rendered as text and wraps like
-   text; nothing here interprets markup. */
-.mail-body {
+   text; nothing here interprets markup. The pre form is the quick preview and
+   Deleted-items rendering; the message page's div form renders paragraphs and
+   must not inherit pre-wrap. */
+pre.mail-body {
   margin: var(--sp-4) 0 0;
   font: inherit;
   white-space: pre-wrap;
