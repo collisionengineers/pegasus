@@ -175,6 +175,74 @@ public sealed class CaseMatchIntegrationTests
     }
 
     [Fact]
+    public async Task RetainedMailAssociationRejectsStaleEvidenceThenWritesAndReplaysOnce()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var accepted = await harness.AcceptAsync("mail-case-association-accept");
+        var receiptId = await harness.SeedRetainedMailReceiptAsync(
+            "mail-case-association-token",
+            "AB12 CDE",
+            "thread-1");
+        var store = new EfIntakeMutationStore(harness.Factory);
+        var evidence = await store.GetAsync(receiptId, CancellationToken.None);
+        Assert.Equal([accepted.Identity.CaseId], Assert.IsType<AutomaticMailCaseAssociationEvidence>(evidence).RegistrationCaseIds);
+
+        await harness.SetReceiptRegistrationAsync(receiptId, "XY99 ZZZ");
+        var staleRequest = new AutomaticCaseAssociationRequest(
+            receiptId,
+            accepted.Identity.CaseId,
+            AssociateRetainedMailWithCase.PolicyKey,
+            AssociateRetainedMailWithCase.PolicyVersion,
+            "system-worker:intake-processing",
+            $"mail-case-association:{receiptId:N}",
+            "Automatic association from retained mail evidence.",
+            evidence.Fingerprint);
+        await Assert.ThrowsAsync<IntakeAssociationConflictException>(() =>
+            store.AssociateFromMatchAsync(staleRequest, StartUtc, CancellationToken.None));
+
+        await harness.SetReceiptRegistrationAsync(receiptId, "AB12 CDE");
+        var useCase = new AssociateRetainedMailWithCase(store, store, TimeProvider.System);
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.Associated,
+            await useCase.ExecuteAsync(receiptId));
+        Assert.Equal(
+            AutomaticCaseAssociationOutcome.AlreadyAssociated,
+            await useCase.ExecuteAsync(receiptId));
+
+        await using var context = await harness.Factory.CreateDbContextAsync();
+        var association = Assert.Single(await context.IntakeManualAssociations
+            .AsNoTracking()
+            .Where(item => item.IntakeReceiptId == receiptId)
+            .ToListAsync());
+        Assert.Equal(accepted.Identity.CaseId, association.CaseId);
+        Assert.Equal(AssociateRetainedMailWithCase.PolicyKey, association.MatchPolicyKey);
+        Assert.Equal(1, await context.IntakeMutationHistory.CountAsync(item =>
+            item.IntakeReceiptId == receiptId
+            && item.EventType == "intake_case_linked_automatic"));
+        var retainedMessageId = await context.RetainedMailboxMessages
+            .Where(item => item.ExternalReceiptToken == "mail-case-association-token")
+            .Select(item => item.Id)
+            .SingleAsync();
+        var retainedDetail = await new EfRetainedMailboxMessageStore(harness.Factory)
+            .GetAsync(retainedMessageId, CancellationToken.None);
+        Assert.Equal(accepted.Identity.CaseId, retainedDetail?.Summary.CaseId);
+
+        var sameThreadId = await harness.SeedRetainedMailReceiptAsync(
+            "same-thread-token",
+            null,
+            "thread-1");
+        var otherMailboxId = await harness.SeedRetainedMailReceiptAsync(
+            "other-mailbox-token",
+            null,
+            "thread-1",
+            "mailbox-2");
+        Assert.Equal(
+            [accepted.Identity.CaseId],
+            (await store.GetAsync(sameThreadId, CancellationToken.None))!.ThreadCaseIds);
+        Assert.Empty((await store.GetAsync(otherMailboxId, CancellationToken.None))!.ThreadCaseIds);
+    }
+
+    [Fact]
     public async Task CaseMatchDecisionReloadsWithoutLosingAuditEvidence()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
@@ -349,6 +417,35 @@ public sealed class CaseMatchIntegrationTests
             await context.Database.ExecuteSqlInterpolatedAsync(
                 $"INSERT INTO IntakeReceipts (Id, SourceFileName, MediaType, SourceLength, SourceHash, SourceChannel, ExternalReceiptToken, ReceivedAtUtc, ProcessedAtUtc, SourceReaderKey, SourceReaderVersion, Version, Decision, DecisionReason, EvidenceJson, FieldsJson, OcrCandidatesJson) VALUES ({id}, {"chaser.eml"}, {"message/rfc822"}, {50L}, {sourceHash}, {"mailbox"}, {externalToken}, {StartUtc}, {StartUtc}, {"fixture-reader"}, {"1"}, {0L}, {"needs_sorting"}, {"Chaser fixture"}, {emptyEnvelope}, {emptyEnvelope}, {emptyEnvelope})");
             return id;
+        }
+
+        public async Task<Guid> SeedRetainedMailReceiptAsync(
+            string externalToken,
+            string? registration,
+            string conversationIdentity,
+            string mailboxId = "mailbox-1")
+        {
+            var id = await SeedAdditionalReceiptAsync(externalToken);
+            var messageId = Guid.NewGuid();
+            var sourceHash = new string('d', 64);
+            await using var context = await Factory.CreateDbContextAsync();
+            if (registration is not null)
+            {
+                await context.Database.ExecuteSqlInterpolatedAsync(
+                    $"INSERT INTO InstructionDrafts (IntakeReceiptId, VehicleRegistration) VALUES ({id}, {registration})");
+            }
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"IF NOT EXISTS (SELECT 1 FROM ApprovedInboxPollStates WHERE MailboxId = {mailboxId}) INSERT INTO ApprovedInboxPollStates (MailboxId, MailboxAddress, DueAtUtc) VALUES ({mailboxId}, {$"{mailboxId}@example.test"}, {StartUtc})");
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"INSERT INTO RetainedMailboxMessages (Id, MailboxId, MailboxAddress, FolderScope, FolderIdentity, ImmutableMessageId, ConversationIdentity, ExternalReceiptToken, ToAddressesJson, CcAddressesJson, SourceLength, SourceSha256, ReceivedAtUtc, RetainedAtUtc, IsRead) VALUES ({messageId}, {mailboxId}, {"intake@example.test"}, {"inbox"}, {"inbox-folder"}, {$"immutable-{messageId:N}"}, {conversationIdentity}, {externalToken}, {"[]"}, {"[]"}, {50L}, {sourceHash}, {StartUtc}, {StartUtc}, {false})");
+            return id;
+        }
+
+        public async Task SetReceiptRegistrationAsync(Guid receiptId, string registration)
+        {
+            await using var context = await Factory.CreateDbContextAsync();
+            await context.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE InstructionDrafts SET VehicleRegistration = {registration} WHERE IntakeReceiptId = {receiptId}");
         }
 
         public async ValueTask DisposeAsync() => await database.DisposeAsync();

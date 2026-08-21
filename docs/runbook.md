@@ -1,4 +1,4 @@
-# Repository runbook
+﻿# Repository runbook
 
 ## Unidentified queue operations
 
@@ -851,7 +851,7 @@ The following contracts must be proved through the owning Core policy and actual
 - no-registration Triage remains `Needs sorting` without case/reference creation;
 - reply-chain evidence uses the exact allowlist and does not fall back to subject, registration, or manual selection;
 - the in-house upload caller proves authenticated staff creation, isolated request-local upload/result presentation, expiry, revocation, bounded retry/abuse behavior, durable custody, and cross-request/non-disclosing failures without a Box File Request route;
-- Case and later-Audit custody use the immutable business reference hierarchy, reject unrelated or wrongly bound same-name folders, and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
+- Case and later-Audit custody use the immutable business reference hierarchy with the database-stored remote folder id as the identity authority (no marker files inside folders), and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
 - manual EVA generation is refused outside `Review` or without applicable confirmed custody, accepted mapping, current evidence and all eligible Case-vehicle images; download is an authenticated, reasoned, idempotent command over the rendered business revision and records permanent history;
 - the first successful EVA export generation records one `First sent to Engineer` proxy event, not receipt;
 - repeated EVA export proves byte-identical ordered UTF-8 JSON and image order for the same accepted inputs, the SHA-256 manifest, the image eligibility/duplication/video-screenshot rules, no EVA network call, and no duplicate `First sent to Engineer` event;
@@ -1118,6 +1118,33 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 ### Production recovery
 
 Production releases retain the previous immutable application artifact for redeployment. Database migrations are explicit and must remain compatible with the supported prior application artifact or have an accepted recovery strategy.
+
+#### Previous-artifact rollback (Web and Worker)
+
+Rolling production back to the previous release's artifacts is a production
+mutation under the live-operation approval matrix: obtain exact-target
+approval first. The inputs are the previous release's row in
+[operations § Production environment](operations.md#production-environment)
+and its retained folder `artifacts/releases/release-<n>-<sha>` (kept on the
+release workstation; the image also remains in the production ACR by digest).
+
+1. Web: from an authorised terminal, `azd env set PEGASUS_WEB_IMAGE_DIGEST
+   <previous digest> -e pegasus-prod`, `azd env set
+   PEGASUS_WEB_REVISION_SUFFIX <previous sha12> -e pegasus-prod`, then
+   `azd provision -e pegasus-prod --preview --no-prompt` — stop unless the
+   only change is the web revision — then `azd provision -e pegasus-prod
+   --no-prompt`.
+2. Worker: `az functionapp deployment source config-zip --resource-group
+   rg-pegasus-prod --name pegasus-prod-worker-252ow37gij --src
+   ./artifacts/releases/release-<n>-<sha>/worker.zip`.
+3. Database: schema is roll-forward only. Releases keep migrations additive
+   so the previous application runs against the newer schema; a migration
+   that cannot honour that must ship an accepted recovery strategy instead.
+   Restoring data is a [Production recovery](#production-recovery) exercise
+   with its own approvals, never part of an artifact rollback.
+4. Smoke: `Invoke-ProductionSmoke.ps1` with the previous release's exact
+   source revision and version, and the current Worker activation value.
+5. Record the rollback and its reason in operations in the same task.
 
 A production recovery exercise must:
 

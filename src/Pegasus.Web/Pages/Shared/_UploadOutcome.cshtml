@@ -1,4 +1,4 @@
-@*
+﻿@*
     One file's confirmation outcome, once processing has resolved: what
     already happened automatically (reported, not re-offered) or the staff
     decision that is genuinely open. The action links route to the existing
@@ -11,6 +11,11 @@
     Model: Pegasus.Web.Presentation.UploadOutcomeView
 *@
 @model Pegasus.Web.Presentation.UploadOutcomeView
+@{
+    // Set by a hosting page whose submission-level card owns the decision:
+    // the outcome renders as a report only, offering nothing per file.
+    var compact = ViewData["UploadOutcomeCompact"] is true;
+}
 <div class="upload-outcome">
     @if (Model.ChipLabel is not null)
     {
@@ -21,7 +26,7 @@
         <span class="field-hint">@Model.StateLabel</span>
     }
     <p class="upload-outcome__message">@Model.Message</p>
-    @if (Model.PrimaryAction is not null || Model.SecondaryAction is not null || Model.Attach is not null)
+    @if (!compact && (Model.PrimaryAction is not null || Model.SecondaryAction is not null || Model.Attach is not null))
     {
         <div class="button-row">
             @if (Model.PrimaryAction is { } primary)
@@ -38,7 +43,7 @@
             }
         </div>
     }
-    @if (Model.Attach is { } attach)
+    @if (!compact && Model.Attach is { } attach)
     {
         var attachDomId = $"case-attach-{attach.ReceiptId:N}";
         @* Native disclosure, so opening and closing the search works without

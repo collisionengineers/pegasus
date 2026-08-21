@@ -1366,7 +1366,7 @@ table tfoot th {
 /* A repair line carries eleven columns. Below this width the cells stop being
    usable, so the wrapper scrolls instead of crushing them; under 900px the
    stacked reflow takes over and the scroll never applies. */
-.line-grid { min-width: 78rem; }
+.line-grid { min-width: 56rem; }
 /* Column headers wrap here. The global `th` rule keeps headers on one line,
    which under `table-layout: fixed` makes a long header overrun its column and
    collide with the next one. */
@@ -1797,8 +1797,8 @@ table tfoot th {
 .facts dd.quiet { color: var(--muted); font-weight: 400; }
 
 .datarow { display: flex; align-items: center; gap: var(--sp-4); min-height: 32px; padding: 3px 0; border-top: var(--border); font-variant-numeric: tabular-nums; }
-.datarow__field { flex: 0 0 150px; color: var(--muted); font-size: var(--t-sm); }
-.datarow__value { flex: 0 0 210px; font-weight: 600; }
+.datarow__field { flex: 1 1 120px; min-width: 0; color: var(--muted); font-size: var(--t-sm); }
+.datarow__value { flex: 1.4 1 140px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .datarow__value.quiet { color: var(--muted); font-weight: 400; }
 .datarow__end { display: flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
 
@@ -1909,6 +1909,49 @@ details > summary.btn::marker, .upload-attach > summary::marker { content: ""; }
 .filterbar__more summary { color: var(--charcoal); cursor: pointer; font-size: var(--t-sm); font-weight: 600; }
 .filterbar__more .form-grid { margin-top: var(--sp-4); }
 
+/* UI-10: the retained-mail table remains the primary workspace. The preview is
+   a read-only adjacent evidence region, then an ordinary ordered section when
+   constrained width or browser zoom leaves no honest room for two panes. */
+.mail-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.mail-workspace > .table-wrap { min-width: 0; }
+
+.mail-preview {
+  min-width: 0;
+  padding: var(--sp-5);
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.mail-preview h2 { margin: 0 0 var(--sp-4); font-size: var(--t-h3); }
+.mail-preview__status { margin: 0; color: var(--muted); }
+.mail-preview__facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); margin: 0; }
+.mail-preview__facts > div { min-width: 0; }
+.mail-preview__facts dt { color: var(--muted); font-size: var(--t-sm); font-weight: 700; }
+.mail-preview__facts dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
+.mail-preview__facts .plain-list { padding-left: var(--sp-4); }
+
+tr.is-preview-selected > td { background: var(--navy-bg); }
+tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 var(--navy-line); }
+
+@media (max-width: 1279px) {
+  .mail-workspace { grid-template-columns: minmax(0, 1fr); }
+  .mail-preview { order: 2; }
+}
+
+@media (forced-colors: active) {
+  tr.is-preview-selected > td { background: Highlight; color: HighlightText; }
+  tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 HighlightText; }
+  tr.is-preview-selected a { color: LinkText; }
+}
+
 .datarow__sug { color: var(--charcoal); font-size: var(--t-sm); }
 
 /* Mail workspace. Unread is carried by weight and by the words "Unread" in the
@@ -1916,8 +1959,10 @@ details > summary.btn::marker, .upload-attach > summary::marker { content: ""; }
 .queue-list > a[data-state="unread"] strong { font-weight: 800; }
 
 /* A retained body is flattened text. It is rendered as text and wraps like
-   text; nothing here interprets markup. */
-.mail-body {
+   text; nothing here interprets markup. The pre form is the quick preview and
+   Deleted-items rendering; the message page's div form renders paragraphs and
+   must not inherit pre-wrap. */
+pre.mail-body {
   margin: var(--sp-4) 0 0;
   font: inherit;
   white-space: pre-wrap;
@@ -2340,3 +2385,87 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Upload/receipt thumbnail tile — the gallery treatment for a single image
+   (INTK-020): same border/card language as .image-gallery, sized for a row. */
+.upload-thumb {
+  display: inline-block;
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--paper);
+  padding: var(--sp-1);
+  line-height: 0;
+}
+
+.upload-thumb img {
+  display: block;
+  width: 120px;
+  height: 90px;
+  object-fit: cover;
+  border-radius: calc(var(--radius) - 2px);
+}
+
+.upload-outcome-list > li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--sp-2) var(--sp-3);
+  align-items: start;
+}
+
+.upload-outcome-list > li > .upload-thumb {
+  grid-row: span 2;
+}
+
+.upload-outcome-list > li > :not(.upload-thumb) {
+  grid-column: 2;
+}
+
+
+/* CASE-007: the action bar hosts the edit toggle forms inline. */
+.record__bar-form { display: inline-flex; }
+.record__bar-note { align-self: center; color: var(--muted); font-size: var(--t-sm); }
+/* INTK-022: queue filter dropdowns and sortable column headers. */
+.filter-row { display: flex; align-items: end; gap: var(--sp-5); }
+.filter-row label { display: flex; flex-direction: column; gap: var(--sp-2); color: var(--muted); font-size: var(--t-sm); }
+th[aria-sort] a::after { content: " \2193"; }
+th[aria-sort="ascending"] a::after { content: " \2191"; }
+th a { color: inherit; text-decoration: none; }
+th a:hover { text-decoration: underline; }
+/* ENG-006: required state is visual, not a sentence. */
+label.req::after { content: " *"; color: var(--ce-red); }
+
+/* ENG-006: the damage diagram is a grid of clickable regions; one click saves. */
+.damage-grid { display: grid; grid-template-columns: repeat(3, minmax(90px, 140px)); gap: var(--sp-2); }
+.damage-region { min-height: 44px; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font: inherit; font-size: var(--t-sm); cursor: pointer; }
+.damage-region:hover { border-color: var(--charcoal); }
+.damage-region[aria-pressed="true"] { background: var(--ce-red); border-color: var(--ce-red); color: #fff; font-weight: 600; }
+/* MAIL-005: the Inbox outcome cell aligns its chip and case link on one row. */
+.outcome-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+
+/* Inbox message page (MAIL-006). `.decision` is the right-column card that
+   carries the classification decision and its actions; the `.mail-*` set is
+   the letter treatment: sender line, muted forwarding route, quoted forwarded
+   header, and the body as paragraphs (a blank line is a paragraph break,
+   consecutive lines stay tight). */
+.decision { padding: var(--sp-4) var(--sp-5) var(--sp-5); border: var(--border); border-radius: var(--radius); background: var(--paper); }
+.decision + .decision { margin-top: var(--sp-5); }
+.decision .facts { margin-bottom: var(--sp-4); }
+.decision .facts:last-child { margin-bottom: 0; }
+/* The auto-fit facts grid splits the heading from its list once wide enough;
+   inside a card or dialog it stays one column. */
+.decision .facts, .reason-dialog .facts { grid-template-columns: 1fr; }
+
+.mail-from { font-size: var(--t-h2); font-weight: 650; overflow-wrap: anywhere; }
+.mail-route { margin-top: 2px; color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.mail-quoted { margin: var(--sp-5) 0 var(--sp-6); padding-left: var(--sp-4); border-left: 2px solid var(--line); color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.mail-quoted div { padding: 1px 0; }
+.mail-body { max-width: 68ch; overflow-wrap: anywhere; }
+.mail-body p { margin: 0 0 var(--sp-5); }
+.mail-body p.run-on { margin-bottom: var(--sp-1); }
+.mail-body p:last-child { margin-bottom: 0; }
+
+/* The Case tab's single working column. */
+.form-column { max-width: 680px; }
+
+/* A mail subject is the record title and wraps; an ellipsis read as clipping. */
+.record__head h1.wrap { overflow: visible; white-space: normal; text-overflow: clip; }

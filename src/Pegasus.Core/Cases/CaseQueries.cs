@@ -24,11 +24,30 @@ public sealed record CaseSearchFilters(
     string? Origin = null,
     string? Query = null);
 
+/// <summary>
+/// The sort a case list renders in. Newest received first is the default
+/// everywhere; the rest are the sortable columns, each in both directions.
+/// </summary>
+public enum CaseSearchOrder
+{
+    ReceivedDesc,
+    ReceivedAsc,
+    ReferenceAsc,
+    ReferenceDesc,
+    RegistrationAsc,
+    RegistrationDesc,
+    ClaimantAsc,
+    ClaimantDesc,
+    PrincipalAsc,
+    PrincipalDesc
+}
+
 public sealed record SearchCasesQuery(
     ActionActor Actor,
     CaseSearchFilters Filters,
     int Page = 1,
-    int PageSize = 25);
+    int PageSize = 25,
+    CaseSearchOrder Order = CaseSearchOrder.ReceivedDesc);
 
 public sealed record CaseSearchItem(
     Guid CaseId,
@@ -44,7 +63,8 @@ public sealed record CaseSearchItem(
     DateTimeOffset ReceivedAtUtc,
     DateOnly? InstructionDate,
     string Origin,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? NextChaseAtUtc = null);
 
 public sealed record SearchCasesResult(
     IReadOnlyList<CaseSearchItem> Items,
@@ -138,6 +158,20 @@ public interface IGetCase
         CancellationToken cancellationToken);
 }
 
+public static class CaseRegistration
+{
+    public static string? Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var compact = string.Concat(value.Trim().Where(char.IsLetterOrDigit)).ToUpperInvariant();
+        return compact.Length == 0 ? null : compact;
+    }
+}
+
 public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
 {
     private readonly ICaseQueryStore _store = store ?? throw new ArgumentNullException(nameof(store));
@@ -164,6 +198,10 @@ public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
         if (query.Filters.State is { } state && !Enum.IsDefined(state))
         {
             throw new ArgumentException("The lifecycle-state filter is invalid.", nameof(query));
+        }
+        if (!Enum.IsDefined(query.Order))
+        {
+            throw new ArgumentException("The sort order is invalid.", nameof(query));
         }
         if (query.Filters.FromDate is { } fromDate
             && query.Filters.ToDate is { } toDate
@@ -213,8 +251,8 @@ public sealed class SearchCases(ICaseQueryStore store) : ISearchCases
             return null;
         }
 
-        var compact = string.Concat(normalized.Where(char.IsLetterOrDigit)).ToUpperInvariant();
-        if (compact.Length == 0)
+        var compact = CaseRegistration.Normalize(normalized);
+        if (compact is null)
         {
             throw new ArgumentException("The registration filter is invalid.", nameof(value));
         }

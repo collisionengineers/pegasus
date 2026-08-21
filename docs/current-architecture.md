@@ -1,4 +1,4 @@
-# Architecture
+﻿# Architecture
 
 ## Unidentified intake boundary
 
@@ -101,7 +101,7 @@ in force here:
   fallback policy. Anonymous `/Uploads/{token}` remains outside this inheritance
   tree and reuses only the static operation-key generator. Manual upload receipt
   tokens remain a separate intake replay identity.
-- `GET /Inbox` calls Core `ListRetainedMail` and `GetRetainedMailFreshness` for the mail workspace: retained messages newest first, scoped by mailbox and folder through the query string alone, with an explicit manual refresh that carries that scope; it is read-only and the page carries no handler. `GET /Inbox/{id}` calls `GetRetainedMail` for one retained message, its attachments, its retained-scope thread, and its current classification, queue, processing outcome and case association; its `OnPostCorrectClassificationAsync` handler corrects a message's classification. The Web runtime role holds `SELECT` alone on the retained-mail tables, plus `SELECT, UPDATE` on `IntakeMailClassificationDecisions` and `SELECT, INSERT` on `IntakeMailClassificationHistory` (`UPDATE, DELETE` denied there).
+- `GET /Inbox` calls Core `ListRetainedMail` and `GetRetainedMailFreshness` for the mail workspace: retained messages newest first, scoped by mailbox and folder through the query string alone, with an explicit manual refresh that carries that scope; it is read-only and the page carries no handler. Its optional search filters retained mail in SQL before paging across the retained body, attachment filenames, and receipt-owned `IntakeSearchDocuments` projected atomically from the canonical intake-reader output. Deleted Items search instead calls Core `SearchDeletedMail`, which caps a request at the 100 newest messages and uses GET-only Graph reads against each exact approved mailbox and its resolved `deleteditems` folder; MIME is parsed once by the same intake reader and is neither retained nor backfilled. The durable queued-intake caller also applies MAIL-09's advisory association after evaluation: it derives candidates from current non-archived Case registration data and exact mailbox/conversation current associations, then delegates a fresh evidence fingerprint to the existing serializable, idempotent association transaction. `GET /Inbox/{id}` calls `GetRetainedMail` for one retained message, its attachments, its retained-scope thread, current classification, queue, processing outcome, current manual-or-accepted case association and latest folder-move result. For an unassociated exact receipt it also uses the canonical Case search/detail queries to show a searched business summary; the confirmed link POST re-resolves the message and receipt, verifies reviewed versions, acquires the existing Case edit lease and delegates to `ILinkIntake`. The confirmed unlink POST applies the same server-bound checks to the exact current Case and delegates to `IReverseIntakeLink`; replacement is a later independent search and link, not an active-to-active swap. That read also derives zero or one concrete suggested Move from the current folder recommendation and move eligibility; the advice is not stored and the page delegates its control to the existing confirmed move handler. `OnPostCorrectClassificationAsync` corrects classification. `OnPostMoveToRecommendedFolderAsync` accepts only the internal message id, current classification/recommendation/mailbox versions, operation key and required reason; Core revalidates the exact approved binding and Infrastructure reserves one `RetainedMailFolderMoves` record before the narrow provider port. A successful record overlays current location so the immutable arrival row remains unchanged and Inbox queries exclude the moved message. The provider is unavailable by default and the control is absent in that composition; fake-HTTP/local-SQL tests supply it, while no production writer, Graph permission, deployment or live mailbox mutation is active. The Web runtime role holds `SELECT` alone on the retained-mail and receipt search-projection tables and `SELECT, INSERT, UPDATE` on the move-operation table; the Worker projection writer holds `SELECT, INSERT, DELETE` on `IntakeSearchDocuments` because replacement removes and recreates rows rather than updating them. Web also holds `SELECT, UPDATE` on `IntakeMailClassificationDecisions` and `SELECT, INSERT` on `IntakeMailClassificationHistory` (`UPDATE, DELETE` denied there).
 - `GET /Operations` calls the Core Operations projection for retryable external work and active unexpired Pegasus-generated upload links. It has no approval controls, general receipt ledger, manual/email/Automation receipt display, or Box request caller. The separately planned principal-scoped provider API is not inferred from the Automation/MCP ingress. `GET /Received/{id}` calls `GetIntake`, and its retained receipt mutations call the named Core intake commands with a server-derived actor, expected versions or case lease, operation key, and reason as applicable.
 - `GET /Received/{id}/Source` calls Core `DownloadIntakeSource`, which authorises the current staff actor, resolves the receipt-owned source, validates retained length and SHA-256, and returns only a no-sniff attachment with a safe filename and content type.
 - `GET /VehicleImages` calls Core `IImageIntakeQueries` for the association-filtered image-intake receipt list and the exact Image Intake Reference lookup. `GET /VehicleImages/{id}` calls the same detail query plus the receipt's VRM suggestions and, while the record holds no case association, the registration-matched eligible-case candidates; both are read-only authenticated staff pages.
@@ -206,6 +206,9 @@ The current enforced resource limits are:
 | PDF reader | 5,242,880 extracted characters; 512 discrete image objects; 100,000,000 decoded image-sample pixels; 25 MiB extracted image bytes; 30 seconds |
 | EML reader | Eight nested-message levels; 128 MIME entities; 25 MiB cumulatively decoded MIME bytes |
 | DOCX reader | 512 package entries; 50 MiB total uncompressed bytes; 10 MiB for each XML or relationship part; 25 MiB total image bytes |
+| DOC reader | 10 MiB input; 16,777,216 extracted characters; 1,000,000 piece-table pieces; the compound-file bounds below |
+| MSG reader | Eight nested-message levels; the compound-file bounds below |
+| Compound-file container (DOC and MSG) | 16 MiB input; 32,768 sectors; 131,072 directory entries; 16 MiB per stream; 64 MiB total stream bytes |
 
 The multipart boundary is enforced before Core. Reader-limit outcomes remain visible and cannot allocate a case or reference.
 
@@ -219,11 +222,20 @@ The current reader can:
 - enumerate supported attachments;
 - read PDF embedded text and discrete image streams;
 - read DOCX text and internal images;
+- read legacy DOC (Word binary) text through the bounded compound-file and
+  piece-table readers;
+- read Outlook MSG bodies (plain, HTML, and compressed RTF), sender/subject
+  transport evidence, and attachments, which re-enter the same dispatch so a
+  PDF inside a message reaches the PDF reader;
 - retain the uploaded source and each supported attachment, inline image, DOCX image, and discrete PDF image as separate review occurrences.
 
 SQL stores metadata and opaque artifact keys, not file bytes.
 
-Legacy DOC and MSG are retained but routed to `Needs sorting` without a reference; their automated extraction remains deferred. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
+Legacy DOC and MSG are extracted in-process since release 14 by the
+CollisionDocNet-derived readers under `Pegasus.Infrastructure` (SIMPLI-013,
+[ADR-0025](adr/0025-integrate-renderer-and-extractor-into-the-application.md));
+unreadable, encrypted, or over-limit containers fail closed into Unidentified
+without a reference. Ordinary images are retained review evidence; they are scanned by the in-process ONNX VRM engine (ADR-0019) and are never sent to an external OCR or vision service.
 
 For PDFs, only low-text pages with a dominant raster are marked as scan-like OCR candidates. No OCR service is currently called. Document- and attachment-level OCR-required state is visible during review.
 
@@ -476,7 +488,7 @@ The current QDOS extraction policy must not be reinterpreted as mailbox categori
 
 ### OCR and recognition
 
-A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. Document Intelligence OCR for scan-like PDFs remains absent. DVLA/DVSA adapters are implemented and the staff-triggered lookup path is composed in both runtime profiles (the Web records the request — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter); live acceptance evidence from a real production lookup remains a separate, approval-gated step.
+A first Document Intelligence caller may submit only persisted scan-like PDF page candidates. Ordinary images and vehicle photographs are outside that slice. Vehicle-registration recognition is implemented as the in-process ONNX engine selected by ADR-0019, scanning image-only intake automatically; it performs no image egress and no external OCR call. Document Intelligence OCR for scan-like PDFs remains absent. DVLA/DVSA adapters are implemented and the lookup path is composed in both runtime profiles (the Web records staff requests — replay in DevelopmentOffline, live-enabled in Production — and the production Worker owns the live adapter). Since release 15 an automatic sweep on the worker's reconciliation timer enqueues one lookup for every active case whose current registration (confirmed, else extracted fact) has never been looked up — idempotent per case and registration via the durable request row — so DVSA evidence and the mileage estimate arrive without a staff request, and the assessment page prefills its Mileage and Source from that evidence.
 
 ### Provider API and Automation MCP
 
@@ -490,7 +502,7 @@ The Send to AI hand-off (AI-09, ADR-0021) is a second gated boundary beside it: 
 
 EVA remains authoritative for named Engineer assignment and downstream engineering until an accepted replacement. Pegasus now implements the focused manual handoff locally: `Pegasus.Core` owns Review-only generation, required-custody and current-evidence eligibility, deterministic bundle composition, frozen revisions, reasoned download, and the once-per-Case `First sent to Engineer` proxy. The authenticated Case surface and composition-gated Automation ingress call those Core use cases; EF persists revision/download truth, and no EVA network client exists. Custody retry is a separate human-only Core use case reached by the Case surface, while the Worker processes the same persisted custody work through Infrastructure adapters.
 
-The Box adapters use the immutable Case/PO and Audit references for final folder names. A predeclared creation-owner token is used only in a transient staging folder so a lost create response can be reconciled without adopting an unrelated same-name folder; exact binding verification and an ETag-guarded same-parent promotion precede acceptance. Managed source, document, version, and nested Audit paths remain business-readable. Local in-memory-adapter and SQL caller proof does not establish production Box migration, deployment, external receipt, named-Engineer assignment, or operator drag-and-drop acceptance.
+The Box adapters use the immutable Case/PO and Audit references for final folder names. A predeclared creation-owner token is used only in a transient staging folder so a lost create response can be reconciled through the same replay; an ETag-guarded same-parent promotion completes creation. The durable folder identity is the database-stored remote folder id — root validation compares that id, and no marker file is written inside the folder (the operator-decided release-15 change; the image fold still deletes a legacy binding file when present). Each attachment of the accepted instruction is retained beside the source in `Evidence/Original instruction` at ordinals `002` onward, replay-verified. Managed source, document, version, and nested Audit paths remain business-readable. Local in-memory-adapter and SQL caller proof does not establish production Box migration, deployment, external receipt, named-Engineer assignment, or operator drag-and-drop acceptance.
 
 ### Workspaces
 

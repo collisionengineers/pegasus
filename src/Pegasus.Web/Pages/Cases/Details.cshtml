@@ -64,7 +64,50 @@
        the rule at the end. "Actions" named no action; the things an operator
        comes here to do are editing the case and opening its assessment. *@
     <div class="record__bar">
-        <a class="btn" href="#case-actions">Edit case</a>
+        @if (workflow.Archive is null)
+        {
+            @if (!string.IsNullOrWhiteSpace(Model.LeaseToken))
+            {
+                <form method="post" asp-page-handler="ReleaseLease" class="record__bar-form" data-edit-toggle-off>
+                    <input type="hidden" name="id" value="@summary.CaseId" />
+                    <input type="hidden" name="operationKey" value="@Model.ReleaseLeaseOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <button type="submit" class="btn btn--dark">Finish editing</button>
+                </form>
+                <form method="post" asp-page-handler="RenewLease" class="record__bar-form">
+                    <input type="hidden" name="id" value="@summary.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.RenewLeaseOperationKey" />
+                    <input type="hidden" name="editLeaseToken" value="@Model.LeaseToken" />
+                    <button type="submit" class="btn">Renew editing</button>
+                </form>
+            }
+            else if (Model.CanRecoverLease)
+            {
+                <form method="post" asp-page-handler="ClaimLease" class="record__bar-form">
+                    <input type="hidden" name="id" value="@summary.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                    <button type="submit" class="btn">Recover editing</button>
+                </form>
+            }
+            else if (details.ActiveEditLease is { } heldByOther && Model.EditAuthorityHolder is { } holder)
+            {
+                <span class="record__bar-note" data-edit-authority>
+                    @EditModeDisplay.HeldBy(holder, heldByOther.ExpiresAtUtc, Model.ViewerHoldsEditAuthority)
+                    Editing cannot be taken over.
+                </span>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="ClaimLease" class="record__bar-form">
+                    <input type="hidden" name="id" value="@summary.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@Model.ClaimLeaseOperationKey" />
+                    <button type="submit" class="btn">Edit case</button>
+                </form>
+            }
+        }
         @if (workflow.OriginalCaseId is { } originalCaseId)
         {
             <a class="btn" asp-page="/Cases/Details" asp-route-id="@originalCaseId">Original case</a>
@@ -127,6 +170,23 @@
                word. *@
             <partial name="Shared/_CaseDocuments" model="Model" />
 
+            @if (Model.EvidenceImages.Count > 0)
+            {
+                <section class="section-gap" aria-labelledby="instruction-photos-title">
+                    <div class="blockhead">
+                        <h2 id="instruction-photos-title">Instruction photographs</h2>
+                    </div>
+                    @{
+                        var evidenceGallery = Model.EvidenceImages
+                            .Select(image => new Pegasus.Web.Presentation.GalleryImage(
+                                Url.Page("/Intake/Asset", new { id = image.ReceiptId, assetId = image.AssetId })!,
+                                image.FileName))
+                            .ToArray();
+                    }
+                    <partial name="Shared/_ImageGallery" model="evidenceGallery" />
+                </section>
+            }
+
             <section class="section-gap" aria-labelledby="case-images-title">
                 <div class="blockhead">
                     <h2 id="case-images-title">Vehicle images</h2>
@@ -142,8 +202,14 @@
                         <section class="section-gap">
                             <h3><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></h3>
                             <p>@image.NormalizedVehicleRegistration · Registered <time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></p>
-                            <partial name="Shared/_ImageGallery"
-                                     model="Model.ImagesByIntake.GetValueOrDefault(image.Id, [])" />
+                            @{
+                                var intakeGallery = Model.ImagesByIntake.GetValueOrDefault(image.Id, [])
+                                    .Select(item => new Pegasus.Web.Presentation.GalleryImage(
+                                        Url.Page("/Intake/Image", new { id = item.ReceiptId })!,
+                                        item.FileName))
+                                    .ToArray();
+                            }
+                            <partial name="Shared/_ImageGallery" model="intakeGallery" />
                         </section>
                     }
                 }
@@ -161,3 +227,15 @@
         }
     </div>
 </article>
+
+<div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
+    <div class="reason-dialog">
+        <h2 id="edit-finish-title">Save your changes before finishing?</h2>
+        <p>Values not saved are not kept.</p>
+        <div class="button-row">
+            <button type="button" class="secondary-action" data-edit-finish-keep>Keep editing</button>
+            <button type="button" class="secondary-action" data-edit-finish-discard>Discard</button>
+            <button type="button" class="primary-action" data-edit-finish-save>Save changes</button>
+        </div>
+    </div>
+</div>

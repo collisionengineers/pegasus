@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.IO;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -8,6 +8,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
+using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Web.Pages.Cases.Assessment;
@@ -37,6 +38,8 @@ public sealed class IndexModel(
     IEstimateDocumentParser estimateParser,
     IAddCaseDocument addCaseDocument,
     IAcquireCaseEditLease acquireLease,
+    IVehicleEvidenceQueries vehicleEvidence,
+    ISaveAssessment saveAssessment,
     TimeProvider timeProvider) : StaffPageModel
 {
     /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
@@ -88,6 +91,137 @@ public sealed class IndexModel(
 
     public string AcceptOperationKey { get; private set; } = NewOperationKey();
 
+    /// <summary>The case's vehicle-lookup evidence, for prefilling the vehicle section.</summary>
+    public CaseVehicleEvidence? VehicleEvidence { get; private set; }
+
+    /// <summary>A saved assessment value for one vocabulary path, or null.</summary>
+    public string? SavedValue(string path) => Assessment?.Field(path)?.Value;
+
+    /// <summary>
+    /// The Mileage prefill: the saved assessment value, else confirmed vehicle
+    /// evidence, else the DVSA estimate (miles only) — CASE-008.
+    /// </summary>
+    public string? MileagePrefill
+    {
+        get
+        {
+            if (SavedValue("vehicle.odometer_miles") is { Length: > 0 } saved)
+            {
+                return saved;
+            }
+            if (VehicleEvidence?.Confirmed?.Mileage is { } confirmed
+                && VehicleEvidence.Confirmed.MileageUnit?.Value is null or VehicleMileageUnit.Miles)
+            {
+                return confirmed.Value.ToString(CultureInfo.InvariantCulture);
+            }
+            return VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles } estimate
+                ? estimate.Value.ToString(CultureInfo.InvariantCulture)
+                : null;
+        }
+    }
+
+    /// <summary>The Source prefill: saved, else online data when the mileage came from evidence.</summary>
+    public string? MileageSourcePrefill =>
+        SavedValue("vehicle.mileage_source") is { Length: > 0 } saved
+            ? saved
+            : MileagePrefill is null ? null : "online_data";
+
+    /// <summary>A vehicle-detail prefill: the saved assessment value, else lookup evidence.</summary>
+    public string? VehiclePrefill(string path)
+    {
+        if (SavedValue(path) is { Length: > 0 } saved)
+        {
+            return saved;
+        }
+
+        var details = VehicleEvidence?.LatestObservation?.Vehicle;
+        return path switch
+        {
+            "vehicle.make" => VehicleEvidence?.Confirmed?.Make?.Value ?? details?.Make,
+            "vehicle.model" => VehicleEvidence?.Confirmed?.Model?.Value ?? details?.Model,
+            "vehicle.year" => details?.ManufactureYear?.ToString(CultureInfo.InvariantCulture),
+            "vehicle.engine_cc" => details?.EngineCapacityCc?.ToString(CultureInfo.InvariantCulture),
+            "vehicle.fuel" => details?.FuelType,
+            _ => null
+        };
+    }
+
+    public string DamageOperationKey { get; private set; } = NewOperationKey();
+
+    /// <summary>The saved damage location, highlighted on the diagram (ENG-006).</summary>
+    public string? SavedImpactLocation =>
+        Assessment?.Field(AssessmentVocabulary.ImpactLocation)?.Value;
+
+    /// <summary>The case's recorded inspection mode, preselecting the method radios.</summary>
+    public CaseInspectionMode? RecordedInspectionMode =>
+        Case?.Data?.Inspection.Mode.Current?.Value;
+
+    /// <summary>
+    /// ENG-006: one click on a damage region saves it as the case's impact
+    /// location through the assessment save seam, under a lease this handler
+    /// acquires — the same value the report prints and the Impact location
+    /// dropdown edits.
+    /// </summary>
+    public async Task<IActionResult> OnPostSaveDamageAsync(
+        Guid id,
+        string operationKey,
+        string? impactLocation,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+        if (!IsOperationKeyValid(operationKey))
+        {
+            TempData["AssessmentError"] = "The form has expired. Retry the operation.";
+            return RedirectToPage(new { id, section = "report" });
+        }
+        if (string.IsNullOrWhiteSpace(impactLocation))
+        {
+            TempData["AssessmentError"] = "Choose where the damage is.";
+            return RedirectToPage(new { id, section = "report" });
+        }
+
+        var details = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        if (details is null)
+        {
+            return NotFound();
+        }
+
+        try
+        {
+            var lease = await acquireLease.ExecuteAsync(
+                new(id, details.Workflow.Version, actor, NewOperationKey()),
+                cancellationToken);
+            await saveAssessment.ExecuteAsync(
+                new(
+                    id,
+                    details.Workflow.Version,
+                    actor,
+                    operationKey,
+                    "Damage location marked on the assessment diagram.",
+                    lease.Token,
+                    new Dictionary<string, string?>
+                    {
+                        [AssessmentVocabulary.ImpactLocation] = impactLocation
+                    }),
+                cancellationToken);
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["AssessmentError"] = exception.Message;
+            return RedirectToPage(new { id, section = "report" });
+        }
+
+        TempData["AssessmentStatus"] = "Damage location saved.";
+        return RedirectToPage(new { id, section = "report" });
+    }
+
     public bool SendComposed => HttpContext.RequestServices.GetService<ISendCaseToAi>() is not null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
@@ -104,6 +238,7 @@ public sealed class IndexModel(
         }
 
         Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
+        VehicleEvidence = await vehicleEvidence.GetAsync(id, cancellationToken);
         DraftSpecification = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
         AcceptedSpecification = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
         ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
@@ -540,10 +675,15 @@ public sealed class IndexModel(
 
     private async Task EvaluatePanelStateAsync(CancellationToken cancellationToken)
     {
-        // The composition gate decides first. With Features:SendToAi off
-        // there is no reconcile handler to post to, so a persisted request
-        // must not render as an actionable Sent/Completed/Failed state.
-        if (SendComposed && LatestRequest is { } request)
+        // The composition gate decides first: an uncomposed capability is
+        // absent from the page entirely (docs/design/README.md), and with
+        // Features:SendToAi off there is no reconcile handler to post to.
+        if (!SendComposed)
+        {
+            return;
+        }
+
+        if (LatestRequest is { } request)
         {
             var expired = request.ExpiresAtUtc <= timeProvider.GetUtcNow();
             switch (request.State)
@@ -562,11 +702,7 @@ public sealed class IndexModel(
         }
 
         var reasons = new List<string>();
-        if (!SendComposed)
-        {
-            reasons.Add("Sending to AI is not part of this deployment.");
-        }
-        else if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
+        if (!await sendToAiControl.IsEnabledAsync(cancellationToken))
         {
             reasons.Add("Sending to AI is disabled by an Administrator.");
         }

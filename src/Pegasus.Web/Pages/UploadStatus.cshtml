@@ -1,4 +1,4 @@
-@page "/Upload/Status/{id:guid}"
+﻿@page "/Upload/Status/{id:guid}"
 @model Pegasus.Web.Pages.UploadStatusModel
 @using Pegasus.Core.Intake
 @{
@@ -42,6 +42,14 @@
         <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>
     </dl>
 
+    @if (Model.Outcome?.ThumbnailReceiptId is { } thumbnailReceiptId)
+    {
+        <a class="upload-thumb" href="/Received/@thumbnailReceiptId/Image" target="_blank">
+            <img src="/Received/@thumbnailReceiptId/Image"
+                 loading="lazy"
+                 alt="@Model.Status.SourceFileName" />
+        </a>
+    }
     @if (Model.Outcome is { } outcome)
     {
         @* Processing has resolved: the confirmation decision replaces the

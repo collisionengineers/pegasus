@@ -65,6 +65,7 @@ public static class DependencyInjection
             provider.GetRequiredService<EfIntakeSubmissionGroupStore>());
         services.AddScoped<IIntakeReceiptStore>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<IIntakeReceiptQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
+        services.AddScoped<ICaseEvidenceImageQueries>(provider => provider.GetRequiredService<EfIntakeReceiptStore>());
         services.AddScoped<EfIntakeAllocationStore>();
         services.AddScoped<IIntakeAllocationStore>(
             provider => provider.GetRequiredService<EfIntakeAllocationStore>());
@@ -81,10 +82,24 @@ public static class DependencyInjection
         services.AddScoped<ListRetainedMail>();
         services.AddScoped<GetRetainedMail>();
         services.AddScoped<CorrectRetainedMailClassification>();
+        services.TryAddSingleton<IRetainedMailFolderMover, UnavailableRetainedMailFolderMover>();
+        services.AddScoped<EfRetainedMailFolderMoveStore>();
+        services.AddScoped<IRetainedMailFolderMoveStore>(provider =>
+            provider.GetRequiredService<EfRetainedMailFolderMoveStore>());
+        services.AddScoped<MoveRetainedMailFolder>();
         services.AddScoped<GetRetainedMailFreshness>();
+        services.TryAddSingleton<IDeletedMailSearchSource, UnavailableDeletedMailSearchSource>();
+        services.AddScoped<SearchDeletedMail>();
         services.AddScoped<IDownloadIntakeSource, DownloadIntakeSource>();
-        services.AddScoped<IIntakeMutationStore, EfIntakeMutationStore>();
-        services.AddScoped<IAutomaticCaseAssociationStore, EfIntakeMutationStore>();
+        services.AddScoped<IDownloadIntakeAsset, DownloadIntakeAsset>();
+        services.AddScoped<EfIntakeMutationStore>();
+        services.AddScoped<IIntakeMutationStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticCaseAssociationStore>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<IAutomaticMailCaseAssociationEvidenceQueries>(provider =>
+            provider.GetRequiredService<EfIntakeMutationStore>());
+        services.AddScoped<AssociateRetainedMailWithCase>();
         services.AddScoped<IResolveIntake, ResolveIntake>();
         services.AddScoped<IReevaluateIntake, ReevaluateIntake>();
         services.AddScoped<ILinkIntake, LinkIntake>();
@@ -207,6 +222,9 @@ public static class DependencyInjection
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
         services.AddScoped<IVehicleEvidenceQueries>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
+        services.AddScoped<IAutomaticVehicleLookupStore>(
+            provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
+        services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();
@@ -594,6 +612,11 @@ public static class DependencyInjection
             baseUri,
             provider.GetRequiredService<HttpClient>(),
             provider.GetRequiredService<ILogger<GraphApprovedMailboxResolver>>()));
+        services.AddSingleton(provider => new GraphMailClient(
+            provider.GetRequiredService<TokenCredential>(),
+            baseUri,
+            provider.GetRequiredService<HttpClient>()));
+        services.AddScoped<IDeletedMailSearchSource, GraphDeletedMailSearchSource>();
         return services;
     }
 }

@@ -1,4 +1,4 @@
-# Design authority
+﻿# Design authority
 
 This file is the durable authority for Pegasus visual design, Web interaction contracts, approved assets, component and pattern boundaries, and source-to-runtime mappings. Product scope and business capability remain owned by [requirements](../prd/README.md) and [capabilities](../capabilities.md); architecture and deployed state remain with [architecture](../current-architecture.md) and [operations](../operations.md), procedures with the [runbook](../runbook.md), operator truth with [operator notes](../operator-notes.md), and repository workflow with [engineering](../engineering.md).
 
@@ -147,6 +147,15 @@ RGBA PNGs). Runtime destination: `src/Pegasus.Web/wwwroot/images/marks/`
 | `checkmark.png` | `PegasusDesign/assets/icons/checkmark.png`<br>`6ECC9917585A85D7B8C7EC62DB3C167689FD0F210D9838EC0B9959F1238471F3` | `src/Pegasus.Web/wwwroot/images/marks/checkmark.png`<br>`5531CC893A5C7A1137F049CF0D77A9D19B73EB30AC1036985A902FFC44A0C30F` | Lanczos downscale to 128×128. Queues empty states. |
 
 Capabilities allocated beyond `0.1.0-alpha.1` have no alpha navigation, control, workflow or placeholder. Their exact first-introduction releases remain owned by the [capability inventory](../capabilities.md#capabilities). Every deferred UI capability must re-enter specification, alternatives, independent review, explicit approval, visual generation and manual visual review before implementation.
+
+**MAIL-11 re-entry adopted 2026-08-20 for local implementation.** The operator's
+instruction to implement the reviewed programme activates browse/search inside the
+existing `/Inbox` workspace for its allocated `0.3.0` introduction. Integrating
+with the existing mailbox tabs, GET filter, table, detail and empty/failure patterns
+was selected over a second mail workspace; it introduces no new visual system.
+PR #469 supplies the independent implementation and design review. Deployment,
+live-mailbox evidence and manual visual acceptance remain separate release evidence;
+this decision authorises none of those and no mailbox mutation.
 
 ## Design principles
 
@@ -407,6 +416,31 @@ automated check — nothing in CI enforces it today, and claiming otherwise
 would be the kind of false assurance the evidence discipline above exists to
 prevent. The words remain valid as internal code identifiers; the ban is on
 what an operator reads.
+
+## No explanatory copy and page economy
+
+Operator direction, 2026-08-20: stop explaining pages. These are review rules
+with the same force as the banned-words list above — a change violating one
+does not merge.
+
+- **A field is a label and a control, nothing more.** No hint sentence under a
+  field, no "Required." or "Optional." text, no format guidance, no
+  restatement of what the label already says. Required state is shown
+  visually (the `required`-marker styling on the label plus `aria-required`),
+  never as prose.
+- **No how-it-works copy.** A page never describes its own mechanics,
+  workings, derivations, or what will happen when a button is pressed. No
+  worked-example tables, no "how this figure is calculated" prose, no
+  introductory sentences under headings. The one exception stands above: a
+  single consequence sentence on a destructive or irreversible action.
+- **Only populated, relevant sections render.** In read-only view, a section
+  with nothing recorded and no available action is absent — not an
+  empty-state panel. Edit-only sections render only in edit context. A long
+  page of empty panels is a defect, not a layout choice.
+- **Filters are dropdowns; tables sort newest first.** Table filtering uses
+  labelled `select` controls (auto-submit with a no-script fallback), not
+  rows of pill tabs. Tables default to newest first, and column headers are
+  sort links that toggle direction server-side.
 
 ## Access and permissions
 
@@ -793,12 +827,13 @@ There is no alpha control, route or placeholder for:
 
 Provider APIs and MCP are non-browser boundaries and do not create staff-shell destinations.
 
-The narrow MAIL-23 local configuration exception activated after operator programme
-review on 2026-08-20 is the existing Administrator Mailboxes surface: it may resolve
-and display configured/unconfigured logical-folder bindings read-only for an already
-approved mailbox. It is not an ordinary staff mailbox workspace, message-level folder
-recommendation/confirmation/move control, deployment claim, or authority for a live
-Outlook write; MAIL-05, MAIL-06, and MAIL-07 remain deferred to their own gates.
+The narrow MAIL-23/MAIL-05 local exception activated after operator programme
+review on 2026-08-20 keeps the existing Administrator Mailboxes surface as the
+configured/unconfigured logical-folder binding owner, and lets authenticated staff
+message detail display the current policy-designated logical folder read-only. The
+opaque Outlook folder identity remains hidden. This is not a confirmation/move
+control, deployment claim, or authority for a live Outlook write; MAIL-06 and MAIL-07
+remain deferred to their own gates.
 
 The same 2026-08-20 programme review and instruction to implement the plan activates
 one further local prerequisite for MAIL-13: the Administrator-only Outlook categories
@@ -1154,7 +1189,8 @@ creates exactly one Case/reference. Incomplete ordinary data, images, or
 applicable progression requirements yield **Not ready**; **Review** follows
 only when the explicit route policy permits it. `Blocked intake` with a
 required reason creates no Case/reference when an identity-critical gate fails;
-fail-closed `Needs sorting` remains Unidentified work. Resolve/retry re-enters the same
+unmatched received mail remains Unidentified, while Triage, Blocked intake, and
+incomplete Audit evidence retain their distinct meanings. Resolve/retry re-enters the same
 path and may create exactly one Case/reference only after it establishes the
 identity-critical facts. Manual image/instruction link and reasoned reversal
 retain original origins.

@@ -51,6 +51,10 @@ public sealed class MailOperationalDestinationPolicyTests
         Assert.Same(category, classification.Category);
         Assert.Equal(MailOperationalDestinationPolicy.Key, result.PolicyKey);
         Assert.Equal(MailOperationalDestinationPolicy.Version, result.PolicyVersion);
+        if (expected != MailOperationalDestination.DetailedClassification)
+        {
+            Assert.True(Matches(MailOperationalDestinationPolicy.Query(expected), category));
+        }
     }
 
     [Fact]
@@ -79,7 +83,16 @@ public sealed class MailOperationalDestinationPolicyTests
 
         Assert.Equal(MailOperationalDestination.Unidentified, result.Destination);
         Assert.Null(result.Classification);
+        Assert.True(MailOperationalDestinationPolicy.Query(
+            MailOperationalDestination.Unidentified).IncludesUnidentified);
+        Assert.False(MailOperationalDestinationPolicy.Query(
+            MailOperationalDestination.Triage).IncludesUnidentified);
     }
+
+    [Fact]
+    public void DetailedClassificationRequiresAnExactCategoryRatherThanAnAggregateCriterion() =>
+        Assert.Throws<ArgumentException>(() => MailOperationalDestinationPolicy.Query(
+            MailOperationalDestination.DetailedClassification));
 
     private static MailClassificationResult Classified(MailCategory category) =>
         MailClassificationResult.Classified(category, [], "staff-confirmed", "test", 1);
@@ -94,4 +107,15 @@ public sealed class MailOperationalDestinationPolicyTests
             ReceivedMailFamily.PreInstructionEmails when subtype == "triage-request" => MailOperationalDestination.Triage,
             _ => MailOperationalDestination.DetailedClassification
         };
+
+    private static bool Matches(
+        MailOperationalDestinationQuery query,
+        MailCategory category) =>
+        (query.IncludesOther && category.IsOther)
+        || (category.ReceivedFamily is { } family && query.Families.Contains(family))
+        || (query.ExactClassification is { } exact
+            && exact.Direction == category.Direction
+            && exact.ReceivedFamily == category.ReceivedFamily
+            && exact.SentFamily == category.SentFamily
+            && exact.Subtype == category.Subtype);
 }

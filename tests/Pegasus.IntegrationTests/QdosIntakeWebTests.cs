@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,7 +66,7 @@ public sealed class QdosIntakeWebTests
         // identifiable instruction to become one from, so the confirmation
         // step reports it needing a staff decision rather than offering to
         // create a case from nothing (INTK-010's decision table).
-        Assert.Contains("Needs sorting", completedHtml, StringComparison.Ordinal);
+        Assert.Contains("Unidentified", completedHtml, StringComparison.Ordinal);
         Assert.Contains(
             "This could not be matched automatically and needs a staff decision.",
             completedHtml,

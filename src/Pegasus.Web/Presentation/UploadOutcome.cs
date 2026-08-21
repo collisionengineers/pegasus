@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -56,10 +56,20 @@ public sealed record UploadOutcomeView(
     string Message,
     UploadOutcomeAction? PrimaryAction,
     UploadOutcomeAction? SecondaryAction,
-    UploadOutcomeAttach? Attach = null)
+    UploadOutcomeAttach? Attach = null,
+    Guid? ThumbnailReceiptId = null)
 {
     /// <summary>Whether this state is worth polling again — mirrors the existing Received/Processing refresh rule.</summary>
     public bool IsStillWorking => Kind == UploadOutcomeKind.Working;
+
+    /// <summary>
+    /// Whether the file still needs a staff decision — the states the group
+    /// page folds into its one submission-level decision card.
+    /// </summary>
+    public bool IsOpenDecision => Kind
+        is UploadOutcomeKind.NeedsReview
+        or UploadOutcomeKind.PossibleMatch
+        or UploadOutcomeKind.ReadyToCreate;
 
     /// <summary>
     /// The label passed to <c>Shared/_StatusChip</c> for this outcome's tone
@@ -75,7 +85,7 @@ public sealed record UploadOutcomeView(
     {
         UploadOutcomeKind.Working => null,
         UploadOutcomeKind.Attached or UploadOutcomeKind.ImageCaseRegistered => "Success",
-        UploadOutcomeKind.NeedsReview => "Needs sorting",
+        UploadOutcomeKind.NeedsReview => "Unidentified",
         UploadOutcomeKind.PossibleMatch or UploadOutcomeKind.ReadyToCreate => "Pending",
         UploadOutcomeKind.CannotBecomeCase or UploadOutcomeKind.Failed => "Failed",
         _ => null
@@ -170,6 +180,18 @@ public sealed class UploadOutcomeQueries(
             return new(UploadOutcomeKind.Working, "Processing", "The file is being processed.", null, null);
         }
 
+        var view = await BuildForReceiptAsync(receipt, receiptId, submissionGroupId, cancellationToken);
+        return receipt.MediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+            ? view with { ThumbnailReceiptId = receipt.Id }
+            : view;
+    }
+
+    private async Task<UploadOutcomeView> BuildForReceiptAsync(
+        IntakeReceipt receipt,
+        Guid receiptId,
+        Guid? submissionGroupId,
+        CancellationToken cancellationToken)
+    {
         // The receipt's own CurrentCaseId is Core's reconciliation of the
         // accepted and staff-linked associations — the same fact the queued
         // status derives its CaseId from — so it alone decides whether a
