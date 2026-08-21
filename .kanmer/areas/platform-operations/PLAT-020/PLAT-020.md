@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Grant production runtime roles their required vehicle-lookup and image-custody
   writes
-status: implementing
+status: review
 area: platform-operations
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-21T09:58:24.209Z'
+  review: '2026-08-21T10:25:49.981Z'
 taken_at: '2026-08-21T10:00:08.531Z'
 branch: task/plat-020-runtime-grants
 worktree: ../pegasus-worktrees/plat-020
@@ -27,9 +28,13 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
   - docs/adr/0007-direct-terminal-azure-deployment.md
+commits:
+  - 02a9a61b
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/496'
 archived: false
 created: '2026-08-21T09:57:53.143Z'
-updated: '2026-08-21T10:00:08.531Z'
+updated: '2026-08-21T10:25:49.981Z'
 ---
 
 ## Why
