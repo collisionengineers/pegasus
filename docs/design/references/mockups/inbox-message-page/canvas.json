@@ -1,0 +1,91 @@
+{
+  "pages": [
+    { "id": "page-1", "name": "Screens" },
+    { "id": "page-2", "name": "States and dialogs" }
+  ],
+  "artboards": [
+    { "file": "Main.dc.html",       "title": "Message — unclassified",           "page": "page-1", "x": 0,    "y": 0, "w": 1280, "h": 940 },
+    { "file": "Filed.dc.html",      "title": "Message — classified and filed",   "page": "page-1", "x": 1400, "y": 0, "w": 1280, "h": 990 },
+    { "file": "Case.dc.html",       "title": "Case — not yet linked",            "page": "page-1", "x": 2800, "y": 0, "w": 1280, "h": 660 },
+    { "file": "CaseLinked.dc.html", "title": "Case — linked",                    "page": "page-1", "x": 4200, "y": 0, "w": 1280, "h": 500 },
+    { "file": "Correcting.dc.html", "title": "Correct classification — pressed", "page": "page-1", "x": 0,    "y": 1180, "w": 1280, "h": 940 },
+    { "file": "Moving.dc.html",     "title": "Move to folder — pressed",         "page": "page-1", "x": 1400, "y": 1180, "w": 1280, "h": 990 },
+    { "file": "FolderStates.dc.html", "title": "Decision card — folder states",  "page": "page-2", "x": 0,    "y": 0, "w": 1280, "h": 700 },
+    { "file": "Dialogs.dc.html",    "title": "Reason dialogs",                   "page": "page-2", "x": 1400, "y": 0, "w": 1280, "h": 980 }
+  ],
+  "annotations": [
+    {
+      "id": "rebased",
+      "x": 0,
+      "y": -320,
+      "w": 640,
+      "page": "page-1",
+      "text": "Drawn against origin/dev, covering the nine MAIL tickets now in Verifying.\n\nMAIL-05, 07 and 08 (folder recommendation, move, advisory) are the Folder row and its one action. MAIL-09 and 10 (automatic and manual association) are the Case tab. MAIL-11 is the Thread tab. MAIL-23's taxonomy is the Destination row. UI-10's quick preview is on the list page and untouched here.\n\nUnchanged from what you approved: body first, decision and its actions in the right-hand card, no action bar, no Open case button, no evidence dump."
+    },
+    {
+      "id": "unclassified",
+      "x": 660,
+      "y": -320,
+      "w": 620,
+      "page": "page-1",
+      "text": "The state in your screenshots. No Folder row and no move action, because MAIL-08 abstains when there is no recommendation — only populated rows render.\n\nFiled to reads \"No case\"; linking happens in the Case tab."
+    },
+    {
+      "id": "filed",
+      "x": 1400,
+      "y": -320,
+      "w": 620,
+      "page": "page-1",
+      "text": "Filed to becomes the case link, Folder appears, the move action becomes available, and the Corrections card appears beneath.\n\nThe notice is trimmed to \"Classification corrected.\" — dev adds \"The previous decision and evidence remain in permanent history\", which is how-it-works copy.\n\n\"New instruction · Inspection\" is a PROPOSAL, not a settled term. dev renders this as the raw slug new-instruction-received/inspection, which README:171 bans; it needs an OperatorLabels map and your wording."
+    },
+    {
+      "id": "case-tab",
+      "x": 2800,
+      "y": -320,
+      "w": 620,
+      "page": "page-1",
+      "text": "MAIL-10's manual association, as one narrow column: search, then candidates, then the target you picked. It was a two-column split, which left most of the page empty when there was little to show.\n\nThe two-step prepare-then-confirm behaviour is unchanged — the button opens the reason dialog. Dropped: \"This message is not associated with a case. Search for the exact Case/PO before linking it.\"\n\nSample references follow the QDOS/2026/001 shape used in the repo's tests."
+    },
+    {
+      "id": "case-linked",
+      "x": 4200,
+      "y": -320,
+      "w": 620,
+      "page": "page-1",
+      "text": "The linked state, whether MAIL-09 associated it automatically or a person did. The provenance icon carries which.\n\nUnlink is the quiet button, not the dark one: it undoes work rather than advancing it.\n\nOne column, sized to its content — this is the page that was mostly empty space.\n\nThe subject now wraps in the dark band instead of truncating with an ellipsis. That was deliberate and it read as clipping, which is worse than a two-line head."
+    },
+    {
+      "id": "pressed-correct",
+      "x": 0,
+      "y": 2160,
+      "w": 620,
+      "page": "page-1",
+      "text": "Correct classification, pressed. The page stays behind the scrim so you can still see which message you are deciding about.\n\nTwo fields: the classification, and why. Both are required before Save correction does anything.\n\nOn confirming, the page reloads with the new decision in the Decision card, a Corrections card beneath it, and the notice shown on \"Message — classified and filed\"."
+    },
+    {
+      "id": "pressed-move",
+      "x": 1400,
+      "y": 2210,
+      "w": 620,
+      "page": "page-1",
+      "text": "Move to folder, pressed. No typed reason: the folder is the one the policy designated, so the reason is already known and is shown as the value that will be recorded. Confirming is the whole job.\n\nThere is no override to a different folder, and this is settled, not an omission. FRD-08:243 — \"Staff may confirm only the designated folder… A different destination requires correction of that classification, not an arbitrary folder choice.\" The route to a different folder is Correct classification, which produces a new designated folder and offers this move again.\n\n\"Classified as a new inspection instruction\" is a PROPOSAL. The stored reason is machine-worded and needs the same OperatorLabels treatment as the classification slug.\n\nThe classification version, folder policy version and mailbox version post hidden — if any changed since the page loaded the move is refused rather than applied to stale state. On confirming, the Folder row shows the folder, or Unconfirmed if the result comes back unknown."
+    },
+    {
+      "id": "folder-states",
+      "x": 0,
+      "y": -320,
+      "w": 640,
+      "page": "page-2",
+      "text": "The Folder row and its action across MAIL-08's four outcomes. One row, one action, no separate panel.\n\nUncertain is the interesting one: MAIL-07 records a move whose result is unknown, so the row says Unconfirmed and the action becomes Check move status, which replays the original confirmation rather than asking for a new reason.\n\ndev shows this as a fact row reading \"Latest folder move: Uncertain — …\". A state belongs on the control, not in prose."
+    },
+    {
+      "id": "dialogs",
+      "x": 1400,
+      "y": -320,
+      "w": 620,
+      "page": "page-2",
+      "text": "All three reasoned actions share one shape: title, reason, confirm, cancel.\n\nNo consequence sentences. dev carries four of them, plus the shared partial's own default and a \"Required.\" hint under every reason box. None are on the approved list, so all go — that edits _ReasonDialog.cshtml and therefore affects every screen using it."
+    }
+  ],
+  "launch": { "view": "canvas", "page": "page-1" }
+}
