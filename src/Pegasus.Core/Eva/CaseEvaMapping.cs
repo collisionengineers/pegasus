@@ -97,6 +97,22 @@ public static class CaseEvaMapping
     public const string ActivationGateReason =
         "EVA hand-off is not switched on.";
 
+    /// <summary>
+    /// Whether the EVA hand-off is switched on at all: the operator-accepted
+    /// mapping must be present and be exactly the mapping this code writes.
+    /// The one owner of that question — the mapping enforces it, and the
+    /// operator surface reads it to decide whether an EVA panel is
+    /// meaningful to show (PLAT-031). Enforcement never depends on the
+    /// display: an unaccepted mapping still fails closed here.
+    /// </summary>
+    public static bool IsSwitchedOn(EvaMappingAcceptance acceptance)
+    {
+        ArgumentNullException.ThrowIfNull(acceptance);
+        return string.Equals(acceptance.MappingKey, MappingKey, StringComparison.Ordinal)
+            && acceptance.MappingVersion == MappingVersion
+            && !string.IsNullOrWhiteSpace(acceptance.EvidenceReference);
+    }
+
     public static EvaMappingResult MapForProduction(
         EvaAcceptedCaseEvidence evidence,
         EvaMappingAcceptance acceptance)
@@ -105,9 +121,7 @@ public static class CaseEvaMapping
         ArgumentNullException.ThrowIfNull(acceptance);
 
         var reasons = ValidateAcceptedEvidence(evidence).ToList();
-        if (!string.Equals(acceptance.MappingKey, MappingKey, StringComparison.Ordinal)
-            || acceptance.MappingVersion != MappingVersion
-            || string.IsNullOrWhiteSpace(acceptance.EvidenceReference))
+        if (!IsSwitchedOn(acceptance))
         {
             reasons.Insert(0, ActivationGateReason);
         }

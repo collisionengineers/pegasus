@@ -1035,7 +1035,7 @@ internal sealed class EfIntakeMutationStore(
                 context,
                 threadReceiptIds,
                 cancellationToken);
-            threadCaseIds = current.Values
+            threadCaseIds = current.Current.Values
                 .Select(item => item.CaseId)
                 .Distinct()
                 .Order()
