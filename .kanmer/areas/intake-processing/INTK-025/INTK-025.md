@@ -4,10 +4,15 @@ type: ticket
 title: >-
   Extract report-sourced vehicle details and accident circumstances as QDOS
   policy rules
-status: backlog
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: feature
+stageEntered:
+  implementing: '2026-08-21T12:31:17.629Z'
+taken_at: '2026-08-21T12:30:28.469Z'
+branch: task/intk-025-qdos-report-rules
+worktree: ../pegasus-worktrees/intk-025
 labels:
   - extraction
   - corpus
@@ -19,7 +24,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-21T12:28:23.300Z'
-updated: '2026-08-21T12:28:23.300Z'
+updated: '2026-08-21T12:31:17.629Z'
 ---
 
 ## What
