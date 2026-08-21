@@ -879,10 +879,13 @@ internal sealed class EfVehicleWorkflowStore(
                 await EnqueueAutomaticAsync(command, cancellationToken);
                 enqueued++;
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException exception) when (IsDuplicateKeyFailure(exception))
             {
                 // A concurrent sweep or staff request already recorded this
-                // pair; the durable marker exists, so this case is done.
+                // pair; the durable marker exists, so this case is done. Any
+                // other database failure (a denied permission above all)
+                // propagates and fails the sweep visibly instead of counting
+                // the case as already done.
             }
         }
 
@@ -1051,6 +1054,14 @@ internal sealed class EfVehicleWorkflowStore(
         "corrected" => VehicleSuggestionDecision.Correct,
         _ => throw new InvalidDataException(
             $"Persisted vehicle suggestion decision '{decision}' is invalid.")
+    };
+
+    private static bool IsDuplicateKeyFailure(Exception exception) => exception switch
+    {
+        SqlException { Number: 2601 or 2627 } => true,
+        DbUpdateException { InnerException: { } innerException } =>
+            IsDuplicateKeyFailure(innerException),
+        _ => false
     };
 
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
