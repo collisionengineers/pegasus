@@ -2,7 +2,7 @@
 id: MAIL-008
 type: ticket
 title: Map mail classification and folder-move reason to operator labels
-status: verifying
+status: done
 area: mail-communications
 assignee: claude-code
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   implementing: '2026-08-21T10:42:16.179Z'
   review: '2026-08-21T11:42:35.774Z'
   verifying: '2026-08-21T12:15:01.989Z'
+  done: '2026-08-21T15:06:47.517Z'
 labels:
   - ui
   - web
@@ -20,9 +21,10 @@ blocks:
   - MAIL-006
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+deployment: production
 archived: false
 created: '2026-08-21T09:37:20.423Z'
-updated: '2026-08-21T12:15:21.656Z'
+updated: '2026-08-21T15:06:47.517Z'
 ---
 
 ## What

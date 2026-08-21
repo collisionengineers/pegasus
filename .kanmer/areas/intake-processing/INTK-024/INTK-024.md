@@ -2,20 +2,22 @@
 id: INTK-024
 type: ticket
 title: Consolidate the QDOS corpus and map every extraction shape
-status: verifying
+status: done
 area: intake-processing
 assignee: ''
 profile: spike
 stageEntered:
   verifying: '2026-08-21T12:27:59.922Z'
+  done: '2026-08-21T15:07:06.559Z'
 labels:
   - corpus
   - research
   - awaiting-approval
 links: []
+deployment: production
 archived: false
 created: '2026-08-21T10:45:37.970Z'
-updated: '2026-08-21T12:27:59.922Z'
+updated: '2026-08-21T15:07:06.559Z'
 ---
 
 ## What

@@ -2,7 +2,7 @@
 id: PLAT-019
 type: ticket
 title: Strip unapproved copy from the shared reason dialog
-status: verifying
+status: done
 area: platform-operations
 assignee: claude-code
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   implementing: '2026-08-21T10:43:07.556Z'
   review: '2026-08-21T11:42:49.723Z'
   verifying: '2026-08-21T12:15:07.273Z'
+  done: '2026-08-21T15:06:28.707Z'
 labels:
   - ui
   - web
@@ -21,7 +22,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T09:37:37.987Z'
-updated: '2026-08-21T15:06:25.396Z'
+updated: '2026-08-21T15:06:28.707Z'
 ---
 
 ## What
