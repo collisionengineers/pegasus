@@ -1093,6 +1093,102 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(attachmentBytes, await File.ReadAllBytesAsync(attachmentPath));
     }
 
+    /// <summary>
+    /// DOCS-006: an instruction's evidence photographs — embedded in its PDF
+    /// documents — land beside the source as their own custody files after
+    /// the attachments, while letterhead art stays out. Runs against the
+    /// operator-supplied mapping corpus (local, git-ignored).
+    /// </summary>
+    [QdosMappingCustodyFact]
+    public async Task AcceptedCaseRetainsEmbeddedPhotographsBesideTheSource()
+    {
+        var path = Path.Combine(
+            QdosCorpus.Root,
+            "qdosmapping",
+            "(EREF9) RTA on 11_08_2026  Mr Tomasz Mydlowski (Our Ref AKH_ND_47630_1).eml");
+        Assert.True(File.Exists(path), "The mapping corpus lost its EREF9 email.");
+
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var content = await File.ReadAllBytesAsync(path);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                Path.GetFileName(path),
+                "message/rfc822",
+                content,
+                FixedUtcNow,
+                "custody-photo-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-photos:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var assets = receipt.Assets ?? [];
+        var attachments = assets
+            .Where(asset => asset.Kind == IntakeAssetKind.Attachment)
+            .OrderBy(asset => asset.FileName, StringComparer.Ordinal)
+            .ThenBy(asset => asset.Id)
+            .ToArray();
+        var photographs = InstructionEvidenceImages.Select(assets)
+            .Where(asset => asset.Kind == IntakeAssetKind.EmbeddedImage)
+            .ToArray();
+        var letterhead = assets.Where(asset =>
+                asset.Kind == IntakeAssetKind.EmbeddedImage
+                && asset.ContentLength < InstructionEvidenceImages.EmbeddedPhotographMinimumBytes)
+            .ToArray();
+        Assert.True(photographs.Length >= 5, $"Only {photographs.Length} photographs selected.");
+        Assert.NotEmpty(letterhead);
+
+        var current = await services.GetRequiredService<IIntakeReceiptQueries>()
+            .GetAsync(receipt.Id, CancellationToken.None);
+        var outcome = await AcceptAsync(
+            services,
+            receipt.Id,
+            expectedVersion: current!.Version);
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        var attachmentsDirectory = Path.Combine(
+            factory.ArtifactDirectory,
+            "custody",
+            "cases",
+            outcome.Identity.CaseId.ToString("N"),
+            "documents",
+            receipt.Id.ToString("N"),
+            "attachments");
+        for (var index = 0; index < photographs.Length; index++)
+        {
+            var expected = Path.Combine(
+                attachmentsDirectory,
+                $"{attachments.Length + index + 2:D3}-{photographs[index].ContentHash.ToLowerInvariant()}",
+                "content");
+            Assert.True(File.Exists(expected), $"Missing photograph file {expected}.");
+        }
+
+        var retainedHashes = Directory.EnumerateDirectories(attachmentsDirectory)
+            .Select(directory => Path.GetFileName(directory)!.Split('-', 2)[1])
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Assert.All(
+            letterhead,
+            art => Assert.DoesNotContain(art.ContentHash, retainedHashes, StringComparer.OrdinalIgnoreCase));
+
+        // The evidence gallery's download path serves the same verified bytes.
+        var download = await services.GetRequiredService<IDownloadIntakeAsset>().ExecuteAsync(
+            new DownloadIntakeAssetQuery(
+                receipt.Id,
+                photographs[0].Id,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer])),
+            CancellationToken.None);
+        Assert.NotNull(download);
+        Assert.Equal(photographs[0].ContentLength, download!.ContentLength);
+        Assert.StartsWith("image/", download.ContentType, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static async Task<AcceptedSource> AcceptDirectSourceAsync(IServiceProvider services)
     {
         var source = CreateSource();
@@ -1161,7 +1257,8 @@ public sealed class CustodyOutboxIntegrationTests
     private static async Task<CaseAcceptanceOutcome> AcceptAsync(
         IServiceProvider services,
         Guid receiptId,
-        CaseCompleteness? completeness = null)
+        CaseCompleteness? completeness = null,
+        long expectedVersion = 0)
     {
         const string principalCode = QdosPrincipal.Code;
         await SeedPrincipalAsync(services, principalCode);
@@ -1169,7 +1266,7 @@ public sealed class CustodyOutboxIntegrationTests
             .ExecuteAsync(
                 new(
                     receiptId,
-                    0,
+                    expectedVersion,
                     ActionActor.SystemWorker("custody-outbox-integration"),
                     $"case-accept:{Guid.NewGuid():N}",
                     "Integration fixture confirmed complete intake evidence.",
@@ -1542,4 +1639,15 @@ public sealed class CustodyOutboxIntegrationTests
         Guid CustodyWorkId,
         Guid ReceiptId,
         byte[] Content);
+}
+
+internal sealed class QdosMappingCustodyFactAttribute : FactAttribute
+{
+    public QdosMappingCustodyFactAttribute()
+    {
+        if (!Directory.Exists(Path.Combine(QdosCorpus.Root, "qdosmapping")))
+        {
+            Skip = "This machine's ignored local corpus has no qdosmapping folder; corpora differ per system.";
+        }
+    }
 }

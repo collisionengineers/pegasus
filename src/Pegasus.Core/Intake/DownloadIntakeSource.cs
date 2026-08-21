@@ -67,7 +67,7 @@ public sealed class DownloadIntakeSource(
         return string.IsNullOrWhiteSpace(safe) ? "intake-source.bin" : safe;
     }
 
-    private static bool FixedTimeHashEquals(string left, string right)
+    internal static bool FixedTimeHashEquals(string left, string right)
     {
         if (left.Length != 64
             || right.Length != 64

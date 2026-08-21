@@ -170,6 +170,23 @@
                word. *@
             <partial name="Shared/_CaseDocuments" model="Model" />
 
+            @if (Model.EvidenceImages.Count > 0)
+            {
+                <section class="section-gap" aria-labelledby="instruction-photos-title">
+                    <div class="blockhead">
+                        <h2 id="instruction-photos-title">Instruction photographs</h2>
+                    </div>
+                    @{
+                        var evidenceGallery = Model.EvidenceImages
+                            .Select(image => new Pegasus.Web.Presentation.GalleryImage(
+                                Url.Page("/Intake/Asset", new { id = image.ReceiptId, assetId = image.AssetId })!,
+                                image.FileName))
+                            .ToArray();
+                    }
+                    <partial name="Shared/_ImageGallery" model="evidenceGallery" />
+                </section>
+            }
+
             <section class="section-gap" aria-labelledby="case-images-title">
                 <div class="blockhead">
                     <h2 id="case-images-title">Vehicle images</h2>
@@ -185,8 +202,14 @@
                         <section class="section-gap">
                             <h3><a asp-page="/ImageIntake/Details" asp-route-id="@image.Id">@image.ImageIntakeReference</a></h3>
                             <p>@image.NormalizedVehicleRegistration · Registered <time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></p>
-                            <partial name="Shared/_ImageGallery"
-                                     model="Model.ImagesByIntake.GetValueOrDefault(image.Id, [])" />
+                            @{
+                                var intakeGallery = Model.ImagesByIntake.GetValueOrDefault(image.Id, [])
+                                    .Select(item => new Pegasus.Web.Presentation.GalleryImage(
+                                        Url.Page("/Intake/Image", new { id = item.ReceiptId })!,
+                                        item.FileName))
+                                    .ToArray();
+                            }
+                            <partial name="Shared/_ImageGallery" model="intakeGallery" />
                         </section>
                     }
                 }
