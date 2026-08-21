@@ -2,10 +2,13 @@
 id: INTK-029
 type: ticket
 title: Unlink must clear the case link and warn when it cancels the case
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-21T21:15:37.804Z'
+branch: task/qdos26008-regressions
+worktree: .
 labels:
   - regression
   - qdos26008
@@ -14,7 +17,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T18:17:18.865Z'
-updated: '2026-08-21T18:17:18.865Z'
+updated: '2026-08-21T21:15:37.804Z'
 ---
 
 ## Why
