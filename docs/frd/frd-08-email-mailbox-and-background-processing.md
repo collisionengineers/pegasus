@@ -187,6 +187,14 @@ Message/file bodies, credentials, tokens, and secrets do not belong in
 permanent action history; routine polling, retry, lease, and adapter mechanics
 remain telemetry.
 
+Administrators maintain one global Pegasus allowlist of exact Outlook category
+display names. Each entry has a server-owned internal identifier and is Active
+or Disabled; entries are disabled rather than deleted. MAIL-13 accepts only the
+internal identifier and Core reloads an Active entry's display name before any
+exact-message action. The catalogue stores no Graph identifier or colour,
+performs no Outlook master-category synchronization, and supplies no search,
+Case-linking, or generic mailbox-rule behaviour.
+
 At the allocated `Next / 0.3.0` mailbox-workspace activation, each approved mailbox has an exact mailbox filter and queue scope. The email quick preview is keyboard- and screen-reader-accessible, opens on pointer or keyboard intent without clipping or obscuring adjacent controls, and dismisses when focus moves away. It is evidence navigation only: previewing never changes classification, association, read state, Case state, or source custody.
 The workspace does not include `View in Outlook`: operator review accepted that
 the in-app full message, attachment and thread view provides the needed value.

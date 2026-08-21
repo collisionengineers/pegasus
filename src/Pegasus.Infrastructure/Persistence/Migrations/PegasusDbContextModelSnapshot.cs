@@ -717,6 +717,38 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.ToTable("ApprovedMailboxFolderBindings", (string)null);
                 });
 
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedOutlookCategoryEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("NormalizedDisplayName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<int>("Version")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NormalizedDisplayName")
+                        .IsUnique();
+
+                    b.ToTable("ApprovedOutlookCategories", (string)null);
+                });
+
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedSentPollOutcomeEntity", b =>
                 {
                     b.Property<Guid>("Id")
