@@ -2,12 +2,13 @@
 id: INTK-028
 type: ticket
 title: Read report mileage from a multi-column Speedo line
-status: implementing
+status: review
 area: intake-processing
 assignee: ''
 profile: fix
 stageEntered:
   implementing: '2026-08-21T21:37:38.666Z'
+  review: '2026-08-21T22:06:37.708Z'
 labels:
   - regression
   - qdos26008
@@ -16,7 +17,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T18:17:17.436Z'
-updated: '2026-08-21T21:37:38.666Z'
+updated: '2026-08-21T22:06:37.708Z'
 ---
 
 ## Why
