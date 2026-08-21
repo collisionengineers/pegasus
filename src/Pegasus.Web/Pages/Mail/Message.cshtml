@@ -657,16 +657,30 @@
                     <div><dt>To</dt><dd>@folderLabel</dd></div>
                 </dl>
             </div>
-            <form method="post"
-                  asp-page-handler="MoveToRecommendedFolder" asp-route-id="@summary.Id"
-                  asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderFilter"
-                  asp-route-search="@Model.SearchTerm" asp-route-queue="@Model.QueueFilter"
-                  asp-route-pageNumber="@Model.PageNumber">
-                <input type="hidden" name="ExpectedClassificationVersion" value="@moveDossier.Version" />
-                <input type="hidden" name="ExpectedRecommendationPolicyKey" value="@dialogRecommendation.PolicyKey" />
-                <input type="hidden" name="ExpectedRecommendationPolicyVersion" value="@dialogRecommendation.PolicyVersion" />
-                <input type="hidden" name="ExpectedMailboxVersion" value="@dialogMailboxVersion" />
-                <input type="hidden" name="MoveOperationKey" value="@moveOperationKey" />
+            @{
+                // The expected decision, policy, and mailbox versions travel in
+                // the action URL, so the posted body carries only the reason —
+                // never a transport identity.
+                var moveAction = Url.Page(
+                    "/Mail/Message",
+                    "MoveToRecommendedFolder",
+                    new
+                    {
+                        id = summary.Id,
+                        mailbox = Model.MailboxFilter,
+                        folder = Model.FolderFilter,
+                        pageNumber = Model.PageNumber,
+                        search = Model.SearchTerm,
+                        queue = Model.QueueFilter,
+                        expectedClassificationVersion = moveDossier.Version,
+                        expectedRecommendationPolicyKey = dialogRecommendation.PolicyKey,
+                        expectedRecommendationPolicyVersion = dialogRecommendation.PolicyVersion,
+                        expectedMailboxVersion = dialogMailboxVersion,
+                        moveOperationKey
+                    });
+            }
+            <form method="post" action="@moveAction">
+                @Html.AntiForgeryToken()
                 <input type="hidden" name="Reason" value="@dialogSuggestedMove.Reason" />
                 <div class="button-row button-row--end">
                     <button type="button" class="btn" data-dialog-dismiss>Cancel</button>

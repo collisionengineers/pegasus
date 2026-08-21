@@ -12,7 +12,6 @@
     var dialogId = ViewData["DialogId"] as string ?? "reasonModal";
     var title = ViewData["DialogTitle"] as string ?? "Required Reason";
     var actionUrl = ViewData["DialogActionUrl"] as string ?? "#";
-    var consequence = ViewData["DialogConsequence"] as string;
     var hiddenFields = ViewData["DialogHiddenFields"] as IReadOnlyDictionary<string, string?>
         ?? new Dictionary<string, string?>();
 }
@@ -22,10 +21,6 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"/></svg>
             <span>@title</span>
         </h2>
-        @if (!string.IsNullOrWhiteSpace(consequence))
-        {
-            <p class="notice">@consequence</p>
-        }
         <form method="post" action="@actionUrl" class="form-grid">
             @Html.AntiForgeryToken()
             @foreach (var field in hiddenFields)

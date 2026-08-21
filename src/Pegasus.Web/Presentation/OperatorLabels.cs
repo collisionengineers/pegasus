@@ -657,7 +657,7 @@ public static class OperatorLabels
                 Pegasus.Core.Intake.ReceivedMailFamily.PostReportEmails => "Post-report",
                 Pegasus.Core.Intake.ReceivedMailFamily.PreInstructionEmails => "Pre-instruction",
                 Pegasus.Core.Intake.ReceivedMailFamily.InternalCc => "Internal CC",
-                _ => category.Name
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
             }
             : category.SentFamily switch
             {
@@ -665,7 +665,7 @@ public static class OperatorLabels
                 Pegasus.Core.Intake.SentMailFamily.CaseRejected => "Case rejected",
                 Pegasus.Core.Intake.SentMailFamily.QuerySent => "Query sent",
                 Pegasus.Core.Intake.SentMailFamily.AdditionalImageRequest => "Additional image request",
-                _ => category.Name
+                _ => throw new ArgumentOutOfRangeException(nameof(category))
             };
         var prefixed = category.Direction == Pegasus.Core.Intake.MailDirection.Sent
             ? $"Sent · {family}"
