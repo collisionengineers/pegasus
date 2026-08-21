@@ -1,0 +1,3 @@
+# Proof — TICK-057 / UI-14 (deployed and live-verified at release 16, 2026-08-21)
+
+Type: visual. Deployment bundle: [[DELIV-015]] proof. Deployed to production at `4111ad29` (merged via PR #491). Live: the Inbox carries the queue/detailed-classification selector ("Queue or detailed classification" with Show view) over the persisted classification projection; the selected view survives search, paging, and navigation per the merged SQL-filtered implementation; counts come from the current classification projection. Verified rendering on the production workspace with real classified mail (Receiving work / Unclassified / Unidentified all visible).
