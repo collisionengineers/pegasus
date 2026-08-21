@@ -23,6 +23,48 @@ public sealed class QdosMailRoutePolicy : IMailRoutePolicy
     public static readonly ImmutableArray<string> AcceptedDirectDomains =
         ["qdosassist.co.uk", "qdoslaw.co.uk", "qdosassists.co.uk"];
 
+    /// <summary>
+    /// The effective sender for a retained message whose route decision
+    /// intake processing has not written yet: the same staff-forward unwrap
+    /// <see cref="Evaluate"/> performs, applied to the two facts retention
+    /// already holds — the transport sender and the forwarded header inside
+    /// the retained body. The rule lives here, beside the one it mirrors,
+    /// so the two cannot drift; the route decision stays authoritative and
+    /// supersedes this the moment it exists (MAIL-009).
+    ///
+    /// Fails closed. Anything that is not unambiguously a staff forward
+    /// carrying a single external original sender yields null, so the
+    /// surface shows a pending state rather than a wrong name.
+    /// </summary>
+    public static string? ProvisionalEffectiveSender(
+        string? transportSenderAddress,
+        string? retainedBodyPlainText)
+    {
+        if (string.IsNullOrWhiteSpace(transportSenderAddress)
+            || string.IsNullOrWhiteSpace(retainedBodyPlainText)
+            || !TryGetMailboxDomain(transportSenderAddress, out var transportDomain)
+            || !string.Equals(
+                transportDomain,
+                StaffTransportDomain,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        if (StaffForwardBodyCleaner.ForwardedSenderAddress(retainedBodyPlainText)
+                is not { } originalSender
+            || !TryGetMailboxDomain(originalSender, out var originalDomain)
+            || string.Equals(
+                originalDomain,
+                StaffTransportDomain,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return originalSender;
+    }
+
     public MailRouteEvaluationResult Evaluate(IntakeSourceReadResult readResult)
     {
         EnsureReadable(readResult);

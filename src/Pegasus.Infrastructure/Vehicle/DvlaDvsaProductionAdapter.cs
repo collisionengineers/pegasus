@@ -197,15 +197,32 @@ internal sealed class DvlaDvsaProductionAdapter(
             var vehicles = document.RootElement.ValueKind == JsonValueKind.Array
                 ? document.RootElement.EnumerateArray().ToArray()
                 : [document.RootElement];
-            var tests = vehicles
+            var rawTests = vehicles
                 .SelectMany(vehicle => vehicle.TryGetProperty("motTests", out var values)
                     && values.ValueKind == JsonValueKind.Array
                         ? values.EnumerateArray().ToArray()
                         : [])
+                .ToArray();
+            var tests = rawTests
                 .Select(ParseMot)
                 .Where(item => item is not null)
                 .Cast<MotTestObservation>()
                 .ToArray();
+            // A vehicle with no MOT history and a vehicle whose entire MOT
+            // history we failed to read look identical downstream — both
+            // produce no mileage. They are not the same thing, and treating
+            // them as the same is how a provider-side format change stayed
+            // invisible in production. Reading none of what was offered is
+            // a failure and says so (ENG-010).
+            if (rawTests.Length > 0 && tests.Length == 0)
+            {
+                return new(
+                    [],
+                    false,
+                    new("dvsa_unreadable_tests", Retryable: false),
+                    identity,
+                    response.Headers.Age ?? TimeSpan.Zero);
+            }
             return new(tests, false, null, identity, response.Headers.Age ?? TimeSpan.Zero);
         }
         catch (JsonException)
@@ -265,20 +282,44 @@ internal sealed class DvlaDvsaProductionAdapter(
         }
     }
 
+    /// <summary>
+    /// A DVSA date, which is not always a date. The MOT History API writes
+    /// `completedDate` as a full instant — `2026-05-14T13:11:22.000Z` —
+    /// which <see cref="DateOnly.TryParse(string, IFormatProvider,
+    /// DateTimeStyles, out DateOnly)"/> rejects outright. Reading it as a
+    /// date only meant every MOT test failed to parse and was dropped, for
+    /// every vehicle, with no failure recorded anywhere: the mileage was
+    /// always there and never once reached a case (ENG-010).
+    /// </summary>
+    private static DateOnly? ParseProviderDate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        if (DateOnly.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
+        {
+            return date;
+        }
+
+        return DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal,
+            out var instant)
+            ? DateOnly.FromDateTime(instant.UtcDateTime)
+            : null;
+    }
+
     private static MotTestObservation? ParseMot(JsonElement value)
     {
-        if (!DateOnly.TryParse(Text(value, "completedDate"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var date)
+        if (ParseProviderDate(Text(value, "completedDate")) is not { } date
             || string.IsNullOrWhiteSpace(Text(value, "testResult")))
         {
             return null;
         }
-        DateOnly? expiry = DateOnly.TryParse(
-            Text(value, "expiryDate"),
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.None,
-            out var parsedExpiry)
-            ? parsedExpiry
-            : null;
+        var expiry = ParseProviderDate(Text(value, "expiryDate"));
         long? mileage = LongNumber(value, "odometerValue");
         var unitText = Text(value, "odometerUnit");
         VehicleMileageUnit? unit = mileage is null

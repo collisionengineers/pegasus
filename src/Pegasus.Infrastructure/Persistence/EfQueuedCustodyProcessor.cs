@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -192,8 +193,19 @@ internal sealed class EfQueuedCustodyProcessor(
                     leaseGuard,
                     cancellationToken);
                 await leaseGuard.RequireCurrentAsync(cancellationToken);
-                await RetainInstructionAttachmentsAsync(
-                    root, casePayload, leaseGuard, cancellationToken);
+                var retainedFiles = new List<RetainedCaseFile>
+                {
+                    new(
+                        1,
+                        casePayload.SourceFileName,
+                        casePayload.MediaType,
+                        casePayload.SourceLength,
+                        casePayload.SourceHash,
+                        DocumentSemanticRole.OriginalSource,
+                        $"{casePayload.OperationKey}:source")
+                };
+                retainedFiles.AddRange(await RetainInstructionAttachmentsAsync(
+                    root, casePayload, leaseGuard, cancellationToken));
                 var auditFolderRemoteId = isAuditCase
                     ? root.RemoteId
                     : string.IsNullOrWhiteSpace(casePayload.AuditReference)
@@ -212,6 +224,7 @@ internal sealed class EfQueuedCustodyProcessor(
                     root,
                     version,
                     auditFolderRemoteId,
+                    retainedFiles,
                     cancellationToken);
             }
         }
@@ -245,12 +258,13 @@ internal sealed class EfQueuedCustodyProcessor(
     /// (attachment kind); ordinals follow the source at 002 onward, in stable
     /// file-name order, and replay verifies rather than re-uploads.
     /// </summary>
-    private async Task RetainInstructionAttachmentsAsync(
+    private async Task<IReadOnlyList<RetainedCaseFile>> RetainInstructionAttachmentsAsync(
         CaseCustodyRoot root,
         WorkPayload casePayload,
         CustodyEffectLeaseGuard leaseGuard,
         CancellationToken cancellationToken)
     {
+        var retained = new List<RetainedCaseFile>();
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         var candidates = await context.Set<IntakeAssetEntity>()
             .AsNoTracking()
@@ -279,6 +293,14 @@ internal sealed class EfQueuedCustodyProcessor(
                 leaseGuard,
                 cancellationToken);
             await leaseGuard.RequireCurrentAsync(cancellationToken);
+            retained.Add(new(
+                index + 2,
+                attachment.FileName,
+                attachment.MediaType,
+                attachment.ContentLength,
+                attachment.ContentHash,
+                DocumentSemanticRole.Instruction,
+                $"{casePayload.OperationKey}:attachment:{attachment.Id:N}"));
         }
 
         // DOCS-006: photographs embedded in the instruction's documents land
@@ -306,8 +328,112 @@ internal sealed class EfQueuedCustodyProcessor(
                 leaseGuard,
                 cancellationToken);
             await leaseGuard.RequireCurrentAsync(cancellationToken);
+            retained.Add(new(
+                attachments.Count + index + 2,
+                photograph.FileName,
+                photograph.MediaType,
+                photograph.ContentLength,
+                photograph.ContentHash,
+                DocumentSemanticRole.Image,
+                $"{casePayload.OperationKey}:embedded:{photograph.Id:N}"));
+        }
+
+        return retained;
+    }
+
+    /// <summary>
+    /// Records the files intake put in the case folder as case documents, so
+    /// the case can list and open them.
+    ///
+    /// The files are already in Box, uploaded by the custody route above, so
+    /// this writes records only — it never sends the content a second time.
+    /// The occurrence ordinal is the ordinal the upload used, and the flat
+    /// Box name is derived from that ordinal at both ends, so a download
+    /// resolves exactly the file that was uploaded (DOCS-007).
+    ///
+    /// Idempotent by operation key: custody work can be retried, and a
+    /// replay must not produce a second copy of a document that is already
+    /// recorded.
+    /// </summary>
+    private static async Task RecordRetainedCaseFilesAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        IReadOnlyList<RetainedCaseFile> retainedFiles,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (retainedFiles.Count == 0)
+        {
+            return;
+        }
+
+        var operationKeys = retainedFiles.Select(file => file.OperationKey).ToArray();
+        var alreadyRecorded = await context.Set<DocumentOccurrenceEntity>()
+            .Where(occurrence => occurrence.CaseId == caseId
+                && operationKeys.Contains(occurrence.OperationKey))
+            .Select(occurrence => occurrence.OperationKey)
+            .ToListAsync(cancellationToken);
+        var recorded = alreadyRecorded.ToHashSet(StringComparer.Ordinal);
+
+        foreach (var file in retainedFiles)
+        {
+            if (!recorded.Add(file.OperationKey))
+            {
+                continue;
+            }
+
+            var document = new CaseDocumentEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = caseId,
+                Ordinal = file.Ordinal,
+                SourceOccurrenceIdentity = file.OperationKey
+            };
+            var version = new DocumentVersionEntity
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = document.Id,
+                Version = 1,
+                FileName = file.FileName,
+                MediaType = file.MediaType,
+                ContentLength = file.ContentLength,
+                Sha256 = file.ContentHash,
+                CustodyStatus = DocumentCustodyStatus.Confirmed,
+                CreatedAtUtc = now,
+                CreatedBy = "system:custody",
+                IsCurrent = true
+            };
+            context.Add(document);
+            context.Add(version);
+            context.Add(new DocumentOccurrenceEntity
+            {
+                Id = Guid.NewGuid(),
+                CaseId = caseId,
+                DocumentId = document.Id,
+                VersionId = version.Id,
+                Ordinal = file.Ordinal,
+                SemanticRole = file.SemanticRole,
+                Source = DocumentSource.Intake,
+                SourceOccurrenceIdentity = file.OperationKey,
+                RecordedAtUtc = now,
+                OperationKey = file.OperationKey
+            });
         }
     }
+
+    /// <summary>
+    /// One file this case's intake put in the case folder, and the record it
+    /// needs so the case can show it. The ordinal is the one the upload used,
+    /// because the flat file name is built from it at both ends.
+    /// </summary>
+    private sealed record RetainedCaseFile(
+        int Ordinal,
+        string FileName,
+        string MediaType,
+        long ContentLength,
+        string ContentHash,
+        DocumentSemanticRole SemanticRole,
+        string OperationKey);
 
     private static async Task<WorkPayload> LoadPayloadAsync(
         PegasusDbContext context,
@@ -413,6 +539,7 @@ internal sealed class EfQueuedCustodyProcessor(
         CaseCustodyRoot root,
         CustodyDocumentVersion version,
         string? auditFolderRemoteId,
+        IReadOnlyList<RetainedCaseFile> retainedFiles,
         CancellationToken cancellationToken)
     {
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
@@ -450,6 +577,7 @@ internal sealed class EfQueuedCustodyProcessor(
         {
             workflow.State = CaseLifecycleState.Review.ToString();
         }
+        await RecordRetainedCaseFilesAsync(context, caseEntity.Id, retainedFiles, now, cancellationToken);
         CaseMutationGuard.Complete(workflow);
         CompleteWork(work, now, version.RemoteId);
         context.Set<CaseHistoryEntity>().Add(new()

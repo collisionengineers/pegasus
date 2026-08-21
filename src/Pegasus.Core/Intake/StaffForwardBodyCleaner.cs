@@ -62,6 +62,30 @@ public static partial class StaffForwardBodyCleaner
     }
 
     /// <summary>
+    /// The original sender named by a forwarded body's own header block —
+    /// the address on its "From:" line. Read straight from the retained
+    /// body so the operator surface can name the real sender from the first
+    /// paint, instead of showing the forwarding desk until intake
+    /// processing writes the authoritative route decision (MAIL-009).
+    /// Fails closed: a body with no forwarded header, or a From: line
+    /// carrying no address, yields null rather than a guess.
+    /// </summary>
+    public static string? ForwardedSenderAddress(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var boundary = ForwardedHeaderRegex().Match(body);
+        if (!boundary.Success)
+        {
+            return null;
+        }
+
+        var from = boundary.Groups["from"].Value;
+        var angled = AngledAddressRegex().Match(from);
+        var candidate = (angled.Success ? angled.Groups["address"].Value : from).Trim();
+        return BareAddressRegex().IsMatch(candidate) ? candidate : null;
+    }
+
+    /// <summary>
     /// Cuts the provider's trailing signature footer — image placeholders,
     /// decorated contact links, the corporate disclaimer, membership and
     /// registered-office lines — from an already-cleaned display body. The
@@ -115,6 +139,16 @@ public static partial class StaffForwardBodyCleaner
 
     [GeneratedRegex("\\n{3,}", RegexOptions.CultureInvariant)]
     private static partial Regex BlankRunRegex();
+
+    // "Display Name <address@example.com>" — the shape Outlook writes on a
+    // forwarded From: line when the sender has a display name.
+    [GeneratedRegex("<(?<address>[^<>\\s]+@[^<>\\s]+)>", RegexOptions.CultureInvariant)]
+    private static partial Regex AngledAddressRegex();
+
+    [GeneratedRegex(
+        "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex BareAddressRegex();
 
     // The measured footer boundary markers (MAIL-007): a line that is an
     // image placeholder, carries a decorated contact link, or opens the

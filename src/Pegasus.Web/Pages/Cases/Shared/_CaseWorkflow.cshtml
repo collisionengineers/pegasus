@@ -523,7 +523,7 @@ else if (Model.ProposedValues.Count > 0)
 </section>
 }
 
-@if (details.EvaHandoff is { } eva && (eva.Revisions.Count > 0 || mayEdit))
+@if (details.EvaHandoff is { IsWorthShowing: true } eva && (eva.Revisions.Count > 0 || mayEdit))
 {
 <section class="panel form-panel" aria-labelledby="case-eva-title">
     <h2 id="case-eva-title" class="section-label">EVA handoff</h2>

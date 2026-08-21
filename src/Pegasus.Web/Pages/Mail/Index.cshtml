@@ -110,17 +110,9 @@
 @* The mail list is a table: an operator scanning a morning's post compares
    sender, subject, outcome and time down columns, which a stack of rows
    cannot line up. *@
-@if (Model.Folder == MailFolderScope.Inbox && Model.SearchTerm is not null && Model.Results.Items.Count > 0)
-{
-    <div class="status-card" role="status">Search includes retained messages in their current Outlook folders.</div>
-}
 @if (Model.SearchValidationMessage is not null)
 {
     <div class="status-card" role="alert">@Model.SearchValidationMessage</div>
-}
-else if (Model.Folder == MailFolderScope.DeletedItems && Model.SearchTerm is null)
-{
-    <p class="empty-state">Enter a search term to read accepted Deleted Items within the selected approved mailbox scope.</p>
 }
 else if (Model.DeletedResults is { State: DeletedMailSearchState.Unavailable })
 {
@@ -134,7 +126,7 @@ else if (Model.DeletedResults is { } deleted)
     }
     @if (deleted.Items.Count == 0)
     {
-        <p class="empty-state">No Deleted Items in the bounded approved scope matched “@Model.SearchTerm”.</p>
+        <p class="empty-state">No Deleted Items matched “@Model.SearchTerm”.</p>
     }
     else
     {

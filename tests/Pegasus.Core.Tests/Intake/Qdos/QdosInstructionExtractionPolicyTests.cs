@@ -601,13 +601,39 @@ public sealed class QdosInstructionExtractionPolicyTests
     }
 
     [Fact]
-    public void AVehicleLineOutsideAReportContributesNothing()
+    public void AVehicleLineContributesWhateverDocumentCarriesIt()
     {
+        // INTK-028: this once asserted the opposite — a "Vehicle:" line was
+        // read only from a document whose file name contained "report".
+        // The accompanying report is written by a third-party engineer and
+        // named however that firm's system named it, so the file name was
+        // never a sound test. The line's own shape is: the QDOS letters
+        // write "Our Client's Vehicle:" or "TP Vehicle:", never a bare
+        // "Vehicle:" opening a line.
         var result = new QdosInstructionExtractionPolicy().Extract(
             Readable(new IntakeContentFragment(
                 IntakeEvidenceSource.PdfContent,
-                "attachment 6: instruction letter, page 1",
+                "attachment 7: 282770-V1.pdf, page 1",
                 "Vehicle: FORD RANGER WILDTRAK")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("FORD", draft.VehicleMake);
+        Assert.Equal("RANGER WILDTRAK", draft.VehicleModel);
+    }
+
+    [Fact]
+    public void TheLettersThirdPartyVehicleLineIsStillNotTheClaimants()
+    {
+        // The guard the test above used to provide, kept where it belongs:
+        // a "TP Vehicle:" row must never reach the claimant's fields, and
+        // dropping the file-name gate must not weaken that.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: 42255_1_LtrtoAuditEngin.pdf, page 1",
+                "Our Ref: DIK/ND/47603/1\nTP Vehicle: AUDI A4 TECHNIK TDI")),
             ProcessedAtUtc,
             QdosContext);
 
@@ -650,6 +676,80 @@ public sealed class QdosInstructionExtractionPolicyTests
             QdosContext);
 
         Assert.Null(Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+    }
+
+    [Fact]
+    public void QdosTwentySixZeroZeroEightsReportSuppliesItsMileage()
+    {
+        // INTK-028 regression, verbatim from production: this is exactly
+        // what the reader stored for QDOS26008's two documents. The mileage
+        // was plainly there and was not read, because the Speedo rule was
+        // anchored to the start of a line and the reader lays the report's
+        // columns out as one line.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 6: 42255_1_LtrtoAuditEngin.pdf, page 1",
+                    "Our Client’s Vehicle: TOYOTA ALPHARD\nTP Vehicle: AUDI A4 TECHNIK TDI"),
+                new(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: Bodyshopreport282770-V1.pdf, page 1",
+                    "Vehicle: TOYOTA NOT RECORDED Colour: Black Speedo: 72850 Miles\n"
+                        + "Reg No: DP07EFB Registered: Jan 2023 Type: M.P.V. Trans:")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(72_850, draft.VehicleMileage);
+        Assert.Equal("DP07EFB", draft.VehicleRegistration);
+        // The letter still outranks the report's own vehicle column, so the
+        // report's "TOYOTA NOT RECORDED" never becomes the model.
+        Assert.Equal("TOYOTA", draft.VehicleMake);
+        Assert.Equal("ALPHARD", draft.VehicleModel);
+    }
+
+    [Fact]
+    public void AMileageColumnIsCutFreeOfItsNeighbours()
+    {
+        // The value must stop where the next column starts, or it carries
+        // "Reg No: …" with it and fails to parse as a mileage at all.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 7: 282770-V1.pdf, page 1",
+                "Colour: Black Speedo: 68,240 Miles Reg No: MD22DDU")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(68_240, draft.VehicleMileage);
+    }
+
+    [Fact]
+    public void AnInstructionLetterKeepsItsCircumstancesEvenWhenItReadsAsAReport()
+    {
+        // INTK-028 guard rail: broadening report identification must never
+        // cost a letter its circumstances paragraph. The circumstances
+        // prompt is now its own test rather than being gated on the letter
+        // not looking like a report.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Our Client: Mr Stuart Mcwalters\n"
+                    + "Colour: Black Speedo: 68,240 Reg No: MD22DDU\n"
+                    + "Please can you check the damage for consistency with the following accident circumstances?\n"
+                    + "The insured reversed into the claimant's stationary vehicle.\n"
+                    + "\n"
+                    + "Damage area: rear")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(
+            "The insured reversed into the claimant's stationary vehicle.",
+            draft.AccidentCircumstances);
     }
 
     private static IntakeSourceReadResult ReadableWithSubject(

@@ -8,7 +8,7 @@ public sealed class QdosInstructionExtractionPolicy(
     IIntakeTriageMatcher? triageMatcher = null) : IInstructionExtractionPolicy
 {
     public const string Key = "qdos_instruction";
-    public const int Version = 4;
+    public const int Version = 5;
     public const string SupportedPrincipalCode = "QDOS";
     private readonly IIntakeTriageMatcher triageMatcher =
         triageMatcher ?? new NoAcceptedIntakeTriageMatcher();
@@ -170,44 +170,86 @@ public sealed class QdosInstructionExtractionPolicy(
         var extended = new List<IntakeContentFragment>(readResult.Content);
         foreach (var fragment in readResult.Content)
         {
-            if (!IsReportFragment(fragment)
-                && CircumstancesParagraph(fragment) is { } circumstances)
+            // The circumstances prompt is its own test: only the letter asks
+            // the question, so a report yields nothing here anyway. Gating
+            // this on the report test as well meant broadening that test
+            // could silently cost a letter its circumstances (INTK-028).
+            if (CircumstancesParagraph(fragment) is { } circumstances)
             {
                 extended.Add(circumstances);
             }
         }
         foreach (var fragment in readResult.Content)
         {
-            if (IsReportFragment(fragment))
-            {
-                extended.AddRange(ReportFacts(fragment));
-            }
+            extended.AddRange(ReportFacts(fragment));
         }
 
         return WithSubjectFacts(readResult, extended);
     }
 
     /// <summary>
-    /// Every report document in the corpus names itself a report in its
-    /// retained file name (Bodyshopreport…, EngineersReport…); the
-    /// instruction letters never do. The fragment's source label carries the
-    /// file name.
+    /// The report's own column labels, held in one place because two rules
+    /// need the same list: the Vehicle rule cuts its value where the next
+    /// column begins, and the Speedo rule must cut at exactly the same
+    /// points. Written separately, the two drifted and the Speedo rule
+    /// silently missed every multi-column line (INTK-028).
     /// </summary>
-    private static bool IsReportFragment(IntakeContentFragment fragment) =>
-        fragment.SourceLabel.Contains("report", StringComparison.OrdinalIgnoreCase);
+    private const string ReportColumnCutPattern =
+        @"(?i)\s*(?:colour|color|speedo(?:meter)?|registered|reg\s*no|reg"
+        + @"|vin|mileage|type|trans|body|derivative|fuel)\s*:.*$";
+
+    /// <summary>
+    /// There is deliberately no "is this fragment a report" test.
+    ///
+    /// The report accompanying an instruction is written by a third-party
+    /// engineer — a different firm each time, named however that firm's
+    /// system named it (operator, 2026-08-21). Identifying it by file name
+    /// only ever worked for the firms whose name happened to contain
+    /// "report", and any structural test would be one more thing to get
+    /// wrong. Instead the report grammar runs over every fragment and is
+    /// written so that only a report can satisfy it: the letters address the
+    /// vehicle as "Our Client's Vehicle:" or "TP Vehicle:", never as a bare
+    /// "Vehicle:" opening a line, and carry no "Speedo:" column at all.
+    /// Its facts are appended after all content, so the letter still
+    /// outranks wherever both speak (INTK-028).
+    /// </summary>
+    /// Trims a column value where the line's next column label begins, so a
+    /// value never carries its neighbours.
+    /// </summary>
+    private static string CutAtNextColumnLabel(string value) => Regex.Replace(
+            value,
+            ReportColumnCutPattern,
+            string.Empty,
+            RegexOptions.CultureInvariant)
+        .Trim();
 
     /// <summary>
     /// The bodyshop report's own grammar, rewritten as labelled lines the
-    /// field definitions already read. The report's "Vehicle:" line is cut at
-    /// its neighbouring column labels; a "Speedo:" line contributes only when
-    /// it actually carries digits ("Speedo: Miles" carries none). Appended
-    /// after all content, so the instruction letter always outranks.
+    /// field definitions already read. Both the "Vehicle:" and "Speedo:"
+    /// values are cut at their neighbouring column labels, because the real
+    /// reports write them as columns of one physical line
+    /// ("Vehicle: … Colour: … Speedo: … Reg No: …"). A "Speedo:" line
+    /// contributes only when it actually carries digits ("Speedo: Miles"
+    /// carries none). Appended after all content, so the letter outranks.
     /// </summary>
     private static IEnumerable<IntakeContentFragment> ReportFacts(
         IntakeContentFragment fragment)
     {
         foreach (var rawLine in SplitLines(fragment.Text))
         {
+            // The third-party rows are the claimant's fields' one real
+            // hazard here, and these rules read labels mid-line, so the
+            // guard is applied once to the whole line rather than being
+            // repeated — and forgotten — per rule.
+            if (ThirdPartyRowPrefixes.Any(prefix => Regex.IsMatch(
+                    rawLine,
+                    $@"(?i)^{Regex.Escape(prefix)}\b",
+                    RegexOptions.CultureInvariant,
+                    TimeSpan.FromMilliseconds(100))))
+            {
+                continue;
+            }
+
             var vehicle = Regex.Match(
                 rawLine,
                 @"(?i)^vehicle\s*:\s*(?<value>.+)$",
@@ -215,12 +257,7 @@ public sealed class QdosInstructionExtractionPolicy(
                 TimeSpan.FromMilliseconds(100));
             if (vehicle.Success)
             {
-                var value = Regex.Replace(
-                        vehicle.Groups["value"].Value,
-                        @"(?i)\s*(?:colour|speedo|reg\s*no|reg)\s*:.*$",
-                        string.Empty,
-                        RegexOptions.CultureInvariant)
-                    .Trim();
+                var value = CutAtNextColumnLabel(vehicle.Groups["value"].Value);
                 if (value.Length > 0)
                 {
                     yield return new(
@@ -230,17 +267,44 @@ public sealed class QdosInstructionExtractionPolicy(
                 }
             }
 
+            // Anchored to the label, not to the start of the line: the
+            // Speedo column is almost never first (INTK-028).
             var speedo = Regex.Match(
                 rawLine,
-                @"(?i)^speedo\s*:\s*(?<value>.*\d.*)$",
+                @"(?i)\bspeedo(?:meter)?\s*:\s*(?<value>.*)$",
                 RegexOptions.CultureInvariant,
                 TimeSpan.FromMilliseconds(100));
             if (speedo.Success)
             {
-                yield return new(
-                    fragment.Source,
-                    fragment.SourceLabel,
-                    $"Vehicle Mileage: {speedo.Groups["value"].Value.Trim()}");
+                var value = CutAtNextColumnLabel(speedo.Groups["value"].Value);
+                if (value.Any(char.IsDigit))
+                {
+                    yield return new(
+                        fragment.Source,
+                        fragment.SourceLabel,
+                        $"Vehicle Mileage: {value}");
+                }
+            }
+
+            // The registration column has the same problem the mileage one
+            // did: it is followed on the same line by "Registered:",
+            // "Type:", "Trans:", so the raw value never reads as a
+            // registration and the report's copy was silently unusable.
+            var registration = Regex.Match(
+                rawLine,
+                @"(?i)\breg(?:istration)?\s*(?:no|number)?\s*:\s*(?<value>.*)$",
+                RegexOptions.CultureInvariant,
+                TimeSpan.FromMilliseconds(100));
+            if (registration.Success)
+            {
+                var value = CutAtNextColumnLabel(registration.Groups["value"].Value);
+                if (value.Length > 0)
+                {
+                    yield return new(
+                        fragment.Source,
+                        fragment.SourceLabel,
+                        $"Vehicle Registration: {value}");
+                }
             }
         }
     }

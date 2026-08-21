@@ -405,6 +405,8 @@ Approved necessary copy includes:
 
 > Created in error cannot be reopened. Create and link the replacement case.
 
+> Unlinking this email cancels case <reference>.
+
 Permanent consequences must be visible without hover or colour alone. Illustrative text must not fabricate operational input.
 
 These words are banned from operator-facing copy in
@@ -1286,6 +1288,7 @@ Use guidance only where the operator must understand a consequence:
 - “Blocked — a reason is required.”
 - “No case or reference was created; review the missing or conflicting evidence.”
 - “Created in error cannot be reopened. Create and link the replacement case.”
+- “Unlinking this email cancels case <reference>.”
 
 Illustrative text must not fabricate operational input. Loading, empty, stale/partial, retryable error, denied/unauthenticated, validation, conflict, external-unknown and reopened behavior follows the full state matrix. Permanent consequences remain visible without hover or colour alone.
 

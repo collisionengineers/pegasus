@@ -221,7 +221,7 @@ public sealed class EfLinkedCaseReplacementStore(
         original.ClosureOutcome = nameof(CaseClosureOutcome.CreatedInError);
         original.ReplacementCaseId = replacementCaseId;
         original.ReplacementCase = replacementCase;
-        StopDueWork(original.DueWork);
+        CaseChaseState.Stop(original.DueWork);
         original.Version++;
         ClearLease(original);
 
@@ -410,20 +410,6 @@ public sealed class EfLinkedCaseReplacementStore(
             BeforeVersion = beforeVersion,
             AfterVersion = afterVersion
         });
-
-    private static void StopDueWork(CaseDueWorkEntity? dueWork)
-    {
-        if (dueWork is null)
-        {
-            return;
-        }
-
-        dueWork.State = nameof(CaseDueWorkState.Stopped);
-        dueWork.NextChaseAtUtc = null;
-        dueWork.HeldAtUtc = null;
-        dueWork.RemainingChaseIntervalTicks = null;
-        dueWork.Version++;
-    }
 
     private static void RequireVersion(CaseWorkflowEntity workflow, long expectedVersion) =>
         CaseMutationGuard.RequireVersion(workflow, expectedVersion);

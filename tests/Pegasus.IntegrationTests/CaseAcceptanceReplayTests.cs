@@ -161,7 +161,7 @@ public sealed partial class CaseAcceptanceReplayTests
 
 
     [Fact]
-    public async Task AcceptedOriginCanBeUnlinkedAndRelinkedWithoutDeletingLineage()
+    public async Task UnlinkingTheAcceptedOriginCancelsTheCaseAndKeepsItsLineage()
     {
         using var factory = new IntakeWebApplicationFactory(initializeDevelopmentOffline: false);
         var receipt = await CreateReadyReceiptAsync(factory.Services, PrincipalCode);
@@ -186,6 +186,11 @@ public sealed partial class CaseAcceptanceReplayTests
         var link = scope.ServiceProvider.GetRequiredService<ILinkIntake>();
         var getIntake = scope.ServiceProvider.GetRequiredService<IGetIntake>();
 
+        var beforeUnlink = Assert.IsType<IntakeReceipt>(await getIntake.ExecuteAsync(
+            new(receipt.Id, AcceptingActor),
+            CancellationToken.None));
+        Assert.True(beforeUnlink.UnlinkCancelsCase);
+
         var unlinkLease = await acquireLease.ExecuteAsync(
             new(caseId, 0, AcceptingActor, "lease:association-unlink"),
             CancellationToken.None);
@@ -197,18 +202,27 @@ public sealed partial class CaseAcceptanceReplayTests
             unlinkLease.Token,
             AcceptingActor,
             "association:unlink-accepted-origin",
-            "The intake was associated with the wrong current case.");
+            "The email that created this case was unlinked.");
         await reverse.ExecuteAsync(unlinkRequest, CancellationToken.None);
         var unlinked = Assert.IsType<IntakeReceipt>(await getIntake.ExecuteAsync(
             new(receipt.Id, AcceptingActor),
             CancellationToken.None));
+
+        // INTK-029: the source email is gone, so the case it created is
+        // cancelled — but its lineage is not. Both origins stay on the record.
+        Assert.Equal(
+            CaseLifecycleState.SourceEmailUnlinked,
+            await ReadCaseStateAsync(factory.Services, caseId));
+        Assert.Null(unlinked.CurrentCaseId);
+        Assert.Equal(caseId, unlinked.AcceptedCaseId);
+        Assert.False(unlinked.UnlinkCancelsCase);
+        Assert.Equal(1, await CountRowsAsync(factory.Services, "CaseIntakeLinks"));
+
+        // The unlink is idempotent under replay, and a changed replay conflicts.
         await reverse.ExecuteAsync(unlinkRequest, CancellationToken.None);
         var unlinkReplay = Assert.IsType<IntakeReceipt>(await getIntake.ExecuteAsync(
             new(receipt.Id, AcceptingActor),
             CancellationToken.None));
-
-        Assert.Null(unlinked.CurrentCaseId);
-        Assert.Equal(caseId, unlinked.AcceptedCaseId);
         Assert.Equal(unlinked.Version, unlinkReplay.Version);
         Assert.Equal(unlinked.CurrentCaseId, unlinkReplay.CurrentCaseId);
         Assert.Equal(unlinked.AcceptedCaseId, unlinkReplay.AcceptedCaseId);
@@ -217,35 +231,23 @@ public sealed partial class CaseAcceptanceReplayTests
                 unlinkRequest with { Reason = "A conflicting replay reason." },
                 CancellationToken.None));
 
+        // Recovery is a deliberate reopen, not a silent relink: a cancelled
+        // case refuses the relink until it is reopened with a reason.
         var relinkLease = await acquireLease.ExecuteAsync(
             new(caseId, unlinkLease.Version + 1, AcceptingActor, "lease:association-relink"),
             CancellationToken.None);
-        var relinkRequest = new LinkIntakeRequest(
-            receipt.Id,
-            caseId,
-            unlinked.Version,
-            relinkLease.Version,
-            relinkLease.Token,
-            AcceptingActor,
-            "association:relink-accepted-origin",
-            "The current association was re-verified against retained evidence.");
-        await link.ExecuteAsync(relinkRequest, CancellationToken.None);
-        var relinked = Assert.IsType<IntakeReceipt>(await getIntake.ExecuteAsync(
-            new(receipt.Id, AcceptingActor),
-            CancellationToken.None));
-        await link.ExecuteAsync(relinkRequest, CancellationToken.None);
-        var relinkReplay = Assert.IsType<IntakeReceipt>(await getIntake.ExecuteAsync(
-            new(receipt.Id, AcceptingActor),
-            CancellationToken.None));
-
-        Assert.Equal(caseId, relinked.CurrentCaseId);
-        Assert.Equal(caseId, relinked.AcceptedCaseId);
-        Assert.Equal(relinked.Version, relinkReplay.Version);
-        Assert.Equal(relinked.CurrentCaseId, relinkReplay.CurrentCaseId);
-        Assert.Equal(relinked.AcceptedCaseId, relinkReplay.AcceptedCaseId);
-        Assert.Equal(1, await CountRowsAsync(factory.Services, "CaseIntakeLinks"));
-        Assert.Equal(1, await CountRowsAsync(factory.Services, "IntakeManualAssociations"));
-        Assert.Equal(3, await CountRowsAsync(factory.Services, "IntakeMutationHistory"));
+        await Assert.ThrowsAsync<CaseTerminalMutationException>(() =>
+            link.ExecuteAsync(
+                new LinkIntakeRequest(
+                    receipt.Id,
+                    caseId,
+                    unlinked.Version,
+                    relinkLease.Version,
+                    relinkLease.Token,
+                    AcceptingActor,
+                    "association:relink-accepted-origin",
+                    "The current association was re-verified against retained evidence."),
+                CancellationToken.None));
     }
 
 
@@ -412,6 +414,22 @@ public sealed partial class CaseAcceptanceReplayTests
         {
             await context.Database.CloseConnectionAsync();
         }
+    }
+
+    private static async Task<CaseLifecycleState> ReadCaseStateAsync(
+        IServiceProvider services,
+        Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var factory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await factory.CreateDbContextAsync();
+        var state = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => item.State)
+            .SingleAsync();
+        return Enum.Parse<CaseLifecycleState>(state);
     }
 
     private static async Task<int> CountRowsAsync(IServiceProvider services, string tableName)
