@@ -568,6 +568,11 @@ public sealed class EfCaseWorkflowStore(
                 throw new InvalidOperationException(
                     "Created in error requires the atomic corrected-principal replacement action.");
             }
+            if (request.Outcome == CaseClosureOutcome.SourceEmailUnlinked)
+            {
+                throw new InvalidOperationException(
+                    "Cancelling on unlink requires unlinking the email that created the case.");
+            }
             workflow.State = request.Outcome.ToString();
             workflow.ClosureOutcome = request.Outcome.ToString();
             StopDueWork(workflow);

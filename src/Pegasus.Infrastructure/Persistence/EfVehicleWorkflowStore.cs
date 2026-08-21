@@ -7,6 +7,7 @@ using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 
@@ -792,13 +793,7 @@ internal sealed class EfVehicleWorkflowStore(
     public async Task<int> EnqueueDueAsync(int maximumItems, CancellationToken cancellationToken)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
-        string[] terminalStates =
-        [
-            nameof(CaseLifecycleState.PostReportComplete),
-            nameof(CaseLifecycleState.ProviderCancelled),
-            nameof(CaseLifecycleState.CollisionEngineersRejected),
-            nameof(CaseLifecycleState.CreatedInError)
-        ];
+        var terminalStates = CaseLifecycleRules.TerminalStateNames();
 
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var candidates = await context.CaseDataFields

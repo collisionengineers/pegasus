@@ -109,6 +109,7 @@ public static class OperatorLabels
         CaseLifecycleState.ProviderCancelled => "Provider cancelled",
         CaseLifecycleState.CollisionEngineersRejected => "Collision Engineers rejected",
         CaseLifecycleState.CreatedInError => "Created in error",
+        CaseLifecycleState.SourceEmailUnlinked => "Cancelled — email unlinked",
         _ => Humanise(state.ToString())
     };
 

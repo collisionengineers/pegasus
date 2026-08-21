@@ -394,7 +394,23 @@ public static class CaseLifecycleRules
         CaseLifecycleState.PostReportComplete or
         CaseLifecycleState.ProviderCancelled or
         CaseLifecycleState.CollisionEngineersRejected or
-        CaseLifecycleState.CreatedInError;
+        CaseLifecycleState.CreatedInError or
+        CaseLifecycleState.SourceEmailUnlinked;
+
+    /// <summary>
+    /// The terminal states as the names they are persisted under, for store
+    /// queries that cannot call <see cref="IsTerminal"/> across a database
+    /// boundary. Derived from <see cref="IsTerminal"/> rather than restated, so
+    /// the two cannot drift: a state that is terminal here but missing from a
+    /// hand-written copy elsewhere is silently non-terminal for whatever that
+    /// copy guards (INTK-029).
+    /// </summary>
+    public static string[] TerminalStateNames() =>
+    [
+        .. Enum.GetValues<CaseLifecycleState>()
+            .Where(IsTerminal)
+            .Select(state => state.ToString())
+    ];
 
     public static void ValidateMutation(CaseMutationRequest request)
     {
@@ -467,6 +483,12 @@ public static class CaseLifecycleRules
         {
             throw new InvalidOperationException(
                 "Created in error requires the atomic corrected-principal replacement action.");
+        }
+
+        if (request.Outcome == CaseClosureOutcome.SourceEmailUnlinked)
+        {
+            throw new InvalidOperationException(
+                "Cancelling on unlink requires unlinking the email that created the case.");
         }
     }
 

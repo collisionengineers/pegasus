@@ -412,6 +412,9 @@
                                 {
                                     ["DialogId"] = "unlinkCaseDialog",
                                     ["DialogTitle"] = $"Unlink from {currentCase.Summary.Reference}",
+                                    ["DialogConsequence"] = associationReceipt.UnlinkCancelsCase
+                                        ? $"Unlinking this email cancels case {currentCase.Summary.Reference}."
+                                        : null,
                                     ["DialogActionUrl"] = unlinkAction,
                                     ["DialogHiddenFields"] = new Dictionary<string, string?>
                                     {

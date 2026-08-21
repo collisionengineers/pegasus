@@ -8,6 +8,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
+using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
@@ -359,7 +360,7 @@ internal sealed class EfIntakeMutationStore(
             request.CaseId,
             request.ExpectedCaseVersion,
             request.EditLeaseToken,
-            (_, receipt, _, _) =>
+            async (context, receipt, @case, token) =>
             {
                 var association = receipt.ManualAssociation;
                 if (association is null
@@ -378,10 +379,57 @@ internal sealed class EfIntakeMutationStore(
                 association.ActorRolesJson = RolesJson(request.Actor);
                 association.Reason = request.Reason.Trim();
                 association.LastOperationKey = request.OperationKey.Trim();
-                return Task.CompletedTask;
+
+                // INTK-029: unlinking the email whose own acceptance created
+                // this case takes the case's only source away, so the case is
+                // cancelled with it. A receipt since relinked to some other
+                // case is not that case's source, and unlinking it leaves that
+                // case alone.
+                if (await AcceptedCaseIdAsync(context, receipt.Id, token) == request.CaseId)
+                {
+                    await CancelOnSourceUnlinkAsync(context, @case, token);
+                }
             },
             occurredAtUtc,
             cancellationToken);
+    }
+
+    /// <summary>
+    /// Cancel the case whose source email has just been unlinked. The accepted
+    /// origin row is left untouched — both origins stay on the record and
+    /// nothing is deleted. The case reaches its terminal state here rather than
+    /// through <c>CloseCase</c>, which refuses this outcome: it belongs to the
+    /// unlink action and to the unlink's own transaction, exactly as
+    /// <c>Created in error</c> belongs to the replacement action (INTK-029).
+    /// </summary>
+    private static async Task CancelOnSourceUnlinkAsync(
+        PegasusDbContext context,
+        CaseEntity? @case,
+        CancellationToken cancellationToken)
+    {
+        if (@case is null)
+        {
+            throw new InvalidOperationException("A case is required for an intake association.");
+        }
+
+        await CaseTerminalReadinessGuard.RequireNoOpenTasksAsync(
+            context,
+            @case.Id,
+            cancellationToken);
+
+        var workflow = await context.CaseWorkflows
+            .Include(item => item.DueWork)
+            .SingleAsync(item => item.CaseId == @case.Id, cancellationToken);
+        workflow.State = nameof(CaseLifecycleState.SourceEmailUnlinked);
+        workflow.ClosureOutcome = nameof(CaseClosureOutcome.SourceEmailUnlinked);
+        if (workflow.DueWork is { } due)
+        {
+            due.State = nameof(CaseDueWorkState.Stopped);
+            due.NextChaseAtUtc = null;
+            due.HeldAtUtc = null;
+            due.RemainingChaseIntervalTicks = null;
+            due.Version++;
+        }
     }
 
     /// <summary>
