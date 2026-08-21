@@ -1,0 +1,5 @@
+# Proof — TICK-064 / MAIL-23 (deployed at release 16, 2026-08-21)
+
+Type: test-output + visual. Deployment bundle: [[DELIV-015]] proof. Deployed to production at `4111ad29`: the Core logical-folder policy (`MailLogicalFolderPolicy`), the `ApprovedMailboxFolderBindings` store (its migration went live with release 15; this branch's policy/UI reconciliation shipped now), and the administrator-only read-only folder-resolution control. The derived destination renders live on the message page's Decision card as the Destination row. MAIL-05/06/07 recommendation/confirmation/move and live-mailbox writes retain their own gates (MAIL-07's provider composition remains unavailable-by-default in production — verified by the absence of any live Outlook mutation path). Live folder-binding configuration is the operator's administration act.
+
+Operator note carried on this ticket (2026-08-21): folder-move reasoning stays deferred; the taxonomy-to-destination mapping may later shift from folder moves to **Outlook category usage** — that decision supersedes any further folder-move investment here.

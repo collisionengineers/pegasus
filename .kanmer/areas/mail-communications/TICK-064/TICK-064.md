@@ -4,7 +4,7 @@ type: ticket
 title: >-
   MAIL-23 — Map the detailed taxonomy to operational queues and designated
   Outlook folders
-status: verifying
+status: done
 area: mail-communications
 order: 280
 assignee: codex-mcp-client
@@ -13,6 +13,7 @@ stageEntered:
   preparing: '2026-08-19T08:10:49.947Z'
   review: '2026-08-20T10:38:31.768Z'
   verifying: '2026-08-20T11:37:57.789Z'
+  done: '2026-08-21T15:12:56.054Z'
 taken_at: '2026-08-20T09:54:49.769Z'
 branch: task/tick-064-mail-23-folder-policy
 worktree: ../pegasus-worktrees/tick-064
@@ -40,10 +41,10 @@ commits:
   - b6754dd8
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/468'
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-12T15:05:19.554Z'
-updated: '2026-08-20T17:50:48.539Z'
+updated: '2026-08-21T15:12:56.054Z'
 ---
 
 ## What
