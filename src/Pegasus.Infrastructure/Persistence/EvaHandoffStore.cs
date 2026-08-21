@@ -9,6 +9,7 @@ using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Custody;
@@ -133,6 +134,10 @@ public sealed class EvaHandoffStore(
                 firstProxyRevisionId == item.Id))
             .ToArrayAsync(cancellationToken);
 
+        // PLAT-031: null still means "no such case" — whether the hand-off
+        // is switched on is a separate fact the caller is told, so the
+        // operator surface can stay quiet about a capability that is off
+        // without anything having to pretend the case is missing.
         return new(
             caseId,
             caseState.Version,
@@ -140,7 +145,8 @@ public sealed class EvaHandoffStore(
             images,
             revisions,
             proxyEvidence?.RecordedAtUtc,
-            reasons.Distinct(StringComparer.Ordinal).ToArray());
+            reasons.Distinct(StringComparer.Ordinal).ToArray(),
+            CaseEvaMapping.IsSwitchedOn(mappingAcceptance));
     }
 
     public async Task<EvaHandoffRevisionArtifact?> GetRevisionAsync(
@@ -1012,10 +1018,7 @@ public sealed class EvaHandoffStore(
 
     private static bool IsTerminalWorkflow(string state) =>
         Enum.TryParse<CaseLifecycleState>(state, out var parsed)
-        && parsed is CaseLifecycleState.PostReportComplete
-            or CaseLifecycleState.ProviderCancelled
-            or CaseLifecycleState.CollisionEngineersRejected
-            or CaseLifecycleState.CreatedInError;
+        && CaseLifecycleRules.IsTerminal(parsed);
 
     private static CaseLifecycleState ParseLifecycleState(string state) =>
         Enum.TryParse<CaseLifecycleState>(state, ignoreCase: false, out var parsed)

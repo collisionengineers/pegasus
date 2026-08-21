@@ -649,7 +649,7 @@ function Get-WorkerEnvironment {
         Intake__LocalArtifactPath = [string]$Manifest.resources.paths.intake
         Mailbox__LocalRootPath = [string]$Manifest.resources.paths.mailbox
         IntakeWorkDispatchSchedule = '0 * * * * *'
-        IntakeStagedArtifactReconciliationSchedule = '30 * * * * *'
+        IntakeStagedArtifactReconciliationSchedule = '*/10 * * * * *'
         ExternalWorkDispatchSchedule = '15 * * * * *'
     }
 }

@@ -523,9 +523,9 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         // Every 15 s rather than each minute: freshly staged work is due
         // immediately (DueAtUtc = StagedAtUtc), so this poll cadence is the
         // dispatch latency an upload waits before processing starts (INTK-015).
-        { name: 'PendingWorkDispatchSchedule', value: '*/15 * * * * *' }
-        { name: 'IntakeStagedArtifactReconciliationSchedule', value: '30 * * * * *' }
-        { name: 'ApprovedInboxPollSchedule', value: '45 * * * * *' }
+        { name: 'PendingWorkDispatchSchedule', value: '*/5 * * * * *' }
+        { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
+        { name: 'ApprovedInboxPollSchedule', value: '*/15 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
         { name: 'AzureWebJobs.PendingWorkDispatchFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }

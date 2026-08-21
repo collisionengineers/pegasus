@@ -18,7 +18,8 @@ public enum CaseLifecycleState
     PostReportComplete,
     ProviderCancelled,
     CollisionEngineersRejected,
-    CreatedInError
+    CreatedInError,
+    SourceEmailUnlinked
 }
 
 public enum CaseClosureOutcome
@@ -26,7 +27,8 @@ public enum CaseClosureOutcome
     PostReportComplete,
     ProviderCancelled,
     CollisionEngineersRejected,
-    CreatedInError
+    CreatedInError,
+    SourceEmailUnlinked
 }
 
 public enum CaseReopenDestination

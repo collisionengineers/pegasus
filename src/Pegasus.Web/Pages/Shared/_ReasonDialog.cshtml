@@ -14,6 +14,11 @@
     var actionUrl = ViewData["DialogActionUrl"] as string ?? "#";
     var hiddenFields = ViewData["DialogHiddenFields"] as IReadOnlyDictionary<string, string?>
         ?? new Dictionary<string, string?>();
+    // The header above requires "a named requirement and consequence", but the
+    // dialog carried no place to say the consequence. Supplied only where an
+    // action has one from the approved necessary-copy list; absent otherwise,
+    // so no dialog gains explanatory prose it does not need (INTK-029).
+    var consequence = ViewData["DialogConsequence"] as string;
 }
 <div id="@dialogId" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="@(dialogId)_title" data-reason-dialog hidden>
     <div class="reason-dialog">
@@ -21,6 +26,10 @@
             <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle"/></svg>
             <span>@title</span>
         </h2>
+        @if (!string.IsNullOrWhiteSpace(consequence))
+        {
+            <p class="notice">@consequence</p>
+        }
         <form method="post" action="@actionUrl" class="form-grid">
             @Html.AntiForgeryToken()
             @foreach (var field in hiddenFields)

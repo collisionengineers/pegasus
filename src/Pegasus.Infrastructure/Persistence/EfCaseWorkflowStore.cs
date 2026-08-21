@@ -427,7 +427,7 @@ public sealed class EfCaseWorkflowStore(
         MutateAsync(request, "case_returned_to_review", (context, workflow, now) =>
         {
             workflow.State = nameof(CaseLifecycleState.Review);
-            StopDueWork(workflow);
+            CaseChaseState.Stop(workflow);
             return Task.CompletedTask;
         }, cancellationToken);
 
@@ -568,9 +568,14 @@ public sealed class EfCaseWorkflowStore(
                 throw new InvalidOperationException(
                     "Created in error requires the atomic corrected-principal replacement action.");
             }
+            if (request.Outcome == CaseClosureOutcome.SourceEmailUnlinked)
+            {
+                throw new InvalidOperationException(
+                    "Cancelling on unlink requires unlinking the email that created the case.");
+            }
             workflow.State = request.Outcome.ToString();
             workflow.ClosureOutcome = request.Outcome.ToString();
-            StopDueWork(workflow);
+            CaseChaseState.Stop(workflow);
         }, cancellationToken);
 
     public Task<CaseWorkflowRecord> ReopenAsync(ReopenCaseRequest request, CancellationToken cancellationToken) =>
@@ -602,7 +607,7 @@ public sealed class EfCaseWorkflowStore(
             }
             else
             {
-                StopDueWork(workflow);
+                CaseChaseState.Stop(workflow);
             }
             return Task.CompletedTask;
         }, cancellationToken);
@@ -1140,17 +1145,6 @@ public sealed class EfCaseWorkflowStore(
         return new(isCustodyConfirmed, hasBlockingExternalWork);
     }
 
-
-    private static void StopDueWork(CaseWorkflowEntity workflow)
-    {
-        var due = workflow.DueWork;
-        if (due is null) return;
-        due.State = nameof(CaseDueWorkState.Stopped);
-        due.NextChaseAtUtc = null;
-        due.HeldAtUtc = null;
-        due.RemainingChaseIntervalTicks = null;
-        due.Version++;
-    }
 
     private static async Task<CaseEditLeaseOperationEntity?> FindLeaseOperationAsync(
         PegasusDbContext context,

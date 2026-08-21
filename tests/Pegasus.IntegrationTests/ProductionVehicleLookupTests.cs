@@ -36,6 +36,63 @@ public sealed class ProductionVehicleLookupTests
         Assert.Equal(64, result.ResponseIdentity.Length);
     }
 
+    [Fact]
+    public async Task TheMotHistoryApisRealDateShapeIsRead()
+    {
+        // ENG-010, verbatim from a live DVSA call for DP07EFB. The API
+        // writes completedDate as a full instant, not a date. Every fixture
+        // here used a date-only string, so the tests passed while
+        // production silently discarded every MOT test for every vehicle
+        // and no mileage was ever derived. The odometer is in KM for this
+        // vehicle, which the unit mapping must carry rather than assume.
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
+            {
+                return Json(HttpStatusCode.OK, """{"make":"TOYOTA","model":"ALPHARD","yearOfManufacture":2007}""");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.OK, """{"make":"TOYOTA","model":"ALPHARD","registration":"DP07EFB","motTests":[{"completedDate":"2026-05-14T13:11:22.000Z","testResult":"PASSED","expiryDate":"2027-05-13","odometerValue":"113068","odometerUnit":"KM"},{"completedDate":"2025-05-14T15:38:02.000Z","testResult":"PASSED","odometerValue":"102742","odometerUnit":"KM"}]}""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("DP07EFB"), CancellationToken.None);
+
+        Assert.Equal(VehicleLookupOutcome.Current, result.Outcome);
+        Assert.Equal(2, result.MotTests.Count);
+        var latest = result.MotTests[0];
+        Assert.Equal(new DateOnly(2026, 5, 14), latest.TestDate);
+        Assert.Equal(113068, latest.Mileage);
+        Assert.Equal(VehicleMileageUnit.Kilometres, latest.MileageUnit);
+    }
+
+    [Fact]
+    public async Task MotTestsThatAllFailToReadAreAFailureRatherThanSilence()
+    {
+        // A vehicle with no MOT history and a vehicle whose history we
+        // cannot read both yield no mileage, so the two were
+        // indistinguishable in production. They must not be.
+        using var adapter = Create(request =>
+        {
+            if (request.RequestUri!.Host == "driver-vehicle-licensing.api.gov.uk")
+            {
+                return Json(HttpStatusCode.OK, """{"make":"FORD","model":"FOCUS","yearOfManufacture":2020}""");
+            }
+            if (request.RequestUri.Host == "login.microsoftonline.com")
+            {
+                return Json(HttpStatusCode.OK, """{"access_token":"dvsa-token","expires_in":3600}""");
+            }
+            return Json(HttpStatusCode.OK, """[{"motTests":[{"completedDate":"not a date at all","testResult":"PASSED"}]}]""");
+        });
+
+        var result = await adapter.LookupAsync(new VehicleLookupRequest("AB12CDE"), CancellationToken.None);
+
+        Assert.Empty(result.MotTests);
+        Assert.Equal("dvsa_unreadable_tests", result.Failure?.Code);
+    }
+
     [Theory]
     [InlineData(HttpStatusCode.NotFound, HttpStatusCode.NotFound, VehicleLookupOutcome.NotFound, null)]
     [InlineData(HttpStatusCode.BadRequest, HttpStatusCode.NotFound, VehicleLookupOutcome.Failed, "dvla_invalid")]

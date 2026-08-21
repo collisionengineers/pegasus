@@ -92,9 +92,19 @@ public sealed record EvaHandoffPreparation(
     IReadOnlyList<EvaHandoffImageOption> Images,
     IReadOnlyList<EvaHandoffRevisionSummary> Revisions,
     DateTimeOffset? FirstSentToEngineerAtUtc,
-    IReadOnlyList<string> BlockingReasons)
+    IReadOnlyList<string> BlockingReasons,
+    bool HandOffSwitchedOn = false)
 {
     public bool CanGenerate => BlockingReasons.Count == 0;
+
+    /// <summary>
+    /// Whether an operator has anything to act on here. With the hand-off
+    /// switched off there is nothing to generate and nothing they can do
+    /// about it, so the surface says nothing rather than reporting a blocker
+    /// against a capability that is not turned on — but any hand-off already
+    /// generated keeps its place (PLAT-031).
+    /// </summary>
+    public bool IsWorthShowing => HandOffSwitchedOn || Revisions.Count > 0;
 }
 
 public sealed record GenerateEvaHandoffRequest(

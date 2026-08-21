@@ -21,6 +21,23 @@ public static class InstructionEvidenceImages
     /// </summary>
     public const long EmbeddedPhotographMinimumBytes = 40_000;
 
+    /// <summary>
+    /// Corpus-measured shape test, and the one that actually separates a
+    /// banner from a photograph. A byte floor alone does not: QDOS26008's
+    /// two false positives were a 110,783-byte PNG at 1990x437 and a
+    /// 77,972-byte JPEG at 2214x248 — both well over the floor, and one of
+    /// them a JPEG, so neither size nor format would have caught them. The
+    /// same 1990x437 letterhead appears in five unrelated reports across
+    /// the corpus.
+    ///
+    /// Every genuine photograph on that receipt measured between 1.09 and
+    /// 1.15, and the widest thing in the corpus sample that might be a
+    /// photograph measured 2.22, so 3.0 sits in open space: wide enough to
+    /// leave a panoramic photograph alone, narrow enough to catch every
+    /// banner measured (3.19, 3.30, 4.55, 8.93, 9.08).
+    /// </summary>
+    public const double MaximumPhotographSideRatio = 3.0;
+
     public static IReadOnlyList<IntakeAssetRecord> Select(
         IEnumerable<IntakeAssetRecord> assets)
     {
@@ -33,11 +50,34 @@ public static class InstructionEvidenceImages
                     asset.ContentLength >= EmbeddedPhotographMinimumBytes,
                 _ => false
             })
+            .Where(IsPhotographShaped)
             .OrderBy(asset => asset.Kind == IntakeAssetKind.Attachment ? 0 : 1)
             .ThenBy(asset => asset.FileName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(asset => asset.Id)
             .DistinctBy(asset => asset.ContentHash, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    /// <summary>
+    /// Whether an image is shaped like a photograph rather than a banner.
+    /// Fails open: an image whose dimensions were not recorded is judged on
+    /// the other rules alone, because refusing to show a genuine
+    /// photograph is the worse error of the two.
+    /// </summary>
+    public static bool IsPhotographShaped(IntakeAssetRecord asset)
+    {
+        ArgumentNullException.ThrowIfNull(asset);
+        if (asset.WidthPixels is not { } width
+            || asset.HeightPixels is not { } height
+            || width <= 0
+            || height <= 0)
+        {
+            return true;
+        }
+
+        var longest = Math.Max(width, height);
+        var shortest = Math.Min(width, height);
+        return (double)longest / shortest < MaximumPhotographSideRatio;
     }
 
     public static bool IsImage(string? mediaType) =>
