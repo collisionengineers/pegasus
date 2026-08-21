@@ -16,7 +16,8 @@ internal static partial class InstructionFieldEngine
         bool IsRequired = true,
         Func<string, bool>? AcceptsValue = null,
         Func<string, bool>? IsValidTyped = null,
-        Func<string, string?>? CanonicalValue = null);
+        Func<string, string?>? CanonicalValue = null,
+        string[]? GuardedPrefixes = null);
 
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
@@ -147,18 +148,22 @@ internal static partial class InstructionFieldEngine
                 // A bare label token must sit at a plausible label position (line
                 // start or after a clear separator); a label immediately followed by
                 // an explicit ':' or '-' is a label wherever it sits on the line.
-                // A "TP "-prefixed label is the third party's row, never the
-                // claimant field (letters carry "TP Vehicle:"/"TP Registration:").
+                // A definition's guarded prefixes reject a label that is really
+                // another party's row — the provider policy supplies the words
+                // (this engine carries no provider grammar).
+                var guard = definition.GuardedPrefixes is { Length: > 0 } prefixes
+                    ? $@"(?<!\b(?:{string.Join('|', prefixes.Select(Regex.Escape))})\s)"
+                    : string.Empty;
                 var match = Regex.Match(
                     lines[index],
-                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}})(?<!\bTP\s){Regex.Escape(label)}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
+                    $@"(?i)(?:^|[|;\t]\s*|\s{{2,}}){guard}{Regex.Escape(label)}(?!['\w])\s*(?::|-)?\s*(?<value>.*)$",
                     RegexOptions.CultureInvariant,
                     TimeSpan.FromMilliseconds(100));
                 if (!match.Success)
                 {
                     match = Regex.Match(
                         lines[index],
-                        $@"(?i)(?:^|\s)(?<!\bTP\s){Regex.Escape(label)}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
+                        $@"(?i)(?:^|\s){guard}{Regex.Escape(label)}(?!['\w])\s*(?::|-)\s*(?<value>.*)$",
                         RegexOptions.CultureInvariant,
                         TimeSpan.FromMilliseconds(100));
                 }
