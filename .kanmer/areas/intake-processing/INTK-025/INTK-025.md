@@ -21,9 +21,10 @@ links:
   - INTK-024
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+deployment: production
 archived: false
 created: '2026-08-21T12:28:23.300Z'
-updated: '2026-08-21T13:21:17.904Z'
+updated: '2026-08-21T15:07:35.566Z'
 ---
 
 ## What

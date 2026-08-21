@@ -17,9 +17,10 @@ labels:
 links: []
 refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
+deployment: production
 archived: false
 created: '2026-08-21T11:43:29.114Z'
-updated: '2026-08-21T13:23:02.641Z'
+updated: '2026-08-21T15:07:50.152Z'
 ---
 
 ## What
