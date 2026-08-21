@@ -546,3 +546,148 @@
         });
     });
 })();
+
+// UI-10: evidence-only mail preview. A subject remains an ordinary full-detail
+// link; this enhancement selects its row on pointer/keyboard intent and reads
+// the same authorized exact-message projection without moving focus or state.
+(function () {
+    document.querySelectorAll('[data-mail-preview-workspace]').forEach(function (workspace) {
+        var panel = workspace.querySelector('[data-mail-preview]');
+        var status = workspace.querySelector('[data-mail-preview-status]');
+        var facts = workspace.querySelector('[data-mail-preview-facts]');
+        var rows = Array.from(workspace.querySelectorAll('[data-mail-preview-row]'));
+        if (!panel || !status || !facts || rows.length === 0) {
+            return;
+        }
+
+        var activeRow = null;
+        var request = null;
+        var cache = new Map();
+
+        var field = function (name) {
+            return facts.querySelector('[data-mail-preview-' + name + ']');
+        };
+
+        var resetSelection = function () {
+            if (request) {
+                request.abort();
+                request = null;
+            }
+            rows.forEach(function (row) {
+                row.classList.remove('is-preview-selected');
+                var trigger = row.querySelector('[data-mail-preview-trigger]');
+                if (trigger) {
+                    trigger.setAttribute('aria-expanded', 'false');
+                }
+            });
+            activeRow = null;
+            panel.hidden = true;
+            panel.removeAttribute('aria-busy');
+        };
+
+        var render = function (data) {
+            field('sender').textContent = data.sender;
+            field('subject').textContent = data.subject;
+            field('received').textContent = data.received;
+            field('received').setAttribute('datetime', data.receivedAtUtc);
+            field('excerpt').textContent = data.excerpt;
+            field('classification').textContent = data.classification;
+            field('association').textContent = data.association;
+
+            var attachments = field('attachments');
+            attachments.replaceChildren();
+            (data.attachments.length === 0 ? ['No attachments'] : data.attachments)
+                .forEach(function (name) {
+                    var item = document.createElement('li');
+                    item.textContent = name;
+                    attachments.appendChild(item);
+                });
+
+            status.hidden = true;
+            facts.hidden = false;
+            panel.removeAttribute('aria-busy');
+        };
+
+        var select = function (row) {
+            var trigger = row.querySelector('[data-mail-preview-trigger]');
+            var url = trigger && trigger.getAttribute('data-mail-preview-url');
+            if (!trigger || !url || activeRow === row) {
+                return;
+            }
+
+            if (request) {
+                request.abort();
+            }
+            rows.forEach(function (candidate) {
+                candidate.classList.toggle('is-preview-selected', candidate === row);
+                var candidateTrigger = candidate.querySelector('[data-mail-preview-trigger]');
+                if (candidateTrigger) {
+                    candidateTrigger.setAttribute(
+                        'aria-expanded',
+                        candidate === row ? 'true' : 'false');
+                }
+            });
+            activeRow = row;
+            panel.hidden = false;
+            status.hidden = false;
+            status.textContent = 'Loading quick preview…';
+            facts.hidden = true;
+            panel.setAttribute('aria-busy', 'true');
+
+            if (cache.has(url)) {
+                render(cache.get(url));
+                return;
+            }
+
+            request = new AbortController();
+            var currentRequest = request;
+            fetch(url, {
+                headers: { 'Accept': 'application/json' },
+                signal: currentRequest.signal
+            }).then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Preview unavailable');
+                }
+                return response.json();
+            }).then(function (data) {
+                cache.set(url, data);
+                if (activeRow === row) {
+                    render(data);
+                }
+            }).catch(function (error) {
+                if (error.name === 'AbortError' || activeRow !== row) {
+                    return;
+                }
+                facts.hidden = true;
+                status.hidden = false;
+                status.textContent = 'Quick preview unavailable. Open the message for full detail.';
+                panel.removeAttribute('aria-busy');
+            }).finally(function () {
+                if (request === currentRequest) {
+                    request = null;
+                }
+            });
+        };
+
+        rows.forEach(function (row) {
+            var trigger = row.querySelector('[data-mail-preview-trigger]');
+            row.addEventListener('pointerenter', function () { select(row); });
+            row.addEventListener('pointerleave', function () {
+                if (activeRow === row && !row.contains(document.activeElement)) {
+                    resetSelection();
+                }
+            });
+            if (!trigger) {
+                return;
+            }
+            trigger.addEventListener('focus', function () { select(row); });
+            trigger.addEventListener('blur', function () {
+                setTimeout(function () {
+                    if (activeRow === row && !row.contains(document.activeElement)) {
+                        resetSelection();
+                    }
+                }, 0);
+            });
+        });
+    });
+})();

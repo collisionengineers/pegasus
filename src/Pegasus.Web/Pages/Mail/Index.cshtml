@@ -214,8 +214,9 @@ else if (Model.Results.Items.Count == 0)
 }
 else
 {
-    <div class="table-wrap">
-        <table>
+    <div class="mail-workspace" data-mail-preview-workspace>
+        <div class="table-wrap">
+            <table>
             <caption class="vh">Retained messages, most recent first</caption>
             <thead>
                 <tr>
@@ -228,7 +229,8 @@ else
             <tbody>
             @foreach (var item in Model.Results.Items)
             {
-                <tr data-state="@(item.IsRead ? "read" : "unread")">
+                <tr data-state="@(item.IsRead ? "read" : "unread")"
+                    data-mail-preview-row>
                     <td>
                         <span class="stack">
                             <strong>
@@ -254,6 +256,10 @@ else
                                asp-route-search="@Model.SearchTerm"
                                asp-route-queue="@Model.QueueFilter"
                                asp-route-pageNumber="@(Model.Results.Page > 1 ? Model.Results.Page : (int?)null)"
+                               data-mail-preview-trigger
+                               data-mail-preview-url="@Url.Page("/Mail/Index", "Preview", new { id = item.Id })"
+                               aria-controls="mail-quick-preview"
+                               aria-expanded="false"
                                title="@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)">@Pegasus.Web.Pages.Mail.IndexModel.SubjectLine(item)</a>
                             @{
                                 var forwarder = Pegasus.Web.Pages.Mail.IndexModel.ForwarderLine(item);
@@ -315,7 +321,43 @@ else
                 </tr>
             }
             </tbody>
-        </table>
+            </table>
+        </div>
+        <aside id="mail-quick-preview" class="mail-preview" data-mail-preview hidden
+               aria-labelledby="mail-quick-preview-heading">
+            <h2 id="mail-quick-preview-heading">Quick preview</h2>
+            <p class="mail-preview__status" data-mail-preview-status aria-live="polite"></p>
+            <dl class="mail-preview__facts" data-mail-preview-facts hidden>
+                <div>
+                    <dt>From</dt>
+                    <dd data-mail-preview-sender></dd>
+                </div>
+                <div>
+                    <dt>Subject</dt>
+                    <dd data-mail-preview-subject></dd>
+                </div>
+                <div>
+                    <dt>Received</dt>
+                    <dd><time data-mail-preview-received></time></dd>
+                </div>
+                <div>
+                    <dt>Excerpt</dt>
+                    <dd data-mail-preview-excerpt></dd>
+                </div>
+                <div>
+                    <dt>Classification</dt>
+                    <dd data-mail-preview-classification></dd>
+                </div>
+                <div>
+                    <dt>Case</dt>
+                    <dd data-mail-preview-association></dd>
+                </div>
+                <div>
+                    <dt>Attachments</dt>
+                    <dd><ul class="plain-list" data-mail-preview-attachments></ul></dd>
+                </div>
+            </dl>
+        </aside>
     </div>
 }
 
