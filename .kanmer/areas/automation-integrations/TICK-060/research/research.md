@@ -21,3 +21,7 @@ Add one Core query that accepts the authenticated Principal and its opaque submi
 ## Open questions
 
 The Case/PO success requirement and no-Case terminal failure are settled. Exact public wire details remain part of the separately unresolved provider contract.
+
+## Azure architecture refresh — 2026-08-21
+
+Read-only inspection confirms the result endpoint can run in the existing public HTTPS Web Container App and query the existing Azure SQL state. It needs no new Azure resource, result store, queue, blob container, webhook service, or report-delivery path. The response is an identifier projection only: actual linked Case/PO or failure, scoped to the authenticated Principal's own receipt. Existing Application Insights can measure request latency and disclosure-safe outcome counts. Any rate limit belongs initially at the real Web endpoint; API Management is deferred until actual multi-provider traffic or gateway policy warrants it (Microsoft per-key policy: https://learn.microsoft.com/azure/api-management/rate-limit-by-key-policy).

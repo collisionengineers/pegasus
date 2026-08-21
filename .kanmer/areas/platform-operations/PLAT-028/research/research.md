@@ -23,3 +23,7 @@ Make the Organization list the single entry point and the Organization detail th
 ## Open questions
 
 The operator has resolved ownership, pause semantics, and consolidation. Visual details follow existing design tokens and will be proved in a real browser.
+
+## Azure architecture refresh — 2026-08-21
+
+The administration UI already runs in the production Web Container App and persists through Azure SQL. Provider controls therefore need no Azure Portal surface, App Configuration, Key Vault secret browser, new app, or new deployment unit. The page consumes TICK-061's Core commands and status projection. Clear generated/reset text exists only in the immediate HTTPS response; Azure SQL stores only its verifier and lifecycle metadata, and logs/telemetry must never capture it. Live issuance remains an external write requiring exact-target approval.

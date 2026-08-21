@@ -22,3 +22,14 @@ Add one thin provider HTTP adapter in Pegasus.Web. Authenticate the principal-sc
 ## Open questions
 
 All product decisions needed for planning are resolved below; rollout to named live providers remains an activation gate.
+
+## Azure architecture refresh — 2026-08-21
+
+### Verified live facts
+- Read-only Azure inspection found production in `rg-pegasus-prod`: the public Web is already an Azure Container App with external HTTPS-only ingress, one always-on replica, Azure SQL, separate transport/custody Storage accounts, a queue-triggered Function Worker, managed identities, Key Vault, Application Insights, and Log Analytics. No provider API configuration, custom domain, IP restriction, client certificate requirement, or API gateway is deployed.
+- The existing transport Storage account has shared-key access disabled and public blob access disabled. The Web and Worker already use managed identity; provider credentials are application identities, not Azure/Entra identities.
+- Microsoft documents Container Apps HTTP scaling as concurrency-based within configured replica limits. The live Web is currently fixed at one replica, so capacity must be measured before changing its maximum: https://learn.microsoft.com/azure/container-apps/scale-app
+- Azure API Management can enforce per-key throttling and return 429/Retry-After, but it is a separate service and distributed rate limits are approximate: https://learn.microsoft.com/azure/api-management/rate-limit-by-key-policy
+
+### Design consequence
+Host the first real submission route in the existing Web Container App and reuse SQL/outbox, transport Storage Queue, Function Worker, custody storage, telemetry, and managed identities. Do not add API Management, Front Door/WAF, Service Bus, another Function, another store, or Entra app registrations without measured traffic/security requirements. Apply a small application-level per-credential limit at the real endpoint; consider APIM only when named providers, traffic, contract governance, or a WAF/gateway requirement justify the new deployment unit. The endpoint returns only durable acceptance and never outbound files.
