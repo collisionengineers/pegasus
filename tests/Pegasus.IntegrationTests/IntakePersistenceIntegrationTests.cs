@@ -88,7 +88,8 @@ public sealed class IntakePersistenceIntegrationTests
 "20260820100724_RetainedMailSearchDocuments",
                 "20260820114412_ApprovedOutlookCategoryCatalogue",
                 "20260820144004_RetainedMailFolderMoves",
-                "20260821095500_GrantWorkerVehicleLookupRequests"
+                "20260821095500_GrantWorkerVehicleLookupRequests",
+                "20260821100623_GrantImageIntakeLifecycleUpdates"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
