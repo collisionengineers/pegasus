@@ -667,6 +667,7 @@ public sealed class MessageModel(
         return await getIntake.ExecuteAsync(new(receiptId, actor), cancellationToken);
     }
 
+    // Association handlers land back on the Case tab they act from.
     private RedirectToPageResult RedirectToMessage(Guid id) => RedirectToPage(new
     {
         id,
@@ -674,7 +675,8 @@ public sealed class MessageModel(
         folder = FolderFilter,
         pageNumber = PageNumber,
         search = SearchTerm,
-        queue = QueueFilter
+        queue = QueueFilter,
+        section = "case"
     });
 
     private RedirectToPageResult RedirectToAssociationTarget(Guid id, Guid caseId) =>
@@ -686,6 +688,7 @@ public sealed class MessageModel(
             pageNumber = PageNumber,
             search = SearchTerm,
             queue = QueueFilter,
+            section = "case",
             caseQuery = CaseQuery,
             targetCaseId = caseId
         });
@@ -956,7 +959,10 @@ public sealed class MessageModel(
     {
         "attachments" => "attachments",
         "thread" => "thread",
-        _ => "message"
+        "case" => "case",
+        // A case search or picked target belongs to the Case tab even when
+        // the link that carried it named no section.
+        _ => CaseQuery is not null || TargetCaseId is not null ? "case" : "message"
     };
 
     public string? FolderRouteValue =>
@@ -986,7 +992,7 @@ public sealed class MessageModel(
         : ClassificationLabel(result.Outcome);
 
     public static string DecisionLabel(MailCategory category) =>
-        $"{(category.Direction == MailDirection.Sent ? "Sent: " : string.Empty)}{category.Name}{(category.Subtype is null ? string.Empty : "/" + category.Subtype)}";
+        OperatorLabels.MailClassification(category);
 
     public static string QueueLabel(MailRouteDisposition? disposition) => disposition switch
     {

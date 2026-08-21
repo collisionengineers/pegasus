@@ -119,7 +119,7 @@ public sealed class MailWorkspaceWebTests
         var search = await GetHtmlAsync(
             client,
             $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&pageNumber=2&caseQuery=MAIL31001");
-        Assert.Contains("Review MAIL31001", search, StringComparison.Ordinal);
+        Assert.Contains(">MAIL31001</strong>", search, StringComparison.Ordinal);
         Assert.Contains("mailbox=instructions", search, StringComparison.Ordinal);
         Assert.Contains("pageNumber=2", search, StringComparison.Ordinal);
 
@@ -128,7 +128,7 @@ public sealed class MailWorkspaceWebTests
             $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&pageNumber=2&caseQuery=MAIL31001&targetCaseId={firstCaseId:D}");
         Assert.Contains("Confirm target", target, StringComparison.Ordinal);
         Assert.Contains("MAIL31001", target, StringComparison.Ordinal);
-        Assert.DoesNotContain("Unlink from this case", target, StringComparison.Ordinal);
+        Assert.DoesNotContain("Confirm unlink", target, StringComparison.Ordinal);
         var linkConfirmation = await PrepareAssociationAsync(client, target, "PrepareLinkCase");
         var linkSubmission = AssociationSubmission(
             linkConfirmation,
@@ -145,9 +145,9 @@ public sealed class MailWorkspaceWebTests
 
         var linked = await GetHtmlAsync(client, link.Headers.Location!.ToString());
         Assert.Contains("Message linked to the confirmed case.", linked, StringComparison.Ordinal);
-        Assert.Contains("Current Case/PO", linked, StringComparison.Ordinal);
-        Assert.Contains("Continue to unlink confirmation", linked, StringComparison.Ordinal);
-        Assert.DoesNotContain("Search cases", linked, StringComparison.Ordinal);
+        Assert.Contains("Linked case", linked, StringComparison.Ordinal);
+        Assert.Contains(">Unlink</button>", linked, StringComparison.Ordinal);
+        Assert.DoesNotContain("association-case-query", linked, StringComparison.Ordinal);
         await AssertAssociationStateAsync(factory, receiptId, firstCaseId, expectedHistoryCount: 1);
 
         var conflictingLinkFields = new Dictionary<string, string>(linkSubmission.Fields)
@@ -181,7 +181,7 @@ public sealed class MailWorkspaceWebTests
 
         var unlinked = await GetHtmlAsync(client, unlink.Headers.Location!.ToString());
         Assert.Contains("Message unlinked from the confirmed case.", unlinked, StringComparison.Ordinal);
-        Assert.Contains("Search cases", unlinked, StringComparison.Ordinal);
+        Assert.Contains("association-case-query", unlinked, StringComparison.Ordinal);
         Assert.DoesNotContain("Unlink from this case", unlinked, StringComparison.Ordinal);
 
         var replacement = await GetHtmlAsync(
@@ -761,7 +761,7 @@ public sealed class MailWorkspaceWebTests
         Assert.DoesNotContain("class=\"field-hint\"", receiving, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(receiving, " selected=\"selected\""));
         Assert.Contains($"/Inbox/{ids[5]:D}?queue=receiving-work", receiving, StringComparison.Ordinal);
-        Assert.Contains("new-instruction-received/inspection", receiving, StringComparison.Ordinal);
+        Assert.Contains("New instruction &#xB7; Inspection", receiving, StringComparison.Ordinal);
         Assert.DoesNotContain("Message 1 from instructions", receiving, StringComparison.Ordinal);
 
         foreach (var (key, included, excluded) in new[]
@@ -782,7 +782,8 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox/{ids[5]:D}?queue=receiving-work&pageNumber=2");
         Assert.Contains("/Inbox?queue=receiving-work&amp;pageNumber=2", detail, StringComparison.Ordinal);
-        Assert.Contains("name=\"queue\" value=\"receiving-work\"", detail, StringComparison.Ordinal);
+        // The Case tab carries the whole list context forward.
+        Assert.Contains("queue=receiving-work&amp;section=case", detail, StringComparison.Ordinal);
         using var unknown = await client.GetAsync("/Inbox?queue=needs-sorting");
         using var deleted = await client.GetAsync("/Inbox?folder=deleted&queue=triage");
         using var deletedDetail = await client.GetAsync($"/Inbox/{ids[5]:D}?folder=deleted&queue=triage");
@@ -968,7 +969,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("intake@collisionengineers.co.uk", message, StringComparison.Ordinal);
         // Nothing was processed, so the state strip says so rather than blanking.
         Assert.Contains("Not yet processed", message, StringComparison.Ordinal);
-        Assert.Contains("Not associated with a case.", message, StringComparison.Ordinal);
+        Assert.Contains(">No case</dd>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
         Assert.Contains($"/Inbox?mailbox={FirstMailboxId}", message, StringComparison.Ordinal);
         // A viewer: the layout's sign-out is still the only POST on the screen.
@@ -997,11 +998,13 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
 
-        Assert.Contains("<h2 id=\"folder-recommendation-heading\">Folder recommendation</h2>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Unavailable —", html, StringComparison.Ordinal);
-        Assert.Contains("no current classification decision", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggested next action", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
+        // An unavailable recommendation renders nothing: the Decision card
+        // shows only populated rows, and no folder prose reaches the page.
+        Assert.Contains("<h2>Decision</h2>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Folder recommendation", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
+        Assert.DoesNotContain(">Folder</dt>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("no current classification decision", html, StringComparison.Ordinal);
         Assert.Equal(1, CountOccurrences(html, "method=\"post\""));
     }
 
@@ -1015,24 +1018,27 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
 
-        Assert.Contains("Classification evidence", html, StringComparison.Ordinal);
-        Assert.Contains("shared-mail-policy version 3", html, StringComparison.Ordinal);
-        Assert.Contains("sender-domain", html, StringComparison.Ordinal);
-        Assert.Contains("Permanent correction history", html, StringComparison.Ordinal);
-        Assert.Contains("Save classification correction", html, StringComparison.Ordinal);
+        // The Decision card carries the decision in operator words; policy
+        // keys, versions, predicate rows and prose never reach the page.
+        Assert.Contains("<h2>Decision</h2>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Classification</dt>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Destination</dt><dd>Unidentified</dd>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("shared-mail-policy", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("sender-domain", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("mail_operational_destination", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Recommended Outlook folder", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("absent or ambiguous", html, StringComparison.Ordinal);
+        // The correction is a dialog on the card, posting the exact decision
+        // version it corrects.
+        Assert.Contains(">Save correction</button>", html, StringComparison.Ordinal);
         Assert.Contains("name=\"ExpectedClassificationVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("value=\"1\"", html, StringComparison.Ordinal);
-        // The Core operational-destination policy fails closed to the same
-        // "Unidentified" wording the page already uses for an unmatched
-        // Queue/Filed-to state, computed live from this Unclassified decision.
-        Assert.Contains("<dt>Operational destination</dt><dd>Unidentified</dd>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Destination policy</dt><dd>mail_operational_destination version 1</dd>", html, StringComparison.Ordinal);
-        // PLAT-011: "Decided by" resolves the persisted "system-worker:..." actor
-        // to an operator-facing name, never the raw stored value.
-        Assert.Contains("<dt>Decided by</dt><dd>System</dd>", html, StringComparison.Ordinal);
+        // PLAT-011: the persisted "system-worker:..." actor resolves to the
+        // operator-facing provenance word, never the raw stored value.
+        Assert.Contains("data-word=\"Automatic\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain("system-worker:approved-inbox-poller", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Unavailable —", html, StringComparison.Ordinal);
-        Assert.Contains("absent or ambiguous", html, StringComparison.Ordinal);
+        // No corrections yet, so no Corrections card.
+        Assert.DoesNotContain("<h2>Corrections</h2>", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1048,8 +1054,8 @@ public sealed class MailWorkspaceWebTests
         // The retained-mail viewer is the real production caller of
         // MailOperationalDestinationPolicy.Map: this must not silently
         // regress to no destination, or the wrong one, for a known category.
-        Assert.Contains("<dt>Operational destination</dt><dd>Receiving work</dd>", html, StringComparison.Ordinal);
-        Assert.Contains("<dt>Destination policy</dt><dd>mail_operational_destination version 1</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Destination</dt><dd>Receiving work</dd>", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("mail_operational_destination", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1067,11 +1073,11 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}");
 
-        Assert.Contains("<dt>Recommended Outlook folder</dt><dd>Instructions</dd>", html, StringComparison.Ordinal);
-        Assert.Contains("mail_logical_folder version 1", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>Folder</dt>", html, StringComparison.Ordinal);
+        Assert.Contains("Instructions — not moved", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("mail_logical_folder", html, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggested next action", html, StringComparison.Ordinal);
-        Assert.DoesNotContain("Move message", html, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Move to Instructions", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1096,10 +1102,10 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?queue=receiving-work");
 
-        Assert.Contains("<h3>Suggested next action</h3>", html, StringComparison.Ordinal);
-        Assert.Equal(1, CountOccurrences(html, "Suggested next action"));
-        Assert.Contains("Move to Instructions", html, StringComparison.Ordinal);
-        Assert.Contains("Confirm Outlook folder move", html, StringComparison.Ordinal);
+        Assert.Contains(">Move to Instructions</button>", html, StringComparison.Ordinal);
+        Assert.Contains("id=\"moveFolderDialog\"", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>From</dt><dd>Inbox</dd>", html, StringComparison.Ordinal);
+        Assert.Contains("<dt>To</dt><dd>Instructions</dd>", html, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", html, StringComparison.Ordinal);
         Assert.Equal(0, mover.MoveCalls);
         var action = Regex.Match(
@@ -1178,7 +1184,8 @@ public sealed class MailWorkspaceWebTests
 
         var uncertain = await GetHtmlAsync(client, confirmation.Headers.Location!.ToString());
         Assert.Contains("Check move status", uncertain, StringComparison.Ordinal);
-        Assert.DoesNotContain("Suggested next action", uncertain, StringComparison.Ordinal);
+        Assert.Contains("Unconfirmed", uncertain, StringComparison.Ordinal);
+        Assert.DoesNotContain("moveFolderDialog", uncertain, StringComparison.Ordinal);
         Assert.Contains("value=\"Confirmed after reviewing the message.\"", uncertain, StringComparison.Ordinal);
         Assert.DoesNotContain("outlook-folder-instructions", uncertain, StringComparison.Ordinal);
         var recoveryAction = WebUtility.HtmlDecode(Regex.Match(
@@ -1205,7 +1212,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains(expectedNotice, final, StringComparison.Ordinal);
         Assert.Equal(1, mover.MoveCalls);
         Assert.Equal(remainsUncertain, final.Contains("Check move status", StringComparison.Ordinal));
-        Assert.Equal(showsSuggestedMove, final.Contains("Suggested next action", StringComparison.Ordinal));
+        Assert.Equal(showsSuggestedMove, final.Contains("moveFolderDialog", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -1306,7 +1313,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Forwarded by", inbox, StringComparison.Ordinal);
         Assert.Contains("A Sender", inbox, StringComparison.Ordinal);
         Assert.Contains("original@qdosassist.co.uk", detail, StringComparison.Ordinal);
-        Assert.Contains("<dt>Forwarded by</dt>", detail, StringComparison.Ordinal);
+        Assert.Contains("Forwarded by A Sender", detail, StringComparison.Ordinal);
         Assert.Contains("sender@example.invalid", detail, StringComparison.Ordinal);
     }
 

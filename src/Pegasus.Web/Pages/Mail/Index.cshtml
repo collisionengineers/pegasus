@@ -241,11 +241,6 @@ else
                                     <span class="vh">Unread</span>
                                 }
                             </strong>
-                            @if (item.SenderAddress is { Length: > 0 } address
-                                 && !string.Equals(address, Pegasus.Web.Pages.Mail.IndexModel.SenderLine(item), StringComparison.Ordinal))
-                            {
-                                <small>@address</small>
-                            }
                         </span>
                     </td>
                     <td>

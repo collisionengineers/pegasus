@@ -40,6 +40,27 @@ public static partial class StaffForwardBodyCleaner
         return BlankRunRegex().Replace(text, "\n\n").Trim();
     }
 
+    /// <summary>
+    /// Splits an already-cleaned body into the leading forwarded
+    /// From:/Sent:/To:/Subject: header block and the message that follows it,
+    /// so views can quote the header separately and excerpts can skip it.
+    /// Bodies that do not begin with the block come back with no header lines.
+    /// </summary>
+    public static (IReadOnlyList<string> HeaderLines, string Body) SplitForwardedHeader(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var boundary = ForwardedHeaderRegex().Match(body);
+        if (!boundary.Success || boundary.Index != 0)
+        {
+            return ([], body);
+        }
+
+        var headerLines = boundary.Value
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var rest = body[(boundary.Index + boundary.Length)..].TrimStart('\r', '\n', ' ', '\t');
+        return (headerLines, rest);
+    }
+
     // Leaked inline-image references: `[cid:token]`, `<cid:token>`, or a bare
     // `cid:token`, including the emptied bracket the removal can leave behind.
     [GeneratedRegex("\\[?<?cid:[^\\]>\\s\"']+>?\\]?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]

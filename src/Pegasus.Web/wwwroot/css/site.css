@@ -1959,8 +1959,10 @@ tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 var(--navy-l
 .queue-list > a[data-state="unread"] strong { font-weight: 800; }
 
 /* A retained body is flattened text. It is rendered as text and wraps like
-   text; nothing here interprets markup. */
-.mail-body {
+   text; nothing here interprets markup. The pre form is the quick preview and
+   Deleted-items rendering; the message page's div form renders paragraphs and
+   must not inherit pre-wrap. */
+pre.mail-body {
   margin: var(--sp-4) 0 0;
   font: inherit;
   white-space: pre-wrap;
@@ -2439,3 +2441,31 @@ label.req::after { content: " *"; color: var(--ce-red); }
 .damage-region[aria-pressed="true"] { background: var(--ce-red); border-color: var(--ce-red); color: #fff; font-weight: 600; }
 /* MAIL-005: the Inbox outcome cell aligns its chip and case link on one row. */
 .outcome-row { display: inline-flex; align-items: center; flex-wrap: wrap; gap: var(--sp-3); }
+
+/* Inbox message page (MAIL-006). `.decision` is the right-column card that
+   carries the classification decision and its actions; the `.mail-*` set is
+   the letter treatment: sender line, muted forwarding route, quoted forwarded
+   header, and the body as paragraphs (a blank line is a paragraph break,
+   consecutive lines stay tight). */
+.decision { padding: var(--sp-4) var(--sp-5) var(--sp-5); border: var(--border); border-radius: var(--radius); background: var(--paper); }
+.decision + .decision { margin-top: var(--sp-5); }
+.decision .facts { margin-bottom: var(--sp-4); }
+.decision .facts:last-child { margin-bottom: 0; }
+/* The auto-fit facts grid splits the heading from its list once wide enough;
+   inside a card or dialog it stays one column. */
+.decision .facts, .reason-dialog .facts { grid-template-columns: 1fr; }
+
+.mail-from { font-size: var(--t-h2); font-weight: 650; overflow-wrap: anywhere; }
+.mail-route { margin-top: 2px; color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.mail-quoted { margin: var(--sp-5) 0 var(--sp-6); padding-left: var(--sp-4); border-left: 2px solid var(--line); color: var(--muted); font-size: var(--t-sm); overflow-wrap: anywhere; }
+.mail-quoted div { padding: 1px 0; }
+.mail-body { max-width: 68ch; overflow-wrap: anywhere; }
+.mail-body p { margin: 0 0 var(--sp-5); }
+.mail-body p.run-on { margin-bottom: var(--sp-1); }
+.mail-body p:last-child { margin-bottom: 0; }
+
+/* The Case tab's single working column. */
+.form-column { max-width: 680px; }
+
+/* A mail subject is the record title and wraps; an ellipsis read as clipping. */
+.record__head h1.wrap { overflow: visible; white-space: normal; text-overflow: clip; }
