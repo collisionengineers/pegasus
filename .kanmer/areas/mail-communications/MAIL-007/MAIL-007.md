@@ -4,12 +4,13 @@ type: ticket
 title: >-
   Suppress signature, disclaimer and wrapper content in the displayed message
   body
-status: implementing
+status: review
 area: mail-communications
 assignee: claude-code
 profile: feature
 stageEntered:
   implementing: '2026-08-21T12:16:45.658Z'
+  review: '2026-08-21T12:49:27.096Z'
 taken_at: '2026-08-21T12:13:40.511Z'
 branch: task/mail-007-provider-footer
 worktree: ../pegasus-worktrees/mail-007
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-21T08:24:54.993Z'
-updated: '2026-08-21T12:16:45.658Z'
+updated: '2026-08-21T12:49:27.096Z'
 ---
 
 ## What
