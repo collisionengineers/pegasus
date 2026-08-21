@@ -562,7 +562,7 @@ public sealed class MailWorkspaceWebTests
     }
 
     [Fact]
-    public async Task SentNamesWhatIsNotKeptAndDeletedRequiresAnExplicitBoundedSearch()
+    public async Task SentNamesWhatIsNotKeptAndDeletedListsNothingUntilItIsSearched()
     {
         using var factory = new IntakeWebApplicationFactory();
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
@@ -572,10 +572,11 @@ public sealed class MailWorkspaceWebTests
         var deleted = await GetHtmlAsync(client, "/Inbox?folder=deleted");
 
         Assert.Contains("Sent messages are not kept in Pegasus yet.", sent, StringComparison.Ordinal);
-        Assert.Contains(
-            "Enter a search term to read accepted Deleted Items within the selected approved mailbox scope.",
-            deleted,
-            StringComparison.Ordinal);
+        // MAIL-010: this used to assert the sentence that told the operator to
+        // search. The sentence was a field hint and is gone; what mattered was
+        // always the behaviour it described, so assert that instead — Deleted
+        // Items lists nothing until a search term is given.
+        Assert.DoesNotContain($"Message 0 from {FirstMailboxId}", deleted, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1132,11 +1133,10 @@ public sealed class MailWorkspaceWebTests
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
         Assert.Empty((await queries.ListAsync(
             new(null, MailFolderScope.Inbox), 1, 25, CancellationToken.None)).Items);
+        // MAIL-010: the notice that narrated this is gone. The assertion below
+        // is the one that proved it — a message moved out of the Inbox is still
+        // found by search — so it now stands alone.
         var searchHtml = await GetHtmlAsync(client, "/Inbox?search=estimate");
-        Assert.Contains(
-            "Search includes retained messages in their current Outlook folders.",
-            searchHtml,
-            StringComparison.Ordinal);
         Assert.Contains($"Message 0 from {FirstMailboxId}", searchHtml, StringComparison.Ordinal);
     }
 
