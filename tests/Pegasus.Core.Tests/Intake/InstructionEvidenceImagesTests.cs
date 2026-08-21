@@ -53,12 +53,51 @@ public sealed class InstructionEvidenceImagesTests
         Assert.Equal(attached.Id, only.Id);
     }
 
+    [Fact]
+    public void QdosTwentySixZeroZeroEightsLetterheadBannersAreNotEvidence()
+    {
+        // INTK-030, measured from production. The operator reported the
+        // first two images as signatures/logos. These are those two, at
+        // their real sizes and dimensions, beside one of the nine genuine
+        // photographs from the same receipt. Note the byte floor admits
+        // both banners and one of them is a JPEG, so neither size nor
+        // format could have told them apart — only the shape does.
+        var pngBanner = Asset(
+            IntakeAssetKind.EmbeddedImage, "image/png", 110_783, "b1",
+            "page-1-image-1.png", width: 1990, height: 437);
+        var jpegBanner = Asset(
+            IntakeAssetKind.EmbeddedImage, "image/jpeg", 77_972, "b2",
+            "page-1-image-2.jpg", width: 2214, height: 248);
+        var photograph = Asset(
+            IntakeAssetKind.EmbeddedImage, "image/jpeg", 156_740, "p1",
+            "page-2-image-3.jpg", width: 709, height: 646);
+
+        var selected = InstructionEvidenceImages.Select(
+            [pngBanner, jpegBanner, photograph]);
+
+        var only = Assert.Single(selected);
+        Assert.Equal(photograph.Id, only.Id);
+    }
+
+    [Fact]
+    public void AnImageWithNoRecordedDimensionsIsStillAdmitted()
+    {
+        // Failing open is deliberate: refusing to show a genuine
+        // photograph is the worse of the two errors.
+        var unmeasured = Asset(
+            IntakeAssetKind.EmbeddedImage, "image/jpeg", 90_000, "u1");
+
+        Assert.Single(InstructionEvidenceImages.Select([unmeasured]));
+    }
+
     private static IntakeAssetRecord Asset(
         IntakeAssetKind kind,
         string mediaType,
         long contentLength,
         string hash,
-        string fileName = "asset.bin") => new(
+        string fileName = "asset.bin",
+        int? width = null,
+        int? height = null) => new(
         Guid.NewGuid(),
         "test",
         fileName,
@@ -76,6 +115,6 @@ public sealed class InstructionEvidenceImagesTests
         $"storage/{hash}",
         null,
         null,
-        null,
-        null);
+        width,
+        height);
 }
