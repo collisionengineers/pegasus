@@ -18,7 +18,29 @@ public sealed record VehicleMileageCalculation(
 public static class VehicleMileagePolicy
 {
     public const string MethodKey = "latest-mot-observation";
-    public const int MethodVersion = 1;
+
+    /// <summary>
+    /// Version 2 states the derived mileage in miles whatever unit the MOT
+    /// recorded, per operator direction (2026-08-21). A kilometre reading
+    /// used to travel through unconverted, and every consumer that asks for
+    /// miles — the Assessment prefill among them — simply ignored it, so an
+    /// imported vehicle showed no mileage at all despite a full MOT history.
+    /// </summary>
+    public const int MethodVersion = 2;
+
+    /// <summary>Exact, by definition: one mile is 1.609344 kilometres.</summary>
+    private const double KilometresPerMile = 1.609344;
+
+    /// <summary>
+    /// The MOT reading expressed in miles. Rounds to the nearest whole mile
+    /// away from zero, so a converted value never reads as more precise than
+    /// the odometer it came from. The raw observation keeps its own unit —
+    /// only the derived Case value is normalised.
+    /// </summary>
+    public static long ToMiles(long value, VehicleMileageUnit unit) =>
+        unit == VehicleMileageUnit.Kilometres
+            ? (long)Math.Round(value / KilometresPerMile, MidpointRounding.AwayFromZero)
+            : value;
 
     public static VehicleMileageCalculation? Calculate(
         IReadOnlyList<MotTestObservation> observations)
@@ -26,8 +48,7 @@ public static class VehicleMileagePolicy
         ArgumentNullException.ThrowIfNull(observations);
 
         DateOnly? latestDate = null;
-        long latestValue = 0;
-        VehicleMileageUnit latestUnit = default;
+        long latestMiles = 0;
         var supportingCount = 0;
         var conflicting = false;
 
@@ -41,11 +62,15 @@ public static class VehicleMileagePolicy
                 continue;
             }
 
+            // Compared in miles, so the same reading recorded once in miles
+            // and once in kilometres agrees with itself instead of reading
+            // as a conflict and abstaining.
+            var miles = ToMiles(value, unit);
+
             if (latestDate is null || observation.TestDate > latestDate.Value)
             {
                 latestDate = observation.TestDate;
-                latestValue = value;
-                latestUnit = unit;
+                latestMiles = miles;
                 supportingCount = 1;
                 conflicting = false;
                 continue;
@@ -56,7 +81,7 @@ public static class VehicleMileagePolicy
                 continue;
             }
 
-            if (value != latestValue || unit != latestUnit)
+            if (miles != latestMiles)
             {
                 conflicting = true;
             }
@@ -69,8 +94,8 @@ public static class VehicleMileagePolicy
         return latestDate is null || conflicting
             ? null
             : new(
-                latestValue,
-                latestUnit,
+                latestMiles,
+                VehicleMileageUnit.Miles,
                 latestDate.Value,
                 MethodKey,
                 MethodVersion,

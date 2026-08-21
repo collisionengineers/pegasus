@@ -98,6 +98,45 @@ public sealed class VehicleWorkflowTests
     }
 
     [Fact]
+    public void AKilometreOdometerIsConvertedToMiles()
+    {
+        // ENG-010, from DP07EFB's real MOT history: an imported vehicle
+        // records in kilometres. The derived Case value is always miles, so
+        // consumers that ask for miles stop silently ignoring it.
+        // 113,068 km / 1.609344 = 70,257.4 -> 70,257 miles.
+        MotTestObservation[] observations =
+        [
+            new(new DateOnly(2026, 5, 14), "PASSED", null, 113068, VehicleMileageUnit.Kilometres),
+            new(new DateOnly(2025, 5, 14), "PASSED", null, 102742, VehicleMileageUnit.Kilometres)
+        ];
+
+        var calculation = Assert.IsType<VehicleMileageCalculation>(
+            VehicleMileagePolicy.Calculate(observations));
+
+        Assert.Equal(70_257, calculation.Value);
+        Assert.Equal(VehicleMileageUnit.Miles, calculation.Unit);
+        Assert.Equal(new DateOnly(2026, 5, 14), calculation.ObservedOn);
+    }
+
+    [Fact]
+    public void TheSameReadingInBothUnitsIsNotAConflict()
+    {
+        // Comparing before converting made one reading recorded twice, in
+        // different units, look like two disagreeing readings and abstain.
+        MotTestObservation[] observations =
+        [
+            new(new DateOnly(2026, 5, 14), "PASSED", null, 100000, VehicleMileageUnit.Kilometres),
+            new(new DateOnly(2026, 5, 14), "PASSED", null, 62137, VehicleMileageUnit.Miles)
+        ];
+
+        var calculation = Assert.IsType<VehicleMileageCalculation>(
+            VehicleMileagePolicy.Calculate(observations));
+
+        Assert.Equal(62_137, calculation.Value);
+        Assert.Equal(2, calculation.SupportingObservationCount);
+    }
+
+    [Fact]
     public void MileageUsesTheLatestExactObservationAndRejectsLatestDateConflicts()
     {
         MotTestObservation[] observations =
