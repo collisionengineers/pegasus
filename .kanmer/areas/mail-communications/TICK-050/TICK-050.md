@@ -2,7 +2,7 @@
 id: TICK-050
 type: ticket
 title: MAIL-08 — Suggested next actions for classified email
-status: verifying
+status: done
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-19T08:10:44.019Z'
   review: '2026-08-20T18:06:36.026Z'
   verifying: '2026-08-20T18:57:20.790Z'
+  done: '2026-08-21T15:11:34.082Z'
 taken_at: '2026-08-20T17:53:50.130Z'
 branch: task/tick-050-mail-08-suggested-next-action
 worktree: ../pegasus-worktrees/tick-050
@@ -30,9 +31,10 @@ commits:
   - 75c9f3a0576b73c722c03b6e1a71b39205711602
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/480'
+deployment: production
 archived: false
 created: '2026-08-12T15:05:19.237Z'
-updated: '2026-08-20T18:57:20.790Z'
+updated: '2026-08-21T15:11:34.082Z'
 ---
 
 ## What
