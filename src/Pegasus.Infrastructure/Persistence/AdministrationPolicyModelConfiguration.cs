@@ -67,5 +67,15 @@ internal static class AdministrationPolicyModelConfiguration
                 .HasForeignKey(item => item.ApprovedMailboxId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
+
+        builder.Entity<ApprovedOutlookCategoryEntity>(entity =>
+        {
+            entity.ToTable("ApprovedOutlookCategories");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.DisplayName).HasMaxLength(255).IsRequired();
+            entity.Property(item => item.NormalizedDisplayName).HasMaxLength(255).IsRequired();
+            entity.Property(item => item.State).HasMaxLength(20).IsRequired();
+            entity.HasIndex(item => item.NormalizedDisplayName).IsUnique();
+        });
     }
 }

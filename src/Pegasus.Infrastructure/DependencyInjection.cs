@@ -260,6 +260,14 @@ public static class DependencyInjection
         services.AddScoped<IApprovedMailboxPollStatusQueries, EfApprovedMailboxPollStatusQueries>();
         services.AddScoped<ListApprovedMailboxes>();
         services.AddScoped<UpdateApprovedMailbox>();
+        services.AddScoped<EfApprovedOutlookCategoryStore>();
+        services.AddScoped<IApprovedOutlookCategoryStore>(provider =>
+            provider.GetRequiredService<EfApprovedOutlookCategoryStore>());
+        services.AddScoped<IApprovedOutlookCategoryResolver>(provider =>
+            provider.GetRequiredService<EfApprovedOutlookCategoryStore>());
+        services.AddScoped<ListApprovedOutlookCategories>();
+        services.AddScoped<UpdateApprovedOutlookCategory>();
+        services.AddScoped<ResolveApprovedOutlookCategory>();
         services.AddScoped<EfCaseWorkflowStore>();
         services.AddScoped<ICaseWorkflowStore>(provider => provider.GetRequiredService<EfCaseWorkflowStore>());
         services.AddScoped<IAutoLinkReportEvidenceStore>(
