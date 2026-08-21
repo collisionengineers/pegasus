@@ -2,7 +2,7 @@
 id: AUTO-005
 type: ticket
 title: Expose Triage casework through the Automation Actor
-status: verifying
+status: done
 area: automation-integrations
 assignee: codex-mcp-client
 profile: spike
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-20T10:23:17.577Z'
   review: '2026-08-20T11:31:28.400Z'
   verifying: '2026-08-21T14:17:23.941Z'
+  done: '2026-08-21T14:54:58.442Z'
 taken_at: '2026-08-20T10:37:15.283Z'
 branch: task/auto-004-automation-parity
 worktree: ../pegasus-worktrees/auto-004
@@ -29,10 +30,10 @@ commits:
   - 05e698bc
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/470'
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-20T10:12:42.306Z'
-updated: '2026-08-21T14:17:23.941Z'
+updated: '2026-08-21T14:54:58.442Z'
 ---
 
 ## What
