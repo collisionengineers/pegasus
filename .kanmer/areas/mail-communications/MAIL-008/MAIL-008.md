@@ -2,12 +2,13 @@
 id: MAIL-008
 type: ticket
 title: Map mail classification and folder-move reason to operator labels
-status: implementing
+status: review
 area: mail-communications
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-21T10:42:16.179Z'
+  review: '2026-08-21T11:42:35.774Z'
 taken_at: '2026-08-21T10:41:45.553Z'
 branch: task/mail-006-inbox-message-page
 worktree: ../pegasus-worktrees/mail-006
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-21T09:37:20.423Z'
-updated: '2026-08-21T10:42:16.179Z'
+updated: '2026-08-21T11:42:35.774Z'
 ---
 
 ## What
