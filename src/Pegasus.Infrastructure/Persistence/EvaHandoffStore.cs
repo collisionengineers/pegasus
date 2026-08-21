@@ -133,6 +133,15 @@ public sealed class EvaHandoffStore(
                 firstProxyRevisionId == item.Id))
             .ToArrayAsync(cancellationToken);
 
+        // PLAT-031: with the hand-off switched off there is nothing an
+        // operator can act on, so the surface says nothing rather than
+        // reporting a blocker against a capability that is not turned on.
+        // Existing revisions keep their panel — that history stays visible.
+        if (!CaseEvaMapping.IsSwitchedOn(mappingAcceptance) && revisions.Length == 0)
+        {
+            return null;
+        }
+
         return new(
             caseId,
             caseState.Version,

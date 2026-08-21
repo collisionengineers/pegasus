@@ -161,7 +161,10 @@ internal sealed class EfRetainedMailboxMessageStore(
                     .OrderByDescending(move => move.RecordedAtUtc)
                     .ThenByDescending(move => move.Id)
                     .Select(move => move.FolderType)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                item.BodyPlainText == null
+                    ? null
+                    : item.BodyPlainText.Substring(0, 600)))
             .ToListAsync(cancellationToken);
 
         if (searchTerm is not null && rows.Count > 0)
@@ -256,7 +259,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     && receipt?.BodySearchText?.Contains(
                         searchTerm,
                         StringComparison.OrdinalIgnoreCase) == true,
-                currentFolderType)
+                currentFolderType,
+                entity.BodyPlainText)
         };
         if (searchTerm is not null)
         {
@@ -271,7 +275,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         // A staff forward is de-cluttered on read so existing (write-once) rows
         // are corrected too: the effective sender differs from the transport
         // sender exactly when the route unwrapped a Collision Engineers forward.
-        var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
+        var isStaffForward = summary.EffectiveSenderAddress is { } effectiveSender
             && !string.Equals(effectiveSender, entity.SenderAddress, StringComparison.OrdinalIgnoreCase);
         var body = receipt?.BodySearchText
             ?? StaffForwardBodyCleaner.Clean(entity.BodyPlainText ?? string.Empty, isStaffForward);
@@ -670,7 +674,7 @@ internal sealed class EfRetainedMailboxMessageStore(
             item => item.ExternalReceiptToken,
             StringComparer.Ordinal);
         var receiptIds = receipts.Select(item => item.Id).ToArray();
-        var casesByReceipt = await CurrentIntakeAssociations.ReadAsync(
+        var associations = await CurrentIntakeAssociations.ReadAsync(
             context,
             receiptIds,
             cancellationToken);
@@ -704,14 +708,29 @@ internal sealed class EfRetainedMailboxMessageStore(
                 receiptsByToken.TryGetValue(row.ExternalReceiptToken, out var receipt);
                 var linkedCase = receipt is null
                     ? null
-                    : casesByReceipt.GetValueOrDefault(receipt.Id);
+                    : associations.Current.GetValueOrDefault(receipt.Id);
                 var allocationState = receipt is null
                     ? null
                     : allocationStates.GetValueOrDefault(receipt.Id);
+                // INTK-029: once the association has been reversed the
+                // allocation's record of the case it created no longer
+                // stands in for it, or unlinking would visibly do nothing.
+                var allocationCase = receipt is not null
+                    && associations.AllocationMayStandIn(receipt.Id)
+                        ? allocationState
+                        : null;
                 var classification = receipt?.Classification is null
                     ? null
                     : EfIntakeReceiptStore.MapMailClassificationDecision(receipt.Classification);
-                var isStaffForward = receipt?.EffectiveSenderAddress is { } effectiveSender
+                // MAIL-009: the route decision is authoritative but is written
+                // by intake processing, a later hop. Until it exists the same
+                // unwrap is applied to what retention already holds, so a
+                // staff forward is never rendered as the forwarding desk.
+                var effectiveSenderAddress = receipt?.EffectiveSenderAddress
+                    ?? QdosMailRoutePolicy.ProvisionalEffectiveSender(
+                        row.SenderAddress,
+                        row.BodyHead);
+                var isStaffForward = effectiveSenderAddress is { } effectiveSender
                     && !string.Equals(effectiveSender, row.SenderAddress, StringComparison.OrdinalIgnoreCase);
                 // The preview line is the message as its sender wrote it: the
                 // receipt's cleaned body with the forwarded header skipped.
@@ -737,7 +756,7 @@ internal sealed class EfRetainedMailboxMessageStore(
                     polledAddresses.Contains(row.MailboxAddress),
                     row.SenderAddress,
                     row.SenderDisplayName,
-                    receipt?.EffectiveSenderAddress,
+                    effectiveSenderAddress,
                     row.Subject,
                     cleanedExcerpt,
                     row.ReceivedAtUtc,
@@ -750,8 +769,8 @@ internal sealed class EfRetainedMailboxMessageStore(
                     // The manual acceptance route writes a CaseIntakeLinks row;
                     // the automatic allocation route records its created case on
                     // the succeeded attempt instead. Either one is the case.
-                    linkedCase?.CaseId ?? allocationState?.CaseId,
-                    linkedCase?.Reference ?? allocationState?.CaseReference,
+                    linkedCase?.CaseId ?? allocationCase?.CaseId,
+                    linkedCase?.Reference ?? allocationCase?.CaseReference,
                     allocationState,
                     row.SearchMatches,
                     row.CurrentFolderType is null
@@ -901,6 +920,10 @@ internal sealed class EfRetainedMailboxMessageStore(
         string ExternalReceiptToken,
         bool BodyMatched,
         string? CurrentFolderType,
+        // Enough retained body, newlines intact, to read the forwarded
+        // header block from. BodyExcerpt collapses whitespace, so it cannot
+        // answer this question (MAIL-009).
+        string? BodyHead = null,
         IReadOnlyList<RetainedMailSearchMatch>? SearchMatches = null);
 
     private static async Task<List<SummaryRow>> AddSearchMatchesAsync(
