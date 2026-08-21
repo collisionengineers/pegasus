@@ -2,7 +2,7 @@
 id: TICK-047
 type: ticket
 title: MAIL-05 — Recommend the designated Outlook folder for a classified message
-status: verifying
+status: done
 area: mail-communications
 order: 260
 assignee: codex-mcp-client
@@ -11,6 +11,7 @@ stageEntered:
   preparing: '2026-08-19T08:10:36.697Z'
   review: '2026-08-20T12:19:02.709Z'
   verifying: '2026-08-20T12:55:23.959Z'
+  done: '2026-08-21T15:10:40.717Z'
 taken_at: '2026-08-20T11:44:11.993Z'
 branch: task/tick-047-mail-05-folder-recommendation
 worktree: ../pegasus-worktrees/tick-047
@@ -34,9 +35,10 @@ commits:
   - 4bc3f158
 prs:
   - '474'
+deployment: production
 archived: false
 created: '2026-08-12T15:05:19.177Z'
-updated: '2026-08-20T17:50:48.517Z'
+updated: '2026-08-21T15:10:40.717Z'
 ---
 
 ## What
