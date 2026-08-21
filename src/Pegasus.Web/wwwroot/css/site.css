@@ -1909,6 +1909,49 @@ details > summary.btn::marker, .upload-attach > summary::marker { content: ""; }
 .filterbar__more summary { color: var(--charcoal); cursor: pointer; font-size: var(--t-sm); font-weight: 600; }
 .filterbar__more .form-grid { margin-top: var(--sp-4); }
 
+/* UI-10: the retained-mail table remains the primary workspace. The preview is
+   a read-only adjacent evidence region, then an ordinary ordered section when
+   constrained width or browser zoom leaves no honest room for two panes. */
+.mail-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  gap: var(--sp-6);
+  align-items: start;
+}
+
+.mail-workspace > .table-wrap { min-width: 0; }
+
+.mail-preview {
+  min-width: 0;
+  padding: var(--sp-5);
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-soft);
+}
+
+.mail-preview h2 { margin: 0 0 var(--sp-4); font-size: var(--t-h3); }
+.mail-preview__status { margin: 0; color: var(--muted); }
+.mail-preview__facts { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); margin: 0; }
+.mail-preview__facts > div { min-width: 0; }
+.mail-preview__facts dt { color: var(--muted); font-size: var(--t-sm); font-weight: 700; }
+.mail-preview__facts dd { margin: var(--sp-1) 0 0; overflow-wrap: anywhere; }
+.mail-preview__facts .plain-list { padding-left: var(--sp-4); }
+
+tr.is-preview-selected > td { background: var(--navy-bg); }
+tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 var(--navy-line); }
+
+@media (max-width: 1279px) {
+  .mail-workspace { grid-template-columns: minmax(0, 1fr); }
+  .mail-preview { order: 2; }
+}
+
+@media (forced-colors: active) {
+  tr.is-preview-selected > td { background: Highlight; color: HighlightText; }
+  tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 HighlightText; }
+  tr.is-preview-selected a { color: LinkText; }
+}
+
 .datarow__sug { color: var(--charcoal); font-size: var(--t-sm); }
 
 /* Mail workspace. Unread is carried by weight and by the words "Unread" in the
