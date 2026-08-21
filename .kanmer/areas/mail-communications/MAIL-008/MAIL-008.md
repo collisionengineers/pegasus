@@ -12,11 +12,13 @@ labels:
   - defect
   - design-approved
 links: []
+blocks:
+  - MAIL-006
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-21T09:37:20.423Z'
-updated: '2026-08-21T09:37:20.423Z'
+updated: '2026-08-21T09:39:56.686Z'
 ---
 
 ## What
