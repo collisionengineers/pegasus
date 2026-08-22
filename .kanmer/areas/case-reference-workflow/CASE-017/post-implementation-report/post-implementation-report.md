@@ -1,47 +1,45 @@
-# Post-implementation report
+# Post-implementation report — the timeline fix
 
-**Branch:** `task/qdos26009-operator-fixes` · **PR:** #506 · **Commit:** `5414997d`
+Branch `task/case-017-notes-timeline`, PR #513, from `origin/dev` at `4257b841`.
 
-## What was built
+## What was wrong
 
-The tab reads **Notes**. A note is a `CaseHistoryEntity` with event type `operator_note`,
-so it joins the same ordered, attributed, append-only timeline as everything Pegasus does
-to the case. Core `AddCaseNote` validates and trims it, bounds it at 2000 characters and
-refuses an empty one; `EfCaseNoteStore` writes it, idempotent by operation key.
+The original implementation wrote an operator note to `CaseHistory`. The Notes
+tab reads `CaseWorkflowEvents` (`EfCaseQueryStore.cs:181`). Two different tables
+with different purposes, so every note was persisted, the page returned *"The
+note was added."*, and the timeline stayed empty with the count at `0`.
 
-**No new table and no migration.** That was the design decision, not a shortcut: a separate
-notes store would have needed its own ordering, its own attribution, its own append-only
-guarantee and a merge at read time — four things to keep in step with the timeline that
-already has them.
+Nothing threw. CI was green. The Core command's tests drive a `RecordingStore`
+fake, and no test asserted the note came back through the query the page uses —
+a fake at the port boundary proves the command and never the wiring.
 
-## Three judgements, stated so a reviewer can disagree
+## The change
 
-**No edit lease, no expected version.** A note adds to the record rather than changing the
-case. Requiring the lease would make writing one contend with an engineer editing the same
-case, for no safety gain.
+| File | |
+| --- | --- |
+| `EfCaseNoteStore.cs` | Writes `CaseWorkflowEventEntity`, matching every other writer of that timeline. Replay protection moves to the same table so the operation key still guards a resubmitted form. Before and after versions are equal and the workflow row is untouched — a note records itself and changes nothing. |
+| `tests/…/CaseNotePersistenceTests.cs` | **New.** Two facts against real SQL. |
 
-**Staff only.** The first draft relied on `StaffAuthorization.Require(…, PerformCasework)`
-alone — and that admits the Automation Actor. A test written for exactly that case failed,
-which is how the gap was found rather than shipped. Automation already records what it does
-on this timeline under its own events; letting it author a *note* would put machine text
-where a colleague's words are expected.
+No schema change: both runtime roles already hold `SELECT, INSERT` on
+`CaseWorkflowEvents` in the least-privilege baseline — checked before writing
+the fix, not after, given [[DOCS-008]].
 
-**The last column is now "Detail" rather than "Reason".** For a system entry it is still
-the reason; for a note it is the note. One column, honest for both.
+## Tests
 
-## Departure from the plan
+- `AnOperatorNoteLandsOnTheTimelineTheNotesTabReads` — asserts the row is in
+  `CaseWorkflowEvents` with its actor, kind and time, versions equal, workflow
+  untouched, **and that `CaseHistory` is empty**. Fails on both halves against
+  the previous implementation.
+- `ResubmittingTheSameNoteFormLeavesOneEntry` — replay.
 
-The plan named `Cases/Tasks.cshtml.cs` as the handler's home, which is where it went — but
-without the `ExecuteCaseCommandAsync` helper every other handler there uses, because that
-helper is built around the edit lease this action deliberately does not take.
+Both pass locally (2/2, 35s). CI green on PR #513 after one unrelated
+infrastructure flake (`UnidentifiedPersistenceTests`, SQL post-login connection
+timeout) was rerun.
 
-## Evidence
+## Simplification pass — 2026-08-22
 
-- `Pegasus.Core.Tests` — 916 passed, 4 new in `AddCaseNoteTests`
-- Full solution builds clean
-- Live: a note added through the UI appearing beside the DVLA lookup entry — Phase 6
-
-## Design compliance
-
-The surface is a label, a textarea and a button. No guidance sentence was written; the
-approved necessary-copy list is closed.
+The fix **removes** a storage route rather than adding one: the timeline now has
+a single writer shape shared with `EfCaseTaskStore`, `EfCaseWorkflowStore`,
+`EfCaseDataStore`, `EfCaseAssessmentStore` and `EfExternalWorkStore`. That is the
+"one list per concept" rail applied to a table rather than a label. No other
+findings on a two-file diff; nothing left unapplied.
