@@ -2,10 +2,12 @@
 id: INTK-023
 type: ticket
 title: 'Extract claimant, vehicle and incident date from the real QDOS letter shapes'
-status: verifying
+status: done
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  done: '2026-08-22T03:46:07.059Z'
 labels:
   - regression
   - extraction
@@ -18,7 +20,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T10:45:24.375Z'
-updated: '2026-08-21T15:07:22.906Z'
+updated: '2026-08-22T03:46:07.059Z'
 ---
 
 ## What
