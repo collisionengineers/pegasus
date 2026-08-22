@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 23 | 2026-08-22 | `b6d54ff6…` | `sha256:7193802c…` | `pegasus-prod-web-252ow37gij--b6d54ff6-eva` | `20260822195419_CorrectIntakePhotographSemanticRole` |
   | 22 | 2026-08-22 | `191ddf33…` | `sha256:b40244ec…` | `pegasus-prod-web-252ow37gij--191ddf334208` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
   | 21 | 2026-08-22 | `4257b841…` | `sha256:d18c64a9…` | `pegasus-prod-web-252ow37gij--4257b841b4e2` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
   | 20 | 2026-08-22 | `05fe7a7f…` | `sha256:90b58000…` | `pegasus-prod-web-252ow37gij--05fe7a7f2d86` | `20260822044425_GrantWorkerCaseDocuments` |
@@ -334,6 +335,36 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 23** (2026-08-22, source `b6d54ff6`, image `sha256:7193802c…`)
+    stopped the case page saying the same thing three times, and made Export
+    produce a file. Registration had appeared in the Vehicle block, again in a
+    read-only "Case detail" restatement of the whole projection, and a third
+    time in "Vehicle evidence"; the restatement is gone and the seven fields
+    that lived only there — contact, VAT status and the four inspection fields —
+    moved into the block grid, so each fact is now read in exactly one place.
+    Export had never worked: `Details.cshtml` emitted `asp-route-id` against a
+    `{caseId:guid}` route, so link generation produced no `href` at all and the
+    control was inert.
+
+    Proved beyond smoke by reading the deployed stylesheet back over HTTP
+    (`grid-template-columns: … 22px`, the reserved provenance track that makes
+    an iconed row line up with a plain one) and by reading the production
+    database after the migration: QDOS26011's eight photographs moved from
+    `Instruction` to `Image`, QDOS26010's six likewise, while nine embedded
+    photographs and three PDFs were left alone — matching a read-only dry run of
+    the same predicate taken before the write. Until that correction every
+    photograph was invisible to EVA image selection, so an export of QDOS26011
+    would have produced an archive containing no images.
+
+    Two things about the release itself are worth carrying forward. The Web
+    container app is gated in `infra/modules/platform.bicep` on
+    `length(webRevisionSuffix) == 12`; a 16-character suffix chosen to dodge a
+    collision made `azd provision` report **SUCCESS while deploying nothing**,
+    detectable only by reading the environment back. And the EVA mapping
+    settings were applied through bicep rather than `az containerapp update`,
+    because that file declares the container's `env` array explicitly and would
+    have silently reverted anything set outside it.
 
   - **Release 22** (2026-08-22, source `191ddf33`, image `sha256:b40244ec…`)
     made operator notes visible. The note was written to `CaseHistory` while the
