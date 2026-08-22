@@ -1,4 +1,4 @@
-﻿using System.Buffers.Binary;
+using System.Buffers.Binary;
 using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
