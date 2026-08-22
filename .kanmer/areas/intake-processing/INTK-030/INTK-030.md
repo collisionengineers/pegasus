@@ -16,10 +16,10 @@ labels:
   - qdos26008
 links: []
 docs_todo: true
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-21T18:17:19.111Z'
-updated: '2026-08-22T06:03:57.360Z'
+updated: '2026-08-22T08:34:02.072Z'
 ---
 
 ## Why

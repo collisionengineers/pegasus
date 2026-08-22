@@ -18,10 +18,10 @@ labels:
   - reference
 links: []
 docs_todo: true
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-21T23:30:27.877Z'
-updated: '2026-08-22T08:01:24.716Z'
+updated: '2026-08-22T08:33:51.070Z'
 ---
 
 ## Why — operator direction (2026-08-22)

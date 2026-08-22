@@ -14,10 +14,10 @@ labels:
   - regression
   - qdos26008
 links: []
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-21T18:17:18.865Z'
-updated: '2026-08-22T08:32:41.582Z'
+updated: '2026-08-22T08:33:59.372Z'
 ---
 
 ## Why
