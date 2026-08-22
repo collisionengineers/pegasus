@@ -2,12 +2,15 @@
 id: DOCS-009
 type: ticket
 title: 'Record intake photographs as images, not instruction documents'
-status: preparing
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-22T19:43:45.801Z'
+taken_at: '2026-08-22T19:49:13.261Z'
+branch: task/qdos26011-regressions
+worktree: ../pegasus-worktrees/qdos26011-regressions
 labels:
   - qdos26011
 links: []
@@ -15,7 +18,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-22T19:42:25.308Z'
-updated: '2026-08-22T19:43:45.801Z'
+updated: '2026-08-22T19:49:13.261Z'
 ---
 
 ## The defect

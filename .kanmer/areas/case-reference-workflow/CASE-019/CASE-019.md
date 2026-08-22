@@ -2,12 +2,15 @@
 id: CASE-019
 type: ticket
 title: Make Export download the EVA-format case bundle
-status: preparing
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-22T19:43:49.371Z'
+taken_at: '2026-08-22T19:49:17.465Z'
+branch: task/qdos26011-regressions
+worktree: ../pegasus-worktrees/qdos26011-regressions
 labels:
   - qdos26011
   - operator-requested
@@ -16,7 +19,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-22T19:42:25.356Z'
-updated: '2026-08-22T19:43:49.371Z'
+updated: '2026-08-22T19:49:17.465Z'
 ---
 
 ## Why — operator direction (2026-08-22, QDOS26011)
