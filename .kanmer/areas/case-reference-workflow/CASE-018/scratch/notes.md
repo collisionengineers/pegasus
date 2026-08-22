@@ -74,3 +74,39 @@ Fixed by reserving the track: `minmax(0,1fr) minmax(0,1.4fr) 22px`, 22px being `
 The dark header band renders `<reference> · <principal> · <registration> · <claimant> · <case type>`. Four of those five are repeated in the blocks immediately below. The operator's complaint enumerated three *containers* and did not mention the header, and an identity strip is how you confirm you are on the right case — so it is left alone. Flagged rather than removed unasked.
 
 (The screenshot shows "No registration / No claimant recorded" only because the header reads `InstructionDraftEntity`, which this hand-seeded fixture has no row for. Production carries drafts for all three live cases — checked.)
+
+## A CI test that was green for the wrong reason — 2026-08-22
+
+`OperatorJourneyTests.CustodyRecoveryAndEvaHandoffAreKeyboardUsable…` went red on the branch. It was green on the two branches immediately before, so this was caused by the change, not inherited.
+
+Dumped the page text the failing assertion actually reads. The custody panel says:
+
+```
+CASE CUSTODY
+Case evidence — Completed
+```
+
+**"Completed", never "Confirmed."** `details.Custody[].State` names the *work* state. So `Assert.Contains("confirmed", …, OrdinalIgnoreCase)` at line 117 was never testing custody at all — it was matching the read-only Vehicle evidence panel's `Confirmed registration / Confirmed make / Confirmed model / Confirmed mileage` labels, which are the third place the vehicle appeared and the exact thing the operator asked to remove.
+
+A step named "custody recovery" was asserting unrelated vehicle text, and passing.
+
+Replaced with assertions on the custody row itself:
+
+```csharp
+Assert.Contains("Case evidence — Completed", confirmedText, StringComparison.Ordinal);
+Assert.DoesNotContain("Case evidence — Failed", confirmedText, StringComparison.Ordinal);
+```
+
+Strictly stronger than what it replaced: the old form passed even with a `Failed` custody row present, so long as something else on the page said "confirmed".
+
+Changing a red test to green is the move that most deserves scrutiny, so the reasoning is recorded here in full rather than summarised in a commit line.
+
+### Local suite result
+
+`dotnet test --filter "FullyQualifiedName~Browser"` — **44 passed, 0 failed** (5 m 40 s). An earlier run of the same filter reported one failure; that was against the pre-fix binary, not a flake.
+
+The dumped page text also independently confirms the rest of the ticket on a *different* fixture (QDOS31001): no "Case detail" restatement, no "Where this case stands", no "Engineer queries", one registration, `94,730 Miles — Supplied` with its classification intact, and the new INSPECTION and CONTACT blocks carrying real values.
+
+### Housekeeping
+
+Local QA database `PegasusQdos26011Qa` on `(localdb)\MSSQLLocalDB` was created for this pass and should be dropped at closeout. The operator's existing `PegasusDevelopment` and friends were left untouched.
