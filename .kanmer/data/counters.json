@@ -42,10 +42,10 @@
   "PR": 54,
   "DELIV": 16,
   "INTK": 32,
-  "PLAT": 36,
-  "CASE": 17,
+  "PLAT": 37,
+  "CASE": 19,
   "AUTO": 8,
-  "ENG": 12,
+  "ENG": 13,
   "MAIL": 10,
-  "DOCS": 8
+  "DOCS": 9
 }
