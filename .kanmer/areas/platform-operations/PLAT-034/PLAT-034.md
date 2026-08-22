@@ -2,10 +2,13 @@
 id: PLAT-034
 type: ticket
 title: No telemetry is reaching Application Insights
-status: backlog
+status: implementing
 area: platform-operations
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-22T00:49:06.634Z'
+  implementing: '2026-08-22T00:49:09.347Z'
 labels:
   - observability
   - release-17
@@ -15,7 +18,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:28.100Z'
-updated: '2026-08-21T23:30:28.100Z'
+updated: '2026-08-22T00:49:09.347Z'
 ---
 
 ## Why
