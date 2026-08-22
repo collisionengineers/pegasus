@@ -8,9 +8,6 @@ assignee: claude-code
 profile: fix
 stageEntered:
   review: '2026-08-21T22:06:44.740Z'
-taken_at: '2026-08-21T21:15:37.804Z'
-branch: task/qdos26008-regressions
-worktree: .
 labels:
   - regression
   - qdos26008
@@ -18,7 +15,7 @@ links: []
 deployment: not-deployed
 archived: false
 created: '2026-08-21T18:17:18.865Z'
-updated: '2026-08-21T22:06:44.740Z'
+updated: '2026-08-22T03:47:18.300Z'
 ---
 
 ## Why
