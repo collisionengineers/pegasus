@@ -2,12 +2,13 @@
 id: DOCS-008
 type: ticket
 title: Custody reports Failed although the evidence reached Box
-status: review
+status: verifying
 area: documents-reports
 assignee: claude-code
 profile: fix
 stageEntered:
   review: '2026-08-22T04:53:07.269Z'
+  verifying: '2026-08-22T05:54:47.458Z'
 taken_at: '2026-08-22T04:40:54.844Z'
 branch: task/docs-008-grant-worker-documents
 worktree: ../pegasus-worktrees/docs-008-grants
@@ -21,7 +22,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.801Z'
-updated: '2026-08-22T04:53:24.906Z'
+updated: '2026-08-22T05:54:47.458Z'
 ---
 
 ## Why
