@@ -33,7 +33,13 @@
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>Export</th><th>Role / source</th><th>Revision state</th><th>File</th><th>Custody</th><th>EVA eligibility</th><th>Action</th></tr></thead>
+                    @* CASE-019: the selection column exists to submit a
+                       selective export, which Core requires an edit lease for.
+                       Rendering permanently disabled tickboxes to a reader made
+                       the page look broken. The column now appears only for
+                       someone who can actually use it; the case's own export is
+                       on the action bar and needs no lease. *@
+                    <thead><tr>@if (mayEdit){<th>Export</th>}<th>Role / source</th><th>Revision state</th><th>File</th><th>Custody</th><th>EVA eligibility</th><th>Action</th></tr></thead>
                     <tbody>
                     @foreach (var document in details.Documents)
                     {
@@ -42,7 +48,10 @@
                             @foreach (var version in document.Versions)
                             {
                                 <tr>
-                                    <td><input type="checkbox" name="selection" value="@occurrence.Id:@version.Id" disabled="@(!mayEdit)" aria-label="Select @version.FileName @(version.IsCurrent ? "current revision" : "historical revision")" /></td>
+                                    @if (mayEdit)
+                                    {
+                                        <td><input type="checkbox" name="selection" value="@occurrence.Id:@version.Id" aria-label="Select @version.FileName @(version.IsCurrent ? "current revision" : "historical revision")" /></td>
+                                    }
                                     <td>@occurrence.SemanticRole / @occurrence.Source</td>
                                     <td>@(version.IsCurrent ? "Current" : "Historical") @(version.IsLogicallyRemoved ? "— logically removed" : null)</td>
                                     <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-documentId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
