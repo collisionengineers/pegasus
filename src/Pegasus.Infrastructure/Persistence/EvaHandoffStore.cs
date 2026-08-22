@@ -719,7 +719,7 @@ public sealed class EvaHandoffStore(
             return new(
                 null,
                 export.UnrecordedFields,
-                ["The case has no retained photographs to export."]);
+                [EvaHandoffPolicy.NoRetainedImagesReason]);
         }
 
         return new(
