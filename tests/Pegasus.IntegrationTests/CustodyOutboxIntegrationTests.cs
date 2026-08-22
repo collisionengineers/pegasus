@@ -1206,6 +1206,109 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
+    /// The three things an operator reported about QDOS26009 that only appear
+    /// once custody has actually completed, asserted on one case at the
+    /// production shape: it reaches Review rather than sitting at Not ready
+    /// (CASE-013), it carries one prefixed reference and no second audit
+    /// identity (CASE-014), and its retained files are registered as case
+    /// documents (DOCS-007).
+    ///
+    /// Each was verifiable only by a live case until this existed, because the
+    /// promotion, the identity and the document rows are all written inside
+    /// CompleteCaseCustodyAsync's single transaction. Custody failing in
+    /// production (DOCS-008) meant none of them ever ran.
+    ///
+    /// The completeness is the automatic shape — instruction and images
+    /// complete, neither confirmed by staff — because that is what the
+    /// pipeline's own allocation records, and demanding staff confirmation
+    /// nobody would ever give is exactly what stranded QDOS26009.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var report = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS audit instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: End To End {fixtureId}\r\nClaim Number: E2E-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "Bodyshopreport236503-V1.pdf", report, MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"e2e-audit-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"e2e-audit:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+
+        var evidenceId = await SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
+        var outcome = await AcceptAsync(
+            services,
+            receipt.Id,
+            completeness: new(true, true, false, false),
+            caseType: CaseType.Audit,
+            standaloneAuditEvidenceId: evidenceId);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+
+        // CASE-013 — the case moves off Not ready without staff confirmation
+        // the automatic route was never going to receive.
+        var state = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .Select(item => item.State)
+            .SingleAsync();
+        Assert.Equal(nameof(CaseLifecycleState.Review), state);
+
+        // CASE-014 — one identity. The reference itself carries the audit
+        // prefix and nothing allocates a second one beside it.
+        var identity = await context.Set<CaseEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == outcome.Identity.CaseId)
+            .Select(item => new { item.Reference, item.AuditReference })
+            .SingleAsync();
+        Assert.StartsWith("a.", identity.Reference, StringComparison.Ordinal);
+        Assert.Null(identity.AuditReference);
+
+        // DOCS-007 — the retained files are case documents, not just bytes in
+        // custody storage, so the Evidence tab can serve them.
+        var documents = await context.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .CountAsync();
+        Assert.True(
+            documents > 0,
+            $"Custody completed but registered {documents} case documents.");
+    }
+
+    /// <summary>
     /// Acceptance requires the automatic literal record — a SystemWorker actor
     /// with the exact subject "system-worker:automatic-standalone-audit" — and
     /// a 64-character hexadecimal request hash, or it refuses the audit.
