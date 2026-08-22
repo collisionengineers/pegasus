@@ -26,7 +26,9 @@ public sealed class CaseOperatorExportTests
 
         Assert.True(export.IsReady);
         Assert.Equal(["VAT Status"], export.UnrecordedFields);
-        Assert.Equal(string.Empty, export.Source!.Fields.VatStatus);
+        // Null in the record means "the case does not hold this"; the archive
+        // writes it as an empty string, asserted below.
+        Assert.Null(export.Source!.Fields.VatStatus);
         var vat = Assert.Single(export.Source.Provenance, field => field.Name == "VAT Status");
         Assert.Equal(EvaEvidenceStatus.Unrecorded, vat.Status);
     }
