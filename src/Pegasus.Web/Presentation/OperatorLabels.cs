@@ -373,6 +373,7 @@ public static class OperatorLabels
     /// </remarks>
     public static string HistoryEvent(string? eventType) => eventType switch
     {
+        "operator_note" => "Note",
         "case_accepted" => "Case created",
         "case_created_as_replacement" => "Created as a replacement case",
         "intake_case_association_seeded" => "Linked to the e-mail that started it",

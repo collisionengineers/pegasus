@@ -294,6 +294,8 @@ public static class DependencyInjection
         services.AddScoped<ICaseDataQueries>(
             provider => provider.GetRequiredService<EfCaseDataStore>());
         services.AddScoped<IConfirmCompleteness, ConfirmCompleteness>();
+        services.AddScoped<ICaseNoteStore, EfCaseNoteStore>();
+        services.AddScoped<IAddCaseNote, AddCaseNote>();
         services.AddScoped<ISaveCase, SaveCase>();
         services.AddScoped<IRepairSpecificationStore, EfRepairSpecificationStore>();
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
