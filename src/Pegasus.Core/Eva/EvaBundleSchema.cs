@@ -451,6 +451,14 @@ public sealed class EvaHandoffPolicyAuthority
 
 public static class EvaHandoffPolicy
 {
+    /// <summary>
+    /// The one wording for "this case has no photographs to send". The
+    /// hand-off and the operator export (CASE-019) both refuse for the same
+    /// reason and say so with the same sentence.
+    /// </summary>
+    public const string NoRetainedImagesReason =
+        "At least one stored vehicle image is required.";
+
     public static IReadOnlyList<EvaHandoffImageCandidate> SelectEligibleImages(
         IEnumerable<EvaHandoffImageCandidate> candidates) => candidates
         .Where(candidate => candidate.SemanticRole == DocumentSemanticRole.Image
@@ -512,7 +520,7 @@ public static class EvaHandoffPolicy
         }
         if (eligibility.EligibleImageCount <= 0)
         {
-            reasons.Add("At least one stored vehicle image is required.");
+            reasons.Add(NoRetainedImagesReason);
         }
         return reasons;
     }
