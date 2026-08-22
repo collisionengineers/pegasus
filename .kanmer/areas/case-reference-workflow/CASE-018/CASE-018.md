@@ -2,12 +2,13 @@
 id: CASE-018
 type: ticket
 title: Show each case fact once on the case page
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-22T19:43:39.046Z'
+  review: '2026-08-22T20:17:21.129Z'
 taken_at: '2026-08-22T19:49:05.893Z'
 branch: task/qdos26011-regressions
 worktree: ../pegasus-worktrees/qdos26011-regressions
@@ -20,7 +21,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-22T19:42:25.226Z'
-updated: '2026-08-22T19:49:05.893Z'
+updated: '2026-08-22T20:17:21.129Z'
 ---
 
 ## Why — operator direction (2026-08-22, QDOS26011)
