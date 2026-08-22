@@ -303,7 +303,14 @@ internal sealed class EfQueuedCustodyProcessor(
                 attachment.MediaType,
                 attachment.ContentLength,
                 attachment.ContentHash,
-                DocumentSemanticRole.Instruction,
+                // DOCS-009: a photograph attached to the instruction is a
+                // photograph. Filing every attachment as Instruction hid the
+                // case's own damage images from the evidence gallery's image
+                // test and from EVA image selection, which both ask this
+                // question by semantic role.
+                InstructionEvidenceImages.IsImage(attachment.MediaType)
+                    ? DocumentSemanticRole.Image
+                    : DocumentSemanticRole.Instruction,
                 $"{casePayload.OperationKey}:attachment:{attachment.Id:N}"));
         }
 
