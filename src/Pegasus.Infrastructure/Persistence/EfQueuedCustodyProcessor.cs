@@ -139,11 +139,13 @@ internal sealed class EfQueuedCustodyProcessor(
                 casePayload.WorkKind,
                 ExternalWorkKinds.CreateAuditReferenceCustody,
                 StringComparison.Ordinal);
-            var isAuditCase = string.Equals(casePayload.CaseType, "audit", StringComparison.Ordinal);
-            var rootReference = isAuditCase
-                ? casePayload.AuditReference ?? throw new InvalidDataException(
-                    "The Audit case has no allocated Audit reference for custody.")
-                : casePayload.CaseReference;
+            // CASE-014: an audit's reference already carries its a./ap. prefix,
+            // so the case folder is named by the case reference like every
+            // other case. This also closes a split that made audit custody
+            // behave unlike anything the tests covered: the root was created
+            // under the audit identity while GetExistingCaseRootAsync looked
+            // it up under the case reference.
+            var rootReference = casePayload.CaseReference;
             var root = isAuditCustody
                 ? await caseCustody.GetExistingCaseRootAsync(
                     casePayload.CaseId,
@@ -207,9 +209,10 @@ internal sealed class EfQueuedCustodyProcessor(
                 };
                 retainedFiles.AddRange(await RetainInstructionAttachmentsAsync(
                     root, casePayload, leaseGuard, cancellationToken));
-                var auditFolderRemoteId = isAuditCase
-                    ? root.RemoteId
-                    : string.IsNullOrWhiteSpace(casePayload.AuditReference)
+                // CASE-014: an audit's files live in its own case folder, so
+                // there is no separate audit folder to create for one. A later
+                // Audit reference on a non-audit case still gets its folder.
+                var auditFolderRemoteId = string.IsNullOrWhiteSpace(casePayload.AuditReference)
                         ? null
                         : await caseCustody.CreateAuditReferenceFolderAsync(
                         root,
