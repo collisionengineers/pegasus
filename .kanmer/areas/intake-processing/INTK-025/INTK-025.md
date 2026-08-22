@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Extract report-sourced vehicle details and accident circumstances as QDOS
   policy rules
-status: verifying
+status: done
 area: intake-processing
 assignee: claude-code
 profile: feature
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-21T12:31:17.629Z'
   review: '2026-08-21T13:05:39.927Z'
   verifying: '2026-08-21T13:21:13.754Z'
+  done: '2026-08-22T06:06:24.033Z'
 labels:
   - extraction
   - corpus
@@ -24,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T12:28:23.300Z'
-updated: '2026-08-21T15:07:35.566Z'
+updated: '2026-08-22T06:06:24.033Z'
 ---
 
 ## What

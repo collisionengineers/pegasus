@@ -6,8 +6,8 @@
 - [x] Version 3 → 4
 - [x] Unit facts 35/35; corpus mapping + coverage 8/8 (circumstances pinned for the four engineer letters; audit letters carry no prompt — mapped)
 - [x] Simplification pass (below)
-- [ ] Full build + Core + intake suites (running)
-- [ ] PR to dev (after MAIL-007's #500 merges); merge on green CI
+- [x] Full build + Core + intake suites green
+- [x] PR to dev merged on green CI — shipped and deployed to production
 
 ## Simplification pass — 2026-08-21
 
@@ -29,3 +29,7 @@ literal backspace byte (0x08) — invisible in every text view; found by byte
 scan after the corpus run went dark. All touched files byte-audited clean.
 Editing rule reaffirmed: source edits go through script files, never inline
 heredocs.
+
+2026-08-22: the last two boxes were stale — the PR merged and the rules have
+been on production since release 16. Ticked against deployed evidence, and the
+extraction is now observed on a live instruction (see proof).
