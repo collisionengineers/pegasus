@@ -2,10 +2,13 @@
 id: DELIV-016
 type: ticket
 title: 'Releases 17-20: ship the QDOS26009 operator fixes and repair case custody'
-status: backlog
+status: implementing
 area: delivery-repository
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-22T05:50:10.977Z'
+  implementing: '2026-08-22T05:50:13.115Z'
 labels:
   - release
   - deployment
@@ -13,7 +16,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-22T05:01:55.880Z'
-updated: '2026-08-22T05:01:55.880Z'
+updated: '2026-08-22T05:50:13.115Z'
 ---
 
 ## Why
