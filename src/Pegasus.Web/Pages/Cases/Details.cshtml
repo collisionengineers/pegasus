@@ -177,9 +177,22 @@
                         <h2 id="instruction-photos-title">Instruction photographs</h2>
                     </div>
                     @{
+                        // DOCS-007: an image registered as a case document is served
+                        // from Box through the case-document route. The intake-asset
+                        // route remains only for a case accepted before those records
+                        // existed.
                         var evidenceGallery = Model.EvidenceImages
                             .Select(image => new Pegasus.Web.Presentation.GalleryImage(
-                                Url.Page("/Intake/Asset", new { id = image.ReceiptId, assetId = image.AssetId })!,
+                                image.IsCaseDocument
+                                    ? Url.Page(
+                                        "/Cases/Documents/Download",
+                                        new
+                                        {
+                                            caseId = details.Summary.CaseId,
+                                            documentId = image.OccurrenceId,
+                                            versionId = image.VersionId
+                                        })!
+                                    : Url.Page("/Intake/Asset", new { id = image.ReceiptId, assetId = image.AssetId })!,
                                 image.FileName))
                             .ToArray();
                     }
