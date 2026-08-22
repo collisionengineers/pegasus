@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 17 | 2026-08-21 | `71911734…` | `sha256:f625c947…` | `pegasus-prod-web-252ow37gij--7191173442db` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 16 | 2026-08-21 | `4111ad29…` | `sha256:3b891b45…` | `pegasus-prod-web-252ow37gij--4111ad291779` | `20260820114412_ApprovedOutlookCategoryCatalogue`, `20260821095500_GrantWorkerVehicleLookupRequests`, `20260821100623_GrantImageIntakeLifecycleUpdates` |
   | 15 | 2026-08-20 | `6d04f89d…` | `sha256:07c05faa…` | `pegasus-prod-web-252ow37gij--6d04f89d4d30` | `20260820100724_RetainedMailSearchDocuments`, `20260820144004_RetainedMailFolderMoves` |
   | 14 | 2026-08-20 | `d91fd7d7…` | `sha256:949797d4…` | `pegasus-prod-web-252ow37gij--d91fd7d7835a` | `20260820034652_ImageIntakeSubmissionGroup`, `20260820040337_SendToAiConnectorSettings`, `20260820055900_ImageCaseCustody`, `20260820100056_ApprovedMailboxLogicalFolderBindings` |
@@ -328,6 +329,46 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 17** (2026-08-21, source `71911734`, image
+    `sha256:f625c947…`) carried the QDOS26008 live-regression remediation.
+    Every MOT test DVSA returned had been discarded since the integration was
+    built — `completedDate` arrives as a full instant and was parsed with
+    `DateOnly.TryParse`, so a vehicle with history was indistinguishable from
+    one without; the fixtures used a date-only string the API never sends,
+    which is why CI stayed green. Reading none of the tests offered is now a
+    named failure rather than silence, and kilometres convert to miles at the
+    derived boundary. The report grammar reads a multi-column `Speedo:` line
+    (production held it as `Vehicle: TOYOTA NOT RECORDED Colour: Black Speedo:
+    72850 Miles`), letterhead art is separated from photographs by shape
+    (measured 4.55:1 and 8.93:1 against photographs at 1.09–1.15:1) rather
+    than by byte size, case files sit flat in the case/PO folder and are
+    recorded as case documents, the effective sender resolves at retention so
+    the inbox never shows the forwarding desk, and unlinking the email that
+    created a case now cancels it as `Cancelled — email unlinked`. The EVA
+    panel is hidden while the hand-off is switched off — it was verified to
+    gate bundle generation only and never review or export.
+
+    **Measured infrastructure change:** `extensions.queues.maxPollingInterval`
+    was unset, so each of two queue hops idled back off to the 60s default.
+    It is now `00:00:02`, and the deployed timer schedules read back after
+    provisioning as `PendingWorkDispatchSchedule */5`,
+    `IntakeStagedArtifactReconciliationSchedule */10`,
+    `ApprovedInboxPollSchedule */15` — from `*/15`, `30 * * * * *` and
+    `45 * * * * *`.
+
+    **Two release-route facts recorded here because they cost time:** the azd
+    environment carried release 15's image digest and revision suffix, so the
+    first `azd provision` failed on a revision-suffix collision — which was
+    the fortunate outcome, since without it the old image would have been
+    redeployed silently. And there is no Docker on the release workstation, so
+    the Web image moves from its OCI archive to ACR with
+    `az acr login --expose-token` + `oras login` + `oras cp`. Both are now in
+    the `pegasus-release` skill.
+
+    Not proved by this release: no live instruction had been processed at the
+    time of writing, so the intake behaviour above is proved by tests and by
+    the deployed revision, not by production evidence.
 
   - **Release 16** (2026-08-21, manifest SHA-256 `D89EDF32…`) carried the
     post-release-15 intake-regression remediation and the merged open work

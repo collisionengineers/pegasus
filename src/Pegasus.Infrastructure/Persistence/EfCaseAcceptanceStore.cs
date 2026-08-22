@@ -245,10 +245,18 @@ public sealed class EfCaseAcceptanceStore(
         }
 
         var allocatedSequence = ++sequence.LastAllocatedSequence;
-        var reference = $"{principal.Code}{year % 100:00}{allocatedSequence:000}";
-        var auditReference = standaloneAuditAssessment is { } assessment
-            ? AuditIdentity.Create(reference, assessment)
-            : null;
+        // CASE-014, operator direction: "There is no Case/PO AND audit
+        // identity. They are all just Case/PO." An audit's prefix belongs on
+        // the case's own reference — a. when the original report says
+        // Repairable, ap. when it says Total Loss — and the outcome is known
+        // here because the report is extracted before allocation, which is why
+        // a standalone Audit refuses to allocate without it.
+        var allocated = $"{principal.Code}{year % 100:00}{allocatedSequence:000}";
+        var reference = standaloneAuditAssessment is { } assessment
+            ? AuditIdentity.Create(allocated, assessment)
+            : allocated;
+        // No second identity is allocated for an audit any more (CASE-014).
+        string? auditReference = null;
         var caseId = Guid.NewGuid();
         var custodyWorkId = Guid.NewGuid();
         var initialState = request.CompletenessEvaluation.SatisfiesPolicy
@@ -384,9 +392,8 @@ public sealed class EfCaseAcceptanceStore(
             AttemptCount = 0,
             DueAtUtc = acceptedAtUtc,
             CaseRootCreationToken = CustodyCreationOwner.Create(),
-            AuditFolderCreationToken = auditReference is null
-                ? null
-                : CustodyCreationOwner.Create()
+            // CASE-014: an audit no longer has a second folder to create.
+            AuditFolderCreationToken = null
         });
         receipt.Version++;
         context.IntakeMutationHistory.Add(new()

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -19,10 +20,44 @@ public sealed class TasksModel(
     ICompleteCaseTask completeCaseTask,
     ICancelCaseTask cancelCaseTask,
     IRecordManualCaseChase recordManualCaseChase,
+    IAddCaseNote addCaseNote,
     ILinkReportEvidence linkReportEvidence,
     IUnlinkReportEvidence unlinkReportEvidence,
     ILogger<TasksModel> logger) : CaseMutationPageModel(logger)
 {
+    /// <summary>
+    /// A note takes no edit lease and no expected version: it adds to the case's
+    /// record rather than changing the case, so it must not contend with an
+    /// engineer editing the same case (CASE-017).
+    /// </summary>
+    public async Task<IActionResult> OnPostAddNoteAsync(
+        Guid id,
+        string operationKey,
+        string note,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetActor(out var actor))
+        {
+            return Forbid();
+        }
+
+        try
+        {
+            await addCaseNote.ExecuteAsync(new(id, actor, operationKey, note), cancellationToken);
+            TempData["CaseStatus"] = "The note was added.";
+        }
+        catch (StaffAuthorizationException)
+        {
+            return Forbid();
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            TempData["CaseError"] = "The note was not added.";
+        }
+
+        return RedirectToDetails(id);
+    }
+
     public Task<IActionResult> OnPostCreateTaskAsync(
         Guid id,
         Guid taskId,
