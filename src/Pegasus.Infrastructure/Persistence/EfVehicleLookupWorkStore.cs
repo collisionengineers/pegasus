@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
 
@@ -15,6 +16,8 @@ internal sealed class EfVehicleLookupWorkStore(
     : IVehicleLookupWorkStore
 {
     private const int MotJsonVersion = 1;
+    private const string GapFillPolicyKey = "vehicle-lookup-gap-fill";
+    private const int GapFillPolicyVersion = 1;
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
 
     public async Task<VehicleLookupWorkItem?> ClaimProcessingAsync(
@@ -198,6 +201,14 @@ internal sealed class EfVehicleLookupWorkStore(
             RecordedAtUtc = recordedAtUtc
         });
 
+        await AddLookupSuggestionsAsync(
+            context,
+            workflow.CaseId,
+            observationId,
+            result,
+            outcome.Mileage,
+            cancellationToken);
+
         work.State = state switch
         {
             VehicleLookupWorkState.RetryScheduled => "pending",
@@ -268,6 +279,88 @@ internal sealed class EfVehicleLookupWorkStore(
 
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// ENG-013: the lookup is enrichment, so what it learns fills the case's
+    /// own empty vehicle fields instead of sitting beside them as a rival
+    /// reading. Values land as suggestions, which
+    /// <see cref="Pegasus.Core.Cases.CaseField{T}.Current"/> already ranks
+    /// below an extracted fact and a staff-confirmed value — so a case that
+    /// already knows something keeps knowing it, and a case that does not
+    /// stops saying "Not recorded" when we do.
+    ///
+    /// Runs inside the caller's transaction, alongside the observation it
+    /// came from, so the two can never disagree about what the lookup said.
+    /// </summary>
+    private static async Task AddLookupSuggestionsAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        Guid observationId,
+        VehicleLookupResult result,
+        VehicleMileageCalculation? mileage,
+        CancellationToken cancellationToken)
+    {
+        var existing = await context.CaseDataFields
+            .Where(item => item.CaseId == caseId
+                           && item.ValueKind == CaseDataCodes.Suggestion)
+            .Select(item => item.FieldName)
+            .ToListAsync(cancellationToken);
+        var sourceIdentity = observationId.ToString("D");
+        var sourceLabel = $"{result.Provider}/{result.ProviderVersion}";
+
+        void Suggest(string fieldName, string valueType, string? value, string policyKey, int policyVersion)
+        {
+            if (string.IsNullOrWhiteSpace(value) || existing.Contains(fieldName))
+            {
+                return;
+            }
+
+            context.CaseDataFields.Add(new()
+            {
+                CaseId = caseId,
+                FieldName = fieldName,
+                ValueKind = CaseDataCodes.Suggestion,
+                ValueType = valueType,
+                Value = value,
+                SourceKind = CaseDataCodes.VehicleLookup,
+                SourceIdentity = sourceIdentity,
+                SourceLabel = sourceLabel,
+                PolicyKey = policyKey,
+                PolicyVersion = policyVersion
+            });
+        }
+
+        Suggest(
+            CaseDataFieldNames.VehicleMake,
+            CaseDataCodes.Text,
+            result.Vehicle?.Make,
+            GapFillPolicyKey,
+            GapFillPolicyVersion);
+        Suggest(
+            CaseDataFieldNames.VehicleModel,
+            CaseDataCodes.Text,
+            result.Vehicle?.Model,
+            GapFillPolicyKey,
+            GapFillPolicyVersion);
+        if (mileage is { } derived)
+        {
+            // The mileage carries the calculation's own key and version, not
+            // this rule's, because that is what classifies it as a derived
+            // estimate everywhere it is later shown (ENG-010).
+            Suggest(
+                CaseDataFieldNames.VehicleMileage,
+                CaseDataCodes.Integer,
+                derived.Value.ToString(CultureInfo.InvariantCulture),
+                VehicleMileagePolicy.MethodKey,
+                derived.MethodVersion);
+            Suggest(
+                CaseDataFieldNames.VehicleMileageUnit,
+                CaseDataCodes.Text,
+                derived.Unit.ToString(),
+                VehicleMileagePolicy.MethodKey,
+                derived.MethodVersion);
+        }
     }
 
     internal static VehicleLookupObservation MapObservation(VehicleLookupObservationEntity entity)

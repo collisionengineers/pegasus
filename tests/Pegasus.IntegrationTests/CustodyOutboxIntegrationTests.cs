@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -1146,6 +1146,93 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(
             "completed",
             await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+    }
+
+    /// <summary>
+    /// DOCS-009: the production shape is a PDF instruction plus photographs.
+    /// Every attachment used to be filed as an instruction document whatever
+    /// its media type, so a case's own damage photographs were invisible to
+    /// both the evidence gallery's image test and EVA image selection — an
+    /// export of QDOS26011 would have contained no photographs at all.
+    /// </summary>
+    [Fact]
+    public async Task AnAcceptedInstructionFilesItsPhotographsAsImagesAndItsLetterAsAnInstruction()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var letter = "%PDF-1.4 synthetic instruction letter"u8.ToArray();
+        var photograph = SyntheticJpeg();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Photograph Roles {fixtureId}\r\nClaim Number: IMG-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "53364_1_LtrtoEngineerIn.pdf", letter, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "1_CLVoffside-V1.jpg", photograph, MimeKit.ContentType.Parse("image/jpeg"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-photograph-roles-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-photograph:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var roles = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select new { version.FileName, occurrence.SemanticRole })
+            .ToDictionaryAsync(item => item.FileName, item => item.SemanticRole);
+
+        Assert.Equal(
+            DocumentSemanticRole.Image,
+            roles["1_CLVoffside-V1.jpg"]);
+        Assert.Equal(
+            DocumentSemanticRole.Instruction,
+            roles["53364_1_LtrtoEngineerIn.pdf"]);
+    }
+
+    /// <summary>
+    /// A JPEG large enough to clear the embedded-photograph byte floor and
+    /// square enough to clear the banner shape test, so it is judged a
+    /// photograph on its own merits rather than by its file name.
+    /// </summary>
+    private static byte[] SyntheticJpeg()
+    {
+        using var bitmap = new SkiaSharp.SKBitmap(709, 768);
+        using var canvas = new SkiaSharp.SKCanvas(bitmap);
+        canvas.Clear(SkiaSharp.SKColors.SlateGray);
+        using var encoded = SkiaSharp.SKImage.FromBitmap(bitmap)
+            .Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90);
+        return encoded.ToArray();
     }
 
     /// <summary>
