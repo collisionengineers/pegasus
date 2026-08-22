@@ -199,6 +199,51 @@ public sealed class ProductionBoxCustodyTests
         Assert.Equal(1, calls);
     }
 
+    /// <summary>
+    /// DOCS-008: the production shape. An audit root named from the audit
+    /// reference, the source, then the eight attachments QDOS26010 actually
+    /// carried. Both production audits failed custody with an unclassified
+    /// exception after their files had reached Box, and nothing exercises
+    /// BoxCaseCustody at that shape.
+    /// </summary>
+    [Fact]
+    public async Task AnAuditRootRetainsTheSourceAndEveryAttachment()
+    {
+        var box = new StatefulBox();
+        var bytes = Encoding.UTF8.GetBytes("accepted source");
+        var custody = new BoxCaseCustody(new MemoryArtifactStore(bytes), CreateClient(box));
+        var caseId = Guid.NewGuid();
+        var receiptId = Guid.NewGuid();
+
+        // An audit's Box root was named from the audit reference before CASE-014.
+        var root = await custody.CreateCaseRootAsync(
+            caseId, "a.QDOS26010", "0123456789ABCDEFGHJKMNPQRS", "case-create", default);
+        await custody.RetainAcceptedIntakeSourceAsync(
+            root,
+            new IntakeSourceCustodyReference(
+                receiptId, "instruction.eml", "message/rfc822", Sha256(bytes), "source", bytes.Length),
+            "source-retain",
+            default);
+
+        var names = new[]
+        {
+            "1_Bodyshopreport295952-V1.pdf", "1_Mileage-V1.jpg", "11_Vin-V1.jpg",
+            "2_CLVDriversideandfrontreg-V1.jpg", "3_CLVDamage1-V1.jpg",
+            "34939_1_LtrtoAuditEngin.pdf", "4_CLVDamageredpaintandrearreg-V1.jpg",
+            "CLVDamage2-V1.jpg"
+        };
+        for (var index = 0; index < names.Length; index++)
+        {
+            await custody.RetainAcceptedIntakeAttachmentAsync(
+                root,
+                new IntakeSourceCustodyReference(
+                    receiptId, names[index], "application/pdf", Sha256(bytes), "source", bytes.Length),
+                index + 2,
+                $"attachment-retain-{index}",
+                default);
+        }
+    }
+
     [Fact]
     public async Task ExactBusinessHierarchyBindsCaseSourceDocumentsVersionsAndAuditWithoutOpaqueNames()
     {
