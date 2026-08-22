@@ -260,7 +260,10 @@ any worktree — the release evidence is not recoverable afterwards.
 | `MSB3027` / `MSB3021` file locked during build | a running host holds the DLL | `dotnet build-server shutdown`, rebuild |
 | MSBuild child node exited prematurely on a long test run | node contention | `dotnet test --no-build` in chunks |
 | CI dies in `actions/checkout` at ~5 min | stale merge ref | close and reopen the PR; rerunning does not help |
-| Nothing in App Insights | see PLAT-034 — Web was never instrumented and the Worker had no ingestion credential | do not diagnose blind; fix telemetry first |
+| Nothing in App Insights | the workspace runs a **0.1 GB daily quota resetting at 03:00Z** and the estate exhausts it in hours — not missing instrumentation | check `workspaceCapping.dataIngestionStatus` before concluding anything; a query run in a UK working hour returns empty even when both hosts are healthy |
+| A new migration grants a runtime role | `Test-AzureDeploymentPlan -Mode Local` fails: *"Database bootstrap must account for grant-carrying migration …"* | mirror the grant in `Invoke-AzureDatabaseBootstrap.ps1`'s expected matrix; the guard scans every post-baseline migration for `GRANT ` |
+| A new migration of any kind | `CommittedMigrationCreatesTheSqlServerSchema` fails on a collection compare | add the migration id to the pinned census in `IntakePersistenceIntegrationTests.cs` — it is deliberate, not incidental |
+| A feature works locally, fails only in production, with no exception you can classify | the runtime role lacks a grant; tests run full-privilege and never see it | read `sys.database_permissions` for `pegasus_worker_runtime_role` / `pegasus_web_runtime_role` before suspecting the code — this class has shipped three times |
 
 ## Never
 
