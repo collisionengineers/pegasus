@@ -2,13 +2,14 @@
 id: DOCS-008
 type: ticket
 title: Custody reports Failed although the evidence reached Box
-status: verifying
+status: done
 area: documents-reports
 assignee: claude-code
 profile: fix
 stageEntered:
   review: '2026-08-22T04:53:07.269Z'
   verifying: '2026-08-22T05:54:47.458Z'
+  done: '2026-08-22T06:02:10.573Z'
 labels:
   - regression
   - qdos26009
@@ -19,7 +20,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.801Z'
-updated: '2026-08-22T05:54:51.212Z'
+updated: '2026-08-22T06:02:10.573Z'
 ---
 
 ## Why
