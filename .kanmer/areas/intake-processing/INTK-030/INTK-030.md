@@ -2,13 +2,14 @@
 id: INTK-030
 type: ticket
 title: Keep email signatures and logos out of case evidence images
-status: review
+status: verifying
 area: intake-processing
 assignee: ''
 profile: fix
 stageEntered:
   implementing: '2026-08-21T21:37:43.995Z'
   review: '2026-08-21T22:06:49.361Z'
+  verifying: '2026-08-22T04:36:01.752Z'
 labels:
   - regression
   - qdos26008
@@ -17,7 +18,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T18:17:19.111Z'
-updated: '2026-08-21T22:06:49.361Z'
+updated: '2026-08-22T04:36:01.752Z'
 ---
 
 ## Why

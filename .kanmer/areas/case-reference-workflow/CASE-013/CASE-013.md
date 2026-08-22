@@ -2,7 +2,7 @@
 id: CASE-013
 type: ticket
 title: A complete case stays Not ready because no completeness flag is ever set
-status: review
+status: verifying
 area: case-reference-workflow
 assignee: ''
 profile: fix
@@ -10,6 +10,7 @@ stageEntered:
   preparing: '2026-08-22T00:47:27.434Z'
   implementing: '2026-08-22T00:47:30.371Z'
   review: '2026-08-22T00:51:01.093Z'
+  verifying: '2026-08-22T04:36:05.923Z'
 labels:
   - regression
   - qdos26009
@@ -19,7 +20,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.847Z'
-updated: '2026-08-22T00:51:01.093Z'
+updated: '2026-08-22T04:36:05.923Z'
 ---
 
 ## Why
