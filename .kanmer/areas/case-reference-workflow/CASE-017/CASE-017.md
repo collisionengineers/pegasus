@@ -2,10 +2,13 @@
 id: CASE-017
 type: ticket
 title: 'Case History becomes Notes, and operators can add their own'
-status: backlog
+status: implementing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-22T00:48:37.254Z'
+  implementing: '2026-08-22T00:48:40.065Z'
 labels:
   - qdos26009
   - operator-requested
@@ -15,7 +18,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:28.020Z'
-updated: '2026-08-21T23:30:28.020Z'
+updated: '2026-08-22T00:48:40.065Z'
 ---
 
 ## Why — operator direction (2026-08-22)
