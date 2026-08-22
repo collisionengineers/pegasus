@@ -96,7 +96,7 @@
                 var mileageClass = data?.Vehicle.Mileage.Current is { } mileageValue
                     ? $" — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClassification.Classify(mileageValue.Source.Kind))}"
                     : string.Empty;
-                DataRow("Odometer", data?.Vehicle.Mileage, value =>
+                DataRow("Mileage", data?.Vehicle.Mileage, value =>
                 {
                     var figure = mileageUnit is { Length: > 0 }
                         ? $"{value:N0} {mileageUnit}"
