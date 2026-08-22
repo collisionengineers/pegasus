@@ -2,13 +2,14 @@
 id: CASE-016
 type: ticket
 title: Take the word Immutable out of every operator-facing page
-status: implementing
+status: review
 area: case-reference-workflow
 assignee: ''
 profile: fix
 stageEntered:
   preparing: '2026-08-22T00:48:49.299Z'
   implementing: '2026-08-22T00:48:52.059Z'
+  review: '2026-08-22T00:51:10.133Z'
 labels:
   - qdos26009
   - design
@@ -19,7 +20,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.991Z'
-updated: '2026-08-22T00:48:52.059Z'
+updated: '2026-08-22T00:51:10.133Z'
 ---
 
 ## Why — operator direction (2026-08-22)

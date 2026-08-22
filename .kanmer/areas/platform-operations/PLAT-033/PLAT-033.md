@@ -2,13 +2,14 @@
 id: PLAT-033
 type: ticket
 title: Origin reads Approved inbox instead of E-mail
-status: implementing
+status: review
 area: platform-operations
 assignee: ''
 profile: fix
 stageEntered:
   preparing: '2026-08-22T00:49:01.309Z'
   implementing: '2026-08-22T00:49:03.977Z'
+  review: '2026-08-22T00:51:19.247Z'
 labels:
   - qdos26009
   - design
@@ -19,7 +20,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:28.075Z'
-updated: '2026-08-22T00:49:03.977Z'
+updated: '2026-08-22T00:51:19.247Z'
 ---
 
 ## Why — operator direction (2026-08-22)
