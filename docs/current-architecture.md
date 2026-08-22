@@ -157,14 +157,20 @@ The following remain planned or absent, not merely unverified:
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
 - live activation of the vendor-neutral Automation MCP: the ingress, actor contract, and tools are implemented but composition-gated off outside DevelopmentOffline evidence runs, non-blocking for `0.1.0-alpha.1`;
-- correlated live telemetry. Release 17 instrumented the Web host, which had no
-  Application Insights package or registration at all while the deployed container
-  carried the connection string, and gave the Worker's telemetry client the Entra
-  credential that ingestion requires. Before that change the estate emitted
-  **nothing**: thirty days of production held zero traces, requests and exceptions,
-  and the two alert rules could not fire on data that never arrived. Ingestion is
-  not yet proved from a deployed run, so correlation, sampling, retention and alert
-  delivery remain unverified (PLAT-034).
+- correlated live telemetry. **The estate emits none.** Release 18 instrumented the
+  Web host, which had no Application Insights package or registration at all while
+  its container carried the connection string, and gave the Worker's telemetry
+  client an Entra credential — and after that deploy the workspace still holds
+  zero traces, requests and exceptions, as it has for over thirty days. The
+  packages ship in both hosts and the code is running, so the remaining fault is
+  elsewhere. Two facts found while diagnosing it:
+  `APPLICATIONINSIGHTS_AUTHENTICATION_STRING` is an App Service and Functions
+  *host* convention that a plain ASP.NET Core Container App does not read, and the
+  Container Apps environment sends console logs to `azure-monitor` with a null Log
+  Analytics customer id, so container stdout never reaches the workspace either.
+  Nothing about ingestion, correlation, sampling, retention or alert delivery is
+  proved, and the two alert rules cannot fire on data that never arrives
+  (PLAT-034, open).
 
 ## Current intake and extraction boundary
 
@@ -509,7 +515,7 @@ The Send to AI hand-off (AI-09, ADR-0021) is a second gated boundary beside it: 
 
 EVA remains authoritative for named Engineer assignment and downstream engineering until an accepted replacement. Pegasus now implements the focused manual handoff locally: `Pegasus.Core` owns Review-only generation, required-custody and current-evidence eligibility, deterministic bundle composition, frozen revisions, reasoned download, and the once-per-Case `First sent to Engineer` proxy. The authenticated Case surface and composition-gated Automation ingress call those Core use cases; EF persists revision/download truth, and no EVA network client exists. Custody retry is a separate human-only Core use case reached by the Case surface, while the Worker processes the same persisted custody work through Infrastructure adapters.
 
-The Box adapters use the immutable Case/PO reference for final folder names. Since release 17 an audit carries **one** identity, not two: its own reference holds the `a.` (Repairable) or `ap.` (Total Loss) prefix taken from the original report, no separate Audit reference is allocated, and its files sit in that one case folder — which also closed a split where the root was created under the audit identity while lookups used the case reference. A later Audit reference on a non-audit case still gets its own folder. A predeclared creation-owner token is used only in a transient staging folder so a lost create response can be reconciled through the same replay; an ETag-guarded same-parent promotion completes creation. The durable folder identity is the database-stored remote folder id — root validation compares that id, and no marker file is written inside the folder (the operator-decided release-15 change; the image fold still deletes a legacy binding file when present). Each attachment of the accepted instruction is retained beside the source, flat in the case folder at ordinals `002` onward, replay-verified — release 17 removed the `Evidence/<role>/<occurrence>/<revision>` nesting and its two binding sidecars, which were never asked for, and recorded intake's files as case documents so the case can list and open what Box already held. Since release 16 the same custody operation also promotes the receipt's extracted embedded photographs as individual files after the attachments: `InstructionEvidenceImages.Select` (Core) admits attached images always and embedded images at or above the 40 KB photograph floor, never inline images, hash-deduped preferring the attached copy; the selected images render as the case Evidence tab's instruction-photographs gallery through the receipt-asset image endpoint. Managed source, document, version, and nested Audit paths remain business-readable. Local in-memory-adapter and SQL caller proof does not establish production Box migration, deployment, external receipt, named-Engineer assignment, or operator drag-and-drop acceptance.
+The Box adapters use the immutable Case/PO reference for final folder names. Since release 18 an audit carries **one** identity, not two: its own reference holds the `a.` (Repairable) or `ap.` (Total Loss) prefix taken from the original report, no separate Audit reference is allocated, and its files sit in that one case folder — which also closed a split where the root was created under the audit identity while lookups used the case reference. A later Audit reference on a non-audit case still gets its own folder. A predeclared creation-owner token is used only in a transient staging folder so a lost create response can be reconciled through the same replay; an ETag-guarded same-parent promotion completes creation. The durable folder identity is the database-stored remote folder id — root validation compares that id, and no marker file is written inside the folder (the operator-decided release-15 change; the image fold still deletes a legacy binding file when present). Each attachment of the accepted instruction is retained beside the source, flat in the case folder at ordinals `002` onward, replay-verified — release 17 removed the `Evidence/<role>/<occurrence>/<revision>` nesting and its two binding sidecars, which were never asked for, and recorded intake's files as case documents so the case can list and open what Box already held. Release 18 completed the other half: the case Evidence gallery reads those document records and serves the images through the case-document route rather than from the Azure staging blob, which is transient and ages out. A case accepted before those records existed still renders from its retained asset. Since release 16 the same custody operation also promotes the receipt's extracted embedded photographs as individual files after the attachments: `InstructionEvidenceImages.Select` (Core) admits attached images always and embedded images at or above the 40 KB photograph floor, never inline images, hash-deduped preferring the attached copy; the selected images render as the case Evidence tab's instruction-photographs gallery through the receipt-asset image endpoint. Managed source, document, version, and nested Audit paths remain business-readable. Local in-memory-adapter and SQL caller proof does not establish production Box migration, deployment, external receipt, named-Engineer assignment, or operator drag-and-drop acceptance.
 
 ### Workspaces
 
