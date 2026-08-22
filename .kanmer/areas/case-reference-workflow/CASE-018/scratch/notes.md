@@ -33,3 +33,44 @@ Two self-inflicted problems were found and fixed rather than shipped: a duplicat
 ### Not yet evidenced
 
 Everything above is code and test evidence. The operator-visible claims — the page renders once, the archive actually downloads — are **not** proven until the live check after deploy. No ticket moves past `verifying` on this note alone.
+
+## Local visual QA — 2026-08-22
+
+Ran `Pegasus.Web` under `DevelopmentOffline` against a fresh `PegasusQdos26011Qa` LocalDB, seeded with QDOS26011's exact field shape (extracted facts for everything the instruction carried; mileage present **only** as a lookup suggestion, which is [[ENG-013]]'s outcome). Rendered the case page in Chrome and measured it.
+
+### The first alignment fix did not work
+
+Making `.datarow` a grid was not enough. The third track was `auto`, and **each row is its own grid container**, so `auto` is sized per row: a row carrying a provenance icon still took 22px out of the first two tracks while a row without took none. Measured left edges of the value column in Case identity:
+
+```
+Case/PO 645   Audit identity 645   Case type 645   Principal 645
+Claimant 636*  Claim number 636*   VAT status 645   Engineer 645     (* has icon)
+```
+
+Exactly the 9px the operator reported, and exactly `22 ÷ 2.4` — the icon width redistributed across the two flexible tracks.
+
+Fixed by reserving the track: `minmax(0,1fr) minmax(0,1.4fr) 22px`, 22px being `.prov`'s fixed width. Re-measured after reload:
+
+| Block column | Distinct value left edges | Rows mixing icon / no icon |
+| --- | --- | --- |
+| Case identity | **1** (636) | yes — 2 of 8 carry icons |
+| Vehicle / Inspection | **1** (1041) | yes — 6 of 8 |
+| Dates / Contact | **1** (1446) | yes — 2 of 7 |
+
+**This is why the page had to be run.** Reading the CSS produced a fix that looked right and measured wrong. Same lesson as CASE-017 last release.
+
+### Everything else confirmed in the rendered page
+
+| Claim | Measured |
+| --- | --- |
+| "Where this case stands" absent | 0 occurrences in the HTML |
+| "Engineer queries" absent | 0 occurrences |
+| Registration shown once | exactly 1 |
+| Lookup mileage on the vehicle field | `121,823 Miles — Estimated` |
+| Export control resolves | `href="/Cases/266e5afa…/Documents/Export"` — the dead-link regression is gone |
+
+### One thing the operator should decide
+
+The dark header band renders `<reference> · <principal> · <registration> · <claimant> · <case type>`. Four of those five are repeated in the blocks immediately below. The operator's complaint enumerated three *containers* and did not mention the header, and an identity strip is how you confirm you are on the right case — so it is left alone. Flagged rather than removed unasked.
+
+(The screenshot shows "No registration / No claimant recorded" only because the header reads `InstructionDraftEntity`, which this hand-seeded fixture has no row for. Production carries drafts for all three live cases — checked.)
