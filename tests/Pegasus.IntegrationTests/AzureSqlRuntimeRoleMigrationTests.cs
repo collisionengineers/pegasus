@@ -593,6 +593,38 @@ public sealed class AzureSqlRuntimeRoleMigrationTests
         Assert.Contains("VehicleLookupRequests", await ReadDeniedDeleteTablesAsync(database, WorkerRole));
     }
 
+    // DOCS-008: DOCS-007 moved case-document registration into the Worker's
+    // custody processor while these three tables were granted to Web only, so
+    // every deployed case uploaded its evidence to Box and was then refused the
+    // record write. Nothing here caught it because the tests run
+    // full-privilege; this asserts the grant itself.
+    [Fact]
+    public async Task LatestMigrationGrantsWorkerTheCaseDocumentTables()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+
+        await context.Database.MigrateAsync();
+
+        var granted = await ReadGrantedPermissionsAsync(database, WorkerRole);
+        var deniedDelete = await ReadDeniedDeleteTablesAsync(database, WorkerRole);
+        foreach (var (table, expected) in new[]
+        {
+            ("CaseDocuments", new[] { "CaseDocuments:INSERT", "CaseDocuments:SELECT" }),
+            ("DocumentOccurrences", ["DocumentOccurrences:INSERT", "DocumentOccurrences:SELECT"]),
+            ("DocumentVersions",
+                ["DocumentVersions:INSERT", "DocumentVersions:SELECT", "DocumentVersions:UPDATE"])
+        })
+        {
+            Assert.Equal(
+                expected,
+                granted
+                    .Where(value => value.StartsWith($"{table}:", StringComparison.Ordinal))
+                    .ToArray());
+            Assert.Contains(table, deniedDelete);
+        }
+    }
+
     [Fact]
     public async Task LatestMigrationGrantsImageIntakeLifecycleUpdatesToBothRuntimeRoles()
     {

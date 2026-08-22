@@ -308,6 +308,20 @@ function Get-MigrationPermissionMatrix {
     # via the baseline matrix.
     $expected.Add('pegasus_web_runtime_role|G|UPDATE|ImageIntakes')
     $expected.Add('pegasus_worker_runtime_role|G|UPDATE|ImageIntakes')
+    # 20260822044425_GrantWorkerCaseDocuments: DOCS-007 moved case-document
+    # registration into the Worker's custody processor, and the reconciliation
+    # baseline granted these three tables to Web only, so every deployed case
+    # was refused the record write after its evidence reached Box. UPDATE is
+    # needed only on DocumentVersions, where a superseded version is cleared.
+    # DELETE stays denied via the baseline matrix.
+    foreach ($table in @('CaseDocuments', 'DocumentOccurrences')) {
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("pegasus_worker_runtime_role|G|$permission|$table")
+        }
+    }
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|DocumentVersions")
+    }
     return @($expected | Sort-Object -Unique)
 }
 
