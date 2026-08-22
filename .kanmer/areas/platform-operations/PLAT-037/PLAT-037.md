@@ -2,12 +2,15 @@
 id: PLAT-037
 type: ticket
 title: Switch on the accepted EVA mapping in production
-status: implementing
+status: done
 area: platform-operations
 assignee: claude-code
 profile: chore
 stageEntered:
   preparing: '2026-08-22T19:43:53.566Z'
+  review: '2026-08-22T22:47:18.344Z'
+  verifying: '2026-08-22T22:47:22.082Z'
+  done: '2026-08-22T22:47:48.915Z'
 taken_at: '2026-08-22T19:49:20.437Z'
 branch: task/qdos26011-regressions
 worktree: ../pegasus-worktrees/qdos26011-regressions
@@ -16,10 +19,12 @@ labels:
   - config
 links: []
 docs_todo: true
-deployment: not-deployed
+prs:
+  - '518'
+deployment: production
 archived: false
 created: '2026-08-22T19:42:25.382Z'
-updated: '2026-08-22T19:49:20.437Z'
+updated: '2026-08-22T22:47:48.915Z'
 ---
 
 ## Why
