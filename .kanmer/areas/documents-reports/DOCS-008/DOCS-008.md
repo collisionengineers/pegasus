@@ -2,10 +2,13 @@
 id: DOCS-008
 type: ticket
 title: Custody reports Failed although the evidence reached Box
-status: backlog
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-22T04:40:54.844Z'
+branch: task/docs-008-grant-worker-documents
+worktree: ../pegasus-worktrees/docs-008-grants
 labels:
   - regression
   - qdos26009
@@ -16,7 +19,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.801Z'
-updated: '2026-08-21T23:30:27.801Z'
+updated: '2026-08-22T04:40:54.844Z'
 ---
 
 ## Why
