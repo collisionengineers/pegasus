@@ -208,7 +208,24 @@ public sealed class AllocateIntake(
     IStandaloneAuditEvidenceQueries? standaloneAuditEvidenceQueries = null) : IAllocateIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
-    private static readonly CaseCompleteness EmptyCompleteness = new(false, false, false, false);
+
+    /// <summary>
+    /// What the automatic route actually knows when it allocates. It runs only
+    /// for a receipt whose decision is already <see cref="IntakeDecision.CaseCreated"/> —
+    /// a definitive authorised instruction, with its evidence retained
+    /// alongside — so the instruction and its images are complete. Staff have
+    /// confirmed neither, and the policy waives that for an automatically
+    /// definitive intake rather than pretending otherwise.
+    ///
+    /// This used to record all four as false, which meant every automatically
+    /// created case was born "details incomplete" and could never reach Review
+    /// no matter how complete it was (CASE-013).
+    /// </summary>
+    private static readonly CaseCompleteness AutomaticCompleteness =
+        new(InstructionComplete: true,
+            ImagesComplete: true,
+            InstructionConfirmedByStaff: false,
+            ImagesConfirmedByStaff: false);
 
     public async Task<IntakeAllocationResult?> AttemptAutomaticAsync(
         Guid receiptId,
@@ -249,7 +266,7 @@ public sealed class AllocateIntake(
             receipt.Version,
             caseType,
             principalCode,
-            EmptyCompleteness,
+            AutomaticCompleteness,
             StandaloneAuditEvidenceId: standaloneAuditEvidenceId,
             receipt.InstructionDraft?.InspectionDate);
         var actor = ActionActor.SystemWorker(SystemActor);

@@ -428,9 +428,7 @@ else if (Model.ProposedValues.Count > 0)
         @if (vehicleEvidence.LatestObservation is { } observation)
         {
             <dl>
-                <dt>Latest lookup outcome</dt><dd>@OperatorLabels.Humanise(observation.Outcome.ToString())</dd>
                 <dt>Registration</dt><dd>@observation.Registration</dd>
-                <dt>Provider</dt><dd>@observation.Provenance.Provider @observation.Provenance.ProviderVersion</dd>
                 <dt>Retrieved</dt><dd>@OperatorLabels.OfficeTime(observation.Provenance.RetrievedAtUtc)</dd>
                 @if (observation.Vehicle is { } vehicleDetails)
                 {
@@ -442,30 +440,9 @@ else if (Model.ProposedValues.Count > 0)
                 }
                 @if (observation.Mileage is { } estimatedMileage)
                 {
-                    <dt>Mileage</dt><dd>@($"{estimatedMileage.Value:N0} {OperatorLabels.MileageUnit(estimatedMileage.Unit)} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.Estimated)}") (latest MOT observation, @estimatedMileage.ObservedOn.ToString("d MMM yyyy"))</dd>
+                    <dt>Mileage</dt><dd>@($"{estimatedMileage.Value:N0} {OperatorLabels.MileageUnit(estimatedMileage.Unit)} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.Estimated)}") (@estimatedMileage.ObservedOn.ToString("d MMM yyyy"))</dd>
                 }
             </dl>
-            @if (observation.MotTests.Count > 0)
-            {
-                <h3 class="section-label">MOT history</h3>
-                <div class="table-wrap">
-                    <table>
-                        <caption class="vh">MOT tests for this registration, most recent first</caption>
-                        <thead><tr><th>Test date</th><th>Result</th><th>Expiry</th><th>Mileage — @OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.External)</th></tr></thead>
-                        <tbody>
-                            @foreach (var motTest in observation.MotTests.OrderByDescending(test => test.TestDate))
-                            {
-                                <tr>
-                                    <td>@motTest.TestDate.ToString("d MMM yyyy")</td>
-                                    <td>@motTest.TestStatus</td>
-                                    <td>@(motTest.ExpiryDate?.ToString("d MMM yyyy") ?? "—")</td>
-                                    <td>@(motTest.Mileage is { } motMileage ? $"{motMileage:N0}{(motTest.MileageUnit is { } motUnit ? " " + OperatorLabels.MileageUnit(motUnit) : "")}" : "—")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            }
             @if (mayEdit)
             {
                 <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
