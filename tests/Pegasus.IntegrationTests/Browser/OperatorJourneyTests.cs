@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -113,8 +113,15 @@ public sealed class OperatorJourneyTests
         }
         await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
         var confirmedText = await support.Page.Locator("main").InnerTextAsync();
-        Assert.Contains("Case evidence", confirmedText, StringComparison.Ordinal);
-        Assert.Contains("confirmed", confirmedText, StringComparison.OrdinalIgnoreCase);
+        // CASE-018: this used to assert the bare word "confirmed", which the
+        // custody row has never carried - it names the work state, and that
+        // state is "Completed". The assertion was passing on the read-only
+        // Vehicle evidence panel's "Confirmed registration / make / model /
+        // mileage" labels, which restated the vehicle a third time and are
+        // gone. Assert the custody row itself, which is what this step is
+        // actually about: the failed custody recovered.
+        Assert.Contains("Case evidence \u2014 Completed", confirmedText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Case evidence \u2014 Failed", confirmedText, StringComparison.Ordinal);
         Assert.DoesNotContain("Case custody has not been confirmed", confirmedText, StringComparison.Ordinal);
 
         await EnterEditModeByKeyboardAsync(support.Page);
