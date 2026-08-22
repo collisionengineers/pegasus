@@ -279,7 +279,7 @@ else if (Model.ProposedValues.Count > 0)
     || (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation))
 {
 <section class="panel form-panel" aria-labelledby="case-report-approval-title">
-    <h2 id="case-report-approval-title" class="section-label">Immutable report approval</h2>
+    <h2 id="case-report-approval-title" class="section-label">Report approval</h2>
     @if (workflow.ReportApproval is { } approval)
     {
         <p>Report <strong>@approval.ArtifactIdentity</strong> was approved at @OperatorLabels.OfficeTime(approval.ApprovedAtUtc); this does not confirm the report was sent.</p>
@@ -292,10 +292,10 @@ else if (Model.ProposedValues.Count > 0)
             <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
             <input type="hidden" name="editLeaseToken" value="@leaseToken" />
             <input type="hidden" name="approvalId" value="@Model.ReportApprovalId" />
-            <label>Immutable report identity<input name="artifactIdentity" required maxlength="200" /></label>
+            <label>Report identity<input name="artifactIdentity" required maxlength="200" /></label>
             <label>Report SHA-256<input name="artifactSha256" required minlength="64" maxlength="64" pattern="[0-9A-Fa-f]{64}" /></label>
             <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>
-            <button type="submit" class="primary-action">Approve immutable report</button>
+            <button type="submit" class="primary-action">Approve report</button>
         </form>
     }
 </section>
