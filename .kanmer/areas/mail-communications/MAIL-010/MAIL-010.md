@@ -2,12 +2,14 @@
 id: MAIL-010
 type: ticket
 title: Remove explanatory copy and a banned word from the Mail list
-status: review
+status: done
 area: mail-communications
 assignee: ''
 profile: fix
 stageEntered:
   review: '2026-08-21T22:07:04.376Z'
+  verifying: '2026-08-22T03:44:33.897Z'
+  done: '2026-08-22T03:44:41.137Z'
 labels:
   - design
   - regression
@@ -17,10 +19,10 @@ links:
 refs:
   - docs/design/README.md
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-21T21:42:40.523Z'
-updated: '2026-08-21T22:07:04.376Z'
+updated: '2026-08-22T03:44:41.137Z'
 ---
 
 ## Why

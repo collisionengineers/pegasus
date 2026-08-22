@@ -2,23 +2,25 @@
 id: PLAT-031
 type: ticket
 title: Stop warning about EVA hand-off when it is switched off
-status: review
+status: done
 area: platform-operations
 assignee: ''
 profile: fix
 stageEntered:
   implementing: '2026-08-21T21:37:53.048Z'
   review: '2026-08-21T22:07:01.563Z'
+  verifying: '2026-08-22T03:44:22.682Z'
+  done: '2026-08-22T03:44:30.197Z'
 labels:
   - regression
   - qdos26008
   - ui
 links: []
 docs_todo: true
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-21T18:17:19.411Z'
-updated: '2026-08-21T22:07:01.563Z'
+updated: '2026-08-22T03:44:30.197Z'
 ---
 
 ## Why
