@@ -310,6 +310,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 20 | 2026-08-22 | `05fe7a7f…` | `sha256:90b58000…` | `pegasus-prod-web-252ow37gij--05fe7a7f2d86` | `20260822044425_GrantWorkerCaseDocuments` |
+  | 19 | 2026-08-22 | `42125b34…` | `sha256:08aeeaed…` | `pegasus-prod-web-252ow37gij--42125b34e57a` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 18 | 2026-08-22 | `1f3be493…` | `sha256:818fe360…` | `pegasus-prod-web-252ow37gij--1f3be493c8c6` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 17 | 2026-08-21 | `71911734…` | `sha256:f625c947…` | `pegasus-prod-web-252ow37gij--7191173442db` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 16 | 2026-08-21 | `4111ad29…` | `sha256:3b891b45…` | `pegasus-prod-web-252ow37gij--4111ad291779` | `20260820114412_ApprovedOutlookCategoryCatalogue`, `20260821095500_GrantWorkerVehicleLookupRequests`, `20260821100623_GrantImageIntakeLifecycleUpdates` |
@@ -330,6 +332,41 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 20** (2026-08-22, source `05fe7a7f`, image `sha256:90b58000…`)
+    repaired case custody. Since release 17 every new case had uploaded its
+    evidence to Box and then reported *"Case evidence could not be stored"* over
+    files that were sitting in Box. The Worker runtime role held no permission
+    at all on `CaseDocuments`, `DocumentVersions` and `DocumentOccurrences`
+    beyond the DELETE deny — those three tables were granted to the Web role
+    only, because when the least-privilege baseline was written only Web created
+    case documents. Release 17 moved document registration into the Worker's
+    custody processor and it was denied from that moment on. The record write
+    ran inside the custody transaction, so the rollback took the custody
+    confirmation and the promotion to Review with it, and because an
+    unclassified `SqlException` is terminal rather than transient, neither case
+    was ever retried. `20260822044425_GrantWorkerCaseDocuments` grants the
+    Worker the Web role's own permission strings; the grants were read back from
+    `sys.database_permissions` after the bundle applied. Nothing in the suite
+    could have caught it — the tests run full-privilege and never exercise the
+    least-privilege role, which is the same blind spot behind
+    `20260814092852` and `20260821095500`. Closing it is tracked separately.
+
+  - **Release 19** (2026-08-22, source `42125b34`, image `sha256:08aeeaed…`)
+    made an unclassified custody failure name the exception type that caused it,
+    and instrumented the Web host for Application Insights — it had never called
+    `AddApplicationInsightsTelemetry`, so the container app had emitted nothing
+    since the estate was built. The Worker, contrary to what was believed while
+    diagnosing, had been reporting continuously all along.
+
+    That confusion had one cause, and it is the estate's real observability
+    problem: **the Log Analytics workspace runs a 0.1 GB daily quota resetting at
+    03:00Z**, and the estate exhausts it within hours. Ingestion stops for the
+    rest of the day, so every check run in a UK working hour comes back empty.
+    Both custody failures fell inside a capped window and left no trace, which is
+    why release 20's cause had to be found by reading the permission tables
+    instead of a stack trace. The two alert rules are blind for the same window.
+    Raising the quota is a billing decision and is left with the operator.
 
   - **Release 18** (2026-08-22, source `1f3be493`, image `sha256:818fe360…`)
     carried the QDOS26009 operator findings. An automatically created case can
