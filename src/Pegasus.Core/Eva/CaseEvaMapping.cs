@@ -164,38 +164,16 @@ public static class CaseEvaMapping
         }
 
         var fields = RequiredMappedFields(evidence).ToArray();
-        var values = fields.ToDictionary(
-            field => field.Name,
-            field => NormalizeValue(field.Value.Value)!,
-            StringComparer.Ordinal);
-        var mapped = new EvaReplayFields(
-            values["Work Provider"],
-            NormalizeRegistration(values["VRM"]),
-            values["Vehicle Model"],
-            values["Claimant Name"],
-            values["Reference"],
-            values["Incident Date"],
-            values["Instruction Date"],
-            values["Inspection Date"],
-            values["Inspection Address"],
-            values["Accident Circumstances"],
-            values["VAT Status"],
-            values["Mileage"],
-            values["Mileage Unit"]);
-        var provenance = fields
-            .Select(field => new EvaFieldProvenance(
-                field.Name,
-                field.Name == "VRM"
-                    ? NormalizeRegistration(field.Value.Value)!
-                    : NormalizeValue(field.Value.Value)!,
-                field.Value.Status,
-                field.Value.Source.Trim(),
-                field.Value.SourceVersion.Trim()))
-            .ToArray();
-
         return new(new(
-            mapped,
-            provenance,
+            ToReplayFields(fields),
+            fields
+                .Select(field => new EvaFieldProvenance(
+                    field.Name,
+                    NormalizedValue(field)!,
+                    field.Value.Status,
+                    field.Value.Source.Trim(),
+                    field.Value.SourceVersion.Trim()))
+                .ToArray(),
             MappingKey,
             MappingVersion,
             acceptance.EvidenceReference!.Trim()), []);
@@ -251,30 +229,10 @@ public static class CaseEvaMapping
                     $"{MappingKey}/v{MappingVersion}"))
                 : field)
             .ToArray();
-        var values = resolved.ToDictionary(
-            field => field.Name,
-            field => NormalizeValue(field.Value.Value) ?? string.Empty,
-            StringComparer.Ordinal);
-        var mapped = new EvaReplayFields(
-            values["Work Provider"],
-            NormalizeRegistration(values["VRM"]) ?? string.Empty,
-            values["Vehicle Model"],
-            values["Claimant Name"],
-            values["Reference"],
-            values["Incident Date"],
-            values["Instruction Date"],
-            values["Inspection Date"],
-            values["Inspection Address"],
-            values["Accident Circumstances"],
-            values["VAT Status"],
-            values["Mileage"],
-            values["Mileage Unit"]);
         var provenance = resolved
             .Select(field => new EvaFieldProvenance(
                 field.Name,
-                field.Name == "VRM"
-                    ? NormalizeRegistration(field.Value.Value) ?? string.Empty
-                    : NormalizeValue(field.Value.Value) ?? string.Empty,
+                NormalizedValue(field) ?? string.Empty,
                 NormalizeValue(field.Value.Value) is null
                     ? EvaEvidenceStatus.Unrecorded
                     : field.Value.Status,
@@ -288,7 +246,7 @@ public static class CaseEvaMapping
 
         return new(
             new(
-                mapped,
+                ToReplayFields(resolved),
                 provenance,
                 MappingKey,
                 MappingVersion,
@@ -382,6 +340,41 @@ public static class CaseEvaMapping
         yield return ("Mileage", evidence.Mileage);
         yield return ("Mileage Unit", evidence.MileageUnit);
     }
+
+    /// <summary>
+    /// The thirteen ordered field values as the replay record, written once so
+    /// the hand-off and an operator export can never drift into two orders.
+    /// A value the case does not hold is empty rather than absent: every key
+    /// is always present in the archive.
+    /// </summary>
+    private static EvaReplayFields ToReplayFields(
+        IReadOnlyList<(string Name, EvaEvidenceValue Value)> fields)
+    {
+        var values = fields.ToDictionary(
+            field => field.Name,
+            NormalizedValue,
+            StringComparer.Ordinal);
+        return new(
+            values["Work Provider"],
+            values["VRM"],
+            values["Vehicle Model"],
+            values["Claimant Name"],
+            values["Reference"],
+            values["Incident Date"],
+            values["Instruction Date"],
+            values["Inspection Date"],
+            values["Inspection Address"],
+            values["Accident Circumstances"],
+            values["VAT Status"],
+            values["Mileage"],
+            values["Mileage Unit"]);
+    }
+
+    /// <summary>One field's value, with the VRM's own normalization applied.</summary>
+    private static string? NormalizedValue((string Name, EvaEvidenceValue Value) field) =>
+        field.Name == "VRM"
+            ? NormalizeRegistration(field.Value.Value)
+            : NormalizeValue(field.Value.Value);
 
     private static string? NormalizeValue(string? value)
     {
