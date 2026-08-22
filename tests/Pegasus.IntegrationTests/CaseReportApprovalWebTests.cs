@@ -44,7 +44,9 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claimResponse, store.CaseId);
 
         var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Approve immutable report", leasedHtml, StringComparison.Ordinal);
+        // CASE-016: the button no longer says "immutable" — the assertion is that
+        // the approval control renders once the lease is held, not what it is called.
+        Assert.Contains("Approve report", leasedHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("approvedAtUtc", leasedHtml, StringComparison.Ordinal);
         var approvalId = InputValue(leasedHtml, "approvalId");
         const string approvalOperationKey = "report-approval-replay";
