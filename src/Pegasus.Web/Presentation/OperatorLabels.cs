@@ -599,7 +599,7 @@ public static class OperatorLabels
     public static string SourceChannel(IntakeSourceChannel channel) => channel switch
     {
         IntakeSourceChannel.ManualUpload => "Manual upload",
-        IntakeSourceChannel.Mailbox => "Approved inbox",
+        IntakeSourceChannel.Mailbox => "E-mail",
         IntakeSourceChannel.Automation => "Automation",
         _ => throw new InvalidOperationException(
             $"Unknown intake source channel value '{(int)channel}'.")
@@ -609,7 +609,7 @@ public static class OperatorLabels
     public static string SourceChannel(string? code) => code switch
     {
         "manual_upload" => "Manual upload",
-        "mailbox" => "Approved inbox",
+        "mailbox" => "E-mail",
         "automation" => "Automation",
         _ => Humanise(code)
     };
