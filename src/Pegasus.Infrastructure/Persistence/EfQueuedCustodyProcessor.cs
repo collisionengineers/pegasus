@@ -670,7 +670,20 @@ internal sealed class EfQueuedCustodyProcessor(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    private static string GetFailureCode(Exception exception) => exception switch
+    /// <summary>
+    /// The classified failure codes an operator's recovery depends on, and — for
+    /// anything unclassified — the exception's own type name appended to the
+    /// fallback.
+    ///
+    /// DOCS-008: two production audits failed custody with
+    /// <c>custody_unexpected_failure</c> and nothing anywhere retained what
+    /// actually threw, so diagnosis meant reading source and writing
+    /// reproductions instead of reading a type. A type name carries no case
+    /// content, this column is not operator-facing (the operator reads
+    /// <see cref="GetFailureReason"/>, which is unchanged), and an unclassified
+    /// failure that cannot say what it was is a defect in its own right.
+    /// </summary>
+    internal static string GetFailureCode(Exception exception) => exception switch
     {
         FileNotFoundException => "source_unavailable",
         InvalidDataException => "source_integrity_conflict",
@@ -678,10 +691,16 @@ internal sealed class EfQueuedCustodyProcessor(
         CustodyProcessingLeaseLostException => "custody_lease_lost",
         OperationCanceledException => "custody_cancelled",
         HttpRequestException or IOException => "custody_dependency_failure",
-        _ => "custody_unexpected_failure"
+        _ => Truncate($"{UnexpectedFailureCode}:{exception.GetType().Name}")
     };
 
-    private static string GetFailureReason(Exception exception) => GetFailureCode(exception) switch
+    private const string UnexpectedFailureCode = "custody_unexpected_failure";
+
+    /// <summary>The column holds 100 characters; a long type name must not fail the write it is describing.</summary>
+    private static string Truncate(string value) =>
+        value.Length <= 100 ? value : value[..100];
+
+    internal static string GetFailureReason(Exception exception) => GetFailureCode(exception) switch
     {
         "source_unavailable" => "The original evidence is unavailable from retained storage.",
         "source_integrity_conflict" => "The retained evidence no longer matches the accepted source.",
