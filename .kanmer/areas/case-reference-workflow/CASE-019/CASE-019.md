@@ -2,10 +2,12 @@
 id: CASE-019
 type: ticket
 title: Make Export download the EVA-format case bundle
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-22T19:43:49.371Z'
 labels:
   - qdos26011
   - operator-requested
@@ -14,7 +16,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-22T19:42:25.356Z'
-updated: '2026-08-22T19:42:25.356Z'
+updated: '2026-08-22T19:43:49.371Z'
 ---
 
 ## Why — operator direction (2026-08-22, QDOS26011)

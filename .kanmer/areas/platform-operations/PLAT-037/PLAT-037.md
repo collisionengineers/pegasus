@@ -2,10 +2,12 @@
 id: PLAT-037
 type: ticket
 title: Switch on the accepted EVA mapping in production
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-22T19:43:53.566Z'
 labels:
   - qdos26011
   - config
@@ -14,7 +16,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-22T19:42:25.382Z'
-updated: '2026-08-22T19:42:25.382Z'
+updated: '2026-08-22T19:43:53.566Z'
 ---
 
 ## Why

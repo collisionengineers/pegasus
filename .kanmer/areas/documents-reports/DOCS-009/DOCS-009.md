@@ -2,10 +2,12 @@
 id: DOCS-009
 type: ticket
 title: 'Record intake photographs as images, not instruction documents'
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-22T19:43:45.801Z'
 labels:
   - qdos26011
 links: []
@@ -13,7 +15,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-22T19:42:25.308Z'
-updated: '2026-08-22T19:42:25.308Z'
+updated: '2026-08-22T19:43:45.801Z'
 ---
 
 ## The defect
