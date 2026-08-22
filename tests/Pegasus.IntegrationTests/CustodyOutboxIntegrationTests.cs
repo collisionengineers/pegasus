@@ -1094,6 +1094,61 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
+    /// DOCS-008: the production shape is more than one attachment. QDOS26009
+    /// arrived with two PDFs and failed custody with an unclassified exception
+    /// after its files had already reached Box, so the fault is in the records
+    /// written inside the completing transaction rather than in the upload.
+    /// The single-attachment test above could not see it.
+    /// </summary>
+    [Fact]
+    public async Task AcceptedCaseRecordsEveryAttachmentWhenMoreThanOneArrives()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var first = "%PDF-1.4 synthetic instruction letter"u8.ToArray();
+        var second = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Two Attachments {fixtureId}\r\nClaim Number: ATT2-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "43127_1_LtrtoAuditEngin.pdf", first, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "Bodyshopreport236502-V1.pdf", second, MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-two-attachments-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-two:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+    }
+
+    /// <summary>
     /// DOCS-006: an instruction's evidence photographs — embedded in its PDF
     /// documents — land beside the source as their own custody files after
     /// the attachments, while letterhead art stays out. Runs against the
@@ -1258,7 +1313,9 @@ public sealed class CustodyOutboxIntegrationTests
         IServiceProvider services,
         Guid receiptId,
         CaseCompleteness? completeness = null,
-        long expectedVersion = 0)
+        long expectedVersion = 0,
+        CaseType caseType = CaseType.Inspection,
+        Guid? standaloneAuditEvidenceId = null)
     {
         const string principalCode = QdosPrincipal.Code;
         await SeedPrincipalAsync(services, principalCode);
@@ -1270,9 +1327,10 @@ public sealed class CustodyOutboxIntegrationTests
                     ActionActor.SystemWorker("custody-outbox-integration"),
                     $"case-accept:{Guid.NewGuid():N}",
                     "Integration fixture confirmed complete intake evidence.",
-                    CaseType.Inspection,
+                    caseType,
                     principalCode,
-                    completeness ?? new(true, true, true, true)),
+                    completeness ?? new(true, true, true, true),
+                    standaloneAuditEvidenceId),
                 CancellationToken.None);
     }
 

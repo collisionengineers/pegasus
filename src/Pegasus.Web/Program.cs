@@ -33,6 +33,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Email;
+using Microsoft.ApplicationInsights.Extensibility;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
 const string DevelopmentOfflineProfile = "DevelopmentOffline";
@@ -181,6 +182,21 @@ if (productionProfile)
     // the Worker-only pollers that go with AddProductionExternalAdapters).
     builder.Services.AddSingleton<TokenCredential>(credential);
     builder.Services.AddProductionApprovedMailboxResolver(builder.Configuration["Graph:BaseUri"]);
+    // PLAT-034: the deployed container has carried
+    // APPLICATIONINSIGHTS_CONNECTION_STRING since the estate was built, but
+    // nothing in this application ever read it — the Web host was never
+    // instrumented at all, so thirty days of production produced no traces,
+    // no requests and no exceptions to diagnose from. The credential is
+    // supplied explicitly because ingestion is configured for Entra
+    // (APPLICATIONINSIGHTS_AUTHENTICATION_STRING names the runtime identity),
+    // and a connection string alone would be rejected without it.
+    if (!string.IsNullOrWhiteSpace(
+            builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"]))
+    {
+        builder.Services.AddApplicationInsightsTelemetry();
+        builder.Services.Configure<TelemetryConfiguration>(
+            telemetry => telemetry.SetAzureTokenCredential(credential));
+    }
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
