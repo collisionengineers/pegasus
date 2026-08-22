@@ -84,9 +84,15 @@ public sealed class AcceptIntake(
                 nameof(request));
         }
 
+        // CASE-013: the pipeline's own allocation runs under a system-worker
+        // actor and only for a receipt already decided definitive, which is
+        // what "automatically definitive" means. Staff acceptance is the other
+        // caller and is never exempt.
+        var automaticallyDefinitive = request.Actor.Kind == ActorKind.SystemWorker;
         var completenessEvaluation = CaseCompletenessPolicy.EvaluateAcceptanceCommand(
             request.Completeness,
-            await configuration.GetCurrentAsync(cancellationToken));
+            await configuration.GetCurrentAsync(cancellationToken),
+            automaticallyDefinitive);
         var providerInspectionMode = await inspectionModeStore.GetForPrincipalAsync(
                 principalCode,
                 cancellationToken)

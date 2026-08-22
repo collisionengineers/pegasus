@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
@@ -569,11 +570,18 @@ internal sealed class EfQueuedCustodyProcessor(
             caseEntity.AuditCustodyRemoteId = auditFolderRemoteId;
             caseEntity.AuditCustodyConfirmedAtUtc = now;
         }
+        // CASE-013: this used to restate the readiness rule, and the copy was
+        // stricter than the one in Core — it required staff confirmation that
+        // CaseCompleteness.IsReadyForReview waives for an automatically
+        // definitive intake. Core's rule had no caller at all, which is how
+        // the two came to disagree. It has one now.
+        var completeness = new CaseCompleteness(
+            caseEntity.InstructionComplete,
+            caseEntity.ImagesComplete,
+            caseEntity.InstructionConfirmedByStaff,
+            caseEntity.ImagesConfirmedByStaff);
         if (workflow.State == CaseLifecycleState.NotReady.ToString()
-            && caseEntity.InstructionComplete
-            && caseEntity.ImagesComplete
-            && caseEntity.InstructionConfirmedByStaff
-            && caseEntity.ImagesConfirmedByStaff)
+            && completeness.IsReadyForReview(automaticallyDefinitive: false))
         {
             workflow.State = CaseLifecycleState.Review.ToString();
         }
