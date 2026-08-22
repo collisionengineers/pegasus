@@ -1,12 +1,42 @@
-# Proof — DOCS-006 (deployed at release 16; live-tier pending fresh mail)
+# Observed on a real instruction — QDOS26010
 
-Type: test-output + command-log. Deployment evidence bundle: [[DELIV-015]] proof.
+Read from `IntakeAssets` in production on 2026-08-22, for the receipt that
+created QDOS26010.
 
-**Proven now:**
-- Deployed to production at release 16 (`4111ad29`): the custody processor promotes the receipt's extracted embedded photographs beside the source (`Evidence/Original instruction`, continuing ordinals, per-asset operation keys), `InstructionEvidenceImages.Select` owns the selection rule (attached always, embedded ≥ 40 KB, inline never, hash-deduped preferring attached), and the case Evidence tab renders the instruction-photographs gallery through the receipt-asset image endpoint. Both runtime roles now hold the `ImageIntakes` UPDATE the image-custody path needs (PLAT-020, verified live).
-- Behaviour proven at the deployed SHA: `InstructionEvidenceImagesTests` (selection rule), the real-corpus custody fact `AcceptedCaseRetainsEmbeddedPhotographsBesideTheSource` (EREF9 images-PDF email end-to-end through acceptance and custody), and the asset-endpoint web fact — green in merge CI.
-- Live render check: the case Evidence tab on the current cases correctly shows no instruction-photographs gallery (their receipts were accepted before this deploy — the section renders only when non-empty, by design).
+## Extraction and retention work
 
-**Not claimed yet (honest tier):** a production acceptance running the new promotion — no instruction email has been accepted since the deploy.
+Twenty `embedded_image` rows were extracted from the instruction PDF and
+retained across four pages, each with its recorded dimensions — the shape this
+ticket introduced:
 
-**Completes when:** the operator's first post-wipe images-PDF instruction email shows its photographs on the case Evidence tab and as individual files beside the source in Box.
+```
+page-1  5 images     page-3  4 images (709×768, 85 KB–158 KB)
+page-2  1 image      page-4  5 images (709×768 and 709×331, 82 KB–253 KB)
+```
+
+Nine of those are genuine damage photographs at 709×768 (ratio 1.08) plus one at
+709×331. They sit alongside six deliberately attached photographs
+(`1_Mileage-V1.jpg`, `11_Vin-V1.jpg`, `3_CLVDamage1-V1.jpg` and three more) and
+the retained `message/rfc822` source at 14.7 MB.
+
+Six Outlook inline graphics were retained as `inline_image` and are correctly
+outside the evidence selection, as are the two letterhead banners — the
+selection half is proved in detail under [[INTK-030]].
+
+## What this does not yet show
+
+The Box side of "and Box files". Custody for this case failed on a cause
+unrelated to this ticket — the Worker had no grant on the case-document tables,
+fixed and verified under [[DOCS-008]] in release 20 — so the photographs are
+extracted and retained but their Box registration has not been observed for a
+case created since that fix.
+
+That is a dependency, not a defect in this work: the promotion code has been
+exercised by the corpus end-to-end custody fact (EREF9) and by the audit-root
+integration test, and the live gap closes on the first case created after the
+grant, or on an operator pressing **Retry custody**.
+
+## Evidence tier
+
+Extraction and retention: **observed in production**. Box registration: covered
+by integration tests, not yet live-observed.

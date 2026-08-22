@@ -2,7 +2,7 @@
 id: DOCS-006
 type: ticket
 title: Retain extracted instruction images as case evidence and Box files
-status: verifying
+status: done
 area: documents-reports
 assignee: claude-code
 profile: feature
@@ -10,6 +10,7 @@ stageEntered:
   implementing: '2026-08-21T11:45:42.776Z'
   review: '2026-08-21T12:12:54.749Z'
   verifying: '2026-08-21T13:22:57.885Z'
+  done: '2026-08-22T06:04:30.343Z'
 labels:
   - custody
   - evidence
@@ -20,7 +21,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T11:43:29.114Z'
-updated: '2026-08-21T15:07:50.152Z'
+updated: '2026-08-22T06:04:30.343Z'
 ---
 
 ## What
