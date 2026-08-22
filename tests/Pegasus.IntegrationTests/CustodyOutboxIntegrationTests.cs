@@ -1149,6 +1149,91 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
+    /// DOCS-008: no custody test has ever run an audit case — every other
+    /// fixture accepts with CaseType.Inspection — and both audits that reached
+    /// production failed custody with an unclassified exception after their
+    /// files had already reached Box. This is that shape.
+    /// </summary>
+    [Fact]
+    public async Task AnAuditCaseCompletesCustody()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var report = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS audit instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Audit Custody {fixtureId}\r\nClaim Number: AUD-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "Bodyshopreport236502-V1.pdf", report, MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-audit-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-audit:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+
+        var evidenceId = await SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
+        var outcome = await AcceptAsync(
+            services,
+            receipt.Id,
+            caseType: CaseType.Audit,
+            standaloneAuditEvidenceId: evidenceId);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+    }
+
+    /// <summary>
+    /// Acceptance requires the automatic literal record — a SystemWorker actor
+    /// with the exact subject "system-worker:automatic-standalone-audit" — and
+    /// a 64-character hexadecimal request hash, or it refuses the audit.
+    /// </summary>
+    private static async Task<Guid> SeedAutomaticAuditEvidenceAsync(
+        IServiceProvider services,
+        Guid receiptId)
+    {
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        // The original report is the attachment that actually arrived, with its
+        // real retained bytes — inventing an asset with an unresolvable storage
+        // key makes custody fail for a reason production never has.
+        var assetId = await context.Set<IntakeAssetEntity>()
+            .Where(asset => asset.IntakeReceiptId == receiptId && asset.Kind == "attachment")
+            .Select(asset => asset.Id)
+            .FirstAsync();
+        var evidenceId = Guid.NewGuid();
+        var evidenceSql =
+            "INSERT INTO StandaloneAuditEvidence (Id, IntakeReceiptId, OriginalReportAssetId, Assessment, ConfirmedByKind, ConfirmedBySubjectId, ConfirmedByRolesJson, ConfirmedAtUtc, OperationKey, Reason, RequestHash, ResultingReceiptVersion) "
+            + $"VALUES ('{evidenceId:D}', '{receiptId:D}', '{assetId:D}', 'repairable', 'SystemWorker', 'system-worker:automatic-standalone-audit', '[]', '2026-07-29T09:00:00+00:00', 'standalone-audit-{evidenceId:N}', 'Retained original report evidence', '{new string('b', 64)}', 0)";
+#pragma warning disable EF1003
+        await context.Database.ExecuteSqlRawAsync(evidenceSql);
+#pragma warning restore EF1003
+        return evidenceId;
+    }
+
+    /// <summary>
     /// DOCS-006: an instruction's evidence photographs — embedded in its PDF
     /// documents — land beside the source as their own custody files after
     /// the attachments, while letterhead art stays out. Runs against the
