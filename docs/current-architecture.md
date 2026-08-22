@@ -157,20 +157,30 @@ The following remain planned or absent, not merely unverified:
 - EVA export;
 - provider API, which is deferred to the exact target owned by the [capability inventory](capabilities.md);
 - live activation of the vendor-neutral Automation MCP: the ingress, actor contract, and tools are implemented but composition-gated off outside DevelopmentOffline evidence runs, non-blocking for `0.1.0-alpha.1`;
-- correlated live telemetry. **The estate emits none.** Release 18 instrumented the
-  Web host, which had no Application Insights package or registration at all while
-  its container carried the connection string, and gave the Worker's telemetry
-  client an Entra credential — and after that deploy the workspace still holds
-  zero traces, requests and exceptions, as it has for over thirty days. The
-  packages ship in both hosts and the code is running, so the remaining fault is
-  elsewhere. Two facts found while diagnosing it:
-  `APPLICATIONINSIGHTS_AUTHENTICATION_STRING` is an App Service and Functions
-  *host* convention that a plain ASP.NET Core Container App does not read, and the
-  Container Apps environment sends console logs to `azure-monitor` with a null Log
-  Analytics customer id, so container stdout never reaches the workspace either.
-  Nothing about ingestion, correlation, sampling, retention or alert delivery is
-  proved, and the two alert rules cannot fire on data that never arrives
-  (PLAT-034, open).
+- correlated live telemetry, **for most of each day**. Both hosts are now
+  instrumented: the Worker has reported continuously throughout the retained
+  window, and release 19 instrumented the Web host, which had carried the
+  connection string since the estate was built while never calling
+  `AddApplicationInsightsTelemetry`. What is not solved is retention of that
+  signal. The workspace runs a **0.1 GB daily quota resetting at 03:00Z**
+  (`workspaceCapping.dataIngestionStatus: RespectQuota`) and the estate exhausts
+  it within hours, so ingestion stops for the rest of the day and every check run
+  in a UK working hour returns empty. That is not a hypothesis: it is why both
+  production custody failures left no trace, and why release 20's cause had to be
+  found by reading `sys.database_permissions` rather than a stack trace. The two
+  alert rules cannot fire on the capped window either. Sampling is on
+  (`APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING`) and the Worker's own polling
+  produces most of the volume, so measuring before buying quota is the cheaper
+  order. Correlation, retention and alert delivery remain unproved until the
+  window covers a working day (PLAT-034, open).
+- an automated check that a runtime role may write what the code writes. The
+  least-privilege grant matrix (`20260729199000_RuntimeRoleReconciliation`) is
+  the one list of what Web and Worker may touch, and nothing verifies it against
+  the stores each composition root actually registers. Tests and LocalDB runs are
+  full-privilege, so the suite is green while the deployed estate refuses the
+  write. This has now shipped three times — `20260814092852`, `20260821095500`
+  and `20260822044425`, the last of which broke case custody for every case
+  created after release 17 (PLAT-035, open).
 
 ## Current intake and extraction boundary
 
