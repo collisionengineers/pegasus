@@ -3,17 +3,20 @@
     var details = Model.Case!;
 }
 
-<section class="panel" aria-labelledby="case-history-title">
-    <h2 id="case-history-title" class="section-label">Case history</h2>
+@* CASE-017: one timeline. What Pegasus did to the case and what an operator
+   wrote about it belong in the same account, so a note is a history entry
+   like any other and the Actor column is what tells them apart. *@
+<section class="panel" aria-labelledby="case-notes-title">
+    <h2 id="case-notes-title" class="section-label">Notes</h2>
     @if (details.History.Count == 0)
     {
-        <p class="empty-state">No case workflow events are recorded.</p>
+        <p class="empty-state">Nothing is recorded yet.</p>
     }
     else
     {
         <div class="table-wrap">
             <table>
-                <thead><tr><th>When</th><th>Event</th><th>Actor</th><th>Reason</th></tr></thead>
+                <thead><tr><th>When</th><th>Event</th><th>Actor</th><th>Detail</th></tr></thead>
                 <tbody>
                 @foreach (var entry in details.History)
                 {
@@ -31,11 +34,20 @@
                             }
                         </td>
                         <td>@entry.Reason</td>
-                        
                     </tr>
                 }
                 </tbody>
             </table>
         </div>
     }
+    <form method="post" asp-page="/Cases/Tasks" asp-route-id="@details.Summary.CaseId"
+          asp-page-handler="AddNote" class="form-grid section-gap">
+        <input type="hidden" name="operationKey" value="@Pegasus.Web.Pages.Cases.CaseMutationPageModel.NewOperationKey()" />
+        <label class="field-wide" for="case-note">Note</label>
+        <textarea id="case-note" class="field-wide" name="note" rows="3"
+                  required maxlength="@Pegasus.Core.Cases.AddCaseNote.MaximumLength"></textarea>
+        <div class="button-row button-row--end">
+            <button type="submit" class="primary-action">Add note</button>
+        </div>
+    </form>
 </section>
