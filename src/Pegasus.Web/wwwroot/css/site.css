@@ -1796,11 +1796,17 @@ table tfoot th {
 .facts dd { margin: 0; font-weight: 600; }
 .facts dd.quiet { color: var(--muted); font-weight: 400; }
 
-.datarow { display: flex; align-items: center; gap: var(--sp-4); min-height: 32px; padding: 3px 0; border-top: var(--border); font-variant-numeric: tabular-nums; }
-.datarow__field { flex: 1 1 120px; min-width: 0; color: var(--muted); font-size: var(--t-sm); }
-.datarow__value { flex: 1.4 1 140px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+/* CASE-018: the row was a flex line, so the field and value columns were sized
+   from whatever space the optional provenance icon left over. A row that
+   carried an icon therefore started its value at a different x from a row that
+   did not, which is why Claimant and Claim number sat out of line with the
+   rest of Case identity. Fixed tracks make the alignment independent of what
+   the row happens to end with. */
+.datarow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: center; gap: var(--sp-4); min-height: 32px; padding: 3px 0; border-top: var(--border); font-variant-numeric: tabular-nums; }
+.datarow__field { min-width: 0; color: var(--muted); font-size: var(--t-sm); }
+.datarow__value { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .datarow__value.quiet { color: var(--muted); font-weight: 400; }
-.datarow__end { display: flex; align-items: center; gap: var(--sp-3); margin-left: auto; }
+.datarow__end { display: flex; align-items: center; gap: var(--sp-3); grid-column: 3; }
 
 .blockhead { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: 2px; }
 .blockhead h2 { color: var(--muted); font-size: var(--t-eyebrow); font-weight: 600; letter-spacing: .07em; text-transform: uppercase; }
@@ -1952,7 +1958,6 @@ tr.is-preview-selected > td:first-child { box-shadow: inset 3px 0 0 var(--navy-l
   tr.is-preview-selected a { color: LinkText; }
 }
 
-.datarow__sug { color: var(--charcoal); font-size: var(--t-sm); }
 
 /* Mail workspace. Unread is carried by weight and by the words "Unread" in the
    row, never by colour or weight alone. */
