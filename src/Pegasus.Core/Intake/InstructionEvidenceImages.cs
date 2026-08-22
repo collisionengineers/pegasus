@@ -86,12 +86,28 @@ public static class InstructionEvidenceImages
 }
 
 /// <summary>One evidence image of a case's instruction receipts.</summary>
+/// <summary>
+/// One photograph on the case's Evidence gallery.
+///
+/// DOCS-007 made Box the record: once intake's files are registered as case
+/// documents, <see cref="OccurrenceId"/> and <see cref="VersionId"/> are set and
+/// the image is served from Box through the case-document route. They are null
+/// only for a case accepted before those records existed, which still renders
+/// from its retained intake asset — the transition is additive, and a case
+/// stops rendering the day its staging blobs age out, not the day this shipped.
+/// </summary>
 public sealed record CaseEvidenceImage(
     Guid ReceiptId,
     Guid AssetId,
     string FileName,
     string MediaType,
-    long ContentLength);
+    long ContentLength,
+    Guid? OccurrenceId = null,
+    Guid? VersionId = null)
+{
+    /// <summary>Whether this image is served from Box rather than from the staging blob.</summary>
+    public bool IsCaseDocument => OccurrenceId is not null && VersionId is not null;
+}
 
 public interface ICaseEvidenceImageQueries
 {

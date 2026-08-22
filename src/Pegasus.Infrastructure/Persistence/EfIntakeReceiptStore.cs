@@ -1,5 +1,6 @@
 using System.Data;
 using System.Text.Json;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -1381,6 +1382,36 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
         if (receiptIds.Length == 0)
         {
             return [];
+        }
+
+        // DOCS-007: Box is the record. Where intake's photographs have been
+        // registered as case documents, the gallery reads them and serves them
+        // through the case-document route — the intake blob is staging, not
+        // custody, and it ages out. A case accepted before those records
+        // existed still renders from its retained asset rather than going
+        // blank, which is the additive transition the ticket required.
+        var documentImages = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == caseId
+                    && occurrence.SemanticRole == DocumentSemanticRole.Image
+                    && version.IsCurrent
+                    && !version.IsLogicallyRemoved
+                    && version.CustodyStatus == DocumentCustodyStatus.Confirmed
+                orderby occurrence.Ordinal
+                select new CaseEvidenceImage(
+                    Guid.Empty,
+                    occurrence.Id,
+                    version.FileName,
+                    version.MediaType,
+                    version.ContentLength,
+                    occurrence.DocumentId,
+                    version.Id))
+            .ToArrayAsync(cancellationToken);
+        if (documentImages.Length > 0)
+        {
+            return documentImages;
         }
 
         var assets = await context.IntakeAssets
