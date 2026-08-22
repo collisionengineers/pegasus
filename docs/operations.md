@@ -310,6 +310,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 22 | 2026-08-22 | `191ddf33…` | `sha256:b40244ec…` | `pegasus-prod-web-252ow37gij--191ddf334208` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
+  | 21 | 2026-08-22 | `4257b841…` | `sha256:d18c64a9…` | `pegasus-prod-web-252ow37gij--4257b841b4e2` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
   | 20 | 2026-08-22 | `05fe7a7f…` | `sha256:90b58000…` | `pegasus-prod-web-252ow37gij--05fe7a7f2d86` | `20260822044425_GrantWorkerCaseDocuments` |
   | 19 | 2026-08-22 | `42125b34…` | `sha256:08aeeaed…` | `pegasus-prod-web-252ow37gij--42125b34e57a` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 18 | 2026-08-22 | `1f3be493…` | `sha256:818fe360…` | `pegasus-prod-web-252ow37gij--1f3be493c8c6` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
@@ -332,6 +334,28 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 22** (2026-08-22, source `191ddf33`, image `sha256:b40244ec…`)
+    made operator notes visible. The note was written to `CaseHistory` while the
+    Notes tab reads `CaseWorkflowEvents` — two different tables, so every note
+    was saved, the page returned "The note was added.", and the timeline stayed
+    empty with the count at zero. Nothing threw and CI stayed green, because the
+    command's tests drive a recording fake and nothing asserted the note came
+    back through the query the page uses. It was found by running the page
+    locally under `DevelopmentOffline` and posting a note through the real form,
+    and the fix was verified the same way: the tab renders `Notes 1` with the
+    entry attributed and the event shown as **Note** through the operator-label
+    map. `CaseNotePersistenceTests` now pins the write to the table the read
+    uses. That local run also confirmed the rendered case page, Notes tab,
+    Dashboard, Cases, Inbox, Triage, Search, Operations and Administration
+    screens carry none of the design authority's banned vocabulary and no
+    "Immutable".
+
+  - **Release 21** (2026-08-22, source `4257b841`, image `sha256:d18c64a9…`)
+    carried the current-state documentation for releases 19 and 20 and four
+    release traps added to the repository release skill. No behaviour change; it
+    exists so `main` and the serving revision are the same commit as the
+    documents describing them.
 
   - **Release 20** (2026-08-22, source `05fe7a7f`, image `sha256:90b58000…`)
     repaired case custody. Since release 17 every new case had uploaded its
