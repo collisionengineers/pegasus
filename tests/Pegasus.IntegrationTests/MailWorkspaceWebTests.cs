@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -96,6 +97,59 @@ public sealed class MailWorkspaceWebTests
         rolelessRequest.Headers.Add("X-Test-Roleless", "1");
         using var roleless = await client.SendAsync(rolelessRequest);
         Assert.Equal(HttpStatusCode.Forbidden, roleless.StatusCode);
+    }
+
+    /// <summary>
+    /// INTK-029's operator-facing half. The unlink dialog warns, naming the
+    /// case, only when unlinking actually cancels it — that is, when the
+    /// receipt's current link is the case its own acceptance created. A receipt
+    /// merely associated with some other case gets no warning, because
+    /// unlinking it leaves that case alone.
+    ///
+    /// The flag is proved in CaseAcceptanceReplayTests. What is proved here is
+    /// the rendering, which is the half an operator actually reads and the half
+    /// nothing else covered — the same one-line-wiring gap that let CASE-017
+    /// ship a note nobody could see.
+    /// </summary>
+    [Fact]
+    public async Task TheUnlinkDialogWarnsOnlyWhenUnlinkingCancelsTheCase()
+    {
+        using var factory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
+        var messageId = Assert.Single(await SeedAsync(
+            factory, FirstMailboxId, FirstMailboxAddress, count: 1));
+        await StoreClassificationAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        var receiptId = await ReceiptIdAsync(factory, FirstMailboxId, FirstMailboxId + "-0");
+        using var client = CreateClient(factory);
+
+        // This receipt's own acceptance creates the case, so unlinking it takes
+        // the case's only source away.
+        var outcome = await AcceptReceiptAsync(factory, receiptId);
+
+        var page = await GetHtmlAsync(
+            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&section=case");
+        var confirmation = await PrepareAssociationAsync(client, page, "PrepareUnlinkCase");
+        Assert.Contains(
+            $"Unlinking this email cancels case {outcome.Identity.Reference}.",
+            confirmation,
+            StringComparison.Ordinal);
+
+        var submission = AssociationSubmission(
+            confirmation,
+            "UnlinkCase",
+            "The email that created this case was unlinked.");
+        using var unlink = await client.PostAsync(
+            submission.Action,
+            new FormUrlEncodedContent(submission.Fields));
+        Assert.Equal(HttpStatusCode.Redirect, unlink.StatusCode);
+
+        // The case is cancelled, and the receipt is no longer any case's source,
+        // so nothing later claims an unlink would cancel anything.
+        Assert.Equal(
+            CaseLifecycleState.SourceEmailUnlinked,
+            await ReadCaseStateAsync(factory.Services, outcome.Identity.CaseId));
+        var unlinked = await GetHtmlAsync(
+            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&section=case");
+        Assert.DoesNotContain("cancels case", unlinked, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1546,6 +1600,86 @@ public sealed class MailWorkspaceWebTests
             failures.FailThisAttempt()
                 ? Task.FromException(new TimeoutException("Fixture release timeout."))
                 : release.ExecuteAsync(request, cancellationToken);
+    }
+
+    /// <summary>
+    /// Accepts a seeded mailbox receipt through the real acceptance command, so
+    /// the resulting case is genuinely this receipt's own.
+    /// </summary>
+    private static async Task<CaseAcceptanceOutcome> AcceptReceiptAsync(
+        IntakeWebApplicationFactory factory,
+        Guid receiptId)
+    {
+        await SeedPrincipalAsync(factory.Services, QdosPrincipal.Code);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        long version;
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            version = await context.IntakeReceipts
+                .AsNoTracking()
+                .Where(item => item.Id == receiptId)
+                .Select(item => item.Version)
+                .SingleAsync();
+        }
+
+        return await scope.ServiceProvider.GetRequiredService<IAcceptIntake>()
+            .ExecuteAsync(
+                new(
+                    receiptId,
+                    version,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]),
+                    $"mail-unlink-accept:{Guid.NewGuid():N}",
+                    "Reviewed source evidence and confirmed the case intake.",
+                    CaseType.Inspection,
+                    QdosPrincipal.Code,
+                    new(true, true, true, true)),
+                CancellationToken.None);
+    }
+
+    private static async Task SeedPrincipalAsync(IServiceProvider services, string principalCode)
+    {
+        var organizationId = Guid.NewGuid();
+        var lineageId = Guid.NewGuid();
+        var principalId = Guid.NewGuid();
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        // The mail fixtures already register QDOS in some flows and the code is
+        // uniquely indexed, so seeding twice is a duplicate-key failure.
+        if (await context.Set<PrincipalEntity>().AnyAsync(item => item.Code == principalCode))
+        {
+            return;
+        }
+
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO Organizations (Id, Name, Version) VALUES ({organizationId}, {"Mail unlink provider"}, {0L})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"INSERT INTO PrincipalSequenceLineages (Id, CreatedAtUtc) VALUES ({lineageId}, {NowUtc})");
+        await context.Database.ExecuteSqlInterpolatedAsync(
+            $"""
+            INSERT INTO Principals
+                (Id, OrganizationId, Code, SequenceLineageId, PredecessorId, SuccessorId, IsActive, Version)
+            VALUES
+                ({principalId}, {organizationId}, {principalCode}, {lineageId}, NULL, NULL, {true}, {0L})
+            """);
+    }
+
+    private static async Task<CaseLifecycleState> ReadCaseStateAsync(
+        IServiceProvider services,
+        Guid caseId)
+    {
+        await using var scope = services.CreateAsyncScope();
+        var contextFactory = scope.ServiceProvider
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var state = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == caseId)
+            .Select(item => item.State)
+            .SingleAsync();
+        return Enum.Parse<CaseLifecycleState>(state);
     }
 
     private static async Task<Guid> ReceiptIdAsync(
