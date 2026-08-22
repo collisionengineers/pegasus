@@ -2,10 +2,12 @@
 id: CASE-014
 type: ticket
 title: 'An audit''s reference is the case reference, not a second identity'
-status: backlog
+status: preparing
 area: case-reference-workflow
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-22T00:47:37.060Z'
 labels:
   - qdos26009
   - operator-reported
@@ -15,7 +17,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-21T23:30:27.877Z'
-updated: '2026-08-21T23:30:27.877Z'
+updated: '2026-08-22T00:47:37.060Z'
 ---
 
 ## Why — operator direction (2026-08-22)
