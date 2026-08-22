@@ -2,7 +2,7 @@
 id: CASE-015
 type: ticket
 title: One mileage value is labelled Odometer in one panel and Mileage in another
-status: verifying
+status: done
 area: case-reference-workflow
 assignee: ''
 profile: fix
@@ -11,16 +11,17 @@ stageEntered:
   implementing: '2026-08-22T00:48:46.503Z'
   review: '2026-08-22T00:51:07.212Z'
   verifying: '2026-08-22T03:44:45.252Z'
+  done: '2026-08-22T03:44:54.519Z'
 labels:
   - qdos26009
   - ui
   - operator-reported
 links: []
 docs_todo: true
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-21T23:30:27.962Z'
-updated: '2026-08-22T03:44:45.252Z'
+updated: '2026-08-22T03:44:54.519Z'
 ---
 
 ## Why
