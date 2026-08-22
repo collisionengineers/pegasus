@@ -257,6 +257,9 @@ any worktree — the release evidence is not recoverable afterwards.
 | Worker crash-loops after deploy | `azd deploy worker --from-package` ran Oryx | redeploy with `config-zip` |
 | All nine worker functions disabled | `PEGASUS_WORKER_ACTIVATION` not exactly `approved-live-worker` | fix the azd env, re-provision |
 | `efbundle` fails constructing the host | `Box__ConfigJson` not shape-valid JWT JSON | supply placeholder JSON of the right shape |
+| `azd provision` reports **SUCCESS** and changes nothing | `platform.bicep` gates the whole Web container app on `webActivation == 'approved' && startsWith(digest,'sha256:') && length(digest) == 71 && length(webRevisionSuffix) == 12`. A suffix that is not **exactly 12 characters** makes the `if` false, so the resource is skipped and azd still reports success | keep the suffix at 12 characters; **always read the deployed environment back** rather than trusting the exit code |
+| A container-app setting vanishes at the next release | `infra/modules/platform.bicep` declares the `env` array explicitly, so `az containerapp update --set-env-vars` is drift with a fuse on it | declare it in bicep and provision; never set container-app configuration by CLI |
+| `revision with suffix <x> already exists` when only configuration changed | the image is unchanged, so the canonical SHA-derived suffix is already taken by this release's first provision | use a distinct 12-character suffix (e.g. `<sha8>-eva`) and record it as the deployed revision |
 | `MSB3027` / `MSB3021` file locked during build | a running host holds the DLL | `dotnet build-server shutdown`, rebuild |
 | MSBuild child node exited prematurely on a long test run | node contention | `dotnet test --no-build` in chunks |
 | CI dies in `actions/checkout` at ~5 min | stale merge ref | close and reopen the PR; rerunning does not help |
