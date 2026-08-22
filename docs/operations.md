@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 18 | 2026-08-22 | `1f3be493…` | `sha256:818fe360…` | `pegasus-prod-web-252ow37gij--1f3be493c8c6` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 17 | 2026-08-21 | `71911734…` | `sha256:f625c947…` | `pegasus-prod-web-252ow37gij--7191173442db` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 16 | 2026-08-21 | `4111ad29…` | `sha256:3b891b45…` | `pegasus-prod-web-252ow37gij--4111ad291779` | `20260820114412_ApprovedOutlookCategoryCatalogue`, `20260821095500_GrantWorkerVehicleLookupRequests`, `20260821100623_GrantImageIntakeLifecycleUpdates` |
   | 15 | 2026-08-20 | `6d04f89d…` | `sha256:07c05faa…` | `pegasus-prod-web-252ow37gij--6d04f89d4d30` | `20260820100724_RetainedMailSearchDocuments`, `20260820144004_RetainedMailFolderMoves` |
@@ -329,6 +330,50 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 18** (2026-08-22, source `1f3be493`, image `sha256:818fe360…`)
+    carried the QDOS26009 operator findings. An automatically created case can
+    now reach Review: the automatic route had recorded all four completeness
+    flags false and the acceptance policy then demanded staff confirmation
+    nobody would ever give, while `CaseCompleteness.IsReadyForReview` — which
+    waives staff review for an automatically definitive intake — **had no
+    callers at all** and two stricter Infrastructure copies had been written
+    instead. An audit now carries one identity rather than two: its own
+    reference holds the `a.` / `ap.` prefix and no separate Audit reference is
+    allocated, which also closed a split where the Box root was created under
+    the audit identity while lookups used the case reference. The case Evidence
+    gallery reads the case's document records and serves them through the
+    case-document route, completing the half of DOCS-007 that had been left on
+    the Azure staging blob. Case History became **Notes**, carrying
+    operator-written notes on the same append-only timeline as the system's own
+    entries; the MOT history table and the DVSA/DVLA mechanics rows left the
+    case page; the word "Immutable" and the label "Approved inbox" left every
+    operator-facing page.
+
+    **Verified in production after this release** (read from the deployed
+    database for the two audits that arrived on the live pipeline): report
+    mileage extracted from a multi-column `Speedo:` line — `vehicle_mileage
+    132389 miles` on QDOS26010, where QDOS26009 had no mileage field at all
+    before the fix; MOT tests parsing again, with `MotTestsJson` holding 702 and
+    1565 bytes where every vehicle previously recorded zero; derived mileage in
+    `Miles` under method version 2; the staff forward unwrapping to
+    `mhitchen@qdosassist.co.uk` rather than the desk; and end-to-end latency of
+    19 and 30 seconds against the 30–60s+ originally reported.
+
+    **Two things this release did NOT fix, stated plainly.** Custody still
+    fails on both production audits with `custody_unexpected_failure` after the
+    files reach Box — the record write, multiple attachments, embedded
+    photographs, schema constraints, the audit path and missing staging blobs
+    have each been ruled out by experiment, leaving a Box-specific fault that no
+    test exercises. And **telemetry still does not arrive**: the Application
+    Insights packages ship in both hosts and the registration code is deployed,
+    but thirty days plus this release produce zero traces, requests and
+    exceptions. Two facts found while diagnosing it are recorded for whoever
+    picks it up — `APPLICATIONINSIGHTS_AUTHENTICATION_STRING` is an App Service
+    and Functions host convention that a plain ASP.NET Core Container App does
+    not read, and the Container Apps environment sends console logs to
+    `azure-monitor` with a null Log Analytics customer id, so container stdout
+    never reaches the workspace either.
 
   - **Release 17** (2026-08-21, source `71911734`, image
     `sha256:f625c947…`) carried the QDOS26008 live-regression remediation.
