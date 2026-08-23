@@ -172,6 +172,33 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         return root.Id;
     }
 
+    /// <summary>
+    /// Whether a Box file is the revision it is supposed to be.
+    ///
+    /// DOCS-010: Box does not return <c>content_type</c> for a file — it is not
+    /// a field of the v2 file object, and asking for it simply yields nothing —
+    /// so <see cref="BoxContentClient.BoxItem.MediaType"/> is null on every
+    /// read. Comparing it unconditionally made this check impossible to pass,
+    /// and no managed Box read had ever succeeded in production: the Evidence
+    /// gallery, the case-document download and the case export all failed the
+    /// same way, each turning the exception into a 404 or a flat refusal.
+    ///
+    /// Ancestry and length are always checked. The type is checked only when
+    /// Box actually supplied one, so a field Box does not send cannot refuse a
+    /// file that is otherwise exactly right. The content hash is verified by
+    /// the caller immediately afterwards and is the real integrity guarantee —
+    /// this check exists to catch the wrong file, not to re-derive its type.
+    /// </summary>
+    internal static bool IsExpectedRevision(
+        BoxContentClient.BoxItem file,
+        string expectedParentId,
+        string expectedMediaType,
+        long expectedLength) =>
+        string.Equals(file.ParentId, expectedParentId, StringComparison.Ordinal)
+        && file.Size == expectedLength
+        && (file.MediaType is not { Length: > 0 } mediaType
+            || string.Equals(mediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase));
+
     private async Task VerifyFileMetadataAsync(
         BoxContentClient.BoxItem file,
         string expectedParentId,
@@ -180,12 +207,10 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         CancellationToken cancellationToken)
     {
         var metadata = await client.GetFileAsync(file.Id, cancellationToken);
-        if (!string.Equals(metadata.ParentId, expectedParentId, StringComparison.Ordinal)
-            || metadata.Size != expectedLength
-            || !string.Equals(metadata.MediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase))
+        if (!IsExpectedRevision(metadata, expectedParentId, expectedMediaType, expectedLength))
         {
             throw new InvalidDataException(
-                "Managed Box custody type, ancestry, or length metadata is inconsistent.");
+                "Managed Box custody ancestry or length metadata is inconsistent.");
         }
     }
 
