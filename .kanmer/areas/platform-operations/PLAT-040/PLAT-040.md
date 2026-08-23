@@ -2,13 +2,16 @@
 id: PLAT-040
 type: ticket
 title: 'Wipe email, intake, case and document test data from the Azure estate'
-status: implementing
+status: done
 area: platform-operations
 assignee: ''
 profile: chore
 stageEntered:
   preparing: '2026-08-23T14:46:52.548Z'
   implementing: '2026-08-23T14:46:56.628Z'
+  review: '2026-08-23T14:47:00.663Z'
+  verifying: '2026-08-23T14:47:05.392Z'
+  done: '2026-08-23T14:47:32.473Z'
 labels:
   - operations
   - azure
@@ -17,10 +20,10 @@ labels:
 links: []
 refs:
   - docs/runbook.md
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-23T13:06:52.408Z'
-updated: '2026-08-23T14:46:56.628Z'
+updated: '2026-08-23T14:47:32.473Z'
 ---
 
 ## Why
