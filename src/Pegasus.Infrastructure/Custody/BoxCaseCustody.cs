@@ -134,14 +134,21 @@ internal readonly record struct BoxAccessToken(string? Value, long? LifetimeSeco
 internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider, IDisposable
 {
     /// <summary>
-    /// Renew this far ahead of expiry, so a request that starts just under the
-    /// wire still holds a live token for its whole life. It must exceed the
-    /// Box <see cref="HttpClient"/> timeout — 100 seconds, set where the
-    /// client is registered — or a long photograph transfer could begin
-    /// inside the margin and still be running after the token died, which is
-    /// the intermittent-looking 401 this class exists to remove.
+    /// How long a Box request is allowed to run. Declared here, beside the
+    /// renewal margin that has to exceed it, and read by the registration that
+    /// builds the client — the margin's correctness depends on this number, so
+    /// the two are joined by the compiler rather than by a comment.
     /// </summary>
-    private static readonly TimeSpan RenewalMargin = TimeSpan.FromSeconds(120);
+    internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(100);
+
+    /// <summary>
+    /// Renew this far ahead of expiry, so a request that starts just under the
+    /// wire still holds a live token for its whole life. Longer than
+    /// <see cref="RequestTimeout"/>, or a long photograph transfer could begin
+    /// inside the margin and still be running after the token died — the
+    /// intermittent-looking 401 this class exists to remove.
+    /// </summary>
+    private static readonly TimeSpan RenewalMargin = RequestTimeout + TimeSpan.FromSeconds(20);
 
     private readonly Func<CancellationToken, Task<BoxAccessToken>> mint;
     private readonly TimeProvider timeProvider;
@@ -191,7 +198,14 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
             }
 
             var token = await mint(cancellationToken);
-            if (string.IsNullOrWhiteSpace(token.Value) || token.LifetimeSeconds is not > 0)
+            // A token that expires inside the renewal margin would never be
+            // live, so every Box call would mint another — a silent storm
+            // against Box's token endpoint instead of a fault anyone can see.
+            // Box JWT tokens last an hour; anything shorter is a broken
+            // premise, and this says so rather than absorbing it.
+            if (string.IsNullOrWhiteSpace(token.Value)
+                || token.LifetimeSeconds is not > 0
+                || TimeSpan.FromSeconds(token.LifetimeSeconds.Value) <= RenewalMargin)
             {
                 throw new InvalidOperationException(
                     "Box JWT authentication returned no usable access token.");
