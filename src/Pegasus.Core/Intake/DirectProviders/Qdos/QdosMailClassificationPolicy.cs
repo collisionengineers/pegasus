@@ -5,19 +5,25 @@ namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// QDOS message-type classification over the settled taxonomy, built only on the
-/// operator-guaranteed generated tells: the Triage phrase lives in the email body and the
-/// work-type notification titles live only inside the attached instruction letter. Body
+/// operator-guaranteed generated tells: the two Triage tells live in the email itself and
+/// the work-type notification titles live only inside the attached instruction letter. Body
 /// keyword matching is deliberately absent — corpus evidence shows "audit" in a body
 /// signals an existing case being chased, not a new instruction. When predicates for more
 /// than one category match, the result is the recorded Ambiguous outcome, never an
 /// invented winner; when none match, the message fails closed as Unclassified.
+///
+/// MAIL-011/MAIL-012: QDOS sends triage requests in two templates, and the corpus shows
+/// them to be disjoint — seven messages carry the body phrase, five carry the subject
+/// line, none carry both. Recognising only the phrase left the whole second family
+/// unclassifiable, U34 included. Two tells, one triage candidate.
 /// </summary>
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
     public const string Key = "qdos_mail_classification";
-    public const int Version = 3;
+    public const int Version = 4;
 
     private const string TriagePhrase = "Triage Only Request";
+    private const string TriageSubjectPrefix = "Engineer Triage";
     private const string AuditNotificationTitle = "AUDIT REPORT NOTIFICATION";
     private const string EngineerNotificationTitle = "ENGINEER NOTIFICATION";
     private const string ReportPlusAuditMarker = "REPORT + AUDIT REPORT";
@@ -48,6 +54,16 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         // mentioning "this was a triage only request" is not the tell).
         var hasTriagePhrase = bodyTexts.Any(text =>
             text.Contains(TriagePhrase, StringComparison.Ordinal));
+        // The second template's tell is its generated subject line. Anchored
+        // past any forward or reply prefix, because every QDOS message reaches
+        // us as a staff forward — and because a human writing "about your
+        // Engineer Triage query" mid-subject is not the tell, exactly as a
+        // human sentence mentioning the body phrase is not.
+        var hasTriageSubject = TriageSubjectRegex().IsMatch(subject);
+        // One candidate from two tells. Adding a second candidate for the same
+        // category would resolve to Ambiguous, so a message carrying both
+        // tells would classify worse than one carrying either.
+        var isTriageRequest = hasTriagePhrase || hasTriageSubject;
         var hasAuditTitle = documentTexts.Any(text =>
             text.Contains(AuditNotificationTitle, StringComparison.Ordinal));
         var hasEngineerTitle = documentTexts.Any(text =>
@@ -77,6 +93,12 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
                     ? $"An email body contains the operator-guaranteed phrase '{TriagePhrase}'."
                     : $"No email body contains the phrase '{TriagePhrase}'."),
             new(
+                "subject.engineer-triage",
+                hasTriageSubject,
+                hasTriageSubject
+                    ? $"The subject opens with the generated Triage line '{TriageSubjectPrefix}'."
+                    : $"The subject does not open with '{TriageSubjectPrefix}'."),
+            new(
                 "attachment.audit-report-notification",
                 hasAuditTitle,
                 hasAuditTitle
@@ -98,7 +120,7 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
             candidates.Add(MailCategory.Received(ReceivedMailFamily.General, "autoreply"));
         }
 
-        if (hasTriagePhrase)
+        if (isTriageRequest)
         {
             candidates.Add(MailCategory.Received(
                 ReceivedMailFamily.PreInstructionEmails,
@@ -253,6 +275,14 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
 
     [GeneratedRegex(@"^\s*RE\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex ReplyPrefixRegex();
+
+    // The forward and reply prefixes are matched case-insensitively because
+    // mail clients disagree about them; "Engineer Triage" is not, because the
+    // casing of a generated line is part of what makes it discriminating.
+    [GeneratedRegex(
+        @"^(?:\s*(?i:RE|FW|FWD)\s*:\s*)*Engineer Triage\b",
+        RegexOptions.CultureInvariant)]
+    private static partial Regex TriageSubjectRegex();
 
     // A word occurrence is not automatically a report outcome: "unrepairable",
     // "not repairable", and "not a total loss" must never allocate a permanent

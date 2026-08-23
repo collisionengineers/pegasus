@@ -9,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(3, QdosMailClassificationPolicy.Version);
+        Assert.Equal(4, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -22,6 +22,71 @@ public sealed class QdosMailClassificationPolicyTests
         var category = Assert.IsType<MailCategory>(result.Category);
         Assert.Equal(ReceivedMailFamily.PreInstructionEmails, category.ReceivedFamily);
         Assert.Equal("triage-request", category.Subtype);
+    }
+
+    /// <summary>
+    /// MAIL-012. QDOS's other triage template carries no body phrase at all —
+    /// its tell is the generated subject line. U34 was one of these: a real
+    /// triage request with a photograph that matched no predicate and fell
+    /// through to Unclassified. The corpus holds five of them and seven of the
+    /// body-phrase kind, with no message carrying both.
+    /// </summary>
+    [Fact]
+    public void TheGeneratedTriageSubjectClassifiesPreInstruction()
+    {
+        var result = Classify(
+            subject: "Engineer Triage - Our Claim Reference 47939/1, Vehicle registration GD65TVY",
+            body: "Can you kindly advise if the vehicle would be considered repairable.");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal(ReceivedMailFamily.PreInstructionEmails, category.ReceivedFamily);
+        Assert.Equal("triage-request", category.Subtype);
+    }
+
+    /// <summary>
+    /// Every QDOS message reaches the mailbox as a staff forward, so the tell
+    /// sits behind a Fw: prefix in practice — as it did on U34.
+    /// </summary>
+    [Fact]
+    public void TheTriageSubjectIsReadThroughAForwardPrefix()
+    {
+        var result = Classify(
+            subject: "Fw: Engineer Triage - Our Claim Reference 47939/1",
+            body: "Can you kindly advise if the vehicle would be considered repairable.");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    /// <summary>
+    /// Both tells at once is one triage request, not two candidates. A second
+    /// candidate for the same category would resolve to Ambiguous, leaving a
+    /// message carrying more evidence classified worse than one carrying less.
+    /// </summary>
+    [Fact]
+    public void BothTriageTellsTogetherStillClassifyAsOneTriageRequest()
+    {
+        var result = Classify(
+            subject: "Engineer Triage - Our Claim Reference 47939/1",
+            body: "Triage Only Request. Please advise on repairability.");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    /// <summary>
+    /// The tell is a generated opening line, not the words appearing anywhere.
+    /// A human writing about a triage is not an instruction to open one.
+    /// </summary>
+    [Theory]
+    [InlineData("Chasing your Engineer Triage response for 47939/1")]
+    [InlineData("engineer triage - our claim reference 47939/1")]
+    public void ATriageMentionThatIsNotTheGeneratedLineIsNotTheTell(string subject)
+    {
+        var result = Classify(subject: subject, body: "Any update on this one?");
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
     }
 
     [Fact]
@@ -330,7 +395,7 @@ public sealed class QdosMailClassificationPolicyTests
     {
         var result = Classify(body: "Anything at all.");
 
-        Assert.Equal(5, result.Predicates.Count);
+        Assert.Equal(6, result.Predicates.Count);
         Assert.Equal(
             result.Predicates.Count,
             result.Predicates.Select(predicate => predicate.Key).Distinct(StringComparer.Ordinal).Count());
