@@ -33,7 +33,7 @@ context, no desk noise) is owned by the Mail pages and
 
 Owner:
 `src/Pegasus.Core/Intake/DirectProviders/Qdos/QdosMailClassificationPolicy.cs`
-(`qdos_mail_classification`, Version 3).
+(`qdos_mail_classification`, Version 4).
 
 Built **only on operator-guaranteed generated tells**, matched
 case-sensitively (the casing is part of the tell — a human sentence mentioning
@@ -46,8 +46,17 @@ being chased, not a new instruction.
 | `subject.automatic-reply` | `Automatic reply:` prefix | Subject |
 | `subject.reply-prefix` | reply prefix (`RE:` family) | Subject — mirrors the underlying category with reply context |
 | `body.triage-only-request` | `Triage Only Request` | An email body |
+| `subject.engineer-triage` | `Engineer Triage`, opening the subject past any forward or reply prefix | Subject |
 | `attachment.audit-report-notification` | `AUDIT REPORT NOTIFICATION` | An attached document's text |
 | `attachment.engineer-notification` | `ENGINEER NOTIFICATION` (with or without the `REPORT + AUDIT REPORT` marker) | An attached document's text |
+
+QDOS sends triage requests in two templates and they are disjoint: over the
+corpus, seven messages carry the body phrase, five carry the subject line, and
+none carry both. The two tells therefore feed **one** triage candidate — a
+second candidate for the same category would resolve to Ambiguous, so a message
+carrying both tells would classify worse than one carrying either. Both
+predicates are still recorded separately, so the decision says which fired
+(MAIL-012).
 
 Outcomes: exactly one category predicate → that category; more than one → the
 recorded **Ambiguous** outcome (never an invented winner); none →

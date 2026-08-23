@@ -279,8 +279,18 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     // The forward and reply prefixes are matched case-insensitively because
     // mail clients disagree about them; "Engineer Triage" is not, because the
     // casing of a generated line is part of what makes it discriminating.
+    //
+    // Leading whitespace is consumed once, before the group, and never inside
+    // it. Written as `(?:\s*(?:RE|FW|FWD)\s*:\s*)*` the trailing \s* of one
+    // iteration and the leading \s* of the next match the same spaces, so a
+    // subject that ultimately fails to match has exponentially many parses to
+    // enumerate: "Re:  " twenty times — an 85-character subject — took over
+    // five seconds here, against zero for this form. Every iteration must now
+    // consume a literal prefix, so the match is linear. The subject is
+    // third-party input from an approved mailbox, and this runs on every
+    // received message.
     [GeneratedRegex(
-        @"^(?:\s*(?i:RE|FW|FWD)\s*:\s*)*Engineer Triage\b",
+        @"^\s*(?:(?i:RE|FW|FWD)\s*:\s*)*Engineer Triage\b",
         RegexOptions.CultureInvariant)]
     private static partial Regex TriageSubjectRegex();
 

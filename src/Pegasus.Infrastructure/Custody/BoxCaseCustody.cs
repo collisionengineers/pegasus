@@ -135,9 +135,13 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
 {
     /// <summary>
     /// Renew this far ahead of expiry, so a request that starts just under the
-    /// wire still presents a live token when it lands at Box.
+    /// wire still holds a live token for its whole life. It must exceed the
+    /// Box <see cref="HttpClient"/> timeout — 100 seconds, set where the
+    /// client is registered — or a long photograph transfer could begin
+    /// inside the margin and still be running after the token died, which is
+    /// the intermittent-looking 401 this class exists to remove.
     /// </summary>
-    private static readonly TimeSpan RenewalMargin = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan RenewalMargin = TimeSpan.FromSeconds(120);
 
     private readonly Func<CancellationToken, Task<BoxAccessToken>> mint;
     private readonly TimeProvider timeProvider;
