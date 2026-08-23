@@ -50,10 +50,6 @@ Production, after deploy: open `ap.QDOS26012`'s Evidence tab and confirm the
 photographs render. This needs [[PLAT-039]] in the same release — with only
 this fix the URLs stop 404-ing and start 500-ing.
 
-## Simplification pass
-
-To be recorded here, dated, before the PR.
-
 ## Simplification pass — 2026-08-23
 
 Run by hand over the branch diff (the operator's standing instruction this
@@ -80,3 +76,25 @@ disposition rule it does not ride this fix. Not filed as a ticket either: the
 record has one consumer and two branches, and a second implementation to prove
 the split is worth having does not exist yet. Recorded here so it is a decision
 rather than an omission.
+
+## Independent review — 2026-08-23, PR #523
+
+A reviewer that did not implement the work checked the route rename for a
+missed caller, which is the one way this change could break a working link.
+
+**None missed.** Changed: the route template, the handler parameter and both
+`[LoggerMessage]` templates in `Download.cshtml`/`.cshtml.cs`; the gallery's
+`Url.Page` anonymous object in `Details.cshtml`; the `asp-route-occurrenceId`
+attribute in `_CaseDocuments.cshtml`. Repository-wide searches for
+`asp-route-documentId`, `documentId =`, `"documentId"`, `LinkGenerator` and
+`RouteValues[` across `.cshtml`, `.cs`, `.js`, `.md` and `.http` return **zero**
+remaining references. `QdosCustodialWebTests` builds the path positionally and
+is unaffected, because the URL shape did not change.
+
+The reviewer also confirmed `AssetId: Guid.Empty` is safe: its only reader is
+the non-case-document branch of the gallery, `IsCaseDocument` keys off
+`OccurrenceId`/`VersionId`, and nothing uses it as a DOM id or gallery key.
+
+No findings on this ticket. The unapplied `CaseEvidenceImage` split recorded
+above was read and accepted as a correctly-dispositioned quality finding rather
+than an omission.

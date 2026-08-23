@@ -70,10 +70,6 @@ Production, after deploy: the operator forwards one QDOS message whose original
 carried a Cc. Expect a case rather than an Unidentified item, and the inbox row
 showing the original sender with "Forwarded by Desk", like every other row.
 
-## Simplification pass
-
-To be recorded here, dated, before the PR.
-
 ## Simplification pass — 2026-08-23
 
 Run by hand over the branch diff (the operator's standing instruction this
@@ -94,3 +90,32 @@ The widened pattern was run against U34's own retained `BodyPlainText`, read
 from production, before the code was written: 0 matches before, 1 after,
 group `from` = `Robin Anderson <randerson@qdosassist.co.uk>`. The unit test
 carries the same block.
+
+## Independent review — 2026-08-23, PR #523
+
+A reviewer that did not implement the work measured the widened pattern for
+catastrophic backtracking, since the new `(?:…)*` group is the kind of
+construct that causes it — and on this ticket's sibling [[MAIL-012]] it did.
+
+**Here it does not.** Every iteration of the group must consume a literal
+`Cc:` or `Bcc:`, so the iteration count is bounded by the number of real Cc
+lines and a failure unwinds linearly. Measured:
+
+| Input | Time |
+| --- | ---: |
+| 8,000 `Cc:` lines, no `Subject:` (96 KB body) | 33 ms |
+| 2,000 blank-line-separated blocks (44 KB) | 21 ms |
+
+The reviewer also confirmed the widening cannot match a non-header (the block
+still requires `From:`/`Sent:`/`To:` then only `Cc:`/`Bcc:` then `Subject:`),
+and that a Cc address cannot leak into the sender, because only
+`Groups["from"]` is ever scanned for addresses.
+
+### One behaviour change, now pinned
+
+The widened shape is a strict superset, so a body can match **twice** where it
+matched once: an outer forwarded block with no Cc quoting an inner one that has
+it. Under §3 above that is the intended fail-closed outcome — two blocks prove
+no single original sender — but nothing pinned the transition.
+`TwoForwardedBlocksStillProveNoOriginalSender` now does, so a later change that
+quietly starts accepting the first of two blocks fails the build.
