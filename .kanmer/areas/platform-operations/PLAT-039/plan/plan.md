@@ -59,3 +59,19 @@ passes either way — the proof must be taken **late**, not at deploy time.
 ## Simplification pass
 
 To be recorded here, dated, before the PR.
+
+## Simplification pass — 2026-08-23
+
+Four lenses over the branch diff, run by hand rather than through the
+`code-simplifier` agent (the operator's standing instruction this session
+forbids delegating to it). Findings and dispositions:
+
+| Lens | Finding | Disposition |
+| --- | --- | --- |
+| **Efficiency / correctness** | The lock-free fast path read `header` (a reference) and `expiresAtUtc` (a 16-byte `DateTimeOffset`) as two separate non-volatile fields while the renewing thread wrote both. A torn or reordered read could pair one token's header with another's expiry — and the failure mode that matters is serving a **stale** header, i.e. re-creating the 401 this ticket exists to remove. | **Fixed here.** Header and expiry are now one immutable `Lease` record, published with `Volatile.Write` and taken with `Volatile.Read`. A single reference read is atomic, so the two values can never disagree. A correctness finding, so it is fixed on the branch rather than filed. |
+| **Reuse** | `MutableTimeProvider` already exists in `CaseDataCompletenessPersistenceTests` and is already borrowed by `AssessmentPersistenceIntegrationTests`; `TimeProvider` is already resolved from the container at `DependencyInjection.cs:594`. | Both reused. No new time abstraction. |
+| **Simplification** | The `Lazy<(BoxJwtAuth, NetworkSession)>` could collapse into the constructor. | **Kept.** It defers parsing the JWT config and decrypting the private key until Box is actually used; eager construction would move that cost into container build for every process, including ones that never touch Box. Behaviour-preserving from the original. |
+| **Altitude** | `BoxAccessToken` could have been an anonymous tuple on the delegate. | **Kept as a named record struct** — it is read at two call sites and `(string?, long?)` says nothing at either. |
+| **Altitude** | `RenewalMargin` is a second number beside Box's lifetime. | **Kept.** One constant, stated once, with the reason on it. The alternative — renewing exactly on expiry — puts an in-flight request the wrong side of the boundary. |
+
+Nothing was left unapplied.

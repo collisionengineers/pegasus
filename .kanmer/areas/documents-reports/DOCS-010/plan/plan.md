@@ -53,3 +53,30 @@ this fix the URLs stop 404-ing and start 500-ing.
 ## Simplification pass
 
 To be recorded here, dated, before the PR.
+
+## Simplification pass — 2026-08-23
+
+Run by hand over the branch diff (the operator's standing instruction this
+session forbids delegating to the `code-simplifier` agent).
+
+| Lens | Finding | Disposition |
+| --- | --- | --- |
+| **Reuse** | The gallery assertion could have been a new test with its own pipeline setup. | **Reused** the existing DOCS-009 test, which already drives a real instruction through intake, acceptance and custody to confirmed photographs. Twenty-one lines added, no second fixture. |
+| **Simplification** | The two-branch `ListForCaseAsync` could be collapsed into one projection. | **Not done.** The branches read different tables for different eras of case — a Box-served document and a staging intake asset are not the same row shape, and merging them would need a union that says less than the two branches do. |
+| **Altitude** | The route rename touches four files for no behaviour change. | **Kept.** The wrong name on the boundary is the cause, not a cosmetic. Leaving `documentId` there would leave the next caller the same trap, and the fix is mechanical with no URL change. |
+| **Efficiency** | None. The query is unchanged; only which column reaches which field. | — |
+
+## Deliberately not fixed here — one observation, filed as an ask
+
+`AssetId` is now `Guid.Empty` for a Box-served image, and `ReceiptId` already
+was. `CaseEvidenceImage` is really two shapes wearing one record: a staging
+intake asset (receipt + asset) or a case document (occurrence + version), with
+`IsCaseDocument` as the discriminator. Splitting it would be behaviour-
+preserving and would make the mix-up structurally impossible rather than
+merely commented against.
+
+That is a **quality** finding, not a correctness one, so per the repository's
+disposition rule it does not ride this fix. Not filed as a ticket either: the
+record has one consumer and two branches, and a second implementation to prove
+the split is worth having does not exist yet. Recorded here so it is a decision
+rather than an omission.

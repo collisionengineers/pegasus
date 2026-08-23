@@ -73,3 +73,24 @@ showing the original sender with "Forwarded by Desk", like every other row.
 ## Simplification pass
 
 To be recorded here, dated, before the PR.
+
+## Simplification pass — 2026-08-23
+
+Run by hand over the branch diff (the operator's standing instruction this
+session forbids delegating to the `code-simplifier` agent).
+
+| Lens | Finding | Disposition |
+| --- | --- | --- |
+| **Reuse** | This change *is* a reuse fix: one `[GeneratedRegex]` deleted, the surviving one in Core read by both callers. Net −6 lines of production code for a widened rule. | Applied. |
+| **Simplification** | `TryReadInlineForwardedOriginalSender` and `ForwardedSenderAddress` now share a pattern but still hold near-identical address-extraction logic, so they could merge into one Core method. | **Not merged.** They answer different questions: the reader demands exactly one forwarded block because route identity is fail-closed evidence; the cleaner takes the first because the outermost forward is the one to display. Merging them would collapse a display rule into a routing rule, and the routing rule is a product invariant. The *shape* of a header is one concept and is now shared; *what a match proves* is two concepts and stays two. |
+| **Altitude** | The pattern could have allowed any `Header:` line between `To:` and `Subject:`. | **Not done.** `Cc` and `Bcc` are the two lines Outlook actually writes there. A wildcard would let arbitrary prose that happens to contain a colon sit inside a "forwarded header", which is exactly the kind of widening the route bar must not get. |
+| **Efficiency** | `ForwardedHeaderPattern` is a property returning the source-generated singleton; no per-call allocation or compilation. | — |
+
+Nothing was left unapplied.
+
+## Confirmed against the real message, not only the tests
+
+The widened pattern was run against U34's own retained `BodyPlainText`, read
+from production, before the code was written: 0 matches before, 1 after,
+group `from` = `Robin Anderson <randerson@qdosassist.co.uk>`. The unit test
+carries the same block.
