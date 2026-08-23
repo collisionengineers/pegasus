@@ -396,6 +396,8 @@ public static class DependencyInjection
                 provider.GetRequiredService<EvaHandoffStore>());
             services.AddScoped<IEvaHandoffPersistence>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
+            services.AddScoped<IExportCaseBundle>(provider =>
+                provider.GetRequiredService<EvaHandoffStore>());
             services.AddScoped<IGenerateEvaHandoff, GenerateEvaHandoff>();
             services.AddScoped<IDownloadEvaHandoff, DownloadEvaHandoff>();
 

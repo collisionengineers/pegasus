@@ -1,10 +1,16 @@
+using System.Globalization;
+using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -1149,6 +1155,269 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
+    /// CASE-019: the operator's own export of a case, end to end — a real
+    /// instruction accepted through the pipeline, its custody completed, then
+    /// the archive built and opened. The Core tests cover the field mapping;
+    /// this is the only thing that proves an archive comes out at all, which
+    /// is what the operator asked for and what never worked.
+    /// </summary>
+    [Fact]
+    public async Task ExportingACaseProducesTheEvaFormatArchive()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    // PLAT-037's three settings. Without them CaseEvaMapping
+                    // refuses before reading any case data, which is exactly
+                    // how production behaved until release 23.
+                    ["Eva:AcceptedMapping:Key"] = CaseEvaMapping.MappingKey,
+                    ["Eva:AcceptedMapping:Version"] =
+                        CaseEvaMapping.MappingVersion.ToString(CultureInfo.InvariantCulture),
+                    ["Eva:AcceptedMapping:EvidenceReference"] =
+                        "docs/frd/frd-07-eva-and-external-engineering-handoff.md"
+                })));
+        await using var scope = host.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Export Case {fixtureId}\r\nClaim Number: EXP-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "53364_1_LtrtoEngineerIn.pdf",
+            "%PDF-1.4 synthetic instruction letter"u8.ToArray(),
+            MimeKit.ContentType.Parse("application/pdf"));
+        var first = SyntheticJpeg();
+        var second = SyntheticJpeg(shade: 90);
+        builder.Attachments.Add(
+            "1_CLVoffside-V1.jpg", first, MimeKit.ContentType.Parse("image/jpeg"));
+        builder.Attachments.Add(
+            "2_CLVnearside-V1.jpg", second, MimeKit.ContentType.Parse("image/jpeg"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"case-export-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"case-export:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        // The local profile's document content store resolves by case reference
+        // and version id, while intake's local custody adapter writes its own
+        // layout — so an intake-retained document has records here but no
+        // readable content. Production does not have that gap:
+        // BoxDocumentContentStore overrides OpenReadVersionAsync to resolve the
+        // full occurrence address, which is where Box already holds the file
+        // custody uploaded. Putting the bytes where this store expects them is
+        // the local stand-in for that, and is the only way to exercise the
+        // export end to end off Box. The gap itself is [[PLAT-038]].
+        await using (var seed = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var contentStore = services.GetRequiredService<IDocumentContentStore>();
+            var images = await (
+                    from occurrence in seed.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                    join version in seed.Set<DocumentVersionEntity>().AsNoTracking()
+                        on occurrence.VersionId equals version.Id
+                    where occurrence.CaseId == outcome.Identity.CaseId
+                          && occurrence.SemanticRole == DocumentSemanticRole.Image
+                    select new { version.Id, version.FileName, version.Sha256 })
+                .ToArrayAsync();
+            Assert.Equal(2, images.Length);
+            foreach (var image in images)
+            {
+                var bytes = image.FileName.StartsWith("1_", StringComparison.Ordinal)
+                    ? first
+                    : second;
+                await contentStore.StoreAsync(
+                    outcome.Identity.CaseId,
+                    outcome.Identity.Reference,
+                    image.Id,
+                    bytes,
+                    image.Sha256,
+                    CancellationToken.None);
+            }
+        }
+
+        var export = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+            new(outcome.Identity.CaseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])),
+            CancellationToken.None);
+
+        Assert.NotNull(export);
+        Assert.Empty(export!.BlockingReasons);
+        var bundle = Assert.IsType<EvaBundle>(export.Bundle);
+        var reference = outcome.Identity.Reference;
+        Assert.Equal($"EVA-{reference}.zip", bundle.FileName);
+
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
+
+        // The shape the operator asked for: a zip of the images and a JSON.
+        Assert.Contains($"EVA-{reference}.json", entries);
+        Assert.Contains("provenance.json", entries);
+        Assert.Contains("manifest.sha256", entries);
+        Assert.Equal(2, entries.Count(name => name.StartsWith("Images/", StringComparison.Ordinal)));
+        Assert.Contains(entries, name => name.EndsWith("1_CLVoffside-V1.jpg", StringComparison.Ordinal));
+        // The instruction PDF and the .eml are not photographs and stay out.
+        Assert.DoesNotContain(entries, name => name.EndsWith(".pdf", StringComparison.Ordinal));
+        Assert.DoesNotContain(entries, name => name.EndsWith(".eml", StringComparison.Ordinal));
+
+        using var eva = JsonDocument.Parse(bundle.JsonContent);
+        var fields = eva.RootElement.EnumerateObject().ToArray();
+        Assert.Equal(
+            [
+                "Work Provider", "VRM", "Vehicle Model", "Claimant Name", "Reference",
+                "Incident Date", "Instruction Date", "Inspection Date", "Inspection Address",
+                "Accident Circumstances", "VAT Status", "Mileage", "Mileage Unit"
+            ],
+            fields.Select(field => field.Name));
+        // Every key is a string, present whether or not the case knows it.
+        Assert.All(fields, field => Assert.Equal(JsonValueKind.String, field.Value.ValueKind));
+        Assert.Equal(reference, eva.RootElement.GetProperty("Reference").GetString());
+        Assert.Equal(QdosPrincipal.Code, eva.RootElement.GetProperty("Work Provider").GetString());
+        // Operator direction (2026-08-22): an absent inspection date is today's.
+        Assert.False(
+            string.IsNullOrWhiteSpace(eva.RootElement.GetProperty("Inspection Date").GetString()),
+            "An inspection date must always be present, defaulting to the export date.");
+
+        using var provenance = JsonDocument.Parse(bundle.ProvenanceContent);
+        Assert.Equal(
+            CaseEvaMapping.MappingKey,
+            provenance.RootElement.GetProperty("mapping").GetProperty("key").GetString());
+        Assert.Equal(13, provenance.RootElement.GetProperty("fields").GetArrayLength());
+        Assert.Equal(2, provenance.RootElement.GetProperty("images").GetArrayLength());
+
+        // The manifest covers every entry, and each hash is the real one.
+        var manifest = Encoding.UTF8.GetString(bundle.ManifestContent);
+        Assert.Equal(4, manifest.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+        foreach (var entry in archive.Entries.Where(item => item.FullName != "manifest.sha256"))
+        {
+            using var content = entry.Open();
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer);
+            var digest = Convert.ToHexString(SHA256.HashData(buffer.ToArray()));
+            Assert.Contains($"{digest}  {entry.FullName}", manifest, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // An export is a read: it records no revision and no hand-off proxy.
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Empty(await context.EvaHandoffRevisions
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .ToListAsync());
+        Assert.Empty(await context.EvaFirstHandoffProxies
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .ToListAsync());
+    }
+
+    /// <summary>
+    /// DOCS-009: the production shape is a PDF instruction plus photographs.
+    /// Every attachment used to be filed as an instruction document whatever
+    /// its media type, so a case's own damage photographs were invisible to
+    /// both the evidence gallery's image test and EVA image selection — an
+    /// export of QDOS26011 would have contained no photographs at all.
+    /// </summary>
+    [Fact]
+    public async Task AnAcceptedInstructionFilesItsPhotographsAsImagesAndItsLetterAsAnInstruction()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var letter = "%PDF-1.4 synthetic instruction letter"u8.ToArray();
+        var photograph = SyntheticJpeg();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Photograph Roles {fixtureId}\r\nClaim Number: IMG-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "53364_1_LtrtoEngineerIn.pdf", letter, MimeKit.ContentType.Parse("application/pdf"));
+        builder.Attachments.Add(
+            "1_CLVoffside-V1.jpg", photograph, MimeKit.ContentType.Parse("image/jpeg"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"custody-photograph-roles-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"custody-photograph:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var roles = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == outcome.Identity.CaseId
+                select new { version.FileName, occurrence.SemanticRole })
+            .ToDictionaryAsync(item => item.FileName, item => item.SemanticRole);
+
+        Assert.Equal(
+            DocumentSemanticRole.Image,
+            roles["1_CLVoffside-V1.jpg"]);
+        Assert.Equal(
+            DocumentSemanticRole.Instruction,
+            roles["53364_1_LtrtoEngineerIn.pdf"]);
+    }
+
+    /// <summary>
+    /// A JPEG large enough to clear the embedded-photograph byte floor and
+    /// square enough to clear the banner shape test, so it is judged a
+    /// photograph on its own merits rather than by its file name.
+    /// </summary>
+    private static byte[] SyntheticJpeg(byte shade = 112)
+    {
+        using var bitmap = new SkiaSharp.SKBitmap(709, 768);
+        using var canvas = new SkiaSharp.SKCanvas(bitmap);
+        canvas.Clear(new SkiaSharp.SKColor(shade, shade, shade));
+        using var encoded = SkiaSharp.SKImage.FromBitmap(bitmap)
+            .Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90);
+        return encoded.ToArray();
+    }
+
+    /// <summary>
     /// DOCS-008: no custody test has ever run an audit case — every other
     /// fixture accepts with CaseType.Inspection — and both audits that reached
     /// production failed custody with an unclassified exception after their
@@ -1203,6 +1472,109 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(
             "completed",
             await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+    }
+
+    /// <summary>
+    /// The three things an operator reported about QDOS26009 that only appear
+    /// once custody has actually completed, asserted on one case at the
+    /// production shape: it reaches Review rather than sitting at Not ready
+    /// (CASE-013), it carries one prefixed reference and no second audit
+    /// identity (CASE-014), and its retained files are registered as case
+    /// documents (DOCS-007).
+    ///
+    /// Each was verifiable only by a live case until this existed, because the
+    /// promotion, the identity and the document rows are all written inside
+    /// CompleteCaseCustodyAsync's single transaction. Custody failing in
+    /// production (DOCS-008) meant none of them ever ran.
+    ///
+    /// The completeness is the automatic shape — instruction and images
+    /// complete, neither confirmed by staff — because that is what the
+    /// pipeline's own allocation records, and demanding staff confirmation
+    /// nobody would ever give is exactly what stranded QDOS26009.
+    /// </summary>
+    [Fact]
+    public async Task AnAutomaticAuditReachesReviewWithOneIdentityAndItsDocuments()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var report = "%PDF-1.4 synthetic bodyshop report"u8.ToArray();
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS audit instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: End To End {fixtureId}\r\nClaim Number: E2E-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "Bodyshopreport236503-V1.pdf", report, MimeKit.ContentType.Parse("application/pdf"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"e2e-audit-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"e2e-audit:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+
+        var evidenceId = await SeedAutomaticAuditEvidenceAsync(services, receipt.Id);
+        var outcome = await AcceptAsync(
+            services,
+            receipt.Id,
+            completeness: new(true, true, false, false),
+            caseType: CaseType.Audit,
+            standaloneAuditEvidenceId: evidenceId);
+
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        Assert.Equal(
+            "completed",
+            await ReadExternalWorkStateAsync(services, outcome.CustodyWorkId));
+
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+
+        // CASE-013 — the case moves off Not ready without staff confirmation
+        // the automatic route was never going to receive.
+        var state = await context.CaseWorkflows
+            .AsNoTracking()
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .Select(item => item.State)
+            .SingleAsync();
+        Assert.Equal(nameof(CaseLifecycleState.Review), state);
+
+        // CASE-014 — one identity. The reference itself carries the audit
+        // prefix and nothing allocates a second one beside it.
+        var identity = await context.Set<CaseEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == outcome.Identity.CaseId)
+            .Select(item => new { item.Reference, item.AuditReference })
+            .SingleAsync();
+        Assert.StartsWith("a.", identity.Reference, StringComparison.Ordinal);
+        Assert.Null(identity.AuditReference);
+
+        // DOCS-007 — the retained files are case documents, not just bytes in
+        // custody storage, so the Evidence tab can serve them.
+        var documents = await context.Set<CaseDocumentEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .CountAsync();
+        Assert.True(
+            documents > 0,
+            $"Custody completed but registered {documents} case documents.");
     }
 
     /// <summary>

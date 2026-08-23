@@ -310,6 +310,10 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 24 | 2026-08-23 | `19969404…` | `sha256:bd9d8c4a…` | `pegasus-prod-web-252ow37gij--199694040184` | `20260822223626_BackfillVehicleLookupSuggestions` |
+  | 23 | 2026-08-22 | `b6d54ff6…` | `sha256:7193802c…` | `pegasus-prod-web-252ow37gij--b6d54ff6-eva` | `20260822195419_CorrectIntakePhotographSemanticRole` |
+  | 22 | 2026-08-22 | `191ddf33…` | `sha256:b40244ec…` | `pegasus-prod-web-252ow37gij--191ddf334208` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
+  | 21 | 2026-08-22 | `4257b841…` | `sha256:d18c64a9…` | `pegasus-prod-web-252ow37gij--4257b841b4e2` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
   | 20 | 2026-08-22 | `05fe7a7f…` | `sha256:90b58000…` | `pegasus-prod-web-252ow37gij--05fe7a7f2d86` | `20260822044425_GrantWorkerCaseDocuments` |
   | 19 | 2026-08-22 | `42125b34…` | `sha256:08aeeaed…` | `pegasus-prod-web-252ow37gij--42125b34e57a` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
   | 18 | 2026-08-22 | `1f3be493…` | `sha256:818fe360…` | `pegasus-prod-web-252ow37gij--1f3be493c8c6` | none (head unchanged at `20260821100623_GrantImageIntakeLifecycleUpdates`) |
@@ -332,6 +336,84 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 24** (2026-08-23, source `19969404`, image `sha256:bd9d8c4a…`)
+    put the DVSA-derived mileage on the cases that already existed. Release 23
+    made a vehicle lookup fill a case's empty fields *when the lookup runs*,
+    which helps only cases whose lookup is still to come — every case in the
+    estate had already been looked up, so nothing changed for any of them and
+    QDOS26011 still read "Not recorded" over an observation holding 121,823
+    miles. The migration corrects the recorded past.
+
+    Proved by reading the case back on the live instance: the Vehicle block now
+    reads `121,823 Miles — Estimated`, screenshotted, where the same page had
+    read "Not recorded" an hour earlier. QDOS26010 keeps its extracted 132,389
+    as a fact with the lookup's 128,343 retained behind it as a suggestion —
+    both held, one shown, which is what the operator's "two different mileages"
+    report was about.
+
+    The release also exposed, and did not fix, a defect that predates it: **no
+    managed Box read has ever succeeded in production**. `VerifyFileMetadataAsync`
+    compared the Box file's `content_type` against the recorded media type, and
+    `content_type` is not a field of the Box v2 file object — the comparison was
+    against null and could never pass. The Evidence gallery's images, the
+    case-document download and the case export all failed on that one exception
+    and reported it three different ways. It survived because nothing had ever
+    read content back from Box: `EvaHandoffRevisions`,
+    `EvaHandoffDownloadOperations` and `CaseAssessmentFields` are all empty.
+    Box *writes* were never affected.
+
+  - **Release 23** (2026-08-22, source `b6d54ff6`, image `sha256:7193802c…`)
+    stopped the case page saying the same thing three times, and made Export
+    produce a file. Registration had appeared in the Vehicle block, again in a
+    read-only "Case detail" restatement of the whole projection, and a third
+    time in "Vehicle evidence"; the restatement is gone and the seven fields
+    that lived only there — contact, VAT status and the four inspection fields —
+    moved into the block grid, so each fact is now read in exactly one place.
+    Export had never worked: `Details.cshtml` emitted `asp-route-id` against a
+    `{caseId:guid}` route, so link generation produced no `href` at all and the
+    control was inert.
+
+    Proved beyond smoke by reading the deployed stylesheet back over HTTP
+    (`grid-template-columns: … 22px`, the reserved provenance track that makes
+    an iconed row line up with a plain one) and by reading the production
+    database after the migration: QDOS26011's eight photographs moved from
+    `Instruction` to `Image`, QDOS26010's six likewise, while nine embedded
+    photographs and three PDFs were left alone — matching a read-only dry run of
+    the same predicate taken before the write. Until that correction every
+    photograph was invisible to EVA image selection, so an export of QDOS26011
+    would have produced an archive containing no images.
+
+    Two things about the release itself are worth carrying forward. The Web
+    container app is gated in `infra/modules/platform.bicep` on
+    `length(webRevisionSuffix) == 12`; a 16-character suffix chosen to dodge a
+    collision made `azd provision` report **SUCCESS while deploying nothing**,
+    detectable only by reading the environment back. And the EVA mapping
+    settings were applied through bicep rather than `az containerapp update`,
+    because that file declares the container's `env` array explicitly and would
+    have silently reverted anything set outside it.
+
+  - **Release 22** (2026-08-22, source `191ddf33`, image `sha256:b40244ec…`)
+    made operator notes visible. The note was written to `CaseHistory` while the
+    Notes tab reads `CaseWorkflowEvents` — two different tables, so every note
+    was saved, the page returned "The note was added.", and the timeline stayed
+    empty with the count at zero. Nothing threw and CI stayed green, because the
+    command's tests drive a recording fake and nothing asserted the note came
+    back through the query the page uses. It was found by running the page
+    locally under `DevelopmentOffline` and posting a note through the real form,
+    and the fix was verified the same way: the tab renders `Notes 1` with the
+    entry attributed and the event shown as **Note** through the operator-label
+    map. `CaseNotePersistenceTests` now pins the write to the table the read
+    uses. That local run also confirmed the rendered case page, Notes tab,
+    Dashboard, Cases, Inbox, Triage, Search, Operations and Administration
+    screens carry none of the design authority's banned vocabulary and no
+    "Immutable".
+
+  - **Release 21** (2026-08-22, source `4257b841`, image `sha256:d18c64a9…`)
+    carried the current-state documentation for releases 19 and 20 and four
+    release traps added to the repository release skill. No behaviour change; it
+    exists so `main` and the serving revision are the same commit as the
+    documents describing them.
 
   - **Release 20** (2026-08-22, source `05fe7a7f`, image `sha256:90b58000…`)
     repaired case custody. Since release 17 every new case had uploaded its

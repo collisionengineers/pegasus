@@ -24,7 +24,7 @@ public sealed class EvaHandoffStore(
     IDocumentContentStore contentStore,
     IEvaHandoffProxy proxy,
     EvaMappingAcceptance mappingAcceptance,
-    TimeProvider timeProvider) : IEvaHandoffQueries, IEvaHandoffPersistence
+    TimeProvider timeProvider) : IEvaHandoffQueries, IEvaHandoffPersistence, IExportCaseBundle
 {
     public Task<GenerateEvaHandoffResult> ExecuteAsync(
         GenerateEvaHandoffRequest request,
@@ -665,16 +665,201 @@ public sealed class EvaHandoffStore(
         return Generated(revision, firstSentToEngineerRecorded);
     }
 
+    /// <summary>
+    /// CASE-019: the operator's own download of a case as the EVA-format
+    /// archive. A read — it opens no transaction, moves no case version,
+    /// records no revision and writes no first-hand-off proxy. Generating a
+    /// hand-off remains the only thing that does any of that.
+    /// </summary>
+    /// Explicit, so the class keeps one unambiguous ExecuteAsync — generating
+    /// a hand-off — and an export is reached only through its own port.
+    async Task<ExportCaseBundleResult?> IExportCaseBundle.ExecuteAsync(
+        ExportCaseBundleRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.CaseId == Guid.Empty)
+        {
+            return null;
+        }
+
+        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
+        if (caseData is null)
+        {
+            return null;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var caseRecord = await context.Cases
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == request.CaseId, cancellationToken);
+        if (caseRecord is null)
+        {
+            return null;
+        }
+
+        var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
+        var export = CaseEvaMapping.MapForOperatorExport(
+            BuildEvidence(caseData, vehicle, includeSuggestions: true),
+            mappingAcceptance,
+            DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime));
+        if (export.Source is null)
+        {
+            return new(null, export.UnrecordedFields, export.BlockingReasons);
+        }
+
+        var images = await LoadEligibleImagesAsync(
+            context,
+            request.CaseId,
+            caseRecord.Reference,
+            cancellationToken);
+        if (images.Count == 0)
+        {
+            return new(
+                null,
+                export.UnrecordedFields,
+                [EvaHandoffPolicy.NoRetainedImagesReason]);
+        }
+
+        return new(
+            EvaBundleSchema.CreateOfflineReplay(export.Source, new(images)),
+            export.UnrecordedFields,
+            []);
+    }
+
+    /// <summary>
+    /// Every eligible retained photograph of a case, with its content, chosen
+    /// by the same <see cref="EvaHandoffPolicy.SelectEligibleImages"/> the
+    /// hand-off uses — so an operator export and a hand-off never disagree
+    /// about which images belong to a case.
+    /// </summary>
+    private async Task<List<EvaBundleImage>> LoadEligibleImagesAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        string caseReference,
+        CancellationToken cancellationToken)
+    {
+        var candidateRows = await (
+                from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                join version in context.Set<DocumentVersionEntity>().AsNoTracking()
+                    on occurrence.VersionId equals version.Id
+                where occurrence.CaseId == caseId
+                      && version.DocumentId == occurrence.DocumentId
+                orderby occurrence.Ordinal
+                select new SelectedDocument(
+                    occurrence.Id,
+                    occurrence.Ordinal,
+                    occurrence.CaseId,
+                    occurrence.DocumentId,
+                    occurrence.Source,
+                    occurrence.SourceOccurrenceIdentity,
+                    occurrence.SemanticRole,
+                    version.Id,
+                    version.DocumentId,
+                    version.Version,
+                    version.FileName,
+                    version.MediaType,
+                    version.ContentLength,
+                    version.Sha256,
+                    version.CustodyStatus,
+                    version.IsCurrent,
+                    version.IsLogicallyRemoved,
+                    occurrence.ThirdPartyVehicleConfirmedAtUtc != null))
+            .ToArrayAsync(cancellationToken);
+        var eligibleVersionIds = EvaHandoffPolicy.SelectEligibleImages(candidateRows.Select(
+                selected => new EvaHandoffImageCandidate(
+                    selected.OccurrenceId,
+                    selected.DocumentId,
+                    selected.VersionId,
+                    selected.Version,
+                    selected.FileName,
+                    selected.MediaType,
+                    selected.ContentLength,
+                    selected.Sha256,
+                    selected.SemanticRole,
+                    selected.Source,
+                    selected.SourceOccurrenceIdentity,
+                    selected.CustodyStatus == DocumentCustodyStatus.Confirmed,
+                    selected.IsCurrent,
+                    selected.IsLogicallyRemoved,
+                    selected.IsThirdPartyVehicle,
+                    selected.Ordinal)))
+            .Select(candidate => candidate.VersionId)
+            .ToHashSet();
+
+        var images = new List<EvaBundleImage>();
+        foreach (var selected in candidateRows.Where(
+            selected => eligibleVersionIds.Contains(selected.VersionId)
+                        && selected.ContentLength <= int.MaxValue))
+        {
+            await using var content = await contentStore.OpenReadVersionAsync(
+                new(
+                    caseId,
+                    caseReference,
+                    selected.OccurrenceId,
+                    selected.Ordinal,
+                    selected.DocumentId,
+                    selected.VersionId,
+                    selected.Version,
+                    selected.SemanticRole,
+                    selected.FileName,
+                    selected.MediaType),
+                selected.Sha256,
+                selected.ContentLength,
+                cancellationToken);
+            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)selected.ContentLength));
+            await content.ReadExactlyAsync(bytes, cancellationToken);
+            images.Add(new(
+                selected.OccurrenceId,
+                selected.DocumentId,
+                selected.VersionId,
+                selected.Version,
+                selected.FileName,
+                selected.MediaType,
+                selected.SemanticRole,
+                selected.Source,
+                selected.SourceOccurrenceIdentity,
+                bytes,
+                selected.Sha256,
+                CustodyConfirmed: true,
+                IsCurrent: true,
+                selected.Ordinal));
+        }
+
+        return images;
+    }
+
     private EvaMappingResult MapAcceptedCase(
         CaseDataProjection caseData,
-        CaseVehicleEvidence? vehicle)
+        CaseVehicleEvidence? vehicle) =>
+        CaseEvaMapping.MapForProduction(
+            BuildEvidence(caseData, vehicle, includeSuggestions: false),
+            mappingAcceptance);
+
+    /// <summary>
+    /// The thirteen EVA fields read off one case, written once.
+    ///
+    /// <paramref name="includeSuggestions"/> is the whole difference between
+    /// the hand-off and an operator export (CASE-019), and it is a difference
+    /// in what counts as evidence, not in what the fields are. False is the
+    /// hand-off: only a staff-confirmed or extracted value counts, which is
+    /// the bar EVA delivery has always had. True is the operator's own
+    /// download: a suggested value counts too, and travels with its real
+    /// suggested status — which is how the lookup-derived mileage ENG-013
+    /// writes reaches an export without ever being able to reach a hand-off.
+    /// </summary>
+    private static EvaAcceptedCaseEvidence BuildEvidence(
+        CaseDataProjection caseData,
+        CaseVehicleEvidence? vehicle,
+        bool includeSuggestions)
     {
         var caseId = caseData.Identity.CaseId;
         var inspection = ResolveInspection(caseData);
         var acceptedVehicle = vehicle?.CaseId == caseId
             ? vehicle.Confirmed
             : null;
-        var evidence = new EvaAcceptedCaseEvidence(
+        return new EvaAcceptedCaseEvidence(
             caseId,
             caseData.Version,
             caseData.AcceptedAtUtc != default,
@@ -687,24 +872,39 @@ public sealed class EvaHandoffStore(
                 EvaEvidenceStatus.Accepted,
                 $"case-identity:{caseId:D}",
                 "case-reference/v1"),
-            FromCaseField(caseData.Provider.WorkProviderCode, static value => value),
-            FromVehicleField(acceptedVehicle?.Registration, static value => value),
-            VehicleModel(acceptedVehicle),
-            FromCaseField(caseData.Claimant.Name, static value => value),
-            FromCaseField(caseData.Accident.IncidentDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
-            FromCaseField(caseData.Instruction.InstructionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
-            FromCaseField(caseData.Inspection.InspectionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)),
+            FromCaseField(caseData.Provider.WorkProviderCode, static value => value, includeSuggestions),
+            Fallback(
+                FromVehicleField(acceptedVehicle?.Registration, static value => value),
+                caseData.Vehicle.Registration,
+                static value => value,
+                includeSuggestions),
+            Fallback(
+                VehicleModel(acceptedVehicle),
+                caseData.Vehicle.Model,
+                static value => value,
+                includeSuggestions),
+            FromCaseField(caseData.Claimant.Name, static value => value, includeSuggestions),
+            FromCaseField(caseData.Accident.IncidentDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), includeSuggestions),
+            FromCaseField(caseData.Instruction.InstructionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), includeSuggestions),
+            FromCaseField(caseData.Inspection.InspectionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), includeSuggestions),
             inspection,
-            FromCaseField(caseData.Accident.Circumstances, static value => value),
-            FromCaseField(caseData.Instruction.VatStatus, static value => value),
-            FromVehicleField(acceptedVehicle?.Mileage, static value => value.ToString(CultureInfo.InvariantCulture)),
-            FromVehicleField(acceptedVehicle?.MileageUnit, static value => value switch
-            {
-                VehicleMileageUnit.Miles => "miles",
-                VehicleMileageUnit.Kilometres => "kilometres",
-                _ => value.ToString()
-            }));
-        return CaseEvaMapping.MapForProduction(evidence, mappingAcceptance);
+            FromCaseField(caseData.Accident.Circumstances, static value => value, includeSuggestions),
+            FromCaseField(caseData.Instruction.VatStatus, static value => value, includeSuggestions),
+            Fallback(
+                FromVehicleField(acceptedVehicle?.Mileage, static value => value.ToString(CultureInfo.InvariantCulture)),
+                caseData.Vehicle.Mileage,
+                static value => value.ToString(CultureInfo.InvariantCulture),
+                includeSuggestions),
+            Fallback(
+                FromVehicleField(acceptedVehicle?.MileageUnit, static value => value switch
+                {
+                    VehicleMileageUnit.Miles => "miles",
+                    VehicleMileageUnit.Kilometres => "kilometres",
+                    _ => value.ToString()
+                }),
+                caseData.Vehicle.MileageUnit,
+                static value => value.ToLowerInvariant(),
+                includeSuggestions));
     }
 
     private static EvaAddressResolution ResolveInspection(CaseDataProjection caseData)
@@ -771,11 +971,31 @@ public sealed class EvaHandoffStore(
 
     private static EvaEvidenceValue FromCaseField<T>(
         CaseField<T> field,
-        Func<T, string> format)
+        Func<T, string> format,
+        bool includeSuggestions)
         where T : notnull =>
         Accepted(field) is { } value
             ? FromCaseValue(value, format)
-            : MissingEvidence;
+            : includeSuggestions && field.Suggestion is { } suggestion
+                ? FromCaseValue(suggestion, format) with { Status = EvaEvidenceStatus.Suggested }
+                : MissingEvidence;
+
+    /// <summary>
+    /// The vehicle fields have their own confirmed record, which is the only
+    /// thing a hand-off will read. An operator export falls back to the case's
+    /// own field when that record has nothing — which is where ENG-013 writes
+    /// what the DVLA and DVSA lookup found, so an export carries a mileage the
+    /// documents never supplied. It never overrides a confirmed value.
+    /// </summary>
+    private static EvaEvidenceValue Fallback<T>(
+        EvaEvidenceValue confirmed,
+        CaseField<T> field,
+        Func<T, string> format,
+        bool includeSuggestions)
+        where T : notnull =>
+        !string.IsNullOrWhiteSpace(confirmed.Value) || !includeSuggestions
+            ? confirmed
+            : FromCaseField(field, format, includeSuggestions: true);
 
     private static CaseDataValue<T>? Accepted<T>(CaseField<T> field)
         where T : notnull =>
@@ -845,7 +1065,7 @@ public sealed class EvaHandoffStore(
         $"{first.SourceVersion}|{second.SourceVersion}");
 
     private static EvaEvidenceValue MissingEvidence { get; } =
-        new(null, EvaEvidenceStatus.Suggested, "missing", "missing");
+        new(null, EvaEvidenceStatus.Unrecorded, "unrecorded", "unrecorded");
 
     private static EvaHandoffRevisionEntity NewRevision(
         GenerateEvaHandoffRequest request,

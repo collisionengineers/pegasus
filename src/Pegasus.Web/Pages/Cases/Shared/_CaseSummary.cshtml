@@ -66,7 +66,29 @@
             @{ PlainRow("Principal", workflow.Identity.PrincipalCode); }
             @{ DataRow("Claimant", data?.Claimant.Name); }
             @{ DataRow("Claim number", data?.Claim.Number); }
+            @{ DataRow("VAT status", data?.Instruction.VatStatus); }
             @{ PlainRow("Engineer", workflow.AssignedEngineerId is null ? "Unassigned" : "Assigned"); }
+            @* A correction link is an identity fact — which case this one
+               replaces, or is replaced by — so it belongs here rather than in
+               a standing-status block of its own. *@
+            @if (workflow.OriginalCaseId is { } originalCaseId)
+            {
+                <div class="datarow">
+                    <span class="datarow__field">Corrects</span>
+                    <span class="datarow__value">
+                        <a asp-page="/Cases/Details" asp-route-id="@originalCaseId">the original Created-in-error case</a>
+                    </span>
+                </div>
+            }
+            @if (workflow.ReplacementCaseId is { } replacementCaseId)
+            {
+                <div class="datarow">
+                    <span class="datarow__field">Corrected by</span>
+                    <span class="datarow__value">
+                        <a asp-page="/Cases/Details" asp-route-id="@replacementCaseId">the linked replacement case</a>
+                    </span>
+                </div>
+            }
         </div>
     </section>
 
@@ -137,54 +159,28 @@
     }
 
     @*
-        Engineer queries. Not allocated in docs/capabilities.md: raising a
-        query, its reply chain and its resolution are their own workflow.
-        Inactive — the block names the surface and the control renders, but
-        nothing is raised, stored or answered here.
+        CASE-018: the inspection and contact facts used to be readable only
+        from the "Case detail" list further down, which restated the whole
+        projection — every fact above appeared there a second time. The list
+        is gone; the facts that had no other home moved up here, so the
+        block-grid is now the one place a case fact is read.
     *@
-    <section class="block" aria-labelledby="block-queries">
-        <header>
-            <h2 id="block-queries">Engineer queries</h2>
-            <button type="button" class="btn" disabled>Raise a query</button>
-        </header>
+    <section class="block" aria-labelledby="block-inspection">
+        <header><h2 id="block-inspection">Inspection</h2></header>
         <div>
-            <p class="empty-state">No queries have been raised on this case.</p>
+            @{ DataRow("Inspection date", data?.Inspection.InspectionDate, value => value.ToString("d MMM yyyy")); }
+            @{ DataRow("Deadline", data?.Inspection.Deadline, value => value.ToString("d MMM yyyy")); }
+            @{ DataRow("Address", data?.Inspection.Address); }
+            @{ DataRow("Mode", data?.Inspection.Mode, OperatorLabels.InspectionMode); }
         </div>
     </section>
 
-    @* Where the case stands: the reason the operator opened it. *@
-    <section class="block block--standing" aria-labelledby="block-standing">
-        <header><h2 id="block-standing">Where this case stands</h2></header>
+    <section class="block" aria-labelledby="block-contact">
+        <header><h2 id="block-contact">Contact</h2></header>
         <div>
-            @{ PlainRow("State", OperatorLabels.CaseStage(workflow.State)); }
-            @if (workflow.DueWork is { } standingDueWork)
-            {
-                PlainRow("Outstanding", OperatorLabels.ChaseReason(standingDueWork.MissingMaterialReason));
-                PlainRow("Due by", standingDueWork.DueBy?.ToString("d MMM yyyy") ?? "Not recorded");
-                PlainRow("Next chase", OperatorLabels.OfficeTime(standingDueWork.NextChaseAtUtc, "Not scheduled"));
-            }
-            @if (workflow.ReportApproval is not null)
-            {
-                PlainRow("Report", "Approved");
-            }
-            @if (workflow.OriginalCaseId is { } originalCaseId)
-            {
-                <div class="datarow">
-                    <span class="datarow__field">Corrects</span>
-                    <span class="datarow__value">
-                        <a asp-page="/Cases/Details" asp-route-id="@originalCaseId">the original Created-in-error case</a>
-                    </span>
-                </div>
-            }
-            @if (workflow.ReplacementCaseId is { } replacementCaseId)
-            {
-                <div class="datarow">
-                    <span class="datarow__field">Corrected by</span>
-                    <span class="datarow__value">
-                        <a asp-page="/Cases/Details" asp-route-id="@replacementCaseId">the linked replacement case</a>
-                    </span>
-                </div>
-            }
+            @{ DataRow("Name", data?.Contact.Name); }
+            @{ DataRow("E-mail", data?.Contact.EmailAddress); }
+            @{ DataRow("Phone", data?.Contact.PhoneNumber); }
         </div>
     </section>
 </div>
@@ -196,6 +192,10 @@
         <dl class="detail-list">
             <div><dt>Reason</dt><dd>@OperatorLabels.ChaseReason(dueWork.MissingMaterialReason)</dd></div>
             <div><dt>State</dt><dd>@OperatorLabels.Humanise(dueWork.State.ToString())</dd></div>
+            @* Moved from the removed "Where this case stands" block: when a
+               chase is due and when the next one runs are chase facts. *@
+            <div><dt>Due by</dt><dd>@(dueWork.DueBy?.ToString("d MMM yyyy") ?? "Not recorded")</dd></div>
+            <div><dt>Next chase</dt><dd>@OperatorLabels.OfficeTime(dueWork.NextChaseAtUtc, "Not scheduled")</dd></div>
             <div><dt>Most recent channel</dt><dd>@(dueWork.MostRecentChannel ?? "No chase recorded")</dd></div>
             <div><dt>Most recent outcome</dt><dd>@(dueWork.MostRecentOutcome ?? "No chase recorded")</dd></div>
             <div><dt>Most recent note</dt><dd>@(dueWork.MostRecentNote ?? "None")</dd></div>
