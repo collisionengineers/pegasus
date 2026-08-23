@@ -64,10 +64,15 @@ public sealed partial class ExportModel(
         {
             return Forbid();
         }
+        // PLAT-039: an export reads every photograph out of Box, so a custody
+        // transport failure is an ordinary way for it to fail. Without
+        // HttpRequestException here the operator got the generic error page
+        // instead of their case with a reason on it.
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or InvalidDataException
             or IOException
+            or HttpRequestException
             or UnauthorizedAccessException)
         {
             LogDocumentExportFailed(logger, caseId, exception);
@@ -139,6 +144,7 @@ public sealed partial class ExportModel(
             or InvalidOperationException
             or InvalidDataException
             or IOException
+            or HttpRequestException
             or UnauthorizedAccessException)
         {
             LogDocumentExportFailed(logger, caseId, exception);

@@ -534,7 +534,10 @@ public static class DependencyInjection
         {
             Timeout = TimeSpan.FromSeconds(100)
         });
-        services.AddSingleton<IBoxAuthorizationHeaderProvider, BoxJwtAuthorizationHeaderProvider>();
+        services.AddSingleton<IBoxAuthorizationHeaderProvider>(provider =>
+            new BoxJwtAuthorizationHeaderProvider(
+                provider.GetRequiredService<BoxCustodyOptions>(),
+                provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton(provider => new BoxContentClient(
             provider.GetRequiredService<BoxCustodyOptions>(),
             provider.GetRequiredService<HttpClient>(),
