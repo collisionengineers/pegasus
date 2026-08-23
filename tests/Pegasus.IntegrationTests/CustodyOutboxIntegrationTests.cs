@@ -1,10 +1,16 @@
+using System.Globalization;
+using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -1149,6 +1155,182 @@ public sealed class CustodyOutboxIntegrationTests
     }
 
     /// <summary>
+    /// CASE-019: the operator's own export of a case, end to end — a real
+    /// instruction accepted through the pipeline, its custody completed, then
+    /// the archive built and opened. The Core tests cover the field mapping;
+    /// this is the only thing that proves an archive comes out at all, which
+    /// is what the operator asked for and what never worked.
+    /// </summary>
+    [Fact]
+    public async Task ExportingACaseProducesTheEvaFormatArchive()
+    {
+        using var factory = new IntakeWebApplicationFactory();
+        using var host = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureAppConfiguration((_, configuration) =>
+                configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    // PLAT-037's three settings. Without them CaseEvaMapping
+                    // refuses before reading any case data, which is exactly
+                    // how production behaved until release 23.
+                    ["Eva:AcceptedMapping:Key"] = CaseEvaMapping.MappingKey,
+                    ["Eva:AcceptedMapping:Version"] =
+                        CaseEvaMapping.MappingVersion.ToString(CultureInfo.InvariantCulture),
+                    ["Eva:AcceptedMapping:EvidenceReference"] =
+                        "docs/frd/frd-07-eva-and-external-engineering-handoff.md"
+                })));
+        await using var scope = host.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+
+        var fixtureId = Guid.NewGuid().ToString("N");
+        var message = new MimeKit.MimeMessage();
+        message.From.Add(new MimeKit.MailboxAddress("Synthetic sender", "instructions@qdosassist.co.uk"));
+        message.To.Add(new MimeKit.MailboxAddress("Pegasus Intake", "intake@example.test"));
+        message.Subject = "QDOS test instruction";
+        var builder = new MimeKit.BodyBuilder
+        {
+            TextBody = $"QDOS instruction\r\nClaimant Name: Export Case {fixtureId}\r\nClaim Number: EXP-{fixtureId}",
+        };
+        builder.Attachments.Add(
+            "53364_1_LtrtoEngineerIn.pdf",
+            "%PDF-1.4 synthetic instruction letter"u8.ToArray(),
+            MimeKit.ContentType.Parse("application/pdf"));
+        var first = SyntheticJpeg();
+        var second = SyntheticJpeg(shade: 90);
+        builder.Attachments.Add(
+            "1_CLVoffside-V1.jpg", first, MimeKit.ContentType.Parse("image/jpeg"));
+        builder.Attachments.Add(
+            "2_CLVnearside-V1.jpg", second, MimeKit.ContentType.Parse("image/jpeg"));
+        message.Body = builder.ToMessageBody();
+        using var output = new MemoryStream();
+        message.WriteTo(output);
+
+        var receipt = await services.GetRequiredService<ProcessIntake>().ExecuteAsync(
+            new(
+                $"case-export-{fixtureId}.eml",
+                "message/rfc822",
+                output.ToArray(),
+                FixedUtcNow,
+                "custody-test",
+                new IntakeSourceIdentity(
+                    IntakeSourceChannel.ManualUpload,
+                    $"case-export:{Guid.NewGuid():N}")),
+            CancellationToken.None);
+        Assert.Equal(IntakeDecision.CaseCreated, receipt.Decision);
+        var outcome = await AcceptAsync(services, receipt.Id);
+        await services.GetRequiredService<IProcessQueuedCustody>()
+            .ExecuteAsync(outcome.CustodyWorkId, CancellationToken.None);
+
+        // The local profile's document content store resolves by case reference
+        // and version id, while intake's local custody adapter writes its own
+        // layout — so an intake-retained document has records here but no
+        // readable content. Production does not have that gap:
+        // BoxDocumentContentStore overrides OpenReadVersionAsync to resolve the
+        // full occurrence address, which is where Box already holds the file
+        // custody uploaded. Putting the bytes where this store expects them is
+        // the local stand-in for that, and is the only way to exercise the
+        // export end to end off Box. The gap itself is [[PLAT-038]].
+        await using (var seed = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            var contentStore = services.GetRequiredService<IDocumentContentStore>();
+            var images = await (
+                    from occurrence in seed.Set<DocumentOccurrenceEntity>().AsNoTracking()
+                    join version in seed.Set<DocumentVersionEntity>().AsNoTracking()
+                        on occurrence.VersionId equals version.Id
+                    where occurrence.CaseId == outcome.Identity.CaseId
+                          && occurrence.SemanticRole == DocumentSemanticRole.Image
+                    select new { version.Id, version.FileName, version.Sha256 })
+                .ToArrayAsync();
+            Assert.Equal(2, images.Length);
+            foreach (var image in images)
+            {
+                var bytes = image.FileName.StartsWith("1_", StringComparison.Ordinal)
+                    ? first
+                    : second;
+                await contentStore.StoreAsync(
+                    outcome.Identity.CaseId,
+                    outcome.Identity.Reference,
+                    image.Id,
+                    bytes,
+                    image.Sha256,
+                    CancellationToken.None);
+            }
+        }
+
+        var export = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+            new(outcome.Identity.CaseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])),
+            CancellationToken.None);
+
+        Assert.NotNull(export);
+        Assert.Empty(export!.BlockingReasons);
+        var bundle = Assert.IsType<EvaBundle>(export.Bundle);
+        var reference = outcome.Identity.Reference;
+        Assert.Equal($"EVA-{reference}.zip", bundle.FileName);
+
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
+
+        // The shape the operator asked for: a zip of the images and a JSON.
+        Assert.Contains($"EVA-{reference}.json", entries);
+        Assert.Contains("provenance.json", entries);
+        Assert.Contains("manifest.sha256", entries);
+        Assert.Equal(2, entries.Count(name => name.StartsWith("Images/", StringComparison.Ordinal)));
+        Assert.Contains(entries, name => name.EndsWith("1_CLVoffside-V1.jpg", StringComparison.Ordinal));
+        // The instruction PDF and the .eml are not photographs and stay out.
+        Assert.DoesNotContain(entries, name => name.EndsWith(".pdf", StringComparison.Ordinal));
+        Assert.DoesNotContain(entries, name => name.EndsWith(".eml", StringComparison.Ordinal));
+
+        using var eva = JsonDocument.Parse(bundle.JsonContent);
+        var fields = eva.RootElement.EnumerateObject().ToArray();
+        Assert.Equal(
+            [
+                "Work Provider", "VRM", "Vehicle Model", "Claimant Name", "Reference",
+                "Incident Date", "Instruction Date", "Inspection Date", "Inspection Address",
+                "Accident Circumstances", "VAT Status", "Mileage", "Mileage Unit"
+            ],
+            fields.Select(field => field.Name));
+        // Every key is a string, present whether or not the case knows it.
+        Assert.All(fields, field => Assert.Equal(JsonValueKind.String, field.Value.ValueKind));
+        Assert.Equal(reference, eva.RootElement.GetProperty("Reference").GetString());
+        Assert.Equal(QdosPrincipal.Code, eva.RootElement.GetProperty("Work Provider").GetString());
+        // Operator direction (2026-08-22): an absent inspection date is today's.
+        Assert.False(
+            string.IsNullOrWhiteSpace(eva.RootElement.GetProperty("Inspection Date").GetString()),
+            "An inspection date must always be present, defaulting to the export date.");
+
+        using var provenance = JsonDocument.Parse(bundle.ProvenanceContent);
+        Assert.Equal(
+            CaseEvaMapping.MappingKey,
+            provenance.RootElement.GetProperty("mapping").GetProperty("key").GetString());
+        Assert.Equal(13, provenance.RootElement.GetProperty("fields").GetArrayLength());
+        Assert.Equal(2, provenance.RootElement.GetProperty("images").GetArrayLength());
+
+        // The manifest covers every entry, and each hash is the real one.
+        var manifest = Encoding.UTF8.GetString(bundle.ManifestContent);
+        Assert.Equal(4, manifest.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
+        foreach (var entry in archive.Entries.Where(item => item.FullName != "manifest.sha256"))
+        {
+            using var content = entry.Open();
+            using var buffer = new MemoryStream();
+            await content.CopyToAsync(buffer);
+            var digest = Convert.ToHexString(SHA256.HashData(buffer.ToArray()));
+            Assert.Contains($"{digest}  {entry.FullName}", manifest, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // An export is a read: it records no revision and no hand-off proxy.
+        await using var context = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Empty(await context.EvaHandoffRevisions
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .ToListAsync());
+        Assert.Empty(await context.EvaFirstHandoffProxies
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .ToListAsync());
+    }
+
+    /// <summary>
     /// DOCS-009: the production shape is a PDF instruction plus photographs.
     /// Every attachment used to be filed as an instruction document whatever
     /// its media type, so a case's own damage photographs were invisible to
@@ -1225,11 +1407,11 @@ public sealed class CustodyOutboxIntegrationTests
     /// square enough to clear the banner shape test, so it is judged a
     /// photograph on its own merits rather than by its file name.
     /// </summary>
-    private static byte[] SyntheticJpeg()
+    private static byte[] SyntheticJpeg(byte shade = 112)
     {
         using var bitmap = new SkiaSharp.SKBitmap(709, 768);
         using var canvas = new SkiaSharp.SKCanvas(bitmap);
-        canvas.Clear(SkiaSharp.SKColors.SlateGray);
+        canvas.Clear(new SkiaSharp.SKColor(shade, shade, shade));
         using var encoded = SkiaSharp.SKImage.FromBitmap(bitmap)
             .Encode(SkiaSharp.SKEncodedImageFormat.Jpeg, 90);
         return encoded.ToArray();
