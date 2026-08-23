@@ -532,7 +532,7 @@ public static class DependencyInjection
         services.AddSingleton(provider => boxOptions(provider));
         services.TryAddSingleton(static _ => new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(100)
+            Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout
         });
         // The header provider needs a clock. Every caller reaches this through
         // AddPegasusInfrastructure, which registers one, but the storage

@@ -48,11 +48,21 @@ public sealed class QdosMailClassificationPolicyTests
     /// Every QDOS message reaches the mailbox as a staff forward, so the tell
     /// sits behind a Fw: prefix in practice — as it did on U34.
     /// </summary>
-    [Fact]
-    public void TheTriageSubjectIsReadThroughAForwardPrefix()
+    /// <summary>
+    /// Every QDOS message reaches the mailbox as a staff forward, so the tell
+    /// sits behind a Fw: prefix in practice — as it did on U34. Leading
+    /// whitespace, with or without a prefix, is a transport artefact and not a
+    /// human sentence, so it does not hide the tell either.
+    /// </summary>
+    [Theory]
+    [InlineData("Fw: Engineer Triage - Our Claim Reference 47939/1")]
+    [InlineData("   Fw:  Re:  Engineer Triage - Our Claim Reference 47939/1")]
+    [InlineData(" Engineer Triage - Our Claim Reference 47939/1")]
+    [InlineData("\tEngineer Triage - Our Claim Reference 47939/1")]
+    public void TheTriageSubjectIsReadThroughForwardPrefixesAndLeadingSpace(string subject)
     {
         var result = Classify(
-            subject: "Fw: Engineer Triage - Our Claim Reference 47939/1",
+            subject: subject,
             body: "Can you kindly advise if the vehicle would be considered repairable.");
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
