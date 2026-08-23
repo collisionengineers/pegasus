@@ -310,6 +310,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 26 | 2026-08-23 | `7d6a948a…` | `sha256:d64e76ba…` | `pegasus-prod-web-252ow37gij--7d6a948a2f34` | none (head unchanged at `20260822223626_BackfillVehicleLookupSuggestions`) |
+  | 25 | 2026-08-23 | `75570b99…` | `sha256:e99ade3c…` | `pegasus-prod-web-252ow37gij--75570b99d713` | none (head unchanged at `20260822223626_BackfillVehicleLookupSuggestions`) |
   | 24 | 2026-08-23 | `19969404…` | `sha256:bd9d8c4a…` | `pegasus-prod-web-252ow37gij--199694040184` | `20260822223626_BackfillVehicleLookupSuggestions` |
   | 23 | 2026-08-22 | `b6d54ff6…` | `sha256:7193802c…` | `pegasus-prod-web-252ow37gij--b6d54ff6-eva` | `20260822195419_CorrectIntakePhotographSemanticRole` |
   | 22 | 2026-08-22 | `191ddf33…` | `sha256:b40244ec…` | `pegasus-prod-web-252ow37gij--191ddf334208` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
@@ -336,6 +338,52 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 26** (2026-08-23, source `7d6a948a`, image `sha256:d64e76ba…`)
+    carried four production defects found operating release 25 against case
+    `ap.QDOS26012` and unidentified item `U34`. The largest, PLAT-039: the Box
+    SDK's `RetrieveTokenAsync` returns any cached token **without checking
+    expiry**, re-minting only when its cache is empty and leaving 401 recovery
+    to its own HTTP client — which Pegasus does not use. The single Web replica
+    minted one token at start and served it for its whole life, so *every* Box
+    read from the Web app failed with 401 an hour after each deploy: the case
+    export, the Evidence gallery and document downloads alike. Six 401s were
+    recorded that day from 10:36Z on a replica up since 01:34Z. The token is now
+    held against the lifetime Box states and renewed 120 seconds ahead of it,
+    with the margin derived from the client timeout it must exceed.
+
+    Alongside it: the Evidence gallery had been sending the *document* id where
+    the route resolves an *occurrence* id (two adjacent `Guid` slots filled
+    positionally in the wrong order, so images 404d before Box was reached); a
+    forwarded header carrying a `Cc:` line was unreadable, which is why one
+    triage instruction and its photograph became U34 and its inbox row showed
+    the forwarding desk; and QDOS's second triage template — five corpus
+    messages from three senders, disjoint from the seven carrying the known body
+    phrase — had never been classifiable at all.
+
+    Recorded because it is the more useful lesson: the branch's own
+    simplification pass **cleared** a regex that an independent pre-merge review
+    then measured as a remotely triggerable hang (an 85-character subject ran
+    past five seconds, on input from an approved mailbox, in both hosts). A pass
+    run by hand by the author over their own diff is not the independent check
+    the repository asks for.
+
+    After the deploy smoked, the second operator-approved test-data wipe
+    (PLAT-040) emptied **68 tables of 559 rows** and all **77**
+    `transient-intake` blobs, preserving 31 identity, automation-client,
+    mailbox-configuration, principal, provider-reference, workflow, audit and
+    schema tables — and the three sequence tables, so the next case is
+    QDOS26013 and no reference is reused. Mailbox poll cursors were preserved
+    deliberately: clearing them would make the next poll re-ingest every message
+    still in the mailbox. Outlook and Box were untouched; `authentication-ring`
+    and `box-links` are not merely left alone but unreachable to the release
+    identity by design. Smoke passed again against the emptied database.
+
+  - **Release 25** (2026-08-23, source `75570b99`, image `sha256:e99ade3c…`)
+    fixed the managed Box read: `VerifyFileMetadataAsync` compared the file's
+    `content_type`, which is not a field of the Box v2 file object, so the check
+    could never pass for any file. The first caller ever to read content back
+    from Box was the case export, which is why it survived undetected.
 
   - **Release 24** (2026-08-23, source `19969404`, image `sha256:bd9d8c4a…`)
     put the DVSA-derived mileage on the cases that already existed. Release 23
@@ -491,8 +539,19 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     picks it up — `APPLICATIONINSIGHTS_AUTHENTICATION_STRING` is an App Service
     and Functions host convention that a plain ASP.NET Core Container App does
     not read, and the Container Apps environment sends console logs to
-    `azure-monitor` with a null Log Analytics customer id, so container stdout
-    never reaches the workspace either.
+    `azure-monitor` with a null Log Analytics customer id.
+
+    **The second of those was wrong, and the correction matters.** The null
+    customer id means the environment does not write to a workspace *directly*;
+    a diagnostic setting does it instead. `pegasus-prod-aca-diagnostics` on the
+    managed environment routes `ContainerAppConsoleLogs` and
+    `ContainerAppSystemLogs` to workspace `pegasus-prod-logs-252ow37gij`, where
+    they are queryable by KQL, retained, and unaffected by the Application
+    Insights daily cap. The table is the resource-specific
+    `ContainerAppConsoleLogs` — **not** `ContainerAppConsoleLogs_CL`, which does
+    not resolve. This is the route that diagnosed the release-26 Box defect
+    while Application Insights was over quota, and it is strictly better than
+    polling `az containerapp logs show --tail`.
 
   - **Release 17** (2026-08-21, source `71911734`, image
     `sha256:f625c947…`) carried the QDOS26008 live-regression remediation.
