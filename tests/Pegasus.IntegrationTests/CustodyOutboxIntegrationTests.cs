@@ -1400,6 +1400,27 @@ public sealed class CustodyOutboxIntegrationTests
         Assert.Equal(
             DocumentSemanticRole.Instruction,
             roles["53364_1_LtrtoEngineerIn.pdf"]);
+
+        // DOCS-010: the gallery's own id is what the case-document download
+        // route resolves. It was the document id, not the occurrence id, so
+        // every photograph on the Evidence tab 404d before Box was reached —
+        // built positionally into two adjacent Guid slots, and nothing
+        // asserted which one it was.
+        var occurrenceIds = await context.Set<DocumentOccurrenceEntity>()
+            .AsNoTracking()
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .Select(item => item.Id)
+            .ToListAsync();
+        var gallery = await services
+            .GetRequiredService<ICaseEvidenceImageQueries>()
+            .ListForCaseAsync(outcome.Identity.CaseId, CancellationToken.None);
+
+        Assert.NotEmpty(gallery);
+        Assert.All(gallery, image =>
+        {
+            Assert.True(image.IsCaseDocument);
+            Assert.Contains(image.OccurrenceId!.Value, occurrenceIds);
+        });
     }
 
     /// <summary>

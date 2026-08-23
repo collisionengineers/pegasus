@@ -15,11 +15,11 @@ public sealed partial class DownloadModel(
 {
     public async Task<IActionResult> OnGetAsync(
         Guid caseId,
-        Guid documentId,
+        Guid occurrenceId,
         Guid versionId,
         CancellationToken cancellationToken)
     {
-        if (caseId == Guid.Empty || documentId == Guid.Empty || versionId == Guid.Empty)
+        if (caseId == Guid.Empty || occurrenceId == Guid.Empty || versionId == Guid.Empty)
         {
             return NotFound();
         }
@@ -33,7 +33,7 @@ public sealed partial class DownloadModel(
             var download = await downloadCaseDocument.ExecuteAsync(
                 new(
                     caseId,
-                    documentId,
+                    occurrenceId,
                     versionId,
                     actor,
                     $"web-download:{Guid.NewGuid():N}"),
@@ -45,7 +45,7 @@ public sealed partial class DownloadModel(
             if (!TryValidateResponse(download, out var fileName, out var mediaType, out var sha256))
             {
                 await download.DisposeAsync();
-                LogUnsafeDocumentResponse(logger, caseId, documentId, versionId);
+                LogUnsafeDocumentResponse(logger, caseId, occurrenceId, versionId);
                 return NotFound();
             }
 
@@ -61,7 +61,7 @@ public sealed partial class DownloadModel(
             or IOException
             or UnauthorizedAccessException)
         {
-            LogDocumentDownloadDenied(logger, caseId, documentId, versionId, exception);
+            LogDocumentDownloadDenied(logger, caseId, occurrenceId, versionId, exception);
             return NotFound();
         }
     }
