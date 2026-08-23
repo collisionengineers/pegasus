@@ -7,8 +7,9 @@ url = "https://learn.microsoft.com/api/mcp"
 enabled = true
 
 [mcp_servers.kanmer]
-command = "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\Kanmer.exe"
-args = [ "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanmer-mcp.cjs", "--root", "C:\\Users\\Alex\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer", "--repo-root", "C:\\Users\\Alex\\Documents\\GitHub\\pegasus" ]
+command = "C:\\Users\\PC\\AppData\\Local\\Programs\\Kanmer\\Kanmer.exe"
+args = [ "C:\\Users\\PC\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanmer-mcp.cjs", "--root", "C:\\Users\\PC\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer", "--repo-root", "C:\\Users\\PC\\Documents\\GitHub\\pegasus" ]
 
 [mcp_servers.kanmer.env]
 ELECTRON_RUN_AS_NODE = "1"
+
