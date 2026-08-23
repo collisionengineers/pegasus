@@ -4,7 +4,7 @@ type: ticket
 title: >-
   Classify QDOS's other triage template, the one with no "Triage Only Request"
   phrase
-status: verifying
+status: done
 area: mail-communications
 assignee: claude-code
 profile: fix
@@ -12,6 +12,7 @@ stageEntered:
   implementing: '2026-08-23T13:01:15.414Z'
   review: '2026-08-23T14:49:03.468Z'
   verifying: '2026-08-23T14:49:09.079Z'
+  done: '2026-08-23T15:17:40.531Z'
 taken_at: '2026-08-23T13:00:43.580Z'
 branch: task/qdos26012-regressions
 worktree: ../pegasus-worktrees/qdos26012-regressions
@@ -22,10 +23,10 @@ labels:
   - classification
 links: []
 docs_todo: true
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-23T12:49:17.222Z'
-updated: '2026-08-23T14:49:09.079Z'
+updated: '2026-08-23T15:17:40.531Z'
 ---
 
 ## QDOS sends triage requests in two templates; we recognise one
