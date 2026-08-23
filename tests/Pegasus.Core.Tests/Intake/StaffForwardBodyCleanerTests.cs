@@ -172,6 +172,68 @@ public sealed class StaffForwardBodyCleanerTests
         Assert.Equal(body, StaffForwardBodyCleaner.TrimProviderFooter(body));
     }
 
+    /// <summary>
+    /// MAIL-011. U34: a QDOS triage instruction and its photograph went
+    /// unidentified, and the inbox rendered the message as from the
+    /// forwarding desk, because the header block carried a Cc line and the
+    /// pattern demanded To: and Subject: be adjacent. This is that block,
+    /// as retained.
+    /// </summary>
+    private const string CopiedForward =
+        "Contact: engineers@collisionengineers.co.uk\n\n" +
+        "________________________________\n" +
+        "From: Robin Anderson <randerson@qdosassist.co.uk>\n" +
+        "Sent: 21 August 2026 11:18 PM\n" +
+        "To: Desk <desk@collisionengineers.co.uk>\n" +
+        "Cc: Qdos NewClaims <NewClaims@qdosassist.co.uk>\n" +
+        "Subject: Engineer Triage - Our Claim Reference 47939/1\n\n" +
+        "Can you kindly advise if the vehicle would be considered repairable.";
+
+    [Fact]
+    public void ReadsTheSenderThroughACopiedRecipientLine()
+    {
+        Assert.Equal(
+            "randerson@qdosassist.co.uk",
+            StaffForwardBodyCleaner.ForwardedSenderAddress(CopiedForward));
+    }
+
+    [Fact]
+    public void ReadsTheSenderThroughBothCopiedRecipientLines()
+    {
+        var body = CopiedForward.Replace(
+            "Subject: Engineer",
+            "Bcc: Audit <audit@qdosassist.co.uk>\nSubject: Engineer",
+            StringComparison.Ordinal);
+
+        Assert.Equal(
+            "randerson@qdosassist.co.uk",
+            StaffForwardBodyCleaner.ForwardedSenderAddress(body));
+    }
+
+    [Fact]
+    public void ACopiedRecipientBelongsToTheHeaderNotTheMessage()
+    {
+        var (headerLines, body) = StaffForwardBodyCleaner.SplitForwardedHeader(
+            StaffForwardBodyCleaner.Clean(CopiedForward, isStaffForward: true));
+
+        Assert.Contains(headerLines, line => line.StartsWith("Cc:", StringComparison.Ordinal));
+        Assert.StartsWith("Can you kindly advise", body, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The shape is widened, not loosened: the block must still be an address
+    /// header that ends in Subject:.
+    /// </summary>
+    [Fact]
+    public void AHeaderWithoutASubjectIsStillNotAForwardedHeader()
+    {
+        var truncated = CopiedForward[..CopiedForward.IndexOf(
+            "Subject:", StringComparison.Ordinal)];
+
+        Assert.Null(StaffForwardBodyCleaner.ForwardedSenderAddress(truncated));
+        Assert.Empty(StaffForwardBodyCleaner.SplitForwardedHeader(truncated).HeaderLines);
+    }
+
     [Fact]
     public void EmptyBodyIsReturnedEmpty()
     {
