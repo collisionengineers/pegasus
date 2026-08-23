@@ -534,6 +534,11 @@ public static class DependencyInjection
         {
             Timeout = TimeSpan.FromSeconds(100)
         });
+        // The header provider needs a clock. Every caller reaches this through
+        // AddPegasusInfrastructure, which registers one, but the storage
+        // profile should stand up on its own rather than depend on the order
+        // two extension methods happen to be called in.
+        services.TryAddSingleton(TimeProvider.System);
         services.AddSingleton<IBoxAuthorizationHeaderProvider>(provider =>
             new BoxJwtAuthorizationHeaderProvider(
                 provider.GetRequiredService<BoxCustodyOptions>(),

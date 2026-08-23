@@ -89,6 +89,47 @@ public sealed class QdosMailClassificationPolicyTests
         Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
     }
 
+    /// <summary>
+    /// A chaser on a triage thread is a triage request in reply context, which
+    /// is a destination view and not a case allocation. The corpus holds one:
+    /// "RE: Engineer Triage - Our Claim Reference : 46246/1 - Vehicle".
+    /// </summary>
+    [Fact]
+    public void AReplyOnATriageThreadIsATriageRequestInReplyContext()
+    {
+        var result = Classify(
+            subject: "RE: Engineer Triage - Our Claim Reference : 46246/1 - Vehicle",
+            body: "Any update on this one?");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal("triage-request", category.Subtype);
+        Assert.True(category.IsReplyContext);
+    }
+
+    /// <summary>
+    /// A subject is third-party input and this runs on every received message,
+    /// so the prefix rule must be linear. Written with whitespace on both
+    /// sides of the repeated group, a long chain of prefixes that never
+    /// reaches the tell takes exponential time: twenty "Re:  " ran past five
+    /// seconds. A stalled classification has no exception and no telemetry —
+    /// the mail pipeline simply stops.
+    /// </summary>
+    [Fact]
+    public void ALongPrefixChainDoesNotStallClassification()
+    {
+        var subject = string.Concat(Enumerable.Repeat("Re:  ", 24)) + "chase";
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = Classify(subject: subject, body: "Any update on this one?");
+
+        elapsed.Stop();
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.True(
+            elapsed.Elapsed < TimeSpan.FromSeconds(2),
+            $"Classifying a {subject.Length}-character subject took {elapsed.Elapsed}.");
+    }
+
     [Fact]
     public void AuditNotificationTitleInAnAttachmentClassifiesNewInstructionAudit()
     {
