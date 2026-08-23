@@ -61,3 +61,63 @@ session forbids delegating to the `code-simplifier` agent).
 | **Efficiency** | Source-generated regex, evaluated once per classification against a subject line. | — |
 
 Nothing was left unapplied.
+
+## Independent review — 2026-08-23, PR #523: one blocker, and the pass above was wrong
+
+A reviewer that did not implement the work found a **remotely triggerable hang**
+in the tell added by this ticket, and the simplification pass above had
+explicitly cleared the same line.
+
+### The defect
+
+```
+^(?:\s*(?i:RE|FW|FWD)\s*:\s*)*Engineer Triage\b
+```
+
+The trailing `\s*` of one iteration and the leading `\s*` of the next match the
+same whitespace, so every gap has two valid parses and a subject that fails to
+match has exponentially many to enumerate. Measured on this machine, `"Re:  "`
+repeated, against the shipped and the corrected pattern:
+
+| Subject | Shipped | Corrected |
+| --- | ---: | ---: |
+| 12 prefixes (65 chars) | 330 ms | 0 ms |
+| 16 prefixes (85 chars) | **>5 s (killed)** | 0 ms |
+| 20 prefixes (105 chars) | **>5 s (killed)** | 0 ms |
+
+`[GeneratedRegex]` carries no `matchTimeout` and the repository sets no global
+one. `Classify` runs on the subject of **every received message**, in both the
+Web and Worker paths, and the subject is third-party input from an approved
+mailbox. Anyone able to email an approved mailbox — or a long enough genuine
+reply chain — pins a core with no exception and no telemetry. Intake stops.
+
+### The fix
+
+```
+^\s*(?:(?i:RE|FW|FWD)\s*:\s*)*Engineer Triage\b
+```
+
+Leading whitespace consumed once, outside the group; every iteration must then
+consume a literal prefix, so the match is linear. Pinned by
+`ALongPrefixChainDoesNotStallClassification`, which fails the build if a
+24-prefix subject takes more than two seconds.
+
+### What this says about the pass
+
+The Efficiency lens above recorded *"Source-generated regex, evaluated once per
+classification against a subject line"* and the section closed *"Nothing was
+left unapplied."* Both were true and both missed the point: the cost is not how
+often it runs, it is what one run can cost on hostile input. A pass run by hand
+by the agent that wrote the line cleared the line it had just written.
+
+The repository requires the pass to use "`/simplify` plus the `code-simplifier`
+agent, or equivalent independent lenses". By-hand-by-the-author is not
+equivalent, and this is the evidence. The independent review was the control
+that worked.
+
+### Two further review items, both applied
+
+| Finding | Disposition |
+| --- | --- |
+| **The tell list existed in two places and they disagreed.** `docs/principal-rules-and-mappings/qdos.md` still said Version 3 with five predicates, and its own header claims it describes the deployed criteria. A "one list per concept" breach that `files.md` had not listed at all. | **Fixed.** The doc now carries Version 4, the sixth predicate, and why the two tells share one candidate. |
+| **A reply on a triage thread now classifies as a triage request** with reply context, where under v3 it was Unclassified. The corpus contains exactly one: `RE: Engineer Triage - Our Claim Reference : 46246/1`. Downstream this is a destination view, not an allocation, so there is no case-creation risk. | **Intended, and now pinned** by `AReplyOnATriageThreadIsATriageRequestInReplyContext`. The near-miss tests covered mid-subject and wrong casing but skipped the reply case — the one the corpus actually holds. |
