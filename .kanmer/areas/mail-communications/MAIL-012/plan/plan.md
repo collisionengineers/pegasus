@@ -121,3 +121,48 @@ that worked.
 | --- | --- |
 | **The tell list existed in two places and they disagreed.** `docs/principal-rules-and-mappings/qdos.md` still said Version 3 with five predicates, and its own header claims it describes the deployed criteria. A "one list per concept" breach that `files.md` had not listed at all. | **Fixed.** The doc now carries Version 4, the sixth predicate, and why the two tells share one candidate. |
 | **A reply on a triage thread now classifies as a triage request** with reply context, where under v3 it was Unclassified. The corpus contains exactly one: `RE: Engineer Triage - Our Claim Reference : 46246/1`. Downstream this is a destination view, not an allocation, so there is no case-creation risk. | **Intended, and now pinned** by `AReplyOnATriageThreadIsATriageRequestInReplyContext`. The near-miss tests covered mid-subject and wrong casing but skipped the reply case — the one the corpus actually holds. |
+
+## Delta re-review — 2026-08-23: MERGE
+
+The reviewer re-derived the ReDoS independently and tried to break the
+corrected pattern rather than accepting the coordinator's numbers. It could
+not. Measured against the real engine with this file's options:
+
+| Input | Length | Time |
+| --- | ---: | ---: |
+| `"Re:  "`×20,000 | 100,005 | 25.5 ms |
+| `"Fw:Re:FWD:"`×20,000 | 200,003 | 75.3 ms |
+| `"FW"`×50,000, no colon — forces the alternation to fail 50,000 times | 100,001 | 14.4 ms |
+| `"Re: "`×5,000 + `Engineer Triagex` — `\b` fails after a full prefix walk | 20,016 | 3.3 ms |
+| 100,000 × U+00A0, and NBSP/U+2028 between prefixes | ≤100,001 | ≤41.6 ms |
+| 200,000 spaces | 200,001 | 89.6 ms |
+
+Linear across four orders of magnitude, including the three shapes most likely
+to hide a second blow-up: alternation backtracking, word-boundary failure after
+a successful prefix walk, and Unicode whitespace (which `CultureInvariant` does
+not narrow). The 24-prefix guard test costs ~0.1 ms against its 2-second
+budget, so it pins the regression without being a timing flake.
+
+### One nit, closed here
+
+The reviewer brute-forced old against new over 33 subjects and found **four
+that differ, all one-directional** (`old=False`, `new=True`):
+
+```
+" Engineer Triage - ref"   "  Engineer Triage"
+"\tEngineer Triage"        "\r\nEngineer Triage"
+```
+
+With zero prefix iterations the old form put `^` straight against the tell, so
+leading whitespace with no prefix failed; `^\s*` now consumes it. **Nothing
+matches less** — every prefixed form is identical between the two, so no
+legitimate subject loses its tell and the reply, near-miss, casing and
+`Automatic reply:` behaviours are unchanged.
+
+Benign, and arguably right — MimeKit unfolds headers, and a leading space
+before a generated line is a transport artefact, not a human sentence. But it
+was a real behaviour change introduced by a *fix* commit and nothing covered
+it. `TheTriageSubjectIsReadThroughForwardPrefixesAndLeadingSpace` is now a
+theory over four subjects, including a bare leading space and a leading tab.
+
+**Verdict: MERGE.** No blocker or should-fix findings remain.

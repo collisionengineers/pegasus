@@ -78,3 +78,20 @@ raised two items here, both applied:
 
 The pass above missed nothing on this ticket, but see MAIL-012 — the same
 by-hand pass missed a real defect there, and this review is what caught it.
+
+## Delta re-review — 2026-08-23: MERGE, with two nits closed here
+
+The reviewer re-derived every claim independently and could not break the
+corrected regex. It raised two Box nits, both applied rather than filed:
+
+| Finding | Disposition |
+| --- | --- |
+| **The margin and the client timeout were joined only by a doc comment** — the same shape [[MAIL-011]] removes elsewhere in this very PR, where the rule was that a comment is not a mechanism. | **Fixed.** `RequestTimeout` is declared beside the margin, the margin is derived from it (`RequestTimeout + 20s`), and the registration that builds the Box `HttpClient` reads the same constant. The relationship is now enforced by the compiler; neither number can move without the other. |
+| **A token stating a lifetime shorter than the margin would never be live**, so every Box call would mint another — a silent storm against Box's token endpoint rather than a visible fault. Unreachable with Box JWT's one-hour tokens, but the guard only rejected a non-positive lifetime. | **Fixed.** The existing guard now also rejects a lifetime inside the renewal margin. Not a new failure path — a tightened condition on one that was already there — and it turns an unbounded request rate into one diagnosable exception. |
+
+The reviewer also confirmed what it had expected to find and did not:
+`TryAddSingleton(TimeProvider.System)` is safe in **every** registration
+order. `src/` holds exactly two `TimeProvider` registrations, and all six test
+overrides use `AddSingleton<TimeProvider>(fake)`, which is last-wins — so a
+fake clock wins whether it is registered before or after the storage profile,
+and the `TryAdd` is a no-op when it came first.
