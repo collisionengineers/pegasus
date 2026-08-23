@@ -142,8 +142,15 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
     private readonly Func<CancellationToken, Task<BoxAccessToken>> mint;
     private readonly TimeProvider timeProvider;
     private readonly SemaphoreSlim gate = new(1, 1);
-    private string? header;
-    private DateTimeOffset expiresAtUtc;
+
+    /// <summary>
+    /// Header and expiry together in one immutable object, so the lock-free
+    /// read below takes a single reference and can never see one token's
+    /// header against another's expiry.
+    /// </summary>
+    private sealed record Lease(string Header, DateTimeOffset ExpiresAtUtc);
+
+    private Lease? lease;
 
     public BoxJwtAuthorizationHeaderProvider(BoxCustodyOptions options, TimeProvider timeProvider)
         : this(SdkMint(options), timeProvider)
@@ -186,9 +193,11 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
                     "Box JWT authentication returned no usable access token.");
             }
 
-            expiresAtUtc = now + TimeSpan.FromSeconds(token.LifetimeSeconds.Value);
-            header = $"Bearer {token.Value}";
-            return header;
+            var renewal = new Lease(
+                $"Bearer {token.Value}",
+                now + TimeSpan.FromSeconds(token.LifetimeSeconds.Value));
+            Volatile.Write(ref lease, renewal);
+            return renewal.Header;
         }
         finally
         {
@@ -199,7 +208,9 @@ internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeade
     public void Dispose() => gate.Dispose();
 
     private string? Live(DateTimeOffset now) =>
-        header is { } cached && now + RenewalMargin < expiresAtUtc ? cached : null;
+        Volatile.Read(ref lease) is { } held && now + RenewalMargin < held.ExpiresAtUtc
+            ? held.Header
+            : null;
 
     private static Func<CancellationToken, Task<BoxAccessToken>> SdkMint(BoxCustodyOptions options)
     {
