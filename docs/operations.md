@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 24 | 2026-08-23 | `19969404…` | `sha256:bd9d8c4a…` | `pegasus-prod-web-252ow37gij--199694040184` | `20260822223626_BackfillVehicleLookupSuggestions` |
   | 23 | 2026-08-22 | `b6d54ff6…` | `sha256:7193802c…` | `pegasus-prod-web-252ow37gij--b6d54ff6-eva` | `20260822195419_CorrectIntakePhotographSemanticRole` |
   | 22 | 2026-08-22 | `191ddf33…` | `sha256:b40244ec…` | `pegasus-prod-web-252ow37gij--191ddf334208` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
   | 21 | 2026-08-22 | `4257b841…` | `sha256:d18c64a9…` | `pegasus-prod-web-252ow37gij--4257b841b4e2` | none (head unchanged at `20260822044425_GrantWorkerCaseDocuments`) |
@@ -335,6 +336,32 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 24** (2026-08-23, source `19969404`, image `sha256:bd9d8c4a…`)
+    put the DVSA-derived mileage on the cases that already existed. Release 23
+    made a vehicle lookup fill a case's empty fields *when the lookup runs*,
+    which helps only cases whose lookup is still to come — every case in the
+    estate had already been looked up, so nothing changed for any of them and
+    QDOS26011 still read "Not recorded" over an observation holding 121,823
+    miles. The migration corrects the recorded past.
+
+    Proved by reading the case back on the live instance: the Vehicle block now
+    reads `121,823 Miles — Estimated`, screenshotted, where the same page had
+    read "Not recorded" an hour earlier. QDOS26010 keeps its extracted 132,389
+    as a fact with the lookup's 128,343 retained behind it as a suggestion —
+    both held, one shown, which is what the operator's "two different mileages"
+    report was about.
+
+    The release also exposed, and did not fix, a defect that predates it: **no
+    managed Box read has ever succeeded in production**. `VerifyFileMetadataAsync`
+    compared the Box file's `content_type` against the recorded media type, and
+    `content_type` is not a field of the Box v2 file object — the comparison was
+    against null and could never pass. The Evidence gallery's images, the
+    case-document download and the case export all failed on that one exception
+    and reported it three different ways. It survived because nothing had ever
+    read content back from Box: `EvaHandoffRevisions`,
+    `EvaHandoffDownloadOperations` and `CaseAssessmentFields` are all empty.
+    Box *writes* were never affected.
 
   - **Release 23** (2026-08-22, source `b6d54ff6`, image `sha256:7193802c…`)
     stopped the case page saying the same thing three times, and made Export
