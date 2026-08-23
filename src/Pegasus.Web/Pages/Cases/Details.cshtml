@@ -116,9 +116,12 @@
         {
             <a class="btn" asp-page="/Cases/Details" asp-route-id="@replacementCaseId">Replacement case</a>
         }
+        @* CASE-019: the route parameter is caseId, not id. Sending id meant
+           link generation had nothing to fill the route with, so the control
+           rendered without an href at all and pressing it did nothing. *@
         <span class="gated" data-condition="@(canExport ? null : "Available in Review")">
             <a class="btn @(canExport ? string.Empty : "is-disabled")"
-               asp-page="/Cases/Documents/Export" asp-route-id="@summary.CaseId"
+               asp-page="/Cases/Documents/Export" asp-route-caseId="@summary.CaseId"
                aria-disabled="@(canExport ? "false" : "true")">
                 <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                 Export

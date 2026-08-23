@@ -216,6 +216,31 @@ public sealed record DownloadEvaHandoffResult(
     EvaHandoffRevisionArtifact? Artifact,
     string Message);
 
+/// <summary>
+/// CASE-019: an operator's own download of a case, as the EVA-format archive.
+///
+/// Deliberately not a hand-off. It takes no case version, no operation key and
+/// no edit lease, because it changes nothing: no revision is recorded, no
+/// first-hand-off proxy is written, and the case version does not move. It is
+/// a read that answers with a file, like a document download.
+/// </summary>
+public sealed record ExportCaseBundleRequest(Guid CaseId, ActionActor Actor);
+
+public sealed record ExportCaseBundleResult(
+    EvaBundle? Bundle,
+    IReadOnlyList<string> UnrecordedFields,
+    IReadOnlyList<string> BlockingReasons)
+{
+    public bool IsExported => Bundle is not null;
+}
+
+public interface IExportCaseBundle
+{
+    Task<ExportCaseBundleResult?> ExecuteAsync(
+        ExportCaseBundleRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public interface IDownloadEvaHandoff
 {
     Task<DownloadEvaHandoffResult> ExecuteAsync(
@@ -426,6 +451,14 @@ public sealed class EvaHandoffPolicyAuthority
 
 public static class EvaHandoffPolicy
 {
+    /// <summary>
+    /// The one wording for "this case has no photographs to send". The
+    /// hand-off and the operator export (CASE-019) both refuse for the same
+    /// reason and say so with the same sentence.
+    /// </summary>
+    public const string NoRetainedImagesReason =
+        "At least one stored vehicle image is required.";
+
     public static IReadOnlyList<EvaHandoffImageCandidate> SelectEligibleImages(
         IEnumerable<EvaHandoffImageCandidate> candidates) => candidates
         .Where(candidate => candidate.SemanticRole == DocumentSemanticRole.Image
@@ -487,7 +520,7 @@ public static class EvaHandoffPolicy
         }
         if (eligibility.EligibleImageCount <= 0)
         {
-            reasons.Add("At least one stored vehicle image is required.");
+            reasons.Add(NoRetainedImagesReason);
         }
         return reasons;
     }
@@ -584,12 +617,20 @@ public static class EvaBundleSchema
                 "The EVA bundle requires an explicitly accepted mapping/config version.");
         }
 
+        // CASE-019: what this method guards is the archive FORMAT — an
+        // accepted mapping, the exact ordered field set, provenance that
+        // covers it, and values that match that provenance. It used to also
+        // assert the hand-off's EVIDENCE BAR: every field non-empty, every
+        // status accepted or corrected. That was never the gate it looked
+        // like. The hand-off reaches here only through
+        // CaseEvaMapping.MapForProduction, which returns a null source unless
+        // all thirteen fields already carry accepted, provenanced, non-empty
+        // evidence — so these two rules were unreachable duplicates of a bar
+        // enforced upstream, and one that an operator export legitimately does
+        // not have to clear. The bar stays exactly where it is enforced; the
+        // copy of it is gone.
         var normalized = CaseEvaMapping.MapOfflineReplay(source.Fields);
         var values = OrderedFields(normalized).ToArray();
-        if (values.Any(field => string.IsNullOrWhiteSpace(field.Value)))
-        {
-            throw new InvalidDataException("Every EVA field requires an accepted non-empty value.");
-        }
         if (source.Provenance.Count != FieldOrder.Length)
         {
             throw new InvalidDataException("EVA field provenance must cover the exact ordered field set.");
@@ -607,7 +648,6 @@ public static class EvaBundleSchema
                         .GetValue(item.Name),
                     field.Value,
                     StringComparison.Ordinal)
-                || item.Status is not (EvaEvidenceStatus.Accepted or EvaEvidenceStatus.Corrected)
                 || string.IsNullOrWhiteSpace(item.Source)
                 || string.IsNullOrWhiteSpace(item.SourceVersion))
             {
@@ -617,7 +657,7 @@ public static class EvaBundleSchema
 
             provenance[index] = item with
             {
-                Value = field.Value!,
+                Value = field.Value ?? string.Empty,
                 Source = item.Source.Trim(),
                 SourceVersion = item.SourceVersion.Trim()
             };
@@ -718,7 +758,11 @@ public static class EvaBundleSchema
             writer.WriteStartObject();
             foreach (var field in OrderedFields(fields))
             {
-                writer.WriteString(field.Name, field.Value);
+                // Every key is always present and always a string: an importer
+                // reads the same thirteen keys whether or not the case knew
+                // the answer. A field the case does not hold is empty, never
+                // null and never absent.
+                writer.WriteString(field.Name, field.Value ?? string.Empty);
             }
             writer.WriteEndObject();
         }
@@ -750,7 +794,13 @@ public static class EvaBundleSchema
                 writer.WriteString("value", field.Value);
                 writer.WriteString(
                     "status",
-                    field.Status == EvaEvidenceStatus.Accepted ? "accepted" : "corrected");
+                    field.Status switch
+                    {
+                        EvaEvidenceStatus.Accepted => "accepted",
+                        EvaEvidenceStatus.Corrected => "corrected",
+                        EvaEvidenceStatus.Suggested => "suggested",
+                        _ => "unrecorded"
+                    });
                 writer.WriteString("source", field.Source);
                 writer.WriteString("sourceVersion", field.SourceVersion);
                 writer.WriteEndObject();

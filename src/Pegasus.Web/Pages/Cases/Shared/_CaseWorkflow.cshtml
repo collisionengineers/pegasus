@@ -9,40 +9,6 @@
 @{
     var details = Model.Case!;
     var workflow = details.Workflow;
-    // A typed value as text, keeping its provenance so the row can show where
-    // it came from as an icon rather than as a source label, a policy key and
-    // a version integer.
-    static CaseDataValue<string>? Text<T>(CaseDataValue<T>? value) where T : notnull =>
-        value is null
-            ? null
-            : new(
-                value.Value.ToString() ?? string.Empty,
-                value.Kind,
-                value.Source,
-                value.ConfirmedByActor,
-                value.ConfirmedAtUtc);
-    // A mileage figure never appears without its supplied/external/estimated
-    // class, so the one place that turns a case mileage value into row text
-    // also appends the classification word (a derived estimate is never
-    // presented as supplied).
-    static CaseDataValue<string>? ModeText(CaseDataValue<CaseInspectionMode>? value) =>
-        value is null
-            ? null
-            : new(
-                OperatorLabels.InspectionMode(value.Value),
-                value.Kind,
-                value.Source,
-                value.ConfirmedByActor,
-                value.ConfirmedAtUtc);
-    static CaseDataValue<string>? MileageText(CaseDataValue<long>? value) =>
-        value is null
-            ? null
-            : new(
-                $"{value.Value:N0} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClassification.Classify(value.Source.Kind))}",
-                value.Kind,
-                value.Source,
-                value.ConfirmedByActor,
-                value.ConfirmedAtUtc);
     var data = details.Data;
     var leaseToken = Model.LeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
@@ -86,71 +52,20 @@ else if (Model.ProposedValues.Count > 0)
     </section>
 }
 
-@if (data is not null)
+@* Only an editor now, so it renders only for an editor. *@
+@if (data is not null && mayEdit)
 {
     <section class="panel form-panel" aria-labelledby="case-data-title">
         <h2 id="case-data-title" class="section-label">Case detail</h2>
-        @{
-            // One row per field, showing the value that applies and where it
-            // came from. It replaces a three-column Fact / Suggestion /
-            // Staff-confirmed grid in which every populated cell also carried a
-            // source label, a policy key and a version integer — none of which
-            // an operator can act on, and most of which were em dashes.
-            var rows = new (string Field, CaseDataValue<string>? Accepted, CaseDataValue<string>? Suggested)[]
-            {
-                ("Claimant", Text(data.Claimant.Name.Fact) ?? Text(data.Claimant.Name.Confirmed), Text(data.Claimant.Name.Suggestion)),
-                ("Claim number", Text(data.Claim.Number.Fact) ?? Text(data.Claim.Number.Confirmed), Text(data.Claim.Number.Suggestion)),
-                ("Registration", Text(data.Vehicle.Registration.Fact) ?? Text(data.Vehicle.Registration.Confirmed), Text(data.Vehicle.Registration.Suggestion)),
-                ("Vehicle make", Text(data.Vehicle.Make.Fact) ?? Text(data.Vehicle.Make.Confirmed), Text(data.Vehicle.Make.Suggestion)),
-                ("Vehicle model", Text(data.Vehicle.Model.Fact) ?? Text(data.Vehicle.Model.Confirmed), Text(data.Vehicle.Model.Suggestion)),
-                ("Mileage", MileageText(data.Vehicle.Mileage.Fact) ?? MileageText(data.Vehicle.Mileage.Confirmed), MileageText(data.Vehicle.Mileage.Suggestion)),
-                ("Incident date", Text(data.Accident.IncidentDate.Fact) ?? Text(data.Accident.IncidentDate.Confirmed), Text(data.Accident.IncidentDate.Suggestion)),
-                ("Accident circumstances", Text(data.Accident.Circumstances.Fact) ?? Text(data.Accident.Circumstances.Confirmed), Text(data.Accident.Circumstances.Suggestion)),
-                ("Contact name", Text(data.Contact.Name.Fact) ?? Text(data.Contact.Name.Confirmed), Text(data.Contact.Name.Suggestion)),
-                ("Contact e-mail", Text(data.Contact.EmailAddress.Fact) ?? Text(data.Contact.EmailAddress.Confirmed), Text(data.Contact.EmailAddress.Suggestion)),
-                ("Contact phone", Text(data.Contact.PhoneNumber.Fact) ?? Text(data.Contact.PhoneNumber.Confirmed), Text(data.Contact.PhoneNumber.Suggestion)),
-                ("Instruction date", Text(data.Instruction.InstructionDate.Fact) ?? Text(data.Instruction.InstructionDate.Confirmed), Text(data.Instruction.InstructionDate.Suggestion)),
-                ("VAT status", Text(data.Instruction.VatStatus.Fact) ?? Text(data.Instruction.VatStatus.Confirmed), Text(data.Instruction.VatStatus.Suggestion)),
-                ("Inspection date", Text(data.Inspection.InspectionDate.Fact) ?? Text(data.Inspection.InspectionDate.Confirmed), Text(data.Inspection.InspectionDate.Suggestion)),
-                ("Inspection deadline", Text(data.Inspection.Deadline.Fact) ?? Text(data.Inspection.Deadline.Confirmed), Text(data.Inspection.Deadline.Suggestion)),
-                ("Inspection address", Text(data.Inspection.Address.Fact) ?? Text(data.Inspection.Address.Confirmed), Text(data.Inspection.Address.Suggestion)),
-                ("Inspection mode", ModeText(data.Inspection.Mode.Fact) ?? ModeText(data.Inspection.Mode.Confirmed), ModeText(data.Inspection.Mode.Suggestion))
-            };
-            var populated = rows.Where(row => row.Accepted is not null || row.Suggested is not null).ToArray();
-        }
-
-        @if (populated.Length == 0)
-        {
-            <p class="empty-state">No case detail has been recorded yet.</p>
-        }
-        else
-        {
-            @foreach (var row in populated)
-            {
-                <div class="datarow">
-                    <span class="datarow__field">@row.Field</span>
-                    @if (row.Accepted is { } accepted)
-                    {
-                        <span class="datarow__value">@accepted.Value</span>
-                    }
-                    else
-                    {
-                        <span class="datarow__value quiet">Not recorded</span>
-                    }
-                    @if (row.Suggested is { } suggested && row.Accepted is null)
-                    {
-                        <span class="datarow__sug">Suggested @suggested.Value</span>
-                    }
-                    <span class="datarow__end">
-                        <partial name="Shared/_Provenance" model="@((row.Accepted ?? row.Suggested)!.Source)" />
-                    </span>
-                </div>
-            }
-        }
-
-        @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null)
-        {
-            <form method="post" asp-page-handler="Save" class="form-grid">
+        @*
+            CASE-018: this section used to restate the whole case-data
+            projection above its edit forms, so every fact on the page above
+            appeared here a second time and registration appeared a third time
+            in Vehicle evidence. The read-only rows are gone; the block-grid in
+            _CaseSummary is the one place a case fact is read. What remains is
+            the editor, which only renders under an edit lease.
+        *@
+        <form method="post" asp-page-handler="Save" class="form-grid">
                 <input type="hidden" name="id" value="@workflow.CaseId" />
                 <input type="hidden" name="expectedVersion" value="@workflow.Version" />
                 <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
@@ -216,9 +131,8 @@ else if (Model.ProposedValues.Count > 0)
                 <label><input type="checkbox" name="instructionConfirmedByStaff" value="true" checked="@data.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionConfirmedByStaff" value="false" />
                 <label><input type="checkbox" name="imagesConfirmedByStaff" value="true" checked="@data.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesConfirmedByStaff" value="false" />
                 <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>
-                <button type="submit" class="primary-action">Confirm completeness</button>
-            </form>
-        }
+            <button type="submit" class="primary-action">Confirm completeness</button>
+        </form>
     </section>
 }
 
@@ -405,64 +319,31 @@ else if (Model.ProposedValues.Count > 0)
     </section>
 }
 
-@if (details.VehicleEvidence is not null || mayEdit)
+@* CASE-018: this section used to restate the confirmed registration, make,
+   model and mileage, and then the lookup observation's copy of the same four
+   values — the second and third places the operator saw a registration. The
+   values now live once, on the Vehicle block in _CaseSummary, where ENG-013's
+   lookup fills whatever the documents did not carry. What is left here is the
+   only thing that block cannot carry: the decisions. *@
+@if (mayEdit)
 {
 <section class="panel form-panel" aria-labelledby="case-vehicle-evidence-title">
     <h2 id="case-vehicle-evidence-title" class="section-label">Vehicle evidence</h2>
-    @if (details.VehicleEvidence is { } vehicleEvidence)
+    @if (details.VehicleEvidence?.LatestObservation is { } observation)
     {
-        @if (vehicleEvidence.Confirmed is { } confirmed)
-        {
-            var confirmedMileageClass = data?.Vehicle.Mileage.Confirmed is { } confirmedMileage
-                ? $" — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClassification.Classify(confirmedMileage.Source.Kind))}"
-                : string.Empty;
-            <dl>
-                <dt>Confirmed registration</dt><dd>@confirmed.Registration.Value — @confirmed.Registration.SourceLabel</dd>
-                <dt>Confirmed make</dt><dd>@(confirmed.Make?.Value ?? "Not confirmed")</dd>
-                <dt>Confirmed model</dt><dd>@(confirmed.Model?.Value ?? "Not confirmed")</dd>
-                <dt>Confirmed mileage</dt><dd>@(confirmed.Mileage is null
-                    ? "Not confirmed"
-                    : $"{confirmed.Mileage.Value:N0} {confirmed.MileageUnit?.Value}{confirmedMileageClass}")</dd>
-            </dl>
-        }
-        @if (vehicleEvidence.LatestObservation is { } observation)
-        {
-            <dl>
-                <dt>Registration</dt><dd>@observation.Registration</dd>
-                <dt>Retrieved</dt><dd>@OperatorLabels.OfficeTime(observation.Provenance.RetrievedAtUtc)</dd>
-                @if (observation.Vehicle is { } vehicleDetails)
-                {
-                    <dt>Make</dt><dd>@(vehicleDetails.Make ?? "—")</dd>
-                    <dt>Model</dt><dd>@(vehicleDetails.Model ?? "—")</dd>
-                    <dt>Manufacture year</dt><dd>@(vehicleDetails.ManufactureYear?.ToString() ?? "—")</dd>
-                    <dt>Engine capacity</dt><dd>@(vehicleDetails.EngineCapacityCc is { } engineCapacityCc ? $"{engineCapacityCc:N0} cc" : "—")</dd>
-                    <dt>Fuel type</dt><dd>@(vehicleDetails.FuelType ?? "—")</dd>
-                }
-                @if (observation.Mileage is { } estimatedMileage)
-                {
-                    <dt>Mileage</dt><dd>@($"{estimatedMileage.Value:N0} {OperatorLabels.MileageUnit(estimatedMileage.Unit)} — {OperatorLabels.MileageEvidence(VehicleMileageEvidenceClass.Estimated)}") (@estimatedMileage.ObservedOn.ToString("d MMM yyyy"))</dd>
-                }
-            </dl>
-            @if (mayEdit)
-            {
-                <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
-                    <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Accept" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                    <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="primary-action">Accept vehicle suggestion</button>
-                </form>
-                <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
-                    <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Correct" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                    <label>Registration<input name="registration" required maxlength="20" value="@observation.Registration" /></label><label>Make<input name="make" maxlength="100" value="@observation.Vehicle?.Make" /></label><label>Model<input name="model" maxlength="100" value="@observation.Vehicle?.Model" /></label><label>Mileage<input type="number" min="0" name="mileage" value="@observation.Mileage?.Value" /></label><label>Mileage unit<input name="mileageUnit" maxlength="20" value="@observation.Mileage?.Unit" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Confirm corrected vehicle values</button>
-                </form>
-            }
-        }
-    }
-    @if (mayEdit)
-    {
-        <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="RequestVehicleLookup" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Registration<input name="registration" required maxlength="20" value="@(details.VehicleEvidence?.Confirmed?.Registration.Value ?? data?.Vehicle.Registration.Fact?.Value)" /></label><button type="submit" class="primary-action">Request vehicle lookup</button>
+        <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Accept" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="primary-action">Accept vehicle suggestion</button>
+        </form>
+        <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
+            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Correct" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+            <label>Registration<input name="registration" required maxlength="20" value="@observation.Registration" /></label><label>Make<input name="make" maxlength="100" value="@observation.Vehicle?.Make" /></label><label>Model<input name="model" maxlength="100" value="@observation.Vehicle?.Model" /></label><label>Mileage<input type="number" min="0" name="mileage" value="@observation.Mileage?.Value" /></label><label>Mileage unit<input name="mileageUnit" maxlength="20" value="@observation.Mileage?.Unit" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Confirm corrected vehicle values</button>
         </form>
     }
+    <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="RequestVehicleLookup" class="form-grid">
+        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
+        <label>Registration<input name="registration" required maxlength="20" value="@(details.VehicleEvidence?.Confirmed?.Registration.Value ?? data?.Vehicle.Registration.Current?.Value)" /></label><button type="submit" class="primary-action">Request vehicle lookup</button>
+    </form>
 </section>
 }
 
