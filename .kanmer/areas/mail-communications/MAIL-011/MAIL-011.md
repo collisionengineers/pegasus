@@ -2,10 +2,13 @@
 id: MAIL-011
 type: ticket
 title: Read the forwarded sender from a header block that carries a Cc line
-status: backlog
+status: preparing
 area: mail-communications
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-23T12:11:41.198Z'
+branch: task/qdos26012-regressions
+worktree: ../pegasus-worktrees/qdos26012-regressions
 labels:
   - u34
   - production-defect
@@ -15,7 +18,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T12:10:00.492Z'
-updated: '2026-08-23T12:10:00.492Z'
+updated: '2026-08-23T12:11:41.198Z'
 ---
 
 ## One regex, four symptoms, on a routine forward

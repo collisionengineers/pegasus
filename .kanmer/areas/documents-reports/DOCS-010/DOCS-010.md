@@ -2,10 +2,13 @@
 id: DOCS-010
 type: ticket
 title: Retained case documents cannot be read back from Box
-status: backlog
+status: preparing
 area: documents-reports
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-23T12:11:37.271Z'
+branch: task/qdos26012-regressions
+worktree: ../pegasus-worktrees/qdos26012-regressions
 labels:
   - qdos26011
   - production-defect
@@ -19,7 +22,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-23T00:20:37.666Z'
-updated: '2026-08-23T00:52:15.463Z'
+updated: '2026-08-23T12:11:37.271Z'
 ---
 
 ## Root cause — confirmed from the production exception
