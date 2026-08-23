@@ -54,7 +54,7 @@
                                     }
                                     <td>@occurrence.SemanticRole / @occurrence.Source</td>
                                     <td>@(version.IsCurrent ? "Current" : "Historical") @(version.IsLogicallyRemoved ? "— logically removed" : null)</td>
-                                    <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-documentId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
+                                    <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-occurrenceId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
                                     <td>@OperatorLabels.CustodyState(version.CustodyStatus) — @OperatorLabels.FileSize(version.ContentLength)</td>
                                     <td>
                                         @if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)

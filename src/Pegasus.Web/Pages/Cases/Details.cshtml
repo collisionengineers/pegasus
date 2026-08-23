@@ -192,7 +192,7 @@
                                         new
                                         {
                                             caseId = details.Summary.CaseId,
-                                            documentId = image.OccurrenceId,
+                                            occurrenceId = image.OccurrenceId,
                                             versionId = image.VersionId
                                         })!
                                     : Url.Page("/Intake/Asset", new { id = image.ReceiptId, assetId = image.AssetId })!,

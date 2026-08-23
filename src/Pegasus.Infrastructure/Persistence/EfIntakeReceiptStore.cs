@@ -1400,14 +1400,19 @@ internal sealed class EfIntakeReceiptStore(IDbContextFactory<PegasusDbContext> c
                     && !version.IsLogicallyRemoved
                     && version.CustodyStatus == DocumentCustodyStatus.Confirmed
                 orderby occurrence.Ordinal
+                // DOCS-010: named, not positional. Built positionally, the two
+                // adjacent Guid slots were filled in the wrong order — the
+                // document id landed in OccurrenceId and every gallery URL 404d
+                // before Box was reached. There is no intake asset behind an
+                // image served from Box, so ReceiptId and AssetId are empty.
                 select new CaseEvidenceImage(
-                    Guid.Empty,
-                    occurrence.Id,
-                    version.FileName,
-                    version.MediaType,
-                    version.ContentLength,
-                    occurrence.DocumentId,
-                    version.Id))
+                    ReceiptId: Guid.Empty,
+                    AssetId: Guid.Empty,
+                    FileName: version.FileName,
+                    MediaType: version.MediaType,
+                    ContentLength: version.ContentLength,
+                    OccurrenceId: occurrence.Id,
+                    VersionId: version.Id))
             .ToArrayAsync(cancellationToken);
         if (documentImages.Length > 0)
         {
