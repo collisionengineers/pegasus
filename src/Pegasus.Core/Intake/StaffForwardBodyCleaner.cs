@@ -10,14 +10,24 @@ namespace Pegasus.Core.Intake;
 /// quoted original, keeping the provider's original from the forwarded header on.
 /// </summary>
 /// <remarks>
-/// A pure text policy: it takes already-decoded text and never touches MIME. The
-/// forwarded-header boundary is kept byte-identical to
-/// <c>MimeKitPdfPigOpenXmlIntakeSourceReader.InlineForwardedHeaderRegex</c> so the
-/// display and classification views agree on where a forward begins; the two
-/// patterns must be changed together.
+/// A pure text policy: it takes already-decoded text and never touches MIME.
+/// The forwarded-header boundary is owned here and exposed as
+/// <see cref="ForwardedHeaderPattern"/>, so the display and classification
+/// views cannot disagree about where a forward begins (MAIL-011). They read
+/// the same compiled pattern; each keeps its own rule about what a match
+/// proves.
 /// </remarks>
 public static partial class StaffForwardBodyCleaner
 {
+    /// <summary>
+    /// The shape of a forwarded message's own header block. The single owner:
+    /// intake's source reader matches route evidence with it, and this class
+    /// finds the display boundary with it. It was written out twice, in two
+    /// projects, held equal only by a comment — which is how a header carrying
+    /// a Cc line came to be unreadable in both at once (MAIL-011).
+    /// </summary>
+    public static Regex ForwardedHeaderPattern => ForwardedHeaderRegex();
+
     public static string Clean(string body, bool isStaffForward)
     {
         ArgumentNullException.ThrowIfNull(body);
@@ -131,9 +141,13 @@ public static partial class StaffForwardBodyCleaner
     [GeneratedRegex("\\[?<?cid:[^\\]>\\s\"']+>?\\]?", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex CidTokenRegex();
 
-    // Mirrors MimeKitPdfPigOpenXmlIntakeSourceReader.InlineForwardedHeaderRegex.
+    // MAIL-011: Outlook writes Cc:, and can write Bcc:, between To: and
+    // Subject:. Allowing them is what lets a forward with a copied recipient
+    // be read at all; the block must still be an address header ending in
+    // Subject:, so the boundary is no less specific than before.
     [GeneratedRegex(
-        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:[^\r\n]*[\r\n]+Subject:[^\r\n]*",
+        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:[^\r\n]*"
+        + "(?:[\r\n]+(?:Cc|Bcc):[^\r\n]*)*[\r\n]+Subject:[^\r\n]*",
         RegexOptions.CultureInvariant)]
     private static partial Regex ForwardedHeaderRegex();
 

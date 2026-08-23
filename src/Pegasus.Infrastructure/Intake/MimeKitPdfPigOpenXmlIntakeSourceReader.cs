@@ -707,7 +707,11 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
     private static bool TryReadInlineForwardedOriginalSender(string body, out string sender)
     {
         sender = string.Empty;
-        var matches = InlineForwardedHeaderRegex().Matches(body);
+        // MAIL-011: Core owns the forwarded-header shape. Route evidence keeps
+        // its own bar on top of it — exactly one forwarded block, carrying
+        // exactly one address — because an ambiguous body must not prove a
+        // route. The shape and the bar are different rules.
+        var matches = StaffForwardBodyCleaner.ForwardedHeaderPattern.Matches(body);
         if (matches.Count != 1)
         {
             return false;
@@ -1028,11 +1032,6 @@ public sealed partial class MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider 
 
     [GeneratedRegex("</?(?:br|p|div|tr|li|h[1-6])\\b[^>]*>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex HtmlLineBreakRegex();
-
-    [GeneratedRegex(
-        "(?i)(?:\\A|[\r\n])From:[\t ]*(?<from>[^\r\n]+)[\r\n]+Sent:[^\r\n]*[\r\n]+To:[^\r\n]*[\r\n]+Subject:[^\r\n]*",
-        RegexOptions.CultureInvariant)]
-    private static partial Regex InlineForwardedHeaderRegex();
 
     [GeneratedRegex(
         "(?i)(?<![a-z0-9._%+-])(?<address>[a-z0-9._%+-]+@[a-z0-9.-]+\\.[a-z]{2,})(?![a-z0-9._%+-])",

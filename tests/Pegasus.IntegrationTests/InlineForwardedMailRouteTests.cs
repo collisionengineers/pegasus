@@ -34,6 +34,34 @@ public sealed class InlineForwardedMailRouteTests
         Assert.Equal("instructions@qdosassist.co.uk", route.EffectiveSender?.Address);
     }
 
+    /// <summary>
+    /// MAIL-011. U34, 2026-08-23: a QDOS triage instruction and its photograph
+    /// were refused as "requires exactly one consistent original sender" —
+    /// because the forwarded header carried a Cc line and the pattern demanded
+    /// To: and Subject: be adjacent. It found zero senders, not two.
+    /// </summary>
+    [Fact]
+    public async Task ACopiedRecipientInTheHeaderDoesNotHideTheOriginalSender()
+    {
+        var result = await ReadAsync(
+            "desk@collisionengineers.co.uk",
+            "From: Robin Anderson <randerson@qdosassist.co.uk>\r\n"
+            + "Sent: 21 August 2026 11:18 PM\r\n"
+            + "To: Desk <desk@collisionengineers.co.uk>\r\n"
+            + "Cc: Qdos NewClaims <NewClaims@qdosassist.co.uk>\r\n"
+            + "Subject: Engineer Triage - Our Claim Reference 47939/1\r\n\r\n"
+            + "Can you kindly advise if the vehicle would be considered repairable.");
+
+        var route = new QdosMailRoutePolicy().Evaluate(result);
+
+        // The copied recipient is a recipient, never a candidate sender.
+        Assert.Equal(
+            "randerson@qdosassist.co.uk",
+            Assert.Single(route.OriginalIdentities).Address);
+        Assert.Equal(MailRouteDisposition.Accepted, route.Disposition);
+        Assert.Equal("randerson@qdosassist.co.uk", route.EffectiveSender?.Address);
+    }
+
     [Fact]
     public async Task HtmlOutlookHeaderQuartetProducesAnInlineOriginalRouteIdentity()
     {
