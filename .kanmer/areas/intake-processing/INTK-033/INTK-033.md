@@ -18,7 +18,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:18:47.553Z'
-updated: '2026-08-23T15:18:47.553Z'
+updated: '2026-08-23T15:50:12.981Z'
 ---
 
 ## What the operator saw
@@ -49,12 +49,33 @@ case allocation**, which failed for want of a case type — and produced nothing
 at all. No case, no Triage, no Unidentified item. The message is visible only
 in the inbox; it appears in no queue anyone works.
 
-## Two distinct faults
+## The required behaviour is already written
+
+`operator-notes.md` § Stage 0 — Triage, step 2, verbatim:
+
+> *"keep it as **Unidentified** (formerly `Needs sorting`) **until a vehicle
+> registration is known, then open the Triage**"*
+
+Operator, 2026-08-23, confirming: *"Its not a question on the triage, its
+explicitly defined in my notes. Since the registration is known, its not
+unidentified."*
+
+So the rule is a branch on one fact, and Unidentified is the holding state for a
+**missing** registration only:
+
+| Registration on the triage request | Outcome |
+| --- | --- |
+| known | **open the Triage** |
+| not known | **Unidentified**, until it is |
+
+Email 3's subject carries `GD65TVY`. It should have opened a Triage.
+
+## Three faults
 
 **1. Classification is not consulted before allocation.** A `triage-request`
 carries no `CaseType` by design, yet `AllocateIntake.AttemptAutomaticAsync`
 runs anyway and fails on its absence. A classification that says "this is not a
-case" should route away from case allocation, not into it.
+case" must route to the Triage path, not into case allocation.
 
 **2. Triage creation is behind a closed composition gate.**
 `ProcessQueuedIntake.CreateTriageIfQualifyingAsync` (`DurableIntake.cs:893`)
@@ -68,12 +89,22 @@ services.TryAddSingleton<IIntakeTriageMatcher, NoAcceptedIntakeTriageMatcher>();
 
 The null matcher, which by name and construction never accepts anything. **The
 gate can never pass.** No Triage has ever been created from intake in
-production, and none can be until a real matcher exists.
+production, and none can be until this is composed.
 
-Note also that `CreateTriageIfQualifyingAsync` keys off *evidence findings and
-a vehicle registration*, never off the triage **classification** — so even a
-working matcher would be answering a different question from the one the
-operator's email asks.
+Note also that `CreateTriageIfQualifyingAsync` keys off *evidence findings*,
+never off the triage **classification** — so even a working matcher would be
+answering a different question from the one the operator's email asks. The
+qualifying condition has to become "this message is a triage request", which is
+now a recorded classification.
+
+**3. The registration is not extracted from a triage request.** The branch above
+turns entirely on whether a registration is known, and today nothing reads one
+off a triage request — `CreateTriageIfQualifyingAsync` reads
+`receipt.InstructionDraft?.VehicleRegistration`, which is populated by the
+*instruction* extraction path. A triage request is not an instruction. Getting
+the registration out of the subject (`… Vehicle registration GD65TVY`) or body
+is in scope, because without it every triage request falls to Unidentified and
+the rule's first branch never fires.
 
 ## Repository position
 
@@ -81,21 +112,14 @@ CLAUDE.md: *"A closed composition or feature gate is a disabled flag, not a
 partially shipped feature. Do not ship, release, merge as delivered, claim, or
 document a feature behind one as delivered."*
 
-Triage-from-intake is therefore **not delivered**, and this ticket is a feature,
+Triage-from-intake is therefore **not delivered**, and this is a feature ticket,
 not a bug fix. The operator reasonably expected otherwise, because the inbox
 labels the message "Triage" — the label is real and the work behind it is not.
 That gap is the most important thing here.
 
-## Open question for the operator
+## Governing docs
 
-`operator-notes.md` §Stage 0 says a Triage is kept as **Unidentified** until a
-vehicle registration is known, then the Triage is opened. This message's subject
-carries `GD65TVY`.
-
-**Does a triage request with a registration in the subject open a Triage
-directly, or does it land in Unidentified for a human to confirm the
-registration first?** The answer decides whether this ticket needs registration
-extraction from a triage subject as well. Recommendation: land it in
-Unidentified with the registration pre-filled — it matches the written rule and
-keeps a human between an email and a new unit of work — but this is operator
-truth, not mine to choose.
+`operator-notes.md` § Stage 0 is the authority above; `docs/frd/frd-03-triage.md`
+§ Normal workflow and completion evidence holds the canonical transitions. Read
+both before planning — the rule is settled and does not need re-deciding, only
+implementing.
