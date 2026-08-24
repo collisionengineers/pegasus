@@ -1,83 +1,56 @@
 # Checklist — ENG-016
 
-*Derived from the revised strict-Export plan. No implementation boxes are checked by this planning pass.*
-
 ## Git and scope
 
-- [ ] Preserve the local staged `.gitignore`/`.codex/config.toml`/`.mcp.json` change outside PR #539
-- [ ] Restore a clean ENG-016 task worktree matching the Kanmer claim
-- [ ] Fetch and normally merge current `origin/dev` into `task/eng-016-collapse-handoff-into-export`
-- [ ] Resolve QDOS policy/test conflicts by taking current `dev`
-- [ ] Resolve FRD-07/capabilities conflicts from current `dev` then apply the strict one-Export contract
-- [ ] Resolve EVA Core/store conflicts from current `dev` then reapply only ENG-016
-- [ ] Transfer still-relevant assertions before resolving `EvaHandoffPersistenceTests.cs` as deleted
-- [ ] Audit `git diff origin/dev...HEAD` and remove every unrelated stale-stack change
+- [ ] Preserve unrelated staged user changes outside every ENG-016 commit
+- [ ] Merge current `origin/dev` normally and audit the three-dot diff
+- [ ] Keep the ticket/PR branch free of unrelated stale-stack changes
 
-## Strict Export policy
+## One Review readiness policy
 
-- [ ] Delete `MapForOperatorExport`, `EvaOperatorExport` and empty/default field continuation
-- [ ] Reuse one strict mapping requiring all thirteen accepted, non-empty, provenanced fields
-- [ ] Reuse one Core eligibility policy for Review, non-archived/current version, Case/Audit custody, mapping and eligible images
-- [ ] Enforce strict eligibility inside `IExportCaseBundle.ExecuteAsync`, not only in the UI
-- [ ] Prove a blocked Export writes no archive, proxy or success history
-- [ ] Preserve one deterministic JSON/images package builder and one authenticated Export POST
-- [ ] Preserve deletion of duplicate EVA routes, panel, query projection, ports, MCP tools and DI registrations
-- [ ] Restore the successful archive `Content-Digest` header
+- [ ] Add the concrete required-detail and eligible-image policy to Core
+- [ ] Apply it to initial entry and every transition/return to Review
+- [ ] Apply it after edits while a Case is in Review
+- [ ] Save invalidating edits and atomically move the Case to Not ready
+- [ ] Return missing requirement labels and show the existing Case status notification
+- [ ] Keep VAT optional
+- [ ] Keep Mileage optional and require Unit only with Mileage
+- [ ] Treat populated suggested values as usable
+- [ ] Preserve the specified Instruction Date default
+- [ ] Default absent Inspection Date to the Export date
 
-## Permanent history and first proxy
+## Single Export
 
-- [ ] Add an operation key to the Export form, Web handler and Core request
-- [ ] Reuse `DocumentActionHistory` for an attributed `eva_bundle_exported` event
-- [ ] Persist Case version, mapping authority, field provenance, image identities and package hashes in structured history
-- [ ] Commit first successful Export history and first-sent proxy atomically
-- [ ] Prove a second distinct Export writes history but no second proxy
-- [ ] Prove exact operation replay duplicates neither history nor proxy
-- [ ] Prove mismatched operation-key reuse fails closed
-- [ ] Preserve the dashboard Sent-to-Engineer count over `EvaFirstHandoffProxies`
+- [ ] Collapse the duplicate mapping paths into one
+- [ ] Enforce Review server-side on the Export POST
+- [ ] Remove Case custody, Audit custody and accepted-only evidence as Export gates
+- [ ] Retain only technical package/image/replay/authorization checks
+- [ ] Preserve one POST surface, antiforgery and Content-Digest
+- [ ] Preserve deterministic thirteen-key JSON and eligible images
+- [ ] Preserve per-export ActionHistory and once-per-Case first-sent proxy
+- [ ] Preserve exact replay and concurrent idempotency
+- [ ] Preserve deletion of duplicate hand-off routes, UI, MCP, ports and tables
 
-## Migration
+## Documentation and migration
 
-- [ ] Reconcile the generated drop migration/Designer/snapshot on current `dev`
-- [ ] Keep the direct dead-table/column drop authorized by ADR-0030
-- [ ] Correct the stated blast radius to the old-revision Case workspace
-- [ ] State roll-forward recovery and remove any claim of production rollback compatibility
-- [ ] Label `Down()` as fresh disposable LocalDB verification only
-- [ ] Preserve bootstrap removed-table and historic grant-migration expectations
-- [ ] Add no compatibility view, dual path, feature flag, data conversion or expand/contract staging
-
-## Documentation
-
-- [ ] Update protected `docs/operator-notes.md` with the explicitly authorized three-route model and strict Export gate
-- [ ] Rewrite FRD-07 from strict hand-off plus permissive read into one strict manual Export/handoff
-- [ ] Reconcile CASE-21, CASE-30, EXT-03 and relevant future-route capability wording
-- [ ] Refresh current-architecture to the one-route implementation, per-export history and surviving proxy
-- [ ] Preserve design authority's strict Sent-to-Engineer language and remove only stale two-act/revision wording
-- [ ] Remove every repository-doc claim that missing fields/default dates may still export
-- [ ] Update ENG-016's post-implementation report and PR description to remove the superseded permissive assumption
+- [ ] Update operator notes and FRD-07 to the one-Review/one-Export rule
+- [ ] Update capabilities/current architecture and remove stale custody/accepted-only claims
+- [ ] Keep the ADR-0030 direct pre-cutover migration and roll-forward wording
+- [ ] Update the post-implementation report and PR description
+- [ ] Record the required simplification pass and dispositions
 
 ## Tests and proof
 
-- [ ] Core tests pin all thirteen required accepted/provenanced fields
-- [ ] Core tests pin Review/current-version/Case custody/Audit custody/mapping/image gates
-- [ ] QDOS boundary test proves incomplete evidence cannot export
-- [ ] Web test proves visible disabled non-Review control and direct POST server-side refusal
-- [ ] Web test proves antiforgery, operation key and `Content-Digest`
-- [ ] Integration tests prove first proxy and every-export action history semantics
-- [ ] Integration tests prove replay and concurrent first-export idempotency
-- [ ] Migration tests prove removed schema and surviving proxy constraints
-- [ ] Run `dotnet restore`
-- [ ] Run Release build with locked/no-restore profile
-- [ ] Run focused Core EVA/QDOS and Architecture suites
-- [ ] Run focused Web/Integration/history/migration suites
-- [ ] Run the full Integration suite in repository chunks
-- [ ] Run fresh disposable LocalDB migration up → down → up
-- [ ] Run migration-grant, local deployment-plan and documentation-link scripts
-- [ ] Run `git diff --check` and final branch scope audit
-- [ ] Push normally and obtain green GitHub checks on the final head SHA
-- [ ] If `changes` checkout times out again, coordinate the CI-owned repair and rerun; do not treat skipped jobs as evidence
-- [ ] Independent reviewer confirms ticket → plan → implementation coverage and simplification dispositions
-
-## Progress notes
-
-- 2026-08-24: operator resolved that Export is the current send-to-Engineer route, must fail closed until ready, and does not require released-product rollback compatibility before cutover.
-- 2026-08-24: live CI inspection found checkout timeout/cancellation, not an application test failure; downstream test jobs were skipped.
+- [ ] Core tests cover every required detail and eligible-image Review gate
+- [ ] Tests prove optional VAT/Mileage, conditional Mileage Unit and suggested values
+- [ ] Tests prove Inspection Date defaults on Export
+- [ ] Tests prove invalidating edits demote to Not ready and notify
+- [ ] Tests prove direct non-Review Export refusal
+- [ ] Tests prove Review Export ignores custody/status duplication
+- [ ] Tests prove package shape, digest, history, proxy and replay semantics
+- [ ] Run locked restore and Release build
+- [ ] Run focused Core/Architecture/Web/Integration suites
+- [ ] Run full required test chunks and repository scripts
+- [ ] Run `git diff --check` and final scope audit
+- [ ] Push normally and obtain green CI on the final head
+- [ ] Hand off for independent Kanmer review

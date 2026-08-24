@@ -291,3 +291,16 @@ Re-evaluate ENG-016 after the operator clarified that manual Export is the curre
 ### Open questions
 
 - None. The operator resolved the evidence bar and stated that production rollback compatibility is not a requirement before release/cutover.
+
+## Final operator resolution — one readiness owner (2026-08-24)
+
+The accepted-only/custody conclusion immediately above is superseded after direct clarification:
+
+- Readiness belongs to `Review`. A Case in Review must already have everything required to send to an Engineer; Export must not duplicate that field policy.
+- Required mapped Case values are Work Provider, Claimant Name, external Reference, VRM, Vehicle Model, Accident Circumstances, Incident Date, Instruction Date, and Inspection Address or Image-based Assessment. At least one eligible Case-vehicle image is also required.
+- VAT Status is optional. Mileage is optional; Mileage Unit is required only with Mileage.
+- Pressing Export confirms populated values, so suggested values—including lookup-derived mileage—do not block.
+- A missing Inspection Date defaults to the date Export is pressed; this is explicit operator specification.
+- If an edit invalidates a Review Case, the edit succeeds, the Case moves to Not ready, and the Case displays a notification naming the missing requirement.
+- Case/Audit custody is Box storage state, not readiness to send, and must not be an Export gate.
+- Current code does not fully uphold this: Review completeness is broad booleans rather than concrete field validation, and `ReturnToReviewAsync` directly assigns Review. The fix is one concrete Core readiness policy applied on entry/return and on edits, with Export checking Review plus technical package validity only.

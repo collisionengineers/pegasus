@@ -1,0 +1,1 @@
+2026-08-24 resumed PR #539 after operator clarification. Reopened implementation: make Review the single readiness owner; Export no longer duplicates custody or accepted-status gates. Unrelated staged .gitignore/.codex/.mcp changes remain outside ticket commits.
