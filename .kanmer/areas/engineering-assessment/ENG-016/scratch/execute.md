@@ -1,1 +1,3 @@
 2026-08-24 resumed PR #539 after operator clarification. Reopened implementation: make Review the single readiness owner; Export no longer duplicates custody or accepted-status gates. Unrelated staged .gitignore/.codex/.mcp changes remain outside ticket commits.
+
+2026-08-25 implementation complete at cf28b8b0 and pushed to PR #539. Local locked restore, Release build, full non-corpus suite, final focused Core/Integration, diff check and simplification pass are green. PR description and ticket report are current. Fresh CI has changes, documentation, local scripts, reference data, infrastructure and unit green; browser and three SQL shards are still running. Handing off for independent kanmer-review; do not merge until those checks are green.
