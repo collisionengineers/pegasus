@@ -299,21 +299,15 @@ public sealed class DetailsModel(
         // The request's photographs are the whole subject of the assessment,
         // and until now they were viewable nowhere: the "View e-mail" link
         // lands on a page that lists attachments by name without rendering
-        // one. Degrades to no gallery rather than an error when the reader
-        // lacks the casework right, exactly as the Unidentified page does.
-        try
-        {
-            var receipt = await _getIntake.ExecuteAsync(
-                new(triage.Record.Origin.ReceiptId, actor),
-                cancellationToken);
-            EvidenceImages = receipt is null
-                ? []
-                : InstructionEvidenceImages.Select(receipt.AssetRecords);
-        }
-        catch (UnauthorizedAccessException)
-        {
-            EvidenceImages = [];
-        }
+        // one. No rights guard here: GetTriage above already required the
+        // same PerformCasework right from the same actor, so this cannot be
+        // reached without it.
+        var receipt = await _getIntake.ExecuteAsync(
+            new(triage.Record.Origin.ReceiptId, actor),
+            cancellationToken);
+        EvidenceImages = receipt is null
+            ? []
+            : InstructionEvidenceImages.Select(receipt.AssetRecords);
 
         ActiveFindings = triage.Findings
             .Where(candidate => !triage.Findings.Any(
