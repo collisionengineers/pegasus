@@ -2,18 +2,25 @@
 id: INTK-034
 type: ticket
 title: Retain a Triage request's images as Triage evidence
-status: backlog
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: claude-code
 profile: feature
+stageEntered:
+  preparing: '2026-08-24T09:18:52.454Z'
+taken_at: '2026-08-24T09:18:57.201Z'
+branch: task/intk-034-triage-images
+worktree: ../pegasus-worktrees/intk-034-triage-images
 labels:
   - triage
   - deferred-from-INTK-033
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-03-triage.md
+  - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-24T08:33:08.101Z'
-updated: '2026-08-24T08:33:08.101Z'
+updated: '2026-08-24T09:18:57.202Z'
 ---
 
 ## Why
