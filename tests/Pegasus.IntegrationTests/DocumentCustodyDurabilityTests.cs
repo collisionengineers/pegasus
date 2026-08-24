@@ -14,6 +14,60 @@ namespace Pegasus.IntegrationTests;
 public sealed class DocumentCustodyDurabilityTests
 {
     [Fact]
+    public async Task RemovingAFileWritesOneNoteTheOperatorCanActuallySee()
+    {
+        // The point of this test is the ROUND TRIP, not the row. A note written
+        // to CaseHistory persists happily, reports success, and never appears on
+        // the Notes tab — which is how the Release 22 note defect reached
+        // production. So it is asserted through CaseDetails.History, the same
+        // read the page makes (DOCS-012).
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var occurrenceId = await SeedCurrentImageAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                .ClaimAsync(
+                    new(caseId, 0, actor, $"removal-note-lease:{Guid.NewGuid():N}"),
+                    CancellationToken.None);
+            var command = new LogicallyRemoveDocumentCommand(
+                caseId,
+                occurrenceId,
+                actor,
+                "Wrong vehicle — the photograph belongs to another claim.",
+                $"removal-note:{Guid.NewGuid():N}",
+                lease.Version,
+                lease.Token);
+
+            var remover = scope.ServiceProvider.GetRequiredService<ILogicallyRemoveDocument>();
+            await remover.ExecuteAsync(command, CancellationToken.None);
+            // Replay must not add a second note.
+            await remover.ExecuteAsync(command, CancellationToken.None);
+
+            var details = await scope.ServiceProvider.GetRequiredService<IGetCase>()
+                .ExecuteAsync(new(caseId, actor), CancellationToken.None);
+            Assert.NotNull(details);
+            var note = Assert.Single(
+                details!.History,
+                entry => entry.EventType == "case_document_removed");
+            Assert.Equal(command.Reason, note.Reason);
+            Assert.Equal(ActorKind.Staff, note.ActorKind);
+            Assert.Equal(actor.SubjectId, note.ActorSubjectId);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
     public async Task StaffConfirmationOfThirdPartyVehicleEvidenceIsDurableAndExactlyReplayable()
     {
         var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
