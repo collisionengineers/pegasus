@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
@@ -166,5 +167,83 @@ public sealed class TriageFromIntakeIntegrationTests
             await scope.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
                 .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
         Assert.Equal(UnidentifiedState.Open, item.State);
+    }
+
+    [Fact]
+    [Trait("Category", "QdosAlphaAcceptance")]
+    public async Task StaffSupplyingTheRegistrationOpensTheTriageAndClosesTheUnidentifiedItem()
+    {
+        // The rest of the operator's sentence: a Triage request that never
+        // carried a readable registration waits in Unidentified "until a
+        // vehicle registration is known, then open the Triage" — and the only
+        // thing that can know it here is a member of staff (INTK-035).
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEmail(
+            "triage-registration-supplied.eml",
+            "Triage Only Request\r\n\r\nPlease find attached our client's images.");
+
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, email.FileName, email.MediaType, email.Content);
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+
+        // Stranded exactly as the branch above leaves it.
+        await using (var before = factory.Services.CreateAsyncScope())
+        {
+            Assert.Empty(
+                await before.ServiceProvider.GetRequiredService<ITriageQueries>()
+                    .ListAsync(null, CancellationToken.None));
+            var open = Assert.IsType<UnidentifiedItem>(
+                await before.ServiceProvider.GetRequiredService<IUnidentifiedStore>()
+                    .GetByOriginAsync(UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+            Assert.Equal(UnidentifiedState.Open, open.State);
+        }
+
+        // The action is offered on the receipt the Unidentified item links to.
+        var offered = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId}");
+        Assert.Contains("handler=OpenTriage", offered, StringComparison.Ordinal);
+        Assert.Contains("Open the Triage", offered, StringComparison.Ordinal);
+
+        // Typed the way a person types it: lower case, with the separator.
+        using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = await IntakeWebDriver.GetAntiforgeryTokenAsync(client),
+            ["vehicleRegistration"] = "vn64 wng",
+            ["operationKey"] = Guid.NewGuid().ToString("N")
+        });
+        using var opened = await client.PostAsync($"/Received/{receiptId}?handler=OpenTriage", form);
+        Assert.Equal(HttpStatusCode.Redirect, opened.StatusCode);
+
+        await using var after = factory.Services.CreateAsyncScope();
+        var triage = Assert.Single(
+            await after.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        var detail = Assert.IsType<TriageDetail>(
+            await after.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .GetAsync(triage.Id, CancellationToken.None));
+
+        Assert.Equal(receiptId, detail.Record.Origin.ReceiptId);
+        Assert.Equal("VN64WNG", detail.Record.NormalizedVehicleRegistration);
+        Assert.Equal(TriageState.Open, detail.Record.State);
+
+        // The Unidentified item is stale the moment the Triage exists, and the
+        // resolution names the destination permanently.
+        var unidentifiedStore = after.ServiceProvider.GetRequiredService<IUnidentifiedStore>();
+        var resolved = Assert.IsType<UnidentifiedItem>(
+            await unidentifiedStore.GetByOriginAsync(
+                UnidentifiedOrigin.Receipt(receiptId), CancellationToken.None));
+        Assert.Equal(UnidentifiedState.Resolved, resolved.State);
+        Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolved.ResolutionTargetKind);
+        Assert.Equal(triage.Id.ToString("N"), resolved.ResolutionTargetId);
+        Assert.Equal("VN64WNG", resolved.ResolutionTargetReference);
+        Assert.Contains(
+            await unidentifiedStore.HistoryAsync(resolved.Id, CancellationToken.None),
+            entry => entry.NewState == UnidentifiedState.Resolved
+                && entry.TargetKind == UnidentifiedResolutionTargetKind.Triage);
+
+        // The receipt now has its destination, so the action is not offered a
+        // second time and no second Triage can be opened from the screen.
+        var settled = await IntakeWebDriver.GetHtmlAsync(client, $"/Received/{receiptId}");
+        Assert.DoesNotContain("handler=OpenTriage", settled, StringComparison.Ordinal);
     }
 }
