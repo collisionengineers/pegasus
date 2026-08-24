@@ -148,7 +148,7 @@ public static class CaseDataPolicy
             VehicleMake = Text(data.VehicleMake, 100, nameof(data.VehicleMake)),
             VehicleModel = Text(data.VehicleModel, 100, nameof(data.VehicleModel)),
             VehicleMileageUnit = Text(data.VehicleMileageUnit, 40, nameof(data.VehicleMileageUnit)),
-            AccidentCircumstances = Text(data.AccidentCircumstances, 2000, nameof(data.AccidentCircumstances)),
+            AccidentCircumstances = Paragraphs(data.AccidentCircumstances, 2000, nameof(data.AccidentCircumstances)),
             ContactName = Text(data.ContactName, 300, nameof(data.ContactName)),
             ContactEmailAddress = Text(data.ContactEmailAddress, 320, nameof(data.ContactEmailAddress)),
             ContactPhoneNumber = Text(data.ContactPhoneNumber, 100, nameof(data.ContactPhoneNumber)),
@@ -203,6 +203,58 @@ public static class CaseDataPolicy
         }
 
         return normalized;
+    }
+
+    /// <summary>
+    /// The accident circumstances are the one case text field that keeps its
+    /// line structure. Every other field is a single line, so <see cref="Text"/>
+    /// flattens it; the circumstances carry a labelled damage-area block below
+    /// the prose, separated by a blank line, and EVA is sent that shape
+    /// verbatim (ENG-015). Within a line whitespace still collapses, and runs
+    /// of blank lines collapse to one, so the value cannot carry the reader's
+    /// layout noise.
+    /// </summary>
+    private static string? Paragraphs(string? value, int maximumLength, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var lines = value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Replace('\r', '\n')
+            .Split('\n')
+            .Select(line => string.Join(
+                ' ',
+                line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)))
+            .ToList();
+
+        var normalized = new List<string>(lines.Count);
+        foreach (var line in lines)
+        {
+            if (line.Length == 0 && (normalized.Count == 0 || normalized[^1].Length == 0))
+            {
+                continue;
+            }
+
+            normalized.Add(line);
+        }
+
+        while (normalized.Count > 0 && normalized[^1].Length == 0)
+        {
+            normalized.RemoveAt(normalized.Count - 1);
+        }
+
+        var joined = string.Join('\n', normalized);
+        if (joined.Length > maximumLength)
+        {
+            throw new ArgumentOutOfRangeException(
+                parameterName,
+                $"The value cannot exceed {maximumLength} characters.");
+        }
+
+        return joined.Length == 0 ? null : joined;
     }
 
     private static string? Text(string? value, int maximumLength, string parameterName)
