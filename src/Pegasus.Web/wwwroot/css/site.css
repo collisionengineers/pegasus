@@ -2465,6 +2465,14 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   object-fit: contain;
 }
 
+/* The global [hidden] rule above has the same specificity as the class, and
+   loses only because it is written earlier -- so hiding the image for a PDF
+   left it displayed, adding a grid row that squeezed the document (DOCS-011).
+   The iframe needs no such rule: it sets no display of its own. */
+.evidence-viewer__image[hidden] {
+  display: none;
+}
+
 .evidence-viewer__document {
   width: 100%;
   height: 100%;
