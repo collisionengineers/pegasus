@@ -1084,9 +1084,6 @@ public sealed class EvaHandoffStore(
         BundleSha256 = bundle.Sha256,
         JsonContent = bundle.JsonContent,
         JsonSha256 = bundle.JsonSha256,
-        ProvenanceContent = bundle.ProvenanceContent,
-        ProvenanceSha256 = bundle.ProvenanceSha256,
-        ManifestContent = bundle.ManifestContent,
         GeneratedAtUtc = now,
         GeneratedBy = request.Actor.SubjectId
     };
@@ -1105,9 +1102,6 @@ public sealed class EvaHandoffStore(
         revision.BundleSha256,
         revision.JsonContent,
         revision.JsonSha256,
-        revision.ProvenanceContent,
-        revision.ProvenanceSha256,
-        revision.ManifestContent,
         revision.FileName);
 
 
