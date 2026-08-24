@@ -1,67 +1,60 @@
-# Files
+# Files — ENG-016
 
-`D` delete · `M` modify · `A` add
+*Re-surveyed after the operator's 2026-08-24 route and eligibility clarification. This replaces the earlier permissive-export file map.*
 
-## Core — `src/Pegasus.Core`
+## Where the change lands
 
-| | File | Why |
-| --- | --- | --- |
-| M | `Eva/EvaBundleSchema.cs` | Delete the hand-off half of this file: `EvaHandoffPreparation`, `EvaHandoffImageOption`, `EvaHandoffRevisionSummary`, `EvaHandoffRevisionArtifact`, `GenerateEvaHandoffRequest/Outcome/Result`, `DownloadEvaHandoffRequest/Outcome/Result`, `IEvaHandoffQueries`, `IGenerateEvaHandoff`, `IDownloadEvaHandoff`, `IEvaHandoffPersistence`, `GenerateEvaHandoff`, `DownloadEvaHandoff`, `EvaHandoffCommandPolicy`, `EvaHandoffEligibility`, `EvaHandoffRevisionDecision`, `EvaOperationReplayDecision`, `EvaHandoffPolicyAuthority`, and `EvaHandoffPolicy.Evaluate` / `RenderedVersionConflict` / `DecideRevision`. Keep `EvaReplayFields`, `EvaBundleImage(s)`, `EvaBundle`, `ExportCaseBundle*`, `IExportCaseBundle`, `IEvaHandoffProxy` + its request/receipt, `EvaBundleSchema`, `EvaHandoffPolicy.SelectEligibleImages` + `NoRetainedImagesReason`. Drop `Revision` from `EvaHandoffProxyRequest`. F3: stop rebuilding the provenance array in `ValidateSource`, keep every throw. |
-| M | `Eva/CaseEvaMapping.cs` | Delete `MapForProduction`, `ValidateAcceptedEvidence`, `EvaMappingResult`, and `EvaAddressResolution.IsResolved` (its only reader was `ValidateAcceptedEvidence`). F2: delete `EvaEvidenceStatus.Corrected`. F1: correct the `ExportDateSource` comment that asserts `provenance.json`. |
-| M | `Cases/CaseQueries.cs` | Remove `CaseDetails.EvaHandoff`, the `IEvaHandoffQueries` constructor parameter, its field, the `GetPreparationAsync` call and the composed-projection identity check. |
-| M | `Reports/AssessmentReportProjection.cs` | Doc-comment names `EvaHandoffPreparation`, a deleted type. |
+| Path | Why |
+|---|---|
+| `src/Pegasus.Core/Eva/CaseEvaMapping.cs` | Keep one strict EVA export mapping. Remove `MapForOperatorExport`, empty-field/default-date behavior, `EvaOperatorExport` and related permissive vocabulary. Retain/reuse the accepted-evidence and provenance checks currently owned by `MapForProduction`; name the surviving method for the one Export act if that improves clarity without duplicating policy. |
+| `src/Pegasus.Core/Eva/EvaBundleSchema.cs` | Keep the shared package writer and eligible-image policy. Retain the existing Core lifecycle/custody eligibility rule instead of deleting it. Add an operation key to `ExportCaseBundleRequest` and remove `UnrecordedFields` from the result because an incomplete case no longer exports. |
+| `src/Pegasus.Infrastructure/Persistence/EvaHandoffStore.cs` | Make the surviving Export call the strict mapping and server-side Review/current-version/custody/Audit-custody/mapping/image policy. Build the archive only when all gates pass. In one database transaction, append one attributed action-history event per distinct successful Export operation and record the first-sent proxy only when absent. Exact operation-key replay must not duplicate either record or silently return a different package. |
+| `src/Pegasus.Infrastructure/Persistence/EvaHandoffEntities.cs` | Keep ENG-016's deletion of revision/operation/download entities and the obsolete proxy columns. The once-per-Case proxy remains. |
+| `src/Pegasus.Infrastructure/Persistence/EvaHandoffModelConfiguration.cs` | Keep deletion of the three dead table mappings and the proxy FK/index/columns; preserve both no-delivery/no-assignment constraints. |
+| `src/Pegasus.Infrastructure/Persistence/PegasusDbContext.cs` | Keep removal of the three dead `DbSet` properties; `ActionHistory` and `EvaFirstHandoffProxies` remain. |
+| `src/Pegasus.Infrastructure/Persistence/Migrations/20260824123336_DropEvaHandoffTables.cs` and generated Designer/snapshot | Retain the direct pre-cutover drop permitted by ADR-0030. Correct comments: the migration temporarily affects the Case workspace running on the old revision; production recovery is roll-forward, while `Down()` is only a scratch/disposable-schema check and does not preserve proxy data after new exports exist. Regenerate the Designer/snapshot after the merge if the model changed. |
+| `scripts/Invoke-AzureDatabaseBootstrap.ps1` | Reconcile ENG-016's removed-table/grant expectations on top of current `dev`; preserve all newer migration census changes. |
+| `src/Pegasus.Web/Pages/Cases/Details.cshtml` | Keep the visible Review-gated POST Export control, add a hidden operation key, and continue treating the UI state as a reflection of the Core rule rather than the enforcement. |
+| `src/Pegasus.Web/Pages/Cases/Details.cshtml.cs` | Supply a fresh Export operation key using the page's existing operation-key convention. |
+| `src/Pegasus.Web/Pages/Cases/Documents/Export.cshtml.cs` | Accept/validate the operation key, return the archive only after strict Core success/history commit, remove incomplete-field continuation, and restore the `Content-Digest` header from the archive SHA-256. |
+| `src/Pegasus.Core/Cases/CaseQueries.cs`, `src/Pegasus.Web/Pages/Cases/Eva/*`, `Vehicle.cshtml.cs`, `_CaseWorkflow.cshtml`, `AssessmentMcpTools.cs`, `DependencyInjection.cs` | Keep ENG-016's deletion of the duplicate hand-off projection, pages, handler, panel, MCP tools and registrations after resolving against current `dev`. |
+| `docs/operator-notes.md` | Protected operator truth, explicitly authorised by the operator in this conversation: state the three routes and that today's manual Export is the send-to-Engineer act and fails closed until ready. |
+| `docs/frd/frd-07-eva-and-external-engineering-handoff.md` | Replace the two-act strict/permissive model with one strict manual Export/handoff; specify its gates, proxy/history semantics and the future EVA API/direct-integration routes. |
+| `docs/capabilities.md` | Reconcile CASE-21, CASE-30, EXT-03 and any affected API/replacement rows with one strict Export act; remove the claim that missing fields export empty. |
+| `docs/current-architecture.md` | Describe the actual one-route implementation, strict server-side gate, first proxy, per-export history and removed tables. |
+| `docs/design/README.md` | Preserve its already-correct strict Sent-to-Engineer framing; remove only stale revision/two-act wording if the final code no longer has it. |
+| `docs/open-decisions.md` | Keep the current manual route as the default while EXT-04 waits for a working EVA API, and keep EVA replacement/direct estimating integrations separately gated. Edit only if the final wording still implies a permissive second export act. |
+| `tests/Pegasus.Core.Tests/Qdos/QdosBoundaryContractTests.cs` | Reverse the branch test that deliberately proves an incomplete case exports; assert the exact missing evidence blocks. |
+| `tests/Pegasus.Core.Tests/Qdos/CaseOperatorExportTests.cs` and `EvaHandoffPolicyTests.cs` | Pin all thirteen required fields, accepted provenance, Review/current version/custody/Audit custody/mapping/images, and no defaulted missing inspection date. |
+| `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs` | Prove every successful Export writes attributed structured `ActionHistory`, the first Export writes one proxy, later distinct exports write history but no second proxy, and exact operation replay duplicates neither. |
+| `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs` | Prove POST/antiforgery/operation-key wiring, disabled non-Review UI, server-side refusal even when directly posted, and the restored `Content-Digest` response header. |
+| `tests/Pegasus.IntegrationTests/EvaHandoffPersistenceTests.cs` | Resolve the modify/delete conflict by first transferring any current-`dev` strict-gate/package assertions to surviving suites, then delete tests whose tables/use cases are intentionally removed. |
+| `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs`, `IntakePersistenceIntegrationTests.cs`, `ProductionCompositionTests.cs`, `ReadinessEndpointTests.cs`, architecture and Automation/browser suites | Reconcile current `dev` expectations with the deleted tables/routes/tools and the surviving strict staff Export caller. |
 
-## Infrastructure — `src/Pegasus.Infrastructure`
+## Context files
 
-| | File | Why |
-| --- | --- | --- |
-| M | `Persistence/EvaHandoffStore.cs` | The largest edit. Delete `GetPreparationAsync`, `GetRevisionAsync`, `DownloadAsync`, `GenerateAsync`, `MapAcceptedCase`, `NewRevision`, `Generated`, `Bundle`, `AddAuditEvidence`, `Artifact`, and every helper left with no caller. `IExportCaseBundle.ExecuteAsync` becomes the one act and records the once-per-case proxy on first success. |
-| M | `Persistence/EvaHandoffEntities.cs` | Delete `EvaHandoffRevisionEntity`, `EvaHandoffOperationEntity`, `EvaHandoffDownloadOperationEntity`. Drop `RevisionId` and `OperationKey` from `EvaFirstHandoffProxyEntity`. |
-| M | `Persistence/EvaHandoffModelConfiguration.cs` | Delete the three entity configurations. On the proxy: drop the FK to `EvaHandoffRevisions`, the `RevisionId` unique index and the `OperationKey` property mapping. Both `CK_EvaFirstHandoffProxies_*` constraints stay untouched. |
-| M | `Persistence/PegasusDbContext.cs` | Delete the three `DbSet`s. |
-| M | `Eva/LocalEvaHandoffProxy.cs` | Drop the `request.Revision <= 0` guard with the field. |
-| M | `DependencyInjection.cs` | Remove `IEvaHandoffQueries`, `IEvaHandoffPersistence`, `IGenerateEvaHandoff`, `IDownloadEvaHandoff`. `EvaHandoffStore` and `IExportCaseBundle` stay. |
-| A | `Persistence/Migrations/<stamp>_DropEvaHandoffTables.cs` (+ `.Designer.cs`) | Drop the FK, index and two columns on `EvaFirstHandoffProxies`, then the three tables child-first. `Down()` restores all of it, empty. |
-| M | `Persistence/Migrations/PegasusDbContextModelSnapshot.cs` | Regenerated by `dotnet ef`. No historic `*.Designer.cs` is touched. |
+| Path | What it tells the implementer |
+|---|---|
+| `docs/frd/frd-04-parties-accounts-and-access.md` | ACC-09 requires permanent history for every export, including actor, caller, time, policy/version, structured evidence and outcome. |
+| `src/Pegasus.Infrastructure/Persistence/DocumentActionHistory.cs` | Existing helper for attributed succeeded events and exact operation replay; reuse it rather than create another history format. |
+| `src/Pegasus.Infrastructure/Persistence/EfDocumentCustodyStore.cs` | Existing document-export transaction/replay/history convention. |
+| `docs/adr/0030-non-additive-schema-changes-before-cutover.md` | Accepted authority for direct destructive migration, roll-forward recovery and the obligation to name the old-revision impact. |
+| `.github/workflows/ci.yml` | The `changes` job owns downstream build fan-out and has a five-minute full-history checkout timeout; this explains the cancelled current runs. Do not change it in ENG-016 unless separately scoped. |
+| `docs/engineering.md` and root `AGENTS.md` | Merge current `origin/dev` into the pushed task branch; do not rebase/force-push; preserve unrelated work and require independent review plus green CI. |
+| `CASE-019` Kanmer ticket | Historical permissive-download decision that the operator has now superseded for the one Export/send act. |
 
-## Web — `src/Pegasus.Web`
+## Ripple effects
 
-| | File | Why |
-| --- | --- | --- |
-| D | `Pages/Cases/Eva/Download.cshtml` + `.cshtml.cs` | The hand-off download route. Folder goes with it. |
-| M | `Pages/Cases/Documents/Export.cshtml.cs` | `OnGetAsync` → `OnPostBundleAsync`. A **named** handler is required: plain `OnPostAsync` is already the selective document export on the same page. |
-| M | `Pages/Cases/Details.cshtml` | The Export anchor becomes a form post, reusing the `ClaimLease` control's own shape 20 lines above it. |
-| M | `Pages/Cases/Vehicle.cshtml.cs` | Delete `OnPostGenerateEvaHandoffAsync` and the two EVA constructor parameters. |
-| M | `Pages/Cases/Shared/_CaseWorkflow.cshtml` | Delete the whole EVA panel. |
-| M | `Mcp/AssessmentMcpTools.cs` | Delete `pegasus_eva_bundle_generate`, `pegasus_eva_handoff_status`, their four result records, and the two constructor parameters. |
+- The dashboard's Sent-to-Engineer count continues to read the once-per-Case proxy; action history is additive evidence, not a replacement for that tile.
+- Removing permissive export means suggested-only or empty fields, stale accepted evidence, non-Review state, incomplete custody and missing eligible images all block both package creation and proxy/history writes.
+- The future EVA API route and later direct estimating integrations share the readiness concept but remain separately scoped capabilities; this PR adds no external adapter.
+- The normal merge from `origin/dev` must discard stale stacked copies of already-merged ENG-014/ENG-015/DOCS-013 work and preserve current unrelated `dev` changes.
+- The current local staged ignore/untrack change for `.codex/config.toml` and `.mcp.json` is not ENG-016 scope and must not be committed into PR #539.
 
-## Tests
+## Out of scope
 
-| | File | Why |
-| --- | --- | --- |
-| D | `tests/Pegasus.IntegrationTests/EvaHandoffPersistenceTests.cs` | The hand-off's own suite. |
-| M | `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs` | **The assertion inverts.** It proves an export writes no proxy; an export now writes exactly one. Drops the revisions assertion with the table. |
-| M | `tests/Pegasus.IntegrationTests/CaseWorkflowMigrationTests.cs` | Asserts `EvaHandoffDownloadOperations` exists after a full migrate — now 0. |
-| M | `tests/Pegasus.IntegrationTests/IntakePersistenceIntegrationTests.cs` | Applied-migration census gains the new migration. |
-| M | `tests/Pegasus.IntegrationTests/CaseDetailsWebTests.cs` | Asserts the hand-off links render and the routes exist; now they must 404. |
-| M | `tests/Pegasus.IntegrationTests/CaseVehicleWebTests.cs` | The whole EVA substitute triple and its cases go. |
-| M | `tests/Pegasus.IntegrationTests/ProductionCompositionTests.cs` | Resolves four deleted services. |
-| M | `tests/Pegasus.IntegrationTests/ReadinessEndpointTests.cs` | Resolves `IGenerateEvaHandoff`. |
-| M | `tests/Pegasus.ArchitectureTests/DependencyDirectionTests.cs` | `CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries` asserts the deleted authority/persistence pair and greps `EvaHandoffStore.cs` for `policy.Evaluate` / `policy.DecideRevision`. Rewritten around what survives. |
-| M | `tests/Pegasus.Core.Tests/Qdos/EvaHandoffPolicyTests.cs` | Covers deleted policy members. |
-| M | `tests/Pegasus.Core.Tests/Qdos/EvaBundleContractTests.cs` | Only if it names deleted types; checked during implementation. |
-| M/A | export proxy coverage | First export records exactly one proxy row; the second records none; a `GET` on the export route is 405/404. |
-
-**Not touched, deliberately:** `tests/Pegasus.IntegrationTests/AzureSqlRuntimeRoleMigrationTests.cs`. Its table and grant specs are asserted after `MigrateAsync("20260729199000_RuntimeRoleReconciliation")`, a pinned historic point, not at HEAD.
-
-## Scripts, infra, docs
-
-| | File | Why |
-| --- | --- | --- |
-| M | `scripts/Invoke-AzureDatabaseBootstrap.ps1` | Add the new migration to the existing `$removedTables` list (`:56-60`) so the three tables leave the baseline matrix. Rewrite the `EvaHandoffDownloadOperations` grant block — **keeping the string `20260819180000_GrantEvaHandoffDownloadOperations`**, which `Test-AzureDeploymentPlan.ps1:295-309` requires to be present because that migration file still contains `GRANT`. |
-| M | `infra/modules/platform.bicep` | F1: comment at `:433` asserts `provenance.json` is written. Comment only. |
-| M | `docs/frd/frd-07-eva-and-external-engineering-handoff.md` | `:35-38` the `First sent to Engineer` trigger, `:42` "successful focused manual generation … available for immediate staff download". **The two `###` headings must not be renamed** — `#focused-eva-manual-handoff` is the canonical-owner anchor for capabilities rows 147/154/175 and `#external-boundary` for rows 244/245/247/250/252/253/258, plus `frd/README.md:24` and ADR-0013:88. |
-| M | `docs/capabilities.md` | EXT-03 (`:175`), CASE-21 (`:147`), CASE-30 (`:154`, "Review-stage generation, revision, download and proxy history"), MCP-06 (`:182`, names the two deleted MCP tools). UI-04 (`:158`) stays true — the dashboard still reads the first-handoff proxy. |
-| M | `docs/current-architecture.md` | `:526` the two-act paragraph (F6 also lives here — it argues *why* rather than stating as-built), `:514` (`MapForProduction` as the thing a lookup value can never reach), `:634` (names the `Eva/Download` page), `:142` (the "EVA handoff surface" composition sentence). |
-
-**Not touched, deliberately:** `docs/operations.md` — it records the **deployed** estate and its release history. Nothing is deployed by this ticket, so rewriting release notes there would make it describe a state that does not exist. `docs/adr/0021-…md:55-58` names the two deleted MCP tools, but ADR bodies are immutable (`docs/index.md:21`) and the repair mechanism is a superseding ADR, which this ticket was not asked to write — raised in the PR instead.
+- No EVA API call, credentials, vendor contract or activation.
+- No Audatex, Glass's or other estimating-system adapter and no EVA replacement implementation.
+- No expand/contract compatibility path or production rollback support before cutover.
+- No CI workflow timeout change unless the checkout-only cancellation repeats after the resolved branch is pushed and is handled by its owning CI work.
+- No deployment, database mutation, Azure write or release in this planning task.

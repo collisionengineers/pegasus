@@ -255,3 +255,39 @@ schema itself is reversible. Capability named in the PR as the rule requires:
   as-built fact. In a file this ticket must rewrite anyway. **Taking.**
 - The CRLF-pin note (*CI does not guard the pin; production is Linux while every
   layout test is Windows*) is carried into the PR body as a caution, no code.
+
+---
+
+## Operator resolution and live re-audit — 2026-08-24
+
+### Question
+
+Re-evaluate ENG-016 after the operator clarified that manual Export is the current send-to-Engineer route, a future EVA API is the second route, and direct estimating-system integrations plus Pegasus engineering/reporting eventually replace EVA. Export must fail closed until Pegasus has everything required.
+
+### Findings
+
+- The earlier research conclusion is superseded. It said the permissive `MapForOperatorExport` bar should survive and the strict `MapForProduction` bar should be deleted. The operator has now explicitly chosen the opposite business result: one Export action, with the strict send-to-Engineer gate.
+- `origin/dev` currently has two actions. `CaseEvaMapping.MapForProduction` requires an accepted case, confirmed completeness, resolved inspection mode/address, all thirteen non-empty accepted fields, source/version provenance, and accepted mapping. `MapForOperatorExport` allows suggested and empty fields and defaults a missing inspection date. ENG-016 currently deletes the strict method and calls the permissive method from the only surviving Export path.
+- The lifecycle/custody half of the strict bar is also being deleted. `EvaHandoffPolicy.Evaluate` on `origin/dev` requires Review, current accepted evidence version, confirmed Case custody, Audit custody when applicable, accepted mapping, and at least one eligible image. ENG-016 currently leaves Review as a UI-only disabled button and enforces none of these server-side except mapping and at least one image.
+- The repository documents disagree in two generations. Current `origin/dev` FRD-07 and current-architecture describe a strict hand-off plus a separate permissive operator export. ENG-016 collapses them but writes the permissive interpretation into FRD-07, capabilities, current-architecture, its ticket body, plan, tests and post-implementation report. `docs/operator-notes.md` and `docs/design/README.md` already preserve the strict result, but need the route model clarified: today's manual Export is the hand-off; EVA API is a future transport; direct estimate integrations/Pegasus engineering replace EVA later.
+- CASE-019 is historical context, not current authority for ENG-016. Its 2026-08-22 decision explicitly called Export a read and not a hand-off. The operator's 2026-08-24 clarification supersedes that distinction for the target state.
+- FRD-04 requires permanent action history for every download/export. ENG-016 records only the once-per-case `EvaFirstHandoffProxies` row. It writes no `ActionHistory` row for the first or any later Export. The existing `DocumentActionHistory` helper and `EfDocumentCustodyStore` export implementation are the repository convention: operation-keyed replay, attributed success history, structured evidence, and an atomic save.
+- The first-sent proxy and action history are different facts. The proxy answers once per Case, "has Pegasus first sent this case to an Engineer route?" Action history answers for every successful Export, "who exported which exact package, when, through which policy/evidence version?" A second Export writes no second proxy but does write its own history event.
+- ADR-0030 is already accepted on `origin/dev`. It explicitly permits dead tables/columns to be dropped before cutover, requires roll-forward rather than rollback, and accepts the interval between migration and new package activation. No expand/contract compatibility layer is required. The current migration/PR rationale is inaccurate only about blast radius: the old app's unconditional `CaseQueries.GetCase` projection reads `EvaHandoffRevisions`, so every case workspace can fail during that interval, not only EXT-03.
+- The migration's `Down()` is local/disposable-schema tooling, not a production recovery promise. Once new proxy rows exist it cannot restore the required old revision FK without inventing data. The plan must stop calling this a safe rollback; production recovery is fix-forward under ADR-0030, while scratch-database up/down/up remains a development check only.
+- Fresh fetch: ENG-016 is 53 commits behind `origin/dev` and 11 commits ahead. A no-worktree `git merge-tree HEAD origin/dev` predicts nine conflicts: `docs/capabilities.md`, FRD-07, `CaseEvaMapping.cs`, `EvaBundleSchema.cs`, QDOS instruction policy and its tests, `EvaHandoffStore.cs`, `QdosBoundaryContractTests.cs`, and a modify/delete conflict in `EvaHandoffPersistenceTests.cs`.
+- Repository workflow permits merging `origin/dev` into the pushed task branch and forbids history rewriting. The conflict resolution must therefore be a normal merge, not a rebase or force-push. Take current `dev` wholesale for unrelated stacked changes, then reapply only ENG-016's focused final state.
+- CI did run. On head `30bb2791`, the latest two repository-check runs were cancelled because the `changes` job has a five-minute timeout and its full-history `actions/checkout@v7` did not finish. Jobs depending on `changes` were then skipped. Documentation, reference-data and local-development-script jobs did pass. This is not a test failure and not evidence the branch passes; a new merge commit will trigger a fresh run.
+
+### Implications
+
+- Keep one Export route and one package builder, but reuse the existing strict mapping and eligibility policies server-side.
+- Remove the permissive empty/default export behavior and its tests/result vocabulary.
+- Add operation-keyed permanent history for every successful Export while keeping the first-sent proxy once per Case.
+- Accept the pre-cutover migration window under ADR-0030, name the Case workspace impact accurately, and use roll-forward recovery; do not add compatibility code for a product that has not cut over.
+- Merge `origin/dev` normally, resolve only the nine predicted conflicts, and prove the final diff contains ENG-016 rather than the 53 commits already on dev.
+- Treat CI checkout cancellation separately from code correctness: push the resolved merge, let CI run, and only escalate the workflow timeout if the checkout failure repeats.
+
+### Open questions
+
+- None. The operator resolved the evidence bar and stated that production rollback compatibility is not a requirement before release/cutover.
