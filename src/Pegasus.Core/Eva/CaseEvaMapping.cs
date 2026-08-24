@@ -456,7 +456,8 @@ public static partial class CaseEvaMapping
 
     [GeneratedRegex(
         @"^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$",
-        RegexOptions.CultureInvariant)]
+        RegexOptions.CultureInvariant,
+        100)]
     private static partial Regex PostcodeRegex();
 
     private static string? NormalizeValue(string? value)

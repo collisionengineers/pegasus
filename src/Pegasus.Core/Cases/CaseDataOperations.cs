@@ -246,15 +246,7 @@ public static class CaseDataPolicy
             normalized.RemoveAt(normalized.Count - 1);
         }
 
-        var joined = string.Join('\n', normalized);
-        if (joined.Length > maximumLength)
-        {
-            throw new ArgumentOutOfRangeException(
-                parameterName,
-                $"The value cannot exceed {maximumLength} characters.");
-        }
-
-        return joined.Length == 0 ? null : joined;
+        return Bounded(string.Join('\n', normalized), maximumLength, parameterName);
     }
 
     private static string? Text(string? value, int maximumLength, string parameterName)
@@ -264,17 +256,23 @@ public static class CaseDataPolicy
             return null;
         }
 
-        var normalized = string.Join(
-            ' ',
-            value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
-        if (normalized.Length > maximumLength)
+        return Bounded(
+            string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)),
+            maximumLength,
+            parameterName);
+    }
+
+    /// <summary>The one length rule every normalized case text field obeys.</summary>
+    private static string? Bounded(string value, int maximumLength, string parameterName)
+    {
+        if (value.Length > maximumLength)
         {
             throw new ArgumentOutOfRangeException(
                 parameterName,
                 $"The value cannot exceed {maximumLength} characters.");
         }
 
-        return normalized;
+        return value.Length == 0 ? null : value;
     }
 
     private static void ValidateDate(DateOnly? value, string parameterName)
