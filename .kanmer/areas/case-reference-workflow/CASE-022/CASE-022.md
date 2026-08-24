@@ -1,7 +1,7 @@
 ---
 id: CASE-022
 type: ticket
-title: Make creating a public upload link findable
+title: Deliver public upload links (INT-31) to the operator's accepted limits
 status: backlog
 area: case-reference-workflow
 assignee: ''
@@ -15,80 +15,107 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-08-24T08:59:26.151Z'
+updated: '2026-08-24T09:46:04.201Z'
 ---
 
 ## What the operator saw
 
 > *"**Issue 3** — No method to create an upload link on frontend at all seemingly."*
 
-They are right, and the reason is not the one this ticket originally gave.
+Correct, and not for the reason first assumed. The capability is composed as a
+null implementation that **throws** (`UnavailableDocumentRequestStore`), `/uploads`
+returns 404 in production, and a composition test pins it closed. Verified
+against the deployed container: no `DocumentRequests__AcceptedLimitsVersion` is
+set — only `Runtime__Profile` and `Features__AutomationMcp`. This was never a
+missing button.
 
-## This is not a UI bug — the capability is not delivered
+## The operator has now accepted the limits, 2026-08-24
 
-**Verified in code, in config, and against the deployed container.** Public
-upload links (INT-31) are composed as a **null implementation that throws**:
+> *"token lifetime - configurable upon generation. user enters expiration date
+> or leaves open (permanent/until cancellation pegasus-side).*
+>
+> *file size: these limits are too light (10mb too small by far).*
+>
+> *content type: any standard files we would receive: images, documents, videos
+> (rare but still happens), email file types*
+>
+> *most of this is over-engineering and assuming that our customers are going to
+> send us a virus or something which is absurd.*
+>
+> *box is the destination storage as with all other storage/files/evidence."*
 
-```csharp
-// DependencyInjection.cs:435-437 — the else branch
-services.AddScoped<UnavailableDocumentRequestStore>();
-services.AddScoped<ICreateRequestUploadLink>(provider =>
-    provider.GetRequiredService<UnavailableDocumentRequestStore>());
-```
-
-`UnavailableDocumentRequestStore.cs:19` throws `DocumentRequestUnavailableException`.
-The real store is composed only when `requestUploadLimitsFactory` is non-null,
-and `Program.cs:203-210` leaves it null unless
-`DocumentRequests:AcceptedLimitsVersion` is set.
-
-| Check | Result |
+| Question | Answer |
 | --- | --- |
-| `appsettings.json` / `appsettings.Development.json` | no `DocumentRequests` section |
-| `infra/` bicep | sets only `Runtime__Profile` and `Features__AutomationMcp` |
-| **Deployed container app env** (`az containerapp show`, 2026-08-24) | **`Runtime__Profile=Production`, `Features__AutomationMcp=true` — and nothing else** |
+| Token lifetime | Chosen per link at generation: an expiry date, **or open** — permanent until cancelled in Pegasus |
+| One-time vs reuse | Reuse. A link lives until its expiry or cancellation |
+| Revocation | Exists — "until cancellation pegasus-side" |
+| Content types | Images, documents, videos, email files — the standard set |
+| Destination | **Box**, like all other evidence |
+| Byte limits | Far above 10 MB. Exact figure below |
+| Rate limits | Over-engineering; not wanted |
 
-So the gate is closed in the running product, not merely in the repo.
+## Two things the built policy cannot express
 
-Two more consequences, both verified:
+The `RequestUploadPolicy`/`RequestUploadLimits` code is complete and has been
+waiting on these values. **Two of the answers contradict its design**, so this is
+not a matter of supplying eight numbers.
 
-- **The public page 404s.** `Program.cs:919-937` returns 404 for `/uploads` (and
-  `/requests` on the production profile) when the factory is null. Even a
-  successfully minted link would point at a route that does not answer.
-- **A test pins it closed.**
-  `ProductionCompositionTests.ProductionProfileKeepsUploadLinksUnavailableWithoutAcceptedLimits`
-  asserts the null store, *"so composing document custody must not activate
-  anonymous upload links."*
+**1. Per-link expiry is refused by construction.** `RequestUploadLimits` takes a
+single global `Lifetime` (`TimeSpan`, validated `> Zero`), and
+`HasAcceptedLifetime` rejects any link whose expiry is not *exactly*
+`CreatedAtUtc + limits.Lifetime`. An operator-chosen date, and an open-ended
+link, are both actively refused today. Making the expiry per-link is a change to
+the policy contract.
 
-Pressing the button today reaches `Custody.cshtml.cs:225-231`, which catches the
-throw and reports the request unavailable. The lease requirement in
-`_CaseDocuments.cshtml:8` is a real second-order discoverability problem, but it
-is not why the operator cannot create an upload link.
+**2. A rate limit is mandatory.** The constructor throws on a non-positive
+`rateLimit`, so "no rate limiting" is not expressible either.
 
-## Why it is blocked rather than in progress
+## The size ceiling is not where the constant says
 
-CLAUDE.md: *"A closed composition or feature gate is a disabled flag, not a
-partially shipped feature. Do not ship, release, merge as delivered, claim, or
-document a feature behind one as delivered."* Making the control **more
-findable** while it cannot work is the worst of the available outcomes.
+Raising `IntakeEnvelopeLimits.MaximumContentLength` alone will not work.
 
-`docs/open-decisions.md` still holds eight unanswered questions for INT-31 —
-token lifetime, per-file and aggregate byte limits, file count, allowed content
-types, per-token and per-IP rate, one-time versus reuse, and the
-revocation/expiry error contract. `docs/capabilities.md` marks INT-31
-*"Allocated but non-blocking for `0.1.0-alpha.1`"*, and `open-decisions.md`
-lists it as explicitly not on the path.
+- `Program.cs` sets `MultipartBodyLengthLimit` to `MaximumBatchContentLength`
+  (20 files × 10 MiB + overhead ≈ **200 MiB**).
+- **`MaxRequestBodySize` is configured nowhere** in `src/` or `infra/`, so
+  Kestrel's ~30 MB default is the real ceiling. A request over that is refused
+  before the multipart limit is ever consulted.
 
-## The operator's choice
+So the two limits already disagree, and the effective cap today is ~30 MB — below
+anything that would carry a video. Container Apps ingress may impose its own; to
+be established rather than assumed.
 
-**(a) Remove the dead controls now.** The whole upload-request section
-(`_CaseDocuments.cshtml:136-167`) renders in production offering an action that
-cannot succeed, including the empty state *"No public upload request is
-recorded. Availability is not assumed."* `docs/design/README.md` already forbids
-that shape — a read-only section with nothing recorded and no available action
-should be absent, not an empty panel. Small, honest, and it stops the surface
-lying. INT-31 stays deferred.
+Precedent for a generous bound exists and is documented:
+`MaximumMailboxContentLength` is **750 MB**, deliberately permissive, after a
+16.69 MB QDOS forward was refused outright as `message_too_large`.
 
-**(b) Deliver INT-31.** A feature, not a fix, and it needs the eight limit
-values answered first.
+**Proposed, for correction rather than debate:** per file 250 MB, per request
+1 GB, 50 files. These are bounds that stop a runaway request, not a judgement
+about senders. The real constraint to establish at plan time is whether the
+upload path streams to Box or materialises in memory — that, not a policy
+number, decides what is safe.
 
-**Recommendation: (a) now, (b) as its own ticket when the limits are settled.**
+## Box as destination closes the other open decision
+
+`docs/open-decisions.md` § *Manual upload in a deployed environment* records that
+ADR-0003 forbids a deployed upload route until **authenticated intake and
+approved durable source custody** exist, and that only the first was met — the
+upload path retaining assets *"in ignored local content-addressed storage… not
+production Blob staging, Box custody, backup, or retention"*.
+
+The operator's answer settles the custody half: **Box**, the same destination as
+every other case file. An upload link is created against a case, and that case
+already has a Box folder, so this reuses the existing case-document custody path
+rather than inventing a second one. Confirm at plan time that the anonymous
+upload route actually joins that path.
+
+## Scope note
+
+The dead upload-request controls at `_CaseDocuments.cshtml:136-167` belong to
+this ticket, not [[DOCS-012]]. They stop being dead once this ships.
+
+## Documents
+
+`docs/open-decisions.md` item 1 under *QDOS alpha activation details* closes; the
+accepted limits move to their canonical owner (FRD-05), per the register's own
+rule that accepted decisions leave it. The § *Manual upload in a deployed
+environment* contradiction is resolved for this route and should say so.
