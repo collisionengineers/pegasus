@@ -767,12 +767,13 @@ internal static class IntakeTestEvidence
     public static TestEmail CreateEmail(
         string fileName,
         string body,
-        string senderAddress = "instructions@qdosassist.co.uk")
+        string senderAddress = "instructions@qdosassist.co.uk",
+        string subject = "QDOS test instruction")
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Synthetic sender", senderAddress));
         message.To.Add(new MailboxAddress("Pegasus Intake", "intake@example.test"));
-        message.Subject = "QDOS test instruction";
+        message.Subject = subject;
         message.Body = new TextPart("plain") { Text = body };
         using var output = new MemoryStream();
         message.WriteTo(output);

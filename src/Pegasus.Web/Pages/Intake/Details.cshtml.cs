@@ -347,6 +347,17 @@ public sealed partial class DetailsModel(
         Receipt.AssetRecords.Count(candidate => candidate.ContentHash == asset.ContentHash);
 
 
+    /// <summary>
+    /// The receipt's outcome as the operator reads it. A Triage request is
+    /// <see cref="IntakeDecision.NeedsSorting"/> because it is pre-case work,
+    /// and unidentified material is too — but naming a Triage request
+    /// "Unidentified" is the same label/reality gap INTK-033 exists to close.
+    /// </summary>
+    public static string DecisionLabel(IntakeReceipt receipt) =>
+        receipt.MailClassificationDecision is { IsTriageRequest: true }
+            ? "Triage"
+            : DecisionLabel(receipt.Decision);
+
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
         IntakeDecision.CaseCreated => "Ready for case allocation",

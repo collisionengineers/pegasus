@@ -30,6 +30,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
             new UnreachableResolveUnidentified(),
             new EmptyIntakeReceiptQueries(),
             new UnreachableImageIntakeQueries(),
+            new UnreachableTriageQueries(),
             TimeProvider.System);
         var vehicleLookupReconciler = new ReconcileAutomaticVehicleLookups(
             new UnreachableAutomaticVehicleLookupStore(),
@@ -341,6 +342,25 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(
                 "An empty Unidentified reconciliation page must not resolve anything.");
+    }
+
+    private sealed class UnreachableTriageQueries : Pegasus.Core.Triage.ITriageQueries
+    {
+        public Task<IReadOnlyList<Pegasus.Core.Triage.TriageSummary>> ListAsync(
+            Pegasus.Core.Triage.TriageState? state,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<Pegasus.Core.Triage.TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        public Task<Pegasus.Core.Triage.TriageSummary?> GetByOriginReceiptAsync(
+            Guid originReceiptId,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
+        private static InvalidOperationException UnexpectedCall() =>
+            new("The timer's empty reconciliation batch reached an unrelated Triage query.");
     }
 
     private sealed class UnreachableImageIntakeQueries : IImageIntakeQueries

@@ -494,7 +494,7 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken);
             var replayAllocated =
                 replayAllocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-            await CreateTriageIfQualifyingAsync(
+            var replayTriage = await CreateTriageIfQualifyingAsync(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
@@ -514,8 +514,17 @@ public sealed class ProcessQueuedIntake(
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
             }
 
-            await SynchronizeUnidentifiedAsync(completedReceipt, cancellationToken);
-            return QueuedIntakeProcessingOutcome.NoOp;
+            await SynchronizeUnidentifiedAsync(
+                completedReceipt,
+                replayTriage,
+                cancellationToken);
+            // A failed attempt is deliberately not registered as Unidentified,
+            // so reporting a finished pass here would leave an accepted request
+            // in neither queue. Defer instead, exactly as a pending image group
+            // does above (INTK-033 review).
+            return replayTriage == TriageCreationOutcome.Failed
+                ? QueuedIntakeProcessingOutcome.RetryScheduled
+                : QueuedIntakeProcessingOutcome.NoOp;
         }
 
         var (workItem, stagedReceipt) = claimed.Value;
@@ -615,7 +624,7 @@ public sealed class ProcessQueuedIntake(
             evaluation.Id,
             cancellationToken);
         var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-        await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+        var triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
         if (allocated)
         {
             // Allocation wrote CurrentCaseId durably; image automation must
@@ -630,8 +639,10 @@ public sealed class ProcessQueuedIntake(
             return QueuedIntakeProcessingOutcome.RetryScheduled;
         }
 
-        await SynchronizeUnidentifiedAsync(processed, cancellationToken);
-        return QueuedIntakeProcessingOutcome.Completed;
+        await SynchronizeUnidentifiedAsync(processed, triage, cancellationToken);
+        return triage == TriageCreationOutcome.Failed
+            ? QueuedIntakeProcessingOutcome.RetryScheduled
+            : QueuedIntakeProcessingOutcome.Completed;
     }
 
     /// <summary>
@@ -692,6 +703,14 @@ public sealed class ProcessQueuedIntake(
     ///   deliberately skipped by <c>ProcessIntake</c> so automation could
     ///   resolve it first; register it now so it is never silently absent
     ///   from both the Image Intake and Unidentified queues.
+    /// - A Triage request that did not qualify for a Triage was skipped by
+    ///   <c>ProcessIntake</c> for the same reason; it did not qualify because
+    ///   no vehicle registration is known yet, which is exactly the operator's
+    ///   condition for holding it in Unidentified. A request that qualified
+    ///   and whose attempt failed is deliberately NOT registered: it is not
+    ///   unidentified material. The pass then reports itself unfinished so a
+    ///   redelivery opens its Triage, rather than acknowledging work that
+    ///   reached neither queue (INTK-033).
     /// - A receipt that already carries an open Unidentified item but now
     ///   has a different, resolved outcome (a Case now exists, or image
     ///   automation registered an Image Intake) is stale in the open queue;
@@ -699,11 +718,13 @@ public sealed class ProcessQueuedIntake(
     /// </summary>
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
+        TriageCreationOutcome triage,
         CancellationToken cancellationToken)
     {
         if (registerUnidentified is not null
-            && receipt.Decision == IntakeDecision.NeedsSorting
-            && Pegasus.Core.ImageIntake.ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt))
+            && ProcessIntake.IsDeferredForAutomation(receipt)
+            && !(ProcessIntake.IsTriageRequest(receipt)
+                && triage is not TriageCreationOutcome.NotQualifying))
         {
             try
             {
@@ -890,7 +911,29 @@ public sealed class ProcessQueuedIntake(
             ? "artifact_retention_failure"
             : "intake_processing_failure";
 
-    private async Task CreateTriageIfQualifyingAsync(
+    /// <summary>
+    /// Opens the Triage when the accepted route classified the message as a
+    /// Triage request and a vehicle registration is known, and reports whether
+    /// one now exists. The caller needs that answer: a Triage request with no
+    /// registration is the operator's Unidentified branch.
+    /// </summary>
+    /// <remarks>
+    /// Advisory and non-blocking, like every other step after
+    /// <c>CompleteProcessingAsync</c>. This one had no fault handling while
+    /// its gate could never pass, so the omission was invisible; now that it
+    /// fires, an escaping fault would leave the receipt Completed, throw to
+    /// the host, and throw again identically on every redelivery — a poison
+    /// loop rather than a settled outcome.
+    ///
+    /// The outcome is three-valued rather than a boolean, because "did not
+    /// qualify" and "qualified and failed" need opposite answers from the
+    /// caller. A message with no known registration is Unidentified material
+    /// by the operator's rule; a message with one is not, whatever this
+    /// attempt did, and registering it would mint a U-reference for material
+    /// whose Triage the next redelivery opens — leaving both open, with
+    /// nothing able to close either.
+    /// </remarks>
+    private async Task<TriageCreationOutcome> CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
         IntakeEvaluationRevision evaluation,
         CancellationToken cancellationToken)
@@ -906,22 +949,42 @@ public sealed class ProcessQueuedIntake(
             || string.IsNullOrWhiteSpace(acceptedMatches[0].MatcherKey)
             || acceptedMatches[0].MatcherVersion is null or <= 0)
         {
-            return;
+            return TriageCreationOutcome.NotQualifying;
         }
 
-        await createTriage.ExecuteAsync(
-            new(
+        try
+        {
+            await createTriage.ExecuteAsync(
                 new(
-                    receipt.Id,
-                    receipt.SourceIdentity,
-                    receipt.SourceHash,
-                    evaluation.Id),
-                registration,
-                acceptedMatches[0],
-                SystemActor,
-                $"triage-from-intake-evaluation:{evaluation.Id:N}"),
-            cancellationToken);
+                    new(
+                        receipt.Id,
+                        receipt.SourceIdentity,
+                        receipt.SourceHash,
+                        evaluation.Id),
+                    registration,
+                    acceptedMatches[0],
+                    SystemActor,
+                    $"triage-from-intake-evaluation:{evaluation.Id:N}"),
+                cancellationToken);
+            return TriageCreationOutcome.Created;
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return TriageCreationOutcome.Failed;
+        }
     }
+}
+
+/// <summary>
+/// What one Triage-creation attempt did, for a caller that must tell "this is
+/// not Triage material" apart from "this is Triage material and the attempt
+/// did not stick". Only the first is Unidentified.
+/// </summary>
+internal enum TriageCreationOutcome
+{
+    NotQualifying,
+    Created,
+    Failed
 }
 
 public sealed class ReconcilePoisonedIntakeWork(

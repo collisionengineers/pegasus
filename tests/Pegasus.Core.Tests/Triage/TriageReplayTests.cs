@@ -241,6 +241,11 @@ public sealed class TriageReplayTests
             return Task.FromResult(Current);
         }
 
+        public Task<TriageSummary?> GetByOriginReceiptAsync(
+            Guid originReceiptId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<TriageSummary>> ListAsync(
             TriageState? state,
             CancellationToken cancellationToken) =>
