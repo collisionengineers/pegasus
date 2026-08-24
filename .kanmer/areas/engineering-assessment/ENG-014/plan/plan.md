@@ -106,3 +106,54 @@ breaks; replay identity across this boundary is lost. Recorded in the PR.
 - Migration up/down/up on LocalDB; `scripts/Test-MigrationGrants.ps1`.
 - Byte-diff the produced JSON against `reference/eva_information/AX_SP58WVO.json`
   for layout.
+
+---
+
+## Simplification pass — 2026-08-24
+
+Run over this branch's own diff (reuse, simplification, efficiency, altitude).
+The change is overwhelmingly deletion, so most of the pass had nothing to bite
+on; four findings, three applied.
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Altitude | `CustodyOutboxIntegrationTests` asserted `bundle.Sha256 == SHA256(bundle.Content)` — a `Pegasus.Core` invariant being paid for inside a LocalDB integration test that takes minutes. | **Applied.** Moved to `EvaBundleContractTests`, and extended to `JsonSha256` while it was there. The integration test keeps only what is genuinely integration-level: the entry list and the indented JSON. |
+| 2 | Convention | `System.Text.Encoding.UTF8` written fully-qualified in `CaseOperatorExportTests`, where every other type comes from a using. | **Applied.** Added `using System.Text;`. |
+| 3 | Convention | The explanatory comment on the renamed persistence test sat *between* `[Fact]` and the signature; the codebase puts it above the attribute. | **Applied.** Moved above `[Fact]`. |
+| 4 | Simplification | `CustodyOutboxIntegrationTests` now makes three assertions (JSON present, two `Images/`, three entries total) where one exact entry-list equality would read better. | **Not applied.** The image entry names carry a seeded ordinal prefix, so an exact list would couple the test to seeding order for no extra coverage. The three counted assertions pin the same fact without that brittleness. |
+
+No abstraction, flag, parameter or enum was added anywhere — with the manifest
+gone from both paths there is one packaging, so `WriteArchive` lost two
+parameters rather than gaining a switch.
+
+## Findings from implementation, recorded not fixed
+
+1. **The ticket says "four columns"; there are three.** `ProvenanceContent`,
+   `ProvenanceSha256`, `ManifestContent`. Confirmed against the entity, the
+   model snapshot and the live schema after applying the migration.
+
+2. **`JsonWriterOptions.NewLine` defaults to `Environment.NewLine`.** Verified
+   by running it, not assumed. Left at the default, `Indented = true` would
+   have made the archive bytes — and therefore `InputFingerprint` and the
+   download `Content-Digest` — differ between a Windows and a Linux run, and CI
+   runs both. Pinned to `"\r\n"`, which is also what all three known-good
+   samples use at byte level. This is the one decision in the change that goes
+   beyond the ticket's literal text; it is a fixed constant, not a knob.
+
+3. **This migration is not additive**, and the runbook's release rule
+   (`docs/runbook.md`, "schema is roll-forward only … releases keep migrations
+   additive so the previous application runs against the newer schema") assumes
+   additive ones. An application built before ENG-014 lists these three columns
+   in its `EvaHandoffRevisions` insert, so rolling the app back behind this
+   migration fails EVA hand-off *generation* until it is rolled forward again.
+   Nothing is lost and nothing else degrades — existing revisions keep their
+   bundle, JSON and hashes, and download still serves `BundleContent`. Called
+   out in the migration's own comment and in the PR for the reviewer to accept
+   or to convert into a two-step deprecate-then-drop.
+
+4. **A byte difference against the reference sample that is not layout.**
+   `Utf8JsonWriter` escapes non-ASCII (the sample's `’` becomes `’`), and
+   `CaseEvaMapping` strips the sample's trailing whitespace in
+   `Inspection Address`. Both are pre-existing and JSON-semantically identical
+   — `json.loads` of both files gives equal strings for every key — so neither
+   is in ENG-014's scope. Noted for [[ENG-015]] if byte-parity is ever wanted.

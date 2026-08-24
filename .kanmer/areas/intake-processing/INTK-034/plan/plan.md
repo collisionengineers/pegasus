@@ -93,3 +93,47 @@ not matter; the two never touch the same lines.
 
 Whether the operator wants this recorded in FRD-03 as *required* behaviour
 rather than left as an obvious view. Not blocking: the view is right either way.
+
+## Simplification pass — 2026-08-24
+
+Run over the branch's own diff with an independent lens before the PR.
+
+**Applied — one of these was a real defect:**
+
+- **The `try/catch` was dead code carrying a comment that promised protection it
+  did not deliver.** It caught `UnauthorizedAccessException`, but rights denial
+  in `GetIntake` throws `StaffAuthorizationException` — an unrelated type. And it
+  was unreachable twice over: `GetTriage`, two lines above, already required the
+  identical `PerformCasework` right from the identical actor, so control cannot
+  reach the block without it. I copied the pattern from the Unidentified page
+  without checking that its precondition holds here — it does not. That page
+  loads its item through an unauthorised store call, so `getIntake` genuinely is
+  its first rights check; its own catch is still the wrong exception type, which
+  is its ticket, not this one. Deleted, with a comment saying why no guard is
+  needed.
+- **The test fixture declared `image/jpeg` over PNG bytes.** Green today only
+  because nothing probes the bytes against the declared type. Now honest.
+- **A test comment's stated reason was wrong.** Two identical attachments would
+  not have "passed while proving less" — the second filename assertion would have
+  failed loudly. The distinct bytes are needed to have two images at all.
+- **`Assert.Contains("/Asset/")` proved only that *some* asset URL rendered.** Now
+  asserts the full path for this receipt.
+
+**Considered and deliberately not changed, with reasons:**
+
+- **The projection lives in the view.** It mirrors `Cases/Details.cshtml` exactly
+  — same `@{ }` block, same `Url.Page(...)`, same guard, same partial. It needs
+  `Url`, which belongs in the view. This is the codebase's convention, twice over.
+- **`EvidenceImages` exposes `IntakeAssetRecord` rather than a purpose-built
+  projection.** Wider than the `CaseEvidenceImage` the Cases page uses, but
+  introducing a second projection record for one caller trades a real rule
+  against a cosmetic one. Left as is.
+- **`CreateEmail` could collapse its branch through MimeKit's `BodyBuilder`.**
+  The explicit construction is correct either way, and `BodyBuilder` also sets
+  `ContentType.Name` alongside `FileName` — a harmless header difference, but a
+  difference. Not worth the churn. Worth noting the new `ContentType.Parse` is
+  strictly better than the existing precedent elsewhere, which splits on `/` and
+  would throw on a media type without one.
+- **The `Count > 0` guard before the partial is not redundant.** The partial
+  renders its own empty-state sentence, which the design authority forbids in a
+  read-only view. The second test pins its absence.

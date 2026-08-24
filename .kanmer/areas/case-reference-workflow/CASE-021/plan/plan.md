@@ -112,3 +112,61 @@ sees a Not-ready case without being told it is the images. FRD-01 dislikes exact
 that opaque aggregate, and CASE-013 deferred naming the missing evidence as
 "worth doing once the flags mean something". This ticket is what makes them mean
 something. Follow-up, not scope creep here.
+
+## Simplification pass — 2026-08-24
+
+Run over the branch's own diff with an independent lens before the PR.
+
+**Applied:**
+
+- **The tests proved nothing they appeared to prove.** They called
+  `AutomaticCompleteness(...)` and then *separately* called
+  `CaseCompletenessPolicy.Evaluate(...)`, re-implementing by hand the very wiring
+  the diff changed. Nothing exercised `AllocateIntake` feeding the value into the
+  acceptance command. They now live in `AllocateDefinitiveIntakeTests`, drive
+  `AttemptAutomaticAsync`, and assert on the completeness `RecordingAcceptance`
+  actually received.
+- **A receipt builder was duplicated.** `AutomaticCaseReadinessTests` was a pure
+  policy class; the diff added a 22-argument `IntakeReceipt` builder to it while
+  a near-identical one already existed one directory over. The move above reuses
+  that builder (extended with `params IntakeAssetRecord[] assets`) and leaves the
+  readiness class about the policy, as it was.
+- **`internal` is no longer needed.** Driving the real path made the visibility
+  widening unnecessary; `AutomaticCompleteness` is `private` again.
+- **A 22-line doc comment for 5 lines of code.** The paragraph defending against
+  a return to CASE-013's all-false flags was arguing with a change nobody
+  proposed — ticket archaeology, which belongs here rather than in the tree. Cut,
+  along with an inline comment restating what `InstructionEvidenceImages`' own
+  class doc already says.
+
+**Considered and deliberately not changed, with reasons:**
+
+- **`InstructionEvidenceImages.Select(...).Count > 0` allocates an array to test
+  emptiness.** There is no `Any`-style predicate on that type, and adding one for
+  a single caller is an abstraction with no second concrete caller — forbidden
+  outright. One small array, once per allocation, and reusing the one selection
+  owner is the whole point of the change.
+- **Ordering was checked, not assumed.** The receipt at the call site is a fresh
+  `receiptQueries.GetAsync` with assets eagerly included, and asset retention
+  commits in the same unit of work as the receipt row, strictly before allocation
+  runs. The flag cannot be spuriously false from staleness.
+
+## Known consequences, pinned rather than discovered later
+
+Three real intake shapes now evaluate `ImagesComplete: false` where they
+previously sailed through. All three are the intended behaviour — the flag is
+finally telling the truth — but they are consequences, not accidents:
+
+1. **Photographs embedded in the message body** rather than attached.
+   `InstructionEvidenceImages` counts attachments and embedded images, never
+   inline ones. Now pinned by a test.
+2. **Embedded PDF images under the 40 KB floor.**
+3. **Photographs arriving on a later receipt** — the grouped image-intake path
+   runs *after* allocation, and nothing recomputes the flag afterwards. So an
+   instruction whose photographs follow separately is born images-incomplete
+   until staff confirm.
+
+None strands a case: each sits in Not ready with its seven-day chase, and the
+review-readiness rule accepts staff confirmation in place of complete evidence.
+Shape 3 is the one most likely to be seen in practice and is worth an operator
+sentence if it proves annoying — a follow-up, not scope creep here.
