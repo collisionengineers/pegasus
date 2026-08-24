@@ -189,3 +189,127 @@ derived-thumbnail store, and any scripted PDF renderer.
 ## Simplification pass
 
 *To be completed before the PR, under a dated heading.*
+
+---
+
+## Simplification pass — 2026-08-24
+
+Run over this branch's own diff with the `code-simplifier` agent across the four
+lenses (reuse, simplification, efficiency, altitude). Build re-run after every
+edit: **succeeded, 0 warnings**.
+
+### Applied — behaviour-preserving
+
+1. **Dead CSS removed.** The new
+   `@media (prefers-reduced-motion: reduce) { .evidence-viewer__stage.is-loading::after { animation-duration: 3s; } }`
+   never applied: `site.css:1066` already carries a site-wide
+   `*, *::before, *::after { animation-duration: .01ms !important; }` under the
+   same query, and `!important` wins regardless of order. Under reduced motion
+   the spinner is already frozen by the global rule and `aria-busy` carries the
+   state — the existing convention.
+2. **Four `WebApplicationFactory` instances collapsed to one** in the new
+   custody test. The first draft built a factory per request (four LocalDB
+   restores and four hosts for four GETs on one route); every other test in that
+   file builds one. `RecordingDocumentHandlers` moved from constructor
+   parameters to settable `MediaType`/`FileName` with the original defaults, so
+   the pre-existing test is untouched. Real saving against a ~28-minute suite.
+3. **Double ternary flattened** in `Cases/Details.cshtml`. The evidence
+   projection allocated a shared `documentRoute` anonymous object (even for
+   retained-asset images that never use it), then branched on `IsCaseDocument`
+   twice and re-projected its three members into a fresh anonymous type just to
+   add `inline = true`. Now one `if/else`, each arm assigning `preview` and
+   `download`.
+4. **`rows.ToDictionary(row => row.IntakeReceiptId, row => row)` →
+   `rows.ToDictionary(row => row.IntakeReceiptId)`** — the single-argument
+   overload is the identity case.
+
+### Defects the pass found in this branch's own new code — all fixed
+
+The pass was asked to report bugs rather than fix them. Four came back; all four
+are mine and all four are now fixed, with the security one covered by a test.
+
+- **Paging could land on a non-previewable row.** `data-evidence-item` is on
+  *every* document-version link, and `open()` collected the whole
+  `[data-evidence-set]`. The click guard was correct, but **Next/Previous could
+  reach a `.docx`**, and `show()`'s `else` arm then set the hidden iframe's
+  `src` — the server correctly refused to disposition it inline, so the browser
+  **started a download the operator never asked for**, and the spinner never
+  stopped because no `load` fired. *Fixed:* the paging set is now filtered to
+  previewable items, so `show()` can only receive a kind it can render. This
+  also makes the `n / m` count honest.
+- **`image/svg+xml` passed the inline allowlist.** SVG is `image/*` but executes
+  script when *navigated to*. DOCS-011 is what newly points the operator-facing
+  document link at `?inline=true`, so with JavaScript off — or a middle-click —
+  an operator would navigate to a same-origin inline SVG. For arbitrary
+  operator-supplied case documents that is the same stored-XSS class the
+  `text/html` exclusion already guards. *Fixed:* excluded on both sides
+  (`IsInlineSafe` and `previewKind`, kept as one rule), with a regression test
+  asserting an SVG stays `attachment` even with the flag.
+- **No `error` listener on the iframe.** A PDF that failed to load left
+  `aria-busy="true"` and the spinner running forever. *Fixed.*
+- **Divergent focus-trap selector.** The viewer's `focusable()` omitted
+  `input, select, textarea` while claiming to share the reason-dialog contract.
+  Equivalent today (the viewer has no form controls) but a silent trap for
+  whoever adds one. *Fixed:* identical selector string.
+
+### Findings deliberately not applied
+
+- **Extracting `focusablesIn` + `containTab` from the two overlay blocks.** A
+  clean extraction genuinely exists — two pure functions, no options object, no
+  callback hook, two concrete callers. **Not applied:** the repo's threshold is
+  "a third copy is a stop condition"; two is where an abstraction becomes
+  *permitted*, not required. Applying it also edits the shipped
+  `[data-reason-dialog]` block — the focus trap behind every destructive-action
+  confirmation — whose only regression proof is the ~28-minute suite, which is
+  not proportionate for ~20 lines in a quality pass. **Recorded for the next
+  person: the third overlay is the trigger; extract these two first.**
+- **The inline-safe media-type rule now exists in two layers** (`IsInlineSafe`
+  in C#, `previewKind` in JS). The rails call a second copy of a taxonomy
+  duplication "even when it is just strings", and it is avoidable: the server
+  could emit a computed `data-previewable` and the JS would read a boolean.
+  **Not applied:** it restructures the design rather than tidying it, and moves
+  a security-critical allowlist — not a job for a behaviour-preserving pass. The
+  two agree today (I could construct no input where they differ) and both were
+  changed together for the SVG fix. **The risk is drift, not a present defect**
+  — worth a reviewer's opinion, and a follow-up ticket if they want it collapsed.
+- **Duplicated retained-image projection** across `Cases/Details.cshtml` and
+  `ImageIntake/Details.cshtml` — duplicated before this change too, but this
+  change doubles its mass (3 lines each → 6). **Not applied:** removing it needs
+  an `IUrlHelper`-consuming helper, and no such pattern exists anywhere under
+  `Presentation/`. "The existing convention wins" points away from inventing one
+  for a two-copy duplication.
+- **`bool inline = false` sits after `CancellationToken`.** Against convention,
+  but C# forces it — the token has no default. Fixing it means changing an
+  existing parameter for no behavioural gain. **Not applied.**
+- **Two defensive dead branches in `open()`** (`set ? … : [trigger]` and
+  `start < 0 ? 0 : start`). Neither can fire today. **Not applied** — cheap
+  insurance against a future partial that forgets `data-evidence-set`.
+- **Per-trigger click listeners** rather than one delegated listener.
+  **Not applied** — the reason-dialog block binds per-element the same way, N is
+  small, and changing it is a convention change, not a simplification.
+- **Two `Url.Page` calls per document row.** Deriving one from the other means
+  string surgery on URLs. **Not applied**, deliberately.
+
+### Checked, clean
+
+**No regex in the new JS** — grepped for `RegExp`, `.match(`, `.test(`,
+`.replace(` and regex literals; only comment-slash hits. `previewKind` is
+index-based (`split(';')[0]`, `indexOf('image/') === 0`). No unbounded loop.
+Given the ReDoS shipped one release ago and the second caught in review this
+week, this was checked rather than assumed.
+
+### Behaviour changes a reviewer should look at directly
+
+- **The document filename link no longer downloads without JavaScript.** With JS
+  off, clicking an image or PDF filename now previews in the tab where it
+  previously saved. The *route* flag is additive; the *link* is not. This is
+  what the operator asked for ("clicking should preview the document"), and with
+  SVG excluded the inline set is inert — but it is a real change and is called
+  out in the PR body rather than buried.
+- **`data-evidence-set` on `<tbody>` includes historical and logically-removed
+  versions**, so paging walks superseded revisions. Judged correct: the viewer
+  pages through exactly what the table shows. Flagged for confirmation.
+- **An image-initiated record with zero images now renders its heading and
+  registration line with nothing beneath**, because the partial's empty-state
+  paragraph is gone. Intentional under the no-empty-state rule; the heading and
+  registration are themselves recorded content.
