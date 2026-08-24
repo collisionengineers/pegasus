@@ -2,10 +2,13 @@
 id: DOCS-013
 type: ticket
 title: Strike the invented manifest from FRD-07 and the operator notes
-status: backlog
+status: preparing
 area: documents-reports
-assignee: ''
+assignee: claude-code
 profile: chore
+taken_at: '2026-08-24T08:42:35.076Z'
+branch: task/docs-013-strike-eva-manifest
+worktree: ../pegasus-worktrees/docs-013
 labels:
   - qdos26015
   - eva
@@ -19,7 +22,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-24T08:19:34.397Z'
-updated: '2026-08-24T08:36:03.585Z'
+updated: '2026-08-24T08:42:35.076Z'
 ---
 
 ## What

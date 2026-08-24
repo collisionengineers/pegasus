@@ -2,10 +2,13 @@
 id: PLAT-041
 type: ticket
 title: Cut the export from ~45 Box round trips to a handful
-status: backlog
+status: preparing
 area: platform-operations
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-24T08:42:25.801Z'
+branch: task/plat-041-box-round-trips
+worktree: ../pegasus-worktrees/plat-041
 labels:
   - qdos26014
   - qdos26015
@@ -17,7 +20,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:04.949Z'
-updated: '2026-08-24T08:20:14.169Z'
+updated: '2026-08-24T08:42:25.801Z'
 ---
 
 ## What the operator saw
