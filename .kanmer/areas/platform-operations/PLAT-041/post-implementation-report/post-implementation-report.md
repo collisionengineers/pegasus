@@ -107,3 +107,32 @@ kill the other worktrees' runs. **CI is the authoritative run for that suite.**
   Nothing in this change depends on the answer.
 - No docs changed. `docs/operations.md` mentions `VerifyFileMetadataAsync` only
   in the release 24/25 history, which remains true of those releases.
+
+## CI — green
+
+Run [32714273365](https://github.com/collisionengineers/pegasus/actions/runs/32714273365)
+on PR #530. Every check passes: `unit` 3m17s, `sql-integration (1)` 10m38s,
+`(2)` 7m39s, `(3)` 9m28s, `browser` 7m11s, `sql-integration-coverage`,
+`changes`, `documentation`, `local-development-scripts`, `reference-data`.
+`infrastructure` skipped, as it does for a non-infra change.
+
+This is the full integration suite the workstation could not complete, run on
+clean environments — 901 tests across three shards, and it covers the EVA and
+Box classes directly.
+
+**One flake, investigated rather than waved through.** On the first attempt
+`sql-integration (1)` was cancelled after running 16 minutes with no output.
+It was worth ruling out a deadlock, since this change introduces the only
+fan-out (`Parallel.ForEachAsync`) in `Pegasus.Infrastructure` and the runbook
+records a known web-factory deadlock. Two things clear it:
+
+- Shard 1 contains **none** of the changed paths' tests — no
+  `BoxDocumentContentStoreTests`, no `EvaHandoffPersistenceTests`. Those are in
+  shards 2 and 3, which passed first time. Shard 1 is the web-host-heavy shard
+  (`QdosCustodialWebTests`, `TriageQueuesWebTests`, `UploadConfirmationWebTests`,
+  `ShellAndStatusPageWebTests`).
+- Re-running only the failed job passed it in 10m38s with no other change.
+
+The hang was also a cancellation with no test failure and no assertion error —
+the same shape as the local `Connection Timeout Expired` failures, which came
+from three other agents' suites sharing this workstation's LocalDB.
