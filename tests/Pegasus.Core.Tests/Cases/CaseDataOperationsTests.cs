@@ -94,6 +94,21 @@ public sealed class CaseDataOperationsTests
     }
 
     [Fact]
+    public void NormalizeRequiresMileageAndUnitTogether()
+    {
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(VehicleMileage: 72_850)));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(VehicleMileageUnit: "miles")));
+
+        var normalized = CaseDataPolicy.Normalize(
+            new(VehicleMileage: 72_850, VehicleMileageUnit: " miles "));
+
+        Assert.Equal(72_850, normalized.VehicleMileage);
+        Assert.Equal("miles", normalized.VehicleMileageUnit);
+    }
+
+    [Fact]
     public void NormalizeRequiresTheExactValueForImageBasedAssessmentMode()
     {
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(

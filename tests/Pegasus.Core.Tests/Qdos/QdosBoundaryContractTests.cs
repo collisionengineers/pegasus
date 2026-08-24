@@ -83,20 +83,21 @@ public sealed class QdosBoundaryContractTests
     }
 
     [Fact]
-    public void EvaProductionMappingUsesOnlyAcceptedVersionedEvidence()
+    public void TheExportMappingCarriesVersionedProvenanceForEveryField()
     {
-        var mapping = CaseEvaMapping.MapForProduction(
+        var export = CaseEvaMapping.MapForOperatorExport(
             AcceptedEvaEvidence(),
-            AcceptedEvaMapping());
+            AcceptedEvaMapping(),
+            new DateOnly(2031, 5, 4));
 
-        Assert.True(mapping.IsReady);
-        Assert.NotNull(mapping.Fields);
-        Assert.Equal("AB12CDE", mapping.Fields.Vrm);
+        Assert.True(export.IsReady);
+        Assert.NotNull(export.Source);
+        Assert.Equal("AB12CDE", export.Source.Fields.Vrm);
         Assert.Equal(
             $"{CaseEvaMapping.ImageBasedAssessmentExportValue}\n\n\n\n\n",
-            mapping.Fields.InspectionAddress);
-        Assert.Equal(13, mapping.Provenance.Count);
-        Assert.All(mapping.Provenance, item =>
+            export.Source.Fields.InspectionAddress);
+        Assert.Equal(13, export.Source.Provenance.Count);
+        Assert.All(export.Source.Provenance, item =>
         {
             Assert.False(string.IsNullOrWhiteSpace(item.Source));
             Assert.False(string.IsNullOrWhiteSpace(item.SourceVersion));
@@ -110,26 +111,26 @@ public sealed class QdosBoundaryContractTests
         // lines then the postcode — and rejects a bare string. The case stores
         // the address as one collapsed line, so commas separate lines here.
         var accepted = AcceptedEvaEvidence();
-        var mapping = CaseEvaMapping.MapForProduction(accepted with
+        var export = CaseEvaMapping.MapForOperatorExport(accepted with
         {
             Inspection = new(
                 EvaInspectionMode.PhysicalAddress,
                 accepted.Inspection.Evidence with { Value = "109 Valley View, Hoole, CH490DJ" })
-        }, AcceptedEvaMapping());
+        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
 
-        Assert.True(mapping.IsReady);
-        Assert.NotNull(mapping.Fields);
+        Assert.True(export.IsReady);
+        Assert.NotNull(export.Source);
         Assert.Equal(
             "109 Valley View\nHoole\n\n\n\nCH490DJ",
-            mapping.Fields.InspectionAddress);
-        Assert.Equal(6, mapping.Fields.InspectionAddress!.Split('\n').Length);
+            export.Source.Fields.InspectionAddress);
+        Assert.Equal(6, export.Source.Fields.InspectionAddress!.Split('\n').Length);
     }
 
     [Fact]
     public void SurplusInspectionAddressLinesJoinTheFifthRatherThanPushOutThePostcode()
     {
         var accepted = AcceptedEvaEvidence();
-        var mapping = CaseEvaMapping.MapForProduction(accepted with
+        var export = CaseEvaMapping.MapForOperatorExport(accepted with
         {
             Inspection = new(
                 EvaInspectionMode.PhysicalAddress,
@@ -137,10 +138,10 @@ public sealed class QdosBoundaryContractTests
                 {
                     Value = "One, Two, Three, Four, Five, Six, Seven, CH49 0DJ"
                 })
-        }, AcceptedEvaMapping());
+        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
 
-        Assert.NotNull(mapping.Fields);
-        var lines = mapping.Fields.InspectionAddress!.Split('\n');
+        Assert.NotNull(export.Source);
+        var lines = export.Source.Fields.InspectionAddress!.Split('\n');
         Assert.Equal(6, lines.Length);
         Assert.Equal("Five Six Seven", lines[4]);
         Assert.Equal("CH49 0DJ", lines[5]);
@@ -150,15 +151,15 @@ public sealed class QdosBoundaryContractTests
     public void AnAddressWithoutAPostcodeLeavesTheSixthLineBlank()
     {
         var accepted = AcceptedEvaEvidence();
-        var mapping = CaseEvaMapping.MapForProduction(accepted with
+        var export = CaseEvaMapping.MapForOperatorExport(accepted with
         {
             Inspection = new(
                 EvaInspectionMode.PhysicalAddress,
                 accepted.Inspection.Evidence with { Value = "Unit 4, Riverside Depot" })
-        }, AcceptedEvaMapping());
+        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
 
-        Assert.NotNull(mapping.Fields);
-        Assert.Equal("Unit 4\nRiverside Depot\n\n\n\n", mapping.Fields.InspectionAddress);
+        Assert.NotNull(export.Source);
+        Assert.Equal("Unit 4\nRiverside Depot\n\n\n\n", export.Source.Fields.InspectionAddress);
     }
 
     [Fact]
@@ -205,11 +206,12 @@ public sealed class QdosBoundaryContractTests
     }
 
     [Fact]
-    public void EvaProductionMappingFailsClosedWithoutAcceptedMappingVersion()
+    public void AnUnacceptedMappingRefusesTheExport()
     {
-        var mapping = CaseEvaMapping.MapForProduction(
+        var mapping = CaseEvaMapping.MapForOperatorExport(
             AcceptedEvaEvidence(),
-            EvaMappingAcceptance.Unaccepted);
+            EvaMappingAcceptance.Unaccepted,
+            new DateOnly(2031, 5, 4));
 
         Assert.False(mapping.IsReady);
         Assert.Null(mapping.Source);
@@ -217,10 +219,10 @@ public sealed class QdosBoundaryContractTests
     }
 
     [Fact]
-    public void EvaProductionMappingBlocksMissingReadinessAndUnacceptedAddress()
+    public void CompletenessAndSuggestionStatusAreOwnedByReviewRatherThanTheMapper()
     {
         var accepted = AcceptedEvaEvidence();
-        var mapping = CaseEvaMapping.MapForProduction(accepted with
+        var export = CaseEvaMapping.MapForOperatorExport(accepted with
         {
             InstructionComplete = false,
             Inspection = accepted.Inspection with
@@ -230,16 +232,13 @@ public sealed class QdosBoundaryContractTests
                     Status = EvaEvidenceStatus.Suggested
                 }
             }
-        }, AcceptedEvaMapping());
+        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
 
-        Assert.False(mapping.IsReady);
-        Assert.Null(mapping.Source);
-        Assert.Contains(
-            "Completeness has not been confirmed.",
-            mapping.BlockingReasons);
-        Assert.Contains(
-            "The inspection address or exact Image Based Assessment mode is unresolved.",
-            mapping.BlockingReasons);
+        Assert.True(export.IsReady);
+        Assert.NotNull(export.Source);
+        Assert.Equal(EvaEvidenceStatus.Suggested, Assert.Single(
+            export.Source.Provenance,
+            field => field.Name == "Inspection Address").Status);
     }
 
     [Fact]

@@ -5,14 +5,16 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
+using Pegasus.Core.Workflow;
 
 namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// The one act that produces the EVA package (ENG-016). It reads a case,
 /// maps the thirteen fields, loads every eligible retained photograph, writes
-/// the archive, and — on the first success for that case only — records the
-/// <c>First sent to Engineer</c> proxy.
+/// the archive, records each successful export in action history, and — on the
+/// first success for that case only — records the <c>First sent to Engineer</c>
+/// proxy.
 ///
 /// It used to be two acts. The gated hand-off that recorded frozen revisions,
 /// moved the case version and took an edit lease is gone, together with its
@@ -35,16 +37,16 @@ public sealed class EvaHandoffStore(
     /// CASE-019 / ENG-016: the operator's export of a case as the EVA-format
     /// archive, and since ENG-016 the only way to produce one.
     ///
-    /// It takes no case version, no operation key and no edit lease, and it
-    /// does not move the case version: an export is not a case mutation. What
-    /// it does write, exactly once per case, is the <c>First sent to
-    /// Engineer</c> proxy row.
+    /// It takes no edit lease and does not move the case version: an export is
+    /// not a case-data mutation. Its operation key makes the action-history
+    /// write replay-safe. The first export also writes the once-per-case
+    /// <c>First sent to Engineer</c> proxy row.
     ///
     /// Order matters. The proxy is recorded only after the archive has been
     /// built, so "first success only" is literal: an export that fails records
     /// nothing. "Once per case" is enforced by <c>EvaFirstHandoffProxies</c>'
-    /// primary key on the case, not by a replay key — the database itself
-    /// refuses a second row.
+    /// primary key on the case; the operation key separately owns exact replay
+    /// of the per-export action-history record.
     /// </summary>
     public async Task<ExportCaseBundleResult?> ExecuteAsync(
         ExportCaseBundleRequest request,
@@ -55,6 +57,10 @@ public sealed class EvaHandoffStore(
         {
             return null;
         }
+        if (!Guid.TryParseExact(request.OperationKey, "N", out _))
+        {
+            throw new ArgumentException("The operation key is invalid.", nameof(request));
+        }
 
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
@@ -62,16 +68,12 @@ public sealed class EvaHandoffStore(
         {
             return null;
         }
-
-        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
-        var caseRecord = await context.Cases
-            .AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == request.CaseId, cancellationToken);
-        if (caseRecord is null)
+        if (caseData.State != CaseLifecycleState.Review)
         {
-            return null;
+            throw new CaseNotInReviewException(request.CaseId);
         }
 
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
         var export = CaseEvaMapping.MapForOperatorExport(
             BuildEvidence(caseData, vehicle),
@@ -85,7 +87,7 @@ public sealed class EvaHandoffStore(
         var images = await LoadEligibleImagesAsync(
             context,
             request.CaseId,
-            caseRecord.Reference,
+            caseData.Identity.Reference,
             cancellationToken);
         if (images.Count == 0)
         {
@@ -98,11 +100,14 @@ public sealed class EvaHandoffStore(
         var bundle = EvaBundleSchema.CreateOfflineReplay(
             export.Source,
             new(images),
-            caseRecord.Reference);
-        await RecordFirstSentToEngineerAsync(
+            caseData.Identity.Reference);
+        await RecordExportAsync(
             context,
             request,
-            bundle.Sha256,
+            caseData,
+            export.Source,
+            images,
+            bundle,
             cancellationToken);
 
         return new(bundle, export.UnrecordedFields, []);
@@ -131,36 +136,93 @@ public sealed class EvaHandoffStore(
     /// throws: <c>DbUpdateException</c> derives straight from
     /// <c>Exception</c> and would otherwise miss every caller's catch filter.
     /// </summary>
-    private async Task RecordFirstSentToEngineerAsync(
+    private async Task RecordExportAsync(
         PegasusDbContext context,
         ExportCaseBundleRequest request,
-        string bundleSha256,
+        CaseDataProjection caseData,
+        EvaBundleSource source,
+        IReadOnlyList<EvaBundleImage> images,
+        EvaBundle bundle,
         CancellationToken cancellationToken)
     {
-        if (await ProxyExistsAsync(context, request.CaseId, cancellationToken))
+        var aggregateId = request.CaseId.ToString("D");
+        const string eventKind = "eva_bundle_exported";
+        var afterJson = DocumentActionHistory.Serialize(new
         {
+            CaseVersion = caseData.Version,
+            Mapping = new
+            {
+                source.MappingKey,
+                source.MappingVersion,
+                source.MappingAcceptanceEvidence
+            },
+            source.Fields,
+            source.Provenance,
+            BundleSha256 = bundle.Sha256,
+            JsonSha256 = bundle.JsonSha256,
+            Images = images.Select(image => new
+            {
+                image.OccurrenceId,
+                image.DocumentId,
+                image.VersionId,
+                image.Version,
+                image.Sha256,
+                image.SourceOccurrenceIdentity
+            })
+        });
+        var existingHistory = await context.ActionHistory
+            .SingleOrDefaultAsync(
+                item => item.AggregateType == "Case"
+                    && item.AggregateId == aggregateId
+                    && item.EventKind == eventKind
+                    && item.CorrelationId == request.OperationKey,
+                cancellationToken);
+        if (existingHistory is not null)
+        {
+            DocumentActionHistory.RequireExactReplay(
+                existingHistory,
+                "Case",
+                aggregateId,
+                eventKind,
+                request.Actor,
+                reason: null,
+                afterJson);
             return;
         }
 
-        var receipt = await proxy.RecordFirstGenerationAsync(
-            new(request.CaseId, bundleSha256, request.Actor),
-            cancellationToken);
-        if (receipt.ClaimsExternalDelivery || receipt.ClaimsEngineerAssignment)
+        if (!await ProxyExistsAsync(context, request.CaseId, cancellationToken))
         {
-            throw new InvalidDataException(
-                "The offline EVA proxy must not claim delivery or Engineer assignment.");
+            var receipt = await proxy.RecordFirstGenerationAsync(
+                new(request.CaseId, bundle.Sha256, request.Actor),
+                cancellationToken);
+            if (receipt.ClaimsExternalDelivery || receipt.ClaimsEngineerAssignment)
+            {
+                throw new InvalidDataException(
+                    "The offline EVA proxy must not claim delivery or Engineer assignment.");
+            }
+
+            context.EvaFirstHandoffProxies.Add(new()
+            {
+                CaseId = request.CaseId,
+                AdapterKey = receipt.AdapterKey,
+                AdapterVersion = receipt.AdapterVersion,
+                RecordedAtUtc = receipt.RecordedAtUtc,
+                ActorSubjectId = request.Actor.SubjectId,
+                ClaimsExternalDelivery = false,
+                ClaimsEngineerAssignment = false
+            });
         }
 
-        context.EvaFirstHandoffProxies.Add(new()
-        {
-            CaseId = request.CaseId,
-            AdapterKey = receipt.AdapterKey,
-            AdapterVersion = receipt.AdapterVersion,
-            RecordedAtUtc = receipt.RecordedAtUtc,
-            ActorSubjectId = request.Actor.SubjectId,
-            ClaimsExternalDelivery = false,
-            ClaimsEngineerAssignment = false
-        });
+        var history = DocumentActionHistory.Succeeded(
+            "Case",
+            aggregateId,
+            eventKind,
+            request.Actor,
+            timeProvider.GetUtcNow(),
+            request.OperationKey,
+            afterJson: afterJson);
+        history.PolicyVersion = $"{source.MappingKey}/v{source.MappingVersion}";
+        context.ActionHistory.Add(history);
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -174,6 +236,29 @@ public sealed class EvaHandoffStore(
                     "The export could not record the First sent to Engineer proxy.",
                     exception);
             }
+
+            var concurrentHistory = await context.ActionHistory
+                .SingleOrDefaultAsync(
+                    item => item.AggregateType == "Case"
+                        && item.AggregateId == aggregateId
+                        && item.EventKind == eventKind
+                        && item.CorrelationId == request.OperationKey,
+                    cancellationToken);
+            if (concurrentHistory is not null)
+            {
+                DocumentActionHistory.RequireExactReplay(
+                    concurrentHistory,
+                    "Case",
+                    aggregateId,
+                    eventKind,
+                    request.Actor,
+                    reason: null,
+                    afterJson);
+                return;
+            }
+
+            context.ActionHistory.Add(history);
+            await context.SaveChangesAsync(cancellationToken);
         }
     }
 

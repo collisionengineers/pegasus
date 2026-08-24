@@ -552,11 +552,10 @@ public static class CaseLifecycleRules
     {
         ArgumentNullException.ThrowIfNull(evidence);
         RequireText(evidence.EvidenceReference, "Readiness evidence is required.", 200, nameof(evidence));
-        if ((!evidence.InstructionsComplete || !evidence.ImagesComplete)
-            && (!evidence.InstructionsReviewedByStaff || !evidence.ImagesReviewedByStaff))
+        if (!evidence.InstructionsComplete || !evidence.ImagesComplete)
         {
             throw new InvalidOperationException(
-                "Review requires complete instructions and images or explicit staff confirmation of both.");
+                "Review requires complete instructions and images.");
         }
     }
 

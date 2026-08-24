@@ -156,6 +156,12 @@ public static class CaseDataPolicy
             InspectionAddress = Text(data.InspectionAddress, 1000, nameof(data.InspectionAddress))
         };
 
+        if (normalized.VehicleMileage.HasValue != (normalized.VehicleMileageUnit is not null))
+        {
+            throw new InvalidOperationException(
+                "Vehicle mileage and mileage unit must be saved together.");
+        }
+
         ValidateInspection(normalized);
         return normalized;
     }

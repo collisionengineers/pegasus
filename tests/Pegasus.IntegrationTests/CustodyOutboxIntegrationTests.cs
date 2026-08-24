@@ -1258,8 +1258,10 @@ public sealed class CustodyOutboxIntegrationTests
             }
         }
 
+        var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        const string firstOperationKey = "11111111111111111111111111111111";
         var export = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
-            new(outcome.Identity.CaseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])),
+            new(outcome.Identity.CaseId, firstActor, firstOperationKey),
             CancellationToken.None);
 
         Assert.NotNull(export);
@@ -1322,11 +1324,19 @@ public sealed class CustodyOutboxIntegrationTests
             .ToListAsync());
         Assert.False(proxy.ClaimsExternalDelivery);
         Assert.False(proxy.ClaimsEngineerAssignment);
+        Assert.Single(await context.ActionHistory
+            .Where(item => item.AggregateType == "Case"
+                && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                && item.EventKind == "eva_bundle_exported")
+            .ToListAsync());
 
         // And only the first success records one. A second export of the same
         // case produces the same archive and no second row.
         var again = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
-            new(outcome.Identity.CaseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])),
+            new(
+                outcome.Identity.CaseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                "22222222222222222222222222222222"),
             CancellationToken.None);
         Assert.NotNull(again);
         Assert.Equal(bundle.Sha256, again!.Bundle!.Sha256);
@@ -1337,6 +1347,32 @@ public sealed class CustodyOutboxIntegrationTests
             .Where(item => item.CaseId == outcome.Identity.CaseId)
             .ToListAsync());
         Assert.Equal(proxy.RecordedAtUtc, single.RecordedAtUtc);
+        Assert.Equal(2, await recheck.ActionHistory.CountAsync(item =>
+            item.AggregateType == "Case"
+            && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+            && item.EventKind == "eva_bundle_exported"));
+
+        var replay = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+            new(outcome.Identity.CaseId, firstActor, firstOperationKey),
+            CancellationToken.None);
+        Assert.Equal(bundle.Sha256, replay!.Bundle!.Sha256);
+        await using var replayCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Equal(2, await replayCheck.ActionHistory.CountAsync(item =>
+            item.AggregateType == "Case"
+            && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+            && item.EventKind == "eva_bundle_exported"));
+
+        await replayCheck.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.NotReady)} WHERE CaseId = {outcome.Identity.CaseId}");
+        await Assert.ThrowsAsync<CaseNotInReviewException>(() =>
+            services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+                new(
+                    outcome.Identity.CaseId,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    "33333333333333333333333333333333"),
+                CancellationToken.None));
     }
 
     /// <summary>
