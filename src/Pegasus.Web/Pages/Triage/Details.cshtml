@@ -69,11 +69,20 @@
             <h2 id="triage-images-title" class="section-label">Vehicle images</h2>
             @{
                 var triageGallery = Model.EvidenceImages
-                    .Select(asset => new Pegasus.Web.Presentation.GalleryImage(
-                        Url.Page(
+                    .Select(asset =>
+                    {
+                        // A retained receipt asset is already served inline, so
+                        // preview and download are the same authorised URL --
+                        // the coincidence GalleryImage documents (DOCS-011).
+                        var href = Url.Page(
                             "/Intake/Asset",
-                            new { id = record.Origin.ReceiptId, assetId = asset.Id })!,
-                        asset.FileName))
+                            new { id = record.Origin.ReceiptId, assetId = asset.Id })!;
+                        return new Pegasus.Web.Presentation.GalleryImage(
+                            href,
+                            href,
+                            asset.FileName,
+                            asset.MediaType);
+                    })
                     .ToArray();
             }
             <partial name="Shared/_ImageGallery" model="triageGallery" />
