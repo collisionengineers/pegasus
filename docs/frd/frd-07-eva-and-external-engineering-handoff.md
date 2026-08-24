@@ -7,11 +7,9 @@
 
 **Accepted focused-alpha boundary:** EVA remains the authoritative external
 engineering/report workflow. Pegasus performs no EVA network call. It
-deterministically serializes UTF-8 JSON in the exact 13-key order below,
-includes every custody-confirmed eligible Case-vehicle image, and writes a
-SHA-256 manifest over the JSON and image identities and bytes. Stable manifest
-ordering exists only for reproducible package integrity; Pegasus owns no EVA
-presentation, selection, or report-image order.
+deterministically serializes UTF-8 JSON in the exact 13-key order below and
+includes every custody-confirmed eligible Case-vehicle image. Pegasus owns no
+EVA presentation, selection, or report-image order.
 The two retained populated EVA JSON examples are immutable
 reference evidence for the field shape; they do not supply credentials or
 activate an adapter.
@@ -32,26 +30,39 @@ The JSON keys, in serialization order, are:
 12. `Mileage`
 13. `Mileage Unit`
 
-There is one act that produces the package: the operator's export of a Case
-(ENG-016). The first export that succeeds for a Case records the once-per-case
-`First sent to Engineer` proxy; later exports of the same Case produce the same
-package and record nothing further. The proxy proves Pegasus package generation
-only; it does not claim EVA receipt or named-Engineer assignment, which remain
-EVA-owned events. An image/document upload into Pegasus, Box custody, or the
-presence of a report PDF is not this handoff and is not external delivery
-evidence.
+`Reference` carries the **work provider's own reference** — the value the
+provider's instruction states — not the Pegasus case reference. Both retained
+examples show it directly: `Final Format Example 02.json` pairs
+`"Work Provider": "SBL"` with `"Reference": "SBL-B0492438"`, and
+`AX_SP58WVO.json` pairs `"Work Provider": "AX"` with `"Reference": "1070277"`.
 
-The export is a `POST`. Producing the package records a business event, so it
-must not be reachable by a browser prefetch or an ordinary page refresh.
+Which EVA field the imported value lands in is **EVA's own business and is not
+established here**: the retained EVA screens show `Claim No`, `Reference` and
+`Case/PO` as three distinct fields, and Pegasus owns none of that mapping. What
+Pegasus owns is the value it emits.
 
-A Case that is missing a field is exported, not refused: the value is emitted
-empty and the operator is told which fields the Case does not hold before the
-file leaves Pegasus. Only an unaccepted field mapping refuses an export.
+The first successful package generation records the once-per-case `First sent
+to Engineer` proxy. Later generations are revisions. The proxy proves Pegasus
+export generation only; it does not claim EVA receipt or named-Engineer
+assignment, which remain EVA-owned events. An image/document upload into
+Pegasus, Box custody, or the presence of a report PDF is not this handoff and is
+not external delivery evidence.
 
-A successful export answers with the complete JSON and all-eligible-image bundle immediately. It proves neither EVA receipt nor report delivery, and it does not change Case state.
+Successful focused manual generation makes the complete JSON and all-eligible-image bundle available for immediate staff download. Download proves neither EVA receipt nor report delivery and does not change Case state.
 The container format is intentionally unspecified: its selection must evaluate
 whether a single archive is the clearest usable representation without changing
-the exact package contents, manifest, or manual-handoff boundary.
+the exact package contents or the manual-handoff boundary. The package carries
+the ordered JSON and the eligible images, and no companion file: neither a
+manifest nor a provenance sidecar.
+
+**The operator export is a second, narrower act over the same package.** An
+operator may download a case in this format from the Case action bar while the
+case is in Review. It is a read: it records no revision, writes no `First sent
+to Engineer` proxy, and does not change Case state or version. It differs from
+the handoff only in what counts as evidence — a suggested value travels with its
+`Suggested` status, a field the case does not hold is emitted empty and marked
+`Unrecorded`, and an absent inspection date resolves to the export date as a
+named system default. The handoff's evidence bar is unchanged.
 
 The focused handoff readiness review keeps four source-labelled inputs distinct:
 the saved source email, vehicle images, valuation evidence, and initial

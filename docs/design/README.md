@@ -108,7 +108,7 @@ is by job:
 
 - **A Lucide glyph names a thing inside a row** — an action, a state, a
   provenance word. It is 16px, inline, and one glyph means one thing everywhere.
-  The sixteen registered below remain the only glyphs used that way.
+  The seventeen registered below remain the only glyphs used that way.
 - **A mark names a whole surface** — an administration workspace, an empty
   result, the product itself. It is 30–112px, sits beside a heading or above a
   sentence, and carries detail no line glyph holds at that size.
@@ -343,17 +343,17 @@ Lucide is the only approved Web/UI icon system:
 
 Do not use emoji, Unicode dingbats, hand-drawn icons or infrastructure symbols.
 
-The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (see the mapping below). Glyph usage is now exercised: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` inlines the same sixteen glyph vectors once per page from `_Layout.cshtml`, and pages reference them as `<svg class="icon"><use href="#icon-…"/></svg>`.
+The checksummed Lucide sprite is delivered at `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (see the mapping below). Glyph usage is now exercised: `src/Pegasus.Web/Pages/Shared/_LucideSprite.cshtml` inlines the same seventeen glyph vectors once per page from `_Layout.cshtml`, and pages reference them as `<svg class="icon"><use href="#icon-…"/></svg>`.
 
 The inline partial is the runtime delivery of the checksummed asset, not a second icon set. It carries the identical glyph vectors and differs only in wrapper element: each glyph is a `<symbol viewBox="0 0 24 24">` rather than a `<g>`, because `<use>` does not inherit a `viewBox` from a `<g>` and consuming elements would render clipped. The approved 2px stroke and round caps are applied by the `.icon` rule in `site.css`, since a `<use>` clone does not inherit presentation attributes from the sprite root. No glyph was added, removed, or redrawn.
 
-Every icon rendered today is decorative and paired with a visible text label, so each carries `aria-hidden="true"`; any future icon that is not decorative needs its own accessible label. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
+An icon paired with a visible text label is decorative and carries `aria-hidden="true"`. An icon that is the whole control carries `aria-hidden="true"` on the glyph and its accessible name on the button, as `trash-2` does. `src/Pegasus.Web/wwwroot/favicon.ico` has unrecorded provenance and is not icon-system authority.
 
 
  #### Lucide icons source-to-runtime mapping
 
  Upstream source: Lucide official SVG vectors release (v0.344.0).
- Runtime sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 `C81F067708B5EF1C2CEDABF4A38BADC175A11DEFE7919DA69192100EE6922BF1`).
+ Runtime sprite: `src/Pegasus.Web/wwwroot/images/lucide-sprite.svg` (SHA-256 `24360787DB7A58F1B0ACA7E2F66405749C9D5742A2ADA91C07BDFF03202872D0`).
 
  | Icon glyph | Glyph SHA-256 | Usage & accessibility mapping |
  | --- | --- | --- |
@@ -373,6 +373,7 @@ Every icon rendered today is decorative and paired with a visible text label, so
  | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Action transition and external link indicator |
  | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Intake manual upload action icon |
  | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Case edit lease indicator icon |
+ | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Per-file removal control on the case evidence panel (labelled by `aria-label`) |
 
 ### Imagery and evidence
 
@@ -614,7 +615,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | Due/chaser panel | Missing-material reason, next chase, most recent recorded channel/outcome, optional note and next permitted action together; preparation/copy is not sent or delivered |
 | Inspection address | Provider-determined default: the Principal's inspection-mode setting autofills exact `Image Based Assessment` or requires an explicit physical vehicle/repairer location; reasoned per-Case staff override; physical address fields appear only for the physical mode and never imply attendance |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions, reasoned correction, reopen requirement and no inferred fee/invoice mutation |
-| Evidence/document panel | Original/source/version, logical removal and closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
+| Evidence/document panel | The stored case files themselves — name, role, origin, size, arrival, download; the Box case folder; a reasoned per-file removal recorded on the case timeline; staff-confirmed third-party exclusions; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
 | Lease/conflict | One current Case; holder, expiry, renew/release/reacquire state and read-only alternative; current conflict and preserved proposed values; no forced Administrator takeover |
 | History | Read-only presentation of the Core-owned [permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history), including actor/caller/time and one-Case scope without message bodies or telemetry noise |
 | Reason dialog | Named requirement and consequence; labelled reason; confirmation/cancel; initial focus, focus containment, Escape where safe and focus return to the invoking control |
@@ -694,7 +695,7 @@ Case work includes:
   preserves the interval;
 - request-scoped upload-link creation and copyable manual chasers;
 - manual WhatsApp material;
-- successful deterministic EVA JSON/image/manifest generation as the
+- successful deterministic EVA JSON/image generation as the
   once-per-case `First sent to Engineer` proxy, with later revisions distinct;
 - issued report/addendum versions and exact report-Sent evidence;
 - lease/conflict recovery; and
@@ -1062,7 +1063,7 @@ The UI presents the [Core-owned permanent action history](../frd/frd-04-parties-
 
 Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
 
-The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere, drawn from the sixteen registered Lucide glyphs; generated or substitute replacement glyphs are prohibited. The [commissioned Pegasus marks](#the-pegasus-marks) are a separate, approved class: they name a surface rather than an action or a state, and never stand in for a glyph. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere, drawn from the seventeen registered Lucide glyphs; generated or substitute replacement glyphs are prohibited. The [commissioned Pegasus marks](#the-pegasus-marks) are a separate, approved class: they name a surface rather than an action or a state, and never stand in for a glyph. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
 Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
 
@@ -1125,7 +1126,7 @@ evidence required to activate them.
 | Due/chaser panel | Missing-material reason, next chase, last recorded channel/outcome, optional note, and next permitted action together. Copy/preparation is not sent or delivered; Triage has no such panel. |
 | Inspection address | Provider-determined default from the Principal's inspection-mode setting (exact `Image Based Assessment` autofilled, or physical vehicle/repairer address); reasoned per-Case staff override; address fields appear only for the physical mode and never imply attendance. |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions; correction reason/history; reopen requirement; no inferred fee/invoice mutation. |
-| Evidence/document panel | Original/source/version/logical removal/closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery/link/sent times. |
+| Evidence/document panel | The stored case files themselves — name, role, origin, size, arrival, download; the Box case folder; a reasoned per-file removal recorded on the case timeline; staff-confirmed third-party exclusions; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; opening or closing a preview preserves Case context and does not alter source, category, advisory, or report-image selection. |
 | Email quick preview | At allocated mailbox-workspace activation, keyboard and pointer intent exposes an accessible preview that neither clips/obscures adjacent controls nor changes message or Case state; focus departure dismisses it. It shows sender, subject, timestamp, excerpt, classification, association and attachment names, but no mutation controls. |
 | Mailbox refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains active list context and an open message where available. If it leaves the active scope or becomes unavailable, keep detail visible with explicit no-longer-in-this-view state and return-to-list action. |

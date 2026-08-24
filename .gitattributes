@@ -1,4 +1,10 @@
 # Preserve supplied and generated binary assets byte-for-byte.
+# The retained EVA samples are the stated source of the archive's layout, and
+# core.autocrlf silently rewrote their line endings on commit -- so a claim
+# about their bytes was unfalsifiable and was, in fact, recorded wrong. Pinned
+# so the working tree matches the blob on every platform and the claim is
+# checkable (ENG-014 review).
+reference/eva_information/*.json text eol=lf
 reference/**/*.xlsm binary
 src/Pegasus.Infrastructure/Persistence/ReferenceData/provider-domains.v1.json binary
 docs/design/assets/report-renderer/**/*.css text eol=lf

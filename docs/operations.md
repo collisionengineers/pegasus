@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 27 | 2026-08-24 | `7d4c8f00…` | `sha256:1e4146df…` | `pegasus-prod-web-252ow37gij--7d4c8f005261` | `20260824090400_DropEvaHandoffProvenanceAndManifest` |
   | 26 | 2026-08-23 | `7d6a948a…` | `sha256:d64e76ba…` | `pegasus-prod-web-252ow37gij--7d6a948a2f34` | none (head unchanged at `20260822223626_BackfillVehicleLookupSuggestions`) |
   | 25 | 2026-08-23 | `75570b99…` | `sha256:e99ade3c…` | `pegasus-prod-web-252ow37gij--75570b99d713` | none (head unchanged at `20260822223626_BackfillVehicleLookupSuggestions`) |
   | 24 | 2026-08-23 | `19969404…` | `sha256:bd9d8c4a…` | `pegasus-prod-web-252ow37gij--199694040184` | `20260822223626_BackfillVehicleLookupSuggestions` |
@@ -338,6 +339,77 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 27** (2026-08-24, source `7d4c8f00`, image `sha256:1e4146df…`,
+    manifest SHA-256 `D81BF7A9…`) collated eleven open pull requests — #525-#535
+    plus the integration fix #537 — into one promotion: the Triage-from-intake
+    route and its two follow-ons, the evidence tab rewrite and in-place preview,
+    the EVA export format and field values, the Box round-trip reduction, and
+    the two governance changes that authorised the rest.
+
+    **Non-additive migration, named as ADR-0030 requires.**
+    `20260824090400_DropEvaHandoffProvenanceAndManifest` drops `ManifestContent`,
+    `ProvenanceContent` and `ProvenanceSha256` from `EvaHandoffRevisions`.
+    **Affected capability: EVA hand-off generation and download (EXT-03).** The
+    exposure was checked rather than assumed before applying it: the four call
+    sites that materialise the whole entity are generation and download, both
+    switched off with zero rows, while `GetPreparationAsync` — the one reached
+    by every Case page — *projects* a summary that names none of the three
+    columns. So the previous artifact keeps serving the case workspace. Roll
+    forward, never back, past this migration.
+
+    **First release to carry an infrastructure change with the code that needs
+    it.** `Eva__AcceptedMapping__Version` moved 1 → 2 in `platform.bicep`
+    alongside `CaseEvaMapping.MappingVersion`, because ENG-015 changed what four
+    of the thirteen EVA fields mean — `Reference` became the provider's own
+    claim number rather than the Pegasus case reference — and acceptance is
+    checked by key, version and evidence reference alone. Left at 1, every
+    deployment that accepted the old mapping would have authorised materially
+    different output without anyone accepting it. Read back as `2` on the
+    deployed revision.
+
+    **The third operator-approved test-data wipe** ran *before* the promotion,
+    on operator instruction to clear anything Azure-side created from an e-mail
+    or an upload. It emptied **33 of the 68 targeted tables, 384 rows**, and all
+    **42** `transient-intake` blobs (~64 MB), preserving the same **31** identity,
+    automation-client, mailbox-configuration, principal, provider-reference,
+    workflow-configuration, audit and schema tables as PLAT-040 — and the three
+    sequence tables, so the next case is **QDOS26016** and no reference is
+    reused. Mailbox poll cursors were preserved deliberately, and the estate was
+    still empty after the Worker restarted, which is what proves it: clearing
+    them would have re-ingested every message still in the mailbox. Outlook and
+    Box were untouched; `authentication-ring` and `box-links` refused the
+    release identity, as designed. The target list was computed as *all tables
+    minus the preserve list* and asserted against the recorded 68/31 split, so a
+    table added since the last wipe would have failed the assertion rather than
+    being silently skipped. Constraints were re-enabled `WITH CHECK`, which
+    passed — proving no preserved table referenced a deleted row.
+
+    **Two release-route traps recorded again because both fired.** The azd
+    environment still carried **release 25's** digest and revision suffix, so the
+    first `azd provision` failed on `revision with suffix 75570b99d713 already
+    exists` — the same lucky collision as release 16, and again the only thing
+    standing between a stale environment and silently redeploying an old image.
+    That failed provision had already succeeded for the Function App, so the
+    Worker settings were re-read rather than assumed. The Web image still moves
+    by `az acr login --expose-token` + `oras login` + `oras cp`; the digest
+    `oras` reported was compared against `webImage.digest` in the manifest before
+    provisioning.
+
+    Proved live: `/diagnostics/version` returns the exact source SHA, health
+    live/ready 200, the migration head is the new one with zero of the three
+    columns remaining, and `Cases`/`IntakeReceipts`/`IntakeAssets` all read 0
+    after the Worker came back. Smoke gained a check in this release —
+    `Invoke-ProductionSmoke.ps1` now asserts the deployed
+    `Content-Security-Policy`, because the security headers are added only
+    outside Development and so no test in the suite had ever seen one. It
+    confirmed `frame-ancestors 'self'`, without which DOCS-011's PDF preview is
+    blocked in every deployment while staying green locally.
+
+    Not proved by this release: no live instruction has been processed against
+    it. Every intake, Triage and export behaviour above is proved by tests and by
+    the deployed revision, not by production evidence. ENG-016 was deliberately
+    **not** in this promotion — see [[ENG-016]].
 
   - **Release 26** (2026-08-23, source `7d6a948a`, image `sha256:d64e76ba…`)
     carried four production defects found operating release 25 against case

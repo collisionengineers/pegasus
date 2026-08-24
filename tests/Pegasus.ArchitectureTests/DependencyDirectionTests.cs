@@ -336,7 +336,6 @@ public sealed class DependencyDirectionTests
         var requestPageDependencies = TypeInspection.OnlyConstructorParameterTypes(typeof(RequestModel));
 
         Assert.Contains(typeof(IGetCase), casePageDependencies);
-        Assert.Contains(typeof(IAddCaseDocument), custodyPageDependencies);
         Assert.Contains(typeof(ICreateRequestUploadLink), custodyPageDependencies);
         Assert.Contains(typeof(IRevokeRequestUploadLink), custodyPageDependencies);
         Assert.Contains(typeof(IGetRequestUpload), requestPageDependencies);

@@ -39,6 +39,7 @@ never renumbered or reused.
 | [0027](0027-authorization-code-for-external-mcp-connectors.md) | Authorization code with PKCE for external MCP connectors | FRD-10 |
 | [0028](0028-run-integrated-renderer-in-web-container-app.md) | Run the integrated report renderer in the Web Container App | FRD-11 |
 | [0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | FRD-01/02/05/06/12 |
+| [0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | — |
 
 ## Superseded and relocated
 

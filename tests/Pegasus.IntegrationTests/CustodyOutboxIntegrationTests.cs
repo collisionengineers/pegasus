@@ -1306,7 +1306,7 @@ public sealed class CustodyOutboxIntegrationTests
         // The JSON is indented, which is the layout every known-good EVA
         // sample uses and the one EVA will import.
         Assert.StartsWith(
-            "{\r\n  \"Work Provider\": ",
+            "{\n  \"Work Provider\": ",
             Encoding.UTF8.GetString(bundle.JsonContent),
             StringComparison.Ordinal);
 

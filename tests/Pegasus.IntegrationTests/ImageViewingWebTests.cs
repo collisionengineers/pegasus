@@ -124,16 +124,39 @@ public sealed class ImageViewingWebTests
         var galleryImage = Assert.Single(images);
         Assert.Equal(receiptId, galleryImage.ReceiptId);
         Assert.Equal("vehicle.png", galleryImage.FileName);
+        // DOCS-011: the tile carries its own media type so the viewer can pick
+        // a preview element without a second query.
+        Assert.StartsWith("image/", galleryImage.MediaType, StringComparison.Ordinal);
 
         var expectedSource = $"/Received/{receiptId:D}/Image";
         var imageCasePage = await GetAsync(client, $"/VehicleImages/{detail.Record.Id:D}");
         Assert.Contains(expectedSource, imageCasePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("alt=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
         Assert.Contains("loading=\"lazy\"", imageCasePage, StringComparison.Ordinal);
+        // DOCS-011: each tile is still a real link -- so it works with no
+        // script -- and carries what the viewer needs to open and page it.
+        Assert.Contains("data-evidence-set", imageCasePage, StringComparison.Ordinal);
+        Assert.Contains("data-evidence-item", imageCasePage, StringComparison.Ordinal);
+        Assert.Contains("data-file-name=\"vehicle.png\"", imageCasePage, StringComparison.Ordinal);
+        Assert.Contains($"<a href=\"{expectedSource}\"", imageCasePage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("data-evidence-viewer", imageCasePage, StringComparison.Ordinal);
+        // The viewer's whole copy budget. Anything beyond this is explanatory
+        // copy, which docs/design/README.md forbids.
+        Assert.Contains(">Previous<", imageCasePage, StringComparison.Ordinal);
+        Assert.Contains(">Next<", imageCasePage, StringComparison.Ordinal);
+        Assert.Contains(">Download<", imageCasePage, StringComparison.Ordinal);
+        Assert.Contains(">Close<", imageCasePage, StringComparison.Ordinal);
 
         var casePage = await GetAsync(client, $"/Cases/{caseId:D}?tab=evidence");
         Assert.Contains(expectedSource, casePage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("AB12CDE-01", casePage, StringComparison.Ordinal);
+        Assert.Contains("data-evidence-viewer", casePage, StringComparison.Ordinal);
+        // A read-only section with nothing recorded is absent, not an
+        // empty-state panel (docs/design/README.md, 2026-08-20).
+        Assert.DoesNotContain(
+            "No images are available to display",
+            casePage,
+            StringComparison.OrdinalIgnoreCase);
 
         // The overview tab does not pay the gallery query cost.
         var overview = await GetAsync(client, $"/Cases/{caseId:D}");

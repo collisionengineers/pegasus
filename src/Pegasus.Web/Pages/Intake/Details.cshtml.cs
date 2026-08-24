@@ -4,6 +4,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.Cases;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Triage;
 using Pegasus.Core.Workflow;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Web.Presentation;
@@ -24,6 +25,9 @@ public sealed partial class DetailsModel(
     IRegisterImageIntake registerImageIntake,
     IVrmSuggestionStore vrmSuggestionStore,
     IImageIntakeCaseCandidates imageIntakeCaseCandidates,
+    ICreateTriageFromIntake createTriage,
+    ITriageQueries triageQueries,
+    ReconcileUnidentifiedDestinations unidentifiedDestinations,
     ILogger<DetailsModel> logger,
     IInspectionAddressResolutionStore addressResolutionStore,
     IProviderInspectionModeStore providerInspectionModeStore) : StaffPageModel
@@ -38,6 +42,19 @@ public sealed partial class DetailsModel(
 
     public string RegistrationPrefill { get; private set; } = string.Empty;
 
+    /// <summary>
+    /// The Triage this receipt has already opened, if any — the destination
+    /// panel, and the reason the action below is not offered twice.
+    /// </summary>
+    public TriageSummary? Triage { get; private set; }
+
+    /// <summary>
+    /// Whether staff can supply the registration this Triage request never
+    /// carried and open its Triage — the staff half of the operator's Stage 0
+    /// rule, "until a vehicle registration is known, then open the Triage".
+    /// The automatic half runs in intake processing and is unchanged.
+    /// </summary>
+    public bool CanOpenTriage { get; private set; }
 
     public IntakeReceipt Receipt { get; private set; } = null!;
 
@@ -347,6 +364,17 @@ public sealed partial class DetailsModel(
         Receipt.AssetRecords.Count(candidate => candidate.ContentHash == asset.ContentHash);
 
 
+    /// <summary>
+    /// The receipt's outcome as the operator reads it. A Triage request is
+    /// <see cref="IntakeDecision.NeedsSorting"/> because it is pre-case work,
+    /// and unidentified material is too — but naming a Triage request
+    /// "Unidentified" is the same label/reality gap INTK-033 exists to close.
+    /// </summary>
+    public static string DecisionLabel(IntakeReceipt receipt) =>
+        receipt.MailClassificationDecision is { IsTriageRequest: true }
+            ? "Triage"
+            : DecisionLabel(receipt.Decision);
+
     public static string DecisionLabel(IntakeDecision decision) => decision switch
     {
         IntakeDecision.CaseCreated => "Ready for case allocation",
@@ -481,7 +509,33 @@ public sealed partial class DetailsModel(
             null,
             null);
         await LoadImageIntakeAsync(cancellationToken);
+        await LoadTriageAsync(cancellationToken);
         return null;
+    }
+
+    /// <summary>
+    /// A Triage only ever opens from a receipt the accepted route classified as
+    /// a Triage request, so that one recorded reading answers both questions
+    /// and no destination lookup is issued for the receipts — nearly all of
+    /// them — that could never have one.
+    /// </summary>
+    private async Task LoadTriageAsync(CancellationToken cancellationToken)
+    {
+        if (!ProcessIntake.IsTriageRequest(Receipt))
+        {
+            return;
+        }
+
+        Triage = await triageQueries.GetByOriginReceiptAsync(Receipt.Id, cancellationToken);
+        // The same accepted-match condition the POST handler enforces. Without
+        // it the action is offered to receipts whose submission cannot succeed:
+        // a reply on a Triage thread is a Triage request but deliberately
+        // carries no accepted match, so it would show "Open the Triage" and
+        // then refuse it (INTK-035 review).
+        CanOpenTriage = Triage is null
+            && Receipt.Decision == IntakeDecision.NeedsSorting
+            && Receipt.Evidence.Count(
+                evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch) == 1;
     }
 
     private async Task LoadImageIntakeAsync(CancellationToken cancellationToken)
@@ -531,6 +585,84 @@ public sealed partial class DetailsModel(
             },
             "The Image intake was registered with its permanent reference.",
             cancellationToken);
+
+    /// <summary>
+    /// The operator's Stage 0 rule has a staff half: a Triage request held in
+    /// Unidentified because no registration could be read is promoted by
+    /// somebody supplying one. Everything else the Triage needs — the accepted
+    /// route classification, its evidence, the origin identity — was already
+    /// recorded when the receipt was processed.
+    /// </summary>
+    /// <remarks>
+    /// Correcting the instruction draft is NOT the way to do this. That path
+    /// rewrites the decision to CaseCreated or BlockedIntake, which sends a
+    /// Triage request back into case allocation — the fault INTK-033 fixed —
+    /// and breaks the deferral rule, which keys off NeedsSorting.
+    ///
+    /// The accepted-match evidence is passed back as the receipt's own record
+    /// rather than rebuilt: the store re-checks that it is retained uniquely
+    /// on the receipt by full record equality, so a reconstructed one fails
+    /// closed.
+    /// </remarks>
+    public async Task<IActionResult> OnPostOpenTriageAsync(
+        Guid id,
+        string? vehicleRegistration,
+        string operationKey,
+        CancellationToken cancellationToken = default) =>
+        await ExecuteCommandAsync(
+            id,
+            async actor =>
+            {
+                // The Triage creation request carries a bare actor string and
+                // validates no rights of its own, so the caller authorises.
+                StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
+                var receipt = await getIntake.ExecuteAsync(new GetIntakeQuery(id, actor), cancellationToken)
+                    ?? throw new KeyNotFoundException($"Intake receipt '{id}' was not found.");
+                var acceptedMatch = receipt.Evidence.SingleOrDefault(
+                    evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch)
+                    ?? throw new InvalidOperationException(
+                        "The receipt does not carry exactly one accepted Triage-match record.");
+                var origin = await imageIntakeOriginResolver.ResolveOriginAsync(id, cancellationToken)
+                    ?? throw new InvalidOperationException(
+                        "The intake receipt has no completed evaluation to open a Triage from.");
+                await createTriage.ExecuteAsync(
+                    new(
+                        new TriageOrigin(
+                            origin.ReceiptId,
+                            origin.SourceIdentity,
+                            origin.SourceHash,
+                            origin.EvaluationRevisionId),
+                        ImageIntakeLifecycleRules.NormalizeRegistrationInput(vehicleRegistration),
+                        acceptedMatch,
+                        actor.SubjectId,
+                        $"triage-from-staff:{operationKey}"),
+                    cancellationToken);
+                await CloseUnidentifiedForTriageAsync(receipt, cancellationToken);
+            },
+            "The Triage was opened.",
+            cancellationToken);
+
+    /// <summary>
+    /// Closes the receipt's open Unidentified item against the Triage that now
+    /// exists, through the one owner of that supersession rule. The receipt's
+    /// own processing pass registers the item and returns without reconciling,
+    /// so nothing else closes it until the periodic sweep runs — which is the
+    /// backstop if this advisory write fails, exactly as the suggestion
+    /// bookkeeping below treats a failure after a committed write.
+    /// </summary>
+    private async Task CloseUnidentifiedForTriageAsync(
+        IntakeReceipt receipt,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await unidentifiedDestinations.ResolveForReceiptAsync(receipt, cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            LogIntakeCommandFailed(logger, receipt.Id, exception);
+        }
+    }
 
     public async Task<IActionResult> OnPostDismissSuggestionAsync(
         Guid id,
