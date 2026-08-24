@@ -4,21 +4,25 @@ type: ticket
 title: >-
   A triage-request email creates no Triage and no Unidentified item — it is
   stranded
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-24T07:14:47.726Z'
 labels:
   - production-defect
   - found-during-qa
   - triage
   - closed-composition-gate
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-03-triage.md
+  - docs/frd/frd-09-provider-and-intermediary-routes.md
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:18:47.553Z'
-updated: '2026-08-23T15:50:12.981Z'
+updated: '2026-08-24T07:14:47.726Z'
 ---
 
 ## What the operator saw
