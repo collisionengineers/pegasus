@@ -2,10 +2,12 @@
 id: PLAT-042
 type: ticket
 title: 'Bind the additive-migration rule to cutover, not to today'
-status: preparing
+status: implementing
 area: platform-operations
 assignee: claude-code
 profile: chore
+stageEntered:
+  implementing: '2026-08-24T10:36:02.168Z'
 taken_at: '2026-08-24T10:34:42.606Z'
 branch: task/plat-042-additive-rule-at-cutover
 worktree: ../pegasus-worktrees/plat-042
@@ -21,7 +23,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-24T10:34:11.430Z'
-updated: '2026-08-24T10:34:42.606Z'
+updated: '2026-08-24T10:36:02.168Z'
 ---
 
 ## What
