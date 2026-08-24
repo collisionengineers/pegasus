@@ -494,7 +494,7 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken);
             var replayAllocated =
                 replayAllocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-            var replayTriageCreated = await CreateTriageIfQualifyingAsync(
+            var replayTriage = await CreateTriageIfQualifyingAsync(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
@@ -516,7 +516,7 @@ public sealed class ProcessQueuedIntake(
 
             await SynchronizeUnidentifiedAsync(
                 completedReceipt,
-                replayTriageCreated,
+                replayTriage,
                 cancellationToken);
             return QueuedIntakeProcessingOutcome.NoOp;
         }
@@ -618,7 +618,7 @@ public sealed class ProcessQueuedIntake(
             evaluation.Id,
             cancellationToken);
         var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-        var triageCreated = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+        var triage = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
         if (allocated)
         {
             // Allocation wrote CurrentCaseId durably; image automation must
@@ -633,7 +633,7 @@ public sealed class ProcessQueuedIntake(
             return QueuedIntakeProcessingOutcome.RetryScheduled;
         }
 
-        await SynchronizeUnidentifiedAsync(processed, triageCreated, cancellationToken);
+        await SynchronizeUnidentifiedAsync(processed, triage, cancellationToken);
         return QueuedIntakeProcessingOutcome.Completed;
     }
 
@@ -695,10 +695,13 @@ public sealed class ProcessQueuedIntake(
     ///   deliberately skipped by <c>ProcessIntake</c> so automation could
     ///   resolve it first; register it now so it is never silently absent
     ///   from both the Image Intake and Unidentified queues.
-    /// - A Triage request that opened no Triage was skipped by
-    ///   <c>ProcessIntake</c> for the same reason; it opened none because no
-    ///   vehicle registration is known yet, which is exactly the operator's
-    ///   condition for holding it in Unidentified (INTK-033).
+    /// - A Triage request that did not qualify for a Triage was skipped by
+    ///   <c>ProcessIntake</c> for the same reason; it did not qualify because
+    ///   no vehicle registration is known yet, which is exactly the operator's
+    ///   condition for holding it in Unidentified. A request that qualified
+    ///   and whose attempt failed is deliberately NOT registered: it is not
+    ///   unidentified material, and the redelivery opens its Triage
+    ///   (INTK-033).
     /// - A receipt that already carries an open Unidentified item but now
     ///   has a different, resolved outcome (a Case now exists, or image
     ///   automation registered an Image Intake) is stale in the open queue;
@@ -706,12 +709,13 @@ public sealed class ProcessQueuedIntake(
     /// </summary>
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
-        bool triageCreated,
+        TriageCreationOutcome triage,
         CancellationToken cancellationToken)
     {
         if (registerUnidentified is not null
             && ProcessIntake.IsDeferredForAutomation(receipt)
-            && !(ProcessIntake.IsTriageRequest(receipt) && triageCreated))
+            && !(ProcessIntake.IsTriageRequest(receipt)
+                && triage is not TriageCreationOutcome.NotQualifying))
         {
             try
             {
@@ -910,13 +914,17 @@ public sealed class ProcessQueuedIntake(
     /// its gate could never pass, so the omission was invisible; now that it
     /// fires, an escaping fault would leave the receipt Completed, throw to
     /// the host, and throw again identically on every redelivery — a poison
-    /// loop rather than a settled outcome. Reporting <see langword="false"/>
-    /// is the right fail-closed answer: the caller then registers the
-    /// material as Unidentified, so it lands in a queue somebody works rather
-    /// than nowhere, which is the exact failure this work exists to fix
-    /// (INTK-033).
+    /// loop rather than a settled outcome.
+    ///
+    /// The outcome is three-valued rather than a boolean, because "did not
+    /// qualify" and "qualified and failed" need opposite answers from the
+    /// caller. A message with no known registration is Unidentified material
+    /// by the operator's rule; a message with one is not, whatever this
+    /// attempt did, and registering it would mint a U-reference for material
+    /// whose Triage the next redelivery opens — leaving both open, with
+    /// nothing able to close either.
     /// </remarks>
-    private async Task<bool> CreateTriageIfQualifyingAsync(
+    private async Task<TriageCreationOutcome> CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
         IntakeEvaluationRevision evaluation,
         CancellationToken cancellationToken)
@@ -932,7 +940,7 @@ public sealed class ProcessQueuedIntake(
             || string.IsNullOrWhiteSpace(acceptedMatches[0].MatcherKey)
             || acceptedMatches[0].MatcherVersion is null or <= 0)
         {
-            return false;
+            return TriageCreationOutcome.NotQualifying;
         }
 
         try
@@ -949,13 +957,25 @@ public sealed class ProcessQueuedIntake(
                     SystemActor,
                     $"triage-from-intake-evaluation:{evaluation.Id:N}"),
                 cancellationToken);
-            return true;
+            return TriageCreationOutcome.Created;
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            return false;
+            return TriageCreationOutcome.Failed;
         }
     }
+}
+
+/// <summary>
+/// What one Triage-creation attempt did, for a caller that must tell "this is
+/// not Triage material" apart from "this is Triage material and the attempt
+/// did not stick". Only the first is Unidentified.
+/// </summary>
+internal enum TriageCreationOutcome
+{
+    NotQualifying,
+    Created,
+    Failed
 }
 
 public sealed class ReconcilePoisonedIntakeWork(

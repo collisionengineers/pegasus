@@ -1,6 +1,7 @@
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Intake;
 
@@ -12,7 +13,8 @@ public sealed record ReconcileUnidentifiedDestinationsResult(
 /// <summary>
 /// The one owner of INTK-007's supersession rule: an open Unidentified item
 /// whose origin receipt has since reached a real destination (a formal Case,
-/// or a registered Image intake) is resolved to that destination, which the
+/// a registered Image intake, or an opened Triage) is resolved to that
+/// destination, which the
 /// resolution history records permanently. <see cref="ResolveForReceiptAsync"/>
 /// runs inside the receipt's own processing/replay pass
 /// (<see cref="ProcessQueuedIntake"/>); <see cref="ExecuteAsync"/> is the
@@ -25,6 +27,7 @@ public sealed class ReconcileUnidentifiedDestinations(
     IResolveUnidentified resolveUnidentified,
     IIntakeReceiptQueries receiptQueries,
     IImageIntakeQueries imageIntakeQueries,
+    ITriageQueries triageQueries,
     TimeProvider timeProvider)
 {
     public async Task<ReconcileUnidentifiedDestinationsResult> ExecuteAsync(
@@ -121,6 +124,19 @@ public sealed class ReconcileUnidentifiedDestinations(
             targetKind = UnidentifiedResolutionTargetKind.ImageIntake;
             targetId = detail.Record.Id.ToString("N");
             targetReference = detail.Record.ImageIntakeReference;
+        }
+        // A Triage request held in Unidentified for want of a registration,
+        // whose registration has since been read — the operator's own "until a
+        // vehicle registration is known, then open the Triage" transition,
+        // which a staff re-evaluation reaches. It has a real destination now,
+        // so its open item is stale; without this the item stays open beside
+        // the Triage and the same material sits in two queues (INTK-033).
+        else if (ProcessIntake.IsTriageRequest(receipt)
+            && await triageQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken) is { } triage)
+        {
+            targetKind = UnidentifiedResolutionTargetKind.Triage;
+            targetId = triage.Id.ToString("N");
+            targetReference = triage.NormalizedVehicleRegistration;
         }
         else
         {
