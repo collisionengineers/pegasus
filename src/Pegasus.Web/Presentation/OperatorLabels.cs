@@ -390,6 +390,7 @@ public static class OperatorLabels
         "standalone_audit_evidence_confirmed" => "Audit evidence confirmed",
         "audit_custody_confirmed" => "Audit evidence stored",
         "audit_custody_failed" => "Audit evidence storage failed",
+        "case_document_removed" => "File removed",
         "custody_confirmed" => "Document stored",
         "custody_failed" => "Document storage failed",
         "provider_inspection_mode_applied" => "Inspection mode taken from the principal",
@@ -561,7 +562,7 @@ public static class OperatorLabels
     /// and the approved Lucide glyph that carries it.
     /// </summary>
     /// <remarks>
-    /// The sprite is a checksummed asset of sixteen glyphs and the design
+    /// The sprite is a checksummed asset of seventeen glyphs and the design
     /// authority records that none was added, removed or redrawn, so two of the
     /// seven words share a glyph with a neighbour and lean on the tooltip to
     /// tell them apart.
