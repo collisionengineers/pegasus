@@ -767,13 +767,36 @@ internal static class IntakeTestEvidence
     public static TestEmail CreateEmail(
         string fileName,
         string body,
-        string senderAddress = "instructions@qdosassist.co.uk")
+        string senderAddress = "instructions@qdosassist.co.uk",
+        string subject = "QDOS test instruction",
+        IReadOnlyList<(string FileName, string MediaType, byte[] Content)>? attachments = null)
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress("Synthetic sender", senderAddress));
         message.To.Add(new MailboxAddress("Pegasus Intake", "intake@example.test"));
-        message.Subject = "QDOS test instruction";
-        message.Body = new TextPart("plain") { Text = body };
+        message.Subject = subject;
+        var text = new TextPart("plain") { Text = body };
+        if (attachments is { Count: > 0 })
+        {
+            var multipart = new Multipart("mixed") { text };
+            foreach (var (attachmentName, attachmentMediaType, content) in attachments)
+            {
+                var type = ContentType.Parse(attachmentMediaType);
+                multipart.Add(new MimePart(type.MediaType, type.MediaSubtype)
+                {
+                    Content = new MimeContent(new MemoryStream(content)),
+                    ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                    ContentTransferEncoding = ContentEncoding.Base64,
+                    FileName = attachmentName
+                });
+            }
+
+            message.Body = multipart;
+        }
+        else
+        {
+            message.Body = text;
+        }
         using var output = new MemoryStream();
         message.WriteTo(output);
         return new(fileName, "message/rfc822", output.ToArray());

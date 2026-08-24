@@ -1,0 +1,40 @@
+@*
+    Evidence viewer (DOCS-011).
+
+    docs/design/README.md#contracts "Evidence image preview" requires explicit
+    loading and source-preserving enlarged-image states, and that opening or
+    closing a preview preserves Case context. It is an overlay, so the case
+    page, its tab and its unsaved edits stay behind it; the enlarged view reads
+    the same authorised URL as the thumbnail, so nothing is re-encoded.
+
+    It reuses .reason-dialog-backdrop and the [data-reason-dialog] behaviour
+    contract -- initial focus, focus containment, Escape, focus return -- rather
+    than declaring a second overlay convention. Render it once per page; the
+    triggers are the [data-evidence-item] links inside a [data-evidence-set].
+
+    PDFs use an <iframe> because the deployed CSP sets object-src 'none'.
+*@
+<div id="evidence-viewer"
+     class="reason-dialog-backdrop evidence-viewer"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="evidence-viewer-name"
+     data-evidence-viewer
+     hidden>
+    <div class="evidence-viewer__panel">
+        <div class="evidence-viewer__bar">
+            <h2 id="evidence-viewer-name" class="evidence-viewer__name" data-evidence-name></h2>
+            <span class="evidence-viewer__position" data-evidence-position></span>
+            <a class="secondary-action" data-evidence-download download>Download</a>
+            <button type="button" class="secondary-action" data-evidence-close>Close</button>
+        </div>
+        <div class="evidence-viewer__frame">
+            <button type="button" class="evidence-viewer__step" data-evidence-previous>Previous</button>
+            <div class="evidence-viewer__stage" data-evidence-stage>
+                <img class="evidence-viewer__image" data-evidence-image alt="" hidden />
+                <iframe class="evidence-viewer__document" data-evidence-document title="" hidden></iframe>
+            </div>
+            <button type="button" class="evidence-viewer__step" data-evidence-next>Next</button>
+        </div>
+    </div>
+</div>

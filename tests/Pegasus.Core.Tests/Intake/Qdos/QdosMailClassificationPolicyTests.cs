@@ -9,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(4, QdosMailClassificationPolicy.Version);
+        Assert.Equal(5, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -301,6 +301,45 @@ public sealed class QdosMailClassificationPolicyTests
 
         Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
         Assert.False(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
+    }
+
+    [Fact]
+    public void ForwardedReplyCarriesReplyContext()
+    {
+        // The ordinary shape of a reply in this mailbox: every QDOS message
+        // reaches us as a staff forward, so the reply prefix sits behind the
+        // forward rather than in front of it (INTK-033 review).
+        var result = Classify(
+            subject: "FW: RE: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
+            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.True(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
+    }
+
+    [Fact]
+    public void ForwardedReplyToATriageRequestIsReplyContextNotANewRequest()
+    {
+        // Without this the reply-context gate never fires on the shape it was
+        // written for, and thread correspondence opens a second Triage.
+        var result = Classify(
+            subject: "FW: RE: Engineer Triage - AB12 CDE",
+            document: string.Empty);
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal(MailCategory.TriageRequestSubtype, category.Subtype);
+        Assert.True(category.IsReplyContext);
+    }
+
+    [Fact]
+    public void RepeatedForwardsStillRevealTheReplyBeneathThem()
+    {
+        var result = Classify(
+            subject: "FWD: FW: Re: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
+            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
+
+        Assert.True(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
     }
 
     [Fact]

@@ -455,10 +455,61 @@ internal sealed class EfDocumentCustodyStore(
         version.IsCurrent = false;
         version.RemovalReason = command.Reason.Trim();
         version.RemovalOperationKey = command.OperationKey;
+        var beforeVersion = workflow.Version;
         CaseMutationGuard.Complete(workflow);
+        AddRemovalNote(context, workflow, command, beforeVersion, timeProvider.GetUtcNow());
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
     }
+
+    /// <summary>
+    /// Puts the removal on the case's Notes tab, in the same transaction, so a
+    /// file is never removed without the note or noted without the removal.
+    /// </summary>
+    /// <remarks>
+    /// <c>CaseWorkflowEvents</c>, not <c>CaseHistory</c>. Only the former is
+    /// read by anything operator-facing; a row written to the latter persists,
+    /// reports success and leaves the timeline empty — which is exactly how the
+    /// Release 22 note defect reached production. The neighbouring
+    /// <c>custody_confirmed</c> writes model the wrong table and are invisible
+    /// today; do not copy them.
+    ///
+    /// The removal reason is the note body — it is already required, already
+    /// bounded at 500, and already the thing a person typed to explain
+    /// themselves.
+    ///
+    /// The actor is the member of staff who pressed the control, not a system
+    /// identity. "Created by the system" describes who writes the note, not who
+    /// acted; every other staff mutation on this timeline records the staff
+    /// actor.
+    ///
+    /// <c>(CaseId, AfterVersion)</c> is unique, so the note must carry a
+    /// version some mutation has claimed. It carries the one
+    /// <see cref="CaseMutationGuard.Complete"/> just claimed, which nothing else
+    /// takes — a version-neutral note would collide on a second removal.
+    /// </remarks>
+    private static void AddRemovalNote(
+        PegasusDbContext context,
+        CaseWorkflowEntity workflow,
+        LogicallyRemoveDocumentCommand command,
+        long beforeVersion,
+        DateTimeOffset occurredAtUtc) =>
+        context.CaseWorkflowEvents.Add(new()
+        {
+            Id = Guid.NewGuid(),
+            CaseId = workflow.CaseId,
+            Workflow = workflow,
+            EventType = "case_document_removed",
+            OperationKey = command.OperationKey,
+            RequestHash = command.OperationKey,
+            ActorKind = command.Actor.Kind.ToString(),
+            ActorSubjectId = command.Actor.SubjectId,
+            ActorRolesJson = JsonSerializer.Serialize(command.Actor.Roles.OrderBy(role => role)),
+            Reason = command.Reason.Trim(),
+            OccurredAtUtc = occurredAtUtc,
+            BeforeVersion = beforeVersion,
+            AfterVersion = workflow.Version
+        });
 
     async Task IConfirmThirdPartyVehicleEvidence.ExecuteAsync(
         ConfirmThirdPartyVehicleEvidenceCommand command,

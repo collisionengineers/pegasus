@@ -3,6 +3,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;
+using Pegasus.Core.Triage;
 
 namespace Pegasus.Core.Tests.Intake;
 
@@ -123,6 +124,62 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         Assert.Empty(harness.Resolve.Requests);
     }
 
+    [Fact]
+    public async Task ATriageRequestWhoseTriageNowExistsResolvesItsStaleOpenItem()
+    {
+        // The operator's own transition: material waits in Unidentified until a
+        // registration is known, "then open the Triage". A staff re-evaluation
+        // reaches it — the second pass reads the registration and opens the
+        // Triage, and the U-reference minted by the first pass is then stale.
+        // Without a Triage destination it stayed open beside the Triage
+        // forever, and the same material sat in two queues (INTK-033).
+        var harness = new Harness();
+        var receipt = TriageRequestReceipt(Guid.NewGuid());
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        var item = harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+        var triageId = Guid.NewGuid();
+        harness.Triages.SummariesByOriginReceipt[receipt.Id] =
+            new(triageId, "VO75DFJ", TriageState.Open, null, null, Now, 0);
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 1, 0), result);
+        var resolve = Assert.Single(harness.Resolve.Requests);
+        Assert.Equal(item.Id, resolve.UnidentifiedItemId);
+        Assert.Equal(UnidentifiedResolutionTargetKind.Triage, resolve.TargetKind);
+        Assert.Equal(triageId.ToString("N"), resolve.TargetId);
+        Assert.Equal("VO75DFJ", resolve.TargetReference);
+    }
+
+    [Fact]
+    public async Task ATriageRequestStillWaitingForItsRegistrationKeepsItsOpenItem()
+    {
+        // The other half of the same rule: no Triage exists yet, so the
+        // Unidentified item is not stale and must not be force-closed.
+        var harness = new Harness();
+        var receipt = TriageRequestReceipt(Guid.NewGuid());
+        harness.Receipts.Receipts[receipt.Id] = receipt;
+        harness.AddOpenItem(1, UnidentifiedOrigin.Receipt(receipt.Id));
+
+        var result = await harness.Reconciler.ExecuteAsync(50);
+
+        Assert.Equal(new ReconcileUnidentifiedDestinationsResult(1, 0, 0), result);
+        Assert.Empty(harness.Resolve.Requests);
+    }
+
+    private static IntakeReceipt TriageRequestReceipt(Guid id) =>
+        Receipt(id, IntakeDecision.NeedsSorting, "message/rfc822") with
+        {
+            MailClassificationDecision = MailClassificationResult.Classified(
+                MailCategory.Received(
+                    ReceivedMailFamily.PreInstructionEmails,
+                    MailCategory.TriageRequestSubtype),
+                [new("subject.engineer-triage", true, "The subject opens with the generated Triage line.")],
+                "Exactly one accepted classification predicate family matched.",
+                QdosMailClassificationPolicy.Key,
+                QdosMailClassificationPolicy.Version)
+        };
+
     private static IntakeReceipt Receipt(
         Guid id,
         IntakeDecision decision,
@@ -193,6 +250,7 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Resolve,
             Receipts,
             ImageIntakes,
+            Triages,
             TimeProvider.System);
 
         public FakeUnidentifiedStore Store { get; } = new();
@@ -202,6 +260,8 @@ public sealed class ReconcileUnidentifiedDestinationsTests
         public FakeReceiptQueries Receipts { get; } = new();
 
         public FakeImageIntakeQueries ImageIntakes { get; } = new();
+
+        public FakeTriageQueries Triages { get; } = new();
 
         public ReconcileUnidentifiedDestinations Reconciler { get; }
 
@@ -373,6 +433,26 @@ public sealed class ReconcileUnidentifiedDestinationsTests
             Guid assetId,
             CancellationToken cancellationToken) =>
             Task.FromResult<IntakeAssetRecord?>(null);
+    }
+
+    private sealed class FakeTriageQueries : ITriageQueries
+    {
+        public Dictionary<Guid, TriageSummary> SummariesByOriginReceipt { get; } = [];
+
+        public Task<IReadOnlyList<TriageSummary>> ListAsync(
+            TriageState? state,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
+        public Task<TriageSummary?> GetByOriginReceiptAsync(
+            Guid originReceiptId,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(SummariesByOriginReceipt.TryGetValue(originReceiptId, out var summary)
+                ? summary
+                : null);
     }
 
     private sealed class FakeImageIntakeQueries : IImageIntakeQueries
