@@ -2,9 +2,13 @@
 
 ## Boundary with Unidentified
 
-Triage remains a separate pre-Case workflow. A missing registration or route that is
-specifically a Triage request follows the Triage states and does not receive a U
-reference merely because it is awaiting information. Material that is not accepted
+Triage remains a separate pre-Case workflow. An **open** Triage follows the Triage
+states and does not receive a U reference merely because it is awaiting
+information. A classified Triage request with no registration yet has no Triage to
+follow: it is held in Unidentified with its canonical reason until a registration is
+known, and opening the Triage resolves that item. Holding it there is what stops it
+being stranded in neither queue; it does not make it ordinary unidentified material,
+and it never turns the request into an instruction. Material that is not accepted
 as Triage, or a terminal unreadable/ambiguous source outside that workflow, enters
 Unidentified with its canonical reason.
 > Owner capabilities: TRI · Source PRD: [Pegasus product requirements](../prd/pegasus-product.md) · UI behaviour: docs/design/README.md
