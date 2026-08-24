@@ -518,7 +518,13 @@ public sealed class ProcessQueuedIntake(
                 completedReceipt,
                 replayTriage,
                 cancellationToken);
-            return QueuedIntakeProcessingOutcome.NoOp;
+            // A failed attempt is deliberately not registered as Unidentified,
+            // so reporting a finished pass here would leave an accepted request
+            // in neither queue. Defer instead, exactly as a pending image group
+            // does above (INTK-033 review).
+            return replayTriage == TriageCreationOutcome.Failed
+                ? QueuedIntakeProcessingOutcome.RetryScheduled
+                : QueuedIntakeProcessingOutcome.NoOp;
         }
 
         var (workItem, stagedReceipt) = claimed.Value;
@@ -634,7 +640,9 @@ public sealed class ProcessQueuedIntake(
         }
 
         await SynchronizeUnidentifiedAsync(processed, triage, cancellationToken);
-        return QueuedIntakeProcessingOutcome.Completed;
+        return triage == TriageCreationOutcome.Failed
+            ? QueuedIntakeProcessingOutcome.RetryScheduled
+            : QueuedIntakeProcessingOutcome.Completed;
     }
 
     /// <summary>
@@ -700,8 +708,9 @@ public sealed class ProcessQueuedIntake(
     ///   no vehicle registration is known yet, which is exactly the operator's
     ///   condition for holding it in Unidentified. A request that qualified
     ///   and whose attempt failed is deliberately NOT registered: it is not
-    ///   unidentified material, and the redelivery opens its Triage
-    ///   (INTK-033).
+    ///   unidentified material. The pass then reports itself unfinished so a
+    ///   redelivery opens its Triage, rather than acknowledging work that
+    ///   reached neither queue (INTK-033).
     /// - A receipt that already carries an open Unidentified item but now
     ///   has a different, resolved outcome (a Case now exists, or image
     ///   automation registered an Image Intake) is stale in the open queue;

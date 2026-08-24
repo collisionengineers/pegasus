@@ -64,6 +64,48 @@ public sealed class TriageFromIntakeIntegrationTests
     }
 
     [Fact]
+    public async Task AForwardedReplyOnATriageThreadOpensNoSecondTriage()
+    {
+        // The shape a reply actually arrives in. The classifier's own note
+        // records that every QDOS message reaches us as a staff forward, so an
+        // ordinary reply is "FW: RE: ..." and never a bare "RE: ...". While
+        // reply detection only recognised a leading "RE:", this subject read as
+        // a brand-new request and opened a duplicate Triage for ordinary thread
+        // correspondence -- the exact duplicate the reply-context gate exists
+        // to prevent (INTK-033 review).
+        using var factory = new IntakeWebApplicationFactory();
+        using var client = IntakeWebDriver.CreateClient(factory);
+        var email = IntakeTestEvidence.CreateEmail(
+            "engineer-triage-reply.eml",
+            "Thanks -- confirming the vehicle is roadworthy as discussed.",
+            subject: "FW: RE: Engineer Triage - Our Claim Reference : 46246/1 - "
+                + "Vehicle Registration : VO75DFJ");
+
+        var upload = await IntakeWebDriver.UploadAndProcessAsync(
+            factory, client, email.FileName, email.MediaType, email.Content);
+        var receiptId = IntakeWebDriver.ReceiptId(upload);
+
+        await using var scope = factory.Services.CreateAsyncScope();
+        var receipt = Assert.IsType<IntakeReceipt>(
+            await scope.ServiceProvider.GetRequiredService<IIntakeReceiptQueries>()
+                .GetAsync(receiptId, CancellationToken.None));
+
+        // Still not an instruction, and still no case -- that part never
+        // depended on reply detection.
+        Assert.NotEqual(IntakeDecision.CaseCreated, receipt.Decision);
+        Assert.Null(receipt.CurrentCaseId);
+
+        // The registration is right there in the subject, so this is the case
+        // that would have opened a Triage on the strength of it.
+        Assert.Empty(
+            await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                .ListAsync(null, CancellationToken.None));
+        Assert.DoesNotContain(
+            receipt.Evidence,
+            item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
+    }
+
+    [Fact]
     [Trait("Category", "QdosAlphaAcceptance")]
     public async Task ABodyTemplateTriageRequestOpensATriageFromTheLettersRegistration()
     {

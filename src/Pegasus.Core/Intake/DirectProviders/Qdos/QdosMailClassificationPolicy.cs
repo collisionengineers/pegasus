@@ -20,7 +20,7 @@ namespace Pegasus.Core.Intake;
 public sealed partial class QdosMailClassificationPolicy : IMailClassificationPolicy
 {
     public const string Key = "qdos_mail_classification";
-    public const int Version = 4;
+    public const int Version = 5;
 
     private const string TriagePhrase = "Triage Only Request";
     private const string TriageSubjectPrefix = "Engineer Triage";
@@ -273,7 +273,23 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
     [GeneratedRegex(@"^\s*Automatic reply\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex AutomaticReplyRegex();
 
-    [GeneratedRegex(@"^\s*RE\s*:", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    // A reply reaches us behind the forward, not in front of it. The comment
+    // on TriageSubjectRegex already records why — "every QDOS message reaches
+    // us as a staff forward" — so the ordinary shape of a reply in this
+    // mailbox is "FW: RE: ...", and an anchor that only accepts a leading
+    // "RE:" reads that as a brand-new message. For a Triage request the
+    // consequence was a second Triage opened for ordinary thread
+    // correspondence, which is the duplicate the reply-context gate exists to
+    // prevent (INTK-033 review).
+    //
+    // Matching a reply anywhere in the chain needs no new anchor shape: any
+    // chain containing "RE:" either opens with it, or reaches it past
+    // forwards. Written with the same must-consume-a-literal iteration as
+    // TriageSubjectRegex, so it inherits that regex's linear-time argument
+    // rather than restating it.
+    [GeneratedRegex(
+        @"^\s*(?:(?i:FW|FWD)\s*:\s*)*(?i:RE)\s*:",
+        RegexOptions.CultureInvariant)]
     private static partial Regex ReplyPrefixRegex();
 
     // The forward and reply prefixes are matched case-insensitively because
