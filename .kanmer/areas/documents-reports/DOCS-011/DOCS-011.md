@@ -2,12 +2,15 @@
 id: DOCS-011
 type: ticket
 title: 'Preview evidence images and documents in the case, with paging and a download'
-status: preparing
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-24T11:13:35.573Z'
+taken_at: '2026-08-24T11:16:17.083Z'
+branch: task/docs-011-evidence-preview
+worktree: ../pegasus-worktrees/docs-011-evidence-preview
 labels:
   - found-during-qa
   - ui
@@ -20,7 +23,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:21.004Z'
-updated: '2026-08-24T11:13:35.573Z'
+updated: '2026-08-24T11:16:17.083Z'
 ---
 
 ## What the operator asked for
