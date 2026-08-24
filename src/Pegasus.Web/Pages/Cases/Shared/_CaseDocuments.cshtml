@@ -6,29 +6,8 @@
     var workflow = details.Workflow;
     var leaseToken = Model.LeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
-    // "If they show here, they should be on box" — the operator's rule, and the
-    // same filter the evidence gallery already applies. A version still storing,
-    // or one whose storage failed, is not case evidence yet; case custody state,
-    // its reason and the retry action are on the Workflow tab (DOCS-012).
-    //
-    // One row per occurrence, joined on the occurrence's own version. The old
-    // loop nested documents × occurrences × versions and rendered their
-    // cartesian product, so a document with two occurrences and three versions
-    // produced six rows.
-    var files = details.Documents
-        .SelectMany(document => document.Occurrences
-            .Select(occurrence => new
-            {
-                Occurrence = occurrence,
-                Version = document.Versions.FirstOrDefault(version =>
-                    version.Id == occurrence.VersionId
-                    && version.IsCurrent
-                    && !version.IsLogicallyRemoved
-                    && version.CustodyStatus == DocumentCustodyStatus.Confirmed)
-            }))
-        .Where(entry => entry.Version is not null)
-        .ToArray();
-    var mayConfirmThirdParty = (DocumentOccurrence occurrence, DocumentVersion version) =>
+    var files = CaseFiles.Live(details.Documents);
+    static bool MayConfirmThirdParty(DocumentOccurrence occurrence, DocumentVersion version) =>
         occurrence.SemanticRole == DocumentSemanticRole.Image
         && occurrence.ThirdPartyVehicleConfirmedAtUtc is null
         && (version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
@@ -51,7 +30,7 @@
             @OperatorLabels.CustodyFolderState(details.CustodyState)
         }
     </p>
-    @if (files.Length > 0)
+    @if (files.Count > 0)
     {
         <div class="table-wrap">
             <table>
@@ -60,7 +39,7 @@
                 @foreach (var entry in files)
                 {
                     var occurrence = entry.Occurrence;
-                    var version = entry.Version!;
+                    var version = entry.Version;
                     <tr>
                         <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-occurrenceId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
                         <td>
@@ -79,7 +58,7 @@
                                 <button type="button" class="btn btn--icon" data-dialog-open="remove-doc-@occurrence.Id" aria-label="Remove @version.FileName">
                                     <svg class="icon" aria-hidden="true"><use href="#icon-trash-2"/></svg>
                                 </button>
-                                @if (mayConfirmThirdParty(occurrence, version))
+                                @if (MayConfirmThirdParty(occurrence, version))
                                 {
                                     <button type="button" class="secondary-action" data-dialog-open="third-party-@occurrence.Id">Third-party vehicle</button>
                                 }
@@ -96,7 +75,7 @@
             @foreach (var entry in files)
             {
                 var occurrence = entry.Occurrence;
-                var version = entry.Version!;
+                var version = entry.Version;
                 <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
                 {
                     ["DialogId"] = $"remove-doc-{occurrence.Id}",
@@ -111,7 +90,7 @@
                         ["editLeaseToken"] = leaseToken
                     }
                 })" />
-                @if (mayConfirmThirdParty(occurrence, version))
+                @if (MayConfirmThirdParty(occurrence, version))
                 {
                     <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
                     {

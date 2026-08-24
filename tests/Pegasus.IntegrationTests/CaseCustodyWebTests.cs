@@ -6,7 +6,7 @@ using Pegasus.Core.Documents;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Custody page: custody retry, staff upload, logical removal, third-party vehicle evidence,
+/// The Custody page: custody retry, logical removal, third-party vehicle evidence,
 /// and the request-scoped upload links.
 /// </summary>
 public sealed partial class CaseDetailsWebTests

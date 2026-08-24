@@ -7,7 +7,7 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's document custody actions: custody retry, staff upload, logical removal,
+/// The Case workspace's document custody actions: custody retry, logical removal,
 /// third-party vehicle evidence, and request-scoped upload links. Every action redirects back
 /// to the workspace.
 /// </summary>

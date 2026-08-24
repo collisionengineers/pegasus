@@ -108,7 +108,7 @@ is by job:
 
 - **A Lucide glyph names a thing inside a row** — an action, a state, a
   provenance word. It is 16px, inline, and one glyph means one thing everywhere.
-  The sixteen registered below remain the only glyphs used that way.
+  The seventeen registered below remain the only glyphs used that way.
 - **A mark names a whole surface** — an administration workspace, an empty
   result, the product itself. It is 30–112px, sits beside a heading or above a
   sentence, and carries detail no line glyph holds at that size.
@@ -373,7 +373,7 @@ An icon paired with a visible text label is decorative and carries `aria-hidden=
  | `arrow-right` | `D8B246C7FDBAB41053F2016892C0664BB64C0C6D1ED4594C9D80470C1B219C70` | Action transition and external link indicator |
  | `upload` | `EE63E95EFECDAF141338475D367A54EF891E337491993DCDC1F3ED7936A42660` | Intake manual upload action icon |
  | `lock` | `1F0A0861A3752428E1D5CABDAC22608E645A008229EF58415EC0C0E112F5BF2D` | Case edit lease indicator icon |
-| `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Per-file removal control on the case evidence panel (labelled by `aria-label`) |
+ | `trash-2` | `2D59EB8F9393ABDFEE674BFC1A67A3ABD81146C1525F12DF7E753ACB40CB0773` | Per-file removal control on the case evidence panel (labelled by `aria-label`) |
 
 ### Imagery and evidence
 
@@ -615,7 +615,7 @@ Only the first table describes exercised components. Planned contracts do not cr
 | Due/chaser panel | Missing-material reason, next chase, most recent recorded channel/outcome, optional note and next permitted action together; preparation/copy is not sent or delivered |
 | Inspection address | Provider-determined default: the Principal's inspection-mode setting autofills exact `Image Based Assessment` or requires an explicit physical vehicle/repairer location; reasoned per-Case staff override; physical address fields appear only for the physical mode and never imply attendance |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions, reasoned correction, reopen requirement and no inferred fee/invoice mutation |
-| Evidence/document panel | Original/source/version, logical removal and closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
+| Evidence/document panel | The stored case files themselves — name, role, origin, size, arrival, download; the Box case folder; a reasoned per-file removal recorded on the case timeline; staff-confirmed third-party exclusions; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
 | Lease/conflict | One current Case; holder, expiry, renew/release/reacquire state and read-only alternative; current conflict and preserved proposed values; no forced Administrator takeover |
 | History | Read-only presentation of the Core-owned [permanent action history](../frd/frd-04-parties-accounts-and-access.md#permanent-action-history), including actor/caller/time and one-Case scope without message bodies or telemetry noise |
 | Reason dialog | Named requirement and consequence; labelled reason; confirmation/cancel; initial focus, focus containment, Escape where safe and focus return to the invoking control |
@@ -1063,7 +1063,7 @@ The UI presents the [Core-owned permanent action history](../frd/frd-04-parties-
 
 Use semantic landmarks/headings/tables, labels and associated errors, keyboard operation, visible focus, screen-reader announcements, practical 44px targets, forced-colours and reduced-motion support; state is never colour-only. At 1280px+ use dense multi-pane desktop. At 1024–1279px and 200% zoom, reorder essential desktop content into labelled tabs/drawers/sections without loss. Mobile staff UI is **Not planned**; a supported-device notice is only for genuinely unsupported devices, never a CSS-width substitute.
 
-The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere, drawn from the sixteen registered Lucide glyphs; generated or substitute replacement glyphs are prohibited. The [commissioned Pegasus marks](#the-pegasus-marks) are a separate, approved class: they name a surface rather than an action or a state, and never stand in for a glyph. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
+The contained visual boundary is warm off-white ground, white panels, warm-charcoal navigation, near-black text, CE-red primary/urgent accents, amber incomplete/pending, restrained navy Review and green only confirmed completion. Use system-sans 14–16px body text, sharp 2px corners, rare shadows and Lucide-style line icons. Each semantic action or state uses one consistent icon everywhere, drawn from the seventeen registered Lucide glyphs; generated or substitute replacement glyphs are prohibited. The [commissioned Pegasus marks](#the-pegasus-marks) are a separate, approved class: they name a surface rather than an action or a state, and never stand in for a glyph. Do not expose Azure, OCR, AI, queues or implementation mechanics in operator copy.
 
 Evaluation and operator review use approved genuine local immutable material only. Do not invent operational inputs. Every deferred `Next` or `Later` capability carries its exact target in the [capability inventory](../capabilities.md#capabilities) and has no `0.1.0-alpha.1` control, navigation, workflow, or placeholder — except the recorded routeless UI-15/AI-09 review artifacts, owned by [design § Deferred casework and advanced surfaces](README.md#deferred-casework-and-advanced-surfaces). Every later UI change must re-enter the complete design route.
 
@@ -1126,7 +1126,7 @@ evidence required to activate them.
 | Due/chaser panel | Missing-material reason, next chase, last recorded channel/outcome, optional note, and next permitted action together. Copy/preparation is not sent or delivered; Triage has no such panel. |
 | Inspection address | Provider-determined default from the Principal's inspection-mode setting (exact `Image Based Assessment` autofilled, or physical vehicle/repairer address); reasoned per-Case staff override; address fields appear only for the physical mode and never imply attendance. |
 | Engineering findings | Separate Roadworthiness and Assessment controls; accepted and superseded versions; correction reason/history; reopen requirement; no inferred fee/invoice mutation. |
-| Evidence/document panel | Original/source/version/logical removal/closed lock; Box/external state; issued report versions; exact Outlook evidence with separate discovery/link/sent times. |
+| Evidence/document panel | The stored case files themselves — name, role, origin, size, arrival, download; the Box case folder; a reasoned per-file removal recorded on the case timeline; staff-confirmed third-party exclusions; issued report versions; exact Outlook evidence with separate discovery, link and sent times |
 | Evidence image preview | Loading and source-preserving enlarged-image states are explicit; opening or closing a preview preserves Case context and does not alter source, category, advisory, or report-image selection. |
 | Email quick preview | At allocated mailbox-workspace activation, keyboard and pointer intent exposes an accessible preview that neither clips/obscures adjacent controls nor changes message or Case state; focus departure dismisses it. It shows sender, subject, timestamp, excerpt, classification, association and attachment names, but no mutation controls. |
 | Mailbox refresh | No automatic refresh while an operator is reading or acting. Manual refresh retains active list context and an open message where available. If it leaves the active scope or becomes unavailable, keep detail visible with explicit no-longer-in-this-view state and return-to-list action. |
