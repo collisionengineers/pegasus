@@ -137,7 +137,117 @@ public sealed class AllocateDefinitiveIntakeTests
         Assert.Contains("does not match", error.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static IntakeReceipt Receipt(CaseType caseType, string principalCode) => new(
+    // CASE-021. Automatic allocation used to assert ImagesComplete: true as a
+    // constant, so an audit with an instruction, a report and no photographs
+    // was born Review-ready while the EVA export refused the same case for
+    // having no images. These drive AttemptAutomaticAsync and assert on what
+    // acceptance actually received, so they prove the wiring rather than
+    // re-implementing it.
+    [Fact]
+    public async Task AnInstructionCarryingNoPhotographsIsNotImageComplete()
+    {
+        var receipt = Receipt(
+            CaseType.Audit,
+            "QDOS",
+            Asset("49378_1_LtrtoAuditEngin.pdf", "application/pdf", IntakeAssetKind.Attachment, 82_000),
+            Asset("Bodyshopreport119508-V1.pdf", "application/pdf", IntakeAssetKind.Attachment, 240_000));
+        var accept = new RecordingAcceptance();
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
+
+        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+
+        var completeness = Assert.Single(accept.Requests).Completeness;
+        Assert.True(completeness.InstructionComplete);
+        Assert.False(completeness.ImagesComplete);
+    }
+
+    [Fact]
+    public async Task AnInstructionCarryingAGenuinePhotographIsImageComplete()
+    {
+        var receipt = Receipt(
+            CaseType.Inspection,
+            "QDOS",
+            Asset("damage-1.jpg", "image/jpeg", IntakeAssetKind.Attachment, 1_400_000, 4032, 3024));
+        var accept = new RecordingAcceptance();
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
+
+        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+
+        Assert.True(Assert.Single(accept.Requests).Completeness.ImagesComplete);
+    }
+
+    [Fact]
+    public async Task ALetterheadBannerIsNotAPhotograph()
+    {
+        // The corpus shape from INTK-030: 1990x437, comfortably over any byte
+        // floor, with a JPEG sibling at 2214x248. Only the side ratio catches
+        // them, and this pins the readiness gate to the same definition of an
+        // image the gallery and custody already use.
+        var receipt = Receipt(
+            CaseType.Audit,
+            "QDOS",
+            Asset("letterhead.png", "image/png", IntakeAssetKind.EmbeddedImage, 110_783, 1990, 437));
+        var accept = new RecordingAcceptance();
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
+
+        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+
+        Assert.False(Assert.Single(accept.Requests).Completeness.ImagesComplete);
+    }
+
+    [Fact]
+    public async Task PhotographsEmbeddedInTheBodyRatherThanAttachedAreNotImageComplete()
+    {
+        // A known and accepted consequence, pinned so it is a decision rather
+        // than a surprise: InstructionEvidenceImages counts attachments and
+        // embedded images, never inline ones. A sender who puts the damage
+        // photographs in the HTML body leaves the case Not ready until staff
+        // confirm it.
+        var receipt = Receipt(
+            CaseType.Inspection,
+            "QDOS",
+            Asset("inline-damage.jpg", "image/jpeg", IntakeAssetKind.InlineImage, 900_000, 3000, 2000));
+        var accept = new RecordingAcceptance();
+        var sut = new AllocateIntake(
+            new ReceiptQueries(receipt), new RecordingAllocationStore(), accept, TimeProvider.System);
+
+        await sut.AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+
+        Assert.False(Assert.Single(accept.Requests).Completeness.ImagesComplete);
+    }
+
+    private static IntakeAssetRecord Asset(
+        string fileName,
+        string mediaType,
+        IntakeAssetKind kind,
+        long contentLength,
+        int? width = null,
+        int? height = null) =>
+        new(
+            Guid.NewGuid(),
+            $"outer message, attachment {fileName}",
+            fileName,
+            mediaType,
+            kind,
+            kind == IntakeAssetKind.Attachment
+                ? IntakeAssetDisposition.Attachment
+                : IntakeAssetDisposition.Embedded,
+            contentLength,
+            Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(fileName))),
+            $"storage/{fileName}",
+            null,
+            null,
+            width,
+            height);
+
+    private static IntakeReceipt Receipt(
+        CaseType caseType,
+        string principalCode,
+        params IntakeAssetRecord[] assets) => new(
         Guid.NewGuid(),
         "retained-instruction.pdf",
         "application/pdf",
@@ -159,6 +269,7 @@ public sealed class AllocateDefinitiveIntakeTests
         "1",
         "test-policy",
         1,
+        assets,
         MailRouteDecision: new(
             MailRouteDisposition.Accepted,
             new(principalCode, MailRouteKind.DirectProvider, principalCode),
