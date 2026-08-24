@@ -323,15 +323,30 @@ internal sealed class BoxContentClient(
         string parentId,
         string name,
         string type,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        SelectChild(await CollectChildrenAsync(parentId, name, cancellationToken), name, type);
+
+    /// <summary>
+    /// The one child with this exact name and type, or null — the duplicate and
+    /// wrong-type refusals written once, so a caller that already holds a
+    /// listing decides them the same way <see cref="FindChildAsync"/> does
+    /// rather than asking Box again for what it has (PLAT-041).
+    /// </summary>
+    public static BoxItem? SelectChild(IEnumerable<BoxItem> children, string name, string type)
     {
-        var matches = await CollectChildrenAsync(parentId, name, cancellationToken);
-        var match = matches.Count switch
+        BoxItem? match = null;
+        foreach (var child in children)
         {
-            0 => null,
-            1 => matches[0],
-            _ => throw new InvalidDataException("Box contains duplicate custody children for one exact identity.")
-        };
+            if (!string.Equals(child.Name, name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            if (match is not null)
+            {
+                throw new InvalidDataException("Box contains duplicate custody children for one exact identity.");
+            }
+            match = child;
+        }
         if (match is not null && !string.Equals(match.Type, type, StringComparison.Ordinal))
         {
             throw new InvalidDataException("A Box custody child has the expected name but the wrong type.");
@@ -447,6 +462,49 @@ internal sealed class BoxContentClient(
     public async Task<byte[]> DownloadAsync(string fileId, CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
+        return await DownloadContentAsync(fileId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Downloads a file whose descent from the approved root is already proved:
+    /// <paramref name="listedChild"/> was returned by listing
+    /// <paramref name="fencedParentId"/>, and that folder's own descent was
+    /// proved when it was listed.
+    ///
+    /// PLAT-041: <see cref="EnsureDescendantAsync"/> re-walks the same ancestry
+    /// on every call, one GET per level, and it dominated the case export —
+    /// roughly twenty of its forty-five Box round trips proved, over and over,
+    /// what the listing had just established. The fence is re-checked here
+    /// rather than assumed: the caller must hand back the parent it listed
+    /// under, and the child must still claim it. Nothing is remembered between
+    /// calls, so a Box-side move cannot be read through a stale identity —
+    /// the next operation resolves the folder again and fails loudly.
+    ///
+    /// The listing is the proof, not the parent Box restates on each entry: a
+    /// stated parent that disagrees is refused, but a parent Box declines to
+    /// send cannot refuse a child that was returned by listing the fenced
+    /// folder itself. DOCS-010 is what that sentence is for — a field Box
+    /// silently omitted made every managed read fail in production, and no
+    /// check here may be made to depend on Box volunteering one.
+    ///
+    /// Callers holding only an identifier must use <see cref="DownloadAsync"/>.
+    /// </summary>
+    public async Task<byte[]> DownloadFencedAsync(
+        BoxItem listedChild,
+        string fencedParentId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(listedChild);
+        if (listedChild.ParentId is { Length: > 0 } parentId
+            && !string.Equals(parentId, fencedParentId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("The Box object is outside the approved custody root.");
+        }
+        return await DownloadContentAsync(listedChild.Id, cancellationToken);
+    }
+
+    private async Task<byte[]> DownloadContentAsync(string fileId, CancellationToken cancellationToken)
+    {
         using var response = await SendAsync(
             HttpMethod.Get,
             new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}/content"),
