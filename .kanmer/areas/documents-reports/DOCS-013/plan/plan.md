@@ -69,3 +69,25 @@ n/a — docs-only.
   hits and `current-architecture.md:526`
 - `docs/index.md` authority chain still resolves
 - No code, so no build/test; CI runs anyway and must be green
+
+## Correction during implementation (2026-08-24)
+
+The planned file list was **incomplete**. My original sweep piped `grep` through
+`head -20` and silently truncated, so a seventh assertion was missed:
+
+- **`docs/runbook.md:857`** — the EVA acceptance criterion asserted "repeated EVA
+  export proves byte-identical ordered UTF-8 JSON and image order for the same
+  accepted inputs, **the SHA-256 manifest**, the image eligibility…". Struck.
+
+Caught by re-running the sweep untruncated after the planned edits. The lesson
+is the sweep, not the file: an untruncated `grep` is the verification step, and
+a truncated one reads as completeness it has not earned.
+
+Two false positives confirmed as leave-alone:
+
+- `docs/runbook.md:811` — "manifests … beneath `artifacts/evaluation/`". Matched
+  an EVA filter only because "eva" is a substring of "evaluation".
+- `docs/current-architecture.md:526` — real, EVA-context, and deliberately left
+  to [[ENG-014]], which is what changes the as-built shape.
+
+Final file count: **6 files, 8 edits** (not 6/7 as planned).
