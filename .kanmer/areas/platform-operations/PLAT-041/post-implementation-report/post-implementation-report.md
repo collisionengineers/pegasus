@@ -136,3 +136,76 @@ records a known web-factory deadlock. Two things clear it:
 The hang was also a cancellation with no test failure and no assertion error —
 the same shape as the local `Connection Timeout Expired` failures, which came
 from three other agents' suites sharing this workstation's LocalDB.
+
+## Review dispositions (2026-08-24)
+
+Independent review: **pass with findings, nothing blocking**. Three
+recommendations; all three actioned.
+
+### Applied — the read path had lost its pre-download size guard
+
+Dropping the per-read metadata GET also dropped the only bound before
+`ReadAsByteArrayAsync`. No `MaxResponseContentBufferSize` is set on the shared
+`HttpClient`, so the ceiling was the 2 GB default, and `Verify` only rejected a
+mismatch once the whole body was resident — four at once under the fan-out. A
+memory and availability regression; not an integrity one, since SHA-256 still
+failed closed on content.
+
+The reviewer's diagnosis is sharper than the reasoning it corrects. My stated
+reason for deleting the check — that re-pointing it at the listing would depend
+on Box honouring `fields=…,size,parent`, DOCS-010's exact failure shape — is true
+of `IsExpectedRevision` **as written**, because it *refuses* a null `Size`, under
+test. It is not true of a **tolerant** check, which is the shape already adopted
+one method away in `DownloadFencedAsync` ("a parent Box declines to send cannot
+refuse a child"). The hazard was the strictness, not reading `Size` off a
+listing. Deleting the whole check was an over-correction by one field.
+
+`RefuseUnexpectedLength` now runs before both downloads, costs no extra Box call,
+and is tolerant of an absent size. Infrastructure builds clean; Box custody
+suites 19/19.
+
+### Corrected — the shard-1 flake reasoning was factually wrong
+
+I wrote that `sql-integration (1)` "contains none of the changed paths' tests".
+**False.** The reviewer pulled the run's own `assigned-1.txt`: shard 1 holds all
+five `BoxManagedRevisionTests` *and*
+`AutomationAssessmentIngressTests.EvaHandoffToolsRespondOverHttpAndRecordAttribution`,
+which drives EVA generation over HTTP through the rewritten
+`LoadEligibleImagesAsync`.
+
+The conclusion survives on better evidence, which the reviewer verified:
+
+- `Parallel.ForEachAsync` occurs at **exactly one place in `src`** — inside
+  `BoxDocumentContentStore`, composed only by `AddProductionBoxCustody`. Every
+  web-factory test composes `LocalDocumentContentStore` and takes the sequential
+  default, so **no web-factory test can reach the fan-out**. That is the argument
+  I should have made.
+- The runbook's known deadlock is `parallelAlgorithm: aggressive` plus a
+  synchronous host build — untouched here.
+- The job ran 20m07s against the workflow's `timeout-minutes: 20`; GitHub reports
+  a timeout as "cancelled". Not a human cancel.
+- Independent corroboration: run `32718691890` on `task/case-021-observed-images`
+  — a different branch without these changes — hit the identical 20-minute
+  timeout the same morning. The shape belongs to the runner pool.
+
+### Named, not fixed
+
+- **The fence is a call-site convention, not a type.** `DownloadFencedAsync(x, x.ParentId)`
+  satisfies it trivially. Blast radius is the assembly (`BoxContentClient` is
+  `internal sealed`) and the XML doc says so. If it gains callers, have
+  `ListChildrenAsync`/`FindChildAsync` return a `FencedListing` carrying the
+  proved parent so the pair cannot be forged.
+- **The `trashed_at` refusal on the file** went with the metadata GET; reads now
+  rely on Box excluding trashed items from `/folders/{id}/items`. That is the v2
+  contract but an unverified external premise. Consequence if wrong is benign:
+  correct, hash-verified bytes from a trashed file.
+- **No 429 handling on the fan-out**, and the store is a singleton — three
+  concurrent exports means twelve in flight. Follow-up ticket, not a change here.
+
+### Carried to Verifying, not closable on this evidence
+
+The reviewer is right that **45→8 is proved only against an in-memory fake**. The
+ticket's three verification checkboxes — App Insights before/after, a five-image
+export in a few seconds, archive bytes unchanged — are all unticked and none was
+performed. Adequate for merge to `dev`; the measurement is owed before this
+ticket reaches Done.
