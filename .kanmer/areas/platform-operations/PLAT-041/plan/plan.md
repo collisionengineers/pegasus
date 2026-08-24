@@ -139,3 +139,84 @@ that a batch returns the requested order and bytes.
 - **Persisting a generated operator export** so a second click is cheap — the ticket
   raises it as "worth noting, not necessarily fixing". Not done; it is a storage
   decision, not a latency one.
+
+## Simplification pass — 2026-08-24
+
+Four lenses over the branch's own diff (reuse, simplification, efficiency,
+altitude), run by an independent `code-simplifier` agent plus my own pass. It
+changed the shape of the fix in two places, so this is not a formality.
+
+### Applied
+
+- **The read path no longer checks file metadata at all** (was: re-pointed at
+  the listing). The pass found the premise this rested on was unverified and
+  its failure mode is DOCS-010 exactly: `IsExpectedRevision` refuses a null
+  `Size` or `ParentId`, deliberately and under test
+  (`BoxManagedRevisionTests.cs:41-50`), and **no production path has ever read
+  either field off a folder listing** — every proven read of them comes from
+  `GET /files/{id}`. Feeding it listing data would have bet every managed Box
+  read on Box honouring `fields=…,size,parent` on `/folders/{id}/items`.
+  So the check is now simply gone from the read, which is what the ticket asked
+  for ("drop the redundant GET; the SHA-256 check is the real guarantee"), and
+  the premise is gone with it. `VerifyFileMetadataAsync` survives unchanged on
+  the **write** path, where it decides replay against conflict before anything
+  is committed and costs one call per document at intake.
+- **`DownloadFencedAsync` tolerates a parent Box does not state**, and refuses
+  only one that contradicts. The listing under the fenced folder is the proof;
+  the stated parent is corroboration. Same reasoning, same rule: no check here
+  may depend on Box volunteering a field.
+- **Reverted the SQL predicate push** (the ticket's first cheap win). It copies
+  six Core-owned eligibility rules into an Infrastructure LINQ expression —
+  a fourth copy of the jpeg/png list, which already disagrees with
+  `EfAssessmentReportProjectionSource.PhotoMediaTypes` (that one also allows
+  `image/webp`). `EvaHandoffPolicy.SelectEligibleImages` re-decides all six, so
+  the result set is unchanged and the gain is a smaller row count on a query of
+  a few dozen rows — nothing, against 18 s of Box. It would also have made the
+  two structurally identical EVA queries diverge in order to match a third. One
+  owner for that predicate is a real improvement and a different ticket.
+- **Extracted `BundleImage`** — the 14-argument `EvaBundleImage` construction
+  was duplicated verbatim in both loops; both call sites are now one `Select`.
+- **Extracted `BoxContentClient.SelectChild`** — the duplicate-child and
+  wrong-type refusals had been copied into the batch path. They now have one
+  owner and `FindChildAsync` delegates to it.
+- **Hoisted `NormalizeSha256` out of the parallel body**, next to the existing
+  `Validate` loop, so a malformed hash fails before any I/O and not racing
+  whatever else is in flight.
+- **Lowered the download fan-out from 8 to 4** and recorded why. Every other
+  Box primitive in Infrastructure serialises behind a `SemaphoreSlim(1,1)`;
+  this is the only fan-out, and nothing on the Box path retries a 429. Four
+  overlaps essentially all of a normal export's download time.
+- **Documented that the batch materialises everything**, so the next reader does
+  not point the size-bounded ZIP export at it.
+
+### Found, not applied — with reasons
+
+- **`EfAssessmentReportProjectionSource.cs:80-107` is a third identical loop.**
+  Same shape, same store, same cost. Not converted: a different feature path,
+  not named by the ticket, and it takes the 9 → 4 per-read win for free. A
+  follow-up, named here rather than left silent.
+- **`BoxCaseCustody.VerifyFileAsync:1128-1148` still does the metadata GET plus
+  the ancestry walk** this diff removed from the read path. Kept: it is the
+  custody-binding verification, which is stricter on purpose and is not on the
+  export path.
+- **One ancestry GET per operation survives** — `ResolveCaseFolderAsync` proves
+  the case folder by finding it in the root listing, and the next call re-proves
+  it. Removing it needs a `ListChildrenFenced` twin of `DownloadFencedAsync`,
+  a second fenced variant for one call site, for 1 request of 8. Rejected.
+- **`ResolveCaseFolderAsync` lists the entire custody root** and grows forever
+  with the case count. It is now the largest fixed cost of an export. The
+  durable folder id is already in `Cases.CustodyRootRemoteId`; using it is the
+  next latency ticket, and it is the same stale-id question the ticket raised.
+  Not attempted here.
+- **The `oversized` hoist is not exactly behaviour-preserving in one respect**:
+  a case with a good image first and an oversized one later used to download the
+  good one before returning `Blocked`. It now returns `Blocked` first. The
+  `Blocked` message and the successful path are identical.
+
+### Open premise — the one thing I could not check
+
+Nothing now depends on Box returning `size`/`parent` in a folder listing, which
+was the risk. What the pass could not verify, and what I did not have authority
+to check (it needs the Box app credentials out of Key Vault, a credential read
+requiring approval), is a live `GET /2.0/folders/{caseFolderId}/items?fields=id,name,type,etag,size,content_type,parent`.
+The change is written so that response's shape cannot break it either way.
