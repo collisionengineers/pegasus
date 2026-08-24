@@ -20,9 +20,10 @@ links: []
 refs:
   - docs/frd/frd-03-triage.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
+deployment: production
 archived: false
 created: '2026-08-24T08:33:08.101Z'
-updated: '2026-08-24T14:57:17.936Z'
+updated: '2026-08-24T16:54:09.043Z'
 ---
 
 ## Why

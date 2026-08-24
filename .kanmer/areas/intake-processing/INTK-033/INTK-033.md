@@ -24,10 +24,12 @@ links: []
 refs:
   - docs/frd/frd-03-triage.md
   - docs/frd/frd-09-provider-and-intermediary-routes.md
-deployment: not-deployed
+commits:
+  - 7d4c8f005261d3963cdecf806b3e06c17552be9b
+deployment: production
 archived: false
 created: '2026-08-23T15:18:47.553Z'
-updated: '2026-08-24T14:57:13.097Z'
+updated: '2026-08-24T16:53:58.248Z'
 ---
 
 ## What the operator saw
