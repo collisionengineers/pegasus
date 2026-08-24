@@ -331,7 +331,7 @@ public sealed class ProcessIntake(
     /// Triage request. One reading of the recorded decision, so no surface
     /// re-derives it from the taxonomy.
     /// </summary>
-    internal static bool IsTriageRequest(IntakeReceipt receipt) =>
+    public static bool IsTriageRequest(IntakeReceipt receipt) =>
         receipt.MailClassificationDecision is { IsTriageRequest: true };
 
     internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt) =>
