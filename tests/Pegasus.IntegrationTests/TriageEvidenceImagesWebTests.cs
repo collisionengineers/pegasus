@@ -27,19 +27,24 @@ public sealed partial class QdosTriageIntegrationTests
             + "\r\nVehicle Registration: AB12 CDE",
             attachments:
             [
-                ("Client vehicle damage 1.jpg", "image/jpeg", TinyPngBytes),
-                ("Client vehicle damage 2.jpg", "image/jpeg", TinyPngBytes2)
+                ("Client vehicle damage 1.png", "image/png", TinyPngBytes),
+                ("Client vehicle damage 2.png", "image/png", TinyPngBytes2)
             ]);
 
         await IntakeWebDriver.UploadAndProcessAsync(
             factory, client, email.FileName, email.MediaType, email.Content);
 
         Guid triageId;
+        Guid receiptId;
         await using (var scope = factory.Services.CreateAsyncScope())
         {
-            triageId = Assert.Single(
+            var triage = Assert.Single(
                 await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
-                    .ListAsync(null, CancellationToken.None)).Id;
+                    .ListAsync(null, CancellationToken.None));
+            triageId = triage.Id;
+            receiptId = Assert.IsType<TriageDetail>(
+                await scope.ServiceProvider.GetRequiredService<ITriageQueries>()
+                    .GetAsync(triage.Id, CancellationToken.None)).Record.Origin.ReceiptId;
         }
 
         using var response = await client.GetAsync($"/Triage/{triageId}");
@@ -47,11 +52,12 @@ public sealed partial class QdosTriageIntegrationTests
         var html = await response.Content.ReadAsStringAsync();
 
         Assert.Contains("Vehicle images", html, StringComparison.Ordinal);
-        Assert.Contains("Client vehicle damage 1.jpg", html, StringComparison.Ordinal);
-        Assert.Contains("Client vehicle damage 2.jpg", html, StringComparison.Ordinal);
-        // Served by the one authorised, hash-verified asset route — not copied
-        // anywhere, and not a second custody of the same bytes.
-        Assert.Contains("/Asset/", html, StringComparison.Ordinal);
+        Assert.Contains("Client vehicle damage 1.png", html, StringComparison.Ordinal);
+        Assert.Contains("Client vehicle damage 2.png", html, StringComparison.Ordinal);
+        // Served by the one authorised, hash-verified asset route, against this
+        // receipt — not copied anywhere, and not a second custody of the same
+        // bytes.
+        Assert.Contains($"/Received/{receiptId:D}/Asset/", html, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -92,8 +98,8 @@ public sealed partial class QdosTriageIntegrationTests
         Convert.FromBase64String(MultiFormatFixture.TinyPngBase64);
 
     // A second, distinct image: InstructionEvidenceImages de-duplicates by
-    // content hash, so two identical attachments would collapse to one and the
-    // test would pass while proving less than it claims.
+    // content hash, so identical bytes would render one entry, not two. A
+    // trailing byte after IEND changes the hash and leaves the PNG readable.
     private static readonly byte[] TinyPngBytes2 =
         [.. Convert.FromBase64String(MultiFormatFixture.TinyPngBase64), 0x00];
 }
