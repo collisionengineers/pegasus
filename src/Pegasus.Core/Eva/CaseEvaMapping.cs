@@ -272,10 +272,10 @@ public static partial class CaseEvaMapping
     }
 
     /// <summary>
-    /// The thirteen ordered field values as the replay record, written once so
-    /// the hand-off and an operator export can never drift into two orders.
-    /// A value the case does not hold is empty rather than absent: every key
-    /// is always present in the archive.
+    /// The thirteen ordered field values as the replay record, in the one
+    /// order <see cref="RequiredMappedFields"/> names. A value the case does
+    /// not hold is empty rather than absent: every key is always present in
+    /// the archive.
     /// </summary>
     private static EvaReplayFields ToReplayFields(
         IReadOnlyList<(string Name, EvaEvidenceValue Value)> fields)

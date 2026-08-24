@@ -5,7 +5,6 @@ using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
-using Pegasus.Infrastructure.Eva;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -43,9 +42,9 @@ public sealed class EvaHandoffStore(
     ///
     /// Order matters. The proxy is recorded only after the archive has been
     /// built, so "first success only" is literal: an export that fails records
-    /// nothing. The read-then-write runs in one transaction, and
-    /// <c>EvaFirstHandoffProxies</c>' primary key on the case is the backstop
-    /// under a race — the database itself refuses a second row.
+    /// nothing. "Once per case" is enforced by <c>EvaFirstHandoffProxies</c>'
+    /// primary key on the case, not by a replay key — the database itself
+    /// refuses a second row.
     /// </summary>
     public async Task<ExportCaseBundleResult?> ExecuteAsync(
         ExportCaseBundleRequest request,
@@ -116,6 +115,21 @@ public sealed class EvaHandoffStore(
     /// claims either is refused here, and the two
     /// <c>CK_EvaFirstHandoffProxies_*</c> check constraints refuse it again in
     /// the database.
+    ///
+    /// The read is the ordinary path; the primary key on <c>CaseId</c> is what
+    /// actually enforces "once". Two exports of the same case racing — an
+    /// operator double-pressing Export is the realistic way — can both read
+    /// nothing and both insert, and the second is refused by that key. Losing
+    /// that race produces exactly the intended end state, one row, so it is not
+    /// an error to report. It is only swallowed once the row is confirmed
+    /// present.
+    ///
+    /// Any other write failure fails the whole export rather than handing over
+    /// a file whose "first sent to Engineer" fact was silently not recorded.
+    /// It is translated here, as the deleted hand-off translated
+    /// <c>DbUpdateConcurrencyException</c>, so no page has to know what EF
+    /// throws: <c>DbUpdateException</c> derives straight from
+    /// <c>Exception</c> and would otherwise miss every caller's catch filter.
     /// </summary>
     private async Task RecordFirstSentToEngineerAsync(
         PegasusDbContext context,
@@ -123,11 +137,7 @@ public sealed class EvaHandoffStore(
         string bundleSha256,
         CancellationToken cancellationToken)
     {
-        await using var transaction = await context.Database.BeginTransactionAsync(
-            System.Data.IsolationLevel.Serializable,
-            cancellationToken);
-        if (await context.EvaFirstHandoffProxies
-            .AnyAsync(item => item.CaseId == request.CaseId, cancellationToken))
+        if (await ProxyExistsAsync(context, request.CaseId, cancellationToken))
         {
             return;
         }
@@ -151,9 +161,29 @@ public sealed class EvaHandoffStore(
             ClaimsExternalDelivery = false,
             ClaimsEngineerAssignment = false
         });
-        await context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception)
+        {
+            context.ChangeTracker.Clear();
+            if (!await ProxyExistsAsync(context, request.CaseId, cancellationToken))
+            {
+                throw new InvalidOperationException(
+                    "The export could not record the First sent to Engineer proxy.",
+                    exception);
+            }
+        }
     }
+
+    private static Task<bool> ProxyExistsAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken) =>
+        context.EvaFirstHandoffProxies
+            .AsNoTracking()
+            .AnyAsync(item => item.CaseId == caseId, cancellationToken);
 
     /// <summary>
     /// Every eligible retained photograph of a case, with its content, chosen
@@ -481,7 +511,6 @@ public sealed class EvaHandoffStore(
 
     private static EvaEvidenceValue MissingEvidence { get; } =
         new(null, EvaEvidenceStatus.Unrecorded, "unrecorded", "unrecorded");
-
 
     private sealed record SelectedDocument(
         Guid OccurrenceId,
