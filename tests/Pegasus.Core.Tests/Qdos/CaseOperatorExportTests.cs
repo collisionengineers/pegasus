@@ -121,7 +121,7 @@ public sealed class CaseOperatorExportTests
             ["EVA-QDOS26011.json", "Images/002 1_CLVoffside-V1.jpg"],
             archive.Entries.Select(entry => entry.FullName));
         Assert.StartsWith(
-            "{\r\n  \"Work Provider\": ",
+            "{\n  \"Work Provider\": ",
             Encoding.UTF8.GetString(bundle.JsonContent),
             StringComparison.Ordinal);
     }
