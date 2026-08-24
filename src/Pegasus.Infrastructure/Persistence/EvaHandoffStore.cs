@@ -515,47 +515,19 @@ public sealed class EvaHandoffStore(
                 reasons.Distinct(StringComparer.Ordinal).ToArray());
         }
 
-        var bundleImages = new List<EvaBundleImage>(selectedRows.Length);
-        foreach (var selected in selectedRows)
+        var oversized = selectedRows.FirstOrDefault(selected => selected.ContentLength > int.MaxValue);
+        if (oversized is not null)
         {
-            if (selected.ContentLength > int.MaxValue)
-            {
-                return Blocked($"The selected image '{selected.FileName}' is too large for the offline EVA handoff.");
-            }
-
-            await using var content = await contentStore.OpenReadVersionAsync(
-                new(
-                    request.CaseId,
-                    workflow.Case.Reference,
-                    selected.OccurrenceId,
-                    selected.Ordinal,
-                    selected.DocumentId,
-                    selected.VersionId,
-                    selected.Version,
-                    selected.SemanticRole,
-                    selected.FileName,
-                    selected.MediaType),
-                selected.Sha256,
-                selected.ContentLength,
-                cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)selected.ContentLength));
-            await content.ReadExactlyAsync(bytes, cancellationToken);
-            bundleImages.Add(new(
-                selected.OccurrenceId,
-                selected.DocumentId,
-                selected.VersionId,
-                selected.Version,
-                selected.FileName,
-                selected.MediaType,
-                selected.SemanticRole,
-                selected.Source,
-                selected.SourceOccurrenceIdentity,
-                bytes,
-                selected.Sha256,
-                CustodyConfirmed: true,
-                IsCurrent: true,
-                selected.Ordinal));
+            return Blocked($"The selected image '{oversized.FileName}' is too large for the offline EVA handoff.");
         }
+
+        var contents = await contentStore.ReadVersionsAsync(
+            [.. selectedRows.Select(selected =>
+                ContentRead(request.CaseId, workflow.Case.Reference, selected))],
+            cancellationToken);
+        var bundleImages = selectedRows
+            .Select((selected, index) => BundleImage(selected, contents[index]))
+            .ToArray();
 
         var bundle = EvaBundleSchema.CreateOfflineReplay(
             mapping.Source,
@@ -789,47 +761,63 @@ public sealed class EvaHandoffStore(
             .Select(candidate => candidate.VersionId)
             .ToHashSet();
 
-        var images = new List<EvaBundleImage>();
-        foreach (var selected in candidateRows.Where(
-            selected => eligibleVersionIds.Contains(selected.VersionId)
-                        && selected.ContentLength <= int.MaxValue))
-        {
-            await using var content = await contentStore.OpenReadVersionAsync(
-                new(
-                    caseId,
-                    caseReference,
-                    selected.OccurrenceId,
-                    selected.Ordinal,
-                    selected.DocumentId,
-                    selected.VersionId,
-                    selected.Version,
-                    selected.SemanticRole,
-                    selected.FileName,
-                    selected.MediaType),
-                selected.Sha256,
-                selected.ContentLength,
-                cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)selected.ContentLength));
-            await content.ReadExactlyAsync(bytes, cancellationToken);
-            images.Add(new(
+        var selectedRows = candidateRows
+            .Where(selected => eligibleVersionIds.Contains(selected.VersionId)
+                               && selected.ContentLength <= int.MaxValue)
+            .ToArray();
+        var contents = await contentStore.ReadVersionsAsync(
+            [.. selectedRows.Select(selected => ContentRead(caseId, caseReference, selected))],
+            cancellationToken);
+        return [.. selectedRows.Select((selected, index) => BundleImage(selected, contents[index]))];
+    }
+
+    /// <summary>
+    /// One selected photograph as it travels in a bundle. The hand-off and the
+    /// operator export (CASE-019) build this identically — the difference
+    /// between them is which images are selected, never how one is described.
+    /// </summary>
+    private static EvaBundleImage BundleImage(
+        SelectedDocument selected,
+        ReadOnlyMemory<byte> content) =>
+        new(
+            selected.OccurrenceId,
+            selected.DocumentId,
+            selected.VersionId,
+            selected.Version,
+            selected.FileName,
+            selected.MediaType,
+            selected.SemanticRole,
+            selected.Source,
+            selected.SourceOccurrenceIdentity,
+            content,
+            selected.Sha256,
+            CustodyConfirmed: true,
+            IsCurrent: true,
+            selected.Ordinal);
+
+    /// <summary>
+    /// PLAT-041: one selected photograph expressed as a managed content read,
+    /// so the hand-off and the operator export ask for their images the same
+    /// way — as a set the store resolves once, not one at a time.
+    /// </summary>
+    private static ManagedDocumentContentRead ContentRead(
+        Guid caseId,
+        string caseReference,
+        SelectedDocument selected) =>
+        new(
+            new(
+                caseId,
+                caseReference,
                 selected.OccurrenceId,
+                selected.Ordinal,
                 selected.DocumentId,
                 selected.VersionId,
                 selected.Version,
-                selected.FileName,
-                selected.MediaType,
                 selected.SemanticRole,
-                selected.Source,
-                selected.SourceOccurrenceIdentity,
-                bytes,
-                selected.Sha256,
-                CustodyConfirmed: true,
-                IsCurrent: true,
-                selected.Ordinal));
-        }
-
-        return images;
-    }
+                selected.FileName,
+                selected.MediaType),
+            selected.Sha256,
+            selected.ContentLength);
 
     private EvaMappingResult MapAcceptedCase(
         CaseDataProjection caseData,

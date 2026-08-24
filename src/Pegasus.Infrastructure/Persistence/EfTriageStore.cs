@@ -435,6 +435,26 @@ public sealed class EfTriageStore(
         ChangeCaseLinkAsync(request, false, cancellationToken);
 
 
+    public async Task<TriageSummary?> GetByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entity = await context.Triage.AsNoTracking().SingleOrDefaultAsync(
+            item => item.OriginReceiptId == originReceiptId,
+            cancellationToken);
+        return entity is null
+            ? null
+            : new(
+                entity.Id,
+                entity.NormalizedVehicleRegistration,
+                ParseState(entity.State),
+                entity.AssigneeId,
+                entity.LinkedCaseId,
+                entity.CreatedAtUtc,
+                entity.Version);
+    }
+
     public async Task<IReadOnlyList<TriageSummary>> ListAsync(TriageState? state, CancellationToken cancellationToken)
     {
         if (state is not null && !Enum.IsDefined(state.Value))

@@ -71,3 +71,27 @@ For mail on the accepted QDOS direct route only:
 This pulls the QDOS-direct subset of MAIL-09 forward to `Now / 0.1.0-alpha.1`. General multi-provider association, the classified-email workspace, and every other route's matchers remain allocated `Next / 0.3.0`.
 
 Consequences: the predicates are Core-owned, code-versioned policy (`QdosCaseMatchPolicy`, the shared eliminator in `EvaluateIntakeCaseMatch`); a behaviour change is a version bump, never a silent redefinition, and any normalization change requires an explicit rebuild of the derived match index. The match index is a read model of accepted case data maintained in the same transaction by every case-data writer — case acceptance, staff case-data save, vehicle-suggestion confirmation, and Created in error replacement creation — all through one shared projector. The predecessor's false-registration shapes (`AND2`, `OCTOBER`, postcode outward codes, `X5 NOW`) are pinned as negative tests. No generic rule engine, rule table, or admin editor is introduced; a second provider's matcher needs its own operator-accepted predicates and policy.
+
+### Accepted QDOS automatic Triage predicates
+
+> Owner capability: TRI-01/TRI-02 (QDOS direct). Operator decision 2026-08-23 (INTK-033). Behaviour is owned by [FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence); this records which predicates were accepted and what they may not do.
+
+QDOS sends Triage requests in two disjoint generated templates, and both are accepted
+tells of the same one category (`qdos_mail_classification` v4): the body phrase
+`Triage Only Request`, and a subject opening with `Engineer Triage` past any forward or
+reply prefix. Both are matched case-exactly, because the casing is part of the generated
+tell — a human sentence mentioning either is not the tell. Two tells feed **one** triage
+candidate; a second candidate for one category would resolve to the Ambiguous outcome, so
+a message carrying both would classify worse than one carrying either.
+
+The classification decision is itself the accepted Triage-match evidence, stamped with
+that policy's key and version. There is no separate Triage matcher: message-type
+classification has one route-owned owner (ADR-0008), and FRD-03 names that owner as what
+begins a Triage. Exclusions and outcomes are the classification policy's own — more than
+one matching category is the recorded Ambiguous outcome and opens no Triage, and no
+numeric confidence score or threshold exists here either.
+
+The registration that decides FRD-03's branch is read by the ordinary label-anchored
+extraction: from the letter's `Registration:` line in the body template, and from the
+subject's `Vehicle Registration` label in the subject template, which states it nowhere
+else.

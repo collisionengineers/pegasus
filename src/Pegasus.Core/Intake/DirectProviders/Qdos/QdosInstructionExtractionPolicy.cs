@@ -4,20 +4,20 @@ using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
 
-public sealed partial class QdosInstructionExtractionPolicy(
-    IIntakeTriageMatcher? triageMatcher = null) : IInstructionExtractionPolicy
+// `partial` because this policy owns generated regexes; the triage-matcher
+// constructor parameter is gone -- INTK-033 replaced that matcher with
+// classification-derived evidence, and nothing here reads it.
+public sealed partial class QdosInstructionExtractionPolicy : IInstructionExtractionPolicy
 {
     public const string Key = "qdos_instruction";
-    // ENG-015 changed three extraction rules — the bare `Date` label, the
+    // ENG-015 changed three extraction rules -- the bare `Date` label, the
     // labelled damage-area synthesis, and inspection-date fragment precedence.
-    // The version is persisted as each extracted fact's provenance
-    // (`qdos_instruction/v6`), so facts read before and after must stay
-    // distinguishable for audit and re-evaluation. Bumped for the same reason
-    // as v3 (letter shapes), v4 (INTK-025) and v5 (INTK-028).
+    // The version is persisted as each extracted fact's provenance, so facts
+    // read before and after must stay distinguishable for audit and
+    // re-evaluation. Bumped for the same reason as v3 (letter shapes),
+    // v4 (INTK-025), v5 (INTK-028) and v6 (INTK-033).
     public const int Version = 7;
     public const string SupportedPrincipalCode = "QDOS";
-    private readonly IIntakeTriageMatcher triageMatcher =
-        triageMatcher ?? new NoAcceptedIntakeTriageMatcher();
 
     public string PrincipalCode => SupportedPrincipalCode;
 
@@ -159,20 +159,6 @@ public sealed partial class QdosInstructionExtractionPolicy(
         missingFields = missingFields.Where(name => !derivedNames.Contains(name)).ToArray();
         evidence.AddRange(fieldEvidence);
         var draft = CreateInstructionDraft(fields, principalContext.PrincipalCode);
-        var triageMatches = triageMatcher.Match(readResult, draft);
-        ArgumentNullException.ThrowIfNull(triageMatches);
-        foreach (var match in triageMatches)
-        {
-            ValidateTriageMatch(match);
-            evidence.Add(new(
-                match.Source,
-                IntakeEvidenceStrength.Strong,
-                IntakeEvidenceFinding.AcceptedTriageMatch,
-                match.Signal.Trim(),
-                match.Detail.Trim(),
-                match.MatcherKey.Trim(),
-                match.MatcherVersion));
-        }
         if (readResult.RequiresOcr)
         {
             evidence.Add(new(
@@ -455,8 +441,38 @@ public sealed partial class QdosInstructionExtractionPolicy(
             lines.Add($"Our Client: {client.Groups[1].Value.Trim().TrimEnd(',', ')', '.')}");
         }
 
+        // The Triage subject template writes the registration as its own
+        // labelled field, in two recorded spacings ("Vehicle Registration
+        // YD14VGJ" and "Vehicle Registration : VO75DFJ"). It is the only
+        // place that template states a registration at all — its body is
+        // free prose — so without this rule every subject-template Triage
+        // request falls to Unidentified (INTK-033).
+        //
+        // The separator is ONE bounded class, not `\s*[:.]?\s*`. Two
+        // unbounded whitespace runs either side of an optional character are
+        // ambiguous, and a long whitespace run then costs O(k²) to fail —
+        // measured at 6.9 s for 16,000 spaces, four times worse per
+        // doubling, on a subject header an approved sender controls. This
+        // form is 1.1 ms at the same width. The value is two short bounded
+        // runs, and the shape is validated outside the pattern.
+        var subjectRegistration = Regex.Match(
+            subject,
+            @"\bVehicle\s+Registration\b[\s:.-]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b",
+            RegexOptions.IgnoreCase,
+            TimeSpan.FromMilliseconds(100));
+        if (subjectRegistration.Success
+            && InstructionFieldEngine.IsUkRegistration(subjectRegistration.Groups["value"].Value))
+        {
+            lines.Add($"Vehicle Registration: {subjectRegistration.Groups["value"].Value}");
+        }
+
+        // The lookahead keeps this rule off the registration label above.
+        // Without it "Vehicle Registration : VO75DFJ" read as the vehicle
+        // description "Registration : VO75DFJ".
         var vehicle = Regex.Match(
-            subject, @"\bVehicle[:.]?\s+([^,()]+)", RegexOptions.IgnoreCase);
+            subject,
+            @"\bVehicle(?!\s+Registration\b)[:.]?\s+([^,()]+)",
+            RegexOptions.IgnoreCase);
         if (vehicle.Success)
         {
             lines.Add($"Our Client's Vehicle: {vehicle.Groups[1].Value.Trim().TrimEnd(',', '.')}");
@@ -694,14 +710,4 @@ public sealed partial class QdosInstructionExtractionPolicy(
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]));
     }
-
-    private static void ValidateTriageMatch(IntakeTriageMatch match)
-    {
-        ArgumentNullException.ThrowIfNull(match);
-        ArgumentException.ThrowIfNullOrWhiteSpace(match.Signal);
-        ArgumentException.ThrowIfNullOrWhiteSpace(match.Detail);
-        ArgumentException.ThrowIfNullOrWhiteSpace(match.MatcherKey);
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(match.MatcherVersion);
-    }
-
 }

@@ -6,21 +6,18 @@ using Pegasus.Core.Documents;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The Custody page: custody retry, staff upload, logical removal, third-party vehicle evidence,
+/// The Custody page: custody retry, logical removal, third-party vehicle evidence,
 /// and the request-scoped upload links.
 /// </summary>
 public sealed partial class CaseDetailsWebTests
 {
-    private static readonly byte[] CustodyUploadBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
-
     [Fact]
-    public async Task CustodyPageBindsRetryUploadRemovalThirdPartyEvidenceAndRequestLinks()
+    public async Task CustodyPageBindsRetryRemovalThirdPartyEvidenceAndRequestLinks()
     {
         var store = new RecordingCaseDetailsStore();
         using var workspace = await EnterEditModeAsync(store, services =>
         {
             Substitute<IRetryCaseCustody>(services, store);
-            Substitute<IAddCaseDocument>(services, store);
             Substitute<ILogicallyRemoveDocument>(services, store);
             Substitute<IConfirmThirdPartyVehicleEvidence>(services, store);
             Substitute<ICreateRequestUploadLink>(services, store);
@@ -28,14 +25,10 @@ public sealed partial class CaseDetailsWebTests
         });
         var occurrenceId = Guid.NewGuid();
         var requestId = Guid.NewGuid();
-        var uploadOperationId = Guid.NewGuid();
 
         using var retried = await workspace.PostAsync(
             "Custody?handler=RetryCustody",
             workspace.MutationForm("retry-custody", "Provider storage is back", ("targetKind", "CaseSource")));
-        using var uploaded = await workspace.PostAsync(
-            "Custody?handler=UploadDocument",
-            UploadForm(workspace, uploadOperationId, "damage.jpg", "image/jpeg", CustodyUploadBytes));
         using var removed = await workspace.PostAsync(
             "Custody?handler=RemoveDocument",
             workspace.MutationForm("remove-document", "Duplicate scan", ("occurrenceId", occurrenceId.ToString("D"))));
@@ -53,7 +46,7 @@ public sealed partial class CaseDetailsWebTests
                 ("requestId", requestId.ToString("D")),
                 ("expectedRequestVersion", "2")));
 
-        foreach (var response in new[] { retried, uploaded, removed, confirmed, linkCreated, linkRevoked })
+        foreach (var response in new[] { retried, removed, confirmed, linkCreated, linkRevoked })
         {
             AssertPrg(response, store.CaseId);
         }
@@ -65,18 +58,6 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal("retry-custody", retry.OperationKey);
         Assert.Equal("Provider storage is back", retry.Reason);
         Assert.Equal(CustodyTargetKind.CaseSource, retry.TargetKind);
-
-        var upload = Assert.Single(store.DocumentUploads);
-        AssertClaimant(workspace, upload.Actor);
-        Assert.Equal(store.CaseVersion, upload.ExpectedCaseVersion);
-        Assert.Equal(store.LeaseToken, upload.EditLeaseToken);
-        Assert.Equal(uploadOperationId.ToString("N"), upload.OperationKey);
-        Assert.Equal($"staff-upload:{uploadOperationId:N}", upload.SourceOccurrenceIdentity);
-        Assert.Equal("damage.jpg", upload.FileName);
-        Assert.Equal("image/jpeg", upload.MediaType);
-        Assert.Equal(DocumentSemanticRole.Image, upload.SemanticRole);
-        Assert.Equal(DocumentSource.StaffUpload, upload.Source);
-        Assert.Equal(CustodyUploadBytes, upload.Content.ToArray());
 
         var removal = Assert.Single(store.DocumentRemovals);
         AssertClaimant(workspace, removal.Actor);
@@ -123,37 +104,9 @@ public sealed partial class CaseDetailsWebTests
             "Custody?handler=RemoveDocument",
             workspace.MutationForm("remove-document-2", "Not this one", ("occurrenceId", occurrenceId.ToString("D"))));
 
-        // An empty upload is refused before any port is reached, without leaving edit mode.
-        using var emptyUpload = await workspace.PostAsync(
-            "Custody?handler=UploadDocument",
-            UploadForm(workspace, Guid.NewGuid(), "empty.jpg", "image/jpeg", []));
-        AssertPrg(emptyUpload, store.CaseId);
-        Assert.Single(store.DocumentUploads);
-        var refusedHtml = await workspace.GetWorkspaceAsync();
-        Assert.Contains("Choose a non-empty document of 10 MB or less", refusedHtml, StringComparison.Ordinal);
-        Assert.Equal(store.LeaseToken, InputValue(refusedHtml, "editLeaseToken"));
-    }
-
-    private static MultipartFormDataContent UploadForm(
-        LeasedWorkspace workspace,
-        Guid operationId,
-        string fileName,
-        string mediaType,
-        byte[] bytes)
-    {
-        var multipart = new MultipartFormDataContent
-        {
-            { new StringContent(workspace.AntiforgeryToken), "__RequestVerificationToken" },
-            { new StringContent(workspace.Store.CaseId.ToString("D")), "id" },
-            { new StringContent(workspace.Store.CaseVersion.ToString(CultureInfo.InvariantCulture)), "expectedVersion" },
-            { new StringContent(operationId.ToString("N")), "operationKey" },
-            { new StringContent(workspace.Store.LeaseToken), "editLeaseToken" },
-            { new StringContent("Image"), "semanticRole" }
-        };
-        var file = new ByteArrayContent(bytes);
-        file.Headers.ContentType = MediaTypeHeaderValue.Parse(mediaType);
-        multipart.Add(file, "upload", fileName);
-        return multipart;
+        // The staff upload handler and its refusal path went with the "Retain
+        // document" control: the file is already stored, so there was nothing
+        // for a person to retain (DOCS-012).
     }
 
     private sealed partial class RecordingCaseDetailsStore :

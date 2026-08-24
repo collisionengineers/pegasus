@@ -292,6 +292,15 @@ public interface ITriageQueries
         CancellationToken cancellationToken);
 
     Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// The Triage this receipt opened, if it opened one. Mirrors
+    /// <c>IImageIntakeQueries.GetByOriginReceiptAsync</c>: an origin receipt
+    /// has at most one, and the Unidentified supersession rule needs to ask.
+    /// </summary>
+    Task<TriageSummary?> GetByOriginReceiptAsync(
+        Guid originReceiptId,
+        CancellationToken cancellationToken);
 }
 
 public interface ITriageResponseEvidenceCandidateQueries

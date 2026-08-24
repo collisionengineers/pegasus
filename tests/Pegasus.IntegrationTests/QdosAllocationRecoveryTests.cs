@@ -207,11 +207,16 @@ public sealed class QdosAllocationRecoveryTests
             receipt.Version,
             CaseType.Inspection,
             "PENDING",
-            // CASE-013: the automatic route records the instruction and its
-            // images as complete, because its own precondition establishes
-            // that. The seeded pending attempt must carry the same command or
-            // the resumed attempt is a different one.
-            new(true, true, false, false),
+            // The seeded pending attempt must carry the same command the
+            // automatic route builds, or the resumed attempt is a different one
+            // and the operation key conflicts.
+            //
+            // The instruction half is asserted by the route's own precondition
+            // (CASE-013). The images half is observed from the receipt, and this
+            // receipt is seeded with no assets, so it is false (CASE-021). It
+            // was a hardcoded true here because it was a hardcoded true in the
+            // production path.
+            new(true, false, false, false),
             null,
             receipt.InstructionDraft?.InspectionDate);
         var actor = ActionActor.SystemWorker("system-worker:intake-processing");
