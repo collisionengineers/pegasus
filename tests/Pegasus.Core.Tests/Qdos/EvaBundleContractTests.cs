@@ -257,6 +257,31 @@ public sealed class EvaBundleContractTests
         Assert.Contains("custody-confirmed current", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void TheArchiveIsNamedByTheCaseNotByTheProvidersOwnReference()
+    {
+        // ENG-015: the Reference field now carries the work provider's own
+        // reference, which repeats across cases and can contain path
+        // separators — "AKH//47743/1" would reduce to "1" and collide. The
+        // archive is named by the Pegasus case reference instead.
+        const string providerReference = "AKH//47743/1";
+        var source = Source();
+        var bundle = EvaBundleSchema.CreateOfflineReplay(
+            source with
+            {
+                Fields = source.Fields with { Reference = providerReference },
+                Provenance = [.. source.Provenance.Select(field => field.Name == "Reference"
+                    ? field with { Value = providerReference }
+                    : field)]
+            },
+            Images(),
+            "QDOS26015");
+
+        Assert.Equal("EVA-QDOS26015.zip", bundle.FileName);
+        using var parsed = JsonDocument.Parse(bundle.JsonContent);
+        Assert.Equal(providerReference, parsed.RootElement.GetProperty("Reference").GetString());
+    }
+
     private static EvaBundleSource Source()
     {
         var fields = new EvaReplayFields(

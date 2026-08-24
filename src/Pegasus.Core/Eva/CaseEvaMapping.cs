@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Eva;
 
@@ -112,11 +114,85 @@ public sealed record EvaMappingResult(
 /// Maps only staff-accepted, source-versioned case evidence into the fixed EVA field shape.
 /// Suggested extraction and unresolved address evidence fail closed.
 /// </summary>
-public static class CaseEvaMapping
+public static partial class CaseEvaMapping
 {
+    /// <summary>
+    /// The value the *case* stores for an image-based assessment, and the gate
+    /// every resolution check compares against. It must stay byte-identical to
+    /// <see cref="Address.Ext18InspectionAddressPolicy.ImageBasedAssessment"/>,
+    /// which is what intake writes.
+    /// </summary>
     public const string ImageBasedAssessment = "Image Based Assessment";
+
+    /// <summary>
+    /// What EVA is *sent* for the same thing — the original extractor's own
+    /// literal, hyphenated and lower-case `b` (ENG-015). Deliberately not the
+    /// same constant as <see cref="ImageBasedAssessment"/>: that one is a gate
+    /// compared against stored case data, this one is an output value.
+    /// </summary>
+    public const string ImageBasedAssessmentExportValue = "Image-based Assessment";
+
+    /// <summary>
+    /// The inspection address is exported as exactly six lines — five body
+    /// lines and a postcode — because the system EVA imports into requires
+    /// that shape and rejects a bare string. The rule is unconditional: an
+    /// address the case does not hold still exports as five newlines.
+    /// </summary>
+    private const int InspectionAddressLines = 6;
+
+    /// <summary>
+    /// EVA's own two words for the mileage unit. The original extractor
+    /// resolves this field to exactly "Miles" or "Km", so those are the only
+    /// two values a bundle may carry.
+    ///
+    /// Core, not the persistence store where it was first written: this is
+    /// EVA mapping vocabulary, and a store-local copy means every other
+    /// hand-off path has to repeat it or quietly emit something else
+    /// (ENG-015 review).
+    /// </summary>
+    public static string MileageUnit(VehicleMileageUnit unit) =>
+        unit == VehicleMileageUnit.Kilometres ? "Km" : "Miles";
+
+    /// <summary>
+    /// The same rule over free text, because the case's mileage-unit field is
+    /// operator-editable. The short spellings are named explicitly: the
+    /// operator label for <see cref="VehicleMileageUnit.Kilometres"/> is
+    /// "km", which no enum parse recognises, so returning unrecognised text
+    /// verbatim sent lowercase "km" into a field that admits two values.
+    /// Anything still unrecognised is passed through rather than guessed at.
+    /// </summary>
+    public static string MileageUnit(string value)
+    {
+        var trimmed = (value ?? string.Empty).Trim();
+        if (Enum.TryParse<VehicleMileageUnit>(trimmed, ignoreCase: true, out var unit))
+        {
+            return MileageUnit(unit);
+        }
+        return trimmed.ToLowerInvariant() switch
+        {
+            "km" or "kms" or "kilometres" or "kilometers" =>
+                MileageUnit(VehicleMileageUnit.Kilometres),
+            "mi" or "mile" or "miles" => MileageUnit(VehicleMileageUnit.Miles),
+            _ => trimmed
+        };
+    }
+
     public const string MappingKey = "qdos-eva-13-field-mapping";
-    public const int MappingVersion = 1;
+
+    /// <summary>
+    /// Version 2 (ENG-015). Acceptance is checked by key, version and
+    /// evidence reference alone, so a version that stays put silently
+    /// authorises whatever the mapping now emits. ENG-015 changed what four
+    /// of the thirteen fields mean -- Reference became the provider's own
+    /// claim number rather than the Pegasus case reference, and the
+    /// inspection address, vehicle model and mileage-unit vocabulary all
+    /// changed shape -- so a v1 acceptance must not carry over to them.
+    ///
+    /// The deployed value lives in infra/modules/platform.bicep and moves
+    /// with this constant; they are one decision in two files, and an export
+    /// fails closed if they disagree.
+    /// </summary>
+    public const int MappingVersion = 2;
     public const string ActivationGateReason =
         "EVA hand-off is not switched on.";
 
@@ -278,7 +354,7 @@ public static class CaseEvaMapping
             NormalizeValue(fields.IncidentDate),
             NormalizeValue(fields.InstructionDate),
             NormalizeValue(fields.InspectionDate),
-            NormalizeValue(fields.InspectionAddress),
+            NormalizeInspectionAddress(fields.InspectionAddress),
             NormalizeValue(fields.AccidentCircumstances),
             NormalizeValue(fields.VatStatus),
             NormalizeValue(fields.Mileage),
@@ -370,11 +446,71 @@ public static class CaseEvaMapping
             values["Mileage Unit"]);
     }
 
-    /// <summary>One field's value, with the VRM's own normalization applied.</summary>
+    /// <summary>
+    /// One field's value, with the two fields that have their own shape
+    /// handled: the VRM's spacing, and the inspection address's six lines.
+    /// </summary>
     private static string? NormalizedValue((string Name, EvaEvidenceValue Value) field) =>
-        field.Name == "VRM"
-            ? NormalizeRegistration(field.Value.Value)
-            : NormalizeValue(field.Value.Value);
+        field.Name switch
+        {
+            "VRM" => NormalizeRegistration(field.Value.Value),
+            "Inspection Address" => NormalizeInspectionAddress(field.Value.Value),
+            _ => NormalizeValue(field.Value.Value)
+        };
+
+    /// <summary>
+    /// The inspection address in its six-line export shape: five body lines
+    /// then the postcode, joined by five newlines, always.
+    ///
+    /// This field is exempt from <see cref="NormalizeValue"/>'s <c>Trim()</c>
+    /// on purpose — the trailing blank lines are the payload, not padding, and
+    /// trimming them is what made the export differ from the known-good sample
+    /// by one line (ENG-015).
+    ///
+    /// Commas separate lines just as newlines do, because the case stores the
+    /// address as a single collapsed line. Body content beyond five lines
+    /// joins into line five rather than pushing the postcode out of line six.
+    /// </summary>
+    private static string NormalizeInspectionAddress(string? value)
+    {
+        var normalized = NormalizeValue(value);
+        if (string.Equals(normalized, ImageBasedAssessment, StringComparison.Ordinal))
+        {
+            normalized = ImageBasedAssessmentExportValue;
+        }
+
+        var parts = (normalized ?? string.Empty)
+            .Replace(',', '\n')
+            .Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+        // The last part is the postcode only when it looks like one; an address
+        // that does not end in a postcode leaves line six blank rather than
+        // promoting its last body line into it.
+        var hasPostcode = parts.Length > 1 && PostcodeRegex().IsMatch(parts[^1]);
+        var body = hasPostcode ? parts[..^1] : parts;
+        var postcode = hasPostcode ? parts[^1] : string.Empty;
+
+        var lines = new string[InspectionAddressLines];
+        Array.Fill(lines, string.Empty);
+        var bodyLines = InspectionAddressLines - 1;
+        for (var index = 0; index < body.Length; index++)
+        {
+            // Surplus body content joins the last body line with spaces.
+            var target = Math.Min(index, bodyLines - 1);
+            lines[target] = lines[target].Length == 0
+                ? body[index]
+                : $"{lines[target]} {body[index]}";
+        }
+
+        lines[^1] = postcode;
+        return string.Join('\n', lines);
+    }
+
+    [GeneratedRegex(
+        @"^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$",
+        RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex PostcodeRegex();
 
     private static string? NormalizeValue(string? value)
     {

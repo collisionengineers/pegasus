@@ -356,6 +356,19 @@ public sealed class EvaHandoffPersistenceTests
             Assert.Equal(GenerateEvaHandoffOutcome.Generated, generated.Outcome);
             using var json = JsonDocument.Parse(generated.Bundle!.JsonContent);
             Assert.Equal("AB12CDE", json.RootElement.GetProperty("VRM").GetString());
+
+            // ENG-015: the field values EVA expects.
+            // Reference is the work provider's own reference — the case's claim
+            // number — not the Pegasus case reference ("QDOS001").
+            Assert.Equal("CLAIM-001", json.RootElement.GetProperty("Reference").GetString());
+            // Vehicle Model carries the make as well as the model.
+            Assert.Equal("Fixture Vehicle", json.RootElement.GetProperty("Vehicle Model").GetString());
+            // Mileage Unit is the original extractor's own vocabulary.
+            Assert.Equal("Miles", json.RootElement.GetProperty("Mileage Unit").GetString());
+            // The inspection address is the six-line block the import requires.
+            Assert.Equal(
+                $"{CaseEvaMapping.ImageBasedAssessmentExportValue}\n\n\n\n\n",
+                json.RootElement.GetProperty("Inspection Address").GetString());
         }
         finally
         {
