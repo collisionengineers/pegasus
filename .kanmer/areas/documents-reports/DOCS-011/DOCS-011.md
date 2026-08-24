@@ -26,10 +26,10 @@ commits:
   - 992f5d42
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/535'
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-23T15:19:21.004Z'
-updated: '2026-08-24T14:57:27.374Z'
+updated: '2026-08-24T16:54:20.634Z'
 ---
 
 ## What the operator asked for

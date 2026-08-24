@@ -23,9 +23,10 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/operator-notes.md
   - docs/design/README.md
+deployment: production
 archived: false
 created: '2026-08-24T08:33:08.297Z'
-updated: '2026-08-24T14:57:22.495Z'
+updated: '2026-08-24T16:54:13.429Z'
 ---
 
 ## Why

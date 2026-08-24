@@ -20,10 +20,10 @@ labels:
   - box
 links: []
 docs_todo: true
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-23T12:09:36.762Z'
-updated: '2026-08-23T14:48:38.369Z'
+updated: '2026-08-24T16:54:32.250Z'
 ---
 
 ## Every Box read from the Web app fails one hour after the container starts

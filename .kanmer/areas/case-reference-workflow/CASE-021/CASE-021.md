@@ -21,10 +21,10 @@ labels:
   - readiness
 links: []
 docs_todo: true
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-23T15:18:20.008Z'
-updated: '2026-08-24T14:57:04.495Z'
+updated: '2026-08-24T16:54:16.615Z'
 ---
 
 ## What the operator saw

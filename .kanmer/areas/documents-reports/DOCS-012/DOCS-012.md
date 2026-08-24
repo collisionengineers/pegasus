@@ -21,10 +21,10 @@ links: []
 refs:
   - docs/design/README.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
-deployment: not-deployed
+deployment: production
 archived: false
 created: '2026-08-23T15:19:38.272Z'
-updated: '2026-08-24T14:57:08.819Z'
+updated: '2026-08-24T16:54:24.233Z'
 ---
 
 ## What the operator saw
