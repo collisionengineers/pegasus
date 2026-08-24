@@ -167,6 +167,93 @@ public sealed class BoxDocumentContentStoreTests
             "Expected the child lookup to request a second Box page.");
     }
 
+    [Fact]
+    public async Task OneManagedReadCostsFourBoxRoundTrips()
+    {
+        // PLAT-041: it used to cost nine — the case folder resolved, the file
+        // found, its metadata re-fetched, and its ancestry walked twice more
+        // before a byte moved. The listing that finds the file already carries
+        // its size and parent, and the SHA-256 below is the real guarantee.
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("one read");
+        var hash = Sha256(content);
+        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        var before = box.RequestCount;
+
+        await using var stream = await store.OpenReadVersionAsync(
+            Address(), hash, content.Length, CancellationToken.None);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+
+        Assert.Equal(content, buffer.ToArray());
+        Assert.Equal(4, box.RequestCount - before);
+    }
+
+    [Fact]
+    public async Task ABatchReadResolvesTheCaseFolderOnceForEveryImage()
+    {
+        // PLAT-041: five photographs cost forty-five Box round trips, which is
+        // the eighteen seconds the operator measured. The case folder is
+        // resolved once (1), listed once (ancestry 1 + listing 1), and then
+        // only the five downloads remain.
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var reads = new List<ManagedDocumentContentRead>();
+        var expected = new List<byte[]>();
+        for (var ordinal = 1; ordinal <= 5; ordinal++)
+        {
+            var content = Encoding.UTF8.GetBytes($"photograph {ordinal}");
+            var address = Address(ordinal, $"photo-{ordinal}.jpg");
+            await store.StoreVersionAsync(address, content, Sha256(content), CancellationToken.None);
+            reads.Add(new(address, Sha256(content), content.Length));
+            expected.Add(content);
+        }
+        var before = box.RequestCount;
+
+        var contents = await store.ReadVersionsAsync(reads, CancellationToken.None);
+
+        Assert.Equal(expected, contents.Select(item => item.ToArray()));
+        Assert.Equal(8, box.RequestCount - before);
+
+        // The archive is built from exactly these bytes in exactly this order,
+        // so a batch that disagreed with the one-at-a-time reads would change
+        // the export's contents. It must not: this is a latency fix.
+        var oneAtATime = new List<byte[]>();
+        foreach (var read in reads)
+        {
+            await using var single = await store.OpenReadVersionAsync(
+                read.Address, read.ExpectedSha256, read.ExpectedLength, CancellationToken.None);
+            using var buffer = new MemoryStream();
+            await single.CopyToAsync(buffer);
+            oneAtATime.Add(buffer.ToArray());
+        }
+        Assert.Equal(oneAtATime, contents.Select(item => item.ToArray()));
+    }
+
+    [Fact]
+    public async Task ABatchReadStillFailsClosedOnContentThatDoesNotVerify()
+    {
+        var box = new InMemoryBox();
+        box.BindCaseRoot();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("batched content");
+        var hash = Sha256(content);
+        await store.StoreVersionAsync(Address(), content, hash, CancellationToken.None);
+        box.CorruptFile($"{CaseReference}/002 evidence.jpg");
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => store.ReadVersionsAsync(
+            [new(Address(), hash, content.Length)], CancellationToken.None));
+
+        var missing = new InMemoryBox();
+        missing.BindCaseRoot();
+        var missingStore = CreateStore(missing);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => missingStore.ReadVersionsAsync(
+            [new(Address(), hash, content.Length)], CancellationToken.None));
+    }
+
     private static BoxDocumentContentStore CreateStore(InMemoryBox box) => new(
         new BoxContentClient(
             BoxCustodyOptions.Create(
@@ -178,16 +265,19 @@ public sealed class BoxDocumentContentStoreTests
             new HttpClient(new InMemoryBoxHandler(box)),
             new StaticAuthorizationHeaderProvider()));
 
-    private static ManagedDocumentContentAddress Address() => new(
+    private static ManagedDocumentContentAddress Address() =>
+        Address(2, "evidence.jpg");
+
+    private static ManagedDocumentContentAddress Address(int ordinal, string fileName) => new(
         CaseId,
         CaseReference,
         OccurrenceId,
-        2,
+        ordinal,
         DocumentId,
         VersionId,
         1,
         DocumentSemanticRole.Image,
-        "evidence.jpg",
+        fileName,
         "image/jpeg");
 
     private static string Sha256(byte[] content) =>
@@ -211,6 +301,7 @@ public sealed class BoxDocumentContentStoreTests
 
         private readonly Dictionary<string, Node> nodes = new(StringComparer.Ordinal);
         private readonly Dictionary<string, byte[]> fileBytes = new(StringComparer.Ordinal);
+        private readonly Lock gate = new();
         private int nextId;
 
         public InMemoryBox() =>
@@ -219,6 +310,11 @@ public sealed class BoxDocumentContentStoreTests
         public int UploadCount { get; private set; }
         public int DeleteCount { get; private set; }
         public int LargestItemsRequestOffset { get; private set; }
+        /// <summary>
+        /// PLAT-041: every Box round trip, whatever it is. The export's cost was
+        /// never bytes — it was the number of requests made to move them.
+        /// </summary>
+        public int RequestCount { get; private set; }
         public string? LoseNextUploadResponseForName { get; set; }
 
         public string CreateFolderPath(string path)
@@ -285,7 +381,19 @@ public sealed class BoxDocumentContentStoreTests
             nodes[fileId] = nodes[fileId] with { MediaType = mediaType };
         }
 
+        // A batch read now downloads concurrently, so the dictionaries below are
+        // reached from several threads at once. The real Box is a server; this
+        // one is a Dictionary, and needs saying so.
         public HttpResponseMessage Handle(HttpRequestMessage request)
+        {
+            lock (gate)
+            {
+                RequestCount++;
+                return HandleCore(request);
+            }
+        }
+
+        private HttpResponseMessage HandleCore(HttpRequestMessage request)
         {
             var path = request.RequestUri!.AbsolutePath;
             var query = HttpUtility.ParseQueryString(request.RequestUri.Query);
