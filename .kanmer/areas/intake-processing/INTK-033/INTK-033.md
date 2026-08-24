@@ -4,12 +4,13 @@ type: ticket
 title: >-
   A triage-request email creates no Triage and no Unidentified item — it is
   stranded
-status: implementing
+status: review
 area: intake-processing
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-24T07:14:47.726Z'
+  review: '2026-08-24T08:01:44.102Z'
 taken_at: '2026-08-24T07:16:57.081Z'
 branch: task/intk-033-triage-from-intake
 worktree: ../pegasus-worktrees/intk-033-triage-from-intake
@@ -25,7 +26,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:18:47.553Z'
-updated: '2026-08-24T07:16:57.081Z'
+updated: '2026-08-24T08:01:44.102Z'
 ---
 
 ## What the operator saw
