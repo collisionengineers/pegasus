@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -48,15 +49,19 @@ public sealed class DocumentCustodyDurabilityTests
             // Replay must not add a second note.
             await remover.ExecuteAsync(command, CancellationToken.None);
 
-            var details = await scope.ServiceProvider.GetRequiredService<IGetCase>()
-                .ExecuteAsync(new(caseId, actor), CancellationToken.None);
+            // Read through ICaseQueryStore — the component that builds the very
+            // History collection the Notes tab renders. Asserting the row in
+            // CaseWorkflowEvents directly would pass just as happily for a row
+            // written to CaseHistory, which is the defect this guards against.
+            var details = await scope.ServiceProvider.GetRequiredService<ICaseQueryStore>()
+                .GetAsync(new(caseId, actor), CancellationToken.None);
             Assert.NotNull(details);
             var note = Assert.Single(
                 details!.History,
                 entry => entry.EventType == "case_document_removed");
             Assert.Equal(command.Reason, note.Reason);
-            Assert.Equal(ActorKind.Staff, note.ActorKind);
-            Assert.Equal(actor.SubjectId, note.ActorSubjectId);
+            Assert.Equal(ActorKind.Staff.ToString(), note.ActorKind);
+            Assert.Equal(actor.SubjectId.ToString(), note.Actor);
         }
         finally
         {
@@ -454,7 +459,10 @@ public sealed class DocumentCustodyDurabilityTests
                 Reference = "QDOS001",
                 Type = "Inspection",
                 InitialState = "NotReady",
-                CustodyState = "Confirmed",
+                // Lowercase, as ToCode writes it in production. The seed said
+                // "Confirmed" and nothing noticed, because no test in this file
+                // had ever read the case back through GetCase (DOCS-012).
+                CustodyState = "confirmed",
                 OriginIntakeReceiptId = receiptId,
                 CreatedAtUtc = occurredAtUtc,
                 Version = 3,
