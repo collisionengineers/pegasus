@@ -15,7 +15,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:38.272Z'
-updated: '2026-08-24T08:59:48.073Z'
+updated: '2026-08-24T09:21:16.137Z'
 ---
 
 ## What the operator saw
@@ -24,69 +24,63 @@ updated: '2026-08-24T08:59:48.073Z'
 > need to see the files that are considered case evidence. If they show here,
 > they should be on box."*
 
-The direction is clear. What is not settled is **what happens to the six things
-that live nowhere else**, and one binding design row that currently says the
-opposite.
+## Answered by the operator, 2026-08-24 — no open questions remain
 
-## The ledger is the only home for six controls
+> *"1. Include button for box folder. Per file 'custody state' is dev speak
+> leaking into UI. Just show whats been stored. Keep it simple.*
+>
+> *2. Changes go in notes (created by system same as other automatic notes)*
+>
+> *3. The controls need rework:*
+> - *Theres an export control that isnt needed.*
+> - *Removal can just be a delete/trash icon next to each file/image*
+> - *"retain document" as a control makes zero sense. Its already stored so how
+>   can it be retained?*
+> - *Semantic role shouldn't be user configurable"*
 
-`_CaseDocuments.cshtml` has exactly one caller (`Cases/Details.cshtml:174`) and
-**no test asserts any of its strings** — so removing it breaks nothing
-mechanically. But grep says it is the sole surface in the whole Web project for:
+That settles every question this ticket was parked on, and it settles them more
+sharply than the options I offered.
 
-| Capability | Only location |
+## What this means, control by control
+
+| Today | Becomes |
 | --- | --- |
-| Per-version Box custody state | `:58` — the only `OperatorLabels.CustodyState` caller in any `.cshtml` |
-| Case Box folder link and folder state | `:14-23` — the only `CustodyFolderState` caller |
-| Confirm third-party vehicle evidence | `:88-89` + form `:116-118` |
-| Remove an occurrence | `:76-77` + form `:111-113` |
-| **Selective** export by version | `:53`, `:101` — the whole-case export at `Details.cshtml:122-129` is a different, lease-free GET |
-| Manual `Retain document` upload | `:127-132` |
+| Box folder link | **Keep.** A button. |
+| Per-version `Custody` column | **Gone.** "Custody state" is internal vocabulary. The tab shows what is stored; that a file is listed *is* the statement that it is stored. |
+| `Revision state` (`Current` / `Historical` / `— logically removed`) | **Gone** from the tab as a column. Superseded by the notes rule below. |
+| `EVA eligibility` cell, *"Eligible unless staff confirms third-party vehicle evidence"* | **Gone.** A how-it-works sentence in a table cell, already banned by the design authority. |
+| Selective export by version (tickboxes + submit) | **Gone.** The whole-case Export action on the case header stays; that is the one the operator uses. |
+| `Remove occurrence` form | **A delete control per row**, on the file or image itself. |
+| `Retain document` upload form | **Gone.** The operator's reasoning is exact: the file is already stored, so "retain" describes nothing a person does. |
+| Confirm third-party vehicle evidence | **Gone as a control.** Semantic role is not operator-configurable. |
 
-Historical revisions become unreachable entirely: `Download` **requires** a
-`versionId` and nothing else in the UI enumerates them.
+## The notes rule
 
-## One thing in it is plainly wrong and can go regardless
+Document changes are recorded as **case notes, created by the system, in the
+same shape as the other automatic notes** — not as a revision column on the
+Evidence tab. History stops being a thing the operator reads out of a ledger and
+becomes a thing that appears in the record's own timeline, beside every other
+automatic note.
 
-The `EVA eligibility` cell renders *"Eligible unless staff confirms third-party
-vehicle evidence"* — a how-it-works sentence in a table cell, which
-`docs/design/README.md` bans outright.
+This is what replaces the `Revision state` column and the historical-revision
+question: nothing becomes unreachable, because every change writes a note.
 
-## The blocking conflict
+**To establish during planning:** the existing automatic-note mechanism and its
+actor — the new notes must be written by the same path and look the same, not a
+second note-writing implementation.
 
-`docs/design/README.md` carries a binding row for this exact panel:
+## The design authority must be amended in the same change
 
-> *Evidence/document panel | Original/source/version/logical removal/closed lock;
-> Box/external state; issued report versions; exact Outlook evidence…*
-
-This ticket as written deletes `version`, `logical removal` and `Box/external
-state` from that panel. The operator's word outranks the design authority — but
-the authority has to be **amended in the same task**, and amending a binding
-design row is a product decision, not an implementation detail.
-
-## Questions only the operator can answer
-
-1. **Does "unneeded detail" include the Box folder link and per-file custody
-   state?** *"If they show here, they should be on box"* reads as *presume
-   custody rather than display it*. But `:58` is the only place a **failed or
-   pending** Box write is visible — presume it and a file that never reached Box
-   still shows as evidence.
-   **Recommendation:** keep the Box folder link; drop the per-row custody column;
-   surface a non-confirmed custody state as an exception on the row — a state,
-   not a sentence.
-
-2. **Are historical revisions to remain reachable at all?**
-   **Recommendation:** show the current revision, with prior revisions behind the
-   `<details>` disclosure the product already uses elsewhere.
-
-3. **Where do the six controls go?** Remove occurrence, confirm third-party
-   evidence, selective export, manual upload, plus the two above.
-   **Recommendation:** per-row actions in edit mode, selective-export submit
-   retained, manual upload beside them. Placement needs sign-off; wording does
-   not — they are existing labels.
+`docs/design/README.md` carries a binding row requiring
+*"Original/source/version/logical removal/closed lock; Box/external state"* on
+the evidence/document panel. The operator's instruction removes three of those
+from the panel and moves the history to notes. Operator truth outranks the
+design authority, but the row has to be rewritten in this ticket or the change
+contradicts a governing document.
 
 ## Sequencing
 
-Whatever is decided, DOCS-012 lands **before** [[DOCS-011]] — it decides which
-surface survives, and DOCS-011's preview trigger lives on a row inside it. Both
-tickets and [[CASE-022]] edit the same file; they cannot run in parallel.
+Lands before [[DOCS-011]] — this decides which surface survives, and DOCS-011's
+preview trigger sits on a row inside it. [[CASE-022]] owns the upload-request
+section of the same file and is separately blocked on whether INT-31 is
+delivered at all.
