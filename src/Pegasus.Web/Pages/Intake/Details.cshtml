@@ -187,6 +187,31 @@
     </section>
 }
 
+@if (Model.Triage is { } triage)
+{
+    <section class="panel section-gap" aria-labelledby="triage-title">
+        <h2 id="triage-title" class="section-label">Triage</h2>
+        <dl class="detail-list">
+            <div><dt>Vehicle registration</dt><dd><a asp-page="/Triage/Details" asp-route-id="@triage.Id">@triage.NormalizedVehicleRegistration</a></dd></div>
+            <div><dt>Status</dt><dd>@Pegasus.Web.Pages.Triage.IndexModel.StateLabel(triage.State)</dd></div>
+            <div><dt>Opened</dt><dd>@OperatorLabels.OfficeTime(triage.CreatedAtUtc)</dd></div>
+        </dl>
+    </section>
+}
+
+@if (Model.CanOpenTriage)
+{
+    <section class="panel form-panel section-gap" aria-labelledby="open-triage-title">
+        <h2 id="open-triage-title" class="section-label">Open the Triage</h2>
+        <form method="post" asp-page-handler="OpenTriage" asp-route-id="@Model.Receipt.Id">
+            <input type="hidden" name="operationKey" value="@Guid.NewGuid().ToString("N")" />
+            <label for="open-triage-vrm">Vehicle registration</label>
+            <input id="open-triage-vrm" name="vehicleRegistration" maxlength="20" required autocomplete="off" />
+            <button type="submit" class="primary-action">Open the Triage</button>
+        </form>
+    </section>
+}
+
 @if (Model.VrmSuggestions.Count > 0)
 {
     <section class="panel section-gap" aria-labelledby="vrm-suggestions-title">
