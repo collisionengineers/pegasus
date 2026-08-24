@@ -120,3 +120,55 @@ than implying the step is complete.
 The removal-note round-trip test is the highest-value assertion here and has not
 yet been executed against a database — CI's shards on the pushed SHA are what will
 prove it.
+
+---
+
+## Correction — 2026-08-24, after CI
+
+**I pushed a branch whose test project did not compile**, and reported "937 Core
+/ 99 architecture passed" while that was true. The round-trip test used
+`IGetCase` without its using directive. I had seen that exact error minutes
+earlier, was pulled away by a CI failure on another branch, and never came back.
+CI caught it on all three integration shards plus the browser job. The unit and
+architecture suites passed precisely because they do not build the integration
+project — so my green numbers were real and beside the point.
+
+**I also skipped two steps my own plan specified.** Step 7 named
+`CaseCustodyWebTests` and `QdosCustodialWebTests` as tests the change
+invalidates. I did neither. Both are now done: the upload half of the custody
+test is gone with its now-callerless multipart helper, and the selective-export
+web test is removed — `IExportCaseDocuments` keeps its MCP caller, so only the
+page-level test goes.
+
+### Two fixture bugs the new test exposed, neither a production defect
+
+**The seed wrote `CustodyState = "Confirmed"`** where production writes lowercase
+through `ToCode`. Invisible until now because no test in that file had ever read
+the case back — the entity-level tests read rows directly. Mine is the first to
+parse that column, so it is the first to fail on it. Production writers were
+checked: `EfCaseAcceptanceStore` and `EfExternalWorkStore` both write lowercase.
+
+**The seed has no typed case-data projection**, which `GetCase` requires. Rather
+than fatten a fixture that never needed one, the assertion now reads through
+`ICaseQueryStore` — the component that builds the very `History` collection the
+Notes tab renders. That keeps the point of the test intact. Asserting the row in
+`CaseWorkflowEvents` directly would have passed just as happily for a row written
+to `CaseHistory`, which is the whole defect being guarded against.
+
+### Verification, restated honestly
+
+| Check | Result |
+| --- | --- |
+| `dotnet build --configuration Release` | green, whole solution including tests |
+| `dotnet test tests/Pegasus.ArchitectureTests` | **99 passed** |
+| `DocumentCustodyDurabilityTests` + `CaseCustodyWebTests` + `QdosCustodialWebTests` + `CustodyOutbox*` | **32 passed** |
+| The removal-note round-trip test specifically | **passes** — it has now actually run against a database |
+| CI on `4f8af70f` | pending |
+
+### Still outstanding before this merges
+
+The **simplification pass has not run** as an independent lens over this branch's
+diff. It is required by the plan and by the repository workflow, and today it has
+found a real defect in three of four branches it was run over — including an SVG
+stored-XSS hole in [[DOCS-011]] and a dead rights guard in [[INTK-034]]. This PR
+should not merge until it has run and its dispositions are recorded here.
