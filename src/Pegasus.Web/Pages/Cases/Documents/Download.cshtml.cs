@@ -17,7 +17,8 @@ public sealed partial class DownloadModel(
         Guid caseId,
         Guid occurrenceId,
         Guid versionId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool inline = false)
     {
         if (caseId == Guid.Empty || occurrenceId == Guid.Empty || versionId == Guid.Empty)
         {
@@ -53,6 +54,16 @@ public sealed partial class DownloadModel(
             Response.Headers.XContentTypeOptions = "nosniff";
             Response.Headers["X-Content-SHA256"] = sha256;
             Response.ContentLength = download.ContentLength;
+            // DOCS-011: the same authorised read, dispositioned for a preview
+            // rather than a save. Naming the file to File(...) is what forces
+            // `attachment`, so the inline branch sets the header itself and
+            // passes no name -- the idiom the retained-asset routes use.
+            if (inline && IsInlineSafe(mediaType))
+            {
+                Response.Headers.ContentDisposition =
+                    new ContentDispositionHeaderValue("inline") { FileName = fileName }.ToString();
+                return File(download.Content, mediaType);
+            }
             return File(download.Content, mediaType, fileName);
         }
         catch (Exception exception) when (exception is ArgumentException
@@ -81,6 +92,23 @@ public sealed partial class DownloadModel(
             && sha256.Length == 64
             && sha256.All(char.IsAsciiHexDigit);
     }
+
+    /// <summary>
+    /// Which media types may be rendered inline from this origin. A case
+    /// document is arbitrary operator-supplied content, so retained HTML served
+    /// inline would execute as same-origin script; only images and PDFs, which
+    /// no browser executes, are ever dispositioned for display. This restates
+    /// for custody content the rule the retained-image routes already apply.
+    /// Everything else keeps the attachment disposition.
+    /// </summary>
+    private static bool IsInlineSafe(string mediaType) =>
+        MediaTypeHeaderValue.TryParse(mediaType, out var parsed)
+        && (parsed.MediaType.Equals("application/pdf", StringComparison.OrdinalIgnoreCase)
+            || (parsed.Type.Equals("image", StringComparison.OrdinalIgnoreCase)
+                // SVG is an image that executes script when it is navigated to,
+                // and the document link this route now serves is navigable --
+                // with no script, or on a middle-click. It stays a download.
+                && !parsed.MediaType.Equals("image/svg+xml", StringComparison.OrdinalIgnoreCase)));
 
     private static bool IsSafeFileName(string original, string fileName) =>
         !string.IsNullOrWhiteSpace(fileName)
