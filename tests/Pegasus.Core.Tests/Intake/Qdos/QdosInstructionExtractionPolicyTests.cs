@@ -869,6 +869,56 @@ public sealed class QdosInstructionExtractionPolicyTests
             Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
     }
 
+    [Fact]
+    public void AWrappedDamageDescriptionKeepsEveryRowUpToTheThirdPartyBlock()
+    {
+        // The letters wrap the description mid-sentence across physical rows —
+        // the retained QDOS_NX14AXY output carries "...rear wheel arch is\n
+        // damaged." — so reading only the label's own row cut the sentence in
+        // half. Pre-existing damage is a separate field and stops the block.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 7: instruction letter, page 1",
+                "Damage Area - Nearside: Moderate: Nearside rear wheel arch is\n"
+                + "damaged. Nearside door is damaged.\n"
+                + "\n"
+                + "Pre-existing Damage:\n"
+                + "\n"
+                + "No.\n"
+                + "\n"
+                + "TP Vehicle: SCANIA")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Damage Area: Nearside: Moderate: Nearside rear wheel arch is\n"
+            + "damaged. Nearside door is damaged.",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+    }
+
+    [Fact]
+    public void ADamageAreaLabelAloneStillReadsItsWrappedValue()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 7: instruction letter, page 1",
+                "Damage Area:\n"
+                + "\n"
+                + "Offside front wing crushed and the\n"
+                + "headlamp assembly is detached.\n"
+                + "\n"
+                + "TP Vehicle: SCANIA")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Damage Area: Offside front wing crushed and the\n"
+            + "headlamp assembly is detached.",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+    }
+
     private static IntakeSourceReadResult ReadableWithSubject(
         string subject,
         params IntakeContentFragment[] content) =>
