@@ -543,20 +543,36 @@ public sealed partial class QdosInstructionExtractionPolicy(
             return null;
         }
 
-        var value = DamageAreaRowRegex().Replace(lines[index], string.Empty).Trim();
-        if (value.Length == 0)
+        // The description is a block, not a line: the letters wrap it across
+        // physical rows mid-sentence ("...rear wheel arch is / damaged."), so
+        // taking only the first row cuts the sentence in half. Read on until the
+        // next block starts.
+        var block = new List<string>();
+        var inline = DamageAreaRowRegex().Replace(lines[index], string.Empty).Trim();
+        if (inline.Length > 0)
         {
-            // The label sat alone on its row, so the value is the next content
-            // line, stopping where the next block begins.
-            value = lines
-                .Skip(index + 1)
-                .TakeWhile(line => line.Length > 0
-                    && !DamageAreaStopRegex().IsMatch(line))
-                .FirstOrDefault(line => line.Length > 0)
-                ?? string.Empty;
+            block.Add(inline);
         }
 
-        return value.Length == 0 ? null : value;
+        // A wrapped description continues on the rows immediately beneath the
+        // label. When the label sat alone, its value starts after the blank rows.
+        var rest = lines.Skip(index + 1);
+        if (block.Count == 0)
+        {
+            rest = rest.SkipWhile(line => line.Length == 0);
+        }
+
+        foreach (var line in rest)
+        {
+            if (line.Length == 0 || DamageAreaStopRegex().IsMatch(line))
+            {
+                break;
+            }
+
+            block.Add(line);
+        }
+
+        return block.Count == 0 ? null : string.Join('\n', block);
     }
 
     private const string DamageAreaLabel = "Damage Area: ";
