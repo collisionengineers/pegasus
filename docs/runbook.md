@@ -1117,7 +1117,7 @@ LocalDB recovery does not prove Azure SQL point-in-time recovery, RPO, or RTO.
 
 ### Production recovery
 
-Production releases retain the previous immutable application artifact for redeployment. Database migrations are explicit and, **from cutover**, must remain compatible with the supported prior application artifact or have an accepted recovery strategy. Before cutover that compatibility requirement is relaxed on the terms in [rollback step 3](#previous-artifact-rollback-web-and-worker).
+Production releases retain the previous immutable application artifact for redeployment. Database migrations are explicit and, **from cutover**, must remain compatible with the supported prior application artifact or have an accepted recovery strategy. Before cutover that compatibility requirement is relaxed by [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md), on the terms in [rollback step 3](#previous-artifact-rollback-web-and-worker).
 
 #### Previous-artifact rollback (Web and Worker)
 
@@ -1140,15 +1140,18 @@ release workstation; the image also remains in the production ACR by digest).
 3. Database: schema is roll-forward only. **From cutover**, releases keep
    migrations additive so the previous application runs against the newer
    schema; a migration that cannot honour that must ship an accepted recovery
-   strategy instead. **Before cutover that requirement does not apply**: until
+   strategy instead. **Before cutover that requirement does not apply**, by
+   [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md): until
    the full QDOS cutover — step 7 of the ordered critical path in
-   [open decisions](open-decisions.md) — no live case work depends on the
-   schema, so a migration may drop a dead column outright rather than staging
-   an expand/contract pair. What is required instead is honesty about the
-   consequence: an application rolled back behind a non-additive migration
-   fails wherever it writes the removed shape, so **name the affected
-   capability in that release's record** in `operations.md`, and roll forward
-   rather than back. Recovering the case data is the operator-approved
+   [open decisions](open-decisions.md) — production carries only alpha cases
+   the operator has twice approved wiping, so a migration may drop a dead
+   column outright rather than staging an expand/contract pair. What is
+   required instead is honesty about the consequence: a non-additive migration
+   breaks the retained previous artifact wherever it writes the removed shape,
+   and — because migrations are applied before the new packages are activated —
+   breaks the currently running revision for that window too. So **name the
+   affected capability in that release's record** in `operations.md`, and roll
+   forward rather than back. Recovering the case data is the operator-approved
    selective wipe already recorded in `operations.md` — which preserves
    identity, principal, mailbox-cursor and **the sequence tables, so no
    reference is reused** — never an unqualified rebuild. Restoring data is a
