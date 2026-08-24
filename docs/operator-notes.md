@@ -502,7 +502,7 @@ The current and intended workflows use several different evidence transfers:
 - an in-house request-scoped link receives images/documents into Pegasus intake;
   upload success is not case creation, Case/PO allocation, Box custody, EVA
   handoff, or external delivery;
-- the focused alpha EVA handoff is a reviewed JSON/image/manifest download for
+- the focused alpha EVA handoff is a reviewed JSON/image download for
   manual drag-and-drop. Its first successful generation is only Pegasus's
   once-per-case `First sent to Engineer` proxy; EVA still owns receipt and
   named-Engineer assignment;
