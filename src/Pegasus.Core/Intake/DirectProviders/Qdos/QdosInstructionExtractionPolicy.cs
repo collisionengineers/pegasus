@@ -14,7 +14,7 @@ public sealed partial class QdosInstructionExtractionPolicy(
     // (`qdos_instruction/v6`), so facts read before and after must stay
     // distinguishable for audit and re-evaluation. Bumped for the same reason
     // as v3 (letter shapes), v4 (INTK-025) and v5 (INTK-028).
-    public const int Version = 6;
+    public const int Version = 7;
     public const string SupportedPrincipalCode = "QDOS";
     private readonly IIntakeTriageMatcher triageMatcher =
         triageMatcher ?? new NoAcceptedIntakeTriageMatcher();
