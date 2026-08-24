@@ -527,7 +527,15 @@ public sealed partial class DetailsModel(
         }
 
         Triage = await triageQueries.GetByOriginReceiptAsync(Receipt.Id, cancellationToken);
-        CanOpenTriage = Triage is null && Receipt.Decision == IntakeDecision.NeedsSorting;
+        // The same accepted-match condition the POST handler enforces. Without
+        // it the action is offered to receipts whose submission cannot succeed:
+        // a reply on a Triage thread is a Triage request but deliberately
+        // carries no accepted match, so it would show "Open the Triage" and
+        // then refuse it (INTK-035 review).
+        CanOpenTriage = Triage is null
+            && Receipt.Decision == IntakeDecision.NeedsSorting
+            && Receipt.Evidence.Count(
+                evidence => evidence.Finding == IntakeEvidenceFinding.AcceptedTriageMatch) == 1;
     }
 
     private async Task LoadImageIntakeAsync(CancellationToken cancellationToken)
