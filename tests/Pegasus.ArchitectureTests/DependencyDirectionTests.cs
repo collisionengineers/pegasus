@@ -379,26 +379,25 @@ public sealed class DependencyDirectionTests
     [Fact]
     public void CustodyAndEvaPoliciesHaveOneCoreOwnerAndAdaptersRemainAtBoundaries()
     {
-        Assert.Equal(typeof(IGenerateEvaHandoff).Assembly, typeof(GenerateEvaHandoff).Assembly);
+        // ENG-016: the EVA hand-off use cases and the policy-authority
+        // capability they carried into persistence are gone with the act.
+        // The export reaches Core policy directly, so what has to hold now is
+        // that the port and the policy are Core's and the store is not.
         Assert.Equal(typeof(IRetryCaseCustody).Assembly, typeof(RetryCaseCustody).Assembly);
-        Assert.Equal(typeof(EvaHandoffPolicy).Assembly, typeof(GenerateEvaHandoff).Assembly);
+        Assert.Equal(typeof(IExportCaseBundle).Assembly, typeof(EvaHandoffPolicy).Assembly);
+        Assert.Equal(typeof(IEvaHandoffProxy).Assembly, typeof(EvaHandoffPolicy).Assembly);
+        Assert.NotEqual(typeof(IExportCaseBundle).Assembly, typeof(EvaHandoffStore).Assembly);
 
         Assert.Equal(typeof(DependencyInjection).Assembly, typeof(EvaHandoffStore).Assembly);
         var boxAdapter = Assert.Single(
             typeof(DependencyInjection).Assembly.GetTypes(),
             type => type.FullName == "Pegasus.Infrastructure.Custody.BoxCaseCustody");
         Assert.Equal(typeof(DependencyInjection).Assembly, boxAdapter.Assembly);
-        Assert.Contains(typeof(IEvaHandoffPersistence), typeof(EvaHandoffStore).GetInterfaces());
+        Assert.Contains(typeof(IExportCaseBundle), typeof(EvaHandoffStore).GetInterfaces());
         Assert.Contains(typeof(ICaseCustody), boxAdapter.GetInterfaces());
-        Assert.All(
-            typeof(IEvaHandoffPersistence).GetMethods(),
-            method => Assert.Contains(
-                method.GetParameters(),
-                parameter => parameter.ParameterType == typeof(EvaHandoffPolicyAuthority)));
         Assert.Contains(
             typeof(ICustodyRecoveryPersistence).GetMethod("RetryAsync")!.GetParameters(),
             parameter => parameter.ParameterType == typeof(CustodyRetryPolicyAuthority));
-        Assert.Empty(typeof(EvaHandoffPolicyAuthority).GetConstructors());
         Assert.Empty(typeof(CustodyRetryPolicyAuthority).GetConstructors());
 
         var repositoryRoot = FindRepositoryRoot();
@@ -414,9 +413,22 @@ public sealed class DependencyDirectionTests
             "Pegasus.Infrastructure",
             "Persistence",
             "EfExternalWorkStore.cs"));
-        Assert.Contains("policy.Evaluate", evaPersistence, StringComparison.Ordinal);
-        Assert.Contains("policy.SelectEligibleImages", evaPersistence, StringComparison.Ordinal);
-        Assert.Contains("policy.DecideRevision", evaPersistence, StringComparison.Ordinal);
+        // Image eligibility and the field mapping stay Core's; the store
+        // calls them and owns neither.
+        Assert.Contains(
+            "EvaHandoffPolicy.SelectEligibleImages",
+            evaPersistence,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "CaseEvaMapping.MapForOperatorExport",
+            evaPersistence,
+            StringComparison.Ordinal);
+        // The once-per-case proxy is a Core port the store calls, never an
+        // adapter the store manufactures.
+        Assert.Contains(
+            "proxy.RecordFirstGenerationAsync",
+            evaPersistence,
+            StringComparison.Ordinal);
         Assert.Contains("policy.Decide", custodyPersistence, StringComparison.Ordinal);
         Assert.DoesNotContain(
             typeof(EvaHandoffStore).Assembly.GetReferencedAssemblies(),

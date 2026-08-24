@@ -8,7 +8,6 @@ using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -76,10 +75,10 @@ public sealed partial class CaseDetailsWebTests
     }
 
     [Fact]
-    public async Task CustodyRetryEvaGenerateAndDownloadRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
+    public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { ExposeCustodyAndEva = true };
+        var store = new RecordingCaseDetailsStore { ExposeCustody = true };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -105,23 +104,41 @@ public sealed partial class CaseDetailsWebTests
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=RetryCustody", html, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{store.CaseId:D}/Vehicle?handler=GenerateEvaHandoff", html, StringComparison.Ordinal);
-        Assert.Contains($"/Cases/{store.CaseId:D}/Eva/Download", html, StringComparison.Ordinal);
         Assert.Contains("name=\"expectedVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"operationKey\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"reason\"", html, StringComparison.Ordinal);
-        Assert.Contains("integrity verified", html, StringComparison.Ordinal);
         Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain(new string('a', 64), html, StringComparison.OrdinalIgnoreCase);
 
-        foreach (var route in new[] { "Custody?handler=RetryCustody", "Vehicle?handler=GenerateEvaHandoff", "Eva/Download" })
+        // ENG-016: Export posts. The action bar renders a form, not an anchor,
+        // because the export records the once-per-case First sent to Engineer
+        // proxy and a prefetched or refreshed GET must not be able to fire it.
+        Assert.Contains(
+            $"action=\"/Cases/{store.CaseId:D}/Documents/Export?handler=Bundle\"",
+            html,
+            StringComparison.Ordinal);
+
+        foreach (var route in new[] { "Custody?handler=RetryCustody", "Documents/Export?handler=Bundle" })
         {
             using var denied = await client.PostAsync(
                 $"/Cases/{store.CaseId:D}/{route}",
                 new FormUrlEncodedContent([]));
             Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
         }
+
+        // The hand-off routes are gone, not merely unlinked.
+        foreach (var route in new[] { "Vehicle?handler=GenerateEvaHandoff", "Eva/Download" })
+        {
+            using var gone = await client.PostAsync(
+                $"/Cases/{store.CaseId:D}/{route}",
+                Form(AntiforgeryValue(html)));
+            Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
+        }
+
+        // And a GET on the export route no longer produces anything.
+        using var prefetched = await client.GetAsync(
+            $"/Cases/{store.CaseId:D}/Documents/Export");
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, prefetched.StatusCode);
     }
 
     [Fact]
@@ -1055,7 +1072,7 @@ public sealed partial class CaseDetailsWebTests
 
         public long CaseVersion { get; } = 7;
 
-        public bool ExposeCustodyAndEva { get; init; }
+        public bool ExposeCustody { get; init; }
 
         public IReadOnlyList<CaseHistoryEntry> HistoryEntries { get; init; } = [];
 
@@ -1105,19 +1122,9 @@ public sealed partial class CaseDetailsWebTests
                 HistoryEntries)
             {
                 Data = CreateData(),
-                Custody = ExposeCustodyAndEva
+                Custody = ExposeCustody
                     ? [new(CaseId, CaseVersion, CustodyTargetKind.CaseSource, "Failed", "Provider storage was unavailable.", 1, true)]
-                    : [],
-                EvaHandoff = ExposeCustodyAndEva
-                    ? new(
-                        CaseId,
-                        CaseVersion,
-                        "QDOS3100042",
-                        [new(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1, "damage.jpg", "image/jpeg", 12, new string('a', 64), DocumentSource.StaffUpload, "fixture", 2)],
-                        [new(1, "EVA-QDOS3100042-Revision-001.zip", new string('a', 64), new string('b', 64), _now, "staff", true)],
-                        _now,
-                        [])
-                    : null
+                    : []
             };
             return Task.FromResult<CaseDetails?>(details);
         }

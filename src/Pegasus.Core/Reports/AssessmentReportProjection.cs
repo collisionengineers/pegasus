@@ -299,8 +299,7 @@ public interface IAssessmentReportProjectionSource
 /// <summary>
 /// The read-only preparation a control renders from: ready, or the exact
 /// reasons it is not. Mirrors the existing *Preparation naming
-/// (<see cref="Pegasus.Core.Eva.EvaHandoffPreparation"/>,
-/// <see cref="Pegasus.Core.Custody.CaseCustodyPreparation"/>) rather than a
+/// (<see cref="Pegasus.Core.Custody.CaseCustodyPreparation"/>) rather than a
 /// new shape.
 /// </summary>
 public sealed record AssessmentReportDraftPreparation(IReadOnlyList<AssessmentReadinessItem> Reasons)

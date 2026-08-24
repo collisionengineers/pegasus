@@ -62,8 +62,7 @@ public sealed class ProductionCompositionTests
         Assert.NotNull(services.GetRequiredService<ILogicallyRemoveDocument>());
         Assert.NotNull(services.GetRequiredService<IConfirmThirdPartyVehicleEvidence>());
         Assert.NotNull(services.GetRequiredService<ICaseDocumentStateQueries>());
-        Assert.NotNull(services.GetRequiredService<IGenerateEvaHandoff>());
-        Assert.NotNull(services.GetRequiredService<IEvaHandoffQueries>());
+        Assert.NotNull(services.GetRequiredService<IExportCaseBundle>());
         Assert.NotNull(services.GetRequiredService<IProcessQueuedCustody>());
     }
 
@@ -77,10 +76,8 @@ public sealed class ProductionCompositionTests
         Assert.IsType<BoxCaseCustody>(services.GetRequiredService<ICaseCustody>());
         Assert.IsType<BoxDocumentContentStore>(services.GetRequiredService<IDocumentContentStore>());
         Assert.IsType<RetryCaseCustody>(services.GetRequiredService<IRetryCaseCustody>());
-        Assert.IsType<GenerateEvaHandoff>(services.GetRequiredService<IGenerateEvaHandoff>());
-        Assert.IsType<DownloadEvaHandoff>(services.GetRequiredService<IDownloadEvaHandoff>());
-        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IEvaHandoffQueries>());
-        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IEvaHandoffPersistence>());
+        Assert.IsType<EvaHandoffStore>(services.GetRequiredService<IExportCaseBundle>());
+        Assert.NotNull(services.GetRequiredService<IEvaHandoffProxy>());
     }
 
     [Fact]

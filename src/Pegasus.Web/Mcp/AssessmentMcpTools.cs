@@ -4,7 +4,6 @@ using ModelContextProtocol;
 using ModelContextProtocol.Server;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
-using Pegasus.Core.Eva;
 
 namespace Pegasus.Web.Mcp;
 
@@ -93,45 +92,6 @@ internal sealed record CaseUpdateDetailsToolResult(
     string OperationKey,
     string CorrelationId);
 
-internal sealed record EvaBundleGenerateToolResult(
-    Guid CaseId,
-    string Outcome,
-    int? Revision,
-    string? FileName,
-    string? BundleSha256,
-    string? JsonSha256,
-    bool FirstSentToEngineerRecorded,
-    IReadOnlyList<string> Reasons,
-    string OperationKey,
-    string CorrelationId);
-
-internal sealed record EvaHandoffImageToolItem(
-    Guid OccurrenceId,
-    string FileName,
-    string MediaType,
-    long ContentLength,
-    string Sha256);
-
-internal sealed record EvaHandoffRevisionToolItem(
-    int Revision,
-    string FileName,
-    string BundleSha256,
-    string JsonSha256,
-    DateTimeOffset GeneratedAtUtc,
-    string GeneratedBy,
-    bool EstablishedFirstSentToEngineerProxy);
-
-internal sealed record EvaHandoffStatusToolResult(
-    Guid CaseId,
-    string Reference,
-    long CaseVersion,
-    bool CanGenerate,
-    IReadOnlyList<string> BlockingReasons,
-    IReadOnlyList<EvaHandoffImageToolItem> Images,
-    IReadOnlyList<EvaHandoffRevisionToolItem> Revisions,
-    DateTimeOffset? FirstSentToEngineerAtUtc,
-    string CorrelationId);
-
 /// <summary>
 /// Automation Actor assessment tools (the tranche specified by
 /// ADR-0021 / FRD-10 (docs/adr/0021-automation-actor-direct-write-assessment-contract.md,
@@ -147,8 +107,6 @@ internal sealed class AssessmentMcpTools(
     ISaveAssessment saveAssessment,
     ICaseDataQueries caseDataQueries,
     ISaveCase saveCase,
-    IEvaHandoffQueries evaHandoffQueries,
-    IGenerateEvaHandoff generateEvaHandoff,
     AutomationActorResolver resolver,
     AutomationMcpAuditor auditor)
 {
@@ -354,117 +312,6 @@ internal sealed class AssessmentMcpTools(
             cancellationToken);
     }
 
-    [McpServerTool(
-        Name = "pegasus_eva_bundle_generate",
-        Title = "Generate EVA handoff bundle",
-        ReadOnly = false,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Generates the deterministic manual EVA handoff bundle for a case under the edit lease, exactly as the staff action does: the same blocking rules, the same revision idempotency, and the same permanent history including the First sent to Engineer proxy event when this is the first generation. Generation hands the case to an engineer for review; it dispatches nothing anywhere. The bundle content itself is retrieved by staff from the case screen.")]
-    public async Task<EvaBundleGenerateToolResult> GenerateEvaBundleAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        [Description("The case version the caller observed; a stale value fails closed.")] long expectedVersion,
-        [Description("The lease token from pegasus_case_edit_begin.")] string editLeaseToken,
-        [Description("Caller idempotency key prefixed 'mcp:'.")] string operationKey,
-        [Description("Why the bundle is being generated (case history reason).")] string reason,
-        [Description("Optional Send to AI work-request identifier for round-trip correlation.")] string? workRequestId = null,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
-        var normalizedKey = AutomationMcpErrors.RequireOperationKey(operationKey);
-        var binding = ParseWorkRequestId(workRequestId);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_eva_bundle_generate",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            binding?.ToString("D") ?? normalizedKey,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                if (string.IsNullOrWhiteSpace(editLeaseToken))
-                {
-                    throw new McpException("An active edit lease token is required.");
-                }
-
-                var result = await generateEvaHandoff.ExecuteAsync(
-                    new(
-                        caseId,
-                        expectedVersion,
-                        context.Actor,
-                        normalizedKey,
-                        reason,
-                        editLeaseToken),
-                    cancellationToken);
-                return new EvaBundleGenerateToolResult(
-                    caseId,
-                    result.Outcome.ToString(),
-                    result.Revision,
-                    result.Bundle?.FileName,
-                    result.Bundle?.Sha256,
-                    result.Bundle?.JsonSha256,
-                    result.FirstSentToEngineerRecorded,
-                    result.Reasons,
-                    normalizedKey,
-                    binding?.ToString("D") ?? normalizedKey);
-            }),
-            cancellationToken);
-    }
-
-    [McpServerTool(
-        Name = "pegasus_eva_handoff_status",
-        Title = "Get EVA handoff status",
-        ReadOnly = true,
-        Destructive = false,
-        Idempotent = true,
-        OpenWorld = false,
-        UseStructuredContent = true)]
-    [Description("Returns the EVA handoff preparation for a case: whether a bundle can be generated, the blocking reasons when it cannot, the eligible retained images, every generated revision with its hashes, and the First sent to Engineer timestamp when established.")]
-    public async Task<EvaHandoffStatusToolResult> GetEvaHandoffStatusAsync(
-        [Description("The durable Pegasus case identifier.")] Guid caseId,
-        CancellationToken cancellationToken = default)
-    {
-        var context = await resolver.RequireAsync(AutomationMcp.CasesScope, cancellationToken);
-        return await auditor.RecordAsync(
-            context,
-            "pegasus_eva_handoff_status",
-            caseId == Guid.Empty ? "invalid" : caseId.ToString("D"),
-            operationKey: null,
-            () => AutomationMcpErrors.ExecuteAsync(async () =>
-            {
-                AutomationMcpErrors.RequireId(caseId, "case identifier");
-                var preparation = await evaHandoffQueries.GetPreparationAsync(
-                    caseId,
-                    cancellationToken)
-                    ?? throw new McpException("The case was not found.");
-                return new EvaHandoffStatusToolResult(
-                    preparation.CaseId,
-                    preparation.Reference,
-                    preparation.CaseVersion,
-                    preparation.CanGenerate,
-                    preparation.BlockingReasons,
-                    preparation.Images.Select(image => new EvaHandoffImageToolItem(
-                            image.OccurrenceId,
-                            image.FileName,
-                            image.MediaType,
-                            image.ContentLength,
-                            image.Sha256))
-                        .ToArray(),
-                    preparation.Revisions.Select(revision => new EvaHandoffRevisionToolItem(
-                            revision.Revision,
-                            revision.FileName,
-                            revision.BundleSha256,
-                            revision.JsonSha256,
-                            revision.GeneratedAtUtc,
-                            revision.GeneratedBy,
-                            revision.EstablishedFirstSentToEngineerProxy))
-                        .ToArray(),
-                    preparation.FirstSentToEngineerAtUtc,
-                    context.TraceIdentifier);
-            }),
-            cancellationToken);
-    }
 
     private static AssessmentFieldToolItem MapField(AssessmentFieldValue field) => new(
         field.Path,
