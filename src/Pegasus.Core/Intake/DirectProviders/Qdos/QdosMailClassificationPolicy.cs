@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Intake;

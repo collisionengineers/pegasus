@@ -1,4 +1,4 @@
-﻿# FRD-03: Triage
+# FRD-03: Triage
 
 ## Boundary with Unidentified
 

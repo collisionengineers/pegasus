@@ -1,4 +1,4 @@
-﻿# FRD-09: Provider and intermediary routes
+# FRD-09: Provider and intermediary routes
 
 ## Unidentified route outcome
 

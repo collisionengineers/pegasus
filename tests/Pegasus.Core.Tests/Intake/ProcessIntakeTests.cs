@@ -1,4 +1,4 @@
-﻿using System.Security.Cryptography;
+using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Intake.Unidentified;

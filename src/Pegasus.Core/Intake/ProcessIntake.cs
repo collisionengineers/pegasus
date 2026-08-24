@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -312,8 +312,19 @@ public sealed class ProcessIntake(
             or IntakeDecision.Unsupported
             or IntakeDecision.OcrRequired
             or IntakeDecision.TechnicalFailure
-        && !(receipt.Decision == IntakeDecision.NeedsSorting
-            && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt) || IsTriageRequest(receipt)));
+        && !IsDeferredForAutomation(receipt);
+
+    /// <summary>
+    /// Which receipts this hook leaves for the queued caller to register.
+    /// Named once because two components need the same membership rule and
+    /// need it in opposite polarity — this hook skips them, and
+    /// <c>ProcessQueuedIntake</c> registers whichever of them its own
+    /// automation did not resolve. Written out twice, a third deferral reason
+    /// would have to be added in both places and nothing would catch a miss.
+    /// </summary>
+    internal static bool IsDeferredForAutomation(IntakeReceipt receipt) =>
+        receipt.Decision == IntakeDecision.NeedsSorting
+        && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt) || IsTriageRequest(receipt));
 
     /// <summary>
     /// Whether the accepted route classified this receipt's message as a
@@ -537,12 +548,14 @@ public sealed class ProcessIntake(
         // which fails closed for want of a case type a Triage request correctly
         // does not carry — producing no case, no Triage and no queue entry at
         // all (INTK-033).
-        var triageMatch = AcceptedTriageMatchEvidence(mailClassificationDecision);
-        if (triageMatch is not null && decision == IntakeDecision.CaseCreated)
+        if (mailClassificationDecision is { IsTriageRequest: true }
+            && decision == IntakeDecision.CaseCreated)
         {
             decision = IntakeDecision.NeedsSorting;
             reason = "A Triage request is pre-case work; no case is created from it.";
         }
+
+        var triageMatch = AcceptedTriageMatchEvidence(mailClassificationDecision);
 
         IntakeEvidence[] evidence = triageMatch is null
             ? [.. readerEvidence, .. policyResult.Evidence]
