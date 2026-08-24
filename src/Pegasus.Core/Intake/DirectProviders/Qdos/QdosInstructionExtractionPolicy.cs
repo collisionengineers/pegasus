@@ -4,7 +4,7 @@ using System.Text.RegularExpressions;
 
 namespace Pegasus.Core.Intake;
 
-public sealed class QdosInstructionExtractionPolicy(
+public sealed partial class QdosInstructionExtractionPolicy(
     IIntakeTriageMatcher? triageMatcher = null) : IInstructionExtractionPolicy
 {
     public const string Key = "qdos_instruction";
@@ -46,16 +46,36 @@ public sealed class QdosInstructionExtractionPolicy(
             ["Date of Incident", "Incident Date", "Accident Date", "Date of Accident", "Accident on"],
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
             CanonicalValue: InstructionFieldEngine.CanonicalDate),
-        new("Instruction date", ["Instruction Date", "Date of Instruction"],
+        // The letters date themselves with a bare "Date:" row, so without it
+        // every QDOS case silently fell back to its receipt date (ENG-015).
+        // The bare label is deliberately last: a line that says "Instruction
+        // Date" is matched by the specific label first.
+        //
+        // A bare "Date" also matches other date rows, in two shapes, and both
+        // are shut off here rather than left to conflict resolution:
+        //   "Date of Accident: 14/08/2026" yields "of Accident: 14/08/2026",
+        //   which AcceptsValue rejects at discovery because it is not a date;
+        //   "Accident Date: 14/08/2026" yields a perfectly valid date, so only
+        //   the guarded prefixes can reject it — the value cannot.
+        new(
+            "Instruction date",
+            ["Instruction Date", "Date of Instruction", "Date"],
+            AcceptsValue: value => InstructionFieldEngine.ParseDate(value) is not null,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate),
+            CanonicalValue: InstructionFieldEngine.CanonicalDate,
+            GuardedPrefixes: ["Accident", "Incident", "Inspection", "Issue", "Report", "Due"]),
         new("Inspection address", ["Inspection Address", "Vehicle Location", "Inspection Location"]),
+        // An appended engineer's report states when the vehicle was actually
+        // seen; the instruction can only propose a date. So when both carry
+        // one, the later fragment wins — the reverse of every other field
+        // (ENG-015).
         new(
             "Inspection date",
             ["Inspection Date", "Date of Inspection", "Inspection Deadline", "Due By"],
             IsRequired: false,
             IsValidTyped: value => InstructionFieldEngine.ParseDate(value) is not null,
-            CanonicalValue: InstructionFieldEngine.CanonicalDate),
+            CanonicalValue: InstructionFieldEngine.CanonicalDate,
+            PrefersLatestFragment: true),
         // The real correspondence writes the vehicle as one description line
         // ("Our Client's Vehicle: PEUGEOT RCZ GT THP 156"); the split into
         // make/model/registration happens after extraction. The bare word
@@ -71,9 +91,17 @@ public sealed class QdosInstructionExtractionPolicy(
             AcceptsValue: InstructionFieldEngine.IsPlausibleVehicleMakeModel)
     ];
 
+    /// <summary>
+    /// Every definition is guarded against the third-party rows. A definition
+    /// that named its own guarded prefixes keeps them — the third-party guard
+    /// is added to that list rather than replacing it, so a per-field guard is
+    /// not silently dropped here.
+    /// </summary>
     private static readonly InstructionFieldEngine.FieldDefinition[] FieldDefinitions =
-        [.. BareFieldDefinitions.Select(definition =>
-            definition with { GuardedPrefixes = ThirdPartyRowPrefixes })];
+        [.. BareFieldDefinitions.Select(definition => definition with
+        {
+            GuardedPrefixes = [.. ThirdPartyRowPrefixes.Concat(definition.GuardedPrefixes ?? [])]
+        })];
 
     /// <summary>
     /// Makes written as two words, so a combined vehicle description splits
@@ -121,6 +149,7 @@ public sealed class QdosInstructionExtractionPolicy(
             FieldDefinitions,
             processedAtUtc);
         fields = DeriveVehicleFields(fields, out var derivedNames);
+        fields = WithLabelledDamageArea(fields, readResult.Content);
         missingFields = missingFields.Where(name => !derivedNames.Contains(name)).ToArray();
         evidence.AddRange(fieldEvidence);
         var draft = CreateInstructionDraft(fields, principalContext.PrincipalCode);
@@ -436,6 +465,109 @@ public sealed class QdosInstructionExtractionPolicy(
     /// registration), carrying the description candidate's own provenance so
     /// the acceptance write still names a real source.
     /// </summary>
+    /// <summary>
+    /// Appends the letter's damage area to the accident circumstances, under
+    /// its own label and below a blank line (ENG-015, operator direction):
+    ///
+    /// <code>
+    /// &lt;circumstances prose, when the letter has any&gt;
+    ///
+    /// Damage Area: &lt;damage area&gt;
+    /// </code>
+    ///
+    /// The QDOS audit letters carry no prose, so the value is usually the
+    /// labelled damage area alone, with no leading blank line.
+    ///
+    /// This runs after the neutral engine rather than inside it because the
+    /// engine collapses every whitespace run in a value — a deliberate rule
+    /// for single-line fields that a two-part value cannot pass through.
+    /// <see cref="DeriveVehicleFields"/> adjusts a field after extraction the
+    /// same way.
+    /// </summary>
+    private static IReadOnlyList<InstructionReviewField> WithLabelledDamageArea(
+        IReadOnlyList<InstructionReviewField> fields,
+        IReadOnlyList<IntakeContentFragment> content)
+    {
+        var damageArea = content
+            .Select(DamageArea)
+            .FirstOrDefault(value => value is not null);
+        if (damageArea is null)
+        {
+            return fields;
+        }
+
+        var labelled = $"{DamageAreaLabel}{damageArea}";
+        return fields
+            .Select(field =>
+            {
+                if (field.Name != "Accident circumstances" || field.HasConflict)
+                {
+                    return field;
+                }
+
+                var prose = field.SuggestedValue;
+                var combined = string.IsNullOrWhiteSpace(prose)
+                    ? labelled
+                    : $"{prose}\n\n{labelled}";
+                return field with
+                {
+                    SuggestedValue = combined,
+                    Candidates = field.Candidates.Count == 0
+                        ? [new(combined, IntakeEvidenceSource.PdfContent, DamageAreaSourceLabel)]
+                        : [.. field.Candidates.Select((candidate, index) => index == 0
+                            ? candidate with { Value = combined }
+                            : candidate)]
+                };
+            })
+            .ToArray();
+    }
+
+    /// <summary>
+    /// The letter writes the damage area as one row — "Damage Area - Rear:
+    /// Moderate" — and the block ends at the third-party rows. Returns the text
+    /// after the label, or null when the fragment has no damage-area row.
+    /// </summary>
+    private static string? DamageArea(IntakeContentFragment fragment)
+    {
+        var lines = SplitLines(fragment.Text);
+        var index = Array.FindIndex(lines, line =>
+            DamageAreaRowRegex().IsMatch(line));
+        if (index < 0)
+        {
+            return null;
+        }
+
+        var value = DamageAreaRowRegex().Replace(lines[index], string.Empty).Trim();
+        if (value.Length == 0)
+        {
+            // The label sat alone on its row, so the value is the next content
+            // line, stopping where the next block begins.
+            value = lines
+                .Skip(index + 1)
+                .TakeWhile(line => line.Length > 0
+                    && !DamageAreaStopRegex().IsMatch(line))
+                .FirstOrDefault(line => line.Length > 0)
+                ?? string.Empty;
+        }
+
+        return value.Length == 0 ? null : value;
+    }
+
+    private const string DamageAreaLabel = "Damage Area: ";
+    private const string DamageAreaSourceLabel = "damage area";
+
+    [GeneratedRegex(
+        @"^\s*damage\s+area\s*[-:]?\s*",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex DamageAreaRowRegex();
+
+    [GeneratedRegex(
+        @"^(?:pre-existing damage|tp |if you need)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        100)]
+    private static partial Regex DamageAreaStopRegex();
+
     private static IReadOnlyList<InstructionReviewField> DeriveVehicleFields(
         IReadOnlyList<InstructionReviewField> fields,
         out HashSet<string> derivedNames)
