@@ -97,3 +97,27 @@ two circumstances tests, and the boundary contract's inspection address.
 - **(c) carries the ticket's flagged assumption** — blank-line separator, label
   exactly `Damage Area: `. Repeated in the PR body so the operator can correct
   it cheaply; it is a one-line change if wrong.
+
+## PR and CI
+
+**PR #534** — https://github.com/collisionengineers/pegasus/pull/534
+`task/eng-015-eva-field-values` → `task/eng-014-drop-manifest-indent-json`.
+Stacked on #527 and must merge after it. Not merged: this ticket stops at review.
+
+CI green on every check:
+
+| Check | Result |
+| --- | --- |
+| unit | pass (3m10s) |
+| sql-integration (1) | pass (14m5s) |
+| sql-integration (2) | pass (8m48s) |
+| sql-integration (3) | pass (10m40s) |
+| sql-integration-coverage | pass (12s) |
+| browser | pass (7m33s) |
+| changes / documentation / local-development-scripts / reference-data | pass |
+| infrastructure | skipped (not triggered by this diff) |
+
+No stale merge-ref checkout hang; every job's `actions/checkout` completed.
+
+Three commits: the implementation, the simplification pass, and the one export
+contract assertion that (a) makes stale.
