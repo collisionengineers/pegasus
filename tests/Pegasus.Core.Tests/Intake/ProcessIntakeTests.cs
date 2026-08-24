@@ -700,13 +700,24 @@ public sealed class ProcessIntakeTests
     {
         // The same message processed with and without the classification
         // policy must land on the identical decision: a classification is a
-        // recorded observation, never a queue, Triage, or destination change.
+        // recorded observation, not a general queue or destination change.
+        //
+        // The named exceptions are the two the operator's own rules require —
+        // a standalone Audit without its report, and a Triage request, which
+        // is pre-case work by definition and has its own test below. This one
+        // is therefore driven by an automatic reply, which is classified and
+        // changes nothing (INTK-033).
         IntakeSourceReadResult ReadResult() => Readable(
             transportEvidence:
             [
                 new(
                     IntakeEvidenceSource.Sender,
                     "instructions@qdosassist.co.uk",
+                    IntakeSenderIdentityKind.Transport,
+                    "outer message"),
+                new(
+                    IntakeEvidenceSource.Subject,
+                    "Automatic reply: your message",
                     IntakeSenderIdentityKind.Transport,
                     "outer message")
             ],
@@ -715,7 +726,7 @@ public sealed class ProcessIntakeTests
                 new(
                     IntakeEvidenceSource.EmailBody,
                     "message body",
-                    "Triage Only Request. Please find attached our client's images.")
+                    "I am out of the office until Monday.")
             ]);
         IntakeSource Source(string key) => CreateSource() with
         {
@@ -739,6 +750,109 @@ public sealed class ProcessIntakeTests
         Assert.Null(unclassified.MailClassificationDecision);
         Assert.Equal(unclassified.Decision, classified.Decision);
         Assert.Equal(unclassified.DecisionReason, classified.DecisionReason);
+    }
+
+    [Fact]
+    public async Task ATriageRequestIsNeverACaseAndCarriesOneAcceptedTriageMatch()
+    {
+        // The operator's rule: a Triage request is pre-case work. Left as
+        // CaseCreated it went to automatic allocation, which failed closed for
+        // want of a case type it correctly does not carry, and the message
+        // ended in no queue at all (INTK-033).
+        var receipt = await CreateSut(
+                new StubReader(Readable(
+                    content:
+                    [
+                        new(
+                            IntakeEvidenceSource.EmailBody,
+                            "message body",
+                            "Registration:  VN64WNG\nTriage Only Request\nPlease find attached our client's images.")
+                    ])),
+                new RecordingStore())
+            .ExecuteAsync(CreateSource() with
+            {
+                FileName = "triage-request.eml",
+                MediaType = "message/rfc822",
+                SourceIdentity = new(IntakeSourceChannel.Mailbox, "triage-request-not-a-case")
+            });
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.Equal("A Triage request is pre-case work; no case is created from it.", receipt.DecisionReason);
+
+        var match = Assert.Single(
+            receipt.Evidence,
+            item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
+        Assert.Equal(IntakeEvidenceStrength.Strong, match.Strength);
+        Assert.Equal(QdosMailClassificationPolicy.Key, match.MatcherKey);
+        Assert.Equal(QdosMailClassificationPolicy.Version, match.MatcherVersion);
+        Assert.Contains("body.triage-only-request", match.Detail);
+
+        // The registration survives: it is what decides the operator's branch.
+        Assert.Equal("VN64WNG", Assert.IsType<InstructionDraft>(receipt.InstructionDraft).VehicleRegistration);
+    }
+
+    [Fact]
+    public async Task ATriageRequestIsNotRegisteredUnidentifiedByProcessingItself()
+    {
+        // Triage creation runs after this hook, so registering here would give
+        // every Triage request an Unidentified item it is about to stop
+        // deserving. The queued caller registers the ones that open no Triage.
+        var registerUnidentified = new RecordingRegisterUnidentified();
+        var receipt = await CreateSut(
+                new StubReader(Readable(
+                    content:
+                    [
+                        new(
+                            IntakeEvidenceSource.EmailBody,
+                            "message body",
+                            "Triage Only Request\nPlease find attached our client's images.")
+                    ])),
+                new RecordingStore(),
+                registerUnidentified: registerUnidentified)
+            .ExecuteAsync(CreateSource() with
+            {
+                FileName = "triage-request-deferred.eml",
+                MediaType = "message/rfc822",
+                SourceIdentity = new(IntakeSourceChannel.Mailbox, "triage-request-deferred")
+            });
+
+        Assert.Equal(IntakeDecision.NeedsSorting, receipt.Decision);
+        Assert.False(ProcessIntake.IsUnidentifiedEligible(receipt));
+        Assert.Empty(registerUnidentified.Requests);
+    }
+
+    [Fact]
+    public async Task AMessageCarryingTwoCategoryTellsIsAmbiguousAndIsNoTriageMatch()
+    {
+        // Ambiguity is not a Triage request: it is a message no policy may
+        // resolve, and it must reach staff rather than open pre-case work.
+        var receipt = await CreateSut(
+                new StubReader(Readable(
+                    content:
+                    [
+                        new(
+                            IntakeEvidenceSource.EmailBody,
+                            "message body",
+                            "Triage Only Request"),
+                        new(
+                            IntakeEvidenceSource.DocumentContent,
+                            "instruction attachment",
+                            "AUDIT REPORT NOTIFICATION")
+                    ])),
+                new RecordingStore())
+            .ExecuteAsync(CreateSource() with
+            {
+                FileName = "ambiguous.eml",
+                MediaType = "message/rfc822",
+                SourceIdentity = new(IntakeSourceChannel.Mailbox, "triage-ambiguous")
+            });
+
+        Assert.Equal(
+            MailClassificationOutcome.Ambiguous,
+            Assert.IsType<MailClassificationResult>(receipt.MailClassificationDecision).Outcome);
+        Assert.DoesNotContain(
+            receipt.Evidence,
+            item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
     }
 
     [Fact]

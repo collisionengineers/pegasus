@@ -94,15 +94,20 @@ public sealed class ProductionCompositionTests
     }
 
     [Fact]
-    public void ProductionProfileKeepsTheTriageMatcherInactive()
+    public void ProductionProfileDrivesTriageFromTheAcceptedRouteClassification()
     {
-        // Automatic Triage matching stays inactive until its predicates are
-        // accepted (docs/open-decisions.md). Activation must be a deliberate
-        // change to a named matcher, never a side effect of composition.
+        // Automatic Triage matching was pinned inactive while its predicates
+        // were unaccepted. They are now accepted, and they live where FRD-03
+        // and ADR-0008 put them: the route's own classification policy. This
+        // test keeps the same protection pointed at the real mechanism — one
+        // named, versioned owner, activated deliberately and not as a side
+        // effect of composition (INTK-033).
         using var provider = BuildProduction();
 
-        Assert.IsType<NoAcceptedIntakeTriageMatcher>(
-            provider.GetRequiredService<IIntakeTriageMatcher>());
+        var classification = Assert.Single(provider.GetServices<IMailClassificationPolicy>());
+        Assert.IsType<QdosMailClassificationPolicy>(classification);
+        Assert.Equal(QdosMailClassificationPolicy.Key, classification.PolicyKey);
+        Assert.Equal(QdosMailClassificationPolicy.Version, classification.PolicyVersion);
     }
 
     [Fact]
