@@ -2,19 +2,25 @@
 id: INTK-035
 type: ticket
 title: Promote an Unidentified triage request once its registration is known
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-24T10:07:06.107Z'
 labels:
   - triage
   - unidentified
   - deferred-from-INTK-033
 links: []
-docs_todo: true
+refs:
+  - docs/frd/frd-03-triage.md
+  - docs/frd/frd-02-intake-and-source-identity.md
+  - docs/operator-notes.md
+  - docs/design/README.md
 archived: false
 created: '2026-08-24T08:33:08.297Z'
-updated: '2026-08-24T08:33:08.297Z'
+updated: '2026-08-24T10:07:06.107Z'
 ---
 
 ## Why
