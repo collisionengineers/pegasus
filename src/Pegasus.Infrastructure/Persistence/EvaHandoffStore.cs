@@ -975,19 +975,13 @@ public sealed class EvaHandoffStore(
         return values.Length == 0 ? MissingEvidence : values.Aggregate(Combine);
     }
 
-    /// <summary>
-    /// EVA's own two words for the mileage unit (ENG-015). The original
-    /// extractor resolves this field to exactly "Miles" or "Km", so those are
-    /// the only two values a bundle may carry — written once here so the
-    /// confirmed-record branch and the case-field branch cannot drift.
-    /// </summary>
+    // The EVA mileage-unit vocabulary is mapping policy and lives in Core;
+    // these forward so the store keeps no second copy of it (ENG-015 review).
     private static string MileageUnit(VehicleMileageUnit unit) =>
-        unit == VehicleMileageUnit.Kilometres ? "Km" : "Miles";
+        CaseEvaMapping.MileageUnit(unit);
 
     private static string MileageUnit(string value) =>
-        Enum.TryParse<VehicleMileageUnit>(value, ignoreCase: true, out var unit)
-            ? MileageUnit(unit)
-            : value.Trim();
+        CaseEvaMapping.MileageUnit(value);
 
     private static EvaEvidenceValue FromCaseField<T>(
         CaseField<T> field,

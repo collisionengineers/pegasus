@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Eva;
 
@@ -139,8 +140,59 @@ public static partial class CaseEvaMapping
     /// </summary>
     private const int InspectionAddressLines = 6;
 
+    /// <summary>
+    /// EVA's own two words for the mileage unit. The original extractor
+    /// resolves this field to exactly "Miles" or "Km", so those are the only
+    /// two values a bundle may carry.
+    ///
+    /// Core, not the persistence store where it was first written: this is
+    /// EVA mapping vocabulary, and a store-local copy means every other
+    /// hand-off path has to repeat it or quietly emit something else
+    /// (ENG-015 review).
+    /// </summary>
+    public static string MileageUnit(VehicleMileageUnit unit) =>
+        unit == VehicleMileageUnit.Kilometres ? "Km" : "Miles";
+
+    /// <summary>
+    /// The same rule over free text, because the case's mileage-unit field is
+    /// operator-editable. The short spellings are named explicitly: the
+    /// operator label for <see cref="VehicleMileageUnit.Kilometres"/> is
+    /// "km", which no enum parse recognises, so returning unrecognised text
+    /// verbatim sent lowercase "km" into a field that admits two values.
+    /// Anything still unrecognised is passed through rather than guessed at.
+    /// </summary>
+    public static string MileageUnit(string value)
+    {
+        var trimmed = (value ?? string.Empty).Trim();
+        if (Enum.TryParse<VehicleMileageUnit>(trimmed, ignoreCase: true, out var unit))
+        {
+            return MileageUnit(unit);
+        }
+        return trimmed.ToLowerInvariant() switch
+        {
+            "km" or "kms" or "kilometres" or "kilometers" =>
+                MileageUnit(VehicleMileageUnit.Kilometres),
+            "mi" or "mile" or "miles" => MileageUnit(VehicleMileageUnit.Miles),
+            _ => trimmed
+        };
+    }
+
     public const string MappingKey = "qdos-eva-13-field-mapping";
-    public const int MappingVersion = 1;
+
+    /// <summary>
+    /// Version 2 (ENG-015). Acceptance is checked by key, version and
+    /// evidence reference alone, so a version that stays put silently
+    /// authorises whatever the mapping now emits. ENG-015 changed what four
+    /// of the thirteen fields mean -- Reference became the provider's own
+    /// claim number rather than the Pegasus case reference, and the
+    /// inspection address, vehicle model and mileage-unit vocabulary all
+    /// changed shape -- so a v1 acceptance must not carry over to them.
+    ///
+    /// The deployed value lives in infra/modules/platform.bicep and moves
+    /// with this constant; they are one decision in two files, and an export
+    /// fails closed if they disagree.
+    /// </summary>
+    public const int MappingVersion = 2;
     public const string ActivationGateReason =
         "EVA hand-off is not switched on.";
 
