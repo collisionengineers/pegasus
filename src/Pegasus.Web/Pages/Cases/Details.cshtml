@@ -126,8 +126,10 @@
             <form method="post" asp-page="/Cases/Documents/Export"
                   asp-route-caseId="@summary.CaseId" asp-page-handler="Bundle"
                   class="record__bar-form">
-                <button type="submit" class="btn @(canExport ? string.Empty : "is-disabled")"
-                        disabled="@(canExport ? null : "disabled")">
+                @* `.btn:disabled` is the styling for a real control;
+                   `.btn.is-disabled` is the fallback for a disabled anchor,
+                   which this stopped being. *@
+                <button type="submit" class="btn" disabled="@(canExport ? null : "disabled")">
                     <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
                     Export
                 </button>

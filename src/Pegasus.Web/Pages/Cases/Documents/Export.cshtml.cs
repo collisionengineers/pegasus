@@ -76,6 +76,11 @@ public sealed partial class ExportModel(
         // transport failure is an ordinary way for it to fail. Without
         // HttpRequestException here the operator got the generic error page
         // instead of their case with a reason on it.
+        //
+        // ENG-016: this route now writes the First sent to Engineer proxy, and
+        // as a GET it never wrote anything at all. A failed write arrives here
+        // as InvalidOperationException — EvaHandoffStore translates it, so no
+        // page has to know what EF throws.
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or InvalidDataException

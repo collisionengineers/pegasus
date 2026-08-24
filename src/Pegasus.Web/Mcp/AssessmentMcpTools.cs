@@ -312,7 +312,6 @@ internal sealed class AssessmentMcpTools(
             cancellationToken);
     }
 
-
     private static AssessmentFieldToolItem MapField(AssessmentFieldValue field) => new(
         field.Path,
         field.Value,

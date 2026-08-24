@@ -1,12 +1,10 @@
 using System.IO.Compression;
-using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Eva;
 
@@ -140,7 +138,6 @@ public interface IEvaHandoffProxy
 /// </summary>
 public static class EvaBundleSchema
 {
-    public const string SchemaVersion = "eva-handoff-v2";
     private static readonly DateTimeOffset DeterministicTimestamp =
         new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly string[] FieldOrder =
@@ -179,13 +176,13 @@ public static class EvaBundleSchema
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(images.RetainedImages);
 
-        var normalizedSource = ValidateSource(source);
+        var fields = ValidateSource(source);
         var reference = SafeFileComponent(
             string.IsNullOrWhiteSpace(fileNameReference)
-                ? normalizedSource.Fields.Reference!
+                ? fields.Reference!
                 : fileNameReference);
         var jsonName = $"EVA-{reference}.json";
-        var json = WriteOrderedJson(normalizedSource.Fields);
+        var json = WriteOrderedJson(fields);
         var jsonHash = Hash(json);
         var imageEntries = ValidateAndNameImages(images);
         var archive = WriteArchive(jsonName, json, imageEntries);
@@ -198,7 +195,7 @@ public static class EvaBundleSchema
             $"EVA-{reference}.zip");
     }
 
-    private static EvaBundleSource ValidateSource(EvaBundleSource source)
+    private static EvaReplayFields ValidateSource(EvaBundleSource source)
     {
         ArgumentNullException.ThrowIfNull(source.Fields);
         ArgumentNullException.ThrowIfNull(source.Provenance);
@@ -220,7 +217,8 @@ public static class EvaBundleSchema
         // throws are the whole point. It used to also build a second,
         // normalized copy of the provenance array and return it — dead output,
         // because CreateOfflineReplay reads only the fields. The validation
-        // stayed; the copy went.
+        // stayed; the copy went, and with it the rebuilt EvaBundleSource, so
+        // what comes back is the normalized fields themselves.
         var normalized = CaseEvaMapping.MapOfflineReplay(source.Fields);
         var values = OrderedFields(normalized).ToArray();
         if (source.Provenance.Count != FieldOrder.Length)
@@ -247,12 +245,7 @@ public static class EvaBundleSchema
             }
         }
 
-        return new(
-            normalized,
-            source.Provenance,
-            CaseEvaMapping.MappingKey,
-            CaseEvaMapping.MappingVersion,
-            source.MappingAcceptanceEvidence.Trim());
+        return normalized;
     }
 
     private static List<ImageEntry> ValidateAndNameImages(EvaBundleImages images)

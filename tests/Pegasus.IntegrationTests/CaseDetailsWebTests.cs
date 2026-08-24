@@ -126,14 +126,26 @@ public sealed partial class CaseDetailsWebTests
             Assert.Equal(HttpStatusCode.BadRequest, denied.StatusCode);
         }
 
-        // The hand-off routes are gone, not merely unlinked.
-        foreach (var route in new[] { "Vehicle?handler=GenerateEvaHandoff", "Eva/Download" })
-        {
-            using var gone = await client.PostAsync(
-                $"/Cases/{store.CaseId:D}/{route}",
-                Form(AntiforgeryValue(html)));
-            Assert.Equal(HttpStatusCode.NotFound, gone.StatusCode);
-        }
+        // The hand-off's own page is gone, not merely unlinked. 405 rather
+        // than 404 is this app's existing answer to a POST at a path with no
+        // page: the 404 is re-executed at /status/{code} by
+        // UseStatusCodePagesWithReExecute, and that page has only an OnGet.
+        using var downloadGone = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Eva/Download",
+            Form(AntiforgeryValue(html)));
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, downloadGone.StatusCode);
+
+        // The generate handler is gone too, but its page survives for the
+        // vehicle actions, and Razor Pages answers an unrecognised handler name
+        // by running no handler at all rather than by refusing the request. So
+        // the honest assertion is not 404: it is that a stale form or bookmark
+        // now does nothing -- no redirect back to the workspace, which is what
+        // every real handler on these pages ends with.
+        using var handlerGone = await client.PostAsync(
+            $"/Cases/{store.CaseId:D}/Vehicle?handler=GenerateEvaHandoff",
+            Form(AntiforgeryValue(html)));
+        Assert.NotEqual(HttpStatusCode.Redirect, handlerGone.StatusCode);
+        Assert.Equal(string.Empty, await handlerGone.Content.ReadAsStringAsync());
 
         // And a GET on the export route no longer produces anything.
         using var prefetched = await client.GetAsync(
