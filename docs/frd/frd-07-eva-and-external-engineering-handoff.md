@@ -30,11 +30,16 @@ The JSON keys, in serialization order, are:
 12. `Mileage`
 13. `Mileage Unit`
 
-`Reference` carries the **work provider's own reference** — EVA's `Claim no`,
-the value the provider's instruction states. It is not the Pegasus case
-reference, which corresponds to EVA's `Case/Po` and is entered in EVA by an
-admin worker. The distinction is operator source: see
-[EVA information](../../reference/eva_information/eva_information.md).
+`Reference` carries the **work provider's own reference** — the value the
+provider's instruction states — not the Pegasus case reference. Both retained
+examples show it directly: `Final Format Example 02.json` pairs
+`"Work Provider": "SBL"` with `"Reference": "SBL-B0492438"`, and
+`AX_SP58WVO.json` pairs `"Work Provider": "AX"` with `"Reference": "1070277"`.
+
+Which EVA field the imported value lands in is **EVA's own business and is not
+established here**: the retained EVA screens show `Claim No`, `Reference` and
+`Case/PO` as three distinct fields, and Pegasus owns none of that mapping. What
+Pegasus owns is the value it emits.
 
 The first successful package generation records the once-per-case `First sent
 to Engineer` proxy. Later generations are revisions. The proxy proves Pegasus
@@ -46,17 +51,18 @@ not external delivery evidence.
 Successful focused manual generation makes the complete JSON and all-eligible-image bundle available for immediate staff download. Download proves neither EVA receipt nor report delivery and does not change Case state.
 The container format is intentionally unspecified: its selection must evaluate
 whether a single archive is the clearest usable representation without changing
-the exact package contents or the manual-handoff boundary. The package is the
-ordered JSON and the eligible images; it carries no other file.
+the exact package contents or the manual-handoff boundary. The package carries
+the ordered JSON and the eligible images, and no companion file: neither a
+manifest nor a provenance sidecar.
 
 **The operator export is a second, narrower act over the same package.** An
 operator may download a case in this format from the Case action bar while the
 case is in Review. It is a read: it records no revision, writes no `First sent
 to Engineer` proxy, and does not change Case state or version. It differs from
 the handoff only in what counts as evidence — a suggested value travels with its
-`Suggested` status, a field the case does not hold is emitted empty, and an
-absent inspection date resolves to the export date as a named system default.
-The handoff's evidence bar is unchanged.
+`Suggested` status, a field the case does not hold is emitted empty and marked
+`Unrecorded`, and an absent inspection date resolves to the export date as a
+named system default. The handoff's evidence bar is unchanged.
 
 The focused handoff readiness review keeps four source-labelled inputs distinct:
 the saved source email, vehicle images, valuation evidence, and initial
