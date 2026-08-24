@@ -90,3 +90,56 @@ replay identity across this boundary is lost. Stated in the PR.
   — DOCS-013 (#526) owns them.
 - No historic `Migrations/*.Designer.cs` snapshot edited.
 - Not merged. PR is open against `dev` for independent review.
+
+---
+
+## Final state (updated after the coordinator's encoder addition)
+
+PR **#527**, five commits, **CI fully green**
+(run `32715786200`: `unit`, `browser`, `sql-integration (1|2|3)`,
+`sql-integration-coverage`, `changes`, `documentation`,
+`local-development-scripts`, `reference-data` all pass; `infrastructure`
+skipping as normal). Ticket left in **review** — not merged.
+
+### Fifth commit — `c1beaf3a`
+
+`Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping` on the same
+`JsonWriterOptions`, so non-ASCII is written as literal UTF-8 the way the
+predecessor extractor's `ensure_ascii=False` does. Guarded by
+`NonAsciiTravelsAsLiteralUtf8RatherThanEscapes`. Also adds the new migration to
+the exact list `IntakePersistenceIntegrationTests` asserts.
+
+### Corrected verification numbers
+
+| Check | Result |
+| --- | --- |
+| `dotnet build --configuration Release` | Succeeded, 0 warnings |
+| `Pegasus.Core.Tests` | **938 passed, 0 failed** |
+| `Pegasus.ArchitectureTests` | **99 passed, 0 failed** |
+| `EvaHandoffPersistenceTests` (local) | 8 passed, 0 failed |
+| `CustodyOutboxIntegrationTests` (local) | 22 passed, 1 LocalDB connection timeout |
+| CI, all shards | **Green** |
+| `Final Format Example 02.json` | **Byte-for-byte identical**, 656 bytes |
+| `AX_SP58WVO.json` | One line differs — trailing-whitespace normalisation only |
+
+### The two CI/local failures, both explained
+
+1. **`sql-integration (3)`, first CI run — real, and mine.**
+   `CommittedMigrationCreatesTheSqlServerSchema` asserts the committed
+   migration list exactly and I had not added the new migration to it. Fixed in
+   `c1beaf3a`; that shard is green.
+
+2. **`ExportingACaseProducesTheEvaFormatArchive`, local — not real.** A
+   `SqlException: Connection Timeout Expired ... post-login phase` against
+   LocalDB while I had builds running concurrently. The same test ran green on
+   CI's `sql-integration (2)` in both runs. Recorded rather than quietly
+   re-run.
+
+### Findings 1–3 stand; finding 4 is retired
+
+The escaping half of finding 4 is now fixed by the encoder change. What remains
+is `CaseEvaMapping` stripping trailing whitespace in `Inspection Address` — a
+mapping-normalisation question for [[ENG-015]], not a packaging one.
+
+Findings 1 (three columns, not four), 2 (pinned newline) and 3 (non-additive
+migration) are unchanged and are all raised in the PR body for the reviewer.
