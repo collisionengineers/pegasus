@@ -12,3 +12,5 @@ Completed non-visual evidence:
 - Stopped only the owned run and confirmed it is Stopped.
 
 Blocking condition: this workspace exposes no controllable browser instances, so I cannot collect or inspect the real rendered screenshot set. No screenshot, manifest, case/assessment URL, or visual proof was invented. The ticket must remain Implementing until a browser surface is available; it must not be moved to Verifying on the non-visual checks alone.
+
+2026-08-24 resume: recreated `.worktrees/plat-005` on `task/plat-005-visual-proof` from `origin/dev` (5cc06bbb). Restored local npm/.NET dependencies and rebuilt the Offline runtime; no test lane or CI was run by direction. The supported Offline initializer cannot complete because `dotnet dev-certs https --check --trust` hangs in this session even though `dotnet dev-certs https --check` succeeds. I stopped only the owned stalled initializer/certificate processes; no local stack was started and no screenshots were captured.
