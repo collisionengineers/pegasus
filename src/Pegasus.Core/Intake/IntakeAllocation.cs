@@ -223,21 +223,11 @@ public sealed class AllocateIntake(
     /// gate reduces to this one flag, an audit with an instruction, a report
     /// and no photographs went straight to Review while the EVA export refused
     /// the very same case for having no images (CASE-021).
-    ///
-    /// This is deliberately not a return to recording all four as false, which
-    /// meant no automatically created case could ever reach Review however
-    /// complete it was (CASE-013). CASE-013's waiver, actor test and single
-    /// owner are all untouched; its own test already pinned that false
-    /// evidence must block an automatic case. What was missing was an honest
-    /// value.
     /// </summary>
-    internal static CaseCompleteness AutomaticCompleteness(IntakeReceipt receipt) =>
+    private static CaseCompleteness AutomaticCompleteness(IntakeReceipt receipt) =>
         new(InstructionComplete: true,
-            // The one Core owner of "which retained assets are this case's
-            // photographs" — the same rule custody uses to decide what becomes
-            // an Image document, which is the population the export counts. One
-            // question, asked once, so Review and export agree by construction
-            // instead of by a second definition.
+            // The one owner of which assets are photographs, so Review and
+            // the EVA export agree by construction rather than by a second rule.
             ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0,
             InstructionConfirmedByStaff: false,
             ImagesConfirmedByStaff: false);
