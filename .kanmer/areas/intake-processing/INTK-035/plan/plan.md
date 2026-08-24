@@ -169,3 +169,46 @@ fixed — and breaks `ProcessIntake.IsDeferredForAutomation`, which keys off
 ## Simplification pass
 
 _(dated heading added below before the PR)_
+
+## Simplification pass — 2026-08-24
+
+Run over this branch's own diff against its base `task/intk-033-triage-from-intake`:
+my own four lenses first, then an independent `code-simplifier` pass told the
+project rules and the load-bearing constraints.
+
+### Applied
+
+| # | Lens | Finding | Disposition |
+| --- | --- | --- | --- |
+| 1 | Efficiency | The Triage lookup was issued on **every** receipt page load, including the overwhelming majority that could never have a Triage. | **Applied.** Gated on `ProcessIntake.IsTriageRequest(Receipt)` first — a Triage only ever opens from a receipt the accepted route classified as one, so `Triage is not null ⇒ IsTriageRequest`, and the gate is behaviour-preserving. Mirrors the "cheapest discriminator first" reasoning already written into `ReconcileUnidentifiedDestinations`. |
+| 2 | Altitude | The three gate clauses were inline in `LoadReceiptAsync`, unlike the sibling image-intake load. | **Applied.** Extracted `LoadTriageAsync`, matching `LoadImageIntakeAsync` beside it. |
+| 3 | Simplification | `receipt.Evidence.Where(…).Take(2).SingleOrDefault()` — `Take(2)` buys nothing, since `SingleOrDefault(predicate)` already throws on the second match. | **Applied.** Collapsed to one `SingleOrDefault(predicate) ?? throw`. Four lines to two; same exception type, same handling by `ExecuteCommandAsync`, same operator message. The evidence stays the receipt's own instance, so `EfTriageStore`'s full-record-equality re-check is unaffected. |
+| 4 | Convention | `LoadTriageAsync` took `receipt` as a parameter while `LoadImageIntakeAsync` on the adjacent line read the `Receipt` property — two shapes for one job. | **Applied.** Reads `Receipt`, like its sibling. |
+| 5 | Tidy | Stray double blank line left beside the new properties. | **Applied.** |
+
+### Found and deliberately not applied
+
+| Finding | Honest reason |
+| --- | --- |
+| The new form panel writes `@Guid.NewGuid().ToString("N")` inline for its operation key, though the inherited `StaffPageModel.NewOperationKey()` exists and `_CaseHistory.cshtml` uses it. | **Not applied.** *Every* form panel in `Details.cshtml` does it inline. Changing only the new one makes the file less internally consistent; changing all of them is scope outside this branch. The new code follows the surrounding file correctly. The inconsistency is pre-existing and file-wide — not raised as a ticket, because it is cosmetic and file-local. |
+| The new test hoists `FormUrlEncodedContent` where the nearest analogue (`ImageIntakeWebTests.cs:34-44`, posting to the same page) hoists the token instead. | **Not applied.** Purely cosmetic, no readability gain, and the test file it lives in sets no competing local convention. |
+| The handler's "exactly one accepted Triage-match record" message restates a check `EfTriageStore.CreateAsync` also makes. | **Not applied.** The page must *select* the evidence in order to pass it, and `SingleOrDefault` enforces exactly-one as a by-product of that selection — not as a second copy of the rule. The store stays the authority; the page's message only reaches the log. |
+| `CloseUnidentifiedForTriageAsync`'s comment says it behaves "exactly as the suggestion bookkeeping below", which logs where the other stays silent. | **Not applied.** The claim is accurate about the *disposition* — advisory, non-blocking, sweep is the backstop — which is the point the comment makes. Logging is the better of the two behaviours. Reworded, the intent would be the thing lost. |
+| `ProcessIntake.IsTriageRequest` could move to the already-public `IntakeDecisionPolicy`, which this page already consults. | **Not applied.** The one-word widening is far the smaller change; moving the member would edit code outside this branch's diff and reassign ownership. That is a plan decision, not a simplification-pass one. Recorded here rather than silently dropped. |
+| `Pages/Triage/*.cshtml.cs` gate on a class-level `[Authorize(Roles = …)]` while this page and the Administration/Connect/Mcp surfaces call `StaffAuthorization.Require` — two authorization idioms for Triage mutations. | **Not applied.** Entirely pre-existing and outside this diff. Noted for the reviewer, not reconciled here. |
+
+### Bug hunt during the pass — three suspicions raised and disproved
+
+Recorded so the reviewer need not repeat them:
+
+1. **A double POST minting two Triages.** `operationKey` is fresh per render, so two renders defeat the replay guard. **Disproved:** past the replay check, `EfTriageStore.CreateAsync` runs a `Serializable` transaction and looks up `OriginReceiptId == … || (SourceChannel, ExternalReceiptToken) match`, returning the existing record. A second Triage per receipt is unreachable.
+2. **The staff path accepting evidence the automatic path pre-qualifies.** `EfTriageStore` does `acceptedMatch.MatcherKey!.Trim()` — a null-forgiving deref that would surface as a 500 rather than a handled fault. **Disproved:** `CreateTriageFromIntake.ExecuteAsync` calls `ValidateCreate` → `ValidateAcceptedMatchEvidence` first, which enforces Strong strength, a non-empty matcher key and a positive matcher version as `ArgumentException`/`ArgumentOutOfRangeException` — both caught by `ExecuteCommandAsync`. Fails closed with an operator error. The handler is right not to restate the qualification list; Core owns it.
+3. **Missing authorization.** `Pages/Intake/Details.cshtml.cs` carries no class-level `[Authorize]`, unlike `Pages/Triage/Details.cshtml.cs`. **Confirmed the explicit `StaffAuthorization.Require(actor, PerformCasework)` is necessary, not redundant** — and it is the convention the other non-attributed staff surfaces follow.
+
+No defect was found in this branch's diff.
+
+## Deviations from the plan as written
+
+- Step 2 planned to rename `LoadImageIntakeAsync` to `LoadReceiptDestinationsAsync` and load both destinations in it. **Not done:** a sibling `LoadTriageAsync` is the smaller and more honest change, and keeps the image-specific work (suggestions, prefill, candidates) out of a method whose name would no longer say so.
+- The plan did not mention showing the opened Triage. **Added:** a destination panel mirroring the existing Image-intake one, so the receipt page still leads somewhere after the action is taken and the button is gone. Labels and values only, no new copy.
+- No operator question arose. Every string added is a name — a section heading, a field label, a button, and one status line reusing `Pegasus.Web.Pages.Triage.IndexModel.StateLabel`, the existing single owner of the Triage state vocabulary.
