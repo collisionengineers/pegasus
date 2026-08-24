@@ -157,3 +157,48 @@ parameters rather than gaining a switch.
    `Inspection Address`. Both are pre-existing and JSON-semantically identical
    — `json.loads` of both files gives equal strings for every key — so neither
    is in ENG-014's scope. Noted for [[ENG-015]] if byte-parity is ever wanted.
+
+---
+
+## Addition — non-ASCII escaping (coordinator, 2026-08-24)
+
+Folded into the same `JsonWriterOptions`, so `WriteOrderedJson` now makes three
+explicit parity choices rather than two.
+
+The predecessor extractor dumps with `json.dumps(ordered, ensure_ascii=False,
+indent=2)`. `ensure_ascii=False` means non-ASCII is written as literal UTF-8;
+both retained samples carry raw non-ASCII bytes (a curly apostrophe and an
+en-dash in `Accident Circumstances`) and zero `\u` escapes. `Utf8JsonWriter`'s
+default `JavaScriptEncoder` escapes all non-ASCII plus `& < > + '`. So the
+writer diverged, invisibly, because `ap.QDOS26015`'s thirteen values are pure
+ASCII.
+
+`Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping`, with the justification
+recorded in the code comment and in the PR: the output is a file written to
+disk and dragged into a desktop application, never interpolated into HTML or
+JavaScript, so there is no markup context for the default encoder to protect.
+
+**Guard added:** `NonAsciiTravelsAsLiteralUtf8RatherThanEscapes` puts an
+accented name, a curly apostrophe, an en-dash and `& < > + '` through a real
+bundle and asserts the emitted bytes contain the literal UTF-8 and no `\u`
+sequence at all, and that it still parses back to the same string.
+
+### This upgraded the parity evidence
+
+Re-running the throwaway probe against both retained samples after the encoder
+change:
+
+| Sample | Result |
+| --- | --- |
+| `Final Format Example 02.json` | **Byte-for-byte identical** — 656 bytes, all 15 lines equal |
+| `AX_SP58WVO.json` | Identical but for one line — `CaseEvaMapping` strips that sample's trailing whitespace in `Inspection Address` |
+
+That retires finding 4 above: the escaping half is now fixed, and only the
+mapping-normalisation half remains, which is [[ENG-015]]'s territory rather
+than a packaging question.
+
+### Also in the same commit
+
+`IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema`
+asserts the committed migration list exactly; the new migration had to be added
+to it. CI caught this — it was the only real failure in the first run.
