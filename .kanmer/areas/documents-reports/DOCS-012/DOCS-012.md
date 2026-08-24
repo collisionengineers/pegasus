@@ -2,20 +2,27 @@
 id: DOCS-012
 type: ticket
 title: 'Show case evidence on the Evidence tab, not the document custody ledger'
-status: backlog
+status: implementing
 area: documents-reports
-assignee: ''
+assignee: claude-code
 profile: fix
+stageEntered:
+  preparing: '2026-08-24T11:05:39.970Z'
+taken_at: '2026-08-24T11:05:44.727Z'
+branch: task/docs-012-evidence-files
+worktree: ../pegasus-worktrees/docs-012-evidence-files
 labels:
   - found-during-qa
   - ui
   - design
 links: []
-docs_todo: true
+refs:
+  - docs/design/README.md
+  - docs/frd/frd-05-documents-extraction-and-custody.md
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:38.272Z'
-updated: '2026-08-24T09:56:57.069Z'
+updated: '2026-08-24T11:05:44.728Z'
 ---
 
 ## What the operator saw
