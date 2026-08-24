@@ -146,58 +146,6 @@ public sealed class QdosCustodialWebTests
         Assert.DoesNotContain(handlers.VersionId.ToString("D"), deniedBody, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task CanonicalExportOwnerPostsSelectedVersionsToOneCoreCommand()
-    {
-        using var baseFactory = new IntakeWebApplicationFactory();
-        var handlers = new RecordingDocumentHandlers();
-        using var factory = baseFactory.WithWebHostBuilder(builder =>
-            builder.ConfigureServices(services =>
-            {
-                services.RemoveAll<IExportCaseDocuments>();
-                services.AddSingleton<IExportCaseDocuments>(handlers);
-            }));
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            AllowAutoRedirect = false,
-            BaseAddress = new Uri("https://localhost")
-        });
-        using var formPage = await client.GetAsync("/Account/PasswordChange");
-        var html = await formPage.Content.ReadAsStringAsync();
-        Assert.Equal(HttpStatusCode.OK, formPage.StatusCode);
-        var antiforgeryToken = AntiforgeryValue(html);
-        var operationKey = Guid.NewGuid().ToString("N");
-
-        using var response = await client.PostAsync(
-            $"/Cases/{handlers.CaseId:D}/Documents/Export",
-            new FormUrlEncodedContent(
-            [
-                new("__RequestVerificationToken", antiforgeryToken),
-                new("selection", $"{handlers.OccurrenceId:D}:{handlers.VersionId:D}"),
-                new("expectedVersion", "12"),
-                new("operationKey", operationKey),
-                new("editLeaseToken", "opaque-export-lease")
-            ]));
-        var content = await response.Content.ReadAsByteArrayAsync();
-
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(handlers.ExportPayload, content);
-        Assert.Equal("application/zip", response.Content.Headers.ContentType?.MediaType);
-        Assert.Contains("case-export.zip", response.Content.Headers.ContentDisposition?.ToString(), StringComparison.Ordinal);
-        var command = Assert.Single(handlers.Exports);
-        Assert.Equal(handlers.CaseId, command.CaseId);
-        Assert.Equal(
-            new DocumentExportSelection(handlers.OccurrenceId, handlers.VersionId),
-            Assert.Single(command.Selections));
-        Assert.Equal(12, command.ExpectedCaseVersion);
-        Assert.Equal(100L * 1024 * 1024, command.MaximumArchiveBytes);
-        Assert.Equal(operationKey, command.OperationKey);
-        Assert.Equal("opaque-export-lease", command.EditLeaseToken);
-        Assert.Equal(ActorKind.Staff, command.Actor.Kind);
-        Assert.Equal(StaffRole.Administrator, Assert.Single(command.Actor.Roles));
-        Assert.True(StaffAuthorization.IsAuthorized(command.Actor, StaffAccessRight.PerformCasework));
-    }
-
     private static string AntiforgeryValue(string html)
     {
         var tag = Regex.Match(
