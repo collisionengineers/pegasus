@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -743,14 +744,33 @@ public static class EvaBundleSchema
     private static byte[] WriteOrderedJson(EvaReplayFields fields)
     {
         using var stream = new MemoryStream();
-        // Indented, and with the newline pinned rather than left to
-        // JsonWriterOptions' default of Environment.NewLine: the archive's
-        // SHA-256 is the revision InputFingerprint, so a writer whose bytes
-        // depend on the host OS is not the replay-identical bundle this type
-        // promises. CRLF is what all three known-good EVA samples use.
+        // Three explicit choices, all of them parity with what EVA accepts.
+        //
+        // Indented, two spaces, which is what every known-good sample uses.
+        //
+        // NewLine pinned rather than left to JsonWriterOptions' default of
+        // Environment.NewLine: the archive's SHA-256 is the revision
+        // InputFingerprint, so a writer whose bytes depend on the host OS is
+        // not the replay-identical bundle this type promises. CRLF is also
+        // what all three known-good samples use.
+        //
+        // UnsafeRelaxedJsonEscaping because the predecessor extractor -- the
+        // one whose output EVA actually accepts -- dumps with
+        // ensure_ascii=False, so non-ASCII travels as literal UTF-8. The
+        // default JavaScriptEncoder would escape it, and & < > + ' besides,
+        // as \uXXXX. The name is about HTML/JS embedding: this is a file
+        // written to disk and dragged into a desktop application, never
+        // interpolated into markup, so that escaping buys nothing here and
+        // costs the parity. A claimant name with an accent, or the en-dash
+        // QDOS letters demonstrably use, would otherwise diverge.
         using (var writer = new Utf8JsonWriter(
             stream,
-            new JsonWriterOptions { Indented = true, NewLine = "\r\n" }))
+            new JsonWriterOptions
+            {
+                Indented = true,
+                NewLine = "\r\n",
+                Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+            }))
         {
             writer.WriteStartObject();
             foreach (var field in OrderedFields(fields))
