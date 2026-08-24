@@ -4,10 +4,13 @@ type: ticket
 title: >-
   Refuse Review for a case with no images instead of asserting its images are
   complete
-status: backlog
+status: implementing
 area: case-reference-workflow
-assignee: ''
+assignee: claude-code
 profile: fix
+taken_at: '2026-08-24T08:53:04.274Z'
+branch: task/case-021-observed-images
+worktree: ../pegasus-worktrees/case-021-observed-images
 labels:
   - qdos26013
   - production-defect
@@ -18,7 +21,7 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:18:20.008Z'
-updated: '2026-08-23T15:18:20.008Z'
+updated: '2026-08-24T08:53:04.274Z'
 ---
 
 ## What the operator saw
