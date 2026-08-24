@@ -35,7 +35,7 @@
 - [x] Update operator notes and FRD-07 to the one-Review/one-Export rule
 - [x] Update capabilities/current architecture and remove stale custody/accepted-only claims
 - [x] Keep the ADR-0030 direct pre-cutover migration with no rollback compatibility machinery
-- [ ] Update the post-implementation report and PR description
+- [x] Update the post-implementation report and PR description
 - [x] Record the required simplification pass and dispositions
 
 ## Tests and proof
@@ -47,7 +47,8 @@
 - [x] Tests prove package shape, history, proxy and replay semantics
 - [x] Run locked restore and Release build
 - [x] Run focused Core and Integration suites
-- [ ] Complete the full non-corpus suite on the final build
+- [x] Complete the full non-corpus suite
 - [x] Run `git diff --check` and scope audit
-- [ ] Push normally and obtain green CI on the final head
+- [x] Push normally
+- [ ] Obtain green CI on the final head
 - [ ] Hand off for independent Kanmer review
