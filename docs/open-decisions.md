@@ -1,4 +1,4 @@
-# Open decisions
+﻿# Open decisions
 
 This is the sole register of material unresolved decisions. Most product decisions reviewed through 2026-07-25 are not reopened here. The [requirements](prd/README.md) and [capability inventory](capabilities.md) own scope context; deliberately deferred, conditional, and `Unclear` capabilities are not current-scope questions merely because their activation evidence is recorded here.
 
@@ -164,14 +164,20 @@ The available evidence establishes review-visible uncertainty, but not an
 accepted numeric confidence score, threshold, or alternative confidence
 display. None should be inferred.
 
-The QDOS intake-to-Triage matcher remains the inactive
-`NoAcceptedIntakeTriageMatcher`: the downstream behavior is complete (accepted
-match evidence creates exactly one replay-safe Triage and multiple matches fail
-closed), so only the match predicates are missing. Activation needs the named
-predicates, exclusions, and ambiguity outcome accepted under this section, and
-is a deliberate change to a named, versioned matcher — the Production
-composition test pins the inactive matcher so it can never be activated as a
-side effect of composition.
+The QDOS intake-to-Triage question is **closed** (operator decision
+2026-08-23, INTK-033). It waited only on the match predicates, and those are now
+accepted, named, and versioned as the route's own classification predicates:
+`body.triage-only-request` and `subject.engineer-triage` in
+`qdos_mail_classification` v4, with their exclusions (case-exact generated
+tells; the subject tell anchored past any forward or reply prefix) and their
+ambiguity outcome (two matching categories are the recorded Ambiguous outcome
+and open no Triage). Recognising them is one owner's job, and FRD-03 names that
+owner as the accepted route classification policy, so the separate
+`IIntakeTriageMatcher` — whose only implementation was ever the inactive one —
+is retired rather than filled in. Activation stays deliberate: the Production
+composition test now pins the active classification policy, its key and its
+version, so the trigger can neither change nor disappear as a side effect of
+composition.
 
 The QDOS-direct automatic incoming-case matching predicates and their
 conservative outcomes are accepted and owned by

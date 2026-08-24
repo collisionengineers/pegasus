@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 
@@ -543,32 +543,6 @@ public interface IInstructionExtractionPolicy
         DateTimeOffset processedAtUtc,
         EstablishedPrincipalContext principalContext);
 }
-public sealed record IntakeTriageMatch(
-    IntakeEvidenceSource Source,
-    string Signal,
-    string Detail,
-    string MatcherKey,
-    int MatcherVersion);
-
-public interface IIntakeTriageMatcher
-{
-    IReadOnlyList<IntakeTriageMatch> Match(
-        IntakeSourceReadResult readResult,
-        InstructionDraft draft);
-}
-
-public sealed class NoAcceptedIntakeTriageMatcher : IIntakeTriageMatcher
-{
-    public IReadOnlyList<IntakeTriageMatch> Match(
-        IntakeSourceReadResult readResult,
-        InstructionDraft draft)
-    {
-        ArgumentNullException.ThrowIfNull(readResult);
-        ArgumentNullException.ThrowIfNull(draft);
-        return [];
-    }
-}
-
 public interface IIntakeSourceReader
 {
     Task<IntakeSourceReadResult> ReadAsync(IntakeSource source, CancellationToken cancellationToken);

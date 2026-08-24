@@ -1,4 +1,4 @@
-# FRD-03: Triage
+﻿# FRD-03: Triage
 
 ## Boundary with Unidentified
 
@@ -14,6 +14,16 @@ Unidentified with its canonical reason.
 ### Normal workflow and completion evidence
 
 Triage begins when the exact accepted route policy classifies a provider request as an assessment request or an authorised staff member manually classifies safely retained, attributable material as Triage. Manual classification records the source, available route evidence, actor, time, reason, and policy version; it neither invents Principal identity nor creates a Case. Material whose route or category remains unaccepted stays `Needs sorting` and never becomes Triage or a Case by fallback. A Triage request stays separate pre-Case work: without a VRM it remains `Needs sorting`; with a VRM it opens as `Open`, may move to `Awaiting information`, records an accepted finding as `Finding recorded`, and reaches `Completed` only after the required response evidence is confirmed. An acknowledgement, request for information, Draft, queue action, or other correspondence may be retained but is not itself a finding or completion evidence.
+
+Automatic creation from intake follows exactly that rule and adds nothing to it.
+When the accepted route classification records a received message as a Triage request,
+processing does not treat it as an instruction: it is pre-case work, no case is
+allocated from it, and the accepted route classification decision is itself the accepted
+Triage-match evidence — the same route policy the paragraph above names, with its policy
+key and version stamped on the record. A known vehicle registration opens the Triage as
+`Open`; no known registration registers the material as Unidentified with its canonical
+reason and opens no Triage, until a registration is known. A message whose classification
+is the recorded Ambiguous outcome is neither: it opens no Triage and reaches staff.
 
 Triage records have the states `Open`, `Awaiting information`, `Finding recorded`, `Completed`, and `Cancelled`.
 

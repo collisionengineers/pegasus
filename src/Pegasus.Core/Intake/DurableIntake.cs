@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -494,7 +494,7 @@ public sealed class ProcessQueuedIntake(
                 cancellationToken);
             var replayAllocated =
                 replayAllocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-            await CreateTriageIfQualifyingAsync(
+            var replayTriageCreated = await CreateTriageIfQualifyingAsync(
                 completedReceipt,
                 completedEvaluation,
                 cancellationToken);
@@ -514,7 +514,10 @@ public sealed class ProcessQueuedIntake(
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
             }
 
-            await SynchronizeUnidentifiedAsync(completedReceipt, cancellationToken);
+            await SynchronizeUnidentifiedAsync(
+                completedReceipt,
+                replayTriageCreated,
+                cancellationToken);
             return QueuedIntakeProcessingOutcome.NoOp;
         }
 
@@ -615,7 +618,7 @@ public sealed class ProcessQueuedIntake(
             evaluation.Id,
             cancellationToken);
         var allocated = allocation?.State.Status == IntakeAllocationProjectionStatus.Succeeded;
-        await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
+        var triageCreated = await CreateTriageIfQualifyingAsync(processed, evaluation, cancellationToken);
         if (allocated)
         {
             // Allocation wrote CurrentCaseId durably; image automation must
@@ -630,7 +633,7 @@ public sealed class ProcessQueuedIntake(
             return QueuedIntakeProcessingOutcome.RetryScheduled;
         }
 
-        await SynchronizeUnidentifiedAsync(processed, cancellationToken);
+        await SynchronizeUnidentifiedAsync(processed, triageCreated, cancellationToken);
         return QueuedIntakeProcessingOutcome.Completed;
     }
 
@@ -692,6 +695,10 @@ public sealed class ProcessQueuedIntake(
     ///   deliberately skipped by <c>ProcessIntake</c> so automation could
     ///   resolve it first; register it now so it is never silently absent
     ///   from both the Image Intake and Unidentified queues.
+    /// - A Triage request that opened no Triage was skipped by
+    ///   <c>ProcessIntake</c> for the same reason; it opened none because no
+    ///   vehicle registration is known yet, which is exactly the operator's
+    ///   condition for holding it in Unidentified (INTK-033).
     /// - A receipt that already carries an open Unidentified item but now
     ///   has a different, resolved outcome (a Case now exists, or image
     ///   automation registered an Image Intake) is stale in the open queue;
@@ -699,11 +706,13 @@ public sealed class ProcessQueuedIntake(
     /// </summary>
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
+        bool triageCreated,
         CancellationToken cancellationToken)
     {
         if (registerUnidentified is not null
             && receipt.Decision == IntakeDecision.NeedsSorting
-            && Pegasus.Core.ImageIntake.ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt))
+            && (Pegasus.Core.ImageIntake.ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+                || (ProcessIntake.IsTriageRequest(receipt) && !triageCreated)))
         {
             try
             {
@@ -890,7 +899,13 @@ public sealed class ProcessQueuedIntake(
             ? "artifact_retention_failure"
             : "intake_processing_failure";
 
-    private async Task CreateTriageIfQualifyingAsync(
+    /// <summary>
+    /// Opens the Triage when the accepted route classified the message as a
+    /// Triage request and a vehicle registration is known, and reports whether
+    /// one now exists. The caller needs that answer: a Triage request with no
+    /// registration is the operator's Unidentified branch.
+    /// </summary>
+    private async Task<bool> CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
         IntakeEvaluationRevision evaluation,
         CancellationToken cancellationToken)
@@ -906,7 +921,7 @@ public sealed class ProcessQueuedIntake(
             || string.IsNullOrWhiteSpace(acceptedMatches[0].MatcherKey)
             || acceptedMatches[0].MatcherVersion is null or <= 0)
         {
-            return;
+            return false;
         }
 
         await createTriage.ExecuteAsync(
@@ -921,6 +936,7 @@ public sealed class ProcessQueuedIntake(
                 SystemActor,
                 $"triage-from-intake-evaluation:{evaluation.Id:N}"),
             cancellationToken);
+        return true;
     }
 }
 

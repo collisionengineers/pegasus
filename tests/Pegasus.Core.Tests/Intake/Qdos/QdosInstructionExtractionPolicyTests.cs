@@ -752,6 +752,90 @@ public sealed class QdosInstructionExtractionPolicyTests
             draft.AccidentCircumstances);
     }
 
+    // The Triage subject template is the only QDOS shape whose registration
+    // exists nowhere but the subject, and QDOS writes it in two spacings
+    // (INTK-033). Both are real corpus subjects.
+    [Theory]
+    [InlineData(
+        "Engineer Triage - Our Claim Reference 46384/1 , Vehicle Registration YD14VGJ",
+        "YD14VGJ")]
+    [InlineData(
+        "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ",
+        "VO75DFJ")]
+    public void TheSubjectRegistrationLabelIsReadInEitherRecordedSpacing(
+        string subject,
+        string expected)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                subject,
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached images to determine if the vehicle is repairable.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(expected, Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+    }
+
+    [Fact]
+    public void TheRegistrationLabelIsNeverReadAsAVehicleDescription()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached images.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
+    }
+
+    [Fact]
+    public void ASubjectVehicleDescriptionIsStillReadWhenItIsNotTheRegistrationLabel()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "Client Mr Garry Mackenzie, Vehicle NISSAN QASHQAI N-TEC SH61WDY, Our Ref 45858_1",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached instruction.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("NISSAN", draft.VehicleMake);
+        Assert.Equal("SH61WDY", draft.VehicleRegistration);
+    }
+
+    [Fact]
+    public void TheExtractionPolicyNoLongerProducesTriageMatchEvidence()
+    {
+        // The accepted Triage match is derived from the route's own
+        // classification decision now, and there is exactly one owner of it
+        // (INTK-033).
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "Engineer Triage - Our Claim Reference 46384/1 , Vehicle Registration YD14VGJ",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Triage Only Request")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.DoesNotContain(
+            result.Evidence,
+            item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
+    }
+
     private static IntakeSourceReadResult ReadableWithSubject(
         string subject,
         params IntakeContentFragment[] content) =>

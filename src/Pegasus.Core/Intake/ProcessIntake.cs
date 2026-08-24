@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -300,6 +300,12 @@ public sealed class ProcessIntake(
     /// caller (<c>ProcessQueuedIntake</c>) registers it as Unidentified itself
     /// once that automation runs and confirms no confident registration was
     /// made, so that material is never silently dropped from both queues.
+    ///
+    /// A Triage request is deferred for exactly the same reason and by the
+    /// same caller: the operator's rule holds it in Unidentified only "until a
+    /// vehicle registration is known, then open the Triage", and Triage
+    /// creation runs after this hook. Registering here would give every Triage
+    /// request an Unidentified item it is about to stop deserving (INTK-033).
     /// </summary>
     internal static bool IsUnidentifiedEligible(IntakeReceipt receipt) =>
         receipt.Decision is IntakeDecision.NeedsSorting
@@ -307,7 +313,15 @@ public sealed class ProcessIntake(
             or IntakeDecision.OcrRequired
             or IntakeDecision.TechnicalFailure
         && !(receipt.Decision == IntakeDecision.NeedsSorting
-            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt));
+            && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt) || IsTriageRequest(receipt)));
+
+    /// <summary>
+    /// Whether the accepted route classified this receipt's message as a
+    /// Triage request. One reading of the recorded decision, so no surface
+    /// re-derives it from the taxonomy.
+    /// </summary>
+    internal static bool IsTriageRequest(IntakeReceipt receipt) =>
+        receipt.MailClassificationDecision is { IsTriageRequest: true };
 
     internal static RegisterUnidentifiedRequest BuildUnidentifiedRegistrationRequest(IntakeReceipt receipt) =>
         new(
@@ -518,11 +532,26 @@ public sealed class ProcessIntake(
             decision = IntakeDecision.NeedsSorting;
             reason = "Competing candidate cases match this message; the association requires manual sorting.";
         }
+        // A Triage request is pre-case work, and the accepted route policy has
+        // already said so. Left as CaseCreated it went to automatic allocation,
+        // which fails closed for want of a case type a Triage request correctly
+        // does not carry — producing no case, no Triage and no queue entry at
+        // all (INTK-033).
+        var triageMatch = AcceptedTriageMatchEvidence(mailClassificationDecision);
+        if (triageMatch is not null && decision == IntakeDecision.CaseCreated)
+        {
+            decision = IntakeDecision.NeedsSorting;
+            reason = "A Triage request is pre-case work; no case is created from it.";
+        }
+
+        IntakeEvidence[] evidence = triageMatch is null
+            ? [.. readerEvidence, .. policyResult.Evidence]
+            : [.. readerEvidence, .. policyResult.Evidence, triageMatch];
 
         return new(
             decision,
             reason,
-            [.. readerEvidence, .. policyResult.Evidence],
+            evidence,
             policyResult.Fields,
             policyResult.InstructionDraft,
             policyResult.MissingFields,
@@ -533,6 +562,45 @@ public sealed class ProcessIntake(
             mailRouteDecision,
             mailClassificationDecision,
             caseMatchDecision);
+    }
+
+    /// <summary>
+    /// The accepted Triage match, derived from the route's own classification
+    /// decision rather than from a separate matcher.
+    /// </summary>
+    /// <remarks>
+    /// FRD-03 says Triage begins when "the exact accepted route policy
+    /// classifies a provider request as an assessment request", and ADR-0008
+    /// makes that route policy the only owner of message-type classification.
+    /// A second matcher asking the same question was therefore a duplicate
+    /// owner, and the only implementation it ever had was the null one — so
+    /// the gate downstream could never pass and no Triage was ever created
+    /// from intake (INTK-033).
+    ///
+    /// The source is <see cref="IntakeEvidenceSource.SystemDefault"/> because
+    /// this finding is a policy judgement over the whole message, not a value
+    /// lifted from one part of it; which tell fired is carried precisely by
+    /// the detail and by the recorded classification decision itself.
+    /// </remarks>
+    private static IntakeEvidence? AcceptedTriageMatchEvidence(
+        MailClassificationResult? classification)
+    {
+        if (classification is not { IsTriageRequest: true })
+        {
+            return null;
+        }
+
+        var matched = string.Join(
+            ", ",
+            classification.Predicates.Where(predicate => predicate.Matched).Select(predicate => predicate.Key));
+        return new(
+            IntakeEvidenceSource.SystemDefault,
+            IntakeEvidenceStrength.Strong,
+            IntakeEvidenceFinding.AcceptedTriageMatch,
+            MailCategory.TriageRequestSubtype,
+            $"The accepted route classification recorded this message as a Triage request (predicates: {matched}).",
+            classification.PolicyKey,
+            classification.PolicyVersion);
     }
 
     private MailClassificationResult? EvaluateMailClassification(

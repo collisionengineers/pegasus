@@ -1,4 +1,4 @@
-using Pegasus.Core.AiWork;
+﻿using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -149,15 +149,12 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
         services.AddScoped<ReplaySentEmailEvidence>();
         services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
-        services.TryAddSingleton<IIntakeTriageMatcher, NoAcceptedIntakeTriageMatcher>();
         services.AddSingleton<IMailRoutePolicy, QdosMailRoutePolicy>();
         services.AddSingleton<IMailClassificationPolicy, QdosMailClassificationPolicy>();
         services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
-        services.AddSingleton<IInstructionExtractionPolicy>(provider =>
-            new QdosInstructionExtractionPolicy(
-                provider.GetRequiredService<IIntakeTriageMatcher>()));
+        services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 
         // Registered here rather than only in the Web composition root, because

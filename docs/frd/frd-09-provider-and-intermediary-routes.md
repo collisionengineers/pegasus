@@ -1,4 +1,4 @@
-# FRD-09: Provider and intermediary routes
+﻿# FRD-09: Provider and intermediary routes
 
 ## Unidentified route outcome
 
@@ -67,6 +67,30 @@ For mail on the accepted QDOS direct route only:
 2. **Match keys** (`qdos_case_match` v1), extracted label-anchored with a required separator, never scraped from free text: the claim reference normalized to its durable token (the `NNNNN/N` tail for `qdosassist` references, full or bare; the letters grammar for `qdoslaw` references), the client-vehicle registration compacted to `[A-Z0-9]` (TP-prefixed labels are never harvested), and the claimant name as title-stripped surname plus first initial. Multiple distinct values for one key withdraw that key. The incident date (labelled fields plus the generated subject `on DD/MM/YYYY`) is never a positive key.
 3. **Eliminator procedure.** Candidates are every QDOS case matching ANY key, in every lifecycle state (the operator confirmed staff do not archive; a post-report case is post-report stage). A candidate contradicted by the message's incident date or by another identity key present on both sides is eliminated. Exactly one survivor is an automatic association; zero is no match (instructions proceed to the normal creation gates); several fail closed as the recorded Ambiguous outcome, forcing `Needs sorting` with the competing candidates visible. A `Created in error` survivor redirects to its linked replacement case and is never associated itself. `NoKeys` remains distinguishable from `NoMatch`. No numeric confidence score, threshold, or display exists anywhere.
 4. **Recording and reversal.** Every evaluation persists a decision record (keys, per-candidate hits and eliminations with reasons, outcome, policy key and version) one-to-one with the intake receipt. An automatic association is written idempotently by the system-worker identity with the match policy stamped, no-ops when any active association exists, and is reversible through the ordinary staff unlink with full history.
+
+### Accepted QDOS automatic Triage predicates
+
+> Owner capability: TRI-01/TRI-02 (QDOS direct). Operator decision 2026-08-23 (INTK-033). Behaviour is owned by [FRD-03](frd-03-triage.md#normal-workflow-and-completion-evidence); this records which predicates were accepted and what they may not do.
+
+QDOS sends Triage requests in two disjoint generated templates, and both are accepted
+tells of the same one category (`qdos_mail_classification` v4): the body phrase
+`Triage Only Request`, and a subject opening with `Engineer Triage` past any forward or
+reply prefix. Both are matched case-exactly, because the casing is part of the generated
+tell — a human sentence mentioning either is not the tell. Two tells feed **one** triage
+candidate; a second candidate for one category would resolve to the Ambiguous outcome, so
+a message carrying both would classify worse than one carrying either.
+
+The classification decision is itself the accepted Triage-match evidence, stamped with
+that policy's key and version. There is no separate Triage matcher: message-type
+classification has one route-owned owner (ADR-0008), and FRD-03 names that owner as what
+begins a Triage. Exclusions and outcomes are the classification policy's own — more than
+one matching category is the recorded Ambiguous outcome and opens no Triage, and no
+numeric confidence score or threshold exists here either.
+
+The registration that decides FRD-03's branch is read by the ordinary label-anchored
+extraction: from the letter's `Registration:` line in the body template, and from the
+subject's `Vehicle Registration` label in the subject template, which states it nowhere
+else.
 
 This pulls the QDOS-direct subset of MAIL-09 forward to `Now / 0.1.0-alpha.1`. General multi-provider association, the classified-email workspace, and every other route's matchers remain allocated `Next / 0.3.0`.
 
