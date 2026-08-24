@@ -165,6 +165,44 @@ public sealed class EvaBundleContractTests
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.JsonContent)), bundle.JsonSha256);
     }
 
+    // The predecessor extractor whose output EVA accepts dumps with
+    // ensure_ascii=False, and both retained samples carry raw non-ASCII bytes
+    // and zero \u escapes. Utf8JsonWriter's DEFAULT encoder would escape every
+    // one of them -- and & < > + ' besides -- so without this the parity
+    // silently reverts the moment a real claimant name carries an accent or
+    // circumstances text carries the en-dash QDOS letters use.
+    [Fact]
+    public void NonAsciiTravelsAsLiteralUtf8RatherThanEscapes()
+    {
+        var source = Source();
+        const string awkward = "Mr André O’Sullivan-–Björk & Co <Ltd> + 'x'";
+        var bundle = EvaBundleSchema.CreateOfflineReplay(
+            source with
+            {
+                Fields = source.Fields with { ClaimantName = awkward },
+                Provenance = source.Provenance
+                    .Select(item => item.Name == "Claimant Name"
+                        ? item with { Value = awkward }
+                        : item)
+                    .ToArray()
+            },
+            Images());
+
+        var json = Encoding.UTF8.GetString(bundle.JsonContent);
+
+        Assert.Contains($"\"Claimant Name\": \"{awkward}\"", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("\\u", json, StringComparison.OrdinalIgnoreCase);
+
+        // Literal UTF-8 on the wire, not an escape sequence: the curly
+        // apostrophe and the en-dash are their own bytes in the file.
+        Assert.True(bundle.JsonContent.AsSpan().IndexOf("’"u8) >= 0);
+        Assert.True(bundle.JsonContent.AsSpan().IndexOf("–"u8) >= 0);
+
+        // Still valid JSON that round-trips to the value we put in.
+        using var parsed = JsonDocument.Parse(bundle.JsonContent);
+        Assert.Equal(awkward, parsed.RootElement.GetProperty("Claimant Name").GetString());
+    }
+
     [Fact]
     public void NonCurrentOrUnconfirmedImageVersionIsRejected()
     {
