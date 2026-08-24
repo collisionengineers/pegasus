@@ -1,4 +1,6 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
@@ -110,6 +112,18 @@ public sealed class CaseOperatorExportTests
         Assert.Equal(JsonValueKind.String, properties[10].Value.ValueKind);
         Assert.Equal(string.Empty, properties[10].Value.GetString());
         Assert.Equal("EVA-QDOS26011.zip", bundle.FileName);
+
+        // ENG-014: the export and the hand-off are one packaging, not two.
+        // Whatever the hand-off ships, this ships -- the indented JSON and
+        // Images/, with no companion file on either path.
+        using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
+        Assert.Equal(
+            ["EVA-QDOS26011.json", "Images/002 1_CLVoffside-V1.jpg"],
+            archive.Entries.Select(entry => entry.FullName));
+        Assert.StartsWith(
+            "{\n  \"Work Provider\": ",
+            Encoding.UTF8.GetString(bundle.JsonContent),
+            StringComparison.Ordinal);
     }
 
     private static EvaAcceptedCaseEvidence Evidence(
