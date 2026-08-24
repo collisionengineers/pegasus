@@ -7,13 +7,8 @@ public enum EvaEvidenceStatus
 {
     Suggested,
     Accepted,
-    Corrected,
 
-    /// <summary>
-    /// The case holds no value for this field at all. Only an operator export
-    /// can carry one (CASE-019); a hand-off refuses long before here, because
-    /// this is not an accepted status.
-    /// </summary>
+    /// <summary>The case holds no value for this field at all.</summary>
     Unrecorded
 }
 
@@ -29,18 +24,12 @@ public sealed record EvaEvidenceValue(
     string Source,
     string SourceVersion)
 {
-    public bool IsAccepted => Status is EvaEvidenceStatus.Accepted or EvaEvidenceStatus.Corrected;
+    public bool IsAccepted => Status is EvaEvidenceStatus.Accepted;
 }
 
 public sealed record EvaAddressResolution(
     EvaInspectionMode Mode,
-    EvaEvidenceValue Evidence)
-{
-    public bool IsResolved => Evidence.IsAccepted
-        && (Mode == EvaInspectionMode.ImageBasedAssessment
-            ? string.Equals(Evidence.Value, CaseEvaMapping.ImageBasedAssessment, StringComparison.Ordinal)
-            : !string.IsNullOrWhiteSpace(Evidence.Value));
-}
+    EvaEvidenceValue Evidence);
 
 public sealed record EvaAcceptedCaseEvidence(
     Guid CaseId,
@@ -98,20 +87,10 @@ public sealed record EvaOperatorExport(
     public bool IsReady => Source is not null && BlockingReasons.Count == 0;
 }
 
-public sealed record EvaMappingResult(
-    EvaBundleSource? Source,
-    IReadOnlyList<string> BlockingReasons)
-{
-    public EvaReplayFields? Fields => Source?.Fields;
-
-    public IReadOnlyList<EvaFieldProvenance> Provenance => Source?.Provenance ?? [];
-
-    public bool IsReady => Source is not null && BlockingReasons.Count == 0;
-}
-
 /// <summary>
-/// Maps only staff-accepted, source-versioned case evidence into the fixed EVA field shape.
-/// Suggested extraction and unresolved address evidence fail closed.
+/// Maps one case into the fixed thirteen-field EVA shape. Since ENG-016 there
+/// is one mapping and one act: an operator export. A field the case does not
+/// hold is emitted empty and named, never refused.
 /// </summary>
 public static partial class CaseEvaMapping
 {
@@ -145,20 +124,22 @@ public static partial class CaseEvaMapping
         "EVA hand-off is not switched on.";
 
     /// <summary>
-    /// Named source for an inspection date the case did not carry, so
-    /// provenance.json says where the value came from rather than implying the
-    /// instruction supplied it. Mirrors the existing "SystemDefault:Receipt
-    /// date" treatment of an absent instruction date.
+    /// Named source for an inspection date the case did not carry, so the
+    /// field's recorded provenance does not imply the instruction supplied it.
+    /// Mirrors the existing "SystemDefault:Receipt date" treatment of an absent
+    /// instruction date. It reaches no shipped file: since ENG-014 the archive
+    /// carries the thirteen-key JSON and Images/ only, and provenance is an
+    /// in-memory guard inside EvaBundleSchema.ValidateSource.
     /// </summary>
     public const string ExportDateSource = "SystemDefault:Export date";
 
     /// <summary>
-    /// Whether the EVA hand-off is switched on at all: the operator-accepted
-    /// mapping must be present and be exactly the mapping this code writes.
-    /// The one owner of that question — the mapping enforces it, and the
-    /// operator surface reads it to decide whether an EVA panel is
-    /// meaningful to show (PLAT-031). Enforcement never depends on the
-    /// display: an unaccepted mapping still fails closed here.
+    /// Whether the EVA field mapping is switched on at all: the
+    /// operator-accepted mapping must be present and be exactly the mapping
+    /// this code writes. The one owner of that question, and the only thing
+    /// that can block an export. <see cref="ActivationGateReason"/> keeps its
+    /// existing operator-facing wording: message text is a closed,
+    /// operator-approved list, not this ticket's to reword.
     /// </summary>
     public static bool IsSwitchedOn(EvaMappingAcceptance acceptance)
     {
@@ -168,54 +149,17 @@ public static partial class CaseEvaMapping
             && !string.IsNullOrWhiteSpace(acceptance.EvidenceReference);
     }
 
-    public static EvaMappingResult MapForProduction(
-        EvaAcceptedCaseEvidence evidence,
-        EvaMappingAcceptance acceptance)
-    {
-        ArgumentNullException.ThrowIfNull(evidence);
-        ArgumentNullException.ThrowIfNull(acceptance);
-
-        var reasons = ValidateAcceptedEvidence(evidence).ToList();
-        if (!IsSwitchedOn(acceptance))
-        {
-            reasons.Insert(0, ActivationGateReason);
-        }
-
-        var blockingReasons = reasons.ToArray();
-        if (blockingReasons.Length != 0)
-        {
-            return new(null, blockingReasons);
-        }
-
-        var fields = RequiredMappedFields(evidence).ToArray();
-        return new(new(
-            ToReplayFields(fields),
-            fields
-                .Select(field => new EvaFieldProvenance(
-                    field.Name,
-                    NormalizedValue(field)!,
-                    field.Value.Status,
-                    field.Value.Source.Trim(),
-                    field.Value.SourceVersion.Trim()))
-                .ToArray(),
-            MappingKey,
-            MappingVersion,
-            acceptance.EvidenceReference!.Trim()), []);
-    }
-
     /// <summary>
-    /// Maps a case for an operator's own export of it (CASE-019).
+    /// Maps a case for the operator's export of it (CASE-019) — since ENG-016
+    /// the only mapping, because there is only one act.
     ///
-    /// This is not the hand-off. <see cref="MapForProduction"/> guards delivery
-    /// to EVA and fails closed on anything short of accepted, provenanced
-    /// evidence for all thirteen fields — that bar is unchanged and still the
-    /// only thing a hand-off can pass. An operator downloading their own case
-    /// is a different act: they are entitled to the file even when the case is
-    /// still missing something, so a gap is reported rather than refused.
+    /// It had a sibling, <c>MapForProduction</c>, which guarded EVA delivery
+    /// and failed closed on anything short of accepted, provenanced evidence
+    /// for all thirteen fields. Collapsing two acts into one means one bar, and
+    /// the operator chose this one (2026-08-22): *"A blank field does not block
+    /// the download."* The fail-closed guard was deleted, not merged.
     ///
-    /// Three differences, and no others. The field set, its order and its
-    /// normalization are shared with the hand-off, so the archive an operator
-    /// downloads is the same shape EVA would receive:
+    /// The rules, all of them:
     ///
     /// 1. Only an unaccepted mapping blocks. Nothing about the case does.
     /// 2. A missing inspection date becomes <paramref name="today"/>, per
@@ -307,44 +251,6 @@ public static partial class CaseEvaMapping
             NormalizeValue(fields.VatStatus),
             NormalizeValue(fields.Mileage),
             NormalizeValue(fields.MileageUnit));
-    }
-
-    private static IEnumerable<string> ValidateAcceptedEvidence(EvaAcceptedCaseEvidence evidence)
-    {
-        if (evidence.CaseId == Guid.Empty || !evidence.CaseAccepted)
-        {
-            yield return "The case has not been accepted.";
-        }
-
-        if (evidence.CaseVersion < 0)
-        {
-            yield return "The accepted case version is invalid.";
-        }
-
-        if (!evidence.InstructionComplete || !evidence.ImagesComplete)
-        {
-            yield return "Completeness has not been confirmed.";
-        }
-
-        if (!evidence.Inspection.IsResolved)
-        {
-            yield return "The inspection address or exact Image Based Assessment mode is unresolved.";
-        }
-
-        foreach (var field in RequiredMappedFields(evidence))
-        {
-            if (!field.Value.IsAccepted || string.IsNullOrWhiteSpace(field.Value.Value))
-            {
-                yield return $"{field.Name} does not have accepted evidence.";
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(field.Value.Source)
-                || string.IsNullOrWhiteSpace(field.Value.SourceVersion))
-            {
-                yield return $"{field.Name} accepted evidence lacks source/version provenance.";
-            }
-        }
     }
 
     private static IEnumerable<(string Name, EvaEvidenceValue Value)> RequiredMappedFields(

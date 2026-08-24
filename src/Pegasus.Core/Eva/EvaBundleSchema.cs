@@ -50,177 +50,16 @@ public sealed record EvaBundle(
     string JsonSha256,
     string FileName);
 
-public sealed record EvaHandoffImageOption(
-    Guid OccurrenceId,
-    Guid DocumentId,
-    Guid VersionId,
-    int Version,
-    string FileName,
-    string MediaType,
-    long ContentLength,
-    string Sha256,
-    DocumentSource Source,
-    string SourceOccurrenceIdentity,
-    int Ordinal = 0);
-
-public sealed record EvaHandoffRevisionSummary(
-    int Revision,
-    string FileName,
-    string BundleSha256,
-    string JsonSha256,
-    DateTimeOffset GeneratedAtUtc,
-    string GeneratedBy,
-    bool EstablishedFirstSentToEngineerProxy);
-
-public sealed record EvaHandoffRevisionArtifact(
-    int Revision,
-    string FileName,
-    byte[] Content,
-    string BundleSha256)
-{
-    public const string MediaType = "application/zip";
-
-    public long ContentLength => Content.LongLength;
-}
-
-public sealed record EvaHandoffPreparation(
-    Guid CaseId,
-    long CaseVersion,
-    string Reference,
-    IReadOnlyList<EvaHandoffImageOption> Images,
-    IReadOnlyList<EvaHandoffRevisionSummary> Revisions,
-    DateTimeOffset? FirstSentToEngineerAtUtc,
-    IReadOnlyList<string> BlockingReasons,
-    bool HandOffSwitchedOn = false)
-{
-    public bool CanGenerate => BlockingReasons.Count == 0;
-
-    /// <summary>
-    /// Whether an operator has anything to act on here. With the hand-off
-    /// switched off there is nothing to generate and nothing they can do
-    /// about it, so the surface says nothing rather than reporting a blocker
-    /// against a capability that is not turned on — but any hand-off already
-    /// generated keeps its place (PLAT-031).
-    /// </summary>
-    public bool IsWorthShowing => HandOffSwitchedOn || Revisions.Count > 0;
-}
-
-public sealed record GenerateEvaHandoffRequest(
-    Guid CaseId,
-    long ExpectedCaseVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken);
-
-public enum GenerateEvaHandoffOutcome
-{
-    Generated,
-    Blocked,
-    Conflict,
-    NotFound
-}
-
-public sealed record GenerateEvaHandoffResult(
-    GenerateEvaHandoffOutcome Outcome,
-    EvaBundle? Bundle,
-    IReadOnlyList<string> Reasons,
-    int? Revision = null,
-    bool FirstSentToEngineerRecorded = false);
-
-public interface IEvaHandoffQueries
-{
-    Task<EvaHandoffPreparation?> GetPreparationAsync(
-        Guid caseId,
-        CancellationToken cancellationToken = default);
-
-    Task<EvaHandoffRevisionArtifact?> GetRevisionAsync(
-        Guid caseId,
-        int revision,
-        ActionActor actor,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IGenerateEvaHandoff
-{
-    Task<GenerateEvaHandoffResult> ExecuteAsync(
-        GenerateEvaHandoffRequest request,
-        CancellationToken cancellationToken = default);
-}
-
-public interface IEvaHandoffPersistence
-{
-    Task<GenerateEvaHandoffResult> GenerateAsync(
-        GenerateEvaHandoffRequest request,
-        string requestHash,
-        EvaHandoffPolicyAuthority policy,
-        CancellationToken cancellationToken);
-
-    Task<DownloadEvaHandoffResult> DownloadAsync(
-        DownloadEvaHandoffRequest request,
-        string normalizedReason,
-        string requestHash,
-        EvaHandoffPolicyAuthority policy,
-        CancellationToken cancellationToken);
-}
-
-public sealed class GenerateEvaHandoff(IEvaHandoffPersistence persistence) : IGenerateEvaHandoff
-{
-    public Task<GenerateEvaHandoffResult> ExecuteAsync(
-        GenerateEvaHandoffRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedReason = EvaHandoffCommandPolicy.ValidateActorAndCommand(
-            request.CaseId,
-            request.ExpectedCaseVersion,
-            request.Actor,
-            request.OperationKey,
-            request.Reason,
-            request.EditLeaseToken);
-        var normalized = request with
-        {
-            OperationKey = request.OperationKey.Trim(),
-            Reason = normalizedReason,
-            EditLeaseToken = request.EditLeaseToken.Trim()
-        };
-        return persistence.GenerateAsync(
-            normalized,
-            EvaHandoffCommandPolicy.GenerationRequestHash(normalized),
-            EvaHandoffPolicyAuthority.Core,
-            cancellationToken);
-    }
-}
-
-public sealed record DownloadEvaHandoffRequest(
-    Guid CaseId,
-    int Revision,
-    long ExpectedCaseVersion,
-    ActionActor Actor,
-    string OperationKey,
-    string Reason,
-    string EditLeaseToken);
-
-public enum DownloadEvaHandoffOutcome
-{
-    Prepared,
-    Replay,
-    Conflict,
-    Refused,
-    NotFound
-}
-
-public sealed record DownloadEvaHandoffResult(
-    DownloadEvaHandoffOutcome Outcome,
-    EvaHandoffRevisionArtifact? Artifact,
-    string Message);
-
 /// <summary>
-/// CASE-019: an operator's own download of a case, as the EVA-format archive.
+/// CASE-019, ENG-016: the operator's export of a case as the EVA-format
+/// archive. Since ENG-016 it is the only act that produces the package, and
+/// its first success on a case records the once-per-case
+/// <c>First sent to Engineer</c> proxy.
 ///
-/// Deliberately not a hand-off. It takes no case version, no operation key and
-/// no edit lease, because it changes nothing: no revision is recorded, no
-/// first-hand-off proxy is written, and the case version does not move. It is
-/// a read that answers with a file, like a document download.
+/// It still takes no case version, no operation key and no edit lease: it is
+/// not a case mutation and the case version does not move. What it does write
+/// is one row in <c>EvaFirstHandoffProxies</c>, whose primary key on the case
+/// is what makes "first success only" literal.
 /// </summary>
 public sealed record ExportCaseBundleRequest(Guid CaseId, ActionActor Actor);
 
@@ -238,136 +77,6 @@ public interface IExportCaseBundle
         ExportCaseBundleRequest request,
         CancellationToken cancellationToken = default);
 }
-
-public interface IDownloadEvaHandoff
-{
-    Task<DownloadEvaHandoffResult> ExecuteAsync(
-        DownloadEvaHandoffRequest request,
-        CancellationToken cancellationToken = default);
-}
-
-public sealed class DownloadEvaHandoff(IEvaHandoffPersistence persistence) : IDownloadEvaHandoff
-{
-    public Task<DownloadEvaHandoffResult> ExecuteAsync(
-        DownloadEvaHandoffRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        if (request.Revision <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(request));
-        }
-        var normalized = EvaHandoffCommandPolicy.ValidateActorAndCommand(
-            request.CaseId,
-            request.ExpectedCaseVersion,
-            request.Actor,
-            request.OperationKey,
-            request.Reason,
-            request.EditLeaseToken,
-            humanOnly: true);
-        var material = JsonSerializer.Serialize(new
-        {
-            schemaVersion = 1,
-            request.CaseId,
-            request.Revision,
-            request.ExpectedCaseVersion,
-            actorKind = request.Actor.Kind.ToString(),
-            request.Actor.SubjectId,
-            roles = request.Actor.Roles.OrderBy(value => value).Select(value => value.ToString()).ToArray(),
-            operationKey = request.OperationKey.Trim(),
-            reason = normalized,
-            leaseToken = request.EditLeaseToken.Trim()
-        });
-        var requestHash = Hash(Encoding.UTF8.GetBytes(material));
-        return persistence.DownloadAsync(
-            request, normalized, requestHash, EvaHandoffPolicyAuthority.Core, cancellationToken);
-    }
-
-    private static string Hash(ReadOnlySpan<byte> content) =>
-        Convert.ToHexString(SHA256.HashData(content)).ToLowerInvariant();
-}
-
-public static class EvaHandoffCommandPolicy
-{
-    public static string GenerationRequestHash(GenerateEvaHandoffRequest request)
-    {
-        ArgumentNullException.ThrowIfNull(request);
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        Append(hash, "generate-eva-handoff/v1");
-        Append(hash, request.CaseId.ToString("D"));
-        Append(hash, request.ExpectedCaseVersion.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        Append(hash, request.Actor.Kind.ToString());
-        Append(hash, request.Actor.SubjectId);
-        foreach (var role in request.Actor.Roles.OrderBy(role => role))
-        {
-            Append(hash, role.ToString());
-        }
-        Append(hash, request.Reason);
-        Append(hash, Convert.ToHexString(
-            SHA256.HashData(Encoding.UTF8.GetBytes(request.EditLeaseToken))).ToLowerInvariant());
-        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
-    }
-
-    private static void Append(IncrementalHash hash, string value)
-    {
-        var bytes = Encoding.UTF8.GetBytes(value);
-        Span<byte> length = stackalloc byte[sizeof(int)];
-        BinaryPrimitives.WriteInt32BigEndian(length, bytes.Length);
-        hash.AppendData(length);
-        hash.AppendData(bytes);
-    }
-
-    public static string ValidateActorAndCommand(
-        Guid caseId,
-        long expectedCaseVersion,
-        ActionActor actor,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        bool humanOnly = false)
-    {
-        ArgumentNullException.ThrowIfNull(actor);
-        if (humanOnly && actor.Kind != ActorKind.Staff)
-        {
-            throw new StaffAuthorizationException(StaffAccessRight.PerformCasework);
-        }
-        if (actor.Kind != ActorKind.Automation)
-        {
-            StaffAuthorization.Require(actor, StaffAccessRight.PerformCasework);
-        }
-        if (caseId == Guid.Empty || expectedCaseVersion < 0)
-        {
-            throw new ArgumentException("A current Case and rendered workflow version are required.");
-        }
-        _ = Required(operationKey, 100, nameof(operationKey));
-        _ = Required(editLeaseToken, 200, nameof(editLeaseToken));
-        return Required(reason, 500, nameof(reason));
-    }
-
-    private static string Required(string? value, int maximumLength, string parameterName)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            throw new ArgumentException("A value is required.", parameterName);
-        }
-        var normalized = value.Trim();
-        if (normalized.Length > maximumLength || normalized.Any(char.IsControl))
-        {
-            throw new ArgumentException("The value is invalid.", parameterName);
-        }
-        return normalized;
-    }
-}
-
-public sealed record EvaHandoffEligibility(
-    CaseLifecycleState State,
-    bool IsArchived,
-    long RenderedWorkflowVersion,
-    long AcceptedEvidenceVersion,
-    bool CaseCustodyConfirmed,
-    bool AuditRequired,
-    bool AuditCustodyConfirmed,
-    bool MappingAccepted,
-    int EligibleImageCount);
 
 public sealed record EvaHandoffImageCandidate(
     Guid OccurrenceId,
@@ -387,73 +96,9 @@ public sealed record EvaHandoffImageCandidate(
     bool IsThirdPartyVehicle,
     int Ordinal);
 
-public sealed record EvaHandoffRevisionDecision(
-    bool ReuseExisting,
-    int BusinessRevision,
-    bool RecordFirstProxy);
-
-public enum EvaOperationReplayDecision
-{
-    New,
-    Replay,
-    Conflict
-}
-
-/// <summary>
-/// Capability passed by the Core use cases to persistence. Infrastructure may
-/// load state and apply transitions, but cannot manufacture policy authority.
-/// </summary>
-public sealed class EvaHandoffPolicyAuthority
-{
-    private readonly Func<EvaHandoffEligibility, IReadOnlyList<string>> evaluate;
-    private readonly Func<IEnumerable<EvaHandoffImageCandidate>, IReadOnlyList<EvaHandoffImageCandidate>> selectImages;
-    private readonly Func<int?, int, bool, EvaHandoffRevisionDecision> decideRevision;
-    private readonly Func<long, long, string?> renderedVersionConflict;
-
-    private EvaHandoffPolicyAuthority()
-    {
-        evaluate = EvaHandoffPolicy.Evaluate;
-        selectImages = EvaHandoffPolicy.SelectEligibleImages;
-        decideRevision = EvaHandoffPolicy.DecideRevision;
-        renderedVersionConflict = EvaHandoffPolicy.RenderedVersionConflict;
-    }
-
-    public static EvaHandoffPolicyAuthority Core { get; } = new();
-
-    public IReadOnlyList<string> Evaluate(EvaHandoffEligibility eligibility) =>
-        evaluate(eligibility);
-
-    public IReadOnlyList<EvaHandoffImageCandidate> SelectEligibleImages(
-        IEnumerable<EvaHandoffImageCandidate> candidates) =>
-        selectImages(candidates);
-
-    public EvaHandoffRevisionDecision DecideRevision(
-        int? matchingRevision,
-        int currentMaximumRevision,
-        bool firstProxyAlreadyRecorded) =>
-        decideRevision(matchingRevision, currentMaximumRevision, firstProxyAlreadyRecorded);
-
-    public string? RenderedVersionConflict(long renderedVersion, long currentVersion) =>
-        renderedVersionConflict(renderedVersion, currentVersion);
-
-    public EvaOperationReplayDecision DecideReplay(
-        bool operationExists,
-        bool requestMatches)
-    {
-        _ = evaluate;
-        return operationExists
-            ? requestMatches ? EvaOperationReplayDecision.Replay : EvaOperationReplayDecision.Conflict
-            : EvaOperationReplayDecision.New;
-    }
-}
-
 public static class EvaHandoffPolicy
 {
-    /// <summary>
-    /// The one wording for "this case has no photographs to send". The
-    /// hand-off and the operator export (CASE-019) both refuse for the same
-    /// reason and say so with the same sentence.
-    /// </summary>
+    /// <summary>The one wording for "this case has no photographs to send".</summary>
     public const string NoRetainedImagesReason =
         "At least one stored vehicle image is required.";
 
@@ -467,69 +112,12 @@ public static class EvaHandoffPolicy
             && candidate.MediaType is "image/jpeg" or "image/png")
         .OrderBy(candidate => candidate.Ordinal)
         .ToArray();
-
-    public static EvaHandoffRevisionDecision DecideRevision(
-        int? matchingRevision,
-        int currentMaximumRevision,
-        bool firstProxyAlreadyRecorded)
-    {
-        if (matchingRevision is > 0)
-        {
-            return new(true, matchingRevision.Value, false);
-        }
-        return new(
-            false,
-            checked(currentMaximumRevision + 1),
-            !firstProxyAlreadyRecorded);
-    }
-
-    public static string? RenderedVersionConflict(long renderedVersion, long currentVersion) =>
-        renderedVersion == currentVersion
-            ? null
-            : "The case changed after the EVA handoff was loaded. Reload before retrying.";
-
-    public static IReadOnlyList<string> Evaluate(EvaHandoffEligibility eligibility)
-    {
-        ArgumentNullException.ThrowIfNull(eligibility);
-        var reasons = new List<string>();
-        if (eligibility.IsArchived)
-        {
-            reasons.Add("Archived cases cannot generate EVA handoffs.");
-        }
-        if (eligibility.State != CaseLifecycleState.Review)
-        {
-            reasons.Add("Available while the case is in Review.");
-        }
-        if (eligibility.RenderedWorkflowVersion != eligibility.AcceptedEvidenceVersion)
-        {
-            reasons.Add("Accepted case evidence is stale relative to the current case version.");
-        }
-        if (!eligibility.CaseCustodyConfirmed)
-        {
-            reasons.Add("Case custody has not been confirmed.");
-        }
-        if (eligibility.AuditRequired && !eligibility.AuditCustodyConfirmed)
-        {
-            reasons.Add("Audit custody has not been confirmed.");
-        }
-        if (!eligibility.MappingAccepted)
-        {
-            reasons.Add(CaseEvaMapping.ActivationGateReason);
-        }
-        if (eligibility.EligibleImageCount <= 0)
-        {
-            reasons.Add(NoRetainedImagesReason);
-        }
-        return reasons;
-    }
 }
 
 public sealed record EvaHandoffProxyRequest(
     Guid CaseId,
-    int Revision,
     string BundleSha256,
-    ActionActor Actor,
-    string OperationKey);
+    ActionActor Actor);
 
 public sealed record EvaHandoffProxyReceipt(
     string AdapterKey,
@@ -622,18 +210,17 @@ public static class EvaBundleSchema
                 "The EVA bundle requires an explicitly accepted mapping/config version.");
         }
 
-        // CASE-019: what this method guards is the archive FORMAT — an
-        // accepted mapping, the exact ordered field set, provenance that
-        // covers it, and values that match that provenance. It used to also
-        // assert the hand-off's EVIDENCE BAR: every field non-empty, every
-        // status accepted or corrected. That was never the gate it looked
-        // like. The hand-off reaches here only through
-        // CaseEvaMapping.MapForProduction, which returns a null source unless
-        // all thirteen fields already carry accepted, provenanced, non-empty
-        // evidence — so these two rules were unreachable duplicates of a bar
-        // enforced upstream, and one that an operator export legitimately does
-        // not have to clear. The bar stays exactly where it is enforced; the
-        // copy of it is gone.
+        // What this method guards is the archive FORMAT: an accepted mapping,
+        // the exact ordered field set, provenance that covers it, and values
+        // that match that provenance. It never guarded the evidence bar — the
+        // one bar left, since ENG-016, is CaseEvaMapping.MapForOperatorExport's,
+        // and a case with gaps clears it by design.
+        //
+        // ENG-016 (ENG-014 review finding F3): the loop below throws, and the
+        // throws are the whole point. It used to also build a second,
+        // normalized copy of the provenance array and return it — dead output,
+        // because CreateOfflineReplay reads only the fields. The validation
+        // stayed; the copy went.
         var normalized = CaseEvaMapping.MapOfflineReplay(source.Fields);
         var values = OrderedFields(normalized).ToArray();
         if (source.Provenance.Count != FieldOrder.Length)
@@ -641,7 +228,6 @@ public static class EvaBundleSchema
             throw new InvalidDataException("EVA field provenance must cover the exact ordered field set.");
         }
 
-        var provenance = new EvaFieldProvenance[FieldOrder.Length];
         for (var index = 0; index < FieldOrder.Length; index++)
         {
             var item = source.Provenance[index]
@@ -659,18 +245,11 @@ public static class EvaBundleSchema
                 throw new InvalidDataException(
                     "EVA field provenance does not match the accepted ordered field values.");
             }
-
-            provenance[index] = item with
-            {
-                Value = field.Value ?? string.Empty,
-                Source = item.Source.Trim(),
-                SourceVersion = item.SourceVersion.Trim()
-            };
         }
 
         return new(
             normalized,
-            provenance,
+            source.Provenance,
             CaseEvaMapping.MappingKey,
             CaseEvaMapping.MappingVersion,
             source.MappingAcceptanceEvidence.Trim());

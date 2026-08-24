@@ -18,16 +18,24 @@ public sealed partial class ExportModel(
     private const long MaximumArchiveBytes = 100L * 1024 * 1024;
 
     /// <summary>
-    /// CASE-019: the case's own export — the EVA-format archive of its
-    /// photographs and the thirteen mapped fields.
+    /// CASE-019 / ENG-016: the case's own export — the EVA-format archive of
+    /// its photographs and the thirteen mapped fields, and since ENG-016 the
+    /// only act that produces one.
     ///
-    /// A GET, because it is a read: no case version, no operation key, no edit
-    /// lease. The operator asked for their file, not to change anything. The
-    /// POST below is the separate selective export of chosen document
-    /// versions, which does edit the case's document custody and keeps its
-    /// lease.
+    /// A POST, and it was a GET until ENG-016. The export now records the
+    /// once-per-case `First sent to Engineer` proxy, and a GET that records a
+    /// business event is a hazard: a browser prefetch or an ordinary refresh
+    /// would both fire it, and it carried no antiforgery token. There is no
+    /// GET handler left, so the route answers 405 to one.
+    ///
+    /// The handler is named because the unnamed POST on this page is already
+    /// the selective export of chosen document versions, which does edit the
+    /// case's document custody and keeps its lease. This one still takes no
+    /// case version, no operation key and no edit lease — recording the proxy
+    /// is not a case mutation, and its once-per-case guarantee is the primary
+    /// key on `EvaFirstHandoffProxies`, not a replay key.
     /// </summary>
-    public async Task<IActionResult> OnGetAsync(
+    public async Task<IActionResult> OnPostBundleAsync(
         Guid caseId,
         CancellationToken cancellationToken)
     {

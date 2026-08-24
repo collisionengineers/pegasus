@@ -36,17 +36,6 @@ public sealed class CaseOperatorExportTests
     }
 
     [Fact]
-    public void TheSameCaseIsStillRefusedAHandoff()
-    {
-        var mapping = CaseEvaMapping.MapForProduction(Evidence(vatStatus: null), Accepted);
-
-        Assert.Null(mapping.Source);
-        Assert.Contains(
-            "VAT Status does not have accepted evidence.",
-            mapping.BlockingReasons);
-    }
-
-    [Fact]
     public void AnAbsentInspectionDateBecomesTodayAndSaysSo()
     {
         var export = CaseEvaMapping.MapForOperatorExport(
@@ -71,17 +60,6 @@ public sealed class CaseOperatorExportTests
         var mileage = Assert.Single(export.Source!.Provenance, field => field.Name == "Mileage");
         Assert.Equal(EvaEvidenceStatus.Suggested, mileage.Status);
         Assert.Equal("121823", mileage.Value);
-    }
-
-    [Fact]
-    public void ASuggestedMileageStillCannotReachAHandoff()
-    {
-        var mapping = CaseEvaMapping.MapForProduction(
-            Evidence(mileage: new("121823", EvaEvidenceStatus.Suggested, "vehicle-lookup", "latest-mot-observation/v2")),
-            Accepted);
-
-        Assert.Null(mapping.Source);
-        Assert.Contains("Mileage does not have accepted evidence.", mapping.BlockingReasons);
     }
 
     [Fact]

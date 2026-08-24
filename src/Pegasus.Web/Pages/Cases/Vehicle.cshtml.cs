@@ -1,15 +1,14 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Web.Pages.Cases;
 
 /// <summary>
-/// The Case workspace's vehicle and EVA actions: DVLA/DVSA lookups, accepting or correcting a
-/// vehicle suggestion, and generating the deterministic EVA handoff. Every action redirects back
-/// to the workspace; the handoff download is its own page.
+/// The Case workspace's vehicle actions: DVLA/DVSA lookups, and accepting or
+/// correcting a vehicle suggestion. Every action redirects back to the
+/// workspace.
 /// </summary>
 [Authorize(
     Roles = StaffRoleNames.Administrator + "," + StaffRoleNames.Engineer + "," + StaffRoleNames.User)]
@@ -17,8 +16,6 @@ namespace Pegasus.Web.Pages.Cases;
 public sealed class VehicleModel(
     IRequestVehicleLookup requestVehicleLookup,
     IAcceptVehicleSuggestion acceptVehicleSuggestion,
-    IEvaHandoffQueries evaHandoffQueries,
-    IGenerateEvaHandoff generateEvaHandoff,
     ILogger<VehicleModel> logger) : CaseMutationPageModel(logger)
 {
     public Task<IActionResult> OnPostRequestVehicleLookupAsync(
@@ -83,67 +80,4 @@ public sealed class VehicleModel(
             decision == VehicleSuggestionDecision.Accept
                 ? "The vehicle suggestion was accepted with its external provenance."
                 : "The corrected vehicle values were confirmed with attributable provenance.");
-
-    public async Task<IActionResult> OnPostGenerateEvaHandoffAsync(
-        Guid id,
-        long expectedVersion,
-        string operationKey,
-        string reason,
-        string editLeaseToken,
-        CancellationToken cancellationToken)
-    {
-        if (!TryGetActor(out var actor))
-        {
-            return Forbid();
-        }
-
-        try
-        {
-            var preparation = await evaHandoffQueries.GetPreparationAsync(id, cancellationToken);
-            if (preparation is null || preparation.Images.Count == 0)
-            {
-                PreserveLeaseState(id, editLeaseToken);
-                TempData["CaseError"] = "The EVA handoff was not generated because no eligible images are available.";
-                return RedirectToDetails(id);
-            }
-
-            var result = await generateEvaHandoff.ExecuteAsync(
-                new(
-                    id,
-                    expectedVersion,
-                    actor,
-                    operationKey,
-                    reason,
-                    editLeaseToken),
-                cancellationToken);
-            if (result.Outcome == GenerateEvaHandoffOutcome.Generated)
-            {
-                ClearLeaseState();
-                TempData["CaseStatus"] =
-                    $"EVA handoff revision {result.Revision} was generated deterministically.";
-            }
-            else
-            {
-                PreserveLeaseState(id, editLeaseToken);
-                TempData["CaseError"] = result.Reasons.Count == 0
-                    ? "The EVA handoff was not generated because the case evidence changed."
-                    : string.Join(" ", result.Reasons);
-            }
-        }
-        catch (StaffAuthorizationException)
-        {
-            ClearLeaseState();
-            return Forbid();
-        }
-        catch (Exception exception) when (exception is not OperationCanceledException)
-        {
-            LogCaseCommandFailed(logger, id, "generate_eva_handoff", exception);
-            HandleLeaseFailure(id, editLeaseToken, exception);
-            RetainProposedValues(id);
-            TempData["CaseError"] =
-                "The EVA handoff was not generated because the case changed, edit mode was lost, or bundle generation is unavailable.";
-        }
-
-        return RedirectToDetails(id);
-    }
 }

@@ -1310,16 +1310,33 @@ public sealed class CustodyOutboxIntegrationTests
             Encoding.UTF8.GetString(bundle.JsonContent),
             StringComparison.Ordinal);
 
-        // An export is a read: it records no revision and no hand-off proxy.
+        // ENG-016: an export is the act that records the once-per-case
+        // First sent to Engineer proxy. It used to record nothing -- the
+        // gated hand-off did -- and this assertion is the inverse of the one
+        // it replaces.
         await using var context = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
-        Assert.Empty(await context.EvaHandoffRevisions
+        var proxy = Assert.Single(await context.EvaFirstHandoffProxies
             .Where(item => item.CaseId == outcome.Identity.CaseId)
             .ToListAsync());
-        Assert.Empty(await context.EvaFirstHandoffProxies
+        Assert.False(proxy.ClaimsExternalDelivery);
+        Assert.False(proxy.ClaimsEngineerAssignment);
+
+        // And only the first success records one. A second export of the same
+        // case produces the same archive and no second row.
+        var again = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+            new(outcome.Identity.CaseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])),
+            CancellationToken.None);
+        Assert.NotNull(again);
+        Assert.Equal(bundle.Sha256, again!.Bundle!.Sha256);
+        await using var recheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var single = Assert.Single(await recheck.EvaFirstHandoffProxies
             .Where(item => item.CaseId == outcome.Identity.CaseId)
             .ToListAsync());
+        Assert.Equal(proxy.RecordedAtUtc, single.RecordedAtUtc);
     }
 
     /// <summary>

@@ -63,7 +63,7 @@ public sealed class WebCompositionTests
         Assert.NotNull(services.GetRequiredService<IAddCaseDocument>());
         Assert.NotNull(services.GetRequiredService<IDownloadCaseDocument>());
         Assert.NotNull(services.GetRequiredService<IExportCaseDocuments>());
-        Assert.NotNull(services.GetRequiredService<IGenerateEvaHandoff>());
+        Assert.NotNull(services.GetRequiredService<IExportCaseBundle>());
     }
 }
 
