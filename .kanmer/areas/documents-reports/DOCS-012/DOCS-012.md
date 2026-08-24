@@ -2,13 +2,14 @@
 id: DOCS-012
 type: ticket
 title: 'Show case evidence on the Evidence tab, not the document custody ledger'
-status: review
+status: verifying
 area: documents-reports
 assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-24T11:05:39.970Z'
   review: '2026-08-24T11:10:37.647Z'
+  verifying: '2026-08-24T14:57:08.819Z'
 taken_at: '2026-08-24T11:05:44.727Z'
 branch: task/docs-012-evidence-files
 worktree: ../pegasus-worktrees/docs-012-evidence-files
@@ -23,7 +24,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:38.272Z'
-updated: '2026-08-24T11:10:37.647Z'
+updated: '2026-08-24T14:57:08.819Z'
 ---
 
 ## What the operator saw
