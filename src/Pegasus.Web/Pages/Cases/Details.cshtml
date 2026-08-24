@@ -184,19 +184,49 @@
                         // from Box through the case-document route. The intake-asset
                         // route remains only for a case accepted before those records
                         // existed.
+                        // DOCS-011: the case-document route saves unless it is
+                        // asked to display, so preview and download are two
+                        // URLs. The retained-asset route already serves inline,
+                        // so there both are the same and the anchor's download
+                        // attribute does the saving.
                         var evidenceGallery = Model.EvidenceImages
-                            .Select(image => new Pegasus.Web.Presentation.GalleryImage(
-                                image.IsCaseDocument
-                                    ? Url.Page(
+                            .Select(image =>
+                            {
+                                string preview;
+                                string download;
+                                if (image.IsCaseDocument)
+                                {
+                                    download = Url.Page(
                                         "/Cases/Documents/Download",
                                         new
                                         {
                                             caseId = details.Summary.CaseId,
                                             occurrenceId = image.OccurrenceId,
                                             versionId = image.VersionId
-                                        })!
-                                    : Url.Page("/Intake/Asset", new { id = image.ReceiptId, assetId = image.AssetId })!,
-                                image.FileName))
+                                        })!;
+                                    preview = Url.Page(
+                                        "/Cases/Documents/Download",
+                                        new
+                                        {
+                                            caseId = details.Summary.CaseId,
+                                            occurrenceId = image.OccurrenceId,
+                                            versionId = image.VersionId,
+                                            inline = true
+                                        })!;
+                                }
+                                else
+                                {
+                                    download = Url.Page(
+                                        "/Intake/Asset",
+                                        new { id = image.ReceiptId, assetId = image.AssetId })!;
+                                    preview = download;
+                                }
+                                return new Pegasus.Web.Presentation.GalleryImage(
+                                    preview,
+                                    download,
+                                    image.FileName,
+                                    image.MediaType);
+                            })
                             .ToArray();
                     }
                     <partial name="Shared/_ImageGallery" model="evidenceGallery" />
@@ -220,9 +250,15 @@
                             <p>@image.NormalizedVehicleRegistration · Registered <time datetime="@image.RegisteredAtUtc.ToString("O")">@OperatorLabels.OfficeTime(image.RegisteredAtUtc)</time></p>
                             @{
                                 var intakeGallery = Model.ImagesByIntake.GetValueOrDefault(image.Id, [])
-                                    .Select(item => new Pegasus.Web.Presentation.GalleryImage(
-                                        Url.Page("/Intake/Image", new { id = item.ReceiptId })!,
-                                        item.FileName))
+                                    .Select(item =>
+                                    {
+                                        var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
+                                        return new Pegasus.Web.Presentation.GalleryImage(
+                                            href,
+                                            href,
+                                            item.FileName,
+                                            item.MediaType);
+                                    })
                                     .ToArray();
                             }
                             <partial name="Shared/_ImageGallery" model="intakeGallery" />
@@ -243,6 +279,8 @@
         }
     </div>
 </article>
+
+<partial name="Shared/_EvidenceViewer" />
 
 <div id="edit-finish-confirm" class="reason-dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-finish-title" hidden>
     <div class="reason-dialog">

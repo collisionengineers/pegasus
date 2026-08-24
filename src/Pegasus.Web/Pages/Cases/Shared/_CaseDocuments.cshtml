@@ -35,13 +35,13 @@
         <div class="table-wrap">
             <table>
                 <thead><tr><th>File</th><th>Type</th><th>From</th><th>Size</th><th>Added</th>@if (mayEdit){<th>Action</th>}</tr></thead>
-                <tbody>
+                <tbody data-evidence-set>
                 @foreach (var entry in files)
                 {
                     var occurrence = entry.Occurrence;
                     var version = entry.Version;
                     <tr>
-                        <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-occurrenceId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
+                        <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-occurrenceId="@occurrence.Id" asp-route-versionId="@version.Id" asp-route-inline="true" data-evidence-item data-download-href="@Url.Page("/Cases/Documents/Download", new { caseId = workflow.CaseId, occurrenceId = occurrence.Id, versionId = version.Id })" data-media-type="@version.MediaType" data-file-name="@version.FileName">@version.FileName</a></td>
                         <td>
                             @OperatorLabels.DocumentRole(occurrence.SemanticRole)
                             @if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
