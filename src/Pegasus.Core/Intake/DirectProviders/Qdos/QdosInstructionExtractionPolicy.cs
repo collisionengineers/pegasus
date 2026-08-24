@@ -419,7 +419,7 @@ public sealed class QdosInstructionExtractionPolicy : IInstructionExtractionPoli
         // runs, and the shape is validated outside the pattern.
         var subjectRegistration = Regex.Match(
             subject,
-            @"\bVehicle\s+Registration\b[\s:.]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b",
+            @"\bVehicle\s+Registration\b[\s:.-]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b",
             RegexOptions.IgnoreCase,
             TimeSpan.FromMilliseconds(100));
         if (subjectRegistration.Success

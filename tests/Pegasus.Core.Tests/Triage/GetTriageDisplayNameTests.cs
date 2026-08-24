@@ -138,6 +138,11 @@ public sealed class GetTriageDisplayNameTests
         public Task<TriageDetail?> GetAsync(Guid id, CancellationToken cancellationToken) =>
             Task.FromResult<TriageDetail?>(detail);
 
+        public Task<TriageSummary?> GetByOriginReceiptAsync(
+            Guid originReceiptId,
+            CancellationToken cancellationToken) =>
+            throw new NotSupportedException("Not used by these tests.");
+
         public Task<IReadOnlyList<TriageSentEvidenceReference>> ListSentEvidenceReferencesAsync(
             Guid triageId,
             int maximumResults,

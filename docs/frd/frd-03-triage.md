@@ -18,7 +18,7 @@ Triage begins when the exact accepted route policy classifies a provider request
 Automatic creation from intake follows exactly that rule and adds nothing to it.
 When the accepted route classification records a received message as a Triage request,
 processing does not treat it as an instruction: it is pre-case work, no case is
-allocated from it, and the accepted route classification decision is itself the accepted
+allocated from it automatically, and the accepted route classification decision is itself the accepted
 Triage-match evidence — the same route policy the paragraph above names, with its policy
 key and version stamped on the record. A known vehicle registration opens the Triage as
 `Open`; no known registration registers the material as Unidentified with its canonical

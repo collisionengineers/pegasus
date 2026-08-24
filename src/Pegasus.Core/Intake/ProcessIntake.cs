@@ -598,7 +598,17 @@ public sealed class ProcessIntake(
     private static IntakeEvidence? AcceptedTriageMatchEvidence(
         MailClassificationResult? classification)
     {
-        if (classification is not { IsTriageRequest: true })
+        // A reply is correspondence about a Triage, not a new assessment
+        // request — FRD-03 begins a Triage from a *provider request*. The
+        // subject tell is anchored past RE/FW on purpose and the body tell
+        // matches quoted text, so every reply in a Triage thread classifies
+        // as one; and Triage identity is per message, never per claim or
+        // registration, so honouring a reply here would open a second Open
+        // Triage on the same vehicle for ordinary thread traffic. The reply
+        // still leaves case allocation alone and reaches Unidentified, which
+        // is a queue somebody works — today it reaches none.
+        if (classification is not { IsTriageRequest: true }
+            || classification.Category?.IsReplyContext == true)
         {
             return null;
         }
