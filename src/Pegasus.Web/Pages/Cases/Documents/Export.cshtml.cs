@@ -39,12 +39,13 @@ public sealed partial class ExportModel(
     /// The handler is named because the unnamed POST on this page is already
     /// the selective export of chosen document versions, which does edit the
     /// case's document custody and keeps its lease. This one still takes no
-    /// case version, no operation key and no edit lease — recording the proxy
-    /// is not a case mutation, and its once-per-case guarantee is the primary
-    /// key on `EvaFirstHandoffProxies`, not a replay key.
+    /// case version or edit lease. Its operation key makes the action-history
+    /// record replay-safe; the proxy's separate once-per-case guarantee remains
+    /// the primary key on `EvaFirstHandoffProxies`.
     /// </summary>
     public async Task<IActionResult> OnPostBundleAsync(
         Guid caseId,
+        string operationKey,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -58,7 +59,9 @@ public sealed partial class ExportModel(
 
         try
         {
-            var export = await exportCaseBundle.ExecuteAsync(new(caseId, actor), cancellationToken);
+            var export = await exportCaseBundle.ExecuteAsync(
+                new(caseId, actor, RequireOperationKey(operationKey)),
+                cancellationToken);
             if (export is null)
             {
                 return NotFound();
@@ -74,6 +77,8 @@ public sealed partial class ExportModel(
 
             Response.Headers.CacheControl = "private, no-store";
             Response.Headers.XContentTypeOptions = "nosniff";
+            Response.Headers["Content-Digest"] =
+                $"sha-256=:{Convert.ToBase64String(Convert.FromHexString(bundle.Sha256))}:";
             return File(bundle.Content, "application/zip", fileName);
         }
         catch (StaffAuthorizationException)
@@ -114,6 +119,11 @@ public sealed partial class ExportModel(
         && !fileName.Contains('/', StringComparison.Ordinal)
         && !fileName.Contains('\\', StringComparison.Ordinal)
         && !fileName.Any(char.IsControl);
+
+    private static string RequireOperationKey(string value) =>
+        Guid.TryParseExact(value, "N", out var operationId)
+            ? operationId.ToString("N")
+            : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
     [LoggerMessage(
         Level = LogLevel.Warning,

@@ -54,12 +54,15 @@ public sealed record EvaBundle(
 /// its first success on a case records the once-per-case
 /// <c>First sent to Engineer</c> proxy.
 ///
-/// It still takes no case version, no operation key and no edit lease: it is
-/// not a case mutation and the case version does not move. What it does write
-/// is one row in <c>EvaFirstHandoffProxies</c>, whose primary key on the case
-/// is what makes "first success only" literal.
+/// It takes an operation key for exact replay and permanent action history,
+/// but no edit lease: the export does not change the case version. What it
+/// writes is one history row per distinct successful export and, on the first
+/// success only, one <c>EvaFirstHandoffProxies</c> row.
 /// </summary>
-public sealed record ExportCaseBundleRequest(Guid CaseId, ActionActor Actor);
+public sealed record ExportCaseBundleRequest(
+    Guid CaseId,
+    ActionActor Actor,
+    string OperationKey);
 
 public sealed record ExportCaseBundleResult(
     EvaBundle? Bundle,
@@ -337,7 +340,7 @@ public static class EvaBundleSchema
         // NewLine pinned rather than left to JsonWriterOptions' default of
         // Environment.NewLine: the archive's SHA-256 is the revision
         // InputFingerprint, so a writer whose bytes depend on the host OS is
-        // not the replay-identical bundle this type promises. CRLF is also
+        // not the replay-identical bundle this type promises. LF is also
         // what all three known-good samples use.
         //
         // UnsafeRelaxedJsonEscaping because the predecessor extractor -- the
@@ -354,7 +357,7 @@ public static class EvaBundleSchema
             new JsonWriterOptions
             {
                 Indented = true,
-                NewLine = "\r\n",
+                NewLine = "\n",
                 Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
             }))
         {

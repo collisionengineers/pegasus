@@ -126,6 +126,7 @@
             <form method="post" asp-page="/Cases/Documents/Export"
                   asp-route-caseId="@summary.CaseId" asp-page-handler="Bundle"
                   class="record__bar-form">
+                <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
                 @* `.btn:disabled` is the styling for a real control;
                    `.btn.is-disabled` is the fallback for a disabled anchor,
                    which this stopped being. *@
