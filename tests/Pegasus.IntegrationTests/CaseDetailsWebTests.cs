@@ -145,12 +145,16 @@ public sealed partial class CaseDetailsWebTests
             $"/Cases/{store.CaseId:D}/Vehicle?handler=GenerateEvaHandoff",
             Form(AntiforgeryValue(html)));
         Assert.NotEqual(HttpStatusCode.Redirect, handlerGone.StatusCode);
-        Assert.Equal(string.Empty, await handlerGone.Content.ReadAsStringAsync());
+        Assert.Null(handlerGone.Headers.Location);
 
-        // And a GET on the export route no longer produces anything.
+        // A GET on the export route cannot produce the package: there is no GET
+        // that exports, only one that returns a stale bookmark to the case.
         using var prefetched = await client.GetAsync(
             $"/Cases/{store.CaseId:D}/Documents/Export");
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, prefetched.StatusCode);
+        AssertPrg(prefetched, store.CaseId);
+        Assert.NotEqual(
+            "application/zip",
+            prefetched.Content.Headers.ContentType?.MediaType);
     }
 
     [Fact]

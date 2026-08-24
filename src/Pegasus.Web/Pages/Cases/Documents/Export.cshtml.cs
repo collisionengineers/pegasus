@@ -18,6 +18,16 @@ public sealed partial class ExportModel(
     private const long MaximumArchiveBytes = 100L * 1024 * 1024;
 
     /// <summary>
+    /// ENG-016: Export answered a GET with the archive until this ticket, so a
+    /// bookmark, a browser history entry or a stale link can still point here.
+    /// Without a handler Razor Pages renders the (contentless) page and returns
+    /// a blank 200, which reads as a broken route; this sends them to the case
+    /// instead. It cannot export: producing the package is the POST below.
+    /// </summary>
+    public IActionResult OnGet(Guid caseId) =>
+        caseId == Guid.Empty ? NotFound() : RedirectToDetails(caseId);
+
+    /// <summary>
     /// CASE-019 / ENG-016: the case's own export — the EVA-format archive of
     /// its photographs and the thirteen mapped fields, and since ENG-016 the
     /// only act that produces one.
