@@ -91,3 +91,55 @@ Two false positives confirmed as leave-alone:
   to [[ENG-014]], which is what changes the as-built shape.
 
 Final file count: **6 files, 8 edits** (not 6/7 as planned).
+
+## Correction: the git-history evidence was wrong (2026-08-24, from review)
+
+The independent review of PR #526 disproved two of the four evidence rows in
+this plan. **The conclusion survives; the evidence for it does not.**
+
+### What was claimed, and why it is false
+
+> It entered FRD-07 via `2e3db7aa` and `operator-notes.md` via `3f4a35ba` —
+> internal doc restructuring, not an operator statement.
+
+Both commits merely **created the files**:
+
+- `2e3db7aa` is `docs: adopt PRD/FRD/ADR taxonomy and retire requirements.md` —
+  it adds `frd-07-*.md` (+91) and deletes `docs/requirements.md` (−1120).
+- `3f4a35ba` created `docs/operator-notes.md` outright.
+
+`git log -S` on a path can only ever return the commit that created it, so those
+results carried **no information at all**. Verified: the identical sentence is
+already at `docs/requirements.md:564` in the repository's **root commit**
+`ccc7ca15`. The history is truncated before the manifest's origin — it is
+**silent**, not exculpatory.
+
+### What the claim actually rests on
+
+Three checks that do bear weight, all independently re-run by the reviewer:
+
+| Evidence | Result |
+| --- | --- |
+| `grep -rn -i manifest reference/` | zero hits across the whole operator corpus |
+| `grep -rn -iE 'sha-?256\|checksum\|integrity\|hash\|digest' reference/` | zero hits — the corpus has no integrity concept at all |
+| Any integrity/audit requirement in `docs/prd/`, `docs/adr/`, `docs/engineering.md` | none touching EVA |
+| Predecessor output EVA accepts | `QDOS_NX14AXY.json` alone, a bare JSON |
+
+Plus the operator direction of 2026-08-24, which is the actual authority.
+
+**Known limit, stated rather than papered over:** those greps are plaintext.
+`reference/workproviders-and-repairers/*.xls[xm]` and `reference/rendererref1/*.pdf`
+were not decompressed. A manifest requirement buried inside a spreadsheet or a
+report PDF would not have been found. Low risk given what those files are
+(contact lists, report layout samples), not zero.
+
+## Review findings applied (2026-08-24)
+
+| # | Finding | Disposition |
+| --- | --- | --- |
+| F1 | *"it carries no other file"* — unauthorised breadth; would silently forbid any future companion file | **Fixed.** Narrowed to name exactly what is decided: "no companion file: neither a manifest nor a provenance sidecar". Provenance removal **is** authorised — operator direction 2026-08-24 covers both files — but the sentence should say what was decided, not more. |
+| F2 | `Reference` paragraph over-cited `eva_information.md` as establishing the EVA-field mapping | **Fixed.** The cited file shows `Claim No`, `Reference` and `Case/PO` as **three distinct** EVA fields (`:688-690`), so it does not establish the mapping the prose asserted. Rewritten to state the value Pegasus emits, evidenced by both retained examples, and to say explicitly that which EVA field it lands in is EVA's business and is not established here. |
+| F3 | FRD-07 now normatively specifies the operator export, but no `capabilities.md` row points at it | **Deferred, not dismissed.** The registry keys on capability IDs (EXT-03, CASE-21), not Kanmer ticket ids, and inventing a new capability ID here would be exactly the unauthorised addition F1 objects to. Raised as a follow-up. |
+| F4 | FRD-07 dropped the `Unrecorded` marker that `current-architecture.md:526` records | **Fixed.** Restored. |
+| F5 | Commit citations are artifacts | **Fixed** — see above. Corrected here, in the ticket body and in the PR description. |
+| F6 | `capabilities.md:175` left a two-item list joined by a bare comma | **Fixed.** |
