@@ -2,7 +2,7 @@
 category: Layout
 ---
 
-A Lucide line icon rendered inline with the `.icon` class: 2px stroke, round caps, `currentColor`, no fill. The sixteen glyphs are the ones the operator interface ships in its sprite — `search`, `user`, `refresh-cw`, `clock`, `calendar`, `check-circle`, `alert-triangle`, `alert-circle`, `info`, `file-text`, `filter`, `shield`, `chevron-right`, `arrow-right`, `upload`, `lock` — and no other icon set is used anywhere in Pegasus. Icons are decorative (`aria-hidden`) unless given a `label`.
+A Lucide line icon rendered inline with the `.icon` class: 2px stroke, round caps, `currentColor`, no fill. The seventeen glyphs are the ones the operator interface ships in its sprite — `search`, `user`, `refresh-cw`, `clock`, `calendar`, `check-circle`, `alert-triangle`, `alert-circle`, `info`, `file-text`, `filter`, `shield`, `chevron-right`, `arrow-right`, `upload`, `lock`, `trash-2` — and no other icon set is used anywhere in Pegasus. Icons are decorative (`aria-hidden`) unless given a `label`.
 
 **Rules**
 

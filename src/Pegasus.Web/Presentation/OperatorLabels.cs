@@ -562,7 +562,7 @@ public static class OperatorLabels
     /// and the approved Lucide glyph that carries it.
     /// </summary>
     /// <remarks>
-    /// The sprite is a checksummed asset of sixteen glyphs and the design
+    /// The sprite is a checksummed asset of seventeen glyphs and the design
     /// authority records that none was added, removed or redrawn, so two of the
     /// seven words share a glyph with a neighbour and lean on the tooltip to
     /// tell them apart.

@@ -63,6 +63,51 @@ public sealed record CaseDocument(
     Guid CaseId,
     IReadOnlyList<DocumentOccurrence> Occurrences,
     IReadOnlyList<DocumentVersion> Versions);
+
+/// <summary>
+/// A case file as the operator sees it: one occurrence and the single version it
+/// names, once that version is the current one, has not been logically removed,
+/// and its custody is confirmed.
+/// </summary>
+public sealed record CaseFile(DocumentOccurrence Occurrence, DocumentVersion Version);
+
+/// <summary>
+/// The one owner of "which of a case's documents are live files".
+/// </summary>
+/// <remarks>
+/// The rule — join an occurrence to the version it names, then require current,
+/// not logically removed, custody confirmed — was written out separately in the
+/// evidence gallery, the EVA hand-off, the report projection and a custody guard
+/// before this existed, and the Evidence tab was about to make a fifth copy. It
+/// is the operator's own rule: "if they show here, they should be on box."
+///
+/// Giving it one owner is also what keeps the Evidence tab's count and its rows
+/// agreeing. They disagreed while the count read the raw document list: removing
+/// a file — the very action this surface offers — left the tab saying one and
+/// the panel showing none (DOCS-012).
+/// </remarks>
+public static class CaseFiles
+{
+    public static IReadOnlyList<CaseFile> Live(IEnumerable<CaseDocument> documents)
+    {
+        ArgumentNullException.ThrowIfNull(documents);
+        return
+        [
+            .. documents.SelectMany(document => document.Occurrences
+                .Select(occurrence => new
+                {
+                    Occurrence = occurrence,
+                    Version = document.Versions.FirstOrDefault(version =>
+                        version.Id == occurrence.VersionId
+                        && version.IsCurrent
+                        && !version.IsLogicallyRemoved
+                        && version.CustodyStatus == DocumentCustodyStatus.Confirmed)
+                }))
+                .Where(entry => entry.Version is not null)
+                .Select(entry => new CaseFile(entry.Occurrence, entry.Version!))
+        ];
+    }
+}
 public sealed record CaseDocumentState(Guid CaseId, long CaseVersion);
 
 public sealed record AddCaseDocumentCommand(
