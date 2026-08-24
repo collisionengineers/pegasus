@@ -757,8 +757,14 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
     app.Use(async (context, next) =>
     {
+        // frame-ancestors is 'self', not 'none': the evidence viewer previews a
+        // PDF in a same-origin iframe, and 'none' refuses that too -- the
+        // browser blocks the frame and the operator gets a blank stage. The
+        // clickjacking protection this header exists for is unchanged, because
+        // 'self' still refuses every other origin. Development does not set the
+        // header at all, so the tests could not have caught it (DOCS-011).
         context.Response.Headers.ContentSecurityPolicy =
-            "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
+            "default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'";
         context.Response.Headers.XContentTypeOptions = "nosniff";
         await next(context);
     });
