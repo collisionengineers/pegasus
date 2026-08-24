@@ -192,3 +192,33 @@ touching both.
   `UnidentifiedResolutionTargetKind` has no Triage member. The operator's rule
   says the material *waits* in Unidentified; it does not say the promotion is
   automatic. Filed separately rather than guessed at.
+
+---
+
+## Correction — 2026-08-24, after independent review
+
+Two statements in §6 above were **wrong when written**, and the second was a
+claim about work I had not done. Left uncorrected they would have been inherited
+as fact.
+
+**§6 said `UnidentifiedResolutionTargetKind` has no Triage member. It does** —
+`UnidentifiedContracts.cs:37`, with `UnidentifiedValidation.ValidateResolve`
+already handling it against `ITriageQueries` at `:375`. I did not check before
+asserting it, and that error is what made me defer the wrong thing: because I
+believed the destination did not exist, I treated the whole Unidentified →
+Triage transition as out of scope. It is not. The supersession half belongs
+here and now ships: `ReconcileUnidentifiedDestinations` resolves a stale open
+item to the Triage that now exists. Without it, the operator's own transition —
+material waits in Unidentified, its registration becomes known, the Triage opens
+— left a live U-reference open beside the Triage with nothing able to close
+either, reachable through the ordinary **Re-evaluate** button.
+
+**§6 said the deferrals were "filed separately rather than guessed at". They
+were not filed at all** when that sentence was written. They are now:
+[[INTK-034]] (images as Triage evidence) and [[INTK-035]] (the staff action that
+supplies a registration and opens the Triage). What remains genuinely deferred
+is only the *staff-initiated* promotion; the automatic supersession is in this
+ticket.
+
+Both errors were caught by the independent pre-merge review, not by me, and not
+by the simplification pass either.
