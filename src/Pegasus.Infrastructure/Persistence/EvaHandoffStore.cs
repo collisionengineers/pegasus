@@ -515,51 +515,24 @@ public sealed class EvaHandoffStore(
                 reasons.Distinct(StringComparer.Ordinal).ToArray());
         }
 
-        var bundleImages = new List<EvaBundleImage>(selectedRows.Length);
-        foreach (var selected in selectedRows)
+        var oversized = selectedRows.FirstOrDefault(selected => selected.ContentLength > int.MaxValue);
+        if (oversized is not null)
         {
-            if (selected.ContentLength > int.MaxValue)
-            {
-                return Blocked($"The selected image '{selected.FileName}' is too large for the offline EVA handoff.");
-            }
-
-            await using var content = await contentStore.OpenReadVersionAsync(
-                new(
-                    request.CaseId,
-                    workflow.Case.Reference,
-                    selected.OccurrenceId,
-                    selected.Ordinal,
-                    selected.DocumentId,
-                    selected.VersionId,
-                    selected.Version,
-                    selected.SemanticRole,
-                    selected.FileName,
-                    selected.MediaType),
-                selected.Sha256,
-                selected.ContentLength,
-                cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)selected.ContentLength));
-            await content.ReadExactlyAsync(bytes, cancellationToken);
-            bundleImages.Add(new(
-                selected.OccurrenceId,
-                selected.DocumentId,
-                selected.VersionId,
-                selected.Version,
-                selected.FileName,
-                selected.MediaType,
-                selected.SemanticRole,
-                selected.Source,
-                selected.SourceOccurrenceIdentity,
-                bytes,
-                selected.Sha256,
-                CustodyConfirmed: true,
-                IsCurrent: true,
-                selected.Ordinal));
+            return Blocked($"The selected image '{oversized.FileName}' is too large for the offline EVA handoff.");
         }
+
+        var contents = await contentStore.ReadVersionsAsync(
+            [.. selectedRows.Select(selected =>
+                ContentRead(request.CaseId, workflow.Case.Reference, selected))],
+            cancellationToken);
+        var bundleImages = selectedRows
+            .Select((selected, index) => BundleImage(selected, contents[index]))
+            .ToArray();
 
         var bundle = EvaBundleSchema.CreateOfflineReplay(
             mapping.Source,
-            new(bundleImages));
+            new(bundleImages),
+            caseData.Identity.Reference);
         var existingRevision = await context.EvaHandoffRevisions
             .SingleOrDefaultAsync(
                 item => item.CaseId == request.CaseId
@@ -723,7 +696,7 @@ public sealed class EvaHandoffStore(
         }
 
         return new(
-            EvaBundleSchema.CreateOfflineReplay(export.Source, new(images)),
+            EvaBundleSchema.CreateOfflineReplay(export.Source, new(images), caseRecord.Reference),
             export.UnrecordedFields,
             []);
     }
@@ -788,47 +761,63 @@ public sealed class EvaHandoffStore(
             .Select(candidate => candidate.VersionId)
             .ToHashSet();
 
-        var images = new List<EvaBundleImage>();
-        foreach (var selected in candidateRows.Where(
-            selected => eligibleVersionIds.Contains(selected.VersionId)
-                        && selected.ContentLength <= int.MaxValue))
-        {
-            await using var content = await contentStore.OpenReadVersionAsync(
-                new(
-                    caseId,
-                    caseReference,
-                    selected.OccurrenceId,
-                    selected.Ordinal,
-                    selected.DocumentId,
-                    selected.VersionId,
-                    selected.Version,
-                    selected.SemanticRole,
-                    selected.FileName,
-                    selected.MediaType),
-                selected.Sha256,
-                selected.ContentLength,
-                cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)selected.ContentLength));
-            await content.ReadExactlyAsync(bytes, cancellationToken);
-            images.Add(new(
+        var selectedRows = candidateRows
+            .Where(selected => eligibleVersionIds.Contains(selected.VersionId)
+                               && selected.ContentLength <= int.MaxValue)
+            .ToArray();
+        var contents = await contentStore.ReadVersionsAsync(
+            [.. selectedRows.Select(selected => ContentRead(caseId, caseReference, selected))],
+            cancellationToken);
+        return [.. selectedRows.Select((selected, index) => BundleImage(selected, contents[index]))];
+    }
+
+    /// <summary>
+    /// One selected photograph as it travels in a bundle. The hand-off and the
+    /// operator export (CASE-019) build this identically — the difference
+    /// between them is which images are selected, never how one is described.
+    /// </summary>
+    private static EvaBundleImage BundleImage(
+        SelectedDocument selected,
+        ReadOnlyMemory<byte> content) =>
+        new(
+            selected.OccurrenceId,
+            selected.DocumentId,
+            selected.VersionId,
+            selected.Version,
+            selected.FileName,
+            selected.MediaType,
+            selected.SemanticRole,
+            selected.Source,
+            selected.SourceOccurrenceIdentity,
+            content,
+            selected.Sha256,
+            CustodyConfirmed: true,
+            IsCurrent: true,
+            selected.Ordinal);
+
+    /// <summary>
+    /// PLAT-041: one selected photograph expressed as a managed content read,
+    /// so the hand-off and the operator export ask for their images the same
+    /// way — as a set the store resolves once, not one at a time.
+    /// </summary>
+    private static ManagedDocumentContentRead ContentRead(
+        Guid caseId,
+        string caseReference,
+        SelectedDocument selected) =>
+        new(
+            new(
+                caseId,
+                caseReference,
                 selected.OccurrenceId,
+                selected.Ordinal,
                 selected.DocumentId,
                 selected.VersionId,
                 selected.Version,
-                selected.FileName,
-                selected.MediaType,
                 selected.SemanticRole,
-                selected.Source,
-                selected.SourceOccurrenceIdentity,
-                bytes,
-                selected.Sha256,
-                CustodyConfirmed: true,
-                IsCurrent: true,
-                selected.Ordinal));
-        }
-
-        return images;
-    }
+                selected.FileName,
+                selected.MediaType),
+            selected.Sha256,
+            selected.ContentLength);
 
     private EvaMappingResult MapAcceptedCase(
         CaseDataProjection caseData,
@@ -867,22 +856,14 @@ public sealed class EvaHandoffStore(
                 && caseData.Completeness.Evaluation.SatisfiesPolicy,
             caseData.Completeness.Values.ImagesComplete
                 && caseData.Completeness.Evaluation.SatisfiesPolicy,
-            new(
-                caseData.Identity.Reference,
-                EvaEvidenceStatus.Accepted,
-                $"case-identity:{caseId:D}",
-                "case-reference/v1"),
+            FromCaseField(caseData.Claim.Number, static value => value, includeSuggestions),
             FromCaseField(caseData.Provider.WorkProviderCode, static value => value, includeSuggestions),
             Fallback(
                 FromVehicleField(acceptedVehicle?.Registration, static value => value),
                 caseData.Vehicle.Registration,
                 static value => value,
                 includeSuggestions),
-            Fallback(
-                VehicleModel(acceptedVehicle),
-                caseData.Vehicle.Model,
-                static value => value,
-                includeSuggestions),
+            VehicleModel(acceptedVehicle, caseData, includeSuggestions),
             FromCaseField(caseData.Claimant.Name, static value => value, includeSuggestions),
             FromCaseField(caseData.Accident.IncidentDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), includeSuggestions),
             FromCaseField(caseData.Instruction.InstructionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), includeSuggestions),
@@ -896,14 +877,9 @@ public sealed class EvaHandoffStore(
                 static value => value.ToString(CultureInfo.InvariantCulture),
                 includeSuggestions),
             Fallback(
-                FromVehicleField(acceptedVehicle?.MileageUnit, static value => value switch
-                {
-                    VehicleMileageUnit.Miles => "miles",
-                    VehicleMileageUnit.Kilometres => "kilometres",
-                    _ => value.ToString()
-                }),
+                FromVehicleField(acceptedVehicle?.MileageUnit, MileageUnit),
                 caseData.Vehicle.MileageUnit,
-                static value => value.ToLowerInvariant(),
+                MileageUnit,
                 includeSuggestions));
     }
 
@@ -950,24 +926,50 @@ public sealed class EvaHandoffStore(
         };
     }
 
-    private static EvaEvidenceValue VehicleModel(ConfirmedVehicleEvidence? vehicle)
+    /// <summary>
+    /// Make and model as one value, from whichever source the case has.
+    ///
+    /// The staff-confirmed vehicle record wins, exactly as before. What changed
+    /// (ENG-015) is the fallback: it used to read <c>Vehicle.Model</c> alone, so
+    /// an export carried "X5 SE - X DRIVE Type 5 DOOR SUV" where EVA is sent
+    /// "BMW X5 …". Both branches now compose the same way, so the two cannot
+    /// state the vehicle differently.
+    /// </summary>
+    private static EvaEvidenceValue VehicleModel(
+        ConfirmedVehicleEvidence? vehicle,
+        CaseDataProjection caseData,
+        bool includeSuggestions)
     {
-        var values = new List<EvaEvidenceValue>(2);
-        if (vehicle?.Make is not null)
+        var confirmed = Compose(
+            vehicle?.Make is null ? null : FromVehicleField(vehicle.Make, static value => value),
+            vehicle?.Model is null ? null : FromVehicleField(vehicle.Model, static value => value));
+        if (!string.IsNullOrWhiteSpace(confirmed.Value) || !includeSuggestions)
         {
-            values.Add(FromVehicleField(vehicle.Make, static value => value));
-        }
-        if (vehicle?.Model is not null)
-        {
-            values.Add(FromVehicleField(vehicle.Model, static value => value));
-        }
-        if (values.Count == 0)
-        {
-            return MissingEvidence;
+            return confirmed;
         }
 
-        return values.Aggregate(Combine);
+        return Compose(
+            FromCaseField(caseData.Vehicle.Make, static value => value, includeSuggestions: true),
+            FromCaseField(caseData.Vehicle.Model, static value => value, includeSuggestions: true));
     }
+
+    /// <summary>Make and model joined, skipping whichever the case lacks.</summary>
+    private static EvaEvidenceValue Compose(EvaEvidenceValue? make, EvaEvidenceValue? model)
+    {
+        var values = new[] { make, model }
+            .Where(value => value is not null && !string.IsNullOrWhiteSpace(value.Value))
+            .Select(value => value!)
+            .ToArray();
+        return values.Length == 0 ? MissingEvidence : values.Aggregate(Combine);
+    }
+
+    // The EVA mileage-unit vocabulary is mapping policy and lives in Core;
+    // these forward so the store keeps no second copy of it (ENG-015 review).
+    private static string MileageUnit(VehicleMileageUnit unit) =>
+        CaseEvaMapping.MileageUnit(unit);
+
+    private static string MileageUnit(string value) =>
+        CaseEvaMapping.MileageUnit(value);
 
     private static EvaEvidenceValue FromCaseField<T>(
         CaseField<T> field,
@@ -1084,9 +1086,6 @@ public sealed class EvaHandoffStore(
         BundleSha256 = bundle.Sha256,
         JsonContent = bundle.JsonContent,
         JsonSha256 = bundle.JsonSha256,
-        ProvenanceContent = bundle.ProvenanceContent,
-        ProvenanceSha256 = bundle.ProvenanceSha256,
-        ManifestContent = bundle.ManifestContent,
         GeneratedAtUtc = now,
         GeneratedBy = request.Actor.SubjectId
     };
@@ -1105,9 +1104,6 @@ public sealed class EvaHandoffStore(
         revision.BundleSha256,
         revision.JsonContent,
         revision.JsonSha256,
-        revision.ProvenanceContent,
-        revision.ProvenanceSha256,
-        revision.ManifestContent,
         revision.FileName);
 
 

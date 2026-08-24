@@ -149,15 +149,12 @@ public static class DependencyInjection
         services.AddScoped<ISentEvidencePollOutcomeQueries, EfSentEvidencePollOutcomeQueries>();
         services.AddScoped<ReplaySentEmailEvidence>();
         services.AddScoped<IProviderReferenceCatalog, EfProviderReferenceCatalog>();
-        services.TryAddSingleton<IIntakeTriageMatcher, NoAcceptedIntakeTriageMatcher>();
         services.AddSingleton<IMailRoutePolicy, QdosMailRoutePolicy>();
         services.AddSingleton<IMailClassificationPolicy, QdosMailClassificationPolicy>();
         services.AddSingleton<IProviderCaseMatchPolicy, QdosCaseMatchPolicy>();
         services.AddScoped<ICaseMatchCandidateQueries, EfCaseMatchIndex>();
         services.AddScoped<EvaluateIntakeCaseMatch>();
-        services.AddSingleton<IInstructionExtractionPolicy>(provider =>
-            new QdosInstructionExtractionPolicy(
-                provider.GetRequiredService<IIntakeTriageMatcher>()));
+        services.AddSingleton<IInstructionExtractionPolicy, QdosInstructionExtractionPolicy>();
         services.AddScoped<ICaseAcceptanceStore, EfCaseAcceptanceStore>();
 
         // Registered here rather than only in the Web composition root, because
@@ -532,9 +529,17 @@ public static class DependencyInjection
         services.AddSingleton(provider => boxOptions(provider));
         services.TryAddSingleton(static _ => new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(100)
+            Timeout = BoxJwtAuthorizationHeaderProvider.RequestTimeout
         });
-        services.AddSingleton<IBoxAuthorizationHeaderProvider, BoxJwtAuthorizationHeaderProvider>();
+        // The header provider needs a clock. Every caller reaches this through
+        // AddPegasusInfrastructure, which registers one, but the storage
+        // profile should stand up on its own rather than depend on the order
+        // two extension methods happen to be called in.
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<IBoxAuthorizationHeaderProvider>(provider =>
+            new BoxJwtAuthorizationHeaderProvider(
+                provider.GetRequiredService<BoxCustodyOptions>(),
+                provider.GetRequiredService<TimeProvider>()));
         services.AddSingleton(provider => new BoxContentClient(
             provider.GetRequiredService<BoxCustodyOptions>(),
             provider.GetRequiredService<HttpClient>(),

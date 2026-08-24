@@ -26,9 +26,9 @@ worked in Pegasus through to the EVA handoff; EVA keeps engineering and reports)
 2. Prove the spine on one genuine QDOS email in production: mailbox intake → custody → extraction draft → principal → Case/PO minted → Box folder (INT-02/08/09/19/22/25, CASE-07, DOC-01/02) — needs the composition fix deployed.
 3. Accept extraction thresholds from the reviewed cohort + holdout (INT-21); zero false case creation.
 4. Production document content store live (DOC-02), then staff review path live: completeness gates and Review/Not ready/Held queues (CASE-13/14/15/16, UI-02/08).
-5. EVA bundle from a real case: exact 13-key JSON + images + SHA-256 manifest (EXT-03), the `First sent to Engineer` proxy event (CASE-21), operator accepts every field mapping via a real drag-and-drop run.
+5. EVA bundle from a real case: exact 13-key JSON + images (EXT-03), the `First sent to Engineer` proxy event (CASE-21), operator accepts every field mapping via a real drag-and-drop run.
 6. Chasing live: due-by, 7-day chase schedule, copyable chasers (CASE-17/18, MAIL-18).
-7. Web telemetry exporter (OPS-07) and minimum cutover alerts (Box custody failure, intake poison, chaser sweep), then the cutover date: all new QDOS instructions enter Pegasus; watch alerts and telemetry daily for the first week.
+7. Web telemetry exporter (OPS-07) and minimum cutover alerts (Box custody failure, intake poison, chaser sweep), then the cutover date: all new QDOS instructions enter Pegasus; watch alerts and telemetry daily for the first week. **Before this date, confirm the retained rollback artifact runs against the live schema**, then the additive-migration requirement binds — the pre-cutover exemption in [ADR-0030](adr/0030-non-additive-schema-changes-before-cutover.md) ends, because from here a rollback has live case work to preserve. Ending the exemption does not by itself repair a non-additive migration shipped before it, which is why the check is a prerequisite of this step rather than a rule that starts applying to later releases.
 8. Record operator acceptance and management approval (OPS-23, OPS-25) — this closes `0.1.0-alpha.1`.
 
 Explicitly NOT on the path (allocated but non-blocking): MCP-01–04, INT-17 VRM reading, INT-31 upload links, the EVAL evaluator cluster, live DVLA/DVSA adapters (approved replay/`Unavailable` is fine), MAIL-14/16 report-sent detection (post-report tracking starts manual via MAIL-15), and OPS-09 recovery proof (removed as a release gate 2026-08-03). The Box production custody boundary was decided 2026-08-02:
@@ -164,14 +164,20 @@ The available evidence establishes review-visible uncertainty, but not an
 accepted numeric confidence score, threshold, or alternative confidence
 display. None should be inferred.
 
-The QDOS intake-to-Triage matcher remains the inactive
-`NoAcceptedIntakeTriageMatcher`: the downstream behavior is complete (accepted
-match evidence creates exactly one replay-safe Triage and multiple matches fail
-closed), so only the match predicates are missing. Activation needs the named
-predicates, exclusions, and ambiguity outcome accepted under this section, and
-is a deliberate change to a named, versioned matcher — the Production
-composition test pins the inactive matcher so it can never be activated as a
-side effect of composition.
+The QDOS intake-to-Triage question is **closed** (operator decision
+2026-08-23, INTK-033). It waited only on the match predicates, and those are now
+accepted, named, and versioned as the route's own classification predicates:
+`body.triage-only-request` and `subject.engineer-triage` in
+`qdos_mail_classification` v4, with their exclusions (case-exact generated
+tells; the subject tell anchored past any forward or reply prefix) and their
+ambiguity outcome (two matching categories are the recorded Ambiguous outcome
+and open no Triage). Recognising them is one owner's job, and FRD-03 names that
+owner as the accepted route classification policy, so the separate
+`IIntakeTriageMatcher` — whose only implementation was ever the inactive one —
+is retired rather than filled in. Activation stays deliberate: the Production
+composition test now pins the active classification policy, its key and its
+version, so the trigger can neither change nor disappear as a side effect of
+composition.
 
 The QDOS-direct automatic incoming-case matching predicates and their
 conservative outcomes are accepted and owned by
@@ -237,7 +243,7 @@ select, or alter a Pegasus case/reference.
 
 | Evidence needed | Impact | Recommended default | Decision question |
 |---|---|---|---|
-| A vendor-confirmed usable operation and exact direction/scope; request and response contract; identity and authorization target; validation and atomicity; attachment/picture/report-PDF distinctions; correlation identifiers; structured success/failure; idempotency; recovery; coexistence or migration; and live evidence. | An assumed API could disclose, duplicate, lose, or corrupt EVA work, attach evidence to the wrong record, infer a Pegasus identity, or prematurely remove the manual path. | Continue the deterministic manual JSON/image/manifest handoff. Make no EVA call and infer no case/reference or external success from the supplied schema. | Which exact EVA operation, if any, is vendor-supported, caller-proved, and accepted with these boundaries? |
+| A vendor-confirmed usable operation and exact direction/scope; request and response contract; identity and authorization target; validation and atomicity; attachment/picture/report-PDF distinctions; correlation identifiers; structured success/failure; idempotency; recovery; coexistence or migration; and live evidence. | An assumed API could disclose, duplicate, lose, or corrupt EVA work, attach evidence to the wrong record, infer a Pegasus identity, or prematurely remove the manual path. | Continue the deterministic manual JSON/image handoff. Make no EVA call and infer no case/reference or external success from the supplied schema. | Which exact EVA operation, if any, is vendor-supported, caller-proved, and accepted with these boundaries? |
 
 ## External data, submission, and report contracts
 

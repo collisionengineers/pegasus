@@ -27,12 +27,15 @@ public sealed class DetailsModel(
     IReopenTriage reopen,
     ILinkTriageCase linkCase,
     IUnlinkTriageCase unlinkCase,
+    IGetIntake getIntake,
     IDescribeCaseEditAuthorityHolder describeEditAuthorityHolder) : StaffPageModel
 {
     private readonly IGetTriage _getTriage =
         getTriage ?? throw new ArgumentNullException(nameof(getTriage));
     private readonly IGetCase _getCase =
         getCase ?? throw new ArgumentNullException(nameof(getCase));
+    private readonly IGetIntake _getIntake =
+        getIntake ?? throw new ArgumentNullException(nameof(getIntake));
     private readonly ILeaseCaseForEdit _caseLeases =
         caseLeases ?? throw new ArgumentNullException(nameof(caseLeases));
     private readonly IDescribeCaseEditAuthorityHolder _describeEditAuthorityHolder =
@@ -43,6 +46,15 @@ public sealed class DetailsModel(
     public TriageDetail Triage { get; private set; } = null!;
 
     public IReadOnlyList<TriageFinding> ActiveFindings { get; private set; } = [];
+
+    /// <summary>
+    /// The photographs the provider attached to the Triage request. A Triage
+    /// has no evidence of its own in the domain — these are the origin
+    /// receipt's own retained assets, read through the one selection owner and
+    /// served by the one authorised asset route. Nothing is copied or retained
+    /// a second time (INTK-034).
+    /// </summary>
+    public IReadOnlyList<IntakeAssetRecord> EvidenceImages { get; private set; } = [];
     public string? CaseAssociationUnavailableReason { get; private set; }
     public Guid? CaseAssociationUnavailableCaseId { get; private set; }
 
@@ -284,6 +296,19 @@ public sealed class DetailsModel(
         }
 
         Triage = triage;
+        // The request's photographs are the whole subject of the assessment,
+        // and until now they were viewable nowhere: the "View e-mail" link
+        // lands on a page that lists attachments by name without rendering
+        // one. No rights guard here: GetTriage above already required the
+        // same PerformCasework right from the same actor, so this cannot be
+        // reached without it.
+        var receipt = await _getIntake.ExecuteAsync(
+            new(triage.Record.Origin.ReceiptId, actor),
+            cancellationToken);
+        EvidenceImages = receipt is null
+            ? []
+            : InstructionEvidenceImages.Select(receipt.AssetRecords);
+
         ActiveFindings = triage.Findings
             .Where(candidate => !triage.Findings.Any(
                 finding => finding.SupersedesFindingId == candidate.Id))

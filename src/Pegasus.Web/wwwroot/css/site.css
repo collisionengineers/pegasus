@@ -2396,6 +2396,108 @@ tbody tr[data-state="unread"] .stack > strong { font-weight: 800; }
   white-space: nowrap;
 }
 
+/* Evidence viewer (DOCS-011): the preview overlay opened from a gallery tile
+   or a document filename. It reuses .reason-dialog-backdrop for the scrim and
+   centring, so only the panel and its stage are described here. */
+.evidence-viewer__panel {
+  display: grid;
+  gap: var(--sp-3);
+  width: min(100%, 68rem);
+  max-height: calc(100vh - var(--sp-16));
+  padding: var(--sp-4);
+  border: var(--border);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: var(--shadow-modal);
+}
+
+.evidence-viewer__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.evidence-viewer__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  font-size: 1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-viewer__position {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Previous and Next sit either side of the stage, as the operator asked. */
+.evidence-viewer__frame {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+
+.evidence-viewer__step[disabled] {
+  opacity: .4;
+  cursor: default;
+}
+
+.evidence-viewer__stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  height: calc(100vh - var(--sp-16) - 8rem);
+  background: var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.evidence-viewer__image {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* The global [hidden] rule above has the same specificity as the class, and
+   loses only because it is written earlier -- so hiding the image for a PDF
+   left it displayed, adding a grid row that squeezed the document (DOCS-011).
+   The iframe needs no such rule: it sets no display of its own. */
+.evidence-viewer__image[hidden] {
+  display: none;
+}
+
+.evidence-viewer__document {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--paper);
+}
+
+/* Explicit loading state, shown rather than said: the stage carries aria-busy
+   and this spinner until the source reports load. */
+.evidence-viewer__stage.is-loading::after {
+  content: "";
+  position: absolute;
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid var(--line);
+  border-top-color: var(--ink);
+  border-radius: 50%;
+  animation: pegasus-spin 900ms linear infinite;
+}
+
+@media (max-width: 1023px) {
+  .evidence-viewer__frame { grid-template-columns: minmax(0, 1fr); }
+  .evidence-viewer__stage { order: -1; height: 60vh; }
+}
+
 /* Upload/receipt thumbnail tile — the gallery treatment for a single image
    (INTK-020): same border/card language as .image-gallery, sized for a row. */
 .upload-thumb {

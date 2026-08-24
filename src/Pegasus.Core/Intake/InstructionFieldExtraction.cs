@@ -17,7 +17,8 @@ internal static partial class InstructionFieldEngine
         Func<string, bool>? AcceptsValue = null,
         Func<string, bool>? IsValidTyped = null,
         Func<string, string?>? CanonicalValue = null,
-        string[]? GuardedPrefixes = null);
+        string[]? GuardedPrefixes = null,
+        bool PrefersLatestFragment = false);
 
     internal static (IReadOnlyList<InstructionReviewField> Fields, IReadOnlyList<string> Missing, IReadOnlyList<IntakeEvidence> Evidence)
         ExtractFields(
@@ -211,9 +212,16 @@ internal static partial class InstructionFieldEngine
     /// <summary>
     /// Deterministic resolution of multiple distinct candidates: candidates whose
     /// value satisfies the definition's typed-validity check beat those that do not;
-    /// among what remains the earliest fragment (document order — instruction
-    /// material precedes appended reports) wins when it is unambiguous. Distinct
-    /// values inside the same fragment stay a genuine conflict.
+    /// among what remains one fragment wins by document order when it is
+    /// unambiguous. Distinct values inside the same fragment stay a genuine conflict.
+    ///
+    /// Document order normally favours the <em>earliest</em> fragment, because
+    /// instruction material precedes appended reports and the instruction is the
+    /// base. A definition may set <see cref="FieldDefinition.PrefersLatestFragment"/>
+    /// to reverse that for itself — the inspection date does, because an appended
+    /// engineer's report states when the vehicle was actually seen and overrides
+    /// whatever the instruction proposed (ENG-015). The reversal is per field, not
+    /// global.
     /// </summary>
     private static InstructionFieldCandidate? ResolveConflictingCandidates(
         FieldDefinition definition,
@@ -252,13 +260,15 @@ internal static partial class InstructionFieldEngine
             }
         }
 
-        var earliestRank = pool.Min(entry => entry.FragmentRank);
-        var earliest = pool
-            .Where(entry => entry.FragmentRank == earliestRank)
+        var winningRank = definition.PrefersLatestFragment
+            ? pool.Max(entry => entry.FragmentRank)
+            : pool.Min(entry => entry.FragmentRank);
+        var winning = pool
+            .Where(entry => entry.FragmentRank == winningRank)
             .ToArray();
-        if (earliest.Length == 1)
+        if (winning.Length == 1)
         {
-            return earliest[0].Candidate;
+            return winning[0].Candidate;
         }
 
         // The letters wrap long values across physical lines ("Client's
@@ -267,10 +277,10 @@ internal static partial class InstructionFieldEngine
         // Within the winning fragment, when every other candidate is a
         // word-boundary prefix of the longest one, the longest is the value,
         // not a conflict.
-        var longest = earliest
+        var longest = winning
             .OrderByDescending(entry => entry.Candidate.Value.Length)
             .First();
-        if (earliest.All(entry => entry.Candidate == longest.Candidate
+        if (winning.All(entry => entry.Candidate == longest.Candidate
                 || longest.Candidate.Value.StartsWith(
                     entry.Candidate.Value + " ",
                     StringComparison.OrdinalIgnoreCase)))

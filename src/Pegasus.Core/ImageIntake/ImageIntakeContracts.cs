@@ -175,7 +175,8 @@ public sealed record CloseImageInitiatedCaseRequest(
 /// </summary>
 public sealed record ImageIntakeImage(
     Guid ReceiptId,
-    string FileName);
+    string FileName,
+    string MediaType);
 
 public interface IImageIntakeQueries
 {

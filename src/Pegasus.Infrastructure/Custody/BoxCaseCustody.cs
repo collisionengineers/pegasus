@@ -113,32 +113,145 @@ internal interface IBoxAuthorizationHeaderProvider
     Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken);
 }
 
-internal sealed class BoxJwtAuthorizationHeaderProvider(BoxCustodyOptions options)
-    : IBoxAuthorizationHeaderProvider
+/// <summary>The access token Box granted, and how long it said it lasts.</summary>
+internal readonly record struct BoxAccessToken(string? Value, long? LifetimeSeconds);
+
+/// <summary>
+/// Holds one Box access token and renews it before Box's stated expiry.
+///
+/// PLAT-039: this used to call the SDK's
+/// <c>RetrieveAuthorizationHeaderAsync</c>, which answers from a token cache
+/// the SDK never expires — it re-mints only when the cache is empty, and
+/// leaves 401 recovery to its own HTTP client. Pegasus calls Box with its own
+/// <see cref="HttpClient"/>, so that recovery never ran: a long-lived Web
+/// container minted one token and reused it for the life of the replica, and
+/// every Box call failed with 401 an hour after start.
+///
+/// The lifetime is read from Box's own response rather than assumed, and the
+/// mint is single-flight so a burst of concurrent Box work takes one token,
+/// not one each.
+/// </summary>
+internal sealed class BoxJwtAuthorizationHeaderProvider : IBoxAuthorizationHeaderProvider, IDisposable
 {
-    private readonly Lazy<(BoxJwtAuth Auth, NetworkSession Session)> authentication = new(() =>
+    /// <summary>
+    /// How long a Box request is allowed to run. Declared here, beside the
+    /// renewal margin that has to exceed it, and read by the registration that
+    /// builds the client — the margin's correctness depends on this number, so
+    /// the two are joined by the compiler rather than by a comment.
+    /// </summary>
+    internal static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(100);
+
+    /// <summary>
+    /// Renew this far ahead of expiry, so a request that starts just under the
+    /// wire still holds a live token for its whole life. Longer than
+    /// <see cref="RequestTimeout"/>, or a long photograph transfer could begin
+    /// inside the margin and still be running after the token died — the
+    /// intermittent-looking 401 this class exists to remove.
+    /// </summary>
+    private static readonly TimeSpan RenewalMargin = RequestTimeout + TimeSpan.FromSeconds(20);
+
+    private readonly Func<CancellationToken, Task<BoxAccessToken>> mint;
+    private readonly TimeProvider timeProvider;
+    private readonly SemaphoreSlim gate = new(1, 1);
+
+    /// <summary>
+    /// Header and expiry together in one immutable object, so the lock-free
+    /// read below takes a single reference and can never see one token's
+    /// header against another's expiry.
+    /// </summary>
+    private sealed record Lease(string Header, DateTimeOffset ExpiresAtUtc);
+
+    private Lease? lease;
+
+    public BoxJwtAuthorizationHeaderProvider(BoxCustodyOptions options, TimeProvider timeProvider)
+        : this(SdkMint(options), timeProvider)
     {
-        var configuration = new JwtConfig(
-            options.ClientId,
-            options.ClientSecret,
-            options.JwtKeyId,
-            options.PrivateKey,
-            options.PrivateKeyPassphrase)
-        {
-            EnterpriseId = options.EnterpriseId
-        };
-        return (new BoxJwtAuth(configuration), new NetworkSession());
-    }, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
+
+    /// <summary>
+    /// The mint seam. <c>BoxJwtAuth</c> is a concrete SDK class with no
+    /// interface, so without this the renewal rule cannot be tested at all —
+    /// which is how a token that never renewed reached production.
+    /// </summary>
+    internal BoxJwtAuthorizationHeaderProvider(
+        Func<CancellationToken, Task<BoxAccessToken>> mint,
+        TimeProvider timeProvider)
+    {
+        this.mint = mint;
+        this.timeProvider = timeProvider;
+    }
 
     public async Task<string> GetAuthorizationHeaderAsync(CancellationToken cancellationToken)
     {
-        var (auth, session) = authentication.Value;
-        var header = await auth.RetrieveAuthorizationHeaderAsync(session).WaitAsync(cancellationToken);
-        if (string.IsNullOrWhiteSpace(header))
+        if (Live(timeProvider.GetUtcNow()) is { } current)
         {
-            throw new InvalidOperationException("Box JWT authentication returned no authorization header.");
+            return current;
         }
-        return header;
+
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var now = timeProvider.GetUtcNow();
+            if (Live(now) is { } renewed)
+            {
+                return renewed;
+            }
+
+            var token = await mint(cancellationToken);
+            // A token that expires inside the renewal margin would never be
+            // live, so every Box call would mint another — a silent storm
+            // against Box's token endpoint instead of a fault anyone can see.
+            // Box JWT tokens last an hour; anything shorter is a broken
+            // premise, and this says so rather than absorbing it.
+            if (string.IsNullOrWhiteSpace(token.Value)
+                || token.LifetimeSeconds is not > 0
+                || TimeSpan.FromSeconds(token.LifetimeSeconds.Value) <= RenewalMargin)
+            {
+                throw new InvalidOperationException(
+                    "Box JWT authentication returned no usable access token.");
+            }
+
+            var renewal = new Lease(
+                $"Bearer {token.Value}",
+                now + TimeSpan.FromSeconds(token.LifetimeSeconds.Value));
+            Volatile.Write(ref lease, renewal);
+            return renewal.Header;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    public void Dispose() => gate.Dispose();
+
+    private string? Live(DateTimeOffset now) =>
+        Volatile.Read(ref lease) is { } held && now + RenewalMargin < held.ExpiresAtUtc
+            ? held.Header
+            : null;
+
+    private static Func<CancellationToken, Task<BoxAccessToken>> SdkMint(BoxCustodyOptions options)
+    {
+        var authentication = new Lazy<(BoxJwtAuth Auth, NetworkSession Session)>(() =>
+        {
+            var configuration = new JwtConfig(
+                options.ClientId,
+                options.ClientSecret,
+                options.JwtKeyId,
+                options.PrivateKey,
+                options.PrivateKeyPassphrase)
+            {
+                EnterpriseId = options.EnterpriseId
+            };
+            return (new BoxJwtAuth(configuration), new NetworkSession());
+        }, LazyThreadSafetyMode.ExecutionAndPublication);
+
+        return async cancellationToken =>
+        {
+            var (auth, session) = authentication.Value;
+            var token = await auth.RefreshTokenAsync(session).WaitAsync(cancellationToken);
+            return new(token?.AccessTokenField, token?.ExpiresIn);
+        };
     }
 }
 
@@ -210,15 +323,30 @@ internal sealed class BoxContentClient(
         string parentId,
         string name,
         string type,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken) =>
+        SelectChild(await CollectChildrenAsync(parentId, name, cancellationToken), name, type);
+
+    /// <summary>
+    /// The one child with this exact name and type, or null — the duplicate and
+    /// wrong-type refusals written once, so a caller that already holds a
+    /// listing decides them the same way <see cref="FindChildAsync"/> does
+    /// rather than asking Box again for what it has (PLAT-041).
+    /// </summary>
+    public static BoxItem? SelectChild(IEnumerable<BoxItem> children, string name, string type)
     {
-        var matches = await CollectChildrenAsync(parentId, name, cancellationToken);
-        var match = matches.Count switch
+        BoxItem? match = null;
+        foreach (var child in children)
         {
-            0 => null,
-            1 => matches[0],
-            _ => throw new InvalidDataException("Box contains duplicate custody children for one exact identity.")
-        };
+            if (!string.Equals(child.Name, name, StringComparison.Ordinal))
+            {
+                continue;
+            }
+            if (match is not null)
+            {
+                throw new InvalidDataException("Box contains duplicate custody children for one exact identity.");
+            }
+            match = child;
+        }
         if (match is not null && !string.Equals(match.Type, type, StringComparison.Ordinal))
         {
             throw new InvalidDataException("A Box custody child has the expected name but the wrong type.");
@@ -334,6 +462,49 @@ internal sealed class BoxContentClient(
     public async Task<byte[]> DownloadAsync(string fileId, CancellationToken cancellationToken)
     {
         await EnsureDescendantAsync(fileId, cancellationToken, isFile: true);
+        return await DownloadContentAsync(fileId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Downloads a file whose descent from the approved root is already proved:
+    /// <paramref name="listedChild"/> was returned by listing
+    /// <paramref name="fencedParentId"/>, and that folder's own descent was
+    /// proved when it was listed.
+    ///
+    /// PLAT-041: <see cref="EnsureDescendantAsync"/> re-walks the same ancestry
+    /// on every call, one GET per level, and it dominated the case export —
+    /// roughly twenty of its forty-five Box round trips proved, over and over,
+    /// what the listing had just established. The fence is re-checked here
+    /// rather than assumed: the caller must hand back the parent it listed
+    /// under, and the child must still claim it. Nothing is remembered between
+    /// calls, so a Box-side move cannot be read through a stale identity —
+    /// the next operation resolves the folder again and fails loudly.
+    ///
+    /// The listing is the proof, not the parent Box restates on each entry: a
+    /// stated parent that disagrees is refused, but a parent Box declines to
+    /// send cannot refuse a child that was returned by listing the fenced
+    /// folder itself. DOCS-010 is what that sentence is for — a field Box
+    /// silently omitted made every managed read fail in production, and no
+    /// check here may be made to depend on Box volunteering one.
+    ///
+    /// Callers holding only an identifier must use <see cref="DownloadAsync"/>.
+    /// </summary>
+    public async Task<byte[]> DownloadFencedAsync(
+        BoxItem listedChild,
+        string fencedParentId,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(listedChild);
+        if (listedChild.ParentId is { Length: > 0 } parentId
+            && !string.Equals(parentId, fencedParentId, StringComparison.Ordinal))
+        {
+            throw new UnauthorizedAccessException("The Box object is outside the approved custody root.");
+        }
+        return await DownloadContentAsync(listedChild.Id, cancellationToken);
+    }
+
+    private async Task<byte[]> DownloadContentAsync(string fileId, CancellationToken cancellationToken)
+    {
         using var response = await SendAsync(
             HttpMethod.Get,
             new Uri(options.BaseUri, $"files/{Uri.EscapeDataString(fileId)}/content"),
