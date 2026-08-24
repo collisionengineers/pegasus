@@ -2,12 +2,13 @@
 id: INTK-035
 type: ticket
 title: Promote an Unidentified triage request once its registration is known
-status: implementing
+status: review
 area: intake-processing
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-24T10:07:06.107Z'
+  review: '2026-08-24T11:22:17.573Z'
 taken_at: '2026-08-24T10:07:10.292Z'
 branch: task/intk-035-open-triage
 worktree: ../pegasus-worktrees/intk-035-open-triage
@@ -23,7 +24,7 @@ refs:
   - docs/design/README.md
 archived: false
 created: '2026-08-24T08:33:08.297Z'
-updated: '2026-08-24T10:07:10.293Z'
+updated: '2026-08-24T11:22:17.573Z'
 ---
 
 ## Why
