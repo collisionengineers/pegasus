@@ -1,4 +1,4 @@
-namespace Pegasus.Core.Intake;
+﻿namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Application work views are distinct from both the detailed classification and the
@@ -106,7 +106,7 @@ public static class MailOperationalDestinationPolicy
             MailOperationalDestination.Triage => new(
                 ExactClassification: MailCategory.Received(
                     ReceivedMailFamily.PreInstructionEmails,
-                    "triage-request")),
+                    MailCategory.TriageRequestSubtype)),
             MailOperationalDestination.DetailedClassification => throw new ArgumentException(
                 "Detailed mail views require one exact canonical classification.",
                 nameof(destination)),

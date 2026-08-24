@@ -1,4 +1,4 @@
-using System.Text.RegularExpressions;
+﻿using System.Text.RegularExpressions;
 using Pegasus.Core.Cases;
 
 namespace Pegasus.Core.Intake;
@@ -124,7 +124,7 @@ public sealed partial class QdosMailClassificationPolicy : IMailClassificationPo
         {
             candidates.Add(MailCategory.Received(
                 ReceivedMailFamily.PreInstructionEmails,
-                "triage-request",
+                MailCategory.TriageRequestSubtype,
                 isReplyContext: isReplyPrefixed));
         }
 
