@@ -1,4 +1,4 @@
-﻿using System.Diagnostics;
+using System.Diagnostics;
 using System.Security.Cryptography;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -710,9 +710,8 @@ public sealed class ProcessQueuedIntake(
         CancellationToken cancellationToken)
     {
         if (registerUnidentified is not null
-            && receipt.Decision == IntakeDecision.NeedsSorting
-            && (Pegasus.Core.ImageIntake.ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
-                || (ProcessIntake.IsTriageRequest(receipt) && !triageCreated)))
+            && ProcessIntake.IsDeferredForAutomation(receipt)
+            && !(ProcessIntake.IsTriageRequest(receipt) && triageCreated))
         {
             try
             {
@@ -905,6 +904,18 @@ public sealed class ProcessQueuedIntake(
     /// one now exists. The caller needs that answer: a Triage request with no
     /// registration is the operator's Unidentified branch.
     /// </summary>
+    /// <remarks>
+    /// Advisory and non-blocking, like every other step after
+    /// <c>CompleteProcessingAsync</c>. This one had no fault handling while
+    /// its gate could never pass, so the omission was invisible; now that it
+    /// fires, an escaping fault would leave the receipt Completed, throw to
+    /// the host, and throw again identically on every redelivery — a poison
+    /// loop rather than a settled outcome. Reporting <see langword="false"/>
+    /// is the right fail-closed answer: the caller then registers the
+    /// material as Unidentified, so it lands in a queue somebody works rather
+    /// than nowhere, which is the exact failure this work exists to fix
+    /// (INTK-033).
+    /// </remarks>
     private async Task<bool> CreateTriageIfQualifyingAsync(
         IntakeReceipt receipt,
         IntakeEvaluationRevision evaluation,
@@ -924,19 +935,26 @@ public sealed class ProcessQueuedIntake(
             return false;
         }
 
-        await createTriage.ExecuteAsync(
-            new(
+        try
+        {
+            await createTriage.ExecuteAsync(
                 new(
-                    receipt.Id,
-                    receipt.SourceIdentity,
-                    receipt.SourceHash,
-                    evaluation.Id),
-                registration,
-                acceptedMatches[0],
-                SystemActor,
-                $"triage-from-intake-evaluation:{evaluation.Id:N}"),
-            cancellationToken);
-        return true;
+                    new(
+                        receipt.Id,
+                        receipt.SourceIdentity,
+                        receipt.SourceHash,
+                        evaluation.Id),
+                    registration,
+                    acceptedMatches[0],
+                    SystemActor,
+                    $"triage-from-intake-evaluation:{evaluation.Id:N}"),
+                cancellationToken);
+            return true;
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            return false;
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-﻿using System.Data.Common;
+using System.Data.Common;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
 

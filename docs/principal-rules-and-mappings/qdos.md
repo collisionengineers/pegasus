@@ -1,4 +1,4 @@
-﻿# QDOS — identification rules and mappings
+# QDOS — identification rules and mappings
 
 How Pegasus identifies, classifies, types, associates, and extracts QDOS
 email. Derived from the operator-approved QDOS mapping methodology

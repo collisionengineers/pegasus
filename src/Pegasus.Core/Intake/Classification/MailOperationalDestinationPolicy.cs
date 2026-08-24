@@ -1,4 +1,4 @@
-﻿namespace Pegasus.Core.Intake;
+namespace Pegasus.Core.Intake;
 
 /// <summary>
 /// Application work views are distinct from both the detailed classification and the

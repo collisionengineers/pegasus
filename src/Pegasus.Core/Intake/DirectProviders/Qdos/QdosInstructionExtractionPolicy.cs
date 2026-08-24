@@ -408,19 +408,24 @@ public sealed class QdosInstructionExtractionPolicy : IInstructionExtractionPoli
         // YD14VGJ" and "Vehicle Registration : VO75DFJ"). It is the only
         // place that template states a registration at all — its body is
         // free prose — so without this rule every subject-template Triage
-        // request falls to Unidentified (INTK-033). Bounded quantifiers
-        // throughout: the value is two short runs, never a repeated group
-        // with optional whitespace on both sides.
+        // request falls to Unidentified (INTK-033).
+        //
+        // The separator is ONE bounded class, not `\s*[:.]?\s*`. Two
+        // unbounded whitespace runs either side of an optional character are
+        // ambiguous, and a long whitespace run then costs O(k²) to fail —
+        // measured at 6.9 s for 16,000 spaces, four times worse per
+        // doubling, on a subject header an approved sender controls. This
+        // form is 1.1 ms at the same width. The value is two short bounded
+        // runs, and the shape is validated outside the pattern.
         var subjectRegistration = Regex.Match(
             subject,
-            @"\bVehicle\s+Registration\s*[:.]?\s*(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b",
+            @"\bVehicle\s+Registration\b[\s:.]{1,10}(?<value>[A-Za-z0-9]{1,4}[ -]?[A-Za-z0-9]{1,4})\b",
             RegexOptions.IgnoreCase,
             TimeSpan.FromMilliseconds(100));
-        var subjectRegistrationValue = subjectRegistration.Groups["value"].Value;
         if (subjectRegistration.Success
-            && InstructionFieldEngine.IsUkRegistration(subjectRegistrationValue))
+            && InstructionFieldEngine.IsUkRegistration(subjectRegistration.Groups["value"].Value))
         {
-            lines.Add($"Vehicle Registration: {subjectRegistrationValue}");
+            lines.Add($"Vehicle Registration: {subjectRegistration.Groups["value"].Value}");
         }
 
         // The lookahead keeps this rule off the registration label above.
@@ -548,6 +553,4 @@ public sealed class QdosInstructionExtractionPolicy : IInstructionExtractionPoli
             InstructionFieldEngine.TypedString(values["Inspection address"], 1000),
             InstructionFieldEngine.ParseDate(values["Inspection date"]));
     }
-
-
 }
