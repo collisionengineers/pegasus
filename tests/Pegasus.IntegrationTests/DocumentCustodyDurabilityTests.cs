@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Workflow;
@@ -13,6 +14,64 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed class DocumentCustodyDurabilityTests
 {
+    [Fact]
+    public async Task RemovingAFileWritesOneNoteTheOperatorCanActuallySee()
+    {
+        // The point of this test is the ROUND TRIP, not the row. A note written
+        // to CaseHistory persists happily, reports success, and never appears on
+        // the Notes tab — which is how the Release 22 note defect reached
+        // production. So it is asserted through CaseDetails.History, the same
+        // read the page makes (DOCS-012).
+        var root = Path.Combine(Path.GetTempPath(), "Pegasus.IntegrationTests", Guid.NewGuid().ToString("N"));
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => root);
+            var caseId = await SeedCaseAsync(database);
+            var occurrenceId = await SeedCurrentImageAsync(database, caseId);
+            await using var scope = database.CreateAsyncScope();
+            var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]);
+            var lease = await scope.ServiceProvider.GetRequiredService<ILeaseCaseForEdit>()
+                .ClaimAsync(
+                    new(caseId, 0, actor, $"removal-note-lease:{Guid.NewGuid():N}"),
+                    CancellationToken.None);
+            var command = new LogicallyRemoveDocumentCommand(
+                caseId,
+                occurrenceId,
+                actor,
+                "Wrong vehicle — the photograph belongs to another claim.",
+                $"removal-note:{Guid.NewGuid():N}",
+                lease.Version,
+                lease.Token);
+
+            var remover = scope.ServiceProvider.GetRequiredService<ILogicallyRemoveDocument>();
+            await remover.ExecuteAsync(command, CancellationToken.None);
+            // Replay must not add a second note.
+            await remover.ExecuteAsync(command, CancellationToken.None);
+
+            // Read through ICaseQueryStore — the component that builds the very
+            // History collection the Notes tab renders. Asserting the row in
+            // CaseWorkflowEvents directly would pass just as happily for a row
+            // written to CaseHistory, which is the defect this guards against.
+            var details = await scope.ServiceProvider.GetRequiredService<ICaseQueryStore>()
+                .GetAsync(new(caseId, actor), CancellationToken.None);
+            Assert.NotNull(details);
+            var note = Assert.Single(
+                details!.History,
+                entry => entry.EventType == "case_document_removed");
+            Assert.Equal(command.Reason, note.Reason);
+            Assert.Equal(ActorKind.Staff.ToString(), note.ActorKind);
+            Assert.Equal(actor.SubjectId.ToString(), note.Actor);
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
     [Fact]
     public async Task StaffConfirmationOfThirdPartyVehicleEvidenceIsDurableAndExactlyReplayable()
     {
@@ -400,7 +459,10 @@ public sealed class DocumentCustodyDurabilityTests
                 Reference = "QDOS001",
                 Type = "Inspection",
                 InitialState = "NotReady",
-                CustodyState = "Confirmed",
+                // Lowercase, as ToCode writes it in production. The seed said
+                // "Confirmed" and nothing noticed, because no test in this file
+                // had ever read the case back through GetCase (DOCS-012).
+                CustodyState = "confirmed",
                 OriginIntakeReceiptId = receiptId,
                 CreatedAtUtc = occurredAtUtc,
                 Version = 3,

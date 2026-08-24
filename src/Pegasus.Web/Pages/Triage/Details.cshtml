@@ -63,6 +63,32 @@
             <div class="status-card" role="status" aria-live="polite">@Model.Message</div>
         }
 
+    @if (Model.EvidenceImages.Count > 0)
+    {
+        <section class="panel section-gap" aria-labelledby="triage-images-title">
+            <h2 id="triage-images-title" class="section-label">Vehicle images</h2>
+            @{
+                var triageGallery = Model.EvidenceImages
+                    .Select(asset =>
+                    {
+                        // A retained receipt asset is already served inline, so
+                        // preview and download are the same authorised URL --
+                        // the coincidence GalleryImage documents (DOCS-011).
+                        var href = Url.Page(
+                            "/Intake/Asset",
+                            new { id = record.Origin.ReceiptId, assetId = asset.Id })!;
+                        return new Pegasus.Web.Presentation.GalleryImage(
+                            href,
+                            href,
+                            asset.FileName,
+                            asset.MediaType);
+                    })
+                    .ToArray();
+            }
+            <partial name="Shared/_ImageGallery" model="triageGallery" />
+        </section>
+    }
+
     <div class="review-grid section-gap">
         @if (record.State is not (TriageState.Completed or TriageState.Cancelled))
         {

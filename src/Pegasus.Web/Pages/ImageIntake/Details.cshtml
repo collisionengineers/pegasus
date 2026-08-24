@@ -57,17 +57,29 @@
     </section>
 </div>
 
-<section class="panel section-gap" aria-labelledby="image-initiated-images-title">
-    <h2 id="image-initiated-images-title" class="section-label">Images</h2>
-    @{
-        var gallery = Model.Images
-            .Select(item => new Pegasus.Web.Presentation.GalleryImage(
-                Url.Page("/Intake/Image", new { id = item.ReceiptId })!,
-                item.FileName))
-            .ToArray();
-    }
-    <partial name="Shared/_ImageGallery" model="gallery" />
-</section>
+@if (Model.Images.Count > 0)
+{
+    <section class="panel section-gap" aria-labelledby="image-initiated-images-title">
+        <h2 id="image-initiated-images-title" class="section-label">Images</h2>
+        @{
+            // The retained-image route already serves inline, so preview and
+            // download are the same URL; the anchor's download attribute saves.
+            var gallery = Model.Images
+                .Select(item =>
+                {
+                    var href = Url.Page("/Intake/Image", new { id = item.ReceiptId })!;
+                    return new Pegasus.Web.Presentation.GalleryImage(
+                        href,
+                        href,
+                        item.FileName,
+                        item.MediaType);
+                })
+                .ToArray();
+        }
+        <partial name="Shared/_ImageGallery" model="gallery" />
+    </section>
+    <partial name="Shared/_EvidenceViewer" />
+}
 
 @if (Model.Detail.State == ImageInitiatedCaseState.AwaitingInstruction)
 {

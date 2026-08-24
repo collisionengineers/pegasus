@@ -1008,6 +1008,13 @@ public sealed class MessageModel(
         { AllocationState.Status: IntakeAllocationProjectionStatus.Pending } => "Creating case",
         { AllocationState.Status: IntakeAllocationProjectionStatus.FailedRecoverable
             or IntakeAllocationProjectionStatus.FailedBlocked } => "Case not created",
+        // A Triage request shares the NeedsSorting decision with unidentified
+        // material, because both are pre-case, but they are not the same thing
+        // and this column must not call one the other: the operator reported
+        // this defect from this screen, which labelled a Triage request as
+        // though a case were coming. The word is the destination's own
+        // (OperatorLabels.MailOperationalDestination.Triage), not a new one.
+        { Classification.IsTriageRequest: true } => "Triage",
         _ => OutcomeLabel(summary.ProcessingOutcome)
     };
 

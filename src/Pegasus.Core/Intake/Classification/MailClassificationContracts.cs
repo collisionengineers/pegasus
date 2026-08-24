@@ -51,7 +51,7 @@ public static class MailTaxonomy
             [ReceivedMailFamily.PostReportEmails] =
                 ["query", "dispute", "amendment-request"],
             [ReceivedMailFamily.PreInstructionEmails] =
-                ["triage-request", "pre-formal-instruction-request", "images-received"],
+                [MailCategory.TriageRequestSubtype, "pre-formal-instruction-request", "images-received"],
             [ReceivedMailFamily.InternalCc] = []
         }.ToImmutableDictionary();
 
@@ -102,6 +102,15 @@ public sealed record MailCategory
     public const int OtherNameMaxLength = 200;
     public const int OtherReasoningMaxLength = 1000;
 
+    /// <summary>
+    /// The subtype that means "this provider is asking for a Triage, not
+    /// instructing a case". Named here, once, because three surfaces ask the
+    /// question: the classification policy that produces it, the operational
+    /// destination policy that routes it to the Triage view, and intake
+    /// processing, which must not send it to case allocation.
+    /// </summary>
+    public const string TriageRequestSubtype = "triage-request";
+
     private MailCategory(
         MailDirection direction,
         ReceivedMailFamily? receivedFamily,
@@ -129,6 +138,11 @@ public sealed record MailCategory
     public string? OtherReasoning { get; }
 
     public bool IsOther => OtherName is not null;
+
+    public bool IsTriageRequest =>
+        Direction == MailDirection.Received
+        && ReceivedFamily == ReceivedMailFamily.PreInstructionEmails
+        && string.Equals(Subtype, TriageRequestSubtype, StringComparison.Ordinal);
 
     public string Name =>
         OtherName
@@ -256,6 +270,14 @@ public sealed record MailClassificationResult(
     CaseType? CaseType = null,
     StandaloneAuditReportEvaluation? StandaloneAuditReport = null)
 {
+    /// <summary>
+    /// Whether this decision says the message is a Triage request. A recorded
+    /// Ambiguous outcome is deliberately not one: two matching categories are
+    /// not a triage request, they are a message no policy may resolve.
+    /// </summary>
+    public bool IsTriageRequest =>
+        Outcome == MailClassificationOutcome.Classified && Category?.IsTriageRequest == true;
+
     public static MailClassificationResult Classified(
         MailCategory category,
         IReadOnlyList<MailClassificationPredicateResult> predicates,

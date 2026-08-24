@@ -12,6 +12,18 @@ namespace Pegasus.Infrastructure.Custody;
 /// </summary>
 internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocumentContentStore
 {
+    /// <summary>
+    /// How many of a batch's downloads are in flight at once.
+    ///
+    /// Every other Box primitive here serialises, and this is the one place
+    /// that fans out, so the number is deliberately small: a case may hold far
+    /// more photographs than the handful a typical one does, Box rate limits
+    /// per application, and nothing on this path retries a 429. Four overlaps
+    /// essentially all of a normal export's download time while keeping the
+    /// burst close to what the sequential version already asked of Box.
+    /// </summary>
+    private const int MaximumConcurrentReads = 4;
+
     private readonly ConcurrentDictionary<Guid, CreatedFile> createdFiles = [];
 
     /// <summary>
@@ -50,9 +62,14 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         var existing = await client.FindChildAsync(caseFolder, fileName, "file", cancellationToken);
         if (existing is not null)
         {
+            // The write path keeps the metadata GET. It decides replay against
+            // conflict before any content is committed, it costs one Box call
+            // per document at intake rather than one per image on the export
+            // that PLAT-041 is about, and the fields it compares are the ones
+            // DOCS-010 proved must come from the file object itself.
             await VerifyFileMetadataAsync(
                 existing, caseFolder, address.MediaType, content.Length, cancellationToken);
-            var retained = await client.DownloadAsync(existing.Id, cancellationToken);
+            var retained = await client.DownloadFencedAsync(existing, caseFolder, cancellationToken);
             Verify(retained, normalizedHash, content.Length);
             return new(DocumentContentWriteDisposition.Replay, existing.Id);
         }
@@ -91,11 +108,70 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             "file",
             cancellationToken)
             ?? throw new FileNotFoundException("The document content is unavailable.");
-        await VerifyFileMetadataAsync(
-            file, caseFolder, address.MediaType, expectedLength, cancellationToken);
-        var content = await client.DownloadAsync(file.Id, cancellationToken);
+        RefuseUnexpectedLength(file, expectedLength);
+        var content = await client.DownloadFencedAsync(file, caseFolder, cancellationToken);
         Verify(content, normalizedHash, expectedLength);
         return new MemoryStream(content, writable: false);
+    }
+
+    /// <summary>
+    /// PLAT-041: every eligible photograph of one case, read with the case
+    /// folder resolved once for the whole set instead of once per file. What
+    /// remains per image is the download itself, and those run together rather
+    /// than one after another.
+    ///
+    /// Every version is materialised in full before any is returned, which is
+    /// what this caller wants — the EVA archive holds the bytes — and what a
+    /// streaming caller must not use.
+    /// </summary>
+    public async Task<IReadOnlyList<ReadOnlyMemory<byte>>> ReadVersionsAsync(
+        IReadOnlyList<ManagedDocumentContentRead> reads,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(reads);
+        if (reads.Count == 0)
+        {
+            return [];
+        }
+        // Every argument is checked before any I/O starts, so a malformed hash
+        // fails the same way whatever the downloads happen to be doing.
+        var first = reads[0].Address;
+        var hashes = new string[reads.Count];
+        for (var index = 0; index < reads.Count; index++)
+        {
+            var address = reads[index].Address;
+            Validate(address);
+            if (address.CaseId != first.CaseId
+                || !string.Equals(address.CaseReference, first.CaseReference, StringComparison.Ordinal))
+            {
+                throw new ArgumentException(
+                    "A managed content batch reads one Case only.", nameof(reads));
+            }
+            hashes[index] = NormalizeSha256(reads[index].ExpectedSha256);
+        }
+
+        var caseFolder = await ResolveCaseFolderAsync(first, create: false, cancellationToken)
+            ?? throw new FileNotFoundException("The document content is unavailable.");
+        var children = await client.ListChildrenAsync(caseFolder, cancellationToken);
+        var contents = new ReadOnlyMemory<byte>[reads.Count];
+        await Parallel.ForEachAsync(
+            Enumerable.Range(0, reads.Count),
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = MaximumConcurrentReads,
+                CancellationToken = cancellationToken
+            },
+            async (index, token) =>
+            {
+                var read = reads[index];
+                var file = BoxContentClient.SelectChild(children, FlatFileName(read.Address), "file")
+                    ?? throw new FileNotFoundException("The document content is unavailable.");
+                RefuseUnexpectedLength(file, read.ExpectedLength);
+                var content = await client.DownloadFencedAsync(file, caseFolder, token);
+                Verify(content, hashes[index], read.ExpectedLength);
+                contents[index] = content;
+            });
+        return contents;
     }
 
     public Task StoreAsync(
@@ -199,6 +275,15 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         && (file.MediaType is not { Length: > 0 } mediaType
             || string.Equals(mediaType, expectedMediaType, StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>
+    /// PLAT-041: only the write path still asks. A read used to spend this GET
+    /// and the two ancestry calls under it on every image — three of its nine
+    /// round trips — to re-derive length and parent before downloading the
+    /// content and verifying its SHA-256 anyway. As the remarks on
+    /// <see cref="IsExpectedRevision"/> already conceded, that hash is the real
+    /// guarantee: it refuses every wrong file this check refused, and it does it
+    /// against the bytes rather than against Box's description of them.
+    /// </summary>
     private async Task VerifyFileMetadataAsync(
         BoxContentClient.BoxItem file,
         string expectedParentId,
@@ -231,6 +316,28 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         }
         _ = CustodyNames.SafeName(address.CaseReference);
         _ = CustodyNames.SafeName(address.FileName);
+    }
+
+    /// <summary>
+    /// PLAT-041 review: refuse a length mismatch before any bytes move. Dropping
+    /// the per-read metadata GET also dropped the only pre-download size guard,
+    /// so an unbounded body could be buffered — four at once under the fan-out —
+    /// before <see cref="Verify"/> rejected it.
+    ///
+    /// Deliberately tolerant, unlike the metadata check it replaces: a size Box
+    /// declines to send cannot refuse a file, the same reasoning
+    /// <c>DownloadFencedAsync</c> applies to an absent parent. That strictness
+    /// was the reason the old check could not simply be re-pointed at the
+    /// listing. <see cref="Verify"/> stays the closing check on the content.
+    /// </summary>
+    private static void RefuseUnexpectedLength(
+        BoxContentClient.BoxItem file,
+        long expectedLength)
+    {
+        if (file.Size is { } size && size != expectedLength)
+        {
+            throw new InvalidDataException("Document custody length verification failed.");
+        }
     }
 
     private static void Verify(ReadOnlySpan<byte> content, string expectedSha256, long expectedLength)

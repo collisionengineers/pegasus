@@ -4,6 +4,171 @@ namespace Pegasus.Core.Tests.Intake.Qdos;
 
 public sealed class QdosInstructionExtractionPolicyTests
 {
+    [Fact]
+    public void ADamageAreaLabelAloneStillReadsItsWrappedValue()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 7: instruction letter, page 1",
+                "Damage Area:\n"
+                + "\n"
+                + "Offside front wing crushed and the\n"
+                + "headlamp assembly is detached.\n"
+                + "\n"
+                + "TP Vehicle: SCANIA")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Damage Area: Offside front wing crushed and the\n"
+            + "headlamp assembly is detached.",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+    }
+
+    [Fact]
+    public void ALetterWithOnlyADamageAreaMakesItTheWholeCircumstances()
+    {
+        // ENG-015, and the shape of the QDOS audit letters: no circumstances
+        // prose at all, so the labelled damage area stands alone with no
+        // leading blank line.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 2",
+                "Damage Area - Nearside Front: Light\nTP Vehicle: BMW X5")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Damage Area: Nearside Front: Light",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+    }
+
+    [Fact]
+    public void AWrappedDamageDescriptionKeepsEveryRowUpToTheThirdPartyBlock()
+    {
+        // The letters wrap the description mid-sentence across physical rows —
+        // the retained QDOS_NX14AXY output carries "...rear wheel arch is\n
+        // damaged." — so reading only the label's own row cut the sentence in
+        // half. Pre-existing damage is a separate field and stops the block.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 7: instruction letter, page 1",
+                "Damage Area - Nearside: Moderate: Nearside rear wheel arch is\n"
+                + "damaged. Nearside door is damaged.\n"
+                + "\n"
+                + "Pre-existing Damage:\n"
+                + "\n"
+                + "No.\n"
+                + "\n"
+                + "TP Vehicle: SCANIA")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Damage Area: Nearside: Moderate: Nearside rear wheel arch is\n"
+            + "damaged. Nearside door is damaged.",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).AccidentCircumstances);
+    }
+
+    [Fact]
+    public void TheAppendedReportsInspectionDateBeatsTheInstructionLetters()
+    {
+        // ENG-015: the instruction can only propose an inspection date; the
+        // appended engineer's report states when the vehicle was actually
+        // seen. The later fragment wins for this field, and this field only.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 6: instruction letter, page 1",
+                    "Inspection Date: 20/08/2026"),
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: engineer's report, page 1",
+                    "Inspection Date: 23/08/2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(new DateOnly(2026, 8, 23), draft.InspectionDate);
+    }
+
+    [Fact]
+    public void TheBareDateLabelDoesNotClaimAnotherRowsTrailingDate()
+    {
+        // The other shape of the same risk, and the one the value cannot
+        // reject: "Accident Date: 15/08/2026" ends in a perfectly valid date,
+        // so only the guarded prefixes keep it out of the instruction date.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Accident Date: 15/08/2026\n"
+                    + "Inspection Date: 20/08/2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(new DateOnly(2026, 8, 15), draft.DateOfIncident);
+        Assert.Equal(new DateOnly(2026, 8, 20), draft.InspectionDate);
+
+        // Neither row is the instruction date, so it defaults as it always did.
+        var instruction = Assert.Single(result.Fields, item => item.Name == "Instruction date");
+        Assert.True(instruction.IsDefaulted);
+    }
+
+    [Fact]
+    public void TheBareDateRowIsTheInstructionDateAndLeavesTheAccidentDateAlone()
+    {
+        // ENG-015: the letters date themselves with a bare "Date:" row, so
+        // without it every QDOS case fell back to its receipt date. The
+        // regression this risks is the bare label swallowing the accident
+        // row instead — "Date of Accident:" also begins with "Date".
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(new IntakeContentFragment(
+                IntakeEvidenceSource.PdfContent,
+                "attachment 6: instruction letter, page 1",
+                "Our Ref: AKH//47743/1\n"
+                    + "Date: 22/08/2026\n"
+                    + "Date of Accident: 14/08/2026")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal(new DateOnly(2026, 8, 22), draft.InstructionDate);
+        Assert.Equal(new DateOnly(2026, 8, 14), draft.DateOfIncident);
+
+        var instruction = Assert.Single(result.Fields, item => item.Name == "Instruction date");
+        Assert.False(instruction.HasConflict);
+        Assert.False(instruction.IsDefaulted);
+    }
+
+    [Fact]
+    public void TheEarliestFragmentStillWinsForEveryOtherField()
+    {
+        // The precedence reversal is per field. The claimant name still takes
+        // the instruction letter's spelling over the appended report's.
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            Readable(
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 6: instruction letter, page 1",
+                    "Claimant Name: Mrs Caroline Reynolds"),
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.PdfContent,
+                    "attachment 7: engineer's report, page 1",
+                    "Claimant Name: C Reynolds")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(
+            "Mrs Caroline Reynolds",
+            Assert.IsType<InstructionDraft>(result.InstructionDraft).ClaimantName);
+    }
+
     private static readonly DateTimeOffset ProcessedAtUtc =
         new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
     private static readonly EstablishedPrincipalContext QdosContext =
@@ -660,7 +825,8 @@ public sealed class QdosInstructionExtractionPolicyTests
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal(
             "Our client was stationary at traffic lights on Badger Avenue. " +
-            "Your insured failed to stop and collided with the rear of our client's car.",
+            "Your insured failed to stop and collided with the rear of our client's car." +
+            "\n\nDamage Area: Rear: Moderate",
             draft.AccidentCircumstances);
     }
 
@@ -748,8 +914,93 @@ public sealed class QdosInstructionExtractionPolicyTests
 
         var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
         Assert.Equal(
-            "The insured reversed into the claimant's stationary vehicle.",
+            "The insured reversed into the claimant's stationary vehicle."
+                + "\n\nDamage Area: rear",
             draft.AccidentCircumstances);
+    }
+
+    // The Triage subject template is the only QDOS shape whose registration
+    // exists nowhere but the subject, and QDOS writes it in two spacings
+    // (INTK-033). Both are real corpus subjects.
+    [Theory]
+    [InlineData(
+        "Engineer Triage - Our Claim Reference 46384/1 , Vehicle Registration YD14VGJ",
+        "YD14VGJ")]
+    [InlineData(
+        "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ",
+        "VO75DFJ")]
+    public void TheSubjectRegistrationLabelIsReadInEitherRecordedSpacing(
+        string subject,
+        string expected)
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                subject,
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached images to determine if the vehicle is repairable.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.Equal(expected, Assert.IsType<InstructionDraft>(result.InstructionDraft).VehicleRegistration);
+    }
+
+    [Fact]
+    public void TheRegistrationLabelIsNeverReadAsAVehicleDescription()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "Engineer Triage - Our Claim Reference : 46246/1 - Vehicle Registration : VO75DFJ",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached images.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Null(draft.VehicleMake);
+        Assert.Null(draft.VehicleModel);
+    }
+
+    [Fact]
+    public void ASubjectVehicleDescriptionIsStillReadWhenItIsNotTheRegistrationLabel()
+    {
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "Client Mr Garry Mackenzie, Vehicle NISSAN QASHQAI N-TEC SH61WDY, Our Ref 45858_1",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Please see the attached instruction.")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        var draft = Assert.IsType<InstructionDraft>(result.InstructionDraft);
+        Assert.Equal("NISSAN", draft.VehicleMake);
+        Assert.Equal("SH61WDY", draft.VehicleRegistration);
+    }
+
+    [Fact]
+    public void TheExtractionPolicyNoLongerProducesTriageMatchEvidence()
+    {
+        // The accepted Triage match is derived from the route's own
+        // classification decision now, and there is exactly one owner of it
+        // (INTK-033).
+        var result = new QdosInstructionExtractionPolicy().Extract(
+            ReadableWithSubject(
+                "Engineer Triage - Our Claim Reference 46384/1 , Vehicle Registration YD14VGJ",
+                new IntakeContentFragment(
+                    IntakeEvidenceSource.EmailBody,
+                    "message body",
+                    "Triage Only Request")),
+            ProcessedAtUtc,
+            QdosContext);
+
+        Assert.DoesNotContain(
+            result.Evidence,
+            item => item.Finding == IntakeEvidenceFinding.AcceptedTriageMatch);
     }
 
     private static IntakeSourceReadResult ReadableWithSubject(

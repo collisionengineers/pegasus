@@ -9,7 +9,7 @@ public sealed class QdosMailClassificationPolicyTests
     public void PolicyKeyAndVersionAreStable()
     {
         Assert.Equal("qdos_mail_classification", QdosMailClassificationPolicy.Key);
-        Assert.Equal(3, QdosMailClassificationPolicy.Version);
+        Assert.Equal(5, QdosMailClassificationPolicy.Version);
     }
 
     [Fact]
@@ -22,6 +22,122 @@ public sealed class QdosMailClassificationPolicyTests
         var category = Assert.IsType<MailCategory>(result.Category);
         Assert.Equal(ReceivedMailFamily.PreInstructionEmails, category.ReceivedFamily);
         Assert.Equal("triage-request", category.Subtype);
+    }
+
+    /// <summary>
+    /// MAIL-012. QDOS's other triage template carries no body phrase at all —
+    /// its tell is the generated subject line. U34 was one of these: a real
+    /// triage request with a photograph that matched no predicate and fell
+    /// through to Unclassified. The corpus holds five of them and seven of the
+    /// body-phrase kind, with no message carrying both.
+    /// </summary>
+    [Fact]
+    public void TheGeneratedTriageSubjectClassifiesPreInstruction()
+    {
+        var result = Classify(
+            subject: "Engineer Triage - Our Claim Reference 47939/1, Vehicle registration GD65TVY",
+            body: "Can you kindly advise if the vehicle would be considered repairable.");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal(ReceivedMailFamily.PreInstructionEmails, category.ReceivedFamily);
+        Assert.Equal("triage-request", category.Subtype);
+    }
+
+    /// <summary>
+    /// Every QDOS message reaches the mailbox as a staff forward, so the tell
+    /// sits behind a Fw: prefix in practice — as it did on U34.
+    /// </summary>
+    /// <summary>
+    /// Every QDOS message reaches the mailbox as a staff forward, so the tell
+    /// sits behind a Fw: prefix in practice — as it did on U34. Leading
+    /// whitespace, with or without a prefix, is a transport artefact and not a
+    /// human sentence, so it does not hide the tell either.
+    /// </summary>
+    [Theory]
+    [InlineData("Fw: Engineer Triage - Our Claim Reference 47939/1")]
+    [InlineData("   Fw:  Re:  Engineer Triage - Our Claim Reference 47939/1")]
+    [InlineData(" Engineer Triage - Our Claim Reference 47939/1")]
+    [InlineData("\tEngineer Triage - Our Claim Reference 47939/1")]
+    public void TheTriageSubjectIsReadThroughForwardPrefixesAndLeadingSpace(string subject)
+    {
+        var result = Classify(
+            subject: subject,
+            body: "Can you kindly advise if the vehicle would be considered repairable.");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    /// <summary>
+    /// Both tells at once is one triage request, not two candidates. A second
+    /// candidate for the same category would resolve to Ambiguous, leaving a
+    /// message carrying more evidence classified worse than one carrying less.
+    /// </summary>
+    [Fact]
+    public void BothTriageTellsTogetherStillClassifyAsOneTriageRequest()
+    {
+        var result = Classify(
+            subject: "Engineer Triage - Our Claim Reference 47939/1",
+            body: "Triage Only Request. Please advise on repairability.");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.Equal("triage-request", Assert.IsType<MailCategory>(result.Category).Subtype);
+    }
+
+    /// <summary>
+    /// The tell is a generated opening line, not the words appearing anywhere.
+    /// A human writing about a triage is not an instruction to open one.
+    /// </summary>
+    [Theory]
+    [InlineData("Chasing your Engineer Triage response for 47939/1")]
+    [InlineData("engineer triage - our claim reference 47939/1")]
+    public void ATriageMentionThatIsNotTheGeneratedLineIsNotTheTell(string subject)
+    {
+        var result = Classify(subject: subject, body: "Any update on this one?");
+
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+    }
+
+    /// <summary>
+    /// A chaser on a triage thread is a triage request in reply context, which
+    /// is a destination view and not a case allocation. The corpus holds one:
+    /// "RE: Engineer Triage - Our Claim Reference : 46246/1 - Vehicle".
+    /// </summary>
+    [Fact]
+    public void AReplyOnATriageThreadIsATriageRequestInReplyContext()
+    {
+        var result = Classify(
+            subject: "RE: Engineer Triage - Our Claim Reference : 46246/1 - Vehicle",
+            body: "Any update on this one?");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal("triage-request", category.Subtype);
+        Assert.True(category.IsReplyContext);
+    }
+
+    /// <summary>
+    /// A subject is third-party input and this runs on every received message,
+    /// so the prefix rule must be linear. Written with whitespace on both
+    /// sides of the repeated group, a long chain of prefixes that never
+    /// reaches the tell takes exponential time: twenty "Re:  " ran past five
+    /// seconds. A stalled classification has no exception and no telemetry —
+    /// the mail pipeline simply stops.
+    /// </summary>
+    [Fact]
+    public void ALongPrefixChainDoesNotStallClassification()
+    {
+        var subject = string.Concat(Enumerable.Repeat("Re:  ", 24)) + "chase";
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+
+        var result = Classify(subject: subject, body: "Any update on this one?");
+
+        elapsed.Stop();
+        Assert.Equal(MailClassificationOutcome.Unclassified, result.Outcome);
+        Assert.True(
+            elapsed.Elapsed < TimeSpan.FromSeconds(2),
+            $"Classifying a {subject.Length}-character subject took {elapsed.Elapsed}.");
     }
 
     [Fact]
@@ -188,6 +304,45 @@ public sealed class QdosMailClassificationPolicyTests
     }
 
     [Fact]
+    public void ForwardedReplyCarriesReplyContext()
+    {
+        // The ordinary shape of a reply in this mailbox: every QDOS message
+        // reaches us as a staff forward, so the reply prefix sits behind the
+        // forward rather than in front of it (INTK-033 review).
+        var result = Classify(
+            subject: "FW: RE: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
+            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        Assert.True(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
+    }
+
+    [Fact]
+    public void ForwardedReplyToATriageRequestIsReplyContextNotANewRequest()
+    {
+        // Without this the reply-context gate never fires on the shape it was
+        // written for, and thread correspondence opens a second Triage.
+        var result = Classify(
+            subject: "FW: RE: Engineer Triage - AB12 CDE",
+            document: string.Empty);
+
+        Assert.Equal(MailClassificationOutcome.Classified, result.Outcome);
+        var category = Assert.IsType<MailCategory>(result.Category);
+        Assert.Equal(MailCategory.TriageRequestSubtype, category.Subtype);
+        Assert.True(category.IsReplyContext);
+    }
+
+    [Fact]
+    public void RepeatedForwardsStillRevealTheReplyBeneathThem()
+    {
+        var result = Classify(
+            subject: "FWD: FW: Re: (EREF9) RTA on 18/06/2026 : Mrs Jane Example",
+            document: "AUDIT REPORT NOTIFICATION\nOur Ref: 12345/1");
+
+        Assert.True(Assert.IsType<MailCategory>(result.Category).IsReplyContext);
+    }
+
+    [Fact]
     public void AuditChaserBodyWithoutAnInstructionLetterFailsClosed()
     {
         var result = Classify(
@@ -330,7 +485,7 @@ public sealed class QdosMailClassificationPolicyTests
     {
         var result = Classify(body: "Anything at all.");
 
-        Assert.Equal(5, result.Predicates.Count);
+        Assert.Equal(6, result.Predicates.Count);
         Assert.Equal(
             result.Predicates.Count,
             result.Predicates.Select(predicate => predicate.Key).Distinct(StringComparer.Ordinal).Count());

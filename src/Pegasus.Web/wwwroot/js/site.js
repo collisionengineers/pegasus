@@ -770,6 +770,196 @@
         });
     });
 
+    // Evidence viewer ([data-evidence-viewer], DOCS-011): preview an evidence
+    // image or PDF over the page instead of navigating away from the case.
+    // Modelled on the reason-dialog block above and sharing its contract --
+    // initial focus, focus containment, Escape, focus return -- with paging
+    // added. Every trigger is a real link, so with no script a click still
+    // opens the file exactly as it did before.
+    (function () {
+        var viewer = document.querySelector('[data-evidence-viewer]');
+        if (!viewer) {
+            return;
+        }
+
+        var stage = viewer.querySelector('[data-evidence-stage]');
+        var image = viewer.querySelector('[data-evidence-image]');
+        var frame = viewer.querySelector('[data-evidence-document]');
+        var caption = viewer.querySelector('[data-evidence-name]');
+        var position = viewer.querySelector('[data-evidence-position]');
+        var download = viewer.querySelector('[data-evidence-download]');
+        var previous = viewer.querySelector('[data-evidence-previous]');
+        var following = viewer.querySelector('[data-evidence-next]');
+
+        var items = [];
+        var index = 0;
+        var invoker = null;
+
+        // Only what a browser renders without executing it. Anything else is
+        // left to the link, which saves it -- the server refuses to disposition
+        // it inline either way, so the two agree.
+        function previewKind(value) {
+            var type = String(value || '').split(';')[0].trim().toLowerCase();
+            // SVG is excluded to stay in step with the server's inline rule:
+            // it is an image that executes script when navigated to, and these
+            // triggers are real links. Anything not listed here is left to the
+            // link, which saves it.
+            if (type.indexOf('image/') === 0 && type !== 'image/svg+xml') {
+                return 'image';
+            }
+            return type === 'application/pdf' ? 'document' : '';
+        }
+
+        function focusable() {
+            return Array.prototype.filter.call(
+                viewer.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                function (element) { return !element.disabled && !element.hidden; });
+        }
+
+        function settle() {
+            stage.removeAttribute('aria-busy');
+            stage.classList.remove('is-loading');
+        }
+
+        function show(at) {
+            var item = items[at];
+            if (!item) {
+                return;
+            }
+            index = at;
+            var kind = previewKind(item.getAttribute('data-media-type'));
+            var href = item.getAttribute('href');
+            var fileName = item.getAttribute('data-file-name') || '';
+
+            // The design contract calls for an explicit loading state. It is
+            // shown, not said: aria-busy plus the same class-driven treatment
+            // the manual refresh feedback above uses.
+            stage.setAttribute('aria-busy', 'true');
+            stage.classList.add('is-loading');
+
+            image.hidden = kind !== 'image';
+            frame.hidden = kind !== 'document';
+            if (kind === 'image') {
+                frame.removeAttribute('src');
+                image.alt = fileName;
+                image.src = href;
+            } else {
+                image.removeAttribute('src');
+                frame.title = fileName;
+                frame.src = href;
+            }
+
+            caption.textContent = fileName;
+            position.textContent = (index + 1) + ' / ' + items.length;
+            download.href = item.getAttribute('data-download-href') || href;
+            download.setAttribute('download', fileName);
+            previous.disabled = index === 0;
+            following.disabled = index === items.length - 1;
+        }
+
+        function open(trigger) {
+            var set = trigger.closest('[data-evidence-set]');
+            // Only previewable siblings join the paging set. A document table
+            // carries every version, previewable or not; without this filter
+            // Next could land on one and set a hidden iframe's src, which
+            // downloads it unasked and leaves the loading state stuck on.
+            items = (set
+                ? Array.prototype.slice.call(set.querySelectorAll('[data-evidence-item]'))
+                : [trigger]).filter(function (item) {
+                    return previewKind(item.getAttribute('data-media-type')) !== '';
+                });
+            var start = items.indexOf(trigger);
+            invoker = trigger;
+            viewer.hidden = false;
+            document.addEventListener('keydown', onKeydown, true);
+            show(start < 0 ? 0 : start);
+            var controls = focusable();
+            if (controls.length > 0) {
+                controls[0].focus();
+            }
+        }
+
+        function close() {
+            viewer.hidden = true;
+            document.removeEventListener('keydown', onKeydown, true);
+            // Drop the source so a large preview stops loading once it is off
+            // screen; the next open sets it again.
+            image.removeAttribute('src');
+            frame.removeAttribute('src');
+            settle();
+            if (invoker) {
+                invoker.focus();
+            }
+        }
+
+        function step(offset) {
+            var target = index + offset;
+            if (target >= 0 && target < items.length) {
+                show(target);
+            }
+        }
+
+        function onKeydown(event) {
+            if (event.key === 'Escape') {
+                // Safe: closing a preview changes nothing.
+                event.preventDefault();
+                close();
+                return;
+            }
+            if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                step(-1);
+                return;
+            }
+            if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                step(1);
+                return;
+            }
+            if (event.key !== 'Tab') {
+                return;
+            }
+            var controls = focusable();
+            if (controls.length === 0) {
+                return;
+            }
+            var first = controls[0];
+            var last = controls[controls.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        }
+
+        image.addEventListener('load', settle);
+        image.addEventListener('error', settle);
+        frame.addEventListener('load', settle);
+        frame.addEventListener('error', settle);
+        previous.addEventListener('click', function () { step(-1); });
+        following.addEventListener('click', function () { step(1); });
+        viewer.querySelectorAll('[data-evidence-close]').forEach(function (control) {
+            control.addEventListener('click', close);
+        });
+        viewer.addEventListener('click', function (event) {
+            if (event.target === viewer) {
+                close();
+            }
+        });
+
+        document.querySelectorAll('[data-evidence-item]').forEach(function (trigger) {
+            trigger.addEventListener('click', function (event) {
+                if (!previewKind(trigger.getAttribute('data-media-type'))) {
+                    return;
+                }
+                event.preventDefault();
+                open(trigger);
+            });
+        });
+    })();
+
     // The Other classification name and reasoning fields exist only while an
     // Other option is selected; the select drives their visibility.
     document.querySelectorAll('[data-other-toggle]').forEach(function (select) {

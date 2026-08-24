@@ -13,9 +13,6 @@ internal sealed class EvaHandoffRevisionEntity
     public string BundleSha256 { get; set; } = string.Empty;
     public byte[] JsonContent { get; set; } = [];
     public string JsonSha256 { get; set; } = string.Empty;
-    public byte[] ProvenanceContent { get; set; } = [];
-    public string ProvenanceSha256 { get; set; } = string.Empty;
-    public byte[] ManifestContent { get; set; } = [];
     public DateTimeOffset GeneratedAtUtc { get; set; }
     public string GeneratedBy { get; set; } = string.Empty;
 }

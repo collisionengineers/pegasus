@@ -106,7 +106,7 @@ public static class MailOperationalDestinationPolicy
             MailOperationalDestination.Triage => new(
                 ExactClassification: MailCategory.Received(
                     ReceivedMailFamily.PreInstructionEmails,
-                    "triage-request")),
+                    MailCategory.TriageRequestSubtype)),
             MailOperationalDestination.DetailedClassification => throw new ArgumentException(
                 "Detailed mail views require one exact canonical classification.",
                 nameof(destination)),

@@ -21,7 +21,6 @@ internal static class EvaHandoffModelConfiguration
             entity.Property(item => item.FileName).HasMaxLength(260).IsRequired();
             entity.Property(item => item.BundleSha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.JsonSha256).HasMaxLength(64).IsFixedLength().IsRequired();
-            entity.Property(item => item.ProvenanceSha256).HasMaxLength(64).IsFixedLength().IsRequired();
             entity.Property(item => item.GeneratedBy).HasMaxLength(200).IsRequired();
             entity.HasIndex(item => new { item.CaseId, item.Revision }).IsUnique();
             entity.HasIndex(item => new { item.CaseId, item.InputFingerprint }).IsUnique();
