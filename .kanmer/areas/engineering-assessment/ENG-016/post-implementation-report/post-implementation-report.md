@@ -109,3 +109,48 @@ correction produced the value — is still authoritative upstream in
   part of the bar this ticket deletes.
 - **F4 and F5** from ENG-014's review, and the orphan Core members the
   simplification pass found. All named in the plan and the PR.
+
+---
+
+## Corrections after the first CI run
+
+Two things in the section above were written from expectation rather than
+observation, and CI caught the second. Both are corrected here and in the code.
+
+**The route behaviour, finally established by running it.** My earlier note said
+the export route "answers 405 to a GET". It does not:
+
+| Route | What actually happens |
+| --- | --- |
+| `POST /Cases/{id}/Eva/Download` | **405** — the page is deleted, the 404 is re-executed at `/status/{code}`, and that page has only an `OnGet`. |
+| `POST /Cases/{id}/Vehicle?handler=GenerateEvaHandoff` | **200, no `Location` header** — Razor Pages runs no handler for an unrecognised handler name rather than refusing the request, so a stale form does nothing. |
+| `GET /Cases/{id}/Documents/Export` | **302 to the case.** With no GET handler it returned a blank 200, which reads as a broken route — and a bookmark or history entry can still point there, because this route answered a GET with the archive until this ticket. An `OnGet` that redirects was added. It cannot export; producing the package is the POST. |
+
+**I asserted an unverified guess twice.** The first (404 for both hand-off
+routes) was caught by a local run; the second (an empty response body) was
+caught by CI, because I re-ran only the three suites I had just edited and not
+the one I had edited before them. The assertions now state observed behaviour,
+and the body assertion — which was environment-dependent, empty locally and a
+full HTML page in CI — is gone.
+
+**Five integration failures the local suite found, three suites I had missed.**
+`AutomationMcpIngressTests`, `AutomationAssessmentIngressTests` and
+`Browser/OperatorJourneyTests` all reference the hand-off **by name string**
+rather than by C# type, so they compiled cleanly and failed only when run. My
+inventory grepped for identifiers. That is the lesson worth carrying: a deletion
+of a named surface (an MCP tool, a route, a DOM id) needs a string grep as well
+as a symbol grep. Fixing them also turned up a fact in prose: `35 typed tools`
+in `current-architecture.md` had to become `33`.
+
+### Verification, as it finally stands
+
+| Check | Result |
+| --- | --- |
+| `dotnet build --configuration Release` | Succeeded, 0 warnings |
+| `Pegasus.Core.Tests` | 952 passed, 0 failed |
+| `Pegasus.ArchitectureTests` | 99 passed, 0 failed |
+| `Pegasus.IntegrationTests`, full local suite | 940 passed / 5 failed / 14 skipped, then all five fixed |
+| Re-run of every suite I changed after fixing | `AutomationMcpIngressTests` + `AutomationAssessmentIngressTests` + `OperatorJourneyTests` 15/15; `CaseDetailsWebTests` + `OperatorJourneyTests` 26/26 |
+| Full suite re-run end to end after the fixes | **Not done** — CI is authoritative and covers it in three sharded jobs |
+| Migration up → down → up | Clean, verified against a scratch LocalDB |
+| CI, first push | `unit`, `browser`, `infrastructure`, `documentation`, `changes`, `reference-data`, `local-development-scripts`, `sql-integration (2)`, `(3)` and coverage all passed; `sql-integration (1)` failed on the body assertion above |
