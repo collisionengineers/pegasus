@@ -468,3 +468,32 @@ so the clearance is pinned rather than argued.
 `_CaseHistory.cshtml:48` advertises the 2000 to the operator; and
 `EfCaseQueryStore.cs:181-195` truncates the timeline at `Take(200)` silently. Neither is
 caused by or touched by this change.
+
+---
+
+## Q1 answered — operator, 2026-08-24
+
+> *"agreed on recommendation"*
+
+The recommendation was: **keep the third-party vehicle evidence confirmation as a
+per-row action; delete only the `EVA eligibility` column**, which is banned
+how-it-works copy.
+
+So:
+
+- `_CaseDocuments.cshtml:59-72` — the `EVA eligibility` column and its sentence
+  *"Eligible unless staff confirms third-party vehicle evidence"* — **goes**.
+- The confirmation **stays** as a labelled per-row action, with its hidden form
+  and its `ConfirmThirdPartyVehicleEvidence` handler and port untouched.
+- The confirmed state renders as a **value**, not a sentence.
+- **Step 6 does not remove that handler.** Only the upload handler and the export
+  POST go.
+
+The premise for removing it did not hold: it sets no semantic role. It sets
+`ThirdPartyVehicleConfirmedAtUtc`, the only thing keeping a third-party vehicle's
+photograph out of the EVA bundle, on a path the whole-case Export still uses. The
+genuinely user-configurable semantic role is the `<select name="semanticRole">`
+inside the `Retain document` form, and that disappears with the form anyway — so
+the operator's instruction is satisfied without touching this control.
+
+Q2 (confirmed-only filter) and Q3 (the `Files` heading) stand as planned.
