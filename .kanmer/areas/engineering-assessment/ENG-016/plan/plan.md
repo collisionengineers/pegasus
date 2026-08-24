@@ -1,274 +1,72 @@
-# Plan
+# Plan — ENG-016: Collapse the EVA hand-off into Export as the single act
 
-Ordered so the build is broken for as short a span as possible: Core first (it
-defines what disappears), then Infrastructure, then Web, then tests, then the
-schema, then docs.
+*Rewritten after the operator's 2026-08-24 clarification. This plan supersedes the earlier permissive-export plan; no implementation is performed by this revision.*
 
-## 1. Core — remove the hand-off vocabulary
+## Approach
 
-**Reuses:** nothing new. `EvaBundleSchema.CreateOfflineReplay`,
-`EvaHandoffPolicy.SelectEligibleImages`, `NoRetainedImagesReason`,
-`CaseEvaMapping.MapForOperatorExport`, `IEvaHandoffProxy` all stay exactly as
-they are.
+Keep the simplification ENG-016 was meant to deliver—one manual Export action and no duplicate hand-off UI, routes, MCP surface or revision tables—but preserve the complete send-to-Engineer gate rather than the permissive download bar. The existing strict mapping and eligibility policies become the one Core-owned precondition for Export. Every successful Export writes permanent action history; the first successful Export also writes the once-per-Case Sent-to-Engineer proxy. Merge current `origin/dev` normally into the pushed branch, take current dev for unrelated stacked changes, and reapply only this focused final state. Use ADR-0030's accepted pre-cutover roll-forward rule for the destructive migration; do not add compatibility machinery for an unreleased product.
 
-Delete from `EvaBundleSchema.cs` the request/result/port/policy types listed in
-`files`. `MapForProduction` and `ValidateAcceptedEvidence` go from
-`CaseEvaMapping.cs` — research confirmed one caller, itself deleted.
+## Governing docs
 
-**On `DecideRevision`, which the ticket asks me to reuse — I did not, and here
-is why.** It returns `(ReuseExisting, BusinessRevision, RecordFirstProxy)`. Two
-of those three are revision concepts that die with `EvaHandoffRevisions`; what
-survives is `RecordFirstProxy = !firstProxyAlreadyRecorded`. Keeping a
-three-field decision record to carry one negated boolean is the
-"abstraction with no second caller" smell the repo bans. **The rule it encodes
-is kept exactly** — first success records the proxy, later ones do not — and it
-is now enforced where it is strongest: `EvaFirstHandoffProxies` already has
-`CaseId` as its **primary key**, so the database itself refuses a second row
-per case. The store reads before writing inside the export's transaction, and
-the PK is the backstop under a race. That is a stronger guarantee than the
-Core predicate was, not a weaker one.
+- **`docs/operator-notes.md` — Modifies with explicit operator authorization.** Record the clarification supplied in this conversation: manual Export to EVA is today's send-to-Engineer route; a future EVA API is the second transport; direct estimating integrations plus Pegasus engineering/reporting eventually replace EVA. Export is unavailable until all required evidence/readiness conditions hold.
+- **FRD-07 — Modifies with explicit operator authorization.** Replace the two-act strict hand-off/permissive export model with one strict manual Export/handoff. Define Review/current-version/custody/Audit-custody/accepted thirteen-field evidence/mapping/eligible-image gates; per-export action history; once-per-Case proxy; no claim of EVA receipt or named assignment; and the two future route boundaries.
+- **FRD-04 / ACC-09 — Meets.** Reuse `ActionHistory` and the existing operation-key replay convention so every successful Export is attributable and evidence-bound. The proxy is not treated as a substitute for action history.
+- **ADR-0030 — Meets.** Drop the dead hand-off tables directly before cutover, name the old-revision Case-workspace impact accurately, deploy roll-forward, and do not claim production rollback compatibility.
+- **`docs/design/README.md` — Meets.** Keep the control terse, visible-but-disabled outside Review, and preserve the existing statement that a successful EVA JSON/image export is the Sent-to-Engineer proxy.
+- **No new ADR.** The route choice and eligibility are FRD behaviour, action history follows an existing architecture, and migration policy is already decided by ADR-0030.
 
-**On `EvaHandoffPolicyAuthority`, which the ticket does not name.** It is
-passed only to `IEvaHandoffPersistence`'s two methods, both deleted, and
-constructed only by `GenerateEvaHandoff`/`DownloadEvaHandoff`, both deleted.
-Deleting it is a consequence of the named deletions, not added scope; leaving
-it would be dead architecture.
+## Steps
 
-`CaseQueries.cs` drops `EvaHandoff` from `CaseDetails` and the
-`IEvaHandoffQueries` dependency.
+1. **Separate local unrelated Git state before touching the ticket branch.** Preserve the staged `.gitignore`/untrack changes for `.codex/config.toml` and `.mcp.json` outside ENG-016; they must not enter PR #539. Restore a clean ENG-016 task worktree/claim location before the merge without stashing, resetting or discarding the user's files.
 
-## 2. Infrastructure — one act in the store
+2. **Merge current `origin/dev` into the pushed task branch with a normal merge.** Do not rebase, force-push or reconstruct dev history. Resolve the predicted conflicts by rule:
+   - QDOS instruction policy and its tests: take current `dev`; ENG-016 has no independent change there.
+   - FRD-07 and capabilities: take current `dev` as the base, then apply this plan's one strict Export wording.
+   - `CaseEvaMapping.cs`, `EvaBundleSchema.cs` and `EvaHandoffStore.cs`: take current ENG-014/ENG-015 behaviour from `dev`, then reapply only ENG-016's duplicate-surface deletion, strict Export and history changes.
+   - `QdosBoundaryContractTests.cs`: preserve current dev coverage and replace the branch's permissive incomplete-export assertion with fail-closed coverage.
+   - `EvaHandoffPersistenceTests.cs`: transfer any still-relevant strict gate/package tests to survivor suites, then accept deletion of tests for removed tables/use cases.
+   After resolution, compare `git diff origin/dev...HEAD` and reject every unrelated change inherited only because the old branch was 53 commits behind.
 
-**Reuses:** `LoadEligibleImagesAsync` and `BuildEvidence` unchanged — both
-already exist and are already shared. `IEvaHandoffProxy.RecordFirstGenerationAsync`
-and its `ClaimsExternalDelivery`/`ClaimsEngineerAssignment` rejection are
-lifted verbatim out of the deleted `GenerateAsync` into the export path, so the
-no-delivery-claim guarantee moves without being rewritten.
+3. **Make strict Export eligibility the single Core policy.** Remove `MapForOperatorExport`, `EvaOperatorExport`, empty-field continuation, suggestion-only acceptance, and the export-date default. Retain/reuse the existing strict accepted-evidence mapping: accepted Case, confirmed completeness, resolved inspection mode/address, all thirteen fields non-empty and accepted, source/version provenance, and accepted mapping. Retain/reuse the existing `EvaHandoffPolicy.Evaluate` checks for Review, non-archived/current accepted version, confirmed Case custody, Audit custody when required, accepted mapping and at least one eligible image. Call both policies inside `IExportCaseBundle.ExecuteAsync` so a direct POST cannot bypass the disabled button. Produce no archive, proxy or action history when any reason blocks.
 
-`IExportCaseBundle.ExecuteAsync` gains, after the bundle is successfully built
-and only then:
+4. **Keep one package/export surface.** Preserve ENG-016's deletion of the separate EVA panel, generate/download routes, hand-off query projection, MCP generate/status tools, duplicate ports and three revision/replay tables. Keep the authenticated Case Export POST, antiforgery, deterministic thirteen-key JSON and all eligible images. Restore `Content-Digest` from the archive SHA-256 on the successful response.
 
-1. open a transaction,
-2. `AnyAsync(item => item.CaseId == …)` on `EvaFirstHandoffProxies`,
-3. if absent: call the proxy port, reject a receipt claiming delivery or
-   Engineer assignment exactly as the hand-off did, insert the row, commit,
-4. if present: commit nothing and return the bundle.
+5. **Add permanent action history without conflating it with the proxy.** Add a caller-supplied operation key to the Export request and form using the existing Case page convention. For each distinct successful Export, append one `ActionHistory` event (proposed event kind `eva_bundle_exported`) with Case aggregate, actor/roles, timestamp, operation key, mapping key/version/evidence reference, accepted Case version, bundle and JSON hashes, thirteen-field source/version/status evidence, and exported image occurrence/version/hash identities. Save that history atomically with the first-proxy insert when the proxy is absent. A later distinct Export writes another history event but no second proxy. An exact retry with the same operation key must return/replay the same package result without duplicating history or proxy; reuse with different package/evidence must fail closed. Use `DocumentActionHistory` and the existing document-export replay pattern rather than inventing a second history framework.
 
-Ordering matters and is deliberate: **the proxy is recorded only after the
-archive exists**, so a failed export records nothing. "First success only" is
-literal.
+6. **Keep the destructive migration simple and truthful.** Retain the direct drop of `EvaHandoffRevisions`, `EvaHandoffOperations` and `EvaHandoffDownloadOperations` plus obsolete proxy FK/index/columns. Update the migration, PR and release-plan wording to say:
+   - Pegasus has not cut over; ADR-0030 authorizes this non-additive change.
+   - migrations run before new packages activate, so the currently running old revision may fail every Case workspace during that short interval because its Case projection still reads `EvaHandoffRevisions`.
+   - deployment proceeds roll-forward; a failure is fixed forward or uses the separately approved disposable pre-cutover data procedure, not application rollback.
+   - `Down()` exists only for a clean scratch-database up/down/up test and is not a data-preserving production recovery route once new proxy rows exist.
+   Do not add expand/contract tables, compatibility views, dual paths, feature flags or data conversion.
 
-The export still does **not** move the case version, take an edit lease, or
-require an operation key. It is not a case mutation; it records a once-per-case
-fact in a side table. The proxy row (`RecordedAtUtc`, `ActorSubjectId`,
-`AdapterKey`, `AdapterVersion`) is the evidence, which is what that table was
-built to be.
+7. **Reconcile documentation to one route model.** Update protected operator notes (authorized), FRD-07, capabilities and current-architecture. Preserve current design statements that already require strict readiness. State the three planned routes without implementing the future two: manual Export to EVA now; direct EVA API when vendor-supported; direct estimating integrations/Pegasus engineering and report generation when EVA is replaced. Remove every claim that a missing field exports empty, that inspection date may be invented at Export, or that operator Export is a separate read that writes no proxy/history. Update the ENG-016 post-implementation report and PR description so neither repeats the superseded assumption.
 
-`EvaFirstHandoffProxyEntity` loses `RevisionId` (points at a deleted table) and
-`OperationKey` (an export has none, and the `CaseId` PK is the idempotency).
-The two `CK_EvaFirstHandoffProxies_*` check constraints touch neither column
-and are carried through untouched.
+8. **Verify behaviour and migration locally.** Run locked restore and Release build; Core, Architecture and focused EVA/QDOS suites; relevant Web/Integration suites; then the full integration suite in the repository's supported chunks. Prove: every strict gate blocks server-side; a ready Review Case exports; response digest matches; first Export creates one proxy plus one history event; second distinct Export creates only another history event; exact replay duplicates neither; failures create no archive/proxy/success history; removed routes/tools/tables are absent; dashboard count still reads the proxy; migration up/down/up works on a fresh disposable LocalDB; migration/grant/deployment-plan scripts pass; documentation links and `git diff --check` pass.
 
-**Deliberately not renamed:** `EvaHandoffStore`, `EvaHandoffEntities.cs`,
-`EvaHandoffModelConfiguration.cs`. The names now describe a deleted act, and a
-rename is a real clarity win — but this branch is third in a four-deep stack
-and a rename would widen the conflict surface across all four for no
-behavioural gain. Its class doc-comment is corrected to say what it now is, and
-the rename is named in the PR as skipped with this reason.
+9. **Push normally and obtain real CI evidence.** The merge commit/new fixes trigger a fresh repository-check. The previous head has no complete build verdict: its `changes` job timed out during full-history checkout, so dependent application jobs were skipped. If the new run checks out successfully, require every applicable lane green. If checkout again exceeds its five-minute timeout, report it as an unrelated CI infrastructure failure and coordinate with the existing CI work rather than broadening ENG-016 into a workflow refactor. Re-run after that repair and do not merge until the PR's own head is green and independently reviewed.
 
-## 3. Web — GET becomes POST
+## Verification
 
-**Reuses:** `Details.cshtml:103-109`, the `ClaimLease` control on the same
-action bar — `<form method="post" asp-page-handler="…" class="record__bar-form">`
-with `<button type="submit" class="btn">`. Razor Pages' form tag helper emits
-the antiforgery token and the framework validates it automatically; research
-confirmed the app adds no explicit filter and every other POST relies on this.
-No new mechanism.
+Proof for this revision will be the final post-implementation report plus command output for:
 
-The handler must be **named** — `OnPostBundleAsync`, reached by
-`asp-page-handler="Bundle"` — because plain `OnPostAsync` on that page is
-already the selective document export. The `OnGetAsync` disappears entirely, so
-the route answers 405 to a GET: a prefetch or a refresh cannot fire it.
+- `dotnet restore`
+- `dotnet build --configuration Release --no-restore`
+- focused Core EVA/QDOS and Architecture tests
+- focused Case Export, custody/history, browser and migration integration tests
+- full integration suite in the locked repository chunks
+- scratch LocalDB migration up → down → up, explicitly labelled development-only
+- `pwsh ./scripts/Test-MigrationGrants.ps1`
+- `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local`
+- `pwsh ./scripts/Test-DocumentationLinks.ps1`
+- `git diff --check` and a final `origin/dev...HEAD` scope audit
+- GitHub checks on the final head SHA, not the cancelled checks inherited from `30bb2791`.
 
-No copy is added. `docs/design/README.md:422-445` bans how-it-works prose and
-allows at most one approved consequence sentence on a *destructive* action;
-export is not destructive, so the control stays a label and a control. The
-existing `Available in Review` gated affordance is preserved as-is.
+## Risks / open questions
 
-Delete the `Eva/Download` page, the `GenerateEvaHandoff` handler, the EVA panel
-and the two MCP tools.
-
-## 4. Tests
-
-Delete the hand-off suite. **Invert** `CustodyOutboxIntegrationTests`'s
-proxy assertion — it currently proves an export records none. Add: a second
-export of the same case records no second row. Fix the four composition and
-web suites that resolve or link deleted things. Rewrite the Eva half of
-`DependencyDirectionTests` around what survives (Core owns `EvaHandoffPolicy`
-and `IExportCaseBundle`; `EvaHandoffStore` is Infrastructure and references
-neither Web nor Worker).
-
-`AzureSqlRuntimeRoleMigrationTests` is **not** touched — verified pinned to a
-historic migration, not HEAD.
-
-## 5. Schema
-
-`dotnet ef migrations add DropEvaHandoffTables` so the `.Designer.cs` and the
-snapshot are generated, not hand-written, and no historic Designer moves.
-`Up()`: drop the FK, the `RevisionId` unique index and the two proxy columns,
-then `EvaHandoffDownloadOperations`, `EvaHandoffOperations`,
-`EvaHandoffRevisions` — child-first. `Down()` restores all of it empty.
-
-Non-additive, under the rule as it stands **on this branch** — PLAT-042's
-amendment is not in this history, verified, so the unamended
-`docs/runbook.md:1140` applies and needs a recovery strategy. It has one: the
-hand-off is switched off in production and its tables are empty
-(`docs/operations.md:410-411`, `:572-573`), so rolling the application back
-behind this migration degrades only a capability that is off and has never
-produced a row. Affected capability, named as the rule requires: **EXT-03**.
-
-`scripts/Invoke-AzureDatabaseBootstrap.ps1` joins the migration to its existing
-`$removedTables` list — the mechanism three earlier drop-migrations already
-use. The hand-edited `EvaHandoffDownloadOperations` block must keep naming
-`20260819180000_GrantEvaHandoffDownloadOperations`, because
-`Test-AzureDeploymentPlan.ps1:295-309` scans for every post-baseline
-`GRANT`-carrying migration by name and that file still contains one.
-
-`scripts/Test-MigrationGrants.ps1` needs no edit — verified it only inspects
-`CreateTable(` inside `Up()`.
-
-## 6. Docs
-
-FRD-07's `First sent to Engineer` trigger and its download sentence.
-`capabilities.md` EXT-03, CASE-21, CASE-30, MCP-06. `current-architecture.md`
-`:142`, `:514`, `:526` (F6 lives here too), `:634`. **Neither FRD-07 `###`
-heading is renamed** — ten capability rows and ADR-0013 use them as anchors.
-
-`docs/operations.md` is left alone: it records the deployed estate, and this
-ticket deploys nothing.
-
-## Answer to F2 — `EvaEvidenceStatus.Corrected` is removed
-
-Every reader was found. `IsAccepted` (`CaseEvaMapping.cs:32`) treats `Corrected`
-and `Accepted` identically. The four sites that produce it are all in
-`EvaHandoffStore`. It is copied into `EvaFieldProvenance.Status`, which after
-F3 nothing reads and which no longer reaches any file. Once `MapForProduction`
-goes, the last code that could branch on the difference goes with it. A status
-that no consumer can observe is not a distinction — it is a second name for
-`Accepted`, and the repo's "one list per concept" rail says a state vocabulary
-lives in one place with no redundant members. **Removed.** If provenance ever
-becomes observable again, the fact it recorded — that a staff correction
-produced the value — still exists upstream in `CaseDataSourceKind.StaffCorrection`
-and `CaseDataCodes.StaffCorrection`, which is where it is authoritative; nothing
-is lost that cannot be re-derived.
-
-## Findings recorded, not fixed here
-
-- **The Review gate on Export is UI-only.** `Details.cshtml:36`'s own comment
-  claims it is a Core precondition; `IExportCaseBundle.ExecuteAsync` has no
-  lifecycle check. Pre-existing. It matters more now that Export records a
-  business event, but closing it means re-imposing part of the bar this ticket
-  deletes, and which part is a product decision. PR finding + ticket.
-- **ADR-0021:55-58 names two MCP tools this ticket deletes.** ADR bodies are
-  immutable; the repair is a superseding ADR, which this ticket was not asked
-  to write. PR finding.
-- **`current-architecture.md:157` lists "EVA export" as absent** while `:526`
-  and `:634` describe it as implemented. Pre-existing contradiction in a file I
-  am editing; corrected only where my own edits already touch, and named.
-- **F4, F5 from ENG-014's review are skipped** — F4 is outside this diff, F5 is
-  a new test asset and suite, not a cheap fold-in.
-- **The CRLF pin is not guarded by CI** (every .NET test job is Windows;
-  production is Linux). Carried into the PR body as a caution.
-
-## Simplification pass
-
-_To be completed before the PR._
-
----
-
-## Simplification pass — 2026-08-24
-
-Run over this branch's own diff (`git diff task/eng-015-eva-field-values...HEAD`)
-with `/simplify`'s four lenses via the `code-simplifier` agent, plus my own
-review of the same diff.
-
-### Applied
-
-1. **Two dead `using`s in `EvaBundleSchema.cs`** — `System.Buffers.Binary`
-   (only consumer was the deleted `EvaHandoffCommandPolicy.Append`) and
-   `Pegasus.Core.Workflow` (only consumer was `CaseLifecycleState` in the
-   deleted `EvaHandoffEligibility`/`Evaluate`).
-2. **Dead `using Pegasus.Infrastructure.Eva`** in `EvaHandoffStore.cs` — the
-   store takes the Core port `IEvaHandoffProxy` and never names
-   `LocalEvaHandoffProxy`.
-3. **`EvaBundleSchema.SchemaVersion` removed.** Its only two callers —
-   `EvaHandoffStore` stamping `EvaHandoffRevisionEntity.SchemaVersion`, and
-   `EvaHandoffPersistenceTests` — are both deleted by this ticket. Confirmed by
-   grep that no doc, script or migration cites the literal.
-4. **`ValidateSource` narrowed to return `EvaReplayFields`.** F3 removed the
-   dead provenance-array rebuild but left the method reassembling a whole
-   `EvaBundleSource` for one member `CreateOfflineReplay` reads. Every throw is
-   unchanged; the output bytes are unchanged.
-5. **`BuildEvidence`'s `includeSuggestions` flag removed** (mine, during
-   implementation). Its own doc-comment called it "the whole difference between
-   the hand-off and an operator export"; with one act there is one answer. This
-   simplified `FromCaseField`, `Fallback` and `VehicleModel` with it.
-6. **Two stale comments corrected** — `ToReplayFields`' claim that it exists so
-   "the hand-off and an operator export can never drift into two orders", and
-   `CaseOperatorExportTests`' class doc still describing "both halves" after
-   both hand-off halves were deleted.
-7. **Three stray double blank lines** left by the deletions.
-8. **`Details.cshtml` uses `.btn:disabled`, not `.btn.is-disabled`** (mine).
-   The CSS documents `is-disabled` as the fallback "for a disabled action
-   rendered as a link"; the control is now a real `<button>`, so the native
-   state is the convention.
-
-### Applied — a real defect the pass surfaced
-
-9. **A failed proxy write would have reached the generic 500 page.**
-   `DbUpdateException` derives straight from `Exception`, so it missed the
-   Export page's catch filter — and this route had never written anything
-   before, so nothing had ever needed to. Fixed by translating it in
-   `EvaHandoffStore`, which is where the deleted hand-off already translated
-   `DbUpdateConcurrencyException`, rather than by importing EF into a page. A
-   failed record now fails the whole export instead of handing over a file
-   whose "first sent to Engineer" fact was silently lost.
-10. **The once-per-case race** (mine, found while reviewing my own code). A
-    double-pressed Export could have both requests read "no proxy" and both
-    insert. Rather than hold a `Serializable` transaction — which converts the
-    race into a deadlock rather than removing it — the primary key on `CaseId`
-    is now the enforcement, and losing the race is treated as the success it is,
-    but only after re-reading and confirming the row is present.
-
-### Found, not applied — with reasons
-
-- **`EvaAcceptedCaseEvidence.CaseId/CaseVersion/CaseAccepted/InstructionComplete/ImagesComplete`
-  are now write-only**, their only reader having been `ValidateAcceptedEvidence`.
-  Not removed: `QdosBoundaryContractTests.AnIncompleteCaseWithAnUnacceptedAddressStillExports`
-  deliberately sets `InstructionComplete = false` as the regression pin for this
-  ticket's central behaviour change, and removing the member would gut that
-  test's meaning. It is also a public Core contract change for zero behavioural
-  gain. **A ticket decision, not a cleanup** — raised in the PR.
-- **`EvaAddressResolution.Mode`, and transitively `EvaInspectionMode`, have no
-  remaining reader** — `Mode`'s only consumer was the deleted `IsResolved`.
-  The largest remaining orphan. Not applied for the same reason: collapsing
-  `EvaAddressResolution` to a bare `EvaEvidenceValue` reshapes a Core contract
-  and rewrites about five test construction sites. **Raised in the PR.**
-- **`SelectedDocument.CaseId` / `VersionDocumentId`, `ImageEntry.Sha256`,
-  `ExportCaseBundleResult.IsExported`** — all unread, all unread on the base
-  branch too. Pre-existing, outside this diff.
-- **`LoadEligibleImagesAsync` filters `ContentLength <= int.MaxValue` after
-  eligibility**, so a case whose every eligible image exceeded that would be
-  told "At least one stored vehicle image is required", which would be untrue.
-  Pre-existing, not introduced here. **Raised in the PR.**
-- **F4 and F5 from ENG-014's review** — F4 is a test comment outside this diff;
-  F5 is a new golden-file suite, not a cheap fold-in. Both named in the PR.
-- **`EvaHandoffStore`, `EvaHandoffEntities.cs` and `EvaHandoffModelConfiguration.cs`
-  keep names describing a deleted act.** A rename is a real clarity win and
-  should happen; not done here because this branch is third in a four-deep
-  stack and a rename widens the conflict surface across all four for no
-  behavioural gain. The class doc-comment says what the type now is and records
-  the rename as outstanding.
-- **`CaseEvaMapping.ActivationGateReason` still reads "EVA hand-off is not
-  switched on."** Operator-facing message text is a closed, operator-approved
-  list; rewording one is not this ticket's authority. Named in the PR.
+- **Resolved by operator:** Export is the current send-to-Engineer route and must fail closed until complete.
+- **Resolved by operator/project state:** no released-product rollback compatibility is required before cutover; ADR-0030 roll-forward applies.
+- **Risk:** operation replay could return a package built from changed evidence. Mitigation: bind history to operation key plus exact Case version/package/evidence snapshot and reject mismatched reuse.
+- **Risk:** conflict resolution could resurrect stale stacked code or delete newer dev work. Mitigation: current dev wins outside ENG-016 and the final three-dot diff is audited file by file.
+- **Risk:** the CI checkout timeout may recur independently of the code. Mitigation: do not interpret skipped tests as pass/fail; obtain a fresh completed run or coordinate the CI-owned fix.
+- **No open product question remains for implementation.**

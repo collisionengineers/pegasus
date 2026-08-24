@@ -1,82 +1,83 @@
-# Checklist
+# Checklist — ENG-016
 
-## Core
-- [ ] `EvaBundleSchema.cs`: delete the hand-off request/result/port/policy types
-- [ ] `EvaBundleSchema.cs`: drop `Revision` from `EvaHandoffProxyRequest`
-- [ ] `EvaBundleSchema.cs`: F3 — `ValidateSource` keeps every throw, stops rebuilding the provenance array
-- [ ] `CaseEvaMapping.cs`: delete `MapForProduction`, `ValidateAcceptedEvidence`, `EvaMappingResult`, `IsResolved`
-- [ ] `CaseEvaMapping.cs`: F2 — delete `EvaEvidenceStatus.Corrected`
-- [ ] `CaseEvaMapping.cs`: F1 — correct the `ExportDateSource` comment
-- [ ] `CaseQueries.cs`: drop `EvaHandoff` and the `IEvaHandoffQueries` dependency
-- [ ] `AssessmentReportProjection.cs`: comment names a deleted type
+*Derived from the revised strict-Export plan. No implementation boxes are checked by this planning pass.*
 
-## Infrastructure
-- [ ] `EvaHandoffStore.cs`: delete every hand-off method and orphaned helper
-- [ ] `EvaHandoffStore.cs`: export records the proxy once per case, after the bundle exists
-- [ ] `EvaHandoffStore.cs`: the delivery/assignment-claim rejection moves across verbatim
-- [ ] `EvaHandoffEntities.cs`: three entities deleted; proxy loses `RevisionId` and `OperationKey`
-- [ ] `EvaHandoffModelConfiguration.cs`: three configs deleted; proxy FK + `RevisionId` index dropped
-- [ ] Both `CK_EvaFirstHandoffProxies_*` constraints still declared and still hold
-- [ ] `PegasusDbContext.cs`: three `DbSet`s deleted
-- [ ] `LocalEvaHandoffProxy.cs`: `Revision` guard removed
-- [ ] `DependencyInjection.cs`: four registrations removed
+## Git and scope
 
-## Web
-- [ ] `Pages/Cases/Eva/` deleted
-- [ ] `Export.cshtml.cs`: `OnGetAsync` → named `OnPostBundleAsync`
-- [ ] `Details.cshtml`: anchor → form post, reusing the `ClaimLease` shape
-- [ ] No new operator-facing copy (`docs/design/README.md:422-445`)
-- [ ] `Vehicle.cshtml.cs`: handler and two constructor parameters deleted
-- [ ] `_CaseWorkflow.cshtml`: EVA panel deleted
-- [ ] `AssessmentMcpTools.cs`: two tools, four records, two constructor parameters deleted
+- [ ] Preserve the local staged `.gitignore`/`.codex/config.toml`/`.mcp.json` change outside PR #539
+- [ ] Restore a clean ENG-016 task worktree matching the Kanmer claim
+- [ ] Fetch and normally merge current `origin/dev` into `task/eng-016-collapse-handoff-into-export`
+- [ ] Resolve QDOS policy/test conflicts by taking current `dev`
+- [ ] Resolve FRD-07/capabilities conflicts from current `dev` then apply the strict one-Export contract
+- [ ] Resolve EVA Core/store conflicts from current `dev` then reapply only ENG-016
+- [ ] Transfer still-relevant assertions before resolving `EvaHandoffPersistenceTests.cs` as deleted
+- [ ] Audit `git diff origin/dev...HEAD` and remove every unrelated stale-stack change
 
-## Schema
-- [ ] `dotnet ef migrations add DropEvaHandoffTables`
-- [ ] `Up()` drops FK → index → columns → three tables, child-first
-- [ ] `Down()` restores all of it, empty
-- [ ] No historic `*.Designer.cs` modified (`git diff --stat` check)
-- [ ] `Invoke-AzureDatabaseBootstrap.ps1`: migration added to `$removedTables`
-- [ ] `Invoke-AzureDatabaseBootstrap.ps1`: still contains the string `20260819180000_GrantEvaHandoffDownloadOperations`
-- [ ] `Test-MigrationGrants.ps1` passes
-- [ ] `Test-AzureDeploymentPlan.ps1 -Mode Local` grant-migration guard passes
+## Strict Export policy
 
-## Tests
-- [ ] `EvaHandoffPersistenceTests.cs` deleted
-- [ ] `CustodyOutboxIntegrationTests.cs`: proxy assertion **inverted**
-- [ ] A second export of the same case records no second proxy row
-- [ ] `CaseWorkflowMigrationTests.cs`: `EvaHandoffDownloadOperations` now absent
-- [ ] `IntakePersistenceIntegrationTests.cs`: migration census extended
-- [ ] `CaseDetailsWebTests.cs`: hand-off routes 404
-- [ ] `CaseVehicleWebTests.cs`, `ProductionCompositionTests.cs`, `ReadinessEndpointTests.cs` updated
-- [ ] `DependencyDirectionTests.cs`: Eva assertions rewritten around survivors
-- [ ] `EvaHandoffPolicyTests.cs`, `EvaBundleContractTests.cs` updated
-- [ ] `AzureSqlRuntimeRoleMigrationTests.cs` **unchanged** (pinned historic)
+- [ ] Delete `MapForOperatorExport`, `EvaOperatorExport` and empty/default field continuation
+- [ ] Reuse one strict mapping requiring all thirteen accepted, non-empty, provenanced fields
+- [ ] Reuse one Core eligibility policy for Review, non-archived/current version, Case/Audit custody, mapping and eligible images
+- [ ] Enforce strict eligibility inside `IExportCaseBundle.ExecuteAsync`, not only in the UI
+- [ ] Prove a blocked Export writes no archive, proxy or success history
+- [ ] Preserve one deterministic JSON/images package builder and one authenticated Export POST
+- [ ] Preserve deletion of duplicate EVA routes, panel, query projection, ports, MCP tools and DI registrations
+- [ ] Restore the successful archive `Content-Digest` header
 
-## Docs
-- [ ] FRD-07 `:35-38`, `:42`
-- [ ] FRD-07: **neither `###` heading renamed** (anchor check)
-- [ ] `capabilities.md`: EXT-03, CASE-21, CASE-30, MCP-06
-- [ ] `current-architecture.md`: `:142`, `:514`, `:526` (incl. F6), `:634`
-- [ ] `infra/modules/platform.bicep`: F1 comment
-- [ ] `docs/operations.md` **unchanged**
+## Permanent history and first proxy
 
-## Verification (from the ticket)
-- [ ] One route produces the package; the hand-off routes 404
-- [ ] Export is a POST with antiforgery; a refresh does not double-record
-- [ ] First export records exactly one proxy row; the second records none
-- [ ] The dashboard "sent to engineer" count still works, fed by export
-- [ ] The proxy still cannot claim delivery or Engineer assignment
-- [ ] Package bytes unchanged from ENG-014/ENG-015
-- [ ] Dropped tables leave no orphaned FK, grant, or migration-guard failure
-- [ ] `dotnet build --configuration Release`
-- [ ] `dotnet test` Core + Architecture
-- [ ] `dotnet test` integration, chunked
-- [ ] Migration up → down → up clean
-- [ ] Byte audit: no stray CR introduced by any edit
+- [ ] Add an operation key to the Export form, Web handler and Core request
+- [ ] Reuse `DocumentActionHistory` for an attributed `eva_bundle_exported` event
+- [ ] Persist Case version, mapping authority, field provenance, image identities and package hashes in structured history
+- [ ] Commit first successful Export history and first-sent proxy atomically
+- [ ] Prove a second distinct Export writes history but no second proxy
+- [ ] Prove exact operation replay duplicates neither history nor proxy
+- [ ] Prove mismatched operation-key reuse fails closed
+- [ ] Preserve the dashboard Sent-to-Engineer count over `EvaFirstHandoffProxies`
 
-## Close
-- [ ] Simplification pass recorded in the plan under a dated heading
-- [ ] Commits in small slices, co-author trailer
-- [ ] PR `--base task/eng-015-eva-field-values`, stacking stated
-- [ ] `post-implementation-report`, then `move_item` to `review`
-- [ ] CI green
+## Migration
+
+- [ ] Reconcile the generated drop migration/Designer/snapshot on current `dev`
+- [ ] Keep the direct dead-table/column drop authorized by ADR-0030
+- [ ] Correct the stated blast radius to the old-revision Case workspace
+- [ ] State roll-forward recovery and remove any claim of production rollback compatibility
+- [ ] Label `Down()` as fresh disposable LocalDB verification only
+- [ ] Preserve bootstrap removed-table and historic grant-migration expectations
+- [ ] Add no compatibility view, dual path, feature flag, data conversion or expand/contract staging
+
+## Documentation
+
+- [ ] Update protected `docs/operator-notes.md` with the explicitly authorized three-route model and strict Export gate
+- [ ] Rewrite FRD-07 from strict hand-off plus permissive read into one strict manual Export/handoff
+- [ ] Reconcile CASE-21, CASE-30, EXT-03 and relevant future-route capability wording
+- [ ] Refresh current-architecture to the one-route implementation, per-export history and surviving proxy
+- [ ] Preserve design authority's strict Sent-to-Engineer language and remove only stale two-act/revision wording
+- [ ] Remove every repository-doc claim that missing fields/default dates may still export
+- [ ] Update ENG-016's post-implementation report and PR description to remove the superseded permissive assumption
+
+## Tests and proof
+
+- [ ] Core tests pin all thirteen required accepted/provenanced fields
+- [ ] Core tests pin Review/current-version/Case custody/Audit custody/mapping/image gates
+- [ ] QDOS boundary test proves incomplete evidence cannot export
+- [ ] Web test proves visible disabled non-Review control and direct POST server-side refusal
+- [ ] Web test proves antiforgery, operation key and `Content-Digest`
+- [ ] Integration tests prove first proxy and every-export action history semantics
+- [ ] Integration tests prove replay and concurrent first-export idempotency
+- [ ] Migration tests prove removed schema and surviving proxy constraints
+- [ ] Run `dotnet restore`
+- [ ] Run Release build with locked/no-restore profile
+- [ ] Run focused Core EVA/QDOS and Architecture suites
+- [ ] Run focused Web/Integration/history/migration suites
+- [ ] Run the full Integration suite in repository chunks
+- [ ] Run fresh disposable LocalDB migration up → down → up
+- [ ] Run migration-grant, local deployment-plan and documentation-link scripts
+- [ ] Run `git diff --check` and final branch scope audit
+- [ ] Push normally and obtain green GitHub checks on the final head SHA
+- [ ] If `changes` checkout times out again, coordinate the CI-owned repair and rerun; do not treat skipped jobs as evidence
+- [ ] Independent reviewer confirms ticket → plan → implementation coverage and simplification dispositions
+
+## Progress notes
+
+- 2026-08-24: operator resolved that Export is the current send-to-Engineer route, must fail closed until ready, and does not require released-product rollback compatibility before cutover.
+- 2026-08-24: live CI inspection found checkout timeout/cancellation, not an application test failure; downstream test jobs were skipped.
