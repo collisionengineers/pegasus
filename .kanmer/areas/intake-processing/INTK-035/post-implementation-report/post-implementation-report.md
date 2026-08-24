@@ -203,3 +203,31 @@ Local coverage is therefore: build + unit + architecture + the triage / intake
 - CI's three test shards had not completed when this report was written.
 - No UI screenshot or manual browser pass was taken; the panel's behaviour is
   covered by the integration test through the page handler, not visually.
+
+---
+
+## CI result — settled after this report was first written
+
+All checks on PR #533 for SHA `26e463ee`
+([run 32720795281](https://github.com/collisionengineers/pegasus/actions/runs/32720795281))
+have since completed **green**:
+
+| Check | Result |
+| --- | --- |
+| `changes` | pass (3 m 34 s) |
+| `unit` | pass (3 m 49 s) |
+| `sql-integration (1)` | pass (11 m 30 s) |
+| `sql-integration (2)` | pass (8 m 40 s) |
+| `sql-integration (3)` | pass (11 m 36 s) |
+| `sql-integration-coverage` | pass (17 s) |
+| `browser` | pass (7 m 30 s) |
+| `documentation` | pass (31 s) |
+| `local-development-scripts` | pass (19 s) |
+| `reference-data` | pass (19 s) |
+| `infrastructure` | skipping (not applicable to this diff) |
+
+This closes the one gap the *Test evidence* section left open: the full
+integration suite, which was delegated to CI's three shards rather than re-run
+locally, **passed on all three**. The *Not verified* item "CI's three test
+shards had not completed when this report was written" is therefore now
+resolved; the remaining two items in that section still stand.
