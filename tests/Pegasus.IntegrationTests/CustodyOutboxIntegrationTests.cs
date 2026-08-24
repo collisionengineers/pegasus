@@ -1293,7 +1293,10 @@ public sealed class CustodyOutboxIntegrationTests
             fields.Select(field => field.Name));
         // Every key is a string, present whether or not the case knows it.
         Assert.All(fields, field => Assert.Equal(JsonValueKind.String, field.Value.ValueKind));
-        Assert.Equal(reference, eva.RootElement.GetProperty("Reference").GetString());
+        // ENG-015: Reference is the work provider's own reference -- the claim
+        // number the letter carried -- not the Pegasus case reference. The
+        // archive is still named by the case, asserted above.
+        Assert.Equal($"EXP-{fixtureId}", eva.RootElement.GetProperty("Reference").GetString());
         Assert.Equal(QdosPrincipal.Code, eva.RootElement.GetProperty("Work Provider").GetString());
         // Operator direction (2026-08-22): an absent inspection date is today's.
         Assert.False(
