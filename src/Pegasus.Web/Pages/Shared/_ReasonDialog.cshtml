@@ -44,7 +44,10 @@
                     Reason for action
                     <span class="field-validation" aria-hidden="true">*</span>
                 </label>
-                <textarea id="@(dialogId)_reason" name="Reason" rows="3" required></textarea>
+                @* Every reason column in this schema is 500. Without the bound, a longer
+   reason reaches SaveChanges and the whole mutation rolls back, so the
+   operator is refused the action rather than the sentence (DOCS-012). *@
+                <textarea id="@(dialogId)_reason" name="Reason" rows="3" required maxlength="500"></textarea>
             </div>
             <div class="button-row button-row--end">
                 <button type="button" class="secondary-action" data-dialog-dismiss>Cancel</button>

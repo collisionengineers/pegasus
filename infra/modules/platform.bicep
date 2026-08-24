@@ -433,7 +433,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             // evidence reference names the document the mapping was accepted
             // against, and it reaches no shipped file.
             { name: 'Eva__AcceptedMapping__Key', value: 'qdos-eva-13-field-mapping' }
-            { name: 'Eva__AcceptedMapping__Version', value: '1' }
+            { name: 'Eva__AcceptedMapping__Version', value: '2' }
             { name: 'Eva__AcceptedMapping__EvidenceReference', value: 'docs/frd/frd-07-eva-and-external-engineering-handoff.md' }
             { name: 'Features__AutomationMcp', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }

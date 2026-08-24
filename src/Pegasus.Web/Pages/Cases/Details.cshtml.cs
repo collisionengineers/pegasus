@@ -66,7 +66,9 @@ public sealed partial class DetailsModel(
     /// Everything the case carries: files, vehicle images and linked e-mail.
     /// </summary>
     public int EvidenceCount =>
-        (Case?.Documents.Count ?? 0) + ImageIntakes.Count + EvidenceImages.Count;
+        (Case is null ? 0 : CaseFiles.Live(Case.Documents).Count)
+        + ImageIntakes.Count
+        + EvidenceImages.Count;
 
     public CaseDetails? Case { get; private set; }
 
@@ -103,9 +105,6 @@ public sealed partial class DetailsModel(
 
     public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
     public string ReleaseLeaseOperationKey { get; private set; } = NewOperationKey();
-
-    public IReadOnlyList<DocumentSemanticRole> DocumentSemanticRoles { get; } =
-        Enum.GetValues<DocumentSemanticRole>();
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {

@@ -75,3 +75,5 @@ ds-bundle/
 docs/design/system/node_modules/
 docs/design/system/dist/
 ~$*
+.codex/config.toml
+.mcp.json
