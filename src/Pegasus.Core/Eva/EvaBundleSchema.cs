@@ -47,9 +47,6 @@ public sealed record EvaBundle(
     string Sha256,
     byte[] JsonContent,
     string JsonSha256,
-    byte[] ProvenanceContent,
-    string ProvenanceSha256,
-    byte[] ManifestContent,
     string FileName);
 
 public sealed record EvaHandoffImageOption(
@@ -549,13 +546,12 @@ public interface IEvaHandoffProxy
 
 /// <summary>
 /// Produces replay-identical manual EVA bundles without making an EVA or other network call.
-/// JSON keys, archive entries, provenance, image order, timestamps, and hashes are explicit.
+/// The archive is the ordered thirteen-key JSON and Images/, and nothing else.
+/// JSON keys, archive entries, image order, timestamps, and hashes are explicit.
 /// </summary>
 public static class EvaBundleSchema
 {
     public const string SchemaVersion = "eva-handoff-v2";
-    private const string ProvenanceFileName = "provenance.json";
-    private const string ManifestFileName = "manifest.sha256";
     private static readonly DateTimeOffset DeterministicTimestamp =
         new(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
     private static readonly string[] FieldOrder =
@@ -589,19 +585,13 @@ public static class EvaBundleSchema
         var json = WriteOrderedJson(normalizedSource.Fields);
         var jsonHash = Hash(json);
         var imageEntries = ValidateAndNameImages(images);
-        var provenance = WriteProvenance(normalizedSource, imageEntries);
-        var provenanceHash = Hash(provenance);
-        var manifest = WriteManifest(jsonName, jsonHash, imageEntries, provenanceHash);
-        var archive = WriteArchive(jsonName, json, imageEntries, provenance, manifest);
+        var archive = WriteArchive(jsonName, json, imageEntries);
 
         return new(
             archive,
             Hash(archive),
             json,
             jsonHash,
-            provenance,
-            provenanceHash,
-            manifest,
             $"EVA-{reference}.zip");
     }
 
@@ -753,7 +743,14 @@ public static class EvaBundleSchema
     private static byte[] WriteOrderedJson(EvaReplayFields fields)
     {
         using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = false }))
+        // Indented, and with the newline pinned rather than left to
+        // JsonWriterOptions' default of Environment.NewLine: the archive's
+        // SHA-256 is the revision InputFingerprint, so a writer whose bytes
+        // depend on the host OS is not the replay-identical bundle this type
+        // promises. CRLF is what all three known-good EVA samples use.
+        using (var writer = new Utf8JsonWriter(
+            stream,
+            new JsonWriterOptions { Indented = true, NewLine = "\r\n" }))
         {
             writer.WriteStartObject();
             foreach (var field in OrderedFields(fields))
@@ -770,90 +767,10 @@ public static class EvaBundleSchema
         return stream.ToArray();
     }
 
-    private static byte[] WriteProvenance(
-        EvaBundleSource source,
-        IReadOnlyList<ImageEntry> images)
-    {
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = false }))
-        {
-            writer.WriteStartObject();
-            writer.WriteString("schemaVersion", SchemaVersion);
-            writer.WritePropertyName("mapping");
-            writer.WriteStartObject();
-            writer.WriteString("key", source.MappingKey);
-            writer.WriteNumber("version", source.MappingVersion);
-            writer.WriteString("acceptanceEvidence", source.MappingAcceptanceEvidence);
-            writer.WriteEndObject();
-            writer.WritePropertyName("fields");
-            writer.WriteStartArray();
-            foreach (var field in source.Provenance)
-            {
-                writer.WriteStartObject();
-                writer.WriteString("name", field.Name);
-                writer.WriteString("value", field.Value);
-                writer.WriteString(
-                    "status",
-                    field.Status switch
-                    {
-                        EvaEvidenceStatus.Accepted => "accepted",
-                        EvaEvidenceStatus.Corrected => "corrected",
-                        EvaEvidenceStatus.Suggested => "suggested",
-                        _ => "unrecorded"
-                    });
-                writer.WriteString("source", field.Source);
-                writer.WriteString("sourceVersion", field.SourceVersion);
-                writer.WriteEndObject();
-            }
-            writer.WriteEndArray();
-            writer.WritePropertyName("images");
-            writer.WriteStartArray();
-            foreach (var entry in images)
-            {
-                writer.WriteStartObject();
-                writer.WriteString("entryName", entry.Name);
-                writer.WriteString("occurrenceId", entry.Image.OccurrenceId);
-                writer.WriteString("documentId", entry.Image.DocumentId);
-                writer.WriteString("versionId", entry.Image.VersionId);
-                writer.WriteNumber("version", entry.Image.Version);
-                writer.WriteString("source", entry.Image.Source.ToString());
-                writer.WriteString("sourceOccurrenceIdentity", entry.Image.SourceOccurrenceIdentity);
-                writer.WriteString("fileName", entry.Image.FileName);
-                writer.WriteString("mediaType", entry.Image.MediaType);
-                writer.WriteNumber("contentLength", entry.Image.Content.Length);
-                writer.WriteString("semanticRole", entry.Image.SemanticRole.ToString());
-                writer.WriteString("sha256", entry.Sha256);
-                writer.WriteEndObject();
-            }
-            writer.WriteEndArray();
-            writer.WriteEndObject();
-        }
-
-        return stream.ToArray();
-    }
-
-    private static byte[] WriteManifest(
-        string jsonName,
-        string jsonHash,
-        IReadOnlyList<ImageEntry> images,
-        string provenanceHash)
-    {
-        var builder = new StringBuilder();
-        builder.Append(jsonHash).Append("  ").Append(jsonName).Append('\n');
-        foreach (var image in images)
-        {
-            builder.Append(image.Sha256).Append("  ").Append(image.Name).Append('\n');
-        }
-        builder.Append(provenanceHash).Append("  ").Append(ProvenanceFileName).Append('\n');
-        return new UTF8Encoding(false).GetBytes(builder.ToString());
-    }
-
     private static byte[] WriteArchive(
         string jsonName,
         byte[] json,
-        IReadOnlyList<ImageEntry> images,
-        byte[] provenance,
-        byte[] manifest)
+        IReadOnlyList<ImageEntry> images)
     {
         using var stream = new MemoryStream();
         using (var archive = new ZipArchive(stream, ZipArchiveMode.Create, leaveOpen: true, Encoding.UTF8))
@@ -863,8 +780,6 @@ public static class EvaBundleSchema
             {
                 WriteEntry(archive, image.Name, image.Image.Content.Span);
             }
-            WriteEntry(archive, ProvenanceFileName, provenance);
-            WriteEntry(archive, ManifestFileName, manifest);
         }
 
         return stream.ToArray();
