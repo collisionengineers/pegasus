@@ -793,15 +793,15 @@ public sealed class EfImageIntakeStore(
                     .Where(receipt => receipt.Decision == registeredDecision),
                 asset => asset.IntakeReceiptId,
                 receipt => receipt.Id,
-                (asset, receipt) => new { asset.IntakeReceiptId, asset.FileName })
+                (asset, receipt) => new { asset.IntakeReceiptId, asset.FileName, asset.MediaType })
             .ToArrayAsync(cancellationToken);
-        var byReceipt = rows.ToDictionary(row => row.IntakeReceiptId, row => row.FileName);
+        var byReceipt = rows.ToDictionary(row => row.IntakeReceiptId);
         var images = new List<ImageIntakeImage>(rows.Length);
         foreach (var receiptId in receiptIds)
         {
-            if (byReceipt.TryGetValue(receiptId, out var fileName))
+            if (byReceipt.TryGetValue(receiptId, out var row))
             {
-                images.Add(new(receiptId, fileName));
+                images.Add(new(receiptId, row.FileName, row.MediaType));
             }
         }
         return images;

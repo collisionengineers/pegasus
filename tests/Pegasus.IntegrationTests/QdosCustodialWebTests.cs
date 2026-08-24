@@ -121,6 +121,11 @@ public sealed class QdosCustodialWebTests
         Assert.Equal(handlers.Payload, content);
         Assert.Equal("application/pdf", response.Content.Headers.ContentType?.MediaType);
         Assert.Contains("engineer-report.pdf", response.Content.Headers.ContentDisposition?.ToString(), StringComparison.Ordinal);
+        // DOCS-011 added an inline disposition to this route. Until then no test
+        // pinned the disposition *type*, so a default flipped to inline would
+        // have shipped green. This is the assertion that makes the additive
+        // claim checkable.
+        Assert.Equal("attachment", response.Content.Headers.ContentDisposition?.DispositionType);
         Assert.True(response.Headers.TryGetValues("X-Content-SHA256", out var hashes));
         Assert.Equal(handlers.Sha256, Assert.Single(hashes));
         var query = Assert.Single(handlers.Downloads);
@@ -144,6 +149,83 @@ public sealed class QdosCustodialWebTests
         Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
         Assert.DoesNotContain(handlers.OccurrenceId.ToString("D"), deniedBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(handlers.VersionId.ToString("D"), deniedBody, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task InlineFlagPreviewsOnlyContentABrowserWillNotExecute()
+    {
+        // DOCS-011. The preview and the download are the same authorised read
+        // through the same use case; only the disposition differs. A case
+        // document is arbitrary operator-supplied content, so retained HTML
+        // served inline from this origin would execute as same-origin script --
+        // the flag therefore allowlists what a browser renders inertly. One
+        // route observed under four media types, so one host and one restored
+        // database serve them all.
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var handlers = new RecordingDocumentHandlers();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IDownloadCaseDocument>();
+                services.AddSingleton<IDownloadCaseDocument>(handlers);
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        var route = $"/Cases/{handlers.CaseId:D}/Documents/{handlers.OccurrenceId:D}/Download"
+            + $"?versionId={handlers.VersionId:D}";
+
+        using (var preview = await client.GetAsync(route + "&inline=true"))
+        {
+            Assert.Equal(HttpStatusCode.OK, preview.StatusCode);
+            Assert.Equal("inline", preview.Content.Headers.ContentDisposition?.DispositionType);
+            Assert.Contains(
+                "engineer-report.pdf",
+                preview.Content.Headers.ContentDisposition?.ToString(),
+                StringComparison.Ordinal);
+            Assert.Equal("application/pdf", preview.Content.Headers.ContentType?.MediaType);
+            Assert.Equal(handlers.Payload, await preview.Content.ReadAsByteArrayAsync());
+            Assert.Equal("nosniff", Assert.Single(preview.Headers.GetValues("X-Content-Type-Options")));
+        }
+
+        handlers.MediaType = "image/jpeg";
+        handlers.FileName = "damage.jpg";
+        using (var preview = await client.GetAsync(route + "&inline=true"))
+        {
+            Assert.Equal("inline", preview.Content.Headers.ContentDisposition?.DispositionType);
+        }
+
+        // Not on the allowlist: the flag is ignored and the save disposition
+        // stands, so retained markup can never render from this origin.
+        handlers.MediaType = "text/html";
+        handlers.FileName = "statement.html";
+        using (var refused = await client.GetAsync(route + "&inline=true"))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            Assert.Equal("attachment", refused.Content.Headers.ContentDisposition?.DispositionType);
+        }
+
+        // SVG is image/*, but it executes script when navigated to -- and the
+        // document link this route serves is navigable with no script or on a
+        // middle-click. It is excluded from the allowlist for that reason, so
+        // an operator-supplied SVG can never render from this origin.
+        handlers.MediaType = "image/svg+xml";
+        handlers.FileName = "diagram.svg";
+        using (var refused = await client.GetAsync(route + "&inline=true"))
+        {
+            Assert.Equal(HttpStatusCode.OK, refused.StatusCode);
+            Assert.Equal("attachment", refused.Content.Headers.ContentDisposition?.DispositionType);
+        }
+
+        // And the flag is opt-in: absent, a previewable type still downloads.
+        handlers.MediaType = "application/pdf";
+        handlers.FileName = "engineer-report.pdf";
+        using (var plain = await client.GetAsync(route))
+        {
+            Assert.Equal("attachment", plain.Content.Headers.ContentDisposition?.DispositionType);
+        }
     }
 
     private static string AntiforgeryValue(string html)
@@ -215,6 +297,10 @@ public sealed class QdosCustodialWebTests
 
     private sealed class RecordingDocumentHandlers : IDownloadCaseDocument, IExportCaseDocuments
     {
+        public string MediaType { get; set; } = "application/pdf";
+
+        public string FileName { get; set; } = "engineer-report.pdf";
+
         public Guid CaseId { get; } = Guid.NewGuid();
 
         public Guid OccurrenceId { get; } = Guid.NewGuid();
@@ -246,8 +332,8 @@ public sealed class QdosCustodialWebTests
             return Task.FromResult<DocumentDownload?>(
                 new(
                     new MemoryStream(Payload, writable: false),
-                    "engineer-report.pdf",
-                    "application/pdf",
+                    FileName,
+                    MediaType,
                     Payload.Length,
                     Sha256));
         }
