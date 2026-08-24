@@ -30,28 +30,12 @@ public sealed class EvaBundleContractTests
                 "EVA-QDOS001.json",
                 "Images/002 overview.jpg",
                 "Images/003 damage.png",
-                "Images/004 other.jpg",
-                "provenance.json",
-                "manifest.sha256"
+                "Images/004 other.jpg"
             ],
             archive.Entries.Select(entry => entry.FullName));
 
         using var eva = JsonDocument.Parse(first.JsonContent);
         Assert.Equal(FieldNames, eva.RootElement.EnumerateObject().Select(property => property.Name));
-        using var provenance = JsonDocument.Parse(first.ProvenanceContent);
-        Assert.Equal(EvaBundleSchema.SchemaVersion, provenance.RootElement.GetProperty("schemaVersion").GetString());
-        Assert.Equal(13, provenance.RootElement.GetProperty("fields").GetArrayLength());
-        Assert.Equal(3, provenance.RootElement.GetProperty("images").GetArrayLength());
-        Assert.Equal(
-            OverviewOccurrenceId,
-            provenance.RootElement.GetProperty("images")[0].GetProperty("occurrenceId").GetGuid());
-        Assert.Equal(
-            1,
-            provenance.RootElement.GetProperty("images")[0].GetProperty("version").GetInt32());
-
-        var manifest = Encoding.UTF8.GetString(first.ManifestContent);
-        Assert.Contains($"{first.JsonSha256}  EVA-QDOS001.json\n", manifest, StringComparison.Ordinal);
-        Assert.Contains($"{first.ProvenanceSha256}  provenance.json\n", manifest, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -80,16 +64,9 @@ public sealed class EvaBundleContractTests
         Assert.Equal(
             [
                 "EVA-QDOS001.json",
-                "Images/002 overview.jpg",
-                "provenance.json",
-                "manifest.sha256"
+                "Images/002 overview.jpg"
             ],
             archive.Entries.Select(entry => entry.FullName));
-        using var provenance = JsonDocument.Parse(bundle.ProvenanceContent);
-        Assert.Equal(1, provenance.RootElement.GetProperty("images").GetArrayLength());
-        Assert.Equal(
-            OverviewOccurrenceId,
-            provenance.RootElement.GetProperty("images")[0].GetProperty("occurrenceId").GetGuid());
     }
 
     [Fact]
@@ -126,21 +103,27 @@ public sealed class EvaBundleContractTests
         Assert.Contains("accepted mapping/config version", exception.Message, StringComparison.Ordinal);
     }
 
+    // ENG-014's regression guard. Before this test the exported layout was
+    // pinned only transitively, through two bundles hashing the same -- which
+    // holds just as well when both are wrong. The archive shape and the JSON
+    // bytes are now asserted directly, because both are what EVA reads.
     [Fact]
-    public void BusinessReadableEntryNamesAndManifestGrammarAreExact()
+    public void TheArchiveIsTheIndentedJsonAndImagesAndNothingElse()
     {
         var bundle = EvaBundleSchema.CreateOfflineReplay(Source(), Images());
 
         using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
         var names = archive.Entries.Select(entry => entry.FullName).ToArray();
+
+        // No manifest.sha256, no provenance.json: neither was ever an operator
+        // requirement, and the three known-good EVA samples carry no companion
+        // file at all.
         Assert.Equal(
             [
                 "EVA-QDOS001.json",
                 "Images/002 overview.jpg",
                 "Images/003 damage.png",
-                "Images/004 other.jpg",
-                "provenance.json",
-                "manifest.sha256"
+                "Images/004 other.jpg"
             ],
             names);
         Assert.All(names, name =>
@@ -148,13 +131,38 @@ public sealed class EvaBundleContractTests
             Assert.DoesNotContain(OverviewOccurrenceId.ToString("N"), name, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(DamageOccurrenceId.ToString("N"), name, StringComparison.OrdinalIgnoreCase);
         });
-        var manifest = Encoding.UTF8.GetString(bundle.ManifestContent);
-        Assert.DoesNotContain('\r', manifest);
-        Assert.False(manifest.EndsWith("\n\n", StringComparison.Ordinal));
-        var lines = manifest.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(names.Length - 1, lines.Length);
-        Assert.All(lines, line => Assert.Matches("^[0-9a-f]{64}  [^\\r\\n]+$", line));
-        Assert.Equal(names[..^1], lines.Select(line => line[66..]));
+
+        var json = Encoding.UTF8.GetString(bundle.JsonContent);
+
+        // The layout every known-good sample uses: a two-space indent, CRLF,
+        // an object per line, and no trailing newline after the closing brace.
+        Assert.StartsWith("{\r\n  \"Work Provider\": ", json, StringComparison.Ordinal);
+        Assert.EndsWith("\r\n}", json, StringComparison.Ordinal);
+
+        // The newline is pinned rather than left to JsonWriterOptions' default
+        // of Environment.NewLine: the archive hash is the revision fingerprint,
+        // so the bytes must not depend on which OS generated them. Every '\n'
+        // in the file therefore belongs to a "\r\n", and a field's own line
+        // breaks stay escaped inside its value rather than becoming layout.
+        var lines = json.Split("\r\n");
+        Assert.Equal(lines.Length - 1, json.Count(character => character == '\n'));
+        Assert.Equal(lines.Length - 1, json.Count(character => character == '\r'));
+
+        // One line for '{', one per field, one for '}'.
+        Assert.Equal(FieldNames.Length + 2, lines.Length);
+        Assert.Equal("{", lines[0]);
+        Assert.Equal("}", lines[^1]);
+
+        // Exactly two spaces of indent, and the thirteen keys in their order.
+        Assert.Equal(
+            FieldNames.Select(name => $"  \"{name}\": "),
+            lines[1..^1].Select(line => line[..(line.IndexOf(": ", StringComparison.Ordinal) + 2)]));
+
+        // The whole-archive digest survives ENG-014 and is still the hash of
+        // what ships: it is the revision InputFingerprint and the download's
+        // Content-Digest, and only the manifest's per-entry hashes are gone.
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.Content)), bundle.Sha256);
+        Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.JsonContent)), bundle.JsonSha256);
     }
 
     [Fact]
