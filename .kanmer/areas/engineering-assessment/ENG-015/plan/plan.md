@@ -97,3 +97,52 @@ nothing in it becomes false. It is also being edited concurrently by
 `task/docs-013-strike-eva-manifest`. I am not editing it here; if review judges
 the 6-line address shape to be FRD-worthy behaviour it should land in that
 ticket rather than conflict with it. Called out in the PR body.
+
+## Simplification pass — 2026-08-24
+
+Run over this branch's own diff (`git diff task/eng-014-drop-manifest-indent-json..HEAD`),
+four lenses: reuse, simplification, efficiency, altitude.
+
+### Applied
+
+1. **Reuse — duplicated length rule.** `Paragraphs` repeated `Text`'s
+   bounds check and its exact exception message, so the one length rule for
+   case text lived in two places. Extracted `Bounded`, now the single owner;
+   both normalizers call it.
+2. **Convention — regex timeout.** `PostcodeRegex` was declared without the
+   match timeout every other `GeneratedRegex` in this code carries. The
+   pattern is anchored and has no nested quantifier, so it is not a ReDoS
+   risk, but the omission was a silent departure from the convention. Added
+   `100`, matching its neighbours.
+3. **Altitude — the make/model composition.** The first cut duplicated the
+   confirmed branch's make+model join in the fallback. Replaced by one
+   `Compose` helper used by both branches, so the two sources cannot state a
+   vehicle differently.
+
+### Considered and not applied
+
+4. **`NormalizeInspectionAddress` could fold into `NormalizeValue` with a
+   field-name argument.** Not applied: it would put a field-specific rule
+   inside the general normalizer and give every caller a parameter only one
+   field uses. The name switch in `NormalizedValue` is the convention already
+   in place for `VRM`, so the address follows it.
+5. **`Paragraphs`'s two-pass blank-line collapse could be one LINQ chain.**
+   Not applied — the explicit loop states "skip a blank that follows a blank"
+   plainly, and the chain version needed a stateful aggregate to say the same
+   thing. Clarity beats brevity here.
+6. **`CreateOfflineReplay`'s `fileNameReference` is an optional parameter**,
+   which the repository rails treat as a smell. Kept optional deliberately:
+   both production callers pass it explicitly, and the default preserves the
+   meaning an offline replay with no case in hand needs. Making it required
+   would have churned thirteen test call sites in a file [[ENG-014]] is
+   rewriting, for no behavioural gain. Named here so review can overrule it.
+
+### Found, not behaviour-preserving — fixed as part of the work, not the pass
+
+7. **The archive filename regressed with (a).** Changing `Reference` to the
+   claim number silently renamed the download, and `SafeFileComponent`
+   truncates at the last path separator — `AKH//47743/1` would have produced
+   `EVA-1.zip` for every such case. Caught by
+   `BundleRevisionProxyAndDownloadCommandAreAtomicReplaySafeAndIntegrityChecked`.
+   Fixed by naming the archive from the case reference, and pinned by a new
+   test. This is a bug the ticket did not anticipate, not a quality finding.
