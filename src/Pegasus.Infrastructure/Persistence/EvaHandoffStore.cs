@@ -531,7 +531,8 @@ public sealed class EvaHandoffStore(
 
         var bundle = EvaBundleSchema.CreateOfflineReplay(
             mapping.Source,
-            new(bundleImages));
+            new(bundleImages),
+            caseData.Identity.Reference);
         var existingRevision = await context.EvaHandoffRevisions
             .SingleOrDefaultAsync(
                 item => item.CaseId == request.CaseId
@@ -695,7 +696,7 @@ public sealed class EvaHandoffStore(
         }
 
         return new(
-            EvaBundleSchema.CreateOfflineReplay(export.Source, new(images)),
+            EvaBundleSchema.CreateOfflineReplay(export.Source, new(images), caseRecord.Reference),
             export.UnrecordedFields,
             []);
     }
@@ -855,22 +856,14 @@ public sealed class EvaHandoffStore(
                 && caseData.Completeness.Evaluation.SatisfiesPolicy,
             caseData.Completeness.Values.ImagesComplete
                 && caseData.Completeness.Evaluation.SatisfiesPolicy,
-            new(
-                caseData.Identity.Reference,
-                EvaEvidenceStatus.Accepted,
-                $"case-identity:{caseId:D}",
-                "case-reference/v1"),
+            FromCaseField(caseData.Claim.Number, static value => value, includeSuggestions),
             FromCaseField(caseData.Provider.WorkProviderCode, static value => value, includeSuggestions),
             Fallback(
                 FromVehicleField(acceptedVehicle?.Registration, static value => value),
                 caseData.Vehicle.Registration,
                 static value => value,
                 includeSuggestions),
-            Fallback(
-                VehicleModel(acceptedVehicle),
-                caseData.Vehicle.Model,
-                static value => value,
-                includeSuggestions),
+            VehicleModel(acceptedVehicle, caseData, includeSuggestions),
             FromCaseField(caseData.Claimant.Name, static value => value, includeSuggestions),
             FromCaseField(caseData.Accident.IncidentDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), includeSuggestions),
             FromCaseField(caseData.Instruction.InstructionDate, static value => value.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture), includeSuggestions),
@@ -884,14 +877,9 @@ public sealed class EvaHandoffStore(
                 static value => value.ToString(CultureInfo.InvariantCulture),
                 includeSuggestions),
             Fallback(
-                FromVehicleField(acceptedVehicle?.MileageUnit, static value => value switch
-                {
-                    VehicleMileageUnit.Miles => "miles",
-                    VehicleMileageUnit.Kilometres => "kilometres",
-                    _ => value.ToString()
-                }),
+                FromVehicleField(acceptedVehicle?.MileageUnit, MileageUnit),
                 caseData.Vehicle.MileageUnit,
-                static value => value.ToLowerInvariant(),
+                MileageUnit,
                 includeSuggestions));
     }
 
@@ -938,24 +926,50 @@ public sealed class EvaHandoffStore(
         };
     }
 
-    private static EvaEvidenceValue VehicleModel(ConfirmedVehicleEvidence? vehicle)
+    /// <summary>
+    /// Make and model as one value, from whichever source the case has.
+    ///
+    /// The staff-confirmed vehicle record wins, exactly as before. What changed
+    /// (ENG-015) is the fallback: it used to read <c>Vehicle.Model</c> alone, so
+    /// an export carried "X5 SE - X DRIVE Type 5 DOOR SUV" where EVA is sent
+    /// "BMW X5 …". Both branches now compose the same way, so the two cannot
+    /// state the vehicle differently.
+    /// </summary>
+    private static EvaEvidenceValue VehicleModel(
+        ConfirmedVehicleEvidence? vehicle,
+        CaseDataProjection caseData,
+        bool includeSuggestions)
     {
-        var values = new List<EvaEvidenceValue>(2);
-        if (vehicle?.Make is not null)
+        var confirmed = Compose(
+            vehicle?.Make is null ? null : FromVehicleField(vehicle.Make, static value => value),
+            vehicle?.Model is null ? null : FromVehicleField(vehicle.Model, static value => value));
+        if (!string.IsNullOrWhiteSpace(confirmed.Value) || !includeSuggestions)
         {
-            values.Add(FromVehicleField(vehicle.Make, static value => value));
-        }
-        if (vehicle?.Model is not null)
-        {
-            values.Add(FromVehicleField(vehicle.Model, static value => value));
-        }
-        if (values.Count == 0)
-        {
-            return MissingEvidence;
+            return confirmed;
         }
 
-        return values.Aggregate(Combine);
+        return Compose(
+            FromCaseField(caseData.Vehicle.Make, static value => value, includeSuggestions: true),
+            FromCaseField(caseData.Vehicle.Model, static value => value, includeSuggestions: true));
     }
+
+    /// <summary>Make and model joined, skipping whichever the case lacks.</summary>
+    private static EvaEvidenceValue Compose(EvaEvidenceValue? make, EvaEvidenceValue? model)
+    {
+        var values = new[] { make, model }
+            .Where(value => value is not null && !string.IsNullOrWhiteSpace(value.Value))
+            .Select(value => value!)
+            .ToArray();
+        return values.Length == 0 ? MissingEvidence : values.Aggregate(Combine);
+    }
+
+    // The EVA mileage-unit vocabulary is mapping policy and lives in Core;
+    // these forward so the store keeps no second copy of it (ENG-015 review).
+    private static string MileageUnit(VehicleMileageUnit unit) =>
+        CaseEvaMapping.MileageUnit(unit);
+
+    private static string MileageUnit(string value) =>
+        CaseEvaMapping.MileageUnit(value);
 
     private static EvaEvidenceValue FromCaseField<T>(
         CaseField<T> field,
