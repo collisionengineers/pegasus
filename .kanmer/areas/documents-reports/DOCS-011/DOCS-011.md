@@ -2,20 +2,25 @@
 id: DOCS-011
 type: ticket
 title: 'Preview evidence images and documents in the case, with paging and a download'
-status: backlog
+status: preparing
 area: documents-reports
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-24T11:13:35.573Z'
 labels:
   - found-during-qa
   - ui
   - design
 links: []
-docs_todo: true
+refs:
+  - docs/design/README.md
+  - docs/frd/frd-05-documents-extraction-and-custody.md
+  - docs/frd/frd-12-operator-experience.md
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:21.004Z'
-updated: '2026-08-23T15:19:21.004Z'
+updated: '2026-08-24T11:13:35.573Z'
 ---
 
 ## What the operator asked for
@@ -28,8 +33,13 @@ updated: '2026-08-23T15:19:21.004Z'
 
 ## What it does today
 
-`Pages/Cases/Shared/_ImageGallery.cshtml` is a thumbnail grid where each tile
-is a bare link to the same authorised endpoint:
+**Corrected 2026-08-24 — the path first recorded here was wrong.** The gallery
+is `src/Pegasus.Web/Pages/Shared/_ImageGallery.cshtml`, a *global* shared
+partial, not `Pages/Cases/Shared/`. It has three callers:
+`Pages/Cases/Details.cshtml` twice (instruction photographs; vehicle images per
+image-initiated record) and `Pages/ImageIntake/Details.cshtml`.
+
+Each tile is a bare link to the same authorised endpoint:
 
 ```html
 <a href="@image.Href">
@@ -37,15 +47,21 @@ is a bare link to the same authorised endpoint:
 </a>
 ```
 
-Clicking navigates to the raw file. The document route
-(`/Cases/{caseId}/Documents/{occurrenceId}/Download`) returns
-`File(content, mediaType, fileName)`, which sets a **download** disposition —
-so a document link downloads and an image link opens a bare image. There is no
-viewer, no paging, no download control.
+**Also corrected: nothing opens a new tab.** There is no `target="_blank"` on
+any evidence link. The observed behaviours are:
 
-The partial's own comment says this was deliberate: *"preview-and-expand works
-with no script and stays keyboard accessible."* It is a reasonable no-script
-starting point; the operator has now said it is not what the work needs.
+- The two receipt routes (`/Received/{id}/Image`, `/Received/{id}/Asset/{assetId}`)
+  already set `Content-Disposition: inline` and navigate in the same tab — so a
+  click replaces the case page with a bare image.
+- `/Cases/{caseId}/Documents/{occurrenceId}/Download` returns
+  `File(content, mediaType, fileName)`; supplying a filename forces
+  `Content-Disposition: attachment`, so it **downloads**. Since DOCS-007 an
+  evidence photograph registered as a case document takes that route, so the
+  operator's "it should not just download" applies to photographs as well as to
+  documents.
+
+There is no viewer, no paging and no download control. There is no existing
+lightbox, carousel or preview surface anywhere in the app.
 
 ## What this needs
 
@@ -59,14 +75,21 @@ starting point; the operator has now said it is not what the work needs.
 - An **inline** disposition for preview, separate from the existing download
   disposition. The route currently only offers the latter. Both must stay
   authorised by the same case-document check — a preview is a read of custody
-  content, not a public URL.
+  content, not a public URL. The inline disposition must be **additive**:
+  `QdosCustodialWebTests` asserts the attachment disposition on the plain route.
 
 ## Boundaries worth holding
 
 - The design authority's no-explanatory-copy rules bind: controls, labels and
   at most one consequence sentence. No hints, no empty-state prose.
+- `docs/design/README.md` already specifies this surface — the **Evidence image
+  preview** contract row. This ticket implements an existing spec; it does not
+  add one.
+- The deployed CSP (`default-src 'self'; object-src 'none'`) forbids inline
+  `<script>`, `blob:` URLs and `<embed>`/`<object>`. All script goes in
+  `site.js`; PDF preview must be an `<iframe>` pointed at the same-origin route.
 - This is presentation only. It changes nothing about what is retained, what is
   eligible for EVA, or what custody records.
-- [[DOCS-012]] removes the custody detail table from this same tab, so the two
-  should be planned together — what survives there is the surface this viewer
-  opens from.
+- [[DOCS-012]] rewrites the custody detail table in this same tab and is open,
+  unmerged, as PR #532. Keep the diff over that file minimal; a rebase is
+  expected once #532 merges.
