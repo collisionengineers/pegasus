@@ -694,7 +694,7 @@ Case work includes:
   preserves the interval;
 - request-scoped upload-link creation and copyable manual chasers;
 - manual WhatsApp material;
-- successful deterministic EVA JSON/image/manifest generation as the
+- successful deterministic EVA JSON/image generation as the
   once-per-case `First sent to Engineer` proxy, with later revisions distinct;
 - issued report/addendum versions and exact report-Sent evidence;
 - lease/conflict recovery; and

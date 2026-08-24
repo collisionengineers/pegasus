@@ -7,11 +7,9 @@
 
 **Accepted focused-alpha boundary:** EVA remains the authoritative external
 engineering/report workflow. Pegasus performs no EVA network call. It
-deterministically serializes UTF-8 JSON in the exact 13-key order below,
-includes every custody-confirmed eligible Case-vehicle image, and writes a
-SHA-256 manifest over the JSON and image identities and bytes. Stable manifest
-ordering exists only for reproducible package integrity; Pegasus owns no EVA
-presentation, selection, or report-image order.
+deterministically serializes UTF-8 JSON in the exact 13-key order below and
+includes every custody-confirmed eligible Case-vehicle image. Pegasus owns no
+EVA presentation, selection, or report-image order.
 The two retained populated EVA JSON examples are immutable
 reference evidence for the field shape; they do not supply credentials or
 activate an adapter.
@@ -32,6 +30,12 @@ The JSON keys, in serialization order, are:
 12. `Mileage`
 13. `Mileage Unit`
 
+`Reference` carries the **work provider's own reference** — EVA's `Claim no`,
+the value the provider's instruction states. It is not the Pegasus case
+reference, which corresponds to EVA's `Case/Po` and is entered in EVA by an
+admin worker. The distinction is operator source: see
+[EVA information](../../reference/eva_information/eva_information.md).
+
 The first successful package generation records the once-per-case `First sent
 to Engineer` proxy. Later generations are revisions. The proxy proves Pegasus
 export generation only; it does not claim EVA receipt or named-Engineer
@@ -39,10 +43,20 @@ assignment, which remain EVA-owned events. An image/document upload into
 Pegasus, Box custody, or the presence of a report PDF is not this handoff and is
 not external delivery evidence.
 
-Successful focused manual generation makes the complete JSON, all-eligible-image, and manifest bundle available for immediate staff download. Download proves neither EVA receipt nor report delivery and does not change Case state.
+Successful focused manual generation makes the complete JSON and all-eligible-image bundle available for immediate staff download. Download proves neither EVA receipt nor report delivery and does not change Case state.
 The container format is intentionally unspecified: its selection must evaluate
 whether a single archive is the clearest usable representation without changing
-the exact package contents, manifest, or manual-handoff boundary.
+the exact package contents or the manual-handoff boundary. The package is the
+ordered JSON and the eligible images; it carries no other file.
+
+**The operator export is a second, narrower act over the same package.** An
+operator may download a case in this format from the Case action bar while the
+case is in Review. It is a read: it records no revision, writes no `First sent
+to Engineer` proxy, and does not change Case state or version. It differs from
+the handoff only in what counts as evidence — a suggested value travels with its
+`Suggested` status, a field the case does not hold is emitted empty, and an
+absent inspection date resolves to the export date as a named system default.
+The handoff's evidence bar is unchanged.
 
 The focused handoff readiness review keeps four source-labelled inputs distinct:
 the saved source email, vehicle images, valuation evidence, and initial
