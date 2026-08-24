@@ -5,7 +5,7 @@ title: Make creating a public upload link findable
 status: backlog
 area: case-reference-workflow
 assignee: ''
-profile: fix
+profile: feature
 labels:
   - found-during-qa
   - ui
@@ -15,54 +15,80 @@ docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-23T15:19:54.445Z'
-updated: '2026-08-23T15:19:54.445Z'
+updated: '2026-08-24T08:59:26.151Z'
 ---
 
-## What the operator reported
+## What the operator saw
 
-> *"No method to create an upload link on frontend at all seemingly."*
+> *"**Issue 3** — No method to create an upload link on frontend at all seemingly."*
 
-## What is actually there
+They are right, and the reason is not the one this ticket originally gave.
 
-The control exists. `Pages/Cases/Shared/_CaseDocuments.cshtml:160-167` renders
-a **"Create public upload request"** button, posting to
-`/Cases/Custody?handler=CreateRequestUploadLink`, and Core's
-`ICreateRequestUploadLink` is composed. Existing links are listed above it with
-a revoke control.
+## This is not a UI bug — the capability is not delivered
 
-The whole section is wrapped in `@if (mayEdit)`, and `mayEdit` is:
+**Verified in code, in config, and against the deployed container.** Public
+upload links (INT-31) are composed as a **null implementation that throws**:
 
 ```csharp
-var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+// DependencyInjection.cs:435-437 — the else branch
+services.AddScoped<UnavailableDocumentRequestStore>();
+services.AddScoped<ICreateRequestUploadLink>(provider =>
+    provider.GetRequiredService<UnavailableDocumentRequestStore>());
 ```
 
-So it appears **only while the operator holds an edit lease** — i.e. after
-pressing *Edit case*. To someone reading the case it is not merely disabled, it
-is absent. "Seemingly" is doing honest work in the report: the operator looked
-and it was not there.
+`UnavailableDocumentRequestStore.cs:19` throws `DocumentRequestUnavailableException`.
+The real store is composed only when `requestUploadLimitsFactory` is non-null,
+and `Program.cs:203-210` leaves it null unless
+`DocumentRequests:AcceptedLimitsVersion` is set.
 
-## The judgement to make
+| Check | Result |
+| --- | --- |
+| `appsettings.json` / `appsettings.Development.json` | no `DocumentRequests` section |
+| `infra/` bicep | sets only `Runtime__Profile` and `Features__AutomationMcp` |
+| **Deployed container app env** (`az containerapp show`, 2026-08-24) | **`Runtime__Profile=Production`, `Features__AutomationMcp=true` — and nothing else** |
 
-Requiring a lease is not obviously wrong — creating a public upload link is a
-mutation that changes what the outside world can put into custody, and the lease
-is how this codebase serialises case mutations. The defect is **discoverability**,
-not authorisation.
+So the gate is closed in the running product, not merely in the repo.
 
-Options, in the order I would try them:
+Two more consequences, both verified:
 
-1. Render the section for a reader with the button in the same `gated` /
-   `is-disabled` shape the Export control already uses on `Details.cshtml`
-   (`data-condition="Available in Review"`), so the capability is visible and
-   its precondition is stated once. This is the existing convention for exactly
-   this situation and needs no new pattern.
-2. Move upload requests out of the custody panel entirely, onto the case action
-   bar beside Export. [[DOCS-012]] is deleting most of that panel anyway, so
-   this may fall out of that work.
+- **The public page 404s.** `Program.cs:919-937` returns 404 for `/uploads` (and
+  `/requests` on the production profile) when the factory is null. Even a
+  successfully minted link would point at a route that does not answer.
+- **A test pins it closed.**
+  `ProductionCompositionTests.ProductionProfileKeepsUploadLinksUnavailableWithoutAcceptedLimits`
+  asserts the null store, *"so composing document custody must not activate
+  anonymous upload links."*
 
-Do **not** simply drop the lease requirement to make it visible; that trades a
-findability problem for a concurrency one.
+Pressing the button today reaches `Custody.cshtml.cs:225-231`, which catches the
+throw and reports the request unavailable. The lease requirement in
+`_CaseDocuments.cshtml:8` is a real second-order discoverability problem, but it
+is not why the operator cannot create an upload link.
 
-## Related
+## Why it is blocked rather than in progress
 
-[[DOCS-012]] removes the surrounding custody table and explicitly flags that
-this section needs rehoming rather than deleting. Plan the two together.
+CLAUDE.md: *"A closed composition or feature gate is a disabled flag, not a
+partially shipped feature. Do not ship, release, merge as delivered, claim, or
+document a feature behind one as delivered."* Making the control **more
+findable** while it cannot work is the worst of the available outcomes.
+
+`docs/open-decisions.md` still holds eight unanswered questions for INT-31 —
+token lifetime, per-file and aggregate byte limits, file count, allowed content
+types, per-token and per-IP rate, one-time versus reuse, and the
+revocation/expiry error contract. `docs/capabilities.md` marks INT-31
+*"Allocated but non-blocking for `0.1.0-alpha.1`"*, and `open-decisions.md`
+lists it as explicitly not on the path.
+
+## The operator's choice
+
+**(a) Remove the dead controls now.** The whole upload-request section
+(`_CaseDocuments.cshtml:136-167`) renders in production offering an action that
+cannot succeed, including the empty state *"No public upload request is
+recorded. Availability is not assumed."* `docs/design/README.md` already forbids
+that shape — a read-only section with nothing recorded and no available action
+should be absent, not an empty panel. Small, honest, and it stops the surface
+lying. INT-31 stays deferred.
+
+**(b) Deliver INT-31.** A feature, not a fix, and it needs the eight limit
+values answered first.
+
+**Recommendation: (a) now, (b) as its own ticket when the limits are settled.**
