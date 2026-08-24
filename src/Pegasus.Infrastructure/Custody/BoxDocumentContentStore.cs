@@ -108,6 +108,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             "file",
             cancellationToken)
             ?? throw new FileNotFoundException("The document content is unavailable.");
+        RefuseUnexpectedLength(file, expectedLength);
         var content = await client.DownloadFencedAsync(file, caseFolder, cancellationToken);
         Verify(content, normalizedHash, expectedLength);
         return new MemoryStream(content, writable: false);
@@ -165,6 +166,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
                 var read = reads[index];
                 var file = BoxContentClient.SelectChild(children, FlatFileName(read.Address), "file")
                     ?? throw new FileNotFoundException("The document content is unavailable.");
+                RefuseUnexpectedLength(file, read.ExpectedLength);
                 var content = await client.DownloadFencedAsync(file, caseFolder, token);
                 Verify(content, hashes[index], read.ExpectedLength);
                 contents[index] = content;
@@ -314,6 +316,28 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         }
         _ = CustodyNames.SafeName(address.CaseReference);
         _ = CustodyNames.SafeName(address.FileName);
+    }
+
+    /// <summary>
+    /// PLAT-041 review: refuse a length mismatch before any bytes move. Dropping
+    /// the per-read metadata GET also dropped the only pre-download size guard,
+    /// so an unbounded body could be buffered — four at once under the fan-out —
+    /// before <see cref="Verify"/> rejected it.
+    ///
+    /// Deliberately tolerant, unlike the metadata check it replaces: a size Box
+    /// declines to send cannot refuse a file, the same reasoning
+    /// <c>DownloadFencedAsync</c> applies to an absent parent. That strictness
+    /// was the reason the old check could not simply be re-pointed at the
+    /// listing. <see cref="Verify"/> stays the closing check on the content.
+    /// </summary>
+    private static void RefuseUnexpectedLength(
+        BoxContentClient.BoxItem file,
+        long expectedLength)
+    {
+        if (file.Size is { } size && size != expectedLength)
+        {
+            throw new InvalidDataException("Document custody length verification failed.");
+        }
     }
 
     private static void Verify(ReadOnlySpan<byte> content, string expectedSha256, long expectedLength)
