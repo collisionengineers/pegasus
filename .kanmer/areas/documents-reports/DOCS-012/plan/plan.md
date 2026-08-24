@@ -421,3 +421,50 @@ under a dated "Simplification pass" heading.
 | **An unused `using` or a dormant ctor param survives Step 6** and the architecture test passes for the wrong reason. | Release build plus the architecture suite; confirm the assertion was *removed* rather than the param kept. |
 | **`_ReasonDialog` posts `Reason`, the handler binds `reason`.** Binding is case-insensitive, but that is a framework assumption, not a check. | Proven in the browser check, not by argument. |
 | **N dialogs on a case with many files.** One hidden dialog per row. | The partial already renders one hidden form per occurrence, so the DOM cost is unchanged. A single shared dialog would need new JS and a new convention; rejected under "the existing convention wins". |
+
+---
+
+## Addendum — Step 3 tightened
+
+Three findings landed after the plan above was written; none change the shape, two
+raise the stakes on Step 3.
+
+**The wrong-table failure has already shipped.** `docs/operations.md:444-454` records it
+as a Release 22 production defect — notes written to `CaseHistory`, the page reporting
+"The note was added.", the tab stuck at zero. Treat Step 3's table choice and its
+round-trip assertion as the highest-value line in this ticket, not a detail.
+
+**Follow `report_evidence_auto_linked`, the one existing automatic note.**
+`AutoLinkReportEvidence` (`src/Pegasus.Core/Lifecycle/CaseLifecycle.cs:207-240`) →
+`EfCaseWorkflowStore.AddEvent` (`:1301-1330`) is the product's only path where the
+system puts a sentence on the Notes tab unprompted. Read it before writing
+`AddRemovalNote`; the entity shape in Step 3 matches it and `EfCaseNoteStore.cs:48-63`.
+Its actor is `SystemWorker` because nobody pressed anything. **Removal keeps
+`command.Actor`** — a person pressed the trash button, and every staff mutation on the
+timeline records the staff actor (`EfCaseAssessmentStore.cs:360`,
+`EfCaseDataStore.cs:532`). "Created by system" is about who *writes* the note, not who
+*acted*; the operator's contrast is with a note they typed themselves.
+
+**`EventType` needs no registration.** It is a free `string`, `HasMaxLength(100)`, and
+`OperatorLabels.HistoryEvent` falls through to `Humanise` (`OperatorLabels.cs:397`).
+`"case_document_removed"` would render as "Case document removed" with no code change;
+the label line in Step 3 exists only because "File removed" reads better. Keep
+`OperatorLabels.HistoryEvent` as the single list of event labels — do not add a second
+one.
+
+**The `(CaseId, AfterVersion)` unique index — checked, and this design clears it.**
+`CaseWorkflowModelConfiguration.cs:62` makes that pair unique. A version-neutral note —
+one written without incrementing the case version, as `EfCaseNoteStore.cs:61-62` does —
+collides on its second write at the same version, and no existing test reaches that.
+Logical removal calls `CaseMutationGuard.Complete(workflow)`
+(`EfDocumentCustodyStore.cs:457`), so the note carries a version that call has just
+claimed and that nothing else claims. **Capture `BeforeVersion` before `Complete` and
+`AfterVersion` after it**, and add the second-removal-on-one-case case to the new test
+so the clearance is pinned rather than argued.
+
+**Two adjacent defects found and deliberately not fixed here** — file them instead:
+`AddCaseNote.MaximumLength = 2000` (`src/Pegasus.Core/Cases/CaseNotes.cs:42`) exceeds the
+`Reason` column's 500 (`CaseWorkflowModelConfiguration.cs:60`) and
+`_CaseHistory.cshtml:48` advertises the 2000 to the operator; and
+`EfCaseQueryStore.cs:181-195` truncates the timeline at `Take(200)` silently. Neither is
+caused by or touched by this change.

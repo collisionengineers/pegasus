@@ -421,3 +421,79 @@ behavioural coverage is integration-level.
 - That the `(CaseId, AfterVersion)` unique index leaves the removal's post-`Complete`
   version unclaimed. True today because removal writes no event, but it must be
   asserted by a test rather than assumed.
+
+---
+
+## Addendum — three facts that sharpen §1
+
+**1. This exact mistake has already shipped to production.** `docs/operations.md:444-454`
+records it as a Release 22 defect: notes were written to `CaseHistory`, the page
+reported "The note was added.", and the Notes tab stayed at zero. So the
+`CaseHistory`-vs-`CaseWorkflowEvents` hazard is not a theoretical reading of the code —
+it is a defect this repository has already paid for once. The plan's table choice and
+its round-trip test are the guard.
+
+**2. The canonical automatic-note template is `report_evidence_auto_linked`.**
+`AutoLinkReportEvidence.ExecuteAsync` (`src/Pegasus.Core/Lifecycle/CaseLifecycle.cs:207-240`)
+requires `StaffAccessRight.ExecuteSystemWork` and hard-requires `ActorKind.SystemWorker`
+(`:226-231`); it is driven from `src/Pegasus.Core/Workflow/PollSentEvidence.cs:505-512`
+and lands on the timeline through `EfCaseWorkflowStore.cs:906-920` →
+`AddEvent` (`:1301-1330`). That is the one existing path where the system, unprompted,
+puts a sentence on the Notes tab. `OperatorLabels.cs:389` labels it "Sent report linked
+automatically".
+
+Its actor is `SystemWorker` with a stable free-string subject id — the convention across
+the product (`"vehicle-lookup"` at `EfVehicleLookupWorkStore.cs:244-246`,
+`RunDueChasers.WorkerSubjectId = "due-work-sweep"` at
+`src/Pegasus.Core/Tasks/RunDueChasers.cs:100`, `ImageIntakeAutomation.ActorId` at
+`src/Pegasus.Core/ImageIntake/ImageIntakeAutomation.cs:59`,
+`IntakeAllocation.SystemActor` at `src/Pegasus.Core/Intake/IntakeAllocation.cs:210`).
+There is no sentinel user row and no `NoteAuthorKind` enum. `ActorDisplayNames`
+(`src/Pegasus.Core/Actors/ActorDisplayNames.cs:14-17`) renders `SystemWorker` as
+"System" and `Automation` as "Automation"; `_CaseHistory.cshtml:27-30` gives only
+`Automation` the chip.
+
+This does **not** change the recommendation for document removal. Removal is a staff
+action; the note records the staff actor, exactly as `case_assessment_saved`
+(`EfCaseAssessmentStore.cs:360`) and every other staff mutation does. "Created by
+system" describes who *wrote* the note, not who *acted*.
+
+**3. `EventType` is a free string with no enum.** `HasMaxLength(100)`
+(`CaseWorkflowModelConfiguration.cs:54`); every write site uses a bare literal, and
+`OperatorLabels.HistoryEvent` falls through to `Humanise` for anything unmapped
+(`OperatorLabels.cs:397`). So `"case_document_removed"` needs no registration — only a
+label if the humanised form ("Case document removed") reads worse than the chosen one
+("File removed"). One list per concept still holds: `OperatorLabels.HistoryEvent` is
+that list.
+
+### The `(CaseId, AfterVersion)` unique index — resolved, not dodged
+
+`CaseWorkflowModelConfiguration.cs:62` declares
+`HasIndex(new { CaseId, AfterVersion }).IsUnique()`, matching
+`Migrations/20260729160000_CaseWorkflowRuntime.cs:191`; no later migration relaxes it.
+A **version-neutral** entry — one that writes `AfterVersion = workflow.Version` without
+incrementing it, as `EfCaseNoteStore.cs:61-62` does — collides on its second write for
+the same case at the same version. `CaseNotePersistenceTests.cs:23-86` does not reach
+it: one distinct note on a `Version = 1` case with no prior workflow event, and the
+replay test short-circuits on the operation key before insert.
+
+**The removal note is not version-neutral and therefore does not hit this.** Logical
+removal calls `CaseMutationGuard.Complete(workflow)` (`EfDocumentCustodyStore.cs:457`),
+which increments the version; the note carries the version that call just claimed, and
+no other writer claims it. It is nonetheless a real hazard for anyone who later adds a
+document note on a path that does *not* mutate the case — worth a note in whatever
+ticket routes `custody_confirmed` onto the timeline, since custody confirmation also
+bumps the version but writes into a different transaction.
+
+### Two adjacent defects found, neither in scope
+
+- `AddCaseNote.MaximumLength = 2000` (`src/Pegasus.Core/Cases/CaseNotes.cs:42`) exceeds
+  the `Reason` column's `HasMaxLength(500)`
+  (`CaseWorkflowModelConfiguration.cs:60`), and `_CaseHistory.cshtml:48` renders the
+  2000 as the textarea's `maxlength`. A 501–2000 character operator note passes Core
+  validation and then fails at the database.
+- `EfCaseQueryStore.cs:181-195` caps the timeline at `Take(200)`. Nothing surfaces that
+  the list is truncated.
+
+Both are pre-existing, unrelated to this change, and belong on the board rather than in
+this diff.
