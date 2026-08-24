@@ -15,6 +15,33 @@ public sealed class CaseDataOperationsTests
         7);
 
     [Fact]
+    public void AccidentCircumstancesKeepTheBlankLineAboveTheDamageArea()
+    {
+        // ENG-015: this is the one case text field that keeps its line
+        // structure, because EVA is sent the labelled damage-area block below
+        // the prose verbatim. Every other text field still collapses.
+        var normalized = CaseDataPolicy.Normalize(new(
+            AccidentCircumstances: "The insured reversed into the claimant's vehicle.\n"
+                + "\n"
+                + "Damage Area: rear",
+            ClaimantName: "Mrs   Caroline\nReynolds"));
+
+        Assert.Equal(
+            "The insured reversed into the claimant's vehicle.\n\nDamage Area: rear",
+            normalized.AccidentCircumstances);
+        Assert.Equal("Mrs Caroline Reynolds", normalized.ClaimantName);
+    }
+
+    [Fact]
+    public void AccidentCircumstancesCollapseWhitespaceWithinAndBetweenLines()
+    {
+        var normalized = CaseDataPolicy.Normalize(new(
+            AccidentCircumstances: "\n\n  Prose   with    gaps  \n\n\n\nDamage Area:   rear  \n\n"));
+
+        Assert.Equal("Prose with gaps\n\nDamage Area: rear", normalized.AccidentCircumstances);
+    }
+
+    [Fact]
     public void CompletenessPolicyDoesNotTreatUnconfirmedValuesAsDefinitive()
     {
         var evaluation = CaseCompletenessPolicy.Evaluate(

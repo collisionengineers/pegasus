@@ -572,16 +572,30 @@ public static class EvaBundleSchema
         "Mileage Unit"
     ];
 
+    /// <summary>
+    /// <paramref name="fileNameReference"/> names the archive and the JSON
+    /// inside it. It is the Pegasus case reference, which is unique and
+    /// already file-safe — deliberately not the <c>Reference</c> field, which
+    /// since ENG-015 carries the work provider's own reference. Those can
+    /// repeat across cases and contain path separators ("AKH//47743/1"), which
+    /// <see cref="SafeFileComponent"/> would reduce to "1". Omitted, the
+    /// reference field still names the bundle, which is what an offline replay
+    /// with no case in hand wants.
+    /// </summary>
     public static EvaBundle CreateOfflineReplay(
         EvaBundleSource source,
-        EvaBundleImages images)
+        EvaBundleImages images,
+        string? fileNameReference = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(images);
         ArgumentNullException.ThrowIfNull(images.RetainedImages);
 
         var normalizedSource = ValidateSource(source);
-        var reference = SafeFileComponent(normalizedSource.Fields.Reference!);
+        var reference = SafeFileComponent(
+            string.IsNullOrWhiteSpace(fileNameReference)
+                ? normalizedSource.Fields.Reference!
+                : fileNameReference);
         var jsonName = $"EVA-{reference}.json";
         var json = WriteOrderedJson(normalizedSource.Fields);
         var jsonHash = Hash(json);
