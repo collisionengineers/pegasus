@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -108,9 +109,6 @@ public sealed class EvaHandoffPersistenceTests
                 BundleSha256 = sha256,
                 JsonContent = "{}"u8.ToArray(),
                 JsonSha256 = new string('b', 64),
-                ProvenanceContent = "{}"u8.ToArray(),
-                ProvenanceSha256 = new string('c', 64),
-                ManifestContent = "manifest"u8.ToArray(),
                 GeneratedAtUtc = Now,
                 GeneratedBy = "staff:test"
             });
@@ -252,16 +250,21 @@ public sealed class EvaHandoffPersistenceTests
 
             Assert.Equal(GenerateEvaHandoffOutcome.Generated, generated.Outcome);
             Assert.NotNull(generated.Bundle);
-            using var provenance = JsonDocument.Parse(generated.Bundle.ProvenanceContent);
-            var generatedOccurrenceIds = provenance.RootElement
-                .GetProperty("images")
-                .EnumerateArray()
-                .Select(image => image.GetProperty("occurrenceId").GetGuid())
+
+            // ENG-014 removed provenance.json, so the exclusion is read where
+            // it actually matters -- in what the archive ships. The confirmed
+            // third-party vehicle's image is not one of the entries.
+            using var archive = new ZipArchive(
+                new MemoryStream(generated.Bundle.Content),
+                ZipArchiveMode.Read);
+            var images = archive.Entries
+                .Select(entry => entry.FullName)
+                .Where(name => name.StartsWith("Images/", StringComparison.Ordinal))
                 .ToArray();
-            Assert.Equal(
-                [first.OccurrenceId, second.OccurrenceId],
-                generatedOccurrenceIds);
-            Assert.DoesNotContain(excluded.OccurrenceId, generatedOccurrenceIds);
+            Assert.Equal(2, images.Length);
+            Assert.Contains(images, name => name.EndsWith("first.jpg", StringComparison.Ordinal));
+            Assert.Contains(images, name => name.EndsWith("second.jpg", StringComparison.Ordinal));
+            Assert.DoesNotContain(images, name => name.EndsWith("third-party.jpg", StringComparison.Ordinal));
         }
         finally
         {
@@ -305,8 +308,13 @@ public sealed class EvaHandoffPersistenceTests
         }
     }
 
+    // ENG-014: the "corrected" evidence status was only ever visible in
+    // provenance.json, which is no longer produced -- it stays an in-memory
+    // guard inside EvaBundleSchema.ValidateSource. What is still observable,
+    // and what the operator actually cares about, is that the staff-corrected
+    // registration is the one the exported JSON carries.
     [Fact]
-    public async Task StaffCorrectedVehicleRegistrationIsReportedAsCorrectedInGeneratedBundle()
+    public async Task StaffCorrectedVehicleRegistrationIsTheOneTheGeneratedBundleCarries()
     {
         await using var database = await LocalDbTestDatabase.CreateAsync();
         var factory = Factory(database.ConnectionString);
@@ -346,12 +354,8 @@ public sealed class EvaHandoffPersistenceTests
                 caseId, 7, actor, "eva:staff-corrected-vehicle", "Prepare Review handoff.", lease));
 
             Assert.Equal(GenerateEvaHandoffOutcome.Generated, generated.Outcome);
-            using var provenance = JsonDocument.Parse(generated.Bundle!.ProvenanceContent);
-            var vrmField = provenance.RootElement
-                .GetProperty("fields")
-                .EnumerateArray()
-                .Single(field => field.GetProperty("name").GetString() == "VRM");
-            Assert.Equal("corrected", vrmField.GetProperty("status").GetString());
+            using var json = JsonDocument.Parse(generated.Bundle!.JsonContent);
+            Assert.Equal("AB12CDE", json.RootElement.GetProperty("VRM").GetString());
         }
         finally
         {

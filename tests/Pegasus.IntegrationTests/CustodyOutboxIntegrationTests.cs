@@ -1271,11 +1271,12 @@ public sealed class CustodyOutboxIntegrationTests
         using var archive = new ZipArchive(new MemoryStream(bundle.Content), ZipArchiveMode.Read);
         var entries = archive.Entries.Select(entry => entry.FullName).ToArray();
 
-        // The shape the operator asked for: a zip of the images and a JSON.
+        // The shape the operator asked for: a zip of the images and a JSON,
+        // and since ENG-014 nothing else -- no manifest.sha256, no
+        // provenance.json, neither of which was ever an operator requirement.
         Assert.Contains($"EVA-{reference}.json", entries);
-        Assert.Contains("provenance.json", entries);
-        Assert.Contains("manifest.sha256", entries);
         Assert.Equal(2, entries.Count(name => name.StartsWith("Images/", StringComparison.Ordinal)));
+        Assert.Equal(3, entries.Length);
         Assert.Contains(entries, name => name.EndsWith("1_CLVoffside-V1.jpg", StringComparison.Ordinal));
         // The instruction PDF and the .eml are not photographs and stay out.
         Assert.DoesNotContain(entries, name => name.EndsWith(".pdf", StringComparison.Ordinal));
@@ -1299,24 +1300,12 @@ public sealed class CustodyOutboxIntegrationTests
             string.IsNullOrWhiteSpace(eva.RootElement.GetProperty("Inspection Date").GetString()),
             "An inspection date must always be present, defaulting to the export date.");
 
-        using var provenance = JsonDocument.Parse(bundle.ProvenanceContent);
-        Assert.Equal(
-            CaseEvaMapping.MappingKey,
-            provenance.RootElement.GetProperty("mapping").GetProperty("key").GetString());
-        Assert.Equal(13, provenance.RootElement.GetProperty("fields").GetArrayLength());
-        Assert.Equal(2, provenance.RootElement.GetProperty("images").GetArrayLength());
-
-        // The manifest covers every entry, and each hash is the real one.
-        var manifest = Encoding.UTF8.GetString(bundle.ManifestContent);
-        Assert.Equal(4, manifest.Split('\n', StringSplitOptions.RemoveEmptyEntries).Length);
-        foreach (var entry in archive.Entries.Where(item => item.FullName != "manifest.sha256"))
-        {
-            using var content = entry.Open();
-            using var buffer = new MemoryStream();
-            await content.CopyToAsync(buffer);
-            var digest = Convert.ToHexString(SHA256.HashData(buffer.ToArray()));
-            Assert.Contains($"{digest}  {entry.FullName}", manifest, StringComparison.OrdinalIgnoreCase);
-        }
+        // The JSON is indented, which is the layout every known-good EVA
+        // sample uses and the one EVA will import.
+        Assert.StartsWith(
+            "{\r\n  \"Work Provider\": ",
+            Encoding.UTF8.GetString(bundle.JsonContent),
+            StringComparison.Ordinal);
 
         // An export is a read: it records no revision and no hand-off proxy.
         await using var context = await services
