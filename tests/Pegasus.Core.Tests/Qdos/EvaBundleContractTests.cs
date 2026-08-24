@@ -134,19 +134,19 @@ public sealed class EvaBundleContractTests
 
         var json = Encoding.UTF8.GetString(bundle.JsonContent);
 
-        // The layout every known-good sample uses: a two-space indent, CRLF,
-        // an object per line, and no trailing newline after the closing brace.
-        Assert.StartsWith("{\r\n  \"Work Provider\": ", json, StringComparison.Ordinal);
-        Assert.EndsWith("\r\n}", json, StringComparison.Ordinal);
+        // The layout every known-good sample uses: a two-space indent, LF, an
+        // object per line, and no trailing newline after the closing brace.
+        Assert.StartsWith("{\n  \"Work Provider\": ", json, StringComparison.Ordinal);
+        Assert.EndsWith("\n}", json, StringComparison.Ordinal);
 
         // The newline is pinned rather than left to JsonWriterOptions' default
         // of Environment.NewLine: the archive hash is the revision fingerprint,
-        // so the bytes must not depend on which OS generated them. Every '\n'
-        // in the file therefore belongs to a "\r\n", and a field's own line
-        // breaks stay escaped inside its value rather than becoming layout.
-        var lines = json.Split("\r\n");
+        // so the bytes must not depend on which OS generated them. No CR byte
+        // appears anywhere, and a field's own line breaks stay escaped inside
+        // its value rather than becoming layout.
+        var lines = json.Split('\n');
         Assert.Equal(lines.Length - 1, json.Count(character => character == '\n'));
-        Assert.Equal(lines.Length - 1, json.Count(character => character == '\r'));
+        Assert.DoesNotContain('\r', json);
 
         // One line for '{', one per field, one for '}'.
         Assert.Equal(FieldNames.Length + 2, lines.Length);
@@ -163,6 +163,42 @@ public sealed class EvaBundleContractTests
         // Content-Digest, and only the manifest's per-entry hashes are gone.
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.Content)), bundle.Sha256);
         Assert.Equal(Convert.ToHexStringLower(SHA256.HashData(bundle.JsonContent)), bundle.JsonSha256);
+    }
+
+    // The layout claim is about two files that are checked in, so it is
+    // checkable. It was previously only asserted -- in a comment here and
+    // another beside the writer, both of which said the samples use CRLF. They
+    // do not, and nothing failed when that was wrong, because no test ever
+    // opened them (ENG-014 review).
+    [Fact]
+    public void TheRetainedSamplesAreTheSourceOfTheNewlineConvention()
+    {
+        string[] samples =
+        [
+            Path.Combine("reference", "eva_information", "Final Format Example 02.json"),
+            Path.Combine("reference", "eva_information", "AX_SP58WVO.json")
+        ];
+
+        foreach (var sample in samples)
+        {
+            var text = File.ReadAllText(Path.Combine(RepositoryRoot(), sample));
+            Assert.DoesNotContain('\r', text);
+            Assert.Contains('\n', text);
+            // The same two-space, object-per-line, no-trailing-newline layout
+            // the writer produces.
+            Assert.StartsWith("{\n  \"", text, StringComparison.Ordinal);
+            Assert.EndsWith("\n}", text, StringComparison.Ordinal);
+        }
+    }
+
+    private static string RepositoryRoot()
+    {
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current is not null && !File.Exists(Path.Combine(current.FullName, "Pegasus.slnx")))
+        {
+            current = current.Parent;
+        }
+        return current?.FullName ?? throw new InvalidOperationException("Repository root not found.");
     }
 
     // The predecessor extractor whose output EVA accepts dumps with

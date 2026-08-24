@@ -751,8 +751,21 @@ public static class EvaBundleSchema
         // NewLine pinned rather than left to JsonWriterOptions' default of
         // Environment.NewLine: the archive's SHA-256 is the revision
         // InputFingerprint, so a writer whose bytes depend on the host OS is
-        // not the replay-identical bundle this type promises. CRLF is also
-        // what all three known-good samples use.
+        // not the replay-identical bundle this type promises.
+        //
+        // LF. This pinned CRLF and justified it with "CRLF is also what all
+        // three known-good samples use" -- a claim that could not have been
+        // checked when it was written: core.autocrlf rewrites line endings on
+        // commit, so both samples' blobs are LF whatever their author typed,
+        // and the working tree is CRLF on Windows and LF on Linux. The
+        // sentence was unfalsifiable rather than merely wrong, which is worse.
+        //
+        // The samples are now pinned `text eol=lf` in .gitattributes, so blob
+        // and working tree agree everywhere and the layout claim is checkable
+        // -- TheRetainedSamplesAreTheSourceOfTheNewlineConvention reads them
+        // rather than restating this comment. LF follows from that pin. It is
+        // also the choice that cannot vary by checkout platform, which is the
+        // property this fingerprint actually needs (ENG-014 review).
         //
         // UnsafeRelaxedJsonEscaping because the predecessor extractor -- the
         // one whose output EVA actually accepts -- dumps with
@@ -768,7 +781,7 @@ public static class EvaBundleSchema
             new JsonWriterOptions
             {
                 Indented = true,
-                NewLine = "\r\n",
+                NewLine = "\n",
                 Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
             }))
         {
