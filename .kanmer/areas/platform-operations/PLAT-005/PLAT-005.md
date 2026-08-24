@@ -8,7 +8,7 @@ assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-20T08:49:11.185Z'
-taken_at: '2026-08-20T11:55:33.338Z'
+taken_at: '2026-08-24T14:51:06.946Z'
 branch: task/plat-005-visual-proof
 worktree: .worktrees/plat-005
 labels:
@@ -19,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-18T09:39:12.370Z'
-updated: '2026-08-20T11:55:33.338Z'
+updated: '2026-08-24T14:51:06.946Z'
 ---
 
 ## What
