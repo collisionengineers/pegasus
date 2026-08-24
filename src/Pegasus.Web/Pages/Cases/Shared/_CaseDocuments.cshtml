@@ -6,130 +6,130 @@
     var workflow = details.Workflow;
     var leaseToken = Model.LeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    // "If they show here, they should be on box" — the operator's rule, and the
+    // same filter the evidence gallery already applies. A version still storing,
+    // or one whose storage failed, is not case evidence yet; case custody state,
+    // its reason and the retry action are on the Workflow tab (DOCS-012).
+    //
+    // One row per occurrence, joined on the occurrence's own version. The old
+    // loop nested documents × occurrences × versions and rendered their
+    // cartesian product, so a document with two occurrences and three versions
+    // produced six rows.
+    var files = details.Documents
+        .SelectMany(document => document.Occurrences
+            .Select(occurrence => new
+            {
+                Occurrence = occurrence,
+                Version = document.Versions.FirstOrDefault(version =>
+                    version.Id == occurrence.VersionId
+                    && version.IsCurrent
+                    && !version.IsLogicallyRemoved
+                    && version.CustodyStatus == DocumentCustodyStatus.Confirmed)
+            }))
+        .Where(entry => entry.Version is not null)
+        .ToArray();
+    var mayConfirmThirdParty = (DocumentOccurrence occurrence, DocumentVersion version) =>
+        occurrence.SemanticRole == DocumentSemanticRole.Image
+        && occurrence.ThirdPartyVehicleConfirmedAtUtc is null
+        && (version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
+            || version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase));
 }
 
 <section class="panel form-panel" aria-labelledby="case-documents-title">
-    <h2 id="case-documents-title" class="section-label">Document custody</h2>
+    <h2 id="case-documents-title" class="section-label">Files</h2>
     <p>
         @if (details.CustodyState == CaseCustodyState.Confirmed
              && !string.IsNullOrWhiteSpace(details.CustodyFolderRemoteId))
         {
-            <a href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener">Open Box case folder</a>
+            <a class="btn btn--dark" href="https://app.box.com/folder/@(details.CustodyFolderRemoteId)" target="_blank" rel="noopener">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right"/></svg>
+                <span>Open Box case folder</span>
+            </a>
         }
         else
         {
             @OperatorLabels.CustodyFolderState(details.CustodyState)
         }
     </p>
-    @if (details.Documents.Count == 0)
+    @if (files.Length > 0)
     {
-        <p class="empty-state">No document occurrences are retained for this case.</p>
-    }
-    else
-    {
-        <form method="post" asp-page="/Cases/Documents/Export" asp-route-caseId="@workflow.CaseId">
-            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <div class="table-wrap">
-                <table>
-                    @* CASE-019: the selection column exists to submit a
-                       selective export, which Core requires an edit lease for.
-                       Rendering permanently disabled tickboxes to a reader made
-                       the page look broken. The column now appears only for
-                       someone who can actually use it; the case's own export is
-                       on the action bar and needs no lease. *@
-                    <thead><tr>@if (mayEdit){<th>Export</th>}<th>Role / source</th><th>Revision state</th><th>File</th><th>Custody</th><th>EVA eligibility</th><th>Action</th></tr></thead>
-                    <tbody>
-                    @foreach (var document in details.Documents)
-                    {
-                        @foreach (var occurrence in document.Occurrences)
-                        {
-                            @foreach (var version in document.Versions)
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>File</th><th>Type</th><th>From</th><th>Size</th><th>Added</th>@if (mayEdit){<th>Action</th>}</tr></thead>
+                <tbody>
+                @foreach (var entry in files)
+                {
+                    var occurrence = entry.Occurrence;
+                    var version = entry.Version!;
+                    <tr>
+                        <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-occurrenceId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
+                        <td>
+                            @OperatorLabels.DocumentRole(occurrence.SemanticRole)
+                            @if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
                             {
-                                <tr>
-                                    @if (mayEdit)
-                                    {
-                                        <td><input type="checkbox" name="selection" value="@occurrence.Id:@version.Id" aria-label="Select @version.FileName @(version.IsCurrent ? "current revision" : "historical revision")" /></td>
-                                    }
-                                    <td>@occurrence.SemanticRole / @occurrence.Source</td>
-                                    <td>@(version.IsCurrent ? "Current" : "Historical") @(version.IsLogicallyRemoved ? "— logically removed" : null)</td>
-                                    <td><a asp-page="/Cases/Documents/Download" asp-route-caseId="@workflow.CaseId" asp-route-occurrenceId="@occurrence.Id" asp-route-versionId="@version.Id">@version.FileName</a></td>
-                                    <td>@OperatorLabels.CustodyState(version.CustodyStatus) — @OperatorLabels.FileSize(version.ContentLength)</td>
-                                    <td>
-                                        @if (occurrence.ThirdPartyVehicleConfirmedAtUtc is not null)
-                                        {
-                                            <span>Excluded — staff confirmed third-party vehicle evidence</span>
-                                        }
-                                        else if (occurrence.SemanticRole == DocumentSemanticRole.Image)
-                                        {
-                                            <span>Eligible unless staff confirms third-party vehicle evidence</span>
-                                        }
-                                        else
-                                        {
-                                            <span>Not an image</span>
-                                        }
-                                    </td>
-                                    <td>
-                                        @if (mayEdit && !version.IsLogicallyRemoved && version.IsCurrent)
-                                        {
-                                            <label>Removal reason<input name="reason" form="remove-@occurrence.Id" required maxlength="500" /></label>
-                                            <button type="submit" form="remove-@occurrence.Id" class="secondary-action">Remove occurrence</button>
-                                        }
-                                        @if (mayEdit
-                                             && occurrence.SemanticRole == DocumentSemanticRole.Image
-                                             && occurrence.ThirdPartyVehicleConfirmedAtUtc is null
-                                             && !version.IsLogicallyRemoved
-                                             && version.IsCurrent
-                                             && version.CustodyStatus == DocumentCustodyStatus.Confirmed
-                                             && (version.MediaType.Equals("image/jpeg", StringComparison.OrdinalIgnoreCase)
-                                                 || version.MediaType.Equals("image/png", StringComparison.OrdinalIgnoreCase)))
-                                        {
-                                            <label>Confirmation reason<input name="reason" form="confirm-third-party-@occurrence.Id" required maxlength="500" /></label>
-                                            <button type="submit" form="confirm-third-party-@occurrence.Id" class="secondary-action">Confirm third-party vehicle evidence</button>
-                                        }
-                                    </td>
-                                </tr>
+                                <span class="status-chip status-chip--amber">Third-party vehicle</span>
                             }
+                        </td>
+                        <td>@OperatorLabels.DocumentOrigin(occurrence.Source)</td>
+                        <td>@OperatorLabels.FileSize(version.ContentLength)</td>
+                        <td>@OperatorLabels.OfficeTime(occurrence.RecordedAtUtc)</td>
+                        @if (mayEdit)
+                        {
+                            <td>
+                                <button type="button" class="btn btn--icon" data-dialog-open="remove-doc-@occurrence.Id" aria-label="Remove @version.FileName">
+                                    <svg class="icon" aria-hidden="true"><use href="#icon-trash-2"/></svg>
+                                </button>
+                                @if (mayConfirmThirdParty(occurrence, version))
+                                {
+                                    <button type="button" class="secondary-action" data-dialog-open="third-party-@occurrence.Id">Third-party vehicle</button>
+                                }
+                            </td>
                         }
-                    }
-                    </tbody>
-                </table>
-            </div>
-            @if (mayEdit)
-            {
-                <button type="submit" class="primary-action">Export selected versions</button>
-            }
-        </form>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
 
         @if (mayEdit)
         {
-            @foreach (var document in details.Documents)
+            @foreach (var entry in files)
             {
-                @foreach (var occurrence in document.Occurrences.Where(item => document.Versions.Any(version => version.IsCurrent && !version.IsLogicallyRemoved)))
+                var occurrence = entry.Occurrence;
+                var version = entry.Version!;
+                <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
                 {
-                    <form id="remove-@occurrence.Id" method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="RemoveDocument">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                    </form>
-                    @if (occurrence.SemanticRole == DocumentSemanticRole.Image && occurrence.ThirdPartyVehicleConfirmedAtUtc is null)
+                    ["DialogId"] = $"remove-doc-{occurrence.Id}",
+                    ["DialogTitle"] = "Remove file",
+                    ["DialogActionUrl"] = Url.Page("/Cases/Custody", "RemoveDocument", new { id = workflow.CaseId }),
+                    ["DialogHiddenFields"] = new Dictionary<string, string?>
                     {
-                        <form id="confirm-third-party-@occurrence.Id" method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="ConfirmThirdPartyVehicleEvidence">
-                            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="occurrenceId" value="@occurrence.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        </form>
+                        ["id"] = workflow.CaseId.ToString(),
+                        ["occurrenceId"] = occurrence.Id.ToString(),
+                        ["expectedVersion"] = workflow.Version.ToString(),
+                        ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                        ["editLeaseToken"] = leaseToken
                     }
+                })" />
+                @if (mayConfirmThirdParty(occurrence, version))
+                {
+                    <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+                    {
+                        ["DialogId"] = $"third-party-{occurrence.Id}",
+                        ["DialogTitle"] = "Third-party vehicle",
+                        ["DialogActionUrl"] = Url.Page("/Cases/Custody", "ConfirmThirdPartyVehicleEvidence", new { id = workflow.CaseId }),
+                        ["DialogHiddenFields"] = new Dictionary<string, string?>
+                        {
+                            ["id"] = workflow.CaseId.ToString(),
+                            ["occurrenceId"] = occurrence.Id.ToString(),
+                            ["expectedVersion"] = workflow.Version.ToString(),
+                            ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                            ["editLeaseToken"] = leaseToken
+                        }
+                    })" />
                 }
             }
         }
-    }
-
-    @if (mayEdit)
-    {
-        <form method="post" enctype="multipart/form-data" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="UploadDocument" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Document<input type="file" name="upload" required /></label>
-            <label>Semantic role<select name="semanticRole">@foreach (var role in Model.DocumentSemanticRoles){<option value="@role">@role</option>}</select></label>
-            <button type="submit" class="primary-action">Retain document</button>
-        </form>
     }
 </section>
 

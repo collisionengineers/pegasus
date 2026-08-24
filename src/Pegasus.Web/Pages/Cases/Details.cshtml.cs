@@ -104,9 +104,6 @@ public sealed partial class DetailsModel(
     public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
     public string ReleaseLeaseOperationKey { get; private set; } = NewOperationKey();
 
-    public IReadOnlyList<DocumentSemanticRole> DocumentSemanticRoles { get; } =
-        Enum.GetValues<DocumentSemanticRole>();
-
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {
         if (!TryGetActor(out var actor))
