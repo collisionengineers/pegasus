@@ -210,20 +210,25 @@ public sealed class AllocateIntake(
     private const string SystemActor = "system-worker:intake-processing";
 
     /// <summary>
-    /// What the automatic route actually knows when it allocates. It runs only
-    /// for a receipt whose decision is already <see cref="IntakeDecision.CaseCreated"/> —
-    /// a definitive authorised instruction, with its evidence retained
-    /// alongside — so the instruction and its images are complete. Staff have
-    /// confirmed neither, and the policy waives that for an automatically
-    /// definitive intake rather than pretending otherwise.
+    /// What the automatic route actually knows when it allocates. The
+    /// instruction half is an observation: this runs only for a receipt whose
+    /// decision is already <see cref="IntakeDecision.CaseCreated"/>, a
+    /// definitive authorised instruction. Staff have confirmed neither half,
+    /// and the policy waives that for an automatically definitive intake
+    /// rather than pretending otherwise.
     ///
-    /// This used to record all four as false, which meant every automatically
-    /// created case was born "details incomplete" and could never reach Review
-    /// no matter how complete it was (CASE-013).
+    /// The images half is now observed too, from the receipt's own retained
+    /// assets. It used to be a constant `true`, so every automatic case was
+    /// born claiming complete images whatever arrived — and since the Review
+    /// gate reduces to this one flag, an audit with an instruction, a report
+    /// and no photographs went straight to Review while the EVA export refused
+    /// the very same case for having no images (CASE-021).
     /// </summary>
-    private static readonly CaseCompleteness AutomaticCompleteness =
+    private static CaseCompleteness AutomaticCompleteness(IntakeReceipt receipt) =>
         new(InstructionComplete: true,
-            ImagesComplete: true,
+            // The one owner of which assets are photographs, so Review and
+            // the EVA export agree by construction rather than by a second rule.
+            ImagesComplete: InstructionEvidenceImages.Select(receipt.AssetRecords).Count > 0,
             InstructionConfirmedByStaff: false,
             ImagesConfirmedByStaff: false);
 
@@ -266,7 +271,7 @@ public sealed class AllocateIntake(
             receipt.Version,
             caseType,
             principalCode,
-            AutomaticCompleteness,
+            AutomaticCompleteness(receipt),
             StandaloneAuditEvidenceId: standaloneAuditEvidenceId,
             receipt.InstructionDraft?.InspectionDate);
         var actor = ActionActor.SystemWorker(SystemActor);
