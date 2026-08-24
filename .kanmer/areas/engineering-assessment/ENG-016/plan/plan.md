@@ -183,3 +183,92 @@ is lost that cannot be re-derived.
 ## Simplification pass
 
 _To be completed before the PR._
+
+---
+
+## Simplification pass — 2026-08-24
+
+Run over this branch's own diff (`git diff task/eng-015-eva-field-values...HEAD`)
+with `/simplify`'s four lenses via the `code-simplifier` agent, plus my own
+review of the same diff.
+
+### Applied
+
+1. **Two dead `using`s in `EvaBundleSchema.cs`** — `System.Buffers.Binary`
+   (only consumer was the deleted `EvaHandoffCommandPolicy.Append`) and
+   `Pegasus.Core.Workflow` (only consumer was `CaseLifecycleState` in the
+   deleted `EvaHandoffEligibility`/`Evaluate`).
+2. **Dead `using Pegasus.Infrastructure.Eva`** in `EvaHandoffStore.cs` — the
+   store takes the Core port `IEvaHandoffProxy` and never names
+   `LocalEvaHandoffProxy`.
+3. **`EvaBundleSchema.SchemaVersion` removed.** Its only two callers —
+   `EvaHandoffStore` stamping `EvaHandoffRevisionEntity.SchemaVersion`, and
+   `EvaHandoffPersistenceTests` — are both deleted by this ticket. Confirmed by
+   grep that no doc, script or migration cites the literal.
+4. **`ValidateSource` narrowed to return `EvaReplayFields`.** F3 removed the
+   dead provenance-array rebuild but left the method reassembling a whole
+   `EvaBundleSource` for one member `CreateOfflineReplay` reads. Every throw is
+   unchanged; the output bytes are unchanged.
+5. **`BuildEvidence`'s `includeSuggestions` flag removed** (mine, during
+   implementation). Its own doc-comment called it "the whole difference between
+   the hand-off and an operator export"; with one act there is one answer. This
+   simplified `FromCaseField`, `Fallback` and `VehicleModel` with it.
+6. **Two stale comments corrected** — `ToReplayFields`' claim that it exists so
+   "the hand-off and an operator export can never drift into two orders", and
+   `CaseOperatorExportTests`' class doc still describing "both halves" after
+   both hand-off halves were deleted.
+7. **Three stray double blank lines** left by the deletions.
+8. **`Details.cshtml` uses `.btn:disabled`, not `.btn.is-disabled`** (mine).
+   The CSS documents `is-disabled` as the fallback "for a disabled action
+   rendered as a link"; the control is now a real `<button>`, so the native
+   state is the convention.
+
+### Applied — a real defect the pass surfaced
+
+9. **A failed proxy write would have reached the generic 500 page.**
+   `DbUpdateException` derives straight from `Exception`, so it missed the
+   Export page's catch filter — and this route had never written anything
+   before, so nothing had ever needed to. Fixed by translating it in
+   `EvaHandoffStore`, which is where the deleted hand-off already translated
+   `DbUpdateConcurrencyException`, rather than by importing EF into a page. A
+   failed record now fails the whole export instead of handing over a file
+   whose "first sent to Engineer" fact was silently lost.
+10. **The once-per-case race** (mine, found while reviewing my own code). A
+    double-pressed Export could have both requests read "no proxy" and both
+    insert. Rather than hold a `Serializable` transaction — which converts the
+    race into a deadlock rather than removing it — the primary key on `CaseId`
+    is now the enforcement, and losing the race is treated as the success it is,
+    but only after re-reading and confirming the row is present.
+
+### Found, not applied — with reasons
+
+- **`EvaAcceptedCaseEvidence.CaseId/CaseVersion/CaseAccepted/InstructionComplete/ImagesComplete`
+  are now write-only**, their only reader having been `ValidateAcceptedEvidence`.
+  Not removed: `QdosBoundaryContractTests.AnIncompleteCaseWithAnUnacceptedAddressStillExports`
+  deliberately sets `InstructionComplete = false` as the regression pin for this
+  ticket's central behaviour change, and removing the member would gut that
+  test's meaning. It is also a public Core contract change for zero behavioural
+  gain. **A ticket decision, not a cleanup** — raised in the PR.
+- **`EvaAddressResolution.Mode`, and transitively `EvaInspectionMode`, have no
+  remaining reader** — `Mode`'s only consumer was the deleted `IsResolved`.
+  The largest remaining orphan. Not applied for the same reason: collapsing
+  `EvaAddressResolution` to a bare `EvaEvidenceValue` reshapes a Core contract
+  and rewrites about five test construction sites. **Raised in the PR.**
+- **`SelectedDocument.CaseId` / `VersionDocumentId`, `ImageEntry.Sha256`,
+  `ExportCaseBundleResult.IsExported`** — all unread, all unread on the base
+  branch too. Pre-existing, outside this diff.
+- **`LoadEligibleImagesAsync` filters `ContentLength <= int.MaxValue` after
+  eligibility**, so a case whose every eligible image exceeded that would be
+  told "At least one stored vehicle image is required", which would be untrue.
+  Pre-existing, not introduced here. **Raised in the PR.**
+- **F4 and F5 from ENG-014's review** — F4 is a test comment outside this diff;
+  F5 is a new golden-file suite, not a cheap fold-in. Both named in the PR.
+- **`EvaHandoffStore`, `EvaHandoffEntities.cs` and `EvaHandoffModelConfiguration.cs`
+  keep names describing a deleted act.** A rename is a real clarity win and
+  should happen; not done here because this branch is third in a four-deep
+  stack and a rename widens the conflict surface across all four for no
+  behavioural gain. The class doc-comment says what the type now is and records
+  the rename as outstanding.
+- **`CaseEvaMapping.ActivationGateReason` still reads "EVA hand-off is not
+  switched on."** Operator-facing message text is a closed, operator-approved
+  list; rewording one is not this ticket's authority. Named in the PR.

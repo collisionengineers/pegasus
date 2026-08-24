@@ -497,3 +497,106 @@ inside the `Retain document` form, and that disappears with the form anyway — 
 the operator's instruction is satisfied without touching this control.
 
 Q2 (confirmed-only filter) and Q3 (the `Files` heading) stand as planned.
+
+---
+
+## Simplification pass — 2026-08-24
+
+Run as an independent lens over the branch diff. **Five correctness findings, all
+applied.**
+
+### C1 — I had claimed this was done, and it was not
+
+The PR body and the post-implementation report both stated that the
+Evidence/document panel contract row was amended. **It was not.** The script only
+touched the glyph section. Both copies of that row still specified the version,
+logical-removal and Box state this change deletes, so the binding design
+authority contradicted the shipped screen. Both rewritten, and they now also name
+the staff-confirmed third-party exclusion the panel keeps.
+
+### C2 — The glyph count was changed in one place out of five
+
+`sixteen` survived at `design/README.md:111` and `:1066`,
+`design/system/docs/Icon.md:5` (whose enumeration also omitted `trash-2`), and
+`OperatorLabels.cs:565`. The authority self-contradicted inside one file. All
+five now say seventeen; `Icon.md` lists the glyph.
+
+### C3 — The reason lost its bound, and a long reason refused the removal
+
+The deleted inline control carried `maxlength="500"`; `_ReasonDialog`'s textarea
+carries none, and there is no server-side length check. Every reason column in
+this schema is 500. So a 600-character explanation reached `SaveChanges`, threw a
+truncation error, rolled the transaction back and **refused the removal** — where
+before the browser blocked it and `DocumentVersions.RemovalReason` (2000) would
+have taken it anyway. Bounded at the control.
+
+### C4 — The tab count and the panel disagreed
+
+`EvidenceCount` read the raw document list while the panel renders live files.
+Removing a file — the action this surface exists to offer — left the tab reading
+`Evidence 1` with an empty panel.
+
+### C5 — A routable, lease-consuming POST with no caller and no test
+
+The selective-export `OnPostAsync` lost its only view here and its only test in
+the previous commit, leaving a live `POST` route taking `expectedVersion` and
+`editLeaseToken` that nothing could reach and nothing covered. Removed with its
+four exclusive helpers. `IExportCaseDocuments` stays — its MCP caller is real.
+
+### Q1 — The fifth copy of a business rule, in a view
+
+The panel's filter restated a rule already written out in the evidence gallery,
+the EVA hand-off, the report projection and a custody guard. CLAUDE.md: *"a third
+copy of anything else is a stop condition."* It now has one owner —
+`CaseFiles.Live` in Core, beside the records — which the view and the tab count
+both consume. That is what makes C4's two numbers agree **by construction**
+rather than by a second predicate.
+
+Also applied: the Razor lambda became a local function; two null-forgiving
+operators fell away with the shared owner; two doc comments stopped advertising
+the deleted upload handler; the registry row's indentation matches its
+neighbours.
+
+### Verified, not taken on trust
+
+- **The `trash-2` glyph checksum reproduces exactly** from the committed bytes —
+  and the convention was validated by recomputing `lock`, `upload` and
+  `arrow-right`, which all reproduce their recorded values.
+- The vector is byte-identical in the sprite and the inline partial, differing
+  only in wrapper element, and is the genuine v0.344.0 path set. 17 symbols / 17
+  `<g>` / 17 registry rows.
+- `AddRemovalNote` writes `CaseWorkflowEvents`, `BeforeVersion` is captured before
+  `Complete` and `AfterVersion` after it, and neither unique index can be violated
+  by a replay or by a second removal on the same case.
+- The occurrence→version join drops nothing legitimate: a superseded version gets
+  a **new occurrence**, so the old one resolving away is the revision the operator
+  asked to stop seeing.
+- No new operator-facing sentence anywhere — view, labels or `aria-label`. The
+  diff is net-negative in words.
+
+### Declined, with reasons
+
+- **The sprite file checksum does not reproduce from the committed LF blob**, only
+  from the CRLF working tree. That is not this branch's doing: the previous
+  recorded value had exactly the same property. The fix is a `.gitattributes`
+  entry pinning the sprite to LF and re-recording — which changes a value the
+  current registry pins, so it belongs in its own ticket rather than folded in
+  here.
+- **A pre-existing `(CaseId, AfterVersion)` collision shape**: an operator note is
+  written version-neutral, so it can collide with any event-writing mutation's
+  slot. This change widens the surface by one mutation; it did not create the
+  hazard. Its own ticket.
+- **Third-party media-type eligibility is still restated in the view.**
+  Pre-existing, carried forward, and it belongs with `CaseFiles.Live`'s owner
+  rather than being moved twice.
+- **`RequestHash = OperationKey`** has direct precedent in `EfCaseNoteStore` and
+  no reader breaks on it. The latent `char(64)` vs `nvarchar(100)` mismatch is
+  noted, not exploited today.
+- **Test orphans** (dead `IAddCaseDocument`/`IExportCaseDocuments` participation
+  in two recording doubles, some unused usings) — real, cosmetic, and not worth
+  widening this diff for.
+
+### Verification after the fixes
+
+`dotnet build --configuration Release` green · Core **937** · Architecture **99**
+· the affected integration classes **32 passed**.
