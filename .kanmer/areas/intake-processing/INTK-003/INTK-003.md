@@ -2,12 +2,13 @@
 id: INTK-003
 type: ticket
 title: Recover dispatched intake work whose queue message never arrives
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T15:19:28.780Z'
+  review: '2026-08-25T16:14:30.112Z'
 taken_at: '2026-08-25T15:57:22.616Z'
 branch: task/intk-003-dispatched-recovery
 worktree: ../pegasus-worktrees/intk-003-dispatched-recovery
@@ -23,7 +24,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-17T11:46:06.025Z'
-updated: '2026-08-25T15:57:22.616Z'
+updated: '2026-08-25T16:14:30.112Z'
 ---
 
 ## What

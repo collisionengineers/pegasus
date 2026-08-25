@@ -7,4 +7,4 @@
 - [x] Add stale/fresh, race, bounded fairness, redispatch, and process-once tests.
 - [x] Run focused tests and required Release verification.
 - [x] Run and record the four simplification lenses.
-- [ ] Write the report, commit, push, open the PR to `dev`, and move to Review.
+- [x] Write the report, commit `a2f46891`, push, open PR #551 to `dev`, and move to Review.
