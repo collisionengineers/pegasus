@@ -12,9 +12,11 @@ groups:
 links:
   - SIMPLI-009
   - SIMPLI-010
+blocks:
+  - INTK-042
 archived: false
 created: '2026-08-17T11:46:06.025Z'
-updated: '2026-08-17T11:46:06.025Z'
+updated: '2026-08-25T15:18:47.452Z'
 ---
 
 ## What

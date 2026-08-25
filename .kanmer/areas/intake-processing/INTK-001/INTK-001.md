@@ -15,11 +15,13 @@ groups:
 links:
   - SIMPLI-008
   - SIMPLI-009
+blocks:
+  - DELIV-021
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-25T06:39:27.956Z'
+updated: '2026-08-25T15:18:47.636Z'
 ---
 
 ## What

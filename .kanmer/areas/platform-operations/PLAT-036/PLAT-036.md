@@ -11,9 +11,11 @@ labels:
   - needs-operator-decision
   - cost
 links: []
+blocks:
+  - DELIV-021
 archived: false
 created: '2026-08-22T06:02:29.302Z'
-updated: '2026-08-25T06:38:46.308Z'
+updated: '2026-08-25T15:18:47.713Z'
 ---
 
 ## Why
