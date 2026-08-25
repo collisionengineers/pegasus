@@ -426,15 +426,6 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Box__RootFolderId', value: '405543781910' }
             { name: 'Box__ConfigJson', secretRef: 'box-config-json' }
             { name: 'Box__ClientSecret', secretRef: 'box-client-secret' }
-            // PLAT-037: the operator-accepted EVA field mapping. CaseEvaMapping
-            // refuses to build any bundle without all three, so a case export
-            // (CASE-019) fails closed until they are present — since ENG-016
-            // that is the only thing that refuses an export. Not secrets: the
-            // evidence reference names the document the mapping was accepted
-            // against, and it reaches no shipped file.
-            { name: 'Eva__AcceptedMapping__Key', value: 'qdos-eva-13-field-mapping' }
-            { name: 'Eva__AcceptedMapping__Version', value: '2' }
-            { name: 'Eva__AcceptedMapping__EvidenceReference', value: 'docs/frd/frd-07-eva-and-external-engineering-handoff.md' }
             { name: 'Features__AutomationMcp', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
