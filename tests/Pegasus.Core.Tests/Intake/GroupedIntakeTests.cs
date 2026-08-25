@@ -38,6 +38,30 @@ public sealed class GroupedIntakeTests
     }
 
     [Fact]
+    public async Task PreservesMailboxChannelAndParentReceiptForEveryChild()
+    {
+        var submission = new FakeSubmission();
+        var store = new FakeGroupStore();
+        var parentReceiptId = Guid.NewGuid();
+        var request = Request("mail-images") with
+        {
+            Channel = IntakeSourceChannel.Mailbox,
+            ParentReceiptId = parentReceiptId
+        };
+
+        var result = await new SubmitGroupedIntake(submission, store, TimeProvider.System)
+            .ExecuteAsync(request);
+
+        Assert.Equal(IntakeSourceChannel.Mailbox, result.Group.Channel);
+        Assert.Equal(parentReceiptId, result.Group.ParentReceiptId);
+        Assert.All(submission.Sources, source =>
+            Assert.Equal(IntakeSourceChannel.Mailbox, source.SourceIdentity.Channel));
+        Assert.Equal(
+            ["mail-images", "mail-images:1"],
+            submission.Sources.Select(source => source.SourceIdentity.ExternalReceiptToken));
+    }
+
+    [Fact]
     public async Task RejectsConflictingReplayAtTheSameOrdinal()
     {
         var submission = new FakeSubmission();
@@ -96,7 +120,8 @@ public sealed class GroupedIntakeTests
         [
             new(0, Source("one.jpg", [1])),
             new(1, Source("two.jpg", [2]))
-        ]);
+        ],
+        IntakeSourceChannel.ManualUpload);
 
     private static IntakeSource Source(string name, byte[] bytes) =>
         new(name, "image/jpeg", bytes, DateTimeOffset.UtcNow, "staff:test", new(IntakeSourceChannel.ManualUpload, "form"));
@@ -121,6 +146,8 @@ public sealed class GroupedIntakeTests
         public List<IntakeSubmissionGroupMember> Members { get; } = [];
         private string? Token { get; set; }
         private int ExpectedMemberCount { get; set; } = 1;
+        private IntakeSourceChannel Channel { get; set; } = IntakeSourceChannel.ManualUpload;
+        private Guid? ParentReceiptId { get; set; }
         private string? Actor { get; set; }
         private DateTimeOffset ReceivedAt { get; set; }
 
@@ -130,8 +157,8 @@ public sealed class GroupedIntakeTests
         public Task<IntakeSubmissionGroup?> FindAsync(IntakeSourceChannel channel, string submissionToken, CancellationToken cancellationToken = default) =>
             Task.FromResult<IntakeSubmissionGroup?>(Token == submissionToken ? Group() : null);
 
-        public Task<IntakeSubmissionGroup> GetOrCreateAsync(Guid groupId, IntakeSourceChannel channel, string submissionToken, int expectedMemberCount, string actor, DateTimeOffset receivedAtUtc, CancellationToken cancellationToken = default) =>
-            Task.FromResult(EnsureGroup(channel, submissionToken, expectedMemberCount, actor, receivedAtUtc));
+        public Task<IntakeSubmissionGroup> GetOrCreateAsync(Guid groupId, IntakeSourceChannel channel, string submissionToken, int expectedMemberCount, string actor, DateTimeOffset receivedAtUtc, Guid? parentReceiptId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(EnsureGroup(channel, submissionToken, expectedMemberCount, actor, receivedAtUtc, parentReceiptId));
 
         public Task<IntakeSubmissionGroupMember?> FindMemberAsync(Guid groupId, int ordinal, CancellationToken cancellationToken = default) =>
             Task.FromResult<IntakeSubmissionGroupMember?>(Members.SingleOrDefault(item => item.GroupId == GroupId && item.Ordinal == ordinal));
@@ -146,12 +173,14 @@ public sealed class GroupedIntakeTests
         public Task<IReadOnlyList<IntakeSubmissionGroupMember>> ListMembersAsync(Guid groupId, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<IntakeSubmissionGroupMember>>(Members.OrderBy(item => item.Ordinal).ToArray());
 
-        private IntakeSubmissionGroup EnsureGroup(IntakeSourceChannel channel, string token, int expectedMemberCount, string actor, DateTimeOffset received)
+        private IntakeSubmissionGroup EnsureGroup(IntakeSourceChannel channel, string token, int expectedMemberCount, string actor, DateTimeOffset received, Guid? parentReceiptId)
         {
             if (Token is null)
             {
                 Token = token;
                 ExpectedMemberCount = expectedMemberCount;
+                Channel = channel;
+                ParentReceiptId = parentReceiptId;
             }
 
             Actor ??= actor;
@@ -160,6 +189,6 @@ public sealed class GroupedIntakeTests
         }
 
         private IntakeSubmissionGroup Group() =>
-            new(GroupId, IntakeSourceChannel.ManualUpload, Token ?? "", ExpectedMemberCount, Actor ?? "staff:test", ReceivedAt, Members);
+            new(GroupId, Channel, Token ?? "", ExpectedMemberCount, Actor ?? "staff:test", ReceivedAt, Members, ParentReceiptId);
     }
 }

@@ -63,9 +63,17 @@ public sealed class EfIntakeSubmissionGroupStore(
         int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
+        Guid? parentReceiptId,
         CancellationToken cancellationToken = default) =>
         GetOrCreateWithRetryAsync(
-            groupId, channel, submissionToken, expectedMemberCount, actor, receivedAtUtc, cancellationToken);
+            groupId,
+            channel,
+            submissionToken,
+            expectedMemberCount,
+            actor,
+            receivedAtUtc,
+            parentReceiptId,
+            cancellationToken);
 
     // Same concurrent-insert window as AddMemberWithRetryAsync below: two
     // requests replaying the same (channel, token) can both read "no
@@ -78,6 +86,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
+        Guid? parentReceiptId,
         CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= 3; attempt++)
@@ -91,6 +100,7 @@ public sealed class EfIntakeSubmissionGroupStore(
                     expectedMemberCount,
                     actor,
                     receivedAtUtc,
+                    parentReceiptId,
                     cancellationToken);
             }
             catch (Exception exception)
@@ -111,6 +121,7 @@ public sealed class EfIntakeSubmissionGroupStore(
         int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
+        Guid? parentReceiptId,
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
@@ -131,10 +142,17 @@ public sealed class EfIntakeSubmissionGroupStore(
                 SubmissionToken = submissionToken,
                 ExpectedMemberCount = expectedMemberCount,
                 Actor = actor,
-                ReceivedAtUtc = receivedAtUtc
+                ReceivedAtUtc = receivedAtUtc,
+                ParentReceiptId = parentReceiptId
             };
             context.IntakeSubmissionGroups.Add(existing);
             await context.SaveChangesAsync(cancellationToken);
+        }
+        else if (existing.ExpectedMemberCount != expectedMemberCount
+            || existing.ParentReceiptId != parentReceiptId)
+        {
+            throw new InvalidDataException(
+                "The submission token is already bound to different group provenance.");
         }
 
         await transaction.CommitAsync(cancellationToken);
@@ -282,7 +300,8 @@ public sealed class EfIntakeSubmissionGroupStore(
             entity.ExpectedMemberCount,
             entity.Actor,
             entity.ReceivedAtUtc,
-            mapped);
+            mapped,
+            entity.ParentReceiptId);
     }
 
     private static async Task<IntakeSubmissionGroupMember> MapMemberAsync(

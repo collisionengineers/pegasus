@@ -3975,6 +3975,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<int>("ExpectedMemberCount")
                         .HasColumnType("int");
 
+                    b.Property<Guid?>("ParentReceiptId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -3989,6 +3992,10 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasColumnType("nvarchar(200)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentReceiptId")
+                        .IsUnique()
+                        .HasFilter("[ParentReceiptId] IS NOT NULL");
 
                     b.HasIndex("SourceChannel", "SubmissionToken")
                         .IsUnique();
@@ -6449,6 +6456,14 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("IntakeReceipt");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.IntakeReceiptEntity", null)
+                        .WithMany()
+                        .HasForeignKey("ParentReceiptId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.IntakeSubmissionGroupMemberEntity", b =>

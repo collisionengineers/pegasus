@@ -814,6 +814,7 @@ public sealed class AutomaticImageIntakeTests
             int expectedMemberCount,
             string actor,
             DateTimeOffset receivedAtUtc,
+            Guid? parentReceiptId,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<IntakeSubmissionGroupMember?> FindMemberAsync(

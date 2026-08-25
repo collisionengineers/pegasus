@@ -324,7 +324,9 @@ public sealed class ProcessIntake(
     /// </summary>
     internal static bool IsDeferredForAutomation(IntakeReceipt receipt) =>
         receipt.Decision == IntakeDecision.NeedsSorting
-        && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt) || IsTriageRequest(receipt));
+        && (ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)
+            || IsTriageRequest(receipt)
+            || SubmitMailboxImageIntake.IsCandidate(receipt));
 
     /// <summary>
     /// Whether the accepted route classified this receipt's message as a
