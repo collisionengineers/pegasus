@@ -325,7 +325,7 @@ public sealed class EfCaseDataStore(
         return Map(snapshot, workflow);
     }
 
-    private static IQueryable<CaseDataSnapshotEntity> SnapshotQuery(
+    internal static IQueryable<CaseDataSnapshotEntity> SnapshotQuery(
         PegasusDbContext context,
         bool tracking)
     {
@@ -577,7 +577,7 @@ public sealed class EfCaseDataStore(
         });
     }
 
-    private static CaseDataProjection Map(
+    internal static CaseDataProjection Map(
         CaseDataSnapshotEntity snapshot,
         CaseWorkflowEntity workflow) => new(
         new(

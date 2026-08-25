@@ -39,7 +39,7 @@ public sealed class AssessmentReportProjectionTests
     public void UnconfirmedEstimateLineBlocksTheWholeDraftViaTheSharedReadinessRail()
     {
         // The estimate-line grouping never has to filter by confirmation
-        // itself: AssessmentPolicy.EvaluateReadiness already blocks the
+        // itself: AssessmentPolicy.EvaluatePostReviewReadiness already blocks the
         // whole draft on the first unconfirmed line, of any type.
         var input = ReadyInput();
         var unconfirmed = input.Assessment.EstimateLines[0] with { ConfirmedBy = null, ConfirmedAtUtc = null };
@@ -57,63 +57,44 @@ public sealed class AssessmentReportProjectionTests
     }
 
     [Fact]
-    public void MissingClaimantNameIsNotReady()
-    {
-        var result = AssessmentReportProjection.Project(ReadyInput() with { ClaimantName = null });
-
-        AssertNotReady(result, "Claimant name");
-    }
-
-    [Fact]
-    public void MissingYourReferenceIsNotReady()
-    {
-        var result = AssessmentReportProjection.Project(ReadyInput() with { YourReference = null });
-
-        AssertNotReady(result, "Your reference");
-    }
-
-    [Fact]
-    public void MissingReportForIsNotReady()
-    {
-        var result = AssessmentReportProjection.Project(ReadyInput() with { ReportFor = [] });
-
-        AssertNotReady(result, "Report addressee");
-    }
-
-    [Fact]
-    public void MissingIncidentDateIsNotReady()
+    public void ReviewTransitionRequirementsAreNotRecalculatedByReportReadiness()
     {
         var input = ReadyInput();
-        var result = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { CaseOwned = input.Assessment.CaseOwned with { IncidentDate = null } } });
+        var assessment = input.Assessment with
+        {
+            CaseOwned = input.Assessment.CaseOwned with
+            {
+                Registration = null,
+                Make = null,
+                Model = null,
+                Mileage = null,
+                MileageUnit = null,
+                IncidentDate = null,
+                InstructionDate = null,
+                InspectionMode = null,
+                InspectionAddress = null
+            }
+        };
 
-        AssertNotReady(result, "Incident date");
+        var result = AssessmentReportProjection.Prepare(assessment, input.Costs);
+
+        Assert.True(result.CanGenerate);
+        Assert.Empty(result.Reasons);
     }
 
     [Fact]
-    public void MissingPhotosIsNotReady()
+    public void MissingReviewTransitionDataAtGenerationIsAnInvalidState()
     {
-        var result = AssessmentReportProjection.Project(ReadyInput() with { Photos = [] });
-
-        AssertNotReady(result, "Report photographs");
+        Assert.Throws<InvalidDataException>(() =>
+            AssessmentReportProjection.Project(ReadyInput() with { ClaimantName = null }));
     }
 
     [Fact]
-    public void MissingSourcesIsNotReady()
-    {
-        var result = AssessmentReportProjection.Project(ReadyInput() with { Sources = [] });
-
-        AssertNotReady(result, "Accepted source evidence");
-    }
-
-    [Fact]
-    public void UnrecognizedInspectionModeIsNotReady()
+    public void UnrecognizedInspectionModeAtGenerationIsAnInvalidState()
     {
         var input = ReadyInput();
-        var result = AssessmentReportProjection.Project(
-            input with { Assessment = input.Assessment with { CaseOwned = input.Assessment.CaseOwned with { InspectionMode = "Unknown" } } });
-
-        AssertNotReady(result, "Assessment method");
+        Assert.Throws<InvalidDataException>(() => AssessmentReportProjection.Project(
+            input with { Assessment = input.Assessment with { CaseOwned = input.Assessment.CaseOwned with { InspectionMode = "Unknown" } } }));
     }
 
     [Fact]

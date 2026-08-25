@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Lifecycle;
@@ -28,7 +29,10 @@ public sealed class AssessmentVehiclePrefillWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
-                services.AddSingleton<IGetCase>(new FakeGetCase(caseId));
+                services.RemoveAll<IGetAssessmentWorkspace>();
+                var source = new FakeGetCase(caseId);
+                services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -65,7 +69,10 @@ public sealed class AssessmentVehiclePrefillWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
-                services.AddSingleton<IGetCase>(new FakeGetCase(caseId, includeExtractedFacts: true));
+                services.RemoveAll<IGetAssessmentWorkspace>();
+                var source = new FakeGetCase(caseId, includeExtractedFacts: true);
+                services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -84,7 +91,8 @@ public sealed class AssessmentVehiclePrefillWebTests
         Assert.DoesNotContain("value=\"online_data\" selected", html, StringComparison.Ordinal);
     }
 
-    private sealed class FakeGetCase(Guid caseId, bool includeExtractedFacts = false) : IGetCase
+    private sealed class FakeGetCase(Guid caseId, bool includeExtractedFacts = false)
+        : IGetCase, IGetAssessmentWorkspace
     {
         public Task<CaseDetails?> ExecuteAsync(GetCaseQuery query, CancellationToken cancellationToken)
         {
@@ -109,6 +117,27 @@ public sealed class AssessmentVehiclePrefillWebTests
                 VehicleEvidence = new(caseId, null, observation, [observation], []),
             };
             return Task.FromResult<CaseDetails?>(details);
+        }
+
+        public async Task<AssessmentWorkspace?> ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            if (details is null)
+            {
+                return null;
+            }
+            var assessment = new CaseAssessmentProjection(
+                caseId,
+                details.Summary.Reference,
+                details.Workflow.Version,
+                details.Workflow.State,
+                null,
+                [],
+                [],
+                new(null, null, null, null, null, null, null, null, null));
+            return AssessmentWorkspaceTestData.Create(details, assessment);
         }
     }
 

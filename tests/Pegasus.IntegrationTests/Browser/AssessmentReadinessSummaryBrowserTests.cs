@@ -37,9 +37,12 @@ public sealed class AssessmentReadinessSummaryBrowserTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCaseAssessment>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IAssessmentReportProjectionSource>();
                 services.AddSingleton<IGetCase>(new FakeGetCase(caseId));
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(NearEmptyProjection(caseId)));
+                services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
+                    AssessmentWorkspaceTestData.Create(NearEmptyProjection(caseId))));
                 services.AddSingleton<IAssessmentReportProjectionSource>(
                     new FakeProjectionSource(NearEmptyInput(caseId)));
             }));

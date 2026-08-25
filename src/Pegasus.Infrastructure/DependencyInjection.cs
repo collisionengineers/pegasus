@@ -295,6 +295,8 @@ public static class DependencyInjection
         services.AddSingleton<IEstimateDocumentParser, AudatexEstimatePdfParser>();
         services.AddScoped<ICaseAssessmentStore, EfCaseAssessmentStore>();
         services.AddScoped<IGetCaseAssessment, GetCaseAssessment>();
+        services.AddScoped<IAssessmentWorkspaceSource, EfAssessmentWorkspaceSource>();
+        services.AddScoped<IGetAssessmentWorkspace, GetAssessmentWorkspace>();
         services.AddScoped<ISaveAssessment, SaveAssessment>();
         services.AddScoped<IAiWorkRequestStore, EfAiWorkRequestStore>();
         services.AddScoped<ISendToAiControl, EfSendToAiControlStore>();

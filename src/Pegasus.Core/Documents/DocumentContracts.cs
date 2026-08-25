@@ -372,6 +372,7 @@ public sealed record ManagedDocumentContentRead(
 public sealed record ManagedDocumentContentAddress(
     Guid CaseId,
     string CaseReference,
+    string? CaseRootRemoteId,
     Guid OccurrenceId,
     int OccurrenceOrdinal,
     Guid DocumentId,
