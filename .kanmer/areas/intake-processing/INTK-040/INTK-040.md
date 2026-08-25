@@ -2,10 +2,12 @@
 id: INTK-040
 type: ticket
 title: Route unidentified mailbox image attachments through Image Intake
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-25T14:43:12.393Z'
 labels:
   - operator-reported
   - production-defect
@@ -21,7 +23,7 @@ refs:
   - docs/adr/0029-image-initiated-case-projection.md
 archived: false
 created: '2026-08-25T14:43:04.295Z'
-updated: '2026-08-25T14:43:04.295Z'
+updated: '2026-08-25T14:43:12.393Z'
 ---
 
 ## What
