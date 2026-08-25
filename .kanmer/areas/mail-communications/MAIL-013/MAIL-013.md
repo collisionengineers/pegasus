@@ -2,10 +2,12 @@
 id: MAIL-013
 type: ticket
 title: Wake approved mailbox intake through Graph change notifications
-status: backlog
+status: preparing
 area: mail-communications
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-25T15:26:56.915Z'
 labels: []
 groups:
   - EPIC-006
@@ -17,7 +19,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-25T15:18:39.919Z'
-updated: '2026-08-25T15:18:47.615Z'
+updated: '2026-08-25T15:26:56.915Z'
 ---
 
 ## What

@@ -2,10 +2,12 @@
 id: INTK-043
 type: ticket
 title: Reduce ordinary intake source-reading latency to the ten-second p95 budget
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-25T15:26:55.430Z'
 labels: []
 groups:
   - EPIC-002
@@ -17,7 +19,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-25T15:18:40.610Z'
-updated: '2026-08-25T15:18:47.662Z'
+updated: '2026-08-25T15:26:55.430Z'
 ---
 
 ## What

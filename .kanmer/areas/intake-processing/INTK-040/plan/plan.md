@@ -30,3 +30,13 @@ Run the repository's locked restore/build commands from the runbook, then filter
 - Parent suppression must not strand work; submission occurs before work completion, and a terminal submission failure registers a technical-failure Unidentified item.
 - Existing U35 must remain unchanged; the hook runs only in the fresh-processing branch and no backfill/replay job is added.
 - INTK-039 remains taken in Verifying, but PR #545 is already merged. This task is based on current origin/dev and will not modify that ticket's branch/worktree.
+
+## Simplification pass — 2026-08-25
+
+Independent review covered reuse, simplification, efficiency and abstraction altitude over the branch diff.
+
+- **Reuse:** replaced the new parent-specific group query with the existing mailbox channel + stable submission-token lookup; retained `ParentReceiptId` only as persisted provenance.
+- **Clarity:** made grouped source channel explicit at every caller and removed the unsupported speculative Automation operation branch.
+- **Consistency:** reused `DownloadIntakeSource.FixedTimeHashEquals` and checked retained content length as well as hash.
+- **Correctness found during the pass:** a final failure after one child was staged could have opened a parent U-item and later a child U-item. The terminal outcome is now keyed to the partial submission group, and grouped reconciliation replays that same technical-failure origin. Added a focused assertion proving group-scoped identity.
+- **Disposition:** all findings applied. No abstraction, cache, queue, flag, compatibility path, or unrelated cleanup was added. `git diff --check origin/dev` passes (line-ending notices only).
