@@ -2,13 +2,14 @@
 id: PLAT-036
 type: ticket
 title: Raise or earn back the Application Insights daily ingestion quota
-status: review
+status: verifying
 area: platform-operations
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-25T15:37:36.501Z'
   review: '2026-08-25T15:46:19.108Z'
+  verifying: '2026-08-25T16:20:53.580Z'
 taken_at: '2026-08-25T15:42:56.208Z'
 branch: task/plat-036-telemetry-volume
 worktree: ../pegasus-worktrees/plat-036-telemetry-volume
@@ -25,7 +26,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/550'
 archived: false
 created: '2026-08-22T06:02:29.302Z'
-updated: '2026-08-25T15:46:19.108Z'
+updated: '2026-08-25T16:20:53.580Z'
 ---
 
 ## Why

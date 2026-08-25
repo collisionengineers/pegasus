@@ -15,3 +15,7 @@
 ## Verdict
 
 **Needs CI, with no implementation changes requested.** Independent review of PR #550 and commit `702737f2` passes on correctness, scope, evidence, documentation, test strength and simplification. The PR is not merged and PLAT-036 remains in Review solely because the required documentation check is not green after two checkout timeouts.
+
+## CI resolution and final verdict — 2026-08-25
+
+A later documentation rerun completed successfully in 4m29s. Refreshed PR state confirmed every required check passed and PR #550 remained mergeable at head `702737f2da91e2d3ec2cdd1a1208c9e475013aeb`. Final verdict: **pass**. Merged to `dev` as `c028f09bc038a57e1f303d549d7f34c680257622`; hand off to Kanmer verification.
