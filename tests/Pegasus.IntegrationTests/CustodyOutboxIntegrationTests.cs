@@ -1166,19 +1166,7 @@ public sealed class CustodyOutboxIntegrationTests
     public async Task ExportingACaseProducesTheEvaFormatArchive()
     {
         using var factory = new IntakeWebApplicationFactory();
-        using var host = factory.WithWebHostBuilder(builder =>
-            builder.ConfigureAppConfiguration((_, configuration) =>
-                configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                {
-                    // PLAT-037's three settings. Without them CaseEvaMapping
-                    // refuses before reading any case data, which is exactly
-                    // how production behaved until release 23.
-                    ["Eva:AcceptedMapping:Key"] = CaseEvaMapping.MappingKey,
-                    ["Eva:AcceptedMapping:Version"] =
-                        CaseEvaMapping.MappingVersion.ToString(CultureInfo.InvariantCulture),
-                    ["Eva:AcceptedMapping:EvidenceReference"] =
-                        "docs/frd/frd-07-eva-and-external-engineering-handoff.md"
-                })));
+        var host = factory;
         await using var scope = host.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
 

@@ -87,10 +87,8 @@ public sealed class QdosBoundaryContractTests
     {
         var export = CaseEvaMapping.MapForOperatorExport(
             AcceptedEvaEvidence(),
-            AcceptedEvaMapping(),
             new DateOnly(2031, 5, 4));
 
-        Assert.True(export.IsReady);
         Assert.NotNull(export.Source);
         Assert.Equal("AB12CDE", export.Source.Fields.Vrm);
         Assert.Equal(
@@ -116,9 +114,8 @@ public sealed class QdosBoundaryContractTests
             Inspection = new(
                 EvaInspectionMode.PhysicalAddress,
                 accepted.Inspection.Evidence with { Value = "109 Valley View, Hoole, CH490DJ" })
-        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
+        }, new DateOnly(2031, 5, 4));
 
-        Assert.True(export.IsReady);
         Assert.NotNull(export.Source);
         Assert.Equal(
             "109 Valley View\nHoole\n\n\n\nCH490DJ",
@@ -138,7 +135,7 @@ public sealed class QdosBoundaryContractTests
                 {
                     Value = "One, Two, Three, Four, Five, Six, Seven, CH49 0DJ"
                 })
-        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
+        }, new DateOnly(2031, 5, 4));
 
         Assert.NotNull(export.Source);
         var lines = export.Source.Fields.InspectionAddress!.Split('\n');
@@ -156,7 +153,7 @@ public sealed class QdosBoundaryContractTests
             Inspection = new(
                 EvaInspectionMode.PhysicalAddress,
                 accepted.Inspection.Evidence with { Value = "Unit 4, Riverside Depot" })
-        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
+        }, new DateOnly(2031, 5, 4));
 
         Assert.NotNull(export.Source);
         Assert.Equal("Unit 4\nRiverside Depot\n\n\n\n", export.Source.Fields.InspectionAddress);
@@ -174,7 +171,6 @@ public sealed class QdosBoundaryContractTests
             {
                 VatStatus = new(null, EvaEvidenceStatus.Unrecorded, "unrecorded", "unrecorded")
             },
-            AcceptedEvaMapping(),
             new DateOnly(2031, 5, 4));
 
         Assert.NotNull(export.Source);
@@ -195,7 +191,6 @@ public sealed class QdosBoundaryContractTests
             {
                 Mileage = new("208602", EvaEvidenceStatus.Suggested, "vehicle-lookup", "mot/v1")
             },
-            AcceptedEvaMapping(),
             new DateOnly(2031, 5, 4));
 
         Assert.NotNull(export.Source);
@@ -203,19 +198,6 @@ public sealed class QdosBoundaryContractTests
         Assert.DoesNotContain("Mileage", export.UnrecordedFields);
         var mileage = Assert.Single(export.Source.Provenance, field => field.Name == "Mileage");
         Assert.Equal(EvaEvidenceStatus.Suggested, mileage.Status);
-    }
-
-    [Fact]
-    public void AnUnacceptedMappingRefusesTheExport()
-    {
-        var mapping = CaseEvaMapping.MapForOperatorExport(
-            AcceptedEvaEvidence(),
-            EvaMappingAcceptance.Unaccepted,
-            new DateOnly(2031, 5, 4));
-
-        Assert.False(mapping.IsReady);
-        Assert.Null(mapping.Source);
-        Assert.Equal(CaseEvaMapping.ActivationGateReason, mapping.BlockingReasons[0]);
     }
 
     [Fact]
@@ -232,9 +214,8 @@ public sealed class QdosBoundaryContractTests
                     Status = EvaEvidenceStatus.Suggested
                 }
             }
-        }, AcceptedEvaMapping(), new DateOnly(2031, 5, 4));
+        }, new DateOnly(2031, 5, 4));
 
-        Assert.True(export.IsReady);
         Assert.NotNull(export.Source);
         Assert.Equal(EvaEvidenceStatus.Suggested, Assert.Single(
             export.Source.Provenance,
@@ -322,11 +303,6 @@ public sealed class QdosBoundaryContractTests
             accepted with { Value = "12000" },
             accepted with { Value = "miles" });
     }
-
-    private static EvaMappingAcceptance AcceptedEvaMapping() => new(
-        CaseEvaMapping.MappingKey,
-        CaseEvaMapping.MappingVersion,
-        "accepted-evidence:test");
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
     {

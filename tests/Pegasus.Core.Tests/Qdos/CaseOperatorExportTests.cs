@@ -17,21 +17,15 @@ public sealed class CaseOperatorExportTests
 {
     private static readonly DateOnly Today = new(2026, 8, 22);
 
-    private static readonly EvaMappingAcceptance Accepted = new(
-        CaseEvaMapping.MappingKey,
-        CaseEvaMapping.MappingVersion,
-        "docs/frd/frd-07-eva-and-external-engineering-handoff.md");
-
     [Fact]
     public void AFieldTheCaseDoesNotHoldIsExportedBlankAndNamed()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(Evidence(vatStatus: null), Accepted, Today);
+        var export = CaseEvaMapping.MapForOperatorExport(Evidence(vatStatus: null), Today);
 
-        Assert.True(export.IsReady);
         Assert.Equal(["VAT Status"], export.UnrecordedFields);
         // Null in the record means "the case does not hold this"; the archive
         // writes it as an empty string, asserted below.
-        Assert.Null(export.Source!.Fields.VatStatus);
+        Assert.Null(export.Source.Fields.VatStatus);
         var vat = Assert.Single(export.Source.Provenance, field => field.Name == "VAT Status");
         Assert.Equal(EvaEvidenceStatus.Unrecorded, vat.Status);
     }
@@ -41,10 +35,9 @@ public sealed class CaseOperatorExportTests
     {
         var export = CaseEvaMapping.MapForOperatorExport(
             Evidence(inspectionDate: null),
-            Accepted,
             Today);
 
-        Assert.Equal("22/08/2026", export.Source!.Fields.InspectionDate);
+        Assert.Equal("22/08/2026", export.Source.Fields.InspectionDate);
         Assert.DoesNotContain("Inspection Date", export.UnrecordedFields);
         var inspection = Assert.Single(export.Source.Provenance, field => field.Name == "Inspection Date");
         Assert.Equal(CaseEvaMapping.ExportDateSource, inspection.Source);
@@ -55,33 +48,28 @@ public sealed class CaseOperatorExportTests
     {
         var export = CaseEvaMapping.MapForOperatorExport(
             Evidence(mileage: new("121823", EvaEvidenceStatus.Suggested, "vehicle-lookup", "latest-mot-observation/v2")),
-            Accepted,
             Today);
 
-        var mileage = Assert.Single(export.Source!.Provenance, field => field.Name == "Mileage");
+        var mileage = Assert.Single(export.Source.Provenance, field => field.Name == "Mileage");
         Assert.Equal(EvaEvidenceStatus.Suggested, mileage.Status);
         Assert.Equal("121823", mileage.Value);
     }
 
     [Fact]
-    public void AnUnacceptedMappingRefusesTheExport()
+    public void ExportDoesNotRequireASeparateEvaActivation()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(
-            Evidence(),
-            EvaMappingAcceptance.Unaccepted,
-            Today);
+        var export = CaseEvaMapping.MapForOperatorExport(Evidence(), Today);
 
-        Assert.Null(export.Source);
-        Assert.Equal([CaseEvaMapping.ActivationGateReason], export.BlockingReasons);
+        Assert.NotNull(export.Source);
     }
 
     [Fact]
     public void TheArchiveCarriesAllThirteenKeysEvenWhenOneIsBlank()
     {
-        var export = CaseEvaMapping.MapForOperatorExport(Evidence(vatStatus: null), Accepted, Today);
+        var export = CaseEvaMapping.MapForOperatorExport(Evidence(vatStatus: null), Today);
 
         var bundle = EvaBundleSchema.CreateOfflineReplay(
-            export.Source!,
+            export.Source,
             new([Photograph()]));
 
         using var json = JsonDocument.Parse(bundle.JsonContent);
