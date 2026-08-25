@@ -33,3 +33,11 @@ Correct the two proven faults at their existing owners: grant the Worker the app
 
 - A privileged LocalDB test can hide a missing runtime grant; the migration/bootstrap contract and production permission read-back are mandatory.
 - No production backfill is added. The user selected disposal through the established pre-release wipe.
+
+## Simplification pass — 2026-08-25
+
+- **Reuse:** reused `UploadOutcomeView.IsStillWorking`, the existing grouped-page polling surface, `EfImageIntakeStore`'s atomic transition, the existing activity, and the runtime-role matrix. No second policy owner was added.
+- **Simplification:** the change is one permission migration and one presentation-state condition; no backfill, fallback, feature flag, compatibility path, or new abstraction is present.
+- **Efficiency:** the added polling predicate is an in-memory pass over already-rendered outcomes; existing member reads remain parallel and no new database round-trip was introduced.
+- **Altitude:** Core continues to own lifecycle policy, Infrastructure owns SQL permissions, and Web owns operator presentation. No layer gained another layer's business decision.
+- **Disposition:** no behaviour-preserving simplification findings required a code change.
