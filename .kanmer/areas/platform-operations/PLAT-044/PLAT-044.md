@@ -2,12 +2,15 @@
 id: PLAT-044
 type: ticket
 title: Stop Assessment opening from repeating Review and content-store work
-status: preparing
+status: implementing
 area: platform-operations
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T08:47:03.040Z'
+taken_at: '2026-08-25T08:52:15.282Z'
+branch: task/plat-044-assessment-open-latency
+worktree: ../pegasus-worktrees/plat-044-assessment-open-latency
 labels:
   - qdos26016
   - performance
@@ -23,7 +26,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-25T08:46:50.919Z'
-updated: '2026-08-25T08:48:17.804Z'
+updated: '2026-08-25T08:52:15.282Z'
 ---
 
 ## What
