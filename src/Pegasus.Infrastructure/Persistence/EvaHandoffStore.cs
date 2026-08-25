@@ -31,7 +31,6 @@ public sealed class EvaHandoffStore(
     IVehicleEvidenceQueries vehicleEvidenceQueries,
     IDocumentContentStore contentStore,
     IEvaHandoffProxy proxy,
-    EvaMappingAcceptance mappingAcceptance,
     TimeProvider timeProvider) : IExportCaseBundle
 {
     /// <summary>
@@ -78,12 +77,7 @@ public sealed class EvaHandoffStore(
         var vehicle = await vehicleEvidenceQueries.GetAsync(request.CaseId, cancellationToken);
         var export = CaseEvaMapping.MapForOperatorExport(
             BuildEvidence(caseData, vehicle),
-            mappingAcceptance,
             DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime));
-        if (export.Source is null)
-        {
-            return new(null, export.UnrecordedFields, export.BlockingReasons);
-        }
 
         var images = await LoadEligibleImagesAsync(
             context,
@@ -160,8 +154,7 @@ public sealed class EvaHandoffStore(
             Mapping = new
             {
                 source.MappingKey,
-                source.MappingVersion,
-                source.MappingAcceptanceEvidence
+                source.MappingVersion
             },
             source.Fields,
             source.Provenance,

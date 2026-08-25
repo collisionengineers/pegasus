@@ -203,17 +203,15 @@ public static class EvaBundleSchema
         ArgumentNullException.ThrowIfNull(source.Fields);
         ArgumentNullException.ThrowIfNull(source.Provenance);
         if (!string.Equals(source.MappingKey, CaseEvaMapping.MappingKey, StringComparison.Ordinal)
-            || source.MappingVersion != CaseEvaMapping.MappingVersion
-            || string.IsNullOrWhiteSpace(source.MappingAcceptanceEvidence))
+            || source.MappingVersion != CaseEvaMapping.MappingVersion)
         {
             throw new InvalidOperationException(
-                "The EVA bundle requires an explicitly accepted mapping/config version.");
+                "The EVA bundle requires the current mapping version.");
         }
 
-        // What this method guards is the archive FORMAT: an accepted mapping,
+        // What this method guards is the archive FORMAT: the current mapping,
         // the exact ordered field set, provenance that covers it, and values
         // that match that provenance. It never guarded the evidence bar — the
-        // one bar left, since ENG-016, is CaseEvaMapping.MapForOperatorExport's,
         // and a case with gaps clears it by design.
         //
         // ENG-016 (ENG-014 review finding F3): the loop below throws, and the
