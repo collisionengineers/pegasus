@@ -52,7 +52,8 @@ public sealed record EvaBundle(
 /// CASE-019, ENG-016: the operator's export of a case as the EVA-format
 /// archive. Since ENG-016 it is the only act that produces the package, and
 /// its first success on a case records the once-per-case
-/// <c>First sent to Engineer</c> proxy.
+/// <c>First sent to Engineer</c> proxy. Every success updates which workflow
+/// version was exported for Assessment access.
 ///
 /// It takes an operation key for exact replay and permanent action history,
 /// but no edit lease: the export does not change the case version. What it
