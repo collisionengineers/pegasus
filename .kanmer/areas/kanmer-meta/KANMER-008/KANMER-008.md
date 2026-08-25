@@ -18,7 +18,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-08-25T06:58:08.309Z'
-updated: '2026-08-25T06:59:56.267Z'
+updated: '2026-08-25T07:00:56.043Z'
 ---
 
 ## What
@@ -59,3 +59,5 @@ At 06:58:52Z the GUI archived PLAT-005 while it was still Implementing and taken
 ## Outcome
 
 Before this audit record and the later GUI action, the groom result was 312 active and 170 archived tickets with 11 legitimate active takes. The final live snapshot is 312 active and 171 archived tickets: 82 Backlog, 19 Preparing, 0 Implementing, 0 Review, 10 Verifying, and 201 Done. It has 0 warnings, 0 off-board stages, no redundant target labels, and 56/56 approved archive targets retired. No repository source, Git branch/worktree, PR, deployment, cloud, or external-system write was performed by this groom.
+
+The final evidence is recorded in this ticket's `proof.md`.
