@@ -2,12 +2,15 @@
 id: INTK-041
 type: ticket
 title: Define near-real-time two-stage durable intake
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-25T15:19:21.411Z'
+taken_at: '2026-08-25T15:20:41.591Z'
+branch: task/intk-041-near-real-time-intake
+worktree: ../pegasus-worktrees/intk-041-near-real-time-intake
 labels: []
 groups:
   - EPIC-002
@@ -22,7 +25,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-25T15:19:21.411Z'
+updated: '2026-08-25T15:20:41.591Z'
 ---
 
 ## What
