@@ -7,7 +7,7 @@ title: >-
 status: backlog
 area: intake-processing
 assignee: ''
-profile: feature
+profile: fix
 labels: []
 groups:
   - EPIC-002
@@ -15,9 +15,11 @@ groups:
 links:
   - SIMPLI-008
   - SIMPLI-009
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-17T11:10:37.268Z'
+updated: '2026-08-25T06:39:27.956Z'
 ---
 
 ## What
@@ -40,3 +42,9 @@ SIMPLI-008 promised staff the resulting case and a bounded, truthful state. A re
 - [ ] An auto-associated receipt's status page offers "Open case".
 
 ## Outcome
+
+## Inherited scope from [[PLAT-015]]
+
+While making Upload Status truthful, remove the lede paragraphs beneath its H1. The page should present the status, values, and available action without explanatory narration.
+
+Verification for this inherited scope: Upload Status has no lede copy and its retry or case-link state remains truthful.

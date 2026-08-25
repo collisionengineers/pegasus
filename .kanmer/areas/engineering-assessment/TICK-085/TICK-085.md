@@ -1,9 +1,7 @@
 ---
 id: TICK-085
 type: ticket
-title: >-
-  EXT-12 — Audatex/PDF repair-estimate ingestion with retained source artifact,
-  mapped version, and variant proof
+title: Complete Glass's repair-estimate import from a representative export
 status: backlog
 area: engineering-assessment
 assignee: ''
@@ -11,37 +9,41 @@ profile: feature
 labels:
   - capability
   - EXT-12
-  - later
-  - post-alpha
-  - blocked
   - requires-live-approval
+  - now
+  - evidence-required
 groups:
   - HZN-002
   - EPIC-009
-links: []
+links:
+  - ENG-002
+refs:
+  - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:05:40.242Z'
-updated: '2026-08-25T06:36:45.876Z'
+updated: '2026-08-25T06:39:08.833Z'
 ---
 
 ## What
 
-Plan and research **EXT-12**: Audatex/PDF repair-estimate ingestion with retained source artifact, mapped version, and variant proof
+Complete the remaining Glass's repair-estimate import only after a representative export is supplied.
 
 ## Why
 
-This is allocated to **Later / 1.0.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+EXT-12 is now allocated to Now / 0.1.0-alpha.1. [[ENG-002]] delivered and production-proved the first variant: deterministic Audatex full-report PDF import with retained source custody, total validation, and draft repair-specification lines. ENG-002's report records that the Glass's route, custody and landing are ready but its parser is parked because no real Glass's export sample exists.
 
 ## Approach
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+- Treat the delivered Audatex path as complete; do not reimplement or wrap it.
+- Obtain a representative Glass's export before defining its supported layout or field mapping.
+- Reuse the existing EXT-12 custody, source-version and draft-specification path.
+- Reject the whole import on missing, ambiguous or internally inconsistent evidence.
+- Leave estimate-to-report cost derivation with EXT-09.
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [ ] Representative Glass's variants and mappings are accepted from real supplied evidence.
+- [ ] The retained source, parsed version and draft lines are linked and hash/provenance-backed.
+- [ ] Unsupported or ambiguous variants fail closed without partial lines.
 
-## Notes
-
-- Source: `docs/capabilities.md` — EXT-12.
+## Outcome

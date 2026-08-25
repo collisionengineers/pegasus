@@ -18,9 +18,10 @@ labels:
   - deployment
 links: []
 docs_todo: true
+deployment: production
 archived: false
 created: '2026-08-22T05:01:55.880Z'
-updated: '2026-08-25T01:27:00.407Z'
+updated: '2026-08-25T06:40:03.489Z'
 ---
 
 ## Why

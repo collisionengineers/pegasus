@@ -22,10 +22,14 @@ links: []
 refs:
   - docs/design/README.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
+commits:
+  - f7faa62a
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/532'
 deployment: production
 archived: false
 created: '2026-08-23T15:19:38.272Z'
-updated: '2026-08-25T00:49:44.423Z'
+updated: '2026-08-25T06:39:43.096Z'
 ---
 
 ## What the operator saw

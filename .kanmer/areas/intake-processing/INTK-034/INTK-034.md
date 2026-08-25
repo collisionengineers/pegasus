@@ -21,10 +21,14 @@ links: []
 refs:
   - docs/frd/frd-03-triage.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
+commits:
+  - 5cc06bbb
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/529'
 deployment: production
 archived: false
 created: '2026-08-24T08:33:08.101Z'
-updated: '2026-08-25T00:49:44.453Z'
+updated: '2026-08-25T06:39:43.210Z'
 ---
 
 ## Why

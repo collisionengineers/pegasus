@@ -17,9 +17,11 @@ labels:
 groups:
   - EPIC-003
 links: []
+refs:
+  - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-12T15:06:02.616Z'
-updated: '2026-08-17T06:41:50.839Z'
+updated: '2026-08-25T06:39:13.275Z'
 ---
 
 ## What

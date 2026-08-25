@@ -25,12 +25,13 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - 992f5d42
+  - 70263cfc
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/535'
 deployment: production
 archived: false
 created: '2026-08-23T15:19:21.004Z'
-updated: '2026-08-25T00:49:44.415Z'
+updated: '2026-08-25T06:39:43.113Z'
 ---
 
 ## What the operator asked for

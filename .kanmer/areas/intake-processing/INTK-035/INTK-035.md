@@ -24,10 +24,14 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/operator-notes.md
   - docs/design/README.md
+commits:
+  - 4b11faa6
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/533'
 deployment: production
 archived: false
 created: '2026-08-24T08:33:08.297Z'
-updated: '2026-08-25T00:49:44.460Z'
+updated: '2026-08-25T06:39:43.157Z'
 ---
 
 ## Why

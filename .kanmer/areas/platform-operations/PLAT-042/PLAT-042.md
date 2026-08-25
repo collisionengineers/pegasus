@@ -22,9 +22,10 @@ blocks:
   - ENG-014
 refs:
   - docs/runbook.md
+deployment: production
 archived: false
 created: '2026-08-24T10:34:11.430Z'
-updated: '2026-08-25T06:38:33.350Z'
+updated: '2026-08-25T06:40:03.513Z'
 ---
 
 ## What

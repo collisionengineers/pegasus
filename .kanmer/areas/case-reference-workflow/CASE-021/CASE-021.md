@@ -22,10 +22,14 @@ labels:
   - readiness
 links: []
 docs_todo: true
+commits:
+  - e03eb81d
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/528'
 deployment: production
 archived: false
 created: '2026-08-23T15:18:20.008Z'
-updated: '2026-08-25T00:49:44.408Z'
+updated: '2026-08-25T06:39:43.053Z'
 ---
 
 ## What the operator saw

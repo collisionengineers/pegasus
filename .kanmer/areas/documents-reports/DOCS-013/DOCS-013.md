@@ -23,9 +23,10 @@ blocks:
   - ENG-015
 refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
+deployment: production
 archived: false
 created: '2026-08-24T08:19:34.397Z'
-updated: '2026-08-25T06:38:31.775Z'
+updated: '2026-08-25T06:40:03.451Z'
 ---
 
 ## What

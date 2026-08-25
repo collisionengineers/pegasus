@@ -29,9 +29,10 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 prs:
   - '#446'
+deployment: production
 archived: false
 created: '2026-08-12T15:06:02.806Z'
-updated: '2026-08-25T01:27:00.112Z'
+updated: '2026-08-25T06:40:03.539Z'
 ---
 
 ## What

@@ -19,9 +19,10 @@ labels:
 links: []
 refs:
   - docs/runbook.md
+deployment: production
 archived: false
 created: '2026-08-20T19:59:01.329Z'
-updated: '2026-08-25T06:38:33.384Z'
+updated: '2026-08-25T06:40:05.381Z'
 ---
 
 ## Why
