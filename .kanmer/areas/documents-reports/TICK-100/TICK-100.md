@@ -18,7 +18,6 @@ labels:
   - capability
   - RPT-05
   - later
-  - post-alpha
 groups:
   - EPIC-004
 links:
@@ -37,7 +36,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.729Z'
-updated: '2026-08-25T06:48:37.571Z'
+updated: '2026-08-25T06:53:36.214Z'
 ---
 
 ## What

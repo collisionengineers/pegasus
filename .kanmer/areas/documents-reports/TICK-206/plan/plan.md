@@ -43,3 +43,7 @@ Final acceptance depends on SIMPLI-014's merged implementation and evidence. TIC
 - **Dormant unsupported code:** copying unused presets “for later” creates unowned policy/test surface. Mitigation: migrate only concrete caller-backed assets/mechanics and rely on Git history/reference evidence for future work.
 - **Capability registry duplication:** adding a second normative map to `docs/capabilities.md` risks drift. Mitigation: keep behaviour in FRD-11 and use capabilities only as stable IDs/schedule.
 - **Operator questions:** none remain; the operator explicitly approved only rendererref1 assessment and fee-note activation.
+
+## Retrospective acceptance clarification — 2026-08-25
+
+The original verification wording asked for parameterized rejection tests for every legacy string identifier. The merged application contract contains no caller-supplied template-selector field, so manufacturing such an endpoint only to test it would reintroduce the forbidden surface. Structural evidence is stronger and simpler: a full search for all 12 former catalogue identifiers under current `origin/dev` application source/tests finds no unsupported identifier; `fee-note` appears only as the accepted typed output artifact (plus unrelated mailbox-classification prose). Unknown strings are likewise unrepresentable at the Core caller boundary. This satisfies the plan's non-discovery/fail-closed intent without adding a compatibility seam.

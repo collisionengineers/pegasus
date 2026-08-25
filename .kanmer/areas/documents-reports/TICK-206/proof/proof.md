@@ -18,3 +18,7 @@ No-code acceptance proof against [[SIMPLI-014]]'s merged implementation on curre
 PASS. The template-to-capability decision is implemented once: rendererref1 assessment plus fee note map to the approved active surface; unsupported and unknown selectors fail closed and are non-discoverable.
 
 TICK-206 itself has no repository commit, PR, worktree, deployment, or cloud action. Deployment: `n/a`. PR/merge: `n/a — acceptance slice subsumed by PR #415`.
+
+## Full legacy-identifier audit addendum — 2026-08-25
+
+A single `git grep` over current `origin/dev` checked all 12 former catalogue identifiers. Eleven unsupported identifiers produced no application source/test match. `fee-note` appears only as the accepted typed report artifact in report tests; the other matches are unrelated mailbox-classification prose. Because the public/Core request has no string template selector, there is no route through which an unknown or former ID can be dispatched.
