@@ -8,4 +8,4 @@
 - [x] Update FRD and current-state documentation.
 - [x] Run focused verification and canonical Release build/tests.
 - [x] Complete the four-lens simplification pass.
-- [ ] Commit, push, open the PR, and write the implementation report.
+- [x] Commit, push, open the PR, and write the implementation report.
