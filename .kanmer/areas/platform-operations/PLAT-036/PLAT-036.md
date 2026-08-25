@@ -2,10 +2,12 @@
 id: PLAT-036
 type: ticket
 title: Raise or earn back the Application Insights daily ingestion quota
-status: backlog
+status: preparing
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-25T15:37:36.501Z'
 labels:
   - observability
   - needs-operator-decision
@@ -15,7 +17,7 @@ blocks:
   - DELIV-021
 archived: false
 created: '2026-08-22T06:02:29.302Z'
-updated: '2026-08-25T15:18:47.713Z'
+updated: '2026-08-25T15:37:36.501Z'
 ---
 
 ## Why
