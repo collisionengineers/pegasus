@@ -33,3 +33,11 @@ Focused SQL integration tests must show a one-minute-old unleased dispatched row
 - **Attempt inflation:** recovery does not increment processing attempts.
 - **Scope collision:** implementation waits for INTK-040 and INTK-041, then starts from refreshed `origin/dev`.
 - **Accidental external-work generalization:** excluded; INTK-042 owns its relevant publication route.
+
+## Simplification pass — 2026-08-25
+
+- **Reuse:** kept the existing `IIntakeWorkStore`, reconciler timer, bounded priority queue, EF conditional update, dispatcher, and idempotent processor; no parallel route or new infrastructure.
+- **Simplification:** renamed the widened lease-only API/result/log vocabulary to interrupted work/recovered work items so the single path remains truthful.
+- **Efficiency:** retained one paged query and one `maximumItems` heap. Independent review found that stale dispatched rows were initially ranked by dispatch time rather than recovery eligibility; corrected ranking to `DueAtUtc + stale age` so expired leases cannot be starved.
+- **Altitude:** the change stays at the durable work-store/reconciler boundary. It does not alter extraction, classification, allocation, schema, schedules, or deployment.
+- **Disposition:** fairness finding applied with a mixed-state bounded-selection integration test. No other findings.
