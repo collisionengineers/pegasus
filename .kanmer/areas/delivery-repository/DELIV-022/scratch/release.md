@@ -1,3 +1,5 @@
 2026-08-25 pre-promotion gate: exact SHA 7dbb7c3952fba74cab2d65a2971ee30b9bc8d273; all PR checks settled green; merge-tree audit exact; canonical test gate green (990 Core, 100 Architecture, 961 Integration/Browser, 2 expected skips); focused overlap 59/59; Local and enabled-estate PreProvision guards green. Awaiting literal MERGE AUTH GRANTED immediately before atomic main/dev fast-forward.
 
 2026-08-25 promotion: operator supplied literal MERGE AUTH GRANTED. Atomic lease-guarded push fast-forwarded origin/main from a4c57b0a to 7dbb7c3952fba74cab2d65a2971ee30b9bc8d273 while asserting origin/dev remained that SHA. Fresh fetch read both origin/main and origin/dev exactly equal to the pinned SHA.
+
+2026-08-25 immutable artifacts: source 7dbb7c3952fba74cab2d65a2971ee30b9bc8d273; manifest SHA-256 2187533DC79954D411919E88FE317F50E3602C7A3BDDC673DE0C77123FBA1358; Web digest sha256:a10dce4337629db261132a978fe4a08811fc94d4173caf7442f47a11b6b8dd35; migration 20260825145216_MailboxImageIntake; Worker ZIP SHA-256 F5B12B68B4B71CC1A9AE54972532AEEBE0028AB75A401A2430BFF96C6AF1A829. Artifact, PreUpload and PreMigration guards passed. Awaiting exact-target Azure write approval.
