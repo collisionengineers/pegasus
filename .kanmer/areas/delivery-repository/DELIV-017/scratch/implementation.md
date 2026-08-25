@@ -1,0 +1,1 @@
+Release 28 documentation written from live evidence after deployment. Changed only `docs/operations.md` and `docs/current-architecture.md`. Documentation links passed for 197 files, Markdown placement passed, and `git diff --check` passed. PR #541 targets dev; no second deployment is part of the PR.
