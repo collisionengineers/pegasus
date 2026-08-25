@@ -27,6 +27,8 @@ public sealed class AssessmentPersistenceIntegrationTests
         var counter = new ReaderCommandCounter();
         await using var harness = await Harness.CreateAsync(counter);
         var outcome = await harness.AcceptAsync("assessment-workspace-query-count");
+        await SetReviewAsync(harness.Factory, outcome.Identity.CaseId);
+        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         counter.Reset();
 
         var workspace = await new EfAssessmentWorkspaceSource(harness.Factory)
@@ -41,6 +43,8 @@ public sealed class AssessmentPersistenceIntegrationTests
     {
         await using var harness = await Harness.CreateAsync();
         var outcome = await harness.AcceptAsync("assessment-report-photo-batch");
+        await SetReviewAsync(harness.Factory, outcome.Identity.CaseId);
+        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
         await SeedPhotosAsync(harness.Factory, outcome.Identity.CaseId, 2);
         var contentStore = new RecordingDocumentContentStore();
         var source = new EfAssessmentReportProjectionSource(
@@ -58,6 +62,56 @@ public sealed class AssessmentPersistenceIntegrationTests
         Assert.Equal(1, contentStore.BatchReadCount);
         Assert.Equal(0, contentStore.SingleReadCount);
         Assert.All(contentStore.Reads, read => Assert.Equal("case-root-id", read.Address.CaseRootRemoteId));
+    }
+
+    [Fact]
+    public async Task AssessmentAccessRequiresAnExportAfterTheLatestReviewEntry()
+    {
+        await using var harness = await Harness.CreateAsync();
+        var outcome = await harness.AcceptAsync("assessment-access-review-cycle");
+        await SetReviewAsync(harness.Factory, outcome.Identity.CaseId);
+        var source = new EfAssessmentAccessSource(harness.Factory);
+
+        Assert.False((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
+        Assert.Null(await new EfAssessmentWorkspaceSource(harness.Factory)
+            .GetAsync(outcome.Identity.CaseId));
+
+        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 0);
+        var exportedAccess = (await source.GetAsync(outcome.Identity.CaseId))!;
+        Assert.True(exportedAccess.CanOpen);
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            Assert.Null((await context.CaseWorkflows.AsNoTracking().SingleAsync(
+                item => item.CaseId == outcome.Identity.CaseId)).AssignedEngineerId);
+        }
+
+        await using (var context = await harness.Factory.CreateDbContextAsync())
+        {
+            var workflow = await context.CaseWorkflows.SingleAsync(
+                item => item.CaseId == outcome.Identity.CaseId);
+            workflow.Version = 1;
+            context.CaseWorkflowEvents.Add(new()
+            {
+                Id = Guid.NewGuid(),
+                CaseId = outcome.Identity.CaseId,
+                Workflow = workflow,
+                EventType = "case_returned_to_review",
+                OperationKey = "assessment-access-return",
+                RequestHash = "test",
+                ActorKind = ActorKind.Staff.ToString(),
+                ActorSubjectId = "staff-1",
+                ActorRolesJson = "[]",
+                Reason = "Review the corrected case.",
+                OccurredAtUtc = StartUtc,
+                BeforeVersion = 0,
+                AfterVersion = 1
+            });
+            await context.SaveChangesAsync();
+        }
+
+        Assert.False((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
+        await SeedExportAsync(harness.Factory, outcome.Identity.CaseId, 1);
+        Assert.True((await source.GetAsync(outcome.Identity.CaseId))!.CanOpen);
     }
 
     [Fact]
@@ -598,6 +652,43 @@ public sealed class AssessmentPersistenceIntegrationTests
 
         public Task<CaseWorkflowConfiguration> GetCurrentAsync(
             CancellationToken cancellationToken) => Task.FromResult(Configuration);
+    }
+
+    private static async Task SetReviewAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid caseId)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        var workflow = await context.CaseWorkflows.SingleAsync(item => item.CaseId == caseId);
+        workflow.State = CaseLifecycleState.Review.ToString();
+        await context.SaveChangesAsync();
+    }
+
+    private static async Task SeedExportAsync(
+        IDbContextFactory<PegasusDbContext> factory,
+        Guid caseId,
+        long workflowVersion)
+    {
+        await using var context = await factory.CreateDbContextAsync();
+        var proxy = await context.EvaFirstHandoffProxies
+            .SingleOrDefaultAsync(item => item.CaseId == caseId);
+        if (proxy is null)
+        {
+            context.EvaFirstHandoffProxies.Add(new()
+            {
+                CaseId = caseId,
+                AdapterKey = "test",
+                AdapterVersion = "1",
+                RecordedAtUtc = StartUtc,
+                LatestExportedWorkflowVersion = workflowVersion,
+                ActorSubjectId = "staff-1"
+            });
+        }
+        else
+        {
+            proxy.LatestExportedWorkflowVersion = workflowVersion;
+        }
+        await context.SaveChangesAsync();
     }
 
     private static async Task SeedPhotosAsync(

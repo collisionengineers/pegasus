@@ -320,12 +320,21 @@ public sealed record GenerateCaseAssessmentReportDraftResult(
 /// nothing new is invented here.
 /// </summary>
 public sealed class GenerateCaseAssessmentReportDraft(
+    IGetAssessmentAccess getAssessmentAccess,
     IAssessmentReportProjectionSource source,
     GenerateAssessmentReportDraft generate)
 {
     public async Task<GenerateCaseAssessmentReportDraftResult> ExecuteAsync(
         Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
     {
+        var access = await getAssessmentAccess.ExecuteAsync(
+            new(caseId, actor),
+            cancellationToken);
+        if (access?.CanOpen != true)
+        {
+            return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
+        }
+
         var input = await source.GetAsync(caseId, actor, cancellationToken);
         if (input is null)
         {

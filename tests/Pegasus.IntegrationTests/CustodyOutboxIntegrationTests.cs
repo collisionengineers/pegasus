@@ -1359,6 +1359,12 @@ public sealed class CustodyOutboxIntegrationTests
             .ToListAsync());
         Assert.False(proxy.ClaimsExternalDelivery);
         Assert.False(proxy.ClaimsEngineerAssignment);
+        Assert.Equal(
+            await context.CaseWorkflows
+                .Where(item => item.CaseId == outcome.Identity.CaseId)
+                .Select(item => item.Version)
+                .SingleAsync(),
+            proxy.LatestExportedWorkflowVersion);
         Assert.Single(await context.ActionHistory
             .Where(item => item.AggregateType == "Case"
                 && item.AggregateId == outcome.Identity.CaseId.ToString("D")

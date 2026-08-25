@@ -138,7 +138,12 @@
         </span>
         <span class="record__bar-end">
             <span class="record__bar-rule" aria-hidden="true"></span>
-            <a class="btn btn--dark" asp-page="/Cases/Assessment/Index" asp-route-id="@summary.CaseId">Open assessment</a>
+            <span class="gated" data-condition="@(Model.CanOpenAssessment ? null : "Available after the current Review export")">
+                <a class="btn btn--dark @(Model.CanOpenAssessment ? string.Empty : "is-disabled")"
+                   asp-page="@(Model.CanOpenAssessment ? "/Cases/Assessment/Index" : null)"
+                   asp-route-id="@(Model.CanOpenAssessment ? summary.CaseId : null)"
+                   aria-disabled="@(Model.CanOpenAssessment ? "false" : "true")">Open assessment</a>
+            </span>
         </span>
     </div>
 

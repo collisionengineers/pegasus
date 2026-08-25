@@ -93,3 +93,13 @@ internal sealed class FakeGetAssessmentWorkspace(AssessmentWorkspace workspace)
         CancellationToken cancellationToken = default) =>
         Task.FromResult<AssessmentWorkspace?>(workspace);
 }
+
+internal sealed class FakeGetAssessmentAccess(bool canOpen = true) : IGetAssessmentAccess
+{
+    public Task<AssessmentAccessState?> ExecuteAsync(
+        GetAssessmentAccessQuery query,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<AssessmentAccessState?>(canOpen
+            ? new(CaseLifecycleState.Review, 0, 0)
+            : new(CaseLifecycleState.NotReady, 0, null));
+}

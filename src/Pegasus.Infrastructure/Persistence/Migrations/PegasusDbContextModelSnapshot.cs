@@ -2654,6 +2654,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("ClaimsExternalDelivery")
                         .HasColumnType("bit");
 
+                    b.Property<long?>("LatestExportedWorkflowVersion")
+                        .HasColumnType("bigint");
+
                     b.Property<DateTimeOffset>("RecordedAtUtc")
                         .HasColumnType("datetimeoffset");
 
@@ -2661,6 +2664,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.ToTable("EvaFirstHandoffProxies", null, t =>
                         {
+                            t.HasCheckConstraint("CK_EvaFirstHandoffProxies_ExportVersion", "[LatestExportedWorkflowVersion] IS NULL OR [LatestExportedWorkflowVersion] >= 0");
+
                             t.HasCheckConstraint("CK_EvaFirstHandoffProxies_NoAssignmentClaim", "[ClaimsEngineerAssignment] = 0");
 
                             t.HasCheckConstraint("CK_EvaFirstHandoffProxies_NoDeliveryClaim", "[ClaimsExternalDelivery] = 0");

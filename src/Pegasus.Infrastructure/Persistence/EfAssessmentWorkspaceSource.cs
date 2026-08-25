@@ -18,12 +18,38 @@ internal sealed class EfAssessmentWorkspaceSource(
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
 
-        var workflow = await context.CaseWorkflows.AsNoTracking()
+        var workflows = context.CaseWorkflows.AsNoTracking()
             .Include(item => item.Case)
             .ThenInclude(item => item.Principal)
-            .Include(item => item.DueWork)
-            .SingleOrDefaultAsync(item => item.CaseId == caseId, cancellationToken);
-        if (workflow is null)
+            .Include(item => item.DueWork);
+        var workspaceState = await workflows
+            .Where(item => item.CaseId == caseId)
+            .Select(item => new
+            {
+                Workflow = item,
+                LatestReviewVersion = context.CaseWorkflowEvents
+                    .Where(history => history.CaseId == item.CaseId
+                        && (history.EventType == "state_Review"
+                            || history.EventType == "case_returned_to_review"
+                            || history.EventType == "case_reopened_Review"))
+                    .Select(history => (long?)history.AfterVersion)
+                    .Max() ?? 0,
+                LatestExportVersion = context.EvaFirstHandoffProxies
+                    .Where(export => export.CaseId == item.CaseId)
+                    .Select(export => export.LatestExportedWorkflowVersion)
+                    .SingleOrDefault()
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (workspaceState is null)
+        {
+            return null;
+        }
+        var workflow = workspaceState.Workflow;
+        var access = new AssessmentAccessState(
+            Enum.Parse<CaseLifecycleState>(workflow.State),
+            workspaceState.LatestReviewVersion,
+            workspaceState.LatestExportVersion);
+        if (!access.CanOpen)
         {
             return null;
         }
@@ -66,11 +92,6 @@ internal sealed class EfAssessmentWorkspaceSource(
             assessmentFields,
             currentSpecification?.Lines ?? [],
             snapshot.Fields);
-        assessment = assessment with
-        {
-            Readiness = AssessmentPolicy.EvaluateReadiness(assessment)
-        };
-
         return new(
             new(
                 caseId,

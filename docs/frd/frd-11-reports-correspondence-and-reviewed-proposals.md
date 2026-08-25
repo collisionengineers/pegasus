@@ -98,6 +98,12 @@ approved, or sent by this action — it is strictly the draft-generation step
 the renderer boundary above already defines; approval and issue remain the
 separately owned human acts described below.
 
+The Assessment screen is unavailable in `Not ready`, `Held`, post-report and
+terminal states. It is available in `Review` and `Report preparation` only after
+a successful EVA export in the current Review cycle. A later optional Engineer
+assignment does not invalidate that export or gate access. Returning to Review
+for corrected case data starts a new cycle and requires a fresh export.
+
 **Readiness.** A single readiness rail decides whether the control is enabled:
 `AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
 post-Review list) plus only requirements first introduced after the case
