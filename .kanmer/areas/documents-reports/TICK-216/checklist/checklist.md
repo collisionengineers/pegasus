@@ -9,3 +9,12 @@
 ## Progress notes
 
 - 2026-08-25: Reconciled the ticket to FRD-11 and `docs/open-decisions.md`. The prior “all three tuples accepted” statement was incorrect because Ed/Neil qualifications are absent.
+
+## Closeout — TICK-216
+
+- [x] PR/merge for this ticket is `n/a — corrected evidence-only acceptance slice`
+- [x] `proof.md` finalised against SIMPLI-014 PR #415 / merged `origin/dev`
+- [x] Moved to Done
+- [x] Outcome records Andy-only acceptance and Ed/Neil unavailability
+- [x] No ticket worktree or branch exists
+- [x] No Kanmer claim exists to release
