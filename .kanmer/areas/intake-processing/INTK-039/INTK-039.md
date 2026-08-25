@@ -2,12 +2,15 @@
 id: INTK-039
 type: ticket
 title: Complete grouped image matching and lifecycle merge
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T12:11:45.000Z'
+taken_at: '2026-08-25T12:12:43.550Z'
+branch: task/intk-039-image-lifecycle-merge
+worktree: ../pegasus-worktrees/intk-039-image-lifecycle-merge
 labels:
   - operator-reported
   - image-intake
@@ -23,7 +26,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-25T12:11:40.078Z'
-updated: '2026-08-25T12:11:45.000Z'
+updated: '2026-08-25T12:12:43.550Z'
 ---
 
 ## What
