@@ -238,6 +238,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
             int expectedMemberCount,
             string actor,
             DateTimeOffset receivedAtUtc,
+            Guid? parentReceiptId,
             CancellationToken cancellationToken = default) =>
             throw UnexpectedCall();
 

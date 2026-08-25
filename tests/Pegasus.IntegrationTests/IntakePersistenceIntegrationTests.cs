@@ -97,7 +97,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260824123336_DropEvaHandoffTables",
                 "20260825001401_RemoveWorkflowCompletenessWaivers",
                 "20260825105037_AssessmentAccessExportVersion",
-                "20260825121453_GrantWorkerImageIntakeLifecycleEvents"
+                "20260825121453_GrantWorkerImageIntakeLifecycleEvents",
+                "20260825145216_MailboxImageIntake"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
