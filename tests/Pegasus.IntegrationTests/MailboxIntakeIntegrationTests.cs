@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Identity;
+using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
@@ -517,6 +518,146 @@ public sealed class MailboxIntakeIntegrationTests
 
             Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeReceipts"));
             Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeEvaluations"));
+        }
+        finally
+        {
+            if (Directory.Exists(workingRoot))
+            {
+                Directory.Delete(workingRoot, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public async Task OtherwiseUnidentifiedMailSubmitsOnlyDirectPhotosAsOneImageGroup()
+    {
+        var workingRoot = Path.Combine(
+            Path.GetTempPath(),
+            "Pegasus.MailboxImageIntakeIntegrationTests",
+            Guid.NewGuid().ToString("N"));
+        var inboxRoot = Path.Combine(workingRoot, "approved-inbox");
+        var inboxFolder = Path.Combine(inboxRoot, DefaultInboxFolderIdentity);
+        var artifactRoot = Path.Combine(workingRoot, "artifacts");
+        Directory.CreateDirectory(inboxFolder);
+        await File.WriteAllBytesAsync(
+            Path.Combine(inboxFolder, "0001-vehicle-photos.eml"),
+            CreateUnidentifiedVehiclePhotoMessage());
+
+        try
+        {
+            await using var database = await LocalDbTestDatabase.CreateAsync(
+                localArtifactRootFactory: _ => artifactRoot,
+                configureServices: services =>
+                {
+                    services.AddScoped<IIntakeWorkStore, EfIntakeWorkStore>();
+                    services.AddScoped<ReceiveIntake>();
+                    services.AddScoped<IIntakeSubmission>(provider =>
+                        provider.GetRequiredService<ReceiveIntake>());
+                    services.AddScoped<SubmitGroupedIntake>();
+                    services.AddScoped<IGroupedIntakeSubmission>(provider =>
+                        provider.GetRequiredService<SubmitGroupedIntake>());
+                    services.AddScoped<SubmitMailboxImageIntake>();
+                    services.AddScoped<ProcessQueuedIntake>();
+                    services.AddSingleton<IVrmRecognitionEngine>(
+                        new FakeVrmRecognitionEngine("AB12CDE"));
+                    services.AddLocalApprovedInbox(_ => new(
+                        LocalApprovedInboxOptions.RequiredRuntimeProfile,
+                        "instructions",
+                        "instructions@collisionengineers.co.uk",
+                        inboxRoot));
+                });
+
+            Guid stagedReceiptId;
+            Guid[] childReceiptIds;
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
+                var actor = ActionActor.SystemWorker("approved-inbox-poller");
+                Assert.Equal(1, await poll.ExecuteAsync(10, actor, CancellationToken.None));
+
+                var workStore = scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>();
+                var nowUtc = DateTimeOffset.UtcNow.AddMinutes(1);
+                var work = Assert.IsType<IntakeWorkItem>(await workStore.ClaimDispatchAsync(
+                    nowUtc,
+                    TimeSpan.FromMinutes(1),
+                    CancellationToken.None));
+                stagedReceiptId = work.StagedReceiptId;
+                await workStore.MarkDispatchedAsync(
+                    work.Id,
+                    Assert.IsType<string>(work.LeaseToken),
+                    nowUtc,
+                    CancellationToken.None);
+
+                Assert.Equal(
+                    QueuedIntakeProcessingOutcome.Completed,
+                    await IntakeWebDriver.CreateProcessor(scope.ServiceProvider)
+                        .ExecuteAsync(stagedReceiptId, CancellationToken.None));
+            }
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                var workStore = scope.ServiceProvider.GetRequiredService<IIntakeWorkStore>();
+                var evaluation = Assert.IsType<IntakeEvaluationRevision>(
+                    await workStore.GetCompletedEvaluationAsync(stagedReceiptId, CancellationToken.None));
+                var groups = scope.ServiceProvider.GetRequiredService<IIntakeSubmissionGroupStore>();
+                var group = Assert.IsType<IntakeSubmissionGroup>(
+                    await groups.FindAsync(
+                        IntakeSourceChannel.Mailbox,
+                        $"mailbox-images:{evaluation.ProcessedReceiptId:N}",
+                        CancellationToken.None));
+
+                Assert.Equal(IntakeSourceChannel.Mailbox, group.Channel);
+                Assert.Equal(evaluation.ProcessedReceiptId, group.ParentReceiptId);
+                Assert.Equal(
+                    ["vehicle-1.jpg", "vehicle-2.jpg", "vehicle-3.jpg"],
+                    group.Members
+                        .Select(member => member.SourceFileName)
+                        .OrderBy(fileName => fileName, StringComparer.Ordinal));
+                childReceiptIds = group.Members
+                    .OrderBy(member => member.Ordinal)
+                    .Select(member => member.StagedReceiptId)
+                    .ToArray();
+            }
+
+            Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM UnidentifiedItems"));
+            Assert.Equal(4L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
+
+            await using (var replayScope = database.CreateAsyncScope())
+            {
+                Assert.Equal(
+                    QueuedIntakeProcessingOutcome.NoOp,
+                    await IntakeWebDriver.CreateProcessor(replayScope.ServiceProvider)
+                        .ExecuteAsync(stagedReceiptId, CancellationToken.None));
+            }
+            Assert.Equal(1L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeSubmissionGroups"));
+            Assert.Equal(0L, await database.ScalarAsync<long>("SELECT COUNT(*) FROM UnidentifiedItems"));
+
+            foreach (var childReceiptId in childReceiptIds)
+            {
+                await using var scope = database.CreateAsyncScope();
+                _ = await IntakeWebDriver.DrainStagedAsync(
+                    scope.ServiceProvider,
+                    childReceiptId,
+                    CancellationToken.None);
+            }
+
+            await using (var scope = database.CreateAsyncScope())
+            {
+                await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(
+                    scope.ServiceProvider,
+                    CancellationToken.None);
+                var imageQueries = scope.ServiceProvider.GetRequiredService<IImageIntakeQueries>();
+                var imageIntake = Assert.Single(await imageQueries
+                    .ListAsync(associated: false, CancellationToken.None));
+                Assert.Equal("AB12CDE-01", imageIntake.ImageIntakeReference);
+                Assert.Equal("AB12CDE", imageIntake.NormalizedVehicleRegistration);
+                Assert.Equal(ImageInitiatedCaseState.AwaitingInstruction, imageIntake.State);
+                Assert.Equal(
+                    ["vehicle-1.jpg", "vehicle-2.jpg", "vehicle-3.jpg"],
+                    (await imageQueries.ListImagesAsync(imageIntake.Id, CancellationToken.None))
+                        .Select(image => image.FileName)
+                        .OrderBy(fileName => fileName, StringComparer.Ordinal));
+            }
         }
         finally
         {
@@ -1240,6 +1381,47 @@ public sealed class MailboxIntakeIntegrationTests
         using var stream = new MemoryStream();
         outer.WriteTo(stream);
         return stream.ToArray();
+    }
+
+    private static byte[] CreateUnidentifiedVehiclePhotoMessage()
+    {
+        var body = new Multipart("mixed")
+        {
+            new TextPart("plain") { Text = "Vehicle photographs attached." },
+            ImagePart("logo.png", ContentDisposition.Inline, [9]),
+            ImagePart("vehicle-1.jpg", ContentDisposition.Attachment, [1]),
+            ImagePart("vehicle-2.jpg", ContentDisposition.Attachment, [2]),
+            ImagePart("vehicle-3.jpg", ContentDisposition.Attachment, [3]),
+            new MimePart("application", "pdf")
+            {
+                FileName = "cover.pdf",
+                ContentDisposition = new ContentDisposition(ContentDisposition.Attachment),
+                Content = new MimeContent(new MemoryStream([4]))
+            }
+        };
+        var message = new MimeMessage
+        {
+            Subject = "Vehicle photographs",
+            Body = body
+        };
+        message.From.Add(new MailboxAddress(
+            "Unrecognised sender",
+            "unknown@example.invalid"));
+        message.To.Add(new MailboxAddress(
+            "Approved Inbox",
+            "instructions@collisionengineers.co.uk"));
+
+        using var stream = new MemoryStream();
+        message.WriteTo(stream);
+        return stream.ToArray();
+
+        static MimePart ImagePart(string fileName, string disposition, byte[] bytes) =>
+            new("image", fileName.EndsWith(".png", StringComparison.Ordinal) ? "png" : "jpeg")
+            {
+                FileName = fileName,
+                ContentDisposition = new ContentDisposition(disposition),
+                Content = new MimeContent(new MemoryStream(bytes))
+            };
     }
 
     private static byte[] CreateInlineForwardedProtocolMessage()

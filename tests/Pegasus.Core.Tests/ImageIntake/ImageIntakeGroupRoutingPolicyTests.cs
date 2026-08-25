@@ -35,6 +35,21 @@ public sealed class ImageIntakeGroupRoutingPolicyTests
     }
 
     [Fact]
+    public void AllUnreadableImagesRouteToUnidentifiedWithSpecificReason()
+    {
+        var result = ImageIntakeGroupRoutingPolicy.Evaluate(
+        [
+            Member(VrmRecognitionOutcomeKind.NoReadableResult, null, null),
+            Member(VrmRecognitionOutcomeKind.NoReadableResult, null, null)
+        ],
+        expectedMemberCount: 2,
+        eligibleCaseCount: 0);
+
+        Assert.Equal(ImageIntakeGroupRoutingDecision.RouteToUnidentified, result.Decision);
+        Assert.Equal("group_no_accepted_vrm", result.ReasonCode);
+    }
+
+    [Fact]
     public void IncompleteMemberWaitsWithoutRouting()
     {
         var result = ImageIntakeGroupRoutingPolicy.Evaluate(

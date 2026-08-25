@@ -276,6 +276,17 @@ The sender route and the underlying work provider are related but distinct facts
 4. For a direct-provider route, use that provider’s rules to determine instruction type and any related case.
 5. For an intermediary route, use the intermediary’s rules to determine the underlying provider, instruction type, and any related case.
 
+If a newly received email cannot otherwise be identified or routed, but carries
+directly attached vehicle photographs, those photographs enter Image Intake as
+one group through the same route as a grouped manual upload. The image-group
+outcome replaces the parent email's Unidentified outcome: one usable
+registration may associate the group to one eligible Case or create one
+Image-initiated Case, while no usable registration, conflicting registrations,
+or a terminal processing failure produces the group's one Unidentified outcome.
+The original EML, inline signature/logo images, and images derived from another
+attachment are not members of that group. This rule applies to newly processed
+mail and does not replay or alter existing Unidentified item U35.
+
 A provider may send some work directly and other work through an intermediary. Those are separate routes to the same provider. An intermediary email must not be interpreted as though it were a direct provider email.
 
 Case association must follow the identified route’s rules. Providers do not generally quote a Collision Engineers Case/PO, so Case/PO is never the universal first match. It may be used only as a lowest-priority fallback where the route’s evidence supports doing so.
