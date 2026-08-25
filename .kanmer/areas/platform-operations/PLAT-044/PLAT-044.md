@@ -2,12 +2,13 @@
 id: PLAT-044
 type: ticket
 title: Stop Assessment opening from repeating Review and content-store work
-status: implementing
+status: review
 area: platform-operations
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T08:47:03.040Z'
+  review: '2026-08-25T10:07:34.510Z'
 taken_at: '2026-08-25T08:52:15.282Z'
 branch: task/plat-044-assessment-open-latency
 worktree: ../pegasus-worktrees/plat-044-assessment-open-latency
@@ -23,10 +24,12 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+commits:
+  - 8a9508f6
 deployment: not-deployed
 archived: false
 created: '2026-08-25T08:46:50.919Z'
-updated: '2026-08-25T08:52:15.282Z'
+updated: '2026-08-25T10:07:34.510Z'
 ---
 
 ## What
@@ -46,8 +49,10 @@ QDOS26016 takes 5–10 seconds to open. Live investigation found that the GET re
 
 ## Verification
 
-- [ ] Assessment GET performs no document-content reads and uses a bounded database command count.
-- [ ] Review prerequisites no longer appear as report-readiness issues.
-- [ ] Report generation batch-loads photographs with integrity and order preserved.
+- [x] Assessment GET performs no document-content reads and uses exactly six database reader commands.
+- [x] Review prerequisites no longer appear as report-readiness issues.
+- [x] Report generation batch-loads photographs with integrity and order preserved.
 
 ## Outcome
+
+Implemented in `8a9508f6`. Release build and the full compatible test suite are green. Not deployed.
