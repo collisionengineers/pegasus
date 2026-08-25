@@ -30,6 +30,7 @@ Future otherwise-Unidentified mailbox emails with direct image attachments now s
 - No deployment or mailbox mutation was performed. The migration must be deployed with the application before the route is live.
 - U35 remains unchanged by operator decision; there is deliberately no replay or backfill.
 - A partial terminal child-submission failure registers one group-scoped technical U-item. Reconciliation uses the same origin and operation key, so it cannot split into per-child outcomes.
+- If every member is already durable and only a transient final read fails, the complete group is left to settle normally rather than opening a competing technical U.
 - No unrelated issues or follow-up tickets were identified.
 
 ## Verification hand-off
@@ -38,7 +39,7 @@ Run on merged `dev` (and again on the exact release candidate before production)
 
 - `dotnet restore Pegasus.slnx --locked-mode`
 - `dotnet build Pegasus.slnx --configuration Release --no-restore` — expect 0 warnings and 0 errors.
-- `dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` — implementation result: 989 passed.
+- `dotnet test tests/Pegasus.Core.Tests/Pegasus.Core.Tests.csproj --configuration Release --no-build` — implementation result after review fix: 990 passed.
 - `dotnet test tests/Pegasus.ArchitectureTests/Pegasus.ArchitectureTests.csproj --configuration Release --no-build` — implementation result: 99 passed.
 - Run `OtherwiseUnidentifiedMailSubmitsOnlyDirectPhotosAsOneImageGroup` — expect one mailbox group containing exactly three direct JPEGs, no parent U-item, idempotent replay, and one unassociated AB12CDE Image-initiated Case with those three images.
 - Run the full non-corpus/non-browser Integration profile — implementation result: 910 passed, 2 expected skips; the affected SQL-backed scenario passed again after the final simplification.

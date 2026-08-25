@@ -40,3 +40,7 @@ Independent review covered reuse, simplification, efficiency and abstraction alt
 - **Consistency:** reused `DownloadIntakeSource.FixedTimeHashEquals` and checked retained content length as well as hash.
 - **Correctness found during the pass:** a final failure after one child was staged could have opened a parent U-item and later a child U-item. The terminal outcome is now keyed to the partial submission group, and grouped reconciliation replays that same technical-failure origin. Added a focused assertion proving group-scoped identity.
 - **Disposition:** all findings applied. No abstraction, cache, queue, flag, compatibility path, or unrelated cleanup was added. `git diff --check origin/dev` passes (line-ending notices only).
+
+## Review fix — 2026-08-25
+
+Independent PR review found that a recoverable final group read could fail after every child member was already durable. Registering a technical U in that state would compete with the complete group's normal Image Intake outcome. The catch now suppresses a technical U only for a transient failure when durable membership is complete; incomplete groups retain the group-scoped technical failure, and non-transient identity conflicts still fail closed. A focused regression covers the completed-group case.

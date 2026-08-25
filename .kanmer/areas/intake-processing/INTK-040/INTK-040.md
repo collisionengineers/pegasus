@@ -27,12 +27,13 @@ refs:
   - docs/adr/0029-image-initiated-case-projection.md
 commits:
   - 1cabc66e
+  - 2440f1a6
 prs:
   - '548'
 deployment: not-deployed
 archived: false
 created: '2026-08-25T14:43:04.295Z'
-updated: '2026-08-25T15:27:59.105Z'
+updated: '2026-08-25T15:34:40.958Z'
 ---
 
 ## What
