@@ -21,7 +21,6 @@ labels:
   - performance
   - box
 links: []
-docs_todo: true
 commits:
   - de415cea
 prs:
@@ -29,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T15:19:04.949Z'
-updated: '2026-08-25T06:39:43.193Z'
+updated: '2026-08-25T06:42:07.771Z'
 ---
 
 ## What the operator saw

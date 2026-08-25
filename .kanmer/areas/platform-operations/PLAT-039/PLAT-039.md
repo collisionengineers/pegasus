@@ -20,7 +20,6 @@ labels:
   - found-during-qa
   - box
 links: []
-docs_todo: true
 commits:
   - 7d6a948a
 prs:
@@ -28,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T12:09:36.762Z'
-updated: '2026-08-25T06:39:43.175Z'
+updated: '2026-08-25T06:42:07.789Z'
 ---
 
 ## Every Box read from the Web app fails one hour after the container starts

@@ -13,13 +13,32 @@ labels:
   - design
   - copy
   - follow-up
-links: []
+links:
+  - CASE-012
+  - AUTO-006
+  - INTK-001
+  - INTK-004
+  - INTK-037
+  - INTK-038
 refs:
   - docs/frd/frd-12-operator-experience.md
-archived: false
+archived: true
 created: '2026-08-20T11:33:48.908Z'
-updated: '2026-08-20T11:33:48.908Z'
+updated: '2026-08-25T06:42:34.174Z'
 ---
+
+## Disposition
+
+Split into focused owners on 2026-08-25:
+
+- Case task identities, retained-evidence presentation, dead Case/Assessment controls, and Case/Assessment narration → [[CASE-012]].
+- Triage case, finding, evidence, and reply identities → [[INTK-037]].
+- Mail decision and classification metadata → [[INTK-004]].
+- Image Intake engine, version, disposition, and case-version presentation → [[INTK-038]].
+- Automation Activity target and filter narration → [[AUTO-006]].
+- Upload Status lede narration → [[INTK-001]].
+
+Every original bullet has an active owner; this umbrella is archived to prevent duplicate implementation.
 
 ## Why
 

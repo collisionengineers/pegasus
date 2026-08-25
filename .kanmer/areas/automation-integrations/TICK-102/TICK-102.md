@@ -1,10 +1,8 @@
 ---
 id: TICK-102
 type: ticket
-title: >-
-  AI-09 — Staff Send to AI creates one durable idempotent capability-scoped work
-  request bound to an immutable case/version stamp…
-status: verifying
+title: Activate AI-09 after accepting a non-preview production transport
+status: backlog
 area: automation-integrations
 order: 10
 assignee: ''
@@ -14,6 +12,7 @@ stageEntered:
   implementing: '2026-08-20T05:40:03.231Z'
   review: '2026-08-20T05:40:10.234Z'
   verifying: '2026-08-20T05:46:39.396Z'
+  backlog: '2026-08-25T06:42:09.116Z'
 labels:
   - capability
   - AI-09
@@ -28,27 +27,34 @@ refs:
   - docs/adr/0021-automation-actor-direct-write-assessment-contract.md
 archived: false
 created: '2026-08-12T15:06:02.768Z'
-updated: '2026-08-25T00:49:44.400Z'
+updated: '2026-08-25T06:42:09.116Z'
 ---
 
 ## What
 
-Plan and research **AI-09**: Staff `Send to AI` creates one durable idempotent capability-scoped work request bound to an immutable case/version stamp; the hand-off carries a pointer only, and the scoped worker returns its work as attributed unconfirmed Automation Actor writes reviewed at manual engineer assignment, with delivery status and visible failure on the tracking record
+Activate AI-09 only after Collision Engineers accepts a non-preview production transport for the existing durable Send-to-AI work request.
 
 ## Why
 
-This is allocated to **Now / 0.1.0-alpha.1** in `docs/capabilities.md`. It is a current allocated outcome with remaining caller/evidence work.
+The durable request, immutable case/version stamp, pointer-only hand-off, idempotency, attributed unconfirmed writes, and delivery states already exist under ADR-0021. They are not a live capability: `Features:SendToAi` is absent from production configuration, and the current research-preview channel is coded to fail closed outside `DevelopmentOffline`.
 
-## Approach
+A closed composition gate is disabled behavior, not a delivered feature. This ticket therefore returns to Backlog until the separate non-preview transport decision named by `docs/capabilities.md` is accepted.
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+## Activation boundary
+
+- Accept the production transport and its security, identity, failure, and recovery behavior before changing the gate.
+- Reuse the existing AI-09 Core request and review contracts; do not keep the preview transport as a fallback.
+- Compose the accepted transport in production and remove or replace the DevelopmentOffline-only restriction as the decision requires.
+- Keep the surface absent and fail closed until the complete production route is supportable.
 
 ## Verification
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+- [ ] The non-preview production transport decision is accepted and linked.
+- [ ] A real production Send-to-AI round trip uses the durable pointer-only request and records visible delivery status.
+- [ ] Duplicate, expired, cancelled, or failed requests cannot mutate accepted data.
+- [ ] Returned Automation Actor writes remain attributed and unconfirmed until the accepted staff review point.
+- [ ] Production failure and recovery evidence is recorded before the capability advances to Done.
 
-## Notes
+## Existing evidence
 
-- Source: `docs/capabilities.md` — AI-09.
+The ticket's research, plan, checklist, and post-implementation report remain as evidence of the implemented-but-closed preview path; they are not evidence of live activation.
