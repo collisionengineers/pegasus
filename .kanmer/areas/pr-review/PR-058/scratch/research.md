@@ -1,0 +1,1 @@
+Verified the regression at PR #539 commit cf28b8b0 against origin/dev and commit 4d3a3d04. The existing IDocumentContentStore batch port, Box override, and Box tests are intact; only EvaHandoffStore bypasses them. Simplest route is to restore the prior batch call and add a narrow source-shape regression assertion beside the existing EVA architecture check.
