@@ -304,3 +304,9 @@ The accepted-only/custody conclusion immediately above is superseded after direc
 - If an edit invalidates a Review Case, the edit succeeds, the Case moves to Not ready, and the Case displays a notification naming the missing requirement.
 - Case/Audit custody is Box storage state, not readiness to send, and must not be an Export gate.
 - Current code does not fully uphold this: Review completeness is broad booleans rather than concrete field validation, and `ReturnToReviewAsync` directly assigns Review. The fix is one concrete Core readiness policy applied on entry/return and on edits, with Export checking Review plus technical package validity only.
+
+## Final reconciliation — 2026-08-25
+
+This section is the operative conclusion. Earlier research saying Export should be permissive without a Review gate, or should require accepted-only values, thirteen populated fields, Case/Audit custody, or no Inspection Date default, is superseded.
+
+The final rule is one owner and one act: Review requires complete instructions and images in every configuration; Export requires Review and technical package validity only. Populated suggestions are usable, VAT/mileage are optional, mileage needs its unit, and blank Inspection Date defaults on Export. Case/Audit custody are not duplicate business gates. Commit c86b803c resolves review tickets PR-055, PR-056, PR-057, PR-058 and PR-060.
