@@ -160,6 +160,39 @@ public sealed class MailboxImageIntakeSubmissionTests
     }
 
     [Fact]
+    public async Task FailureAfterEveryMemberIsDurableLeavesTheCompleteGroupToSettle()
+    {
+        var parentId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var stagedReceiptId = Guid.NewGuid();
+        var artifacts = new MemoryArtifactStore();
+        var receipt = Receipt(
+            parentId,
+            [artifacts.Asset("photo", "one.jpg", "image/jpeg", IntakeAssetKind.Attachment, [2])]);
+        var groupStore = new FakeGroupStore
+        {
+            ParentGroup = new(
+                groupId,
+                IntakeSourceChannel.Mailbox,
+                $"mailbox-images:{parentId:N}",
+                1,
+                "system-worker:mailbox-image-intake",
+                receipt.ReceivedAtUtc,
+                [new(groupId, 0, stagedReceiptId, "one.jpg", "HASH", false)],
+                parentId)
+        };
+        var unidentified = new RecordingUnidentified();
+        var service = new SubmitMailboxImageIntake(
+            artifacts,
+            new RecordingGroupedSubmission(new IOException("final group read unavailable")),
+            groupStore,
+            unidentified);
+
+        Assert.True(await service.ExecuteAsync(receipt, true));
+        Assert.Empty(unidentified.Requests);
+    }
+
+    [Fact]
     public async Task TransientSubmissionFailureRetriesBeforeBecomingUnidentified()
     {
         var artifacts = new MemoryArtifactStore();
