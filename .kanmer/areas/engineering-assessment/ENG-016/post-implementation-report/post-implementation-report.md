@@ -1,23 +1,28 @@
-# Post-implementation report — ENG-016 final amended head
+# Post-implementation report — ENG-016 amended head
 
 ## Outcome
-PR #539 at `c86b803c3d9c19c02ed765560759458513f2849f` implements one Review readiness owner and one Export send-to-Engineer act. It removes the duplicate hand-off and EVA MCP tools, records exact-replay action history and the once-per-case proxy, batches verified images, and removes completeness waivers.
+PR #539 at `cc6b0ee75edd413537a16445a42f95a329c309fe` implements one Review readiness owner and one Export send-to-Engineer act. It removes the duplicate hand-off and EVA MCP tools, records exact-replay action history and the once-per-case proxy, batches verified images, removes completeness waivers, and revalidates Review under the locked recording transaction.
+
+## Governing-document compliance
+- FRD-07: Review is the only business readiness gate; suggested/optional/default field rules and all three engineering routes match code and tests.
+- FRD-04: every successful Export records attributed permanent ActionHistory; replay is serialized.
+- ADR-0030: obsolete pre-cutover tables are removed directly and recovery is roll-forward.
+- ADR-0031: ADR-0021's EVA MCP tool promise is superseded; no replacement automation route exists.
+
+## File/rationale inventory
+The final `files.md` accounts for every PR path in four exact groups: governing docs; duplicate hand-off removals; Export/readiness/migrations; and their Core/Architecture/Integration tests. Reference EVA samples are excluded and uncommitted.
 
 ## Review blocker dispositions
-- PR-055: serializable Case-row lock plus concurrent same-key regression.
-- PR-056: completeness switches removed end-to-end; completeness is unconditional.
-- PR-057: ADR-0031 supersedes ADR-0021; MCP-06/current citations match the removed tools.
-- PR-058: existing `ReadVersionsAsync` batch restored and architecture-pinned.
-- PR-060: migration commentary states operation-keyed ActionHistory and ADR-0030 roll-forward.
-- PR-059: this final evidence reconciliation.
+PR-055 atomic same-key replay; PR-056 unconditional completeness; PR-057 ADR/MCP reconciliation; PR-058 batch reads; PR-060 migration wording; PR-061 locked-state Review recheck; PR-059 final evidence reconciliation.
 
 ## Verification
-- Release build: passed, 0 warnings/errors.
+- Release solution build: passed, 0 warnings/errors.
 - Focused Core: 25 passed.
 - Focused Architecture: 1 passed.
-- Focused Integration: 12 passed; the deliberate migration census was then updated and its rerun passed 1/1.
-- Markdown placement: passed; documentation links: 197 files passed; diff check passed.
-- GitHub amended-head checks: four early checks green; infrastructure, unit, browser and three SQL shards were still running at the final evidence snapshot.
+- Earlier combined focused Integration: 12 passed; corrected migration census rerun: 1 passed.
+- Final locked-state focused Integration: 1 passed in 23s after its focused project build passed.
+- Markdown placement, 197-link validation and diff checks passed.
+- GitHub CI for amended head `cc6b0ee7`: documentation, local-development-scripts and reference-data green; remaining jobs pending at this snapshot. No final CI claim yet.
 
 ## Deployment
-Not deployed. Release and production proof remain separate.
+Not deployed.

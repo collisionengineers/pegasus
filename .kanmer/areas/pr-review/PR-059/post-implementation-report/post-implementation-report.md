@@ -1,9 +1,12 @@
 # Post-implementation report — PR-059
 
-## Outcome
-The five implementation blockers are present in PR #539 at `c86b803c`. ENG-016 is linked to FRD-07 and FRD-04, and its final record identifies ADR-0030 and ADR-0031. The product rule remains one Review gate and one Export act; earlier accepted-only/custody conclusions are superseded.
+## Reconciliation result
+ENG-016 current documents now identify the operative one-Review/one-Export rule and explicitly supersede earlier accepted-only/custody conclusions. Its final files document groups every changed PR path by one exact rationale and its report maps FRD-07, FRD-04, ADR-0030 and ADR-0031 to implementation and evidence.
 
-## Audit
-The amended diff contains atomic replay, unconditional completeness, ADR supersession, batch image reads, and corrected migration commentary. Release build passed with 0 warnings/errors; focused Core 25, Architecture 1, integration 12 plus the corrected migration test 1. Markdown placement and 197-link validation passed. CI is not claimed final until GitHub finishes the amended head. Deployment is unclaimed.
+## Blocker audit
+PR-055, PR-056, PR-057, PR-058, PR-060 and later PR-061 are implemented on PR #539 at `cc6b0ee7`. PR-061 closes the final gap by validating Review from the workflow row read under the existing recording lock.
 
-The board server cannot validate ADR-0030/0031 refs until those branch files are visible in its configured main checkout; FRD-07 and FRD-04 refs are recorded now. Commit `c86b803c`, PR #539.
+## Evidence
+Release build 0 warnings/errors; Core 25; Architecture 1; combined focused Integration 12 plus migration census rerun 1; final locked-state Integration 1. Markdown placement, documentation links and diff checks pass. GitHub final CI is deliberately not claimed while amended-head jobs are pending. Deployment is unclaimed.
+
+FRD-07 and FRD-04 are recorded as Kanmer refs. ADR-0030/0031 are named in the governing compliance inventory; the board's configured older repoRoot cannot validate branch-only ADR paths until they are visible there.

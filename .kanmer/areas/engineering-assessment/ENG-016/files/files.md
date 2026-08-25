@@ -19,3 +19,8 @@
 - `EvaHandoffPersistenceTests.cs` is deleted with the duplicate hand-off owner.
 
 Every path in `gh pr diff 539 --name-only` belongs to one group above. Reference EVA sample files are not part of the PR or this work.
+
+## PR-061 amendment
+
+- `src/Pegasus.Infrastructure/Persistence/EvaHandoffStore.cs`: validates Review from the workflow row under the existing export transaction/lock.
+- `tests/Pegasus.IntegrationTests/CustodyOutboxIntegrationTests.cs`: deterministic held-lock/demotion regression proving no proxy or history is written.
