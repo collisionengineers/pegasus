@@ -140,7 +140,17 @@ public sealed class EvaHandoffStore(
         await using var transaction = await context.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
-        await AcquireExportRecordLockAsync(context, request.CaseId, cancellationToken);
+        var lockedState = await ReadLockedExportStateAsync(
+            context,
+            request.CaseId,
+            cancellationToken);
+        if (!string.Equals(
+                lockedState,
+                CaseLifecycleState.Review.ToString(),
+                StringComparison.Ordinal))
+        {
+            throw new CaseNotInReviewException(request.CaseId);
+        }
 
         var aggregateId = request.CaseId.ToString("D");
         const string eventKind = "eva_bundle_exported";
@@ -225,24 +235,21 @@ public sealed class EvaHandoffStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    private static async Task AcquireExportRecordLockAsync(
+    private static Task<string?> ReadLockedExportStateAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
     {
-        if (!context.Database.IsSqlServer())
-        {
-            return;
-        }
-
-        _ = await context.CaseWorkflows
-            .FromSqlInterpolated($"""
+        var workflows = context.Database.IsSqlServer()
+            ? context.CaseWorkflows.FromSqlInterpolated($"""
                 SELECT *
                 FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
                 WHERE [CaseId] = {caseId}
                 """)
+            : context.CaseWorkflows.Where(item => item.CaseId == caseId);
+        return workflows
             .AsNoTracking()
-            .Select(item => item.CaseId)
+            .Select(item => item.State)
             .SingleOrDefaultAsync(cancellationToken);
     }
 
