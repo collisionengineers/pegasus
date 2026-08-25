@@ -37,14 +37,6 @@
                     <dd class="tabular">@Model.Configuration.PolicyVersion</dd>
                 </div>
                 <div>
-                    <dt>Complete instructions before Engineer assignment</dt>
-                    <dd>@(Model.Configuration.RequireCompleteInstructionsBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-                </div>
-                <div>
-                    <dt>Complete images before Engineer assignment</dt>
-                    <dd>@(Model.Configuration.RequireCompleteImagesBeforeEngineerAssignment ? "Required" : "Not required")</dd>
-                </div>
-                <div>
                     <dt>Staff instruction review before Engineer assignment</dt>
                     <dd>@(Model.Configuration.RequireStaffInstructionReviewBeforeEngineerAssignment ? "Required" : "Not required")</dd>
                 </div>
@@ -68,14 +60,6 @@
                 <input asp-for="OperationKey" type="hidden" />
                 <fieldset class="role-choices role-choices--stacked">
                     <legend>Required before Engineer assignment</legend>
-                    <label class="choice">
-                        <input asp-for="RequireCompleteInstructionsBeforeEngineerAssignment" />
-                        <span>Instructions are complete</span>
-                    </label>
-                    <label class="choice">
-                        <input asp-for="RequireCompleteImagesBeforeEngineerAssignment" />
-                        <span>Images are complete</span>
-                    </label>
                     <label class="choice">
                         <input asp-for="RequireStaffInstructionReviewBeforeEngineerAssignment" />
                         <span>A staff member reviewed the instructions</span>

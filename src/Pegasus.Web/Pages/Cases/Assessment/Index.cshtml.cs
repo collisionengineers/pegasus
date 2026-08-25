@@ -14,8 +14,8 @@ using Pegasus.Core.Workflow;
 namespace Pegasus.Web.Pages.Cases.Assessment;
 
 /// <summary>
-/// The Send to AI wiring for the assessment surface (AI-09; see ADR-0021 /
-/// FRD-11: docs/adr/0021-automation-actor-direct-write-assessment-contract.md,
+/// The Send to AI wiring for the assessment surface (AI-09; see ADR-0031 /
+/// FRD-11: docs/adr/0031-automation-actor-contract-without-eva-export-tools.md,
 /// docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md), plus
 /// the DELIV-012 report-draft entry point. This model binds the case
 /// identity header, the Send to Claude panel, the report-draft panel, and

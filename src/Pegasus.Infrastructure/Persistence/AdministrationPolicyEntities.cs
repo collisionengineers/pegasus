@@ -3,8 +3,6 @@ namespace Pegasus.Infrastructure.Persistence;
 internal sealed class WorkflowConfigurationEntity
 {
     public required string Id { get; set; }
-    public bool RequireCompleteInstructionsBeforeEngineerAssignment { get; set; }
-    public bool RequireCompleteImagesBeforeEngineerAssignment { get; set; }
     public bool RequireStaffInstructionReviewBeforeEngineerAssignment { get; set; }
     public bool RequireStaffImageReviewBeforeEngineerAssignment { get; set; }
     public int Version { get; set; }

@@ -55,14 +55,8 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
     internal DbSet<CaseWorkflowEventEntity> CaseWorkflowEvents => Set<CaseWorkflowEventEntity>();
     internal DbSet<CaseEditLeaseOperationEntity> CaseEditLeaseOperations =>
         Set<CaseEditLeaseOperationEntity>();
-    internal DbSet<EvaHandoffRevisionEntity> EvaHandoffRevisions =>
-        Set<EvaHandoffRevisionEntity>();
     internal DbSet<EvaFirstHandoffProxyEntity> EvaFirstHandoffProxies =>
         Set<EvaFirstHandoffProxyEntity>();
-    internal DbSet<EvaHandoffDownloadOperationEntity> EvaHandoffDownloadOperations =>
-        Set<EvaHandoffDownloadOperationEntity>();
-    internal DbSet<EvaHandoffOperationEntity> EvaHandoffOperations =>
-        Set<EvaHandoffOperationEntity>();
     internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();
     internal DbSet<CaseReportSentEvidenceEntity> CaseReportSentEvidence => Set<CaseReportSentEvidenceEntity>();
     internal DbSet<CaseDueWorkEntity> CaseDueWork => Set<CaseDueWorkEntity>();

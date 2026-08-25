@@ -56,7 +56,8 @@ function Get-MigrationPermissionMatrix {
     $removedTables = @(
         '20260730203141_ThirdPartyVehicleEvidenceAndRemoveBootstrap.cs',
         '20260730203833_RemoveDormantOpenIddict.cs',
-        '20260814094632_DropBoxFileRequests.cs'
+        '20260814094632_DropBoxFileRequests.cs',
+        '20260824123336_DropEvaHandoffTables.cs'
     ) | ForEach-Object {
         $terminalSource = Get-Content -Raw -LiteralPath (Join-Path (Split-Path -Parent $migrationPath) $_)
         [regex]::Matches($terminalSource, 'DropTable\(\s*name:\s*"(?<table>[A-Za-z0-9]+)"') |
@@ -238,17 +239,15 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'DELETE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|IntakeSearchDocuments")
     }
-    # 20260819180000_GrantEvaHandoffDownloadOperations: closes a live production
-    # gap (verified against sys.database_permissions) -- the table was created
-    # by 20260811122654_CaseCustodyEvaRecovery with no grant at all. Mirrors
-    # the sibling EvaHandoffOperations/EvaHandoffRevisions shape: Web reads
-    # and appends via EvaHandoffStore; the Worker never calls it and gets the
-    # same defensive DELETE denial those siblings hold, nothing granted.
-    foreach ($permission in @('SELECT', 'INSERT')) {
-        $expected.Add("pegasus_web_runtime_role|G|$permission|EvaHandoffDownloadOperations")
-    }
-    $expected.Add('pegasus_web_runtime_role|D|DELETE|EvaHandoffDownloadOperations')
-    $expected.Add('pegasus_worker_runtime_role|D|DELETE|EvaHandoffDownloadOperations')
+    # 20260819180000_GrantEvaHandoffDownloadOperations granted the Web role
+    # SELECT/INSERT on EvaHandoffDownloadOperations, closing a live production
+    # gap. ENG-016 then dropped that table together with EvaHandoffOperations
+    # and EvaHandoffRevisions, and SQL Server drops a table's permission rows
+    # with the table -- so the matrix expects nothing for it. The migration is
+    # still named here because it remains in the folder and still carries a
+    # GRANT, which Test-AzureDeploymentPlan.ps1 requires this script to
+    # account for by name. The three baseline-derived tables leave the matrix
+    # through $removedTables above.
     # 20260819101344_GroupedIntakeSubmission: the Upload page's grouped
     # submission tables. EfIntakeSubmissionGroupStore only reads and appends
     # (no UPDATE, no Remove); the Web role gets SELECT and INSERT (it creates

@@ -30,8 +30,6 @@ public sealed class AutomationMcpIngressTests
         "pegasus_document_export",
         "pegasus_assessment_get",
         "pegasus_assessment_update",
-        "pegasus_eva_bundle_generate",
-        "pegasus_eva_handoff_status",
         "pegasus_mail_list",
         "pegasus_mail_get",
         "pegasus_mail_correct_classification",

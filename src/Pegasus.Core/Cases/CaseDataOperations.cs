@@ -77,10 +77,8 @@ public static class CaseCompletenessPolicy
         // policy — nobody is going to confirm evidence a staff member never
         // touched — so every one of them was born Not ready and stayed there.
         var satisfiesPolicy =
-            (!configuration.RequireCompleteInstructionsBeforeEngineerAssignment
-                || completeness.InstructionComplete)
-            && (!configuration.RequireCompleteImagesBeforeEngineerAssignment
-                || completeness.ImagesComplete)
+            completeness.InstructionComplete
+            && completeness.ImagesComplete
             && (automaticallyDefinitive
                 || ((!configuration.RequireStaffInstructionReviewBeforeEngineerAssignment
                         || completeness.InstructionConfirmedByStaff)
@@ -155,6 +153,12 @@ public static class CaseDataPolicy
             VatStatus = Text(data.VatStatus, 100, nameof(data.VatStatus)),
             InspectionAddress = Text(data.InspectionAddress, 1000, nameof(data.InspectionAddress))
         };
+
+        if (normalized.VehicleMileage.HasValue != (normalized.VehicleMileageUnit is not null))
+        {
+            throw new InvalidOperationException(
+                "Vehicle mileage and mileage unit must be saved together.");
+        }
 
         ValidateInspection(normalized);
         return normalized;

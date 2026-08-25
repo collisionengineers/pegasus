@@ -8,9 +8,10 @@ using Pegasus.Core.Eva;
 namespace Pegasus.Core.Tests.Qdos;
 
 /// <summary>
-/// CASE-019: an operator downloading their own case is not an EVA hand-off.
-/// These tests hold both halves of that: the export carries a case the
-/// hand-off would refuse, and the hand-off still refuses it.
+/// CASE-019 / ENG-016: the operator export is the one act over the EVA
+/// archive. These tests hold what that bar admits — a case the deleted
+/// hand-off would have refused still exports, with its gaps named rather
+/// than blocking.
 /// </summary>
 public sealed class CaseOperatorExportTests
 {
@@ -33,17 +34,6 @@ public sealed class CaseOperatorExportTests
         Assert.Null(export.Source!.Fields.VatStatus);
         var vat = Assert.Single(export.Source.Provenance, field => field.Name == "VAT Status");
         Assert.Equal(EvaEvidenceStatus.Unrecorded, vat.Status);
-    }
-
-    [Fact]
-    public void TheSameCaseIsStillRefusedAHandoff()
-    {
-        var mapping = CaseEvaMapping.MapForProduction(Evidence(vatStatus: null), Accepted);
-
-        Assert.Null(mapping.Source);
-        Assert.Contains(
-            "VAT Status does not have accepted evidence.",
-            mapping.BlockingReasons);
     }
 
     [Fact]
@@ -71,17 +61,6 @@ public sealed class CaseOperatorExportTests
         var mileage = Assert.Single(export.Source!.Provenance, field => field.Name == "Mileage");
         Assert.Equal(EvaEvidenceStatus.Suggested, mileage.Status);
         Assert.Equal("121823", mileage.Value);
-    }
-
-    [Fact]
-    public void ASuggestedMileageStillCannotReachAHandoff()
-    {
-        var mapping = CaseEvaMapping.MapForProduction(
-            Evidence(mileage: new("121823", EvaEvidenceStatus.Suggested, "vehicle-lookup", "latest-mot-observation/v2")),
-            Accepted);
-
-        Assert.Null(mapping.Source);
-        Assert.Contains("Mileage does not have accepted evidence.", mapping.BlockingReasons);
     }
 
     [Fact]
