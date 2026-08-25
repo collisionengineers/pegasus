@@ -15,3 +15,7 @@ Correct the machine-readable metadata of ADR-0002/ADR-0032 without changing thei
 ## Proof
 
 The focused diff contains two metadata-line changes; prose/index retains the partial relationship; documentation validation passes.
+
+## Simplification pass — 2026-08-25
+
+n/a — docs-only. The correction is exactly two metadata values; the accepted partial-supersession prose and index remain the single human-readable explanation. No compatibility or adjacent cleanup was added.

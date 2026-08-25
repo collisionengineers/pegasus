@@ -2,12 +2,13 @@
 id: INTK-040
 type: ticket
 title: Route unidentified mailbox image attachments through Image Intake
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T14:43:12.393Z'
+  review: '2026-08-25T15:27:59.105Z'
 taken_at: '2026-08-25T14:45:04.050Z'
 branch: task/intk-040-mailbox-image-intake
 worktree: ../pegasus-worktrees/intk-040-mailbox-image-intake
@@ -24,9 +25,14 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
   - docs/frd/frd-12-operator-experience.md
   - docs/adr/0029-image-initiated-case-projection.md
+commits:
+  - 1cabc66e
+prs:
+  - '548'
+deployment: not-deployed
 archived: false
 created: '2026-08-25T14:43:04.295Z'
-updated: '2026-08-25T14:45:04.050Z'
+updated: '2026-08-25T15:27:59.105Z'
 ---
 
 ## What

@@ -1,0 +1,1 @@
+2026-08-25 implementation hand-off: commit 1cabc66e pushed; PR #548 targets dev. Release build, Core 989/989, Architecture 99/99, SQL-backed U35-shaped scenario all pass after final simplification. Full non-corpus/non-browser Integration run earlier in the branch passed 910 with 2 expected skips. No deployment and no mutation/replay of U35.

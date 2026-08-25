@@ -6,9 +6,10 @@
 - [x] Add focused behavioral, integration, custody, replay and exclusion tests.
 - [x] Run locked restore, Release build, focused/relevant/full tests successfully.
 - [x] Run and record the simplification pass over the branch diff.
-- [ ] Write the post-implementation report, push the branch, open the PR to dev, and move the ticket to Review.
+- [x] Write the post-implementation report, push the branch, open PR #548 to dev, and move the ticket to Review.
 
 ## Progress notes
 
 - 2026-08-25: Locked restore passed. Release build passes with 0 warnings/errors. Core passes 989/989; Architecture passes 99/99; the U35-shaped SQL-backed mailbox route passes and settles three direct JPEG children to Image-initiated Case AB12CDE-01 without a parent U-item or replay duplicate. The full non-corpus/non-browser Integration suite passed 910 tests with 2 expected skips before the final simplification; the affected integration scenario and all Core tests passed again after it.
 - 2026-08-25: Independent simplification review findings were all applied, including correction of the partial-group terminal-failure path to one group-scoped technical U outcome.
+- 2026-08-25: Commit `1cabc66e` pushed and PR #548 opened against `dev`. No deployment performed.
