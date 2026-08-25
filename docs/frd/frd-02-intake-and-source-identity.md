@@ -98,6 +98,26 @@ case, reference, or downstream side effect. Staff can inspect Received,
 Processing, Complete, or Failed by the staged receipt identifier; failure wording
 is bounded and does not disclose exception or infrastructure detail.
 
+For both email and manual upload, the durable commit is followed immediately by
+a best-effort publication of the stable work identifier. Publication never
+precedes the commit and a publication failure never rolls it back. Pending work
+that was not published, including work marked dispatched whose queue delivery
+never became claimable, is eligible for idempotent recovery within one minute.
+The recovery sweep is a safety net rather than the normal scheduler. The same
+rule applies to external or custody work created by the completed intake pass:
+commit first, publish its identifier immediately, and reconcile missed
+publication without repeating an accepted downstream side effect.
+
+The ordinary path records correlated timings for durable receipt, publication,
+queue claim, source reading, identification, classification, extraction,
+association/allocation, case creation, custody hand-off, and terminal state.
+Those timings contain identifiers and bounded outcome data, never source
+content. From durable receipt, ordinary supported QDOS email and manual-upload
+work reaches Complete with its case destination, or its truthful terminal
+non-case outcome, within ten seconds at p95. A large, retrying, or legitimately
+incomplete item remains Received or Processing with no older terminal outcome
+projected over it.
+
 ### Mandatory pre-case gates
 
 Before creating a case or allocating a reference, Pegasus must establish:
