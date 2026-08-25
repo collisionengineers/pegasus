@@ -1,31 +1,15 @@
-# Files — wording and signature activation
+# Files — TICK-216: accepted boundary evidence
 
-## Change files
+| Path / record | Current authoritative result |
+|---|---|
+| `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Accepts only exact tuples; Andy is complete; Ed/Neil unavailable pending accepted qualifications. |
+| `docs/open-decisions.md` | Keeps Ed/Neil qualifications and other absent wording open; prescribes fail-closed unavailability. |
+| `src/Pegasus.Core/Reports/AssessmentReportRendering.cs` | One accepted engineer entry: `andy_patterson` / `A Patterson` / `M.Inst.IAEA`. |
+| `src/Pegasus.Infrastructure/Pegasus.Infrastructure.csproj` | Embeds only the Andy signature resource. |
+| `tests/Pegasus.Core.Tests/Reports/AssessmentReportRenderingTests.cs` | Rejects missing/unknown/mismatched engineer tuples before adapter invocation. |
+| `tests/Pegasus.IntegrationTests/Reports/AssessmentReportRendererTests.cs` | Proves the Andy asset byte-for-byte and asserts Ed/Neil resources are absent. |
+| [[SIMPLI-014]] PIR/proof | Owns and proves the merged implementation in PR #415. |
 
-| Path/module | Expected change | Risk |
-| --- | --- | --- |
-| `docs/open-decisions.md` | Resolve or narrow the report-wording decision after operator confirmation | Protected business meaning |
-| `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Specify accepted assessment wording/signature fail-closed behavior | Must not invent qualifications |
-| `docs/capabilities.md` | Reflect activation/acceptance evidence for RPT-02 | Schedule vs delivery claim |
-| `reference/rendererref1/**` | Read-only supplied evidence; never modify | Evidence integrity |
-| `docs/design/brand/signatures/**` | Governed source assets used only if authorised | Personal signature misuse |
-| `src/Pegasus.Core/**` | Own engineer/signature authorization and required-field policy | One policy owner |
-| `src/Pegasus.Infrastructure/**` | Map authorised signature key/assets into renderer | Must fail closed |
-| `tests/**` | Prove authorised selection and rejection of missing/unknown/mismatched signatures | Security and professional attribution |
+## Change boundary
 
-## Context files
-
-| Path | Why read it |
-| --- | --- |
-| `reference/rendererref1/DESIGN_SPEC.md` | Supplied assessment wording and outcome baseline |
-| `reference/rendererref1/report_data_schema.json` | Required fields and allowed signature keys |
-| `docs/open-decisions.md` | Existing unresolved wording authority |
-| `docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md` | Report approval/finality and signature status |
-| `workspaces/report-renderer/NOTICE.md` | Authorised-use restriction |
-| `EPIC-004/context.md` | rendererref1 is evidence, not a second policy owner |
-
-## Out of scope
-
-- Editing supplied evidence.
-- Inventing missing qualifications, salvage wording, or signature authorization.
-- Treating generation as report issue or external sending.
+TICK-216 needs only a Kanmer evidence correction and acceptance closeout. It makes no repository edit because the authoritative docs and merged implementation already express the correct narrow state. `reference/rendererref1/**` remains immutable.

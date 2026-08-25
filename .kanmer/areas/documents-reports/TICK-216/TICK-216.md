@@ -4,12 +4,14 @@ type: ticket
 title: >-
   Decide whether unaccepted wording and signature assets may ship behind a
   closed gate
-status: preparing
+status: review
 area: documents-reports
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-19T08:59:06.874Z'
+  implementing: '2026-08-25T06:51:56.962Z'
+  review: '2026-08-25T06:51:57.247Z'
 labels:
   - now
   - source-now
@@ -25,7 +27,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:06.048Z'
-updated: '2026-08-19T09:42:37.465Z'
+updated: '2026-08-25T06:51:57.247Z'
 ---
 
 ## What

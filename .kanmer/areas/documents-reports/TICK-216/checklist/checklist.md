@@ -1,11 +1,11 @@
 # Checklist — TICK-216
 
-- [ ] Confirm SIMPLI-014 owns the exact accepted rendererref1 wording/qualification/three-signature contract, closed Core engineer tuple, fail-closed mismatches, no invented placeholders, and draft-before-human-issue boundary.
-- [ ] Ensure SIMPLI-014's documentation pass updates FRD-11 and reconciles the resolved report-wording row in `docs/open-decisions.md`, while leaving `reference/rendererref1/**` unchanged and unsupported wording families unavailable.
-- [ ] After SIMPLI-014 merges, inspect its exact Core/Infrastructure/resource/template/test/docs diff for closed authorization, byte-identical governed assets, no fallback/custom substitution, no placeholders, and FRD/open-decision consistency.
-- [ ] Verify merged positive and negative tests plus representative Chromium/PDF evidence for matching engineer identity/qualification/signature, rejected missing/unknown/mismatched inputs, accepted wording, and draft-only status.
-- [ ] Record the no-code post-implementation report/outcome with the SIMPLI-014 PR, merge commit, hashes and proof; state that TICK-216 created no repository branch, worktree, commit, PR, deployment or cloud action.
+- [x] Correct the earlier overclaim: only `A Patterson | M.Inst.IAEA | andy_patterson` is a complete accepted tuple.
+- [x] Record Ed Mawdsley and Neil O'Reilly as unavailable until exact qualifications are supplied and accepted.
+- [x] Verify current `origin/dev` has one Core accepted-engineer entry, embeds only Andy's signature, and explicitly tests Ed/Neil resource absence.
+- [x] Verify missing, unknown, mismatched, substituted, custom, placeholder, and absent wording states remain fail closed and draft generation does not imply issue.
+- [x] Record the no-code acceptance slice with [[SIMPLI-014]] PR #415 / merge `b548b674e31d05de6f43eeb285a25dedd7d2a768`; no TICK-216 branch, diff, PR, deployment, or cloud action.
 
 ## Progress notes
 
-(append with set_ticket_doc(doc: "checklist", append: true))
+- 2026-08-25: Reconciled the ticket to FRD-11 and `docs/open-decisions.md`. The prior “all three tuples accepted” statement was incorrect because Ed/Neil qualifications are absent.
