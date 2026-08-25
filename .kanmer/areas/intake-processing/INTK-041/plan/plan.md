@@ -39,3 +39,7 @@ Pre-merge: validate links/frontmatter/index consistency and inspect the focused 
 - **Duplicate normative lists:** capability registry remains a join key; timer values and state rules live only in their owning FRDs.
 - **Overlap with INTK-040:** this ticket edits governing docs only; it will not touch that ticket's code files.
 - **Cloud authorization:** no deployment or Azure/mailbox write is part of this ticket.
+
+## Simplification pass — 2026-08-25
+
+n/a — docs-only. The focused diff was checked for duplicate requirements, unnecessary compatibility language, and implementation detail at the wrong authority level. Timer/state behaviour remains in the two owning FRDs, the capability row is navigation/schedule only, and ADR-0032 contains one mechanism decision. No additional scope was added.

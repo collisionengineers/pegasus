@@ -22,10 +22,15 @@ blocks:
   - MAIL-013
   - INTK-001
   - INTK-043
+refs:
+  - docs/prd/pegasus-product.md
+  - docs/frd/frd-02-intake-and-source-identity.md
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
+  - docs/adr/0002-dotnet-modular-monolith-on-azure.md
 docs_todo: true
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-25T15:20:41.591Z'
+updated: '2026-08-25T15:22:38.634Z'
 ---
 
 ## What
