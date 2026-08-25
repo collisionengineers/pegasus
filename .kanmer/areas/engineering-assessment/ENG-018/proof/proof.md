@@ -20,3 +20,10 @@
 ## Boundary
 
 These checks prove the obsolete activation gate and message are absent from the deployed source/configuration and the configuration-free Export path passes end to end. No authenticated operator Export or EVA import was performed during verification; the operator can now retry the case that exposed the release-28 defect.
+
+## Traceability
+
+- PR: https://github.com/collisionengineers/pegasus/pull/542
+- Merged: 2026-08-25T08:43:38Z
+- Merge/release SHA: b1aa68c86063fbcf70658f10271e6b622e792d32
+- Deployment: production release 29.
