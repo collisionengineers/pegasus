@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Pegasus.Infrastructure.Persistence;
 
@@ -11,9 +12,11 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    partial class PegasusDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260824123336_DropEvaHandoffTables")]
+    partial class DropEvaHandoffTables
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -5737,6 +5740,12 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<bool>("RequireCompleteImagesBeforeEngineerAssignment")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("RequireCompleteInstructionsBeforeEngineerAssignment")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("RequireStaffImageReviewBeforeEngineerAssignment")
                         .HasColumnType("bit");
 
@@ -5754,6 +5763,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         new
                         {
                             Id = "case-workflow",
+                            RequireCompleteImagesBeforeEngineerAssignment = true,
+                            RequireCompleteInstructionsBeforeEngineerAssignment = true,
                             RequireStaffImageReviewBeforeEngineerAssignment = true,
                             RequireStaffInstructionReviewBeforeEngineerAssignment = true,
                             Version = 1

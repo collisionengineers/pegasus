@@ -29,8 +29,6 @@ public sealed class AdministrationPolicyTests
             new(
                 false,
                 true,
-                false,
-                true,
                 1,
                 ActionActor.Staff(Guid.NewGuid(), [StaffRole.Engineer]),
                 "Attempted gate change",
@@ -48,7 +46,7 @@ public sealed class AdministrationPolicyTests
         var actor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
 
         var updated = await command.ExecuteAsync(
-            new(false, true, false, true, 1, actor, "  Reviewed gates  ", "  workflow-op  "),
+            new(false, true, 1, actor, "  Reviewed gates  ", "  workflow-op  "),
             default);
 
         Assert.Equal(2, updated.PolicyVersion);
@@ -334,7 +332,7 @@ public sealed class AdministrationPolicyTests
         }
 
         private static CaseWorkflowConfiguration Current(int version) =>
-            new(true, true, true, true, "case-workflow", version);
+            new(true, true, "case-workflow", version);
     }
 
     private sealed class MailboxStore : IApprovedMailboxStore

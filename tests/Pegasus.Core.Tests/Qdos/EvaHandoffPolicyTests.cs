@@ -1,41 +1,70 @@
+using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
-using Pegasus.Core.Workflow;
 
 namespace Pegasus.Core.Tests.Qdos;
 
+/// <summary>
+/// ENG-016 collapsed the hand-off into the export, and the stage/custody/
+/// evidence gate that used to live in <c>EvaHandoffPolicy.Evaluate</c> went
+/// with the act it gated. Image selection is what remains, and it is now the
+/// only Core policy the export consults — so it is pinned here directly rather
+/// than only through the architecture test's source grep.
+/// </summary>
 public sealed class EvaHandoffPolicyTests
 {
     [Fact]
-    public void ReviewConfirmedCustodyAcceptedMappingCurrentEvidenceAndEligibleImagesAreRequired()
+    public void OnlyCurrentConfirmedOwnVehiclePhotographsAreEligible()
     {
-        var eligible = new EvaHandoffEligibility(
-            CaseLifecycleState.Review,
-            IsArchived: false,
-            RenderedWorkflowVersion: 9,
-            AcceptedEvidenceVersion: 9,
-            CaseCustodyConfirmed: true,
-            AuditRequired: true,
-            AuditCustodyConfirmed: true,
-            MappingAccepted: true,
-            EligibleImageCount: 2);
+        var eligible = Candidate(ordinal: 2);
 
-        Assert.Empty(EvaHandoffPolicy.Evaluate(eligible));
-        foreach (var state in Enum.GetValues<CaseLifecycleState>().Where(value => value != CaseLifecycleState.Review))
+        Assert.Equal(
+            [eligible.VersionId],
+            EvaHandoffPolicy.SelectEligibleImages([eligible]).Select(item => item.VersionId));
+
+        foreach (var refused in new[]
         {
-            Assert.Contains(
-                EvaHandoffPolicy.Evaluate(eligible with { State = state }),
-                reason => reason.Contains("while the case is in Review", StringComparison.Ordinal));
+            eligible with { SemanticRole = DocumentSemanticRole.Instruction },
+            eligible with { CustodyConfirmed = false },
+            eligible with { IsCurrent = false },
+            eligible with { IsLogicallyRemoved = true },
+            eligible with { IsThirdPartyVehicle = true },
+            eligible with { MediaType = "application/pdf" }
+        })
+        {
+            Assert.Empty(EvaHandoffPolicy.SelectEligibleImages([refused]));
         }
-        Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { IsArchived = true }));
-        Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { AcceptedEvidenceVersion = 8 }));
-        Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { CaseCustodyConfirmed = false }));
-        Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { AuditCustodyConfirmed = false }));
-        Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { MappingAccepted = false }));
-        Assert.NotEmpty(EvaHandoffPolicy.Evaluate(eligible with { EligibleImageCount = 0 }));
-        Assert.Empty(EvaHandoffPolicy.Evaluate(eligible with
-        {
-            AuditRequired = false,
-            AuditCustodyConfirmed = false
-        }));
     }
+
+    [Fact]
+    public void EligibleImagesKeepTheirRecordedOrdinalOrder()
+    {
+        var third = Candidate(ordinal: 3);
+        var first = Candidate(ordinal: 1);
+        var second = Candidate(ordinal: 2, mediaType: "image/png");
+
+        Assert.Equal(
+            [1, 2, 3],
+            EvaHandoffPolicy.SelectEligibleImages([third, first, second])
+                .Select(item => item.Ordinal));
+    }
+
+    private static EvaHandoffImageCandidate Candidate(
+        int ordinal,
+        string mediaType = "image/jpeg") => new(
+        OccurrenceId: Guid.NewGuid(),
+        DocumentId: Guid.NewGuid(),
+        VersionId: Guid.NewGuid(),
+        Version: 1,
+        FileName: $"{ordinal}_offside.jpg",
+        MediaType: mediaType,
+        ContentLength: 1024,
+        Sha256: new string('a', 64),
+        SemanticRole: DocumentSemanticRole.Image,
+        Source: DocumentSource.Intake,
+        SourceOccurrenceIdentity: $"intake:{ordinal}",
+        CustodyConfirmed: true,
+        IsCurrent: true,
+        IsLogicallyRemoved: false,
+        IsThirdPartyVehicle: false,
+        Ordinal: ordinal);
 }

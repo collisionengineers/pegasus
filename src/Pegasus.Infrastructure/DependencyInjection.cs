@@ -389,14 +389,8 @@ public static class DependencyInjection
             services.AddScoped<ProcessIntake>();
 
             services.AddScoped<EvaHandoffStore>();
-            services.AddScoped<IEvaHandoffQueries>(provider =>
-                provider.GetRequiredService<EvaHandoffStore>());
-            services.AddScoped<IEvaHandoffPersistence>(provider =>
-                provider.GetRequiredService<EvaHandoffStore>());
             services.AddScoped<IExportCaseBundle>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
-            services.AddScoped<IGenerateEvaHandoff, GenerateEvaHandoff>();
-            services.AddScoped<IDownloadEvaHandoff, DownloadEvaHandoff>();
 
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>

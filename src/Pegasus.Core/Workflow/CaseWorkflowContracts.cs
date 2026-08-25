@@ -40,8 +40,6 @@ public enum CaseReopenDestination
 }
 
 public sealed record CaseWorkflowConfiguration(
-    bool RequireCompleteInstructionsBeforeEngineerAssignment,
-    bool RequireCompleteImagesBeforeEngineerAssignment,
     bool RequireStaffInstructionReviewBeforeEngineerAssignment,
     bool RequireStaffImageReviewBeforeEngineerAssignment,
     string PolicyKey,
