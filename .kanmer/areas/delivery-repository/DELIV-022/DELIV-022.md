@@ -2,12 +2,15 @@
 id: DELIV-022
 type: ticket
 title: 'Release 31: deploy mailbox Image Intake and interrupted-work recovery'
-status: preparing
+status: implementing
 area: delivery-repository
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-25T17:22:42.586Z'
+taken_at: '2026-08-25T17:23:16.497Z'
+branch: task/deliv-022-release-31
+worktree: ../pegasus-worktrees/deliv-022-release-31
 labels:
   - release
   - deployment
@@ -24,7 +27,7 @@ refs:
 deployment: not-deployed
 archived: false
 created: '2026-08-25T17:22:39.944Z'
-updated: '2026-08-25T17:22:42.586Z'
+updated: '2026-08-25T17:23:16.497Z'
 ---
 
 ## What
