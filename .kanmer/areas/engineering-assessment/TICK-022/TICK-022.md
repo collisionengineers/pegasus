@@ -6,6 +6,7 @@ title: >-
   ordered 13-key JSON, every eligible custody-confirmed…
 status: done
 area: engineering-assessment
+order: 2120
 assignee: ''
 profile: feature
 stageEntered:
@@ -28,7 +29,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.205Z'
-updated: '2026-08-20T03:37:22.591Z'
+updated: '2026-08-25T01:27:00.927Z'
 ---
 
 ## What

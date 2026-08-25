@@ -6,6 +6,7 @@ title: >-
   never increment emails received
 status: done
 area: platform-operations
+order: 1800
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:16:37.586Z'
-updated: '2026-08-20T12:46:55.650Z'
+updated: '2026-08-25T01:27:00.730Z'
 ---
 
 ## What

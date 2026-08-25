@@ -4,6 +4,7 @@ type: ticket
 title: Register instruction attachments and photographs as case documents in Box
 status: done
 area: documents-reports
+order: 1290
 assignee: ''
 profile: fix
 stageEntered:
@@ -19,7 +20,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T18:17:19.280Z'
-updated: '2026-08-22T08:34:04.701Z'
+updated: '2026-08-25T01:27:00.431Z'
 ---
 
 ## Why

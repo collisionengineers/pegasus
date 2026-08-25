@@ -4,6 +4,7 @@ type: ticket
 title: 'Queues: one Not-ready table, dropdown filters, sortable newest-first columns'
 status: done
 area: intake-processing
+order: 1550
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-03-triage.md
 archived: false
 created: '2026-08-20T18:44:30.327Z'
-updated: '2026-08-20T20:52:20.726Z'
+updated: '2026-08-25T01:27:00.581Z'
 ---
 
 ## Why

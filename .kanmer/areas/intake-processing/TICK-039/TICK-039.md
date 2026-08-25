@@ -4,6 +4,7 @@ type: ticket
 title: INT-14 — Automated legacy DOC extraction
 status: done
 area: intake-processing
+order: 2180
 assignee: ''
 profile: feature
 stageEntered:
@@ -26,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.571Z'
-updated: '2026-08-20T12:48:05.549Z'
+updated: '2026-08-25T01:27:00.959Z'
 ---
 
 ## What

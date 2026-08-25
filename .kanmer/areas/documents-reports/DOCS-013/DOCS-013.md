@@ -4,6 +4,7 @@ type: ticket
 title: Strike the invented manifest from FRD-07 and the operator notes
 status: done
 area: documents-reports
+order: 1330
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -27,7 +28,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-24T08:19:34.397Z'
-updated: '2026-08-24T16:55:50.991Z'
+updated: '2026-08-25T01:27:00.452Z'
 ---
 
 ## What

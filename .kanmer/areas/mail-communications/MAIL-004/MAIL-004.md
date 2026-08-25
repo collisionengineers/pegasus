@@ -4,6 +4,7 @@ type: ticket
 title: Configure the approved Outlook category catalogue in email administration
 status: done
 area: mail-communications
+order: 1640
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -40,7 +41,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T09:47:32.793Z'
-updated: '2026-08-21T14:53:13.619Z'
+updated: '2026-08-25T01:27:00.634Z'
 ---
 
 ## What

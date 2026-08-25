@@ -4,6 +4,7 @@ type: ticket
 title: Retained case documents cannot be read back from Box
 status: done
 area: documents-reports
+order: 1320
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -27,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T00:20:37.666Z'
-updated: '2026-08-23T15:17:53.909Z'
+updated: '2026-08-25T01:27:00.447Z'
 ---
 
 ## Root cause — confirmed from the production exception

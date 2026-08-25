@@ -4,6 +4,7 @@ type: ticket
 title: Make Export download the EVA-format case bundle
 status: done
 area: case-reference-workflow
+order: 1200
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -30,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-22T19:42:25.356Z'
-updated: '2026-08-23T01:45:23.447Z'
+updated: '2026-08-25T01:27:00.379Z'
 ---
 
 ## Why — operator direction (2026-08-22, QDOS26011)

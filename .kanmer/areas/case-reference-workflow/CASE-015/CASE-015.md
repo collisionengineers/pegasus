@@ -4,6 +4,7 @@ type: ticket
 title: One mileage value is labelled Odometer in one panel and Mileage in another
 status: done
 area: case-reference-workflow
+order: 1160
 assignee: ''
 profile: fix
 stageEntered:
@@ -21,7 +22,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T23:30:27.962Z'
-updated: '2026-08-22T03:44:54.519Z'
+updated: '2026-08-25T01:27:00.356Z'
 ---
 
 ## Why

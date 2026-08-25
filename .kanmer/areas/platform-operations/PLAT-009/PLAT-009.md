@@ -6,6 +6,7 @@ title: >-
   in a table cell
 status: done
 area: platform-operations
+order: 1770
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -27,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T22:58:23.870Z'
-updated: '2026-08-20T03:14:45.632Z'
+updated: '2026-08-25T01:27:00.712Z'
 ---
 
 ## What

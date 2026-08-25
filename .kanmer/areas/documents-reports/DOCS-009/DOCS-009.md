@@ -4,6 +4,7 @@ type: ticket
 title: 'Record intake photographs as images, not instruction documents'
 status: done
 area: documents-reports
+order: 1310
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -26,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-22T19:42:25.308Z'
-updated: '2026-08-22T22:46:30.023Z'
+updated: '2026-08-25T01:27:00.442Z'
 ---
 
 ## The defect

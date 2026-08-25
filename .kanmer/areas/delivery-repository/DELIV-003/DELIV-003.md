@@ -4,7 +4,7 @@ type: ticket
 title: Converge shared branches for the first fast-forward release
 status: done
 area: delivery-repository
-order: 200
+order: 550
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -24,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T08:17:54.534Z'
-updated: '2026-08-19T09:39:14.797Z'
+updated: '2026-08-25T01:26:59.978Z'
 ---
 
 ## What

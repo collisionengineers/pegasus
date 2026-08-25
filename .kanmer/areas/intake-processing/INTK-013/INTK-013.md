@@ -4,6 +4,7 @@ type: ticket
 title: Make the Not ready tab count match its rows across both case origins
 status: done
 area: intake-processing
+order: 1480
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:16:37.482Z'
-updated: '2026-08-20T12:44:37.061Z'
+updated: '2026-08-25T01:27:00.541Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Decompose the Case Details workspace by capability
 status: done
 area: case-reference-workflow
-order: 150
+order: 440
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -30,7 +30,7 @@ prs:
 deployment: not-deployed
 archived: false
 created: '2026-08-13T12:12:48.922Z'
-updated: '2026-08-19T09:39:14.697Z'
+updated: '2026-08-25T01:26:59.899Z'
 ---
 
 ## What

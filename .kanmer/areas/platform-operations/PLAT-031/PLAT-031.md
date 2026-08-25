@@ -4,6 +4,7 @@ type: ticket
 title: Stop warning about EVA hand-off when it is switched off
 status: done
 area: platform-operations
+order: 1880
 assignee: ''
 profile: fix
 stageEntered:
@@ -20,7 +21,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T18:17:19.411Z'
-updated: '2026-08-22T03:44:30.197Z'
+updated: '2026-08-25T01:27:00.779Z'
 ---
 
 ## Why

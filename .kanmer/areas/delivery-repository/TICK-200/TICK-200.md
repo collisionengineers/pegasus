@@ -4,7 +4,7 @@ type: ticket
 title: Reduce remaining GitHub Actions wall-clock time
 status: done
 area: delivery-repository
-order: 450
+order: 990
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.974Z'
-updated: '2026-08-19T09:39:15.752Z'
+updated: '2026-08-25T01:27:00.263Z'
 ---
 
 ## What

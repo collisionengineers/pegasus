@@ -4,6 +4,7 @@ type: ticket
 title: 'Inbox: resolve allocated cases on mail tiles and tidy the outcome cell'
 status: done
 area: mail-communications
+order: 1650
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -24,7 +25,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T19:04:50.916Z'
-updated: '2026-08-20T20:52:47.232Z'
+updated: '2026-08-25T01:27:00.640Z'
 ---
 
 ## Why

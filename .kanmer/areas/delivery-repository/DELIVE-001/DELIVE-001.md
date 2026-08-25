@@ -6,7 +6,7 @@ title: >-
   pwsh-subprocess)
 status: done
 area: delivery-repository
-order: 260
+order: 680
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-14T11:15:00.236Z'
-updated: '2026-08-19T09:39:15.049Z'
+updated: '2026-08-25T01:27:00.064Z'
 ---
 
 ## What

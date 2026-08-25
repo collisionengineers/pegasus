@@ -6,6 +6,7 @@ title: >-
   500
 status: done
 area: case-reference-workflow
+order: 1080
 assignee: ''
 profile: fix
 stageEntered:
@@ -26,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T07:48:36.354Z'
-updated: '2026-08-20T01:31:25.968Z'
+updated: '2026-08-25T01:27:00.312Z'
 ---
 
 ## What

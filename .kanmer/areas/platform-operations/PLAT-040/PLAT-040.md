@@ -4,6 +4,7 @@ type: ticket
 title: 'Wipe email, intake, case and document test data from the Azure estate'
 status: done
 area: platform-operations
+order: 1920
 assignee: ''
 profile: chore
 stageEntered:
@@ -23,7 +24,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-23T13:06:52.408Z'
-updated: '2026-08-23T14:47:32.473Z'
+updated: '2026-08-25T01:27:00.804Z'
 ---
 
 ## Why

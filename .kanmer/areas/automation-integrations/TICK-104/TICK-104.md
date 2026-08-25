@@ -6,7 +6,7 @@ title: >-
   URL, token entry/rotation, and timeout configured…
 status: done
 area: automation-integrations
-order: 300
+order: 760
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -31,7 +31,7 @@ prs:
   - '#446'
 archived: false
 created: '2026-08-12T15:06:02.806Z'
-updated: '2026-08-21T22:21:53.637Z'
+updated: '2026-08-25T01:27:00.112Z'
 ---
 
 ## What

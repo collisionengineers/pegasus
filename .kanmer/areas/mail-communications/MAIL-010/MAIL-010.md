@@ -4,6 +4,7 @@ type: ticket
 title: Remove explanatory copy and a banned word from the Mail list
 status: done
 area: mail-communications
+order: 1700
 assignee: ''
 profile: fix
 stageEntered:
@@ -22,7 +23,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T21:42:40.523Z'
-updated: '2026-08-22T03:44:41.137Z'
+updated: '2026-08-25T01:27:00.670Z'
 ---
 
 ## Why

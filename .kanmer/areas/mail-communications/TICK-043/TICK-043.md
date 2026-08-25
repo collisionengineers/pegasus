@@ -6,7 +6,7 @@ title: >-
   identity
 status: done
 area: mail-communications
-order: 10
+order: 50
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -36,7 +36,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.649Z'
-updated: '2026-08-20T03:14:42.796Z'
+updated: '2026-08-25T01:26:59.643Z'
 ---
 
 ## What

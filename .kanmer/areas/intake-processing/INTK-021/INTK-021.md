@@ -6,6 +6,7 @@ title: >-
   registrations, references)
 status: done
 area: intake-processing
+order: 1540
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -26,7 +27,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-20T14:55:06.997Z'
-updated: '2026-08-20T20:51:27.460Z'
+updated: '2026-08-25T01:27:00.575Z'
 ---
 
 ## Why

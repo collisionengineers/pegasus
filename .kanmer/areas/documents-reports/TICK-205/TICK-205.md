@@ -4,7 +4,7 @@ type: ticket
 title: Record that Audit does not require a dual-specification or uplift model
 status: done
 area: documents-reports
-order: 470
+order: 1010
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -30,7 +30,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.306Z'
-updated: '2026-08-19T10:49:44.753Z'
+updated: '2026-08-25T01:27:00.274Z'
 ---
 
 ## What

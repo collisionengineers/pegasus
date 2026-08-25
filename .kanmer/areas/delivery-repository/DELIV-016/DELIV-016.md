@@ -4,6 +4,7 @@ type: ticket
 title: 'Releases 17-20: ship the QDOS26009 operator fixes and repair case custody'
 status: done
 area: delivery-repository
+order: 1250
 assignee: ''
 profile: chore
 stageEntered:
@@ -19,7 +20,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-22T05:01:55.880Z'
-updated: '2026-08-22T05:54:43.067Z'
+updated: '2026-08-25T01:27:00.407Z'
 ---
 
 ## Why

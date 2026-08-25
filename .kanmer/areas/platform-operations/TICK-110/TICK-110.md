@@ -4,6 +4,7 @@ type: ticket
 title: Reconcile local azd state against the observed production estate
 status: done
 area: platform-operations
+order: 2280
 assignee: ''
 profile: feature
 stageEntered:
@@ -24,7 +25,7 @@ refs:
   - docs/adr/0014-local-to-production-deployment.md
 archived: false
 created: '2026-08-12T15:08:02.263Z'
-updated: '2026-08-20T03:52:10.114Z'
+updated: '2026-08-25T01:27:01.022Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   alone
 status: done
 area: mail-communications
+order: 1620
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -27,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:16:37.641Z'
-updated: '2026-08-20T12:46:09.557Z'
+updated: '2026-08-25T01:27:00.621Z'
 ---
 
 ## What

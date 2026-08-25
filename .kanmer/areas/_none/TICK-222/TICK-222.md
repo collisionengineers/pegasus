@@ -4,6 +4,7 @@ type: ticket
 title: Reconcile the two MCP path files blocking the ENG-016 release
 status: done
 area: ''
+order: 2370
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -28,7 +29,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-25T00:55:12.141Z'
-updated: '2026-08-25T01:25:55.901Z'
+updated: '2026-08-25T01:27:01.077Z'
 ---
 
 `main` contains commit `c9005efb`, which changes only `.codex/config.toml` and `.mcp.json` from the obsolete `C:\Users\Alex` paths to this workstation's actual `C:\Users\PC` Kanmer executable, board worktree, and repository paths. Bring that commit's ancestry into `dev` through one non-force merge commit and a normal reviewed green PR, so the exact-SHA release can fast-forward. No product, schema, infrastructure, or Kanmer board-root change.

@@ -4,6 +4,7 @@ type: ticket
 title: 'Establish database backup, restore, RPO, and RTO capability'
 status: done
 area: platform-operations
+order: 2160
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -26,7 +27,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:03:53.347Z'
-updated: '2026-08-20T12:47:56.923Z'
+updated: '2026-08-25T01:27:00.948Z'
 ---
 
 ## What

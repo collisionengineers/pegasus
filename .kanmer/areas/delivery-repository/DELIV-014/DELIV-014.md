@@ -6,6 +6,7 @@ title: >-
   promote to main
 status: done
 area: delivery-repository
+order: 1230
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -25,7 +26,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-20T20:02:19.215Z'
-updated: '2026-08-20T20:54:05.685Z'
+updated: '2026-08-25T01:27:00.397Z'
 ---
 
 ## Why

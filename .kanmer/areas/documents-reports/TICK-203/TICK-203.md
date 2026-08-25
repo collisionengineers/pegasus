@@ -6,6 +6,7 @@ title: >-
   inventory
 status: done
 area: documents-reports
+order: 2340
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -31,7 +32,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.112Z'
-updated: '2026-08-19T10:38:34.525Z'
+updated: '2026-08-25T01:27:01.060Z'
 ---
 
 ## What

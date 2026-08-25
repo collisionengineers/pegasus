@@ -6,6 +6,7 @@ title: >-
   records required reasoning
 status: done
 area: mail-communications
+order: 2060
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +29,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:03:52.841Z'
-updated: '2026-08-20T12:47:13.005Z'
+updated: '2026-08-25T01:27:00.892Z'
 ---
 
 ## What

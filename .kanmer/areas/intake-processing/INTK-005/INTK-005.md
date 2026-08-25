@@ -4,7 +4,7 @@ type: ticket
 title: Allow one Upload submission to accept and track multiple files
 status: done
 area: intake-processing
-order: 10
+order: 20
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T09:13:42.674Z'
-updated: '2026-08-20T03:14:38.566Z'
+updated: '2026-08-25T01:26:59.622Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   body
 status: done
 area: mail-communications
+order: 1670
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -25,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T08:24:54.993Z'
-updated: '2026-08-21T15:06:13.955Z'
+updated: '2026-08-25T01:27:00.652Z'
 ---
 
 ## What

@@ -6,6 +6,7 @@ title: >-
   MOT chronology, mileage evidence, and operator-con…
 status: done
 area: engineering-assessment
+order: 2100
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -31,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.163Z'
-updated: '2026-08-20T12:47:29.192Z'
+updated: '2026-08-25T01:27:00.916Z'
 ---
 
 ## What

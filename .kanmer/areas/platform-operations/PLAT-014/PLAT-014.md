@@ -4,7 +4,7 @@ type: ticket
 title: Correct missing LocalDB detection in Offline lifecycle
 status: done
 area: platform-operations
-order: 20
+order: 70
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
@@ -30,7 +30,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-20T08:56:51.802Z'
-updated: '2026-08-21T15:13:21.920Z'
+updated: '2026-08-25T01:26:59.656Z'
 ---
 
 ## Why

@@ -4,6 +4,7 @@ type: ticket
 title: Correct two self-contradictory rules in the design authority
 status: done
 area: platform-operations
+order: 1830
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -27,7 +28,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/502'
 archived: false
 created: '2026-08-21T08:25:11.433Z'
-updated: '2026-08-21T14:25:32.625Z'
+updated: '2026-08-25T01:27:00.748Z'
 ---
 
 ## What

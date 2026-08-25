@@ -4,6 +4,7 @@ type: ticket
 title: 'MAIL-10 — Manual email/case association, unlink, relink, and correction'
 status: done
 area: mail-communications
+order: 2230
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -36,7 +37,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.275Z'
-updated: '2026-08-21T15:08:54.873Z'
+updated: '2026-08-25T01:27:00.990Z'
 ---
 
 ## What

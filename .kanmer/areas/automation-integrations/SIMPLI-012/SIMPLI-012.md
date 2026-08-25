@@ -4,7 +4,7 @@ type: ticket
 title: Decide the post-alpha disposition of AI and MCP
 status: done
 area: automation-integrations
-order: 180
+order: 510
 assignee: ''
 profile: feature
 stageEntered:
@@ -24,7 +24,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-13T12:12:48.943Z'
-updated: '2026-08-20T03:53:08.649Z'
+updated: '2026-08-25T01:26:59.949Z'
 ---
 
 ## What

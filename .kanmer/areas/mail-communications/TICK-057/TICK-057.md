@@ -6,6 +6,7 @@ title: >-
   queues
 status: done
 area: mail-communications
+order: 2240
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -39,7 +40,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-21T15:10:09.883Z'
+updated: '2026-08-25T01:27:00.998Z'
 ---
 
 ## What

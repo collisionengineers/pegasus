@@ -6,6 +6,7 @@ title: >-
   toggle edit
 status: done
 area: case-reference-workflow
+order: 1110
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -26,7 +27,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-20T17:39:20.825Z'
-updated: '2026-08-20T20:51:52.137Z'
+updated: '2026-08-25T01:27:00.329Z'
 ---
 
 ## Why

@@ -6,7 +6,7 @@ title: >-
   once-per-case First sent to Engineer handoff proxy; EVA owns…
 status: done
 area: engineering-assessment
-order: 10
+order: 40
 assignee: ''
 profile: feature
 stageEntered:
@@ -25,7 +25,7 @@ blocks: []
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.066Z'
-updated: '2026-08-20T03:35:23.230Z'
+updated: '2026-08-25T01:26:59.636Z'
 ---
 
 ## What

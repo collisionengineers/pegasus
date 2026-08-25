@@ -4,7 +4,7 @@ type: ticket
 title: INT-28 — Automatic matching of image-led and instruction-led records
 status: done
 area: intake-processing
-order: 30
+order: 140
 assignee: ''
 profile: feature
 stageEntered:
@@ -25,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.630Z'
-updated: '2026-08-20T03:36:21.100Z'
+updated: '2026-08-25T01:26:59.705Z'
 ---
 
 ## What

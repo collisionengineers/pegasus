@@ -4,6 +4,7 @@ type: ticket
 title: MAIL-09 — Automatic association of related email and attachments with a case
 status: done
 area: mail-communications
+order: 2220
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -37,7 +38,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.257Z'
-updated: '2026-08-21T15:12:01.370Z'
+updated: '2026-08-25T01:27:00.984Z'
 ---
 
 ## What

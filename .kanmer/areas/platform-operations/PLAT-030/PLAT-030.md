@@ -4,6 +4,7 @@ type: ticket
 title: Cut the intake processing chain from 30-60s to seconds
 status: done
 area: platform-operations
+order: 1870
 assignee: ''
 profile: fix
 stageEntered:
@@ -20,7 +21,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T18:17:18.391Z'
-updated: '2026-08-22T03:44:19.588Z'
+updated: '2026-08-25T01:27:00.773Z'
 ---
 
 ## Why

@@ -4,7 +4,7 @@ type: ticket
 title: DOC-03 — Retained document versions
 status: done
 area: documents-reports
-order: 400
+order: 940
 assignee: ''
 profile: custom
 requires: {}
@@ -18,7 +18,7 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.142Z'
-updated: '2026-08-19T09:39:15.636Z'
+updated: '2026-08-25T01:27:00.236Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Retarget Kanmer tickets that cite the retired NOW.md / requirements.md
 status: done
 area: kanmer-meta
-order: 280
+order: 720
 assignee: codex
 profile: chore
 stageEntered:
@@ -22,7 +22,7 @@ commits:
 deployment: n/a
 archived: false
 created: '2026-08-14T11:15:00.271Z'
-updated: '2026-08-19T09:39:15.152Z'
+updated: '2026-08-25T01:27:00.087Z'
 ---
 
 ## What

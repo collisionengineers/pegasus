@@ -4,7 +4,7 @@ type: ticket
 title: Integrate CollisionRenderer behind a Core-owned render contract
 status: done
 area: documents-reports
-order: 200
+order: 570
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -39,7 +39,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/415'
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-19T10:33:57.866Z'
+updated: '2026-08-25T01:26:59.991Z'
 ---
 
 ## What

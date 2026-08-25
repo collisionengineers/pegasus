@@ -6,6 +6,7 @@ title: >-
   one-sentence consequence guidance
 status: done
 area: platform-operations
+order: 1780
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -29,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T23:00:23.570Z'
-updated: '2026-08-20T03:14:45.969Z'
+updated: '2026-08-25T01:27:00.718Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Integrate CollisionDocNet behind IIntakeSourceReader for .doc and .msg intake
 status: done
 area: intake-processing
-order: 190
+order: 540
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-13T14:38:42.313Z'
-updated: '2026-08-20T12:49:58.401Z'
+updated: '2026-08-25T01:26:59.973Z'
 ---
 
 ## What

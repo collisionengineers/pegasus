@@ -6,7 +6,7 @@ title: >-
   everywhere images appear
 status: done
 area: intake-processing
-order: 10
+order: 30
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T14:08:22.595Z'
-updated: '2026-08-20T20:51:14.288Z'
+updated: '2026-08-25T01:26:59.628Z'
 ---
 
 ## Why

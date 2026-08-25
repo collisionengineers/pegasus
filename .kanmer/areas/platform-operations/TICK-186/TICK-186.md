@@ -4,6 +4,7 @@ type: ticket
 title: Assemble the extraction cohort and untouched holdout
 status: done
 area: platform-operations
+order: 2310
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -20,7 +21,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:08:04.505Z'
-updated: '2026-08-20T05:40:13.742Z'
+updated: '2026-08-25T01:27:01.043Z'
 ---
 
 ## What

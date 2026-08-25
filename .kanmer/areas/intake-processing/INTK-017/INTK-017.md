@@ -6,6 +6,7 @@ title: >-
   instruction documents
 status: done
 area: intake-processing
+order: 1520
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -29,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:16:37.667Z'
-updated: '2026-08-20T12:45:07.056Z'
+updated: '2026-08-25T01:27:00.563Z'
 ---
 
 ## What

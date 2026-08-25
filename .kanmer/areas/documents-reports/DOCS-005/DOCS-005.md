@@ -6,6 +6,7 @@ title: >-
   files
 status: done
 area: documents-reports
+order: 1270
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +26,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-20T19:33:29.208Z'
-updated: '2026-08-20T20:53:04.998Z'
+updated: '2026-08-25T01:27:00.418Z'
 ---
 
 ## Why
