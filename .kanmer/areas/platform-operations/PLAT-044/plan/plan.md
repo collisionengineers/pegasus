@@ -1,0 +1,36 @@
+# Plan — PLAT-044: Stop Assessment opening from repeating Review and content-store work
+
+## Approach
+
+Trust Review as the single lifecycle decision for instruction/image completeness. Replace the Assessment GET's composition of broad queries and the full report projection with one narrow EF-backed workspace projection. Actual generation reuses that relational projection, then uses PLAT-041's existing batch read for the bytes. Pass the already-persisted case-root remote id through the existing managed-content address so every Box content operation avoids root enumeration without a cache or fallback.
+
+## Governing docs
+
+- **FRD-01 — meets:** Review remains the one Core-owned instruction/image readiness gate; this change removes a downstream reinterpretation.
+- **FRD-05 — meets:** content stays in the immutable Case/PO Box root with ancestry, hash and length checks; only lookup by persisted identity changes.
+- **FRD-11 — modifies with explicit operator authorization:** readiness is narrowed to assessment/report-preparation work. Review prerequisites are no longer separately recalculated. The user explicitly supplied this correction on 2026-08-25.
+- **Operator notes — modifies with explicit operator authorization:** record the supplied statement that reaching Review proves its entry requirements.
+
+## Steps
+
+1. Add an Assessment workspace query contract carrying the compact header, case-data projection, latest vehicle observation, assessment, current draft/accepted specifications, and latest AI request. Implement it with one EF context and at most six commands, reusing existing persistence mappers rather than restating value/state vocabularies.
+2. Change the Assessment GET to use that projection once. Remove `PrepareAsync`, document queries and all content-store access from opening the screen; derive visible report readiness from the already-loaded assessment and report-only policy.
+3. Remove instruction/image/identity/custody prerequisites from report readiness. Preserve assessment-field, confirmation, conditional outcome, accepted-signatory and accepted-cost blockers. Treat a violated Review invariant as generation failure, not a readiness item.
+4. Convert `EfAssessmentReportProjectionSource` to reuse the workspace query and load eligible report-photo bytes through one ordered `ReadVersionsAsync` call.
+5. Add required `CaseRootRemoteId` to `ManagedDocumentContentAddress`, populate every caller from `Cases.CustodyRootRemoteId`, and make Box reads/writes use it directly while retaining existing fenced child access. Keep single-file and streaming ZIP byte paths unchanged.
+6. Update operator notes and FRD-11 to the resolved lifecycle/readiness rule, then add focused tests for zero GET-time content I/O, no Review-prerequisite readiness items, six-command workspace loading, batched report images and durable-root Box request counts/failures.
+7. Run restore, Release build, focused Core/Web/Box tests, and the repository-compatible full test suite. Run the required simplification lenses over this ticket's diff and apply or record every finding before commit/PR.
+
+## Verification
+
+- A QDOS26016-shaped Assessment GET calls no document-content method and the workspace query issues no more than six commands.
+- Review prerequisites do not appear in report readiness; real assessment/report blockers still do.
+- Three report images produce one batch call, ordered bytes and unchanged integrity enforcement.
+- Box single/batch tests prove no approved-root enumeration and fail closed for missing/invalid root ids.
+- `dotnet restore`, Release build, focused suites, then full `dotnet test` using the detected repository test platform.
+
+## Risks / open questions
+
+- A stale Box root id must fail closed; no lookup-by-name fallback is permitted.
+- Report generation still defensively validates the final immutable snapshot. That is an execution-boundary integrity check, not GET-time business-readiness recalculation.
+- No open question remains.
