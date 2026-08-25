@@ -12,4 +12,3 @@ args = [ "C:\\Users\\PC\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanme
 
 [mcp_servers.kanmer.env]
 ELECTRON_RUN_AS_NODE = "1"
-
