@@ -24,6 +24,9 @@ public enum UploadOutcomeKind
     /// <summary>Automation abstained (no usable/unique VRM, or ambiguous instruction match with no candidate); routed to Unidentified for a staff decision there.</summary>
     NeedsReview,
 
+    /// <summary>An Unidentified item was resolved to its recorded destination. Reported, not re-offered.</summary>
+    Resolved,
+
     /// <summary>Automation abstained short of the unique-match bar, but named candidates. The staff decision this ticket offers: attach, with the operator free to choose a different case.</summary>
     PossibleMatch,
 
@@ -86,6 +89,7 @@ public sealed record UploadOutcomeView(
         UploadOutcomeKind.Working => null,
         UploadOutcomeKind.Attached or UploadOutcomeKind.ImageCaseRegistered => "Success",
         UploadOutcomeKind.NeedsReview => "Unidentified",
+        UploadOutcomeKind.Resolved => "Resolved Unidentified",
         UploadOutcomeKind.PossibleMatch or UploadOutcomeKind.ReadyToCreate => "Pending",
         UploadOutcomeKind.CannotBecomeCase or UploadOutcomeKind.Failed => "Failed",
         _ => null
@@ -262,6 +266,19 @@ public sealed class UploadOutcomeQueries(
                 "Needs review",
                 "This could not be matched automatically and needs a staff decision.",
                 new("Review", $"/Unidentified/{unidentified.Id:D}"),
+                null);
+        }
+
+        if (unidentified is { State: UnidentifiedState.Resolved })
+        {
+            var destination = unidentified.ResolutionTargetReference;
+            return new(
+                UploadOutcomeKind.Resolved,
+                "Resolved",
+                string.IsNullOrWhiteSpace(destination)
+                    ? "This was resolved."
+                    : $"This was resolved to {destination}.",
+                new("View", $"/Unidentified/{unidentified.Id:D}"),
                 null);
         }
 
