@@ -48,3 +48,10 @@ Correct the two proven faults at their existing owners: grant the Worker the app
 - A distinct terminal `Resolved` presentation state is required because resolved Unidentified destinations are neither open decisions nor processing, and can represent non-Case targets; reusing an existing kind would misstate the result.
 - The group decision now adds one boolean condition over outcomes already loaded. No new service, read, fallback path, or policy owner was introduced.
 - The hosted regression uses the existing Web factory and replaces only the outcome query boundary needed to reproduce the mixed Working/open race.
+
+### Second rereview disposition — 2026-08-25
+
+- Reused `RefreshAutomatically` as the one unsettled-group predicate for both polling and withholding group decisions. This covers null outcomes from Received/Processing members without duplicating the status taxonomy.
+- Restricted the grouped-image intermediate guard to `NeedsSorting`, the exact decision consumed by grouped reconciliation. Terminal Blocked intake now continues to the existing `CannotBecomeCase` outcome.
+- Added one focused grouped blocked-image regression; no second hosted fixture or new abstraction was added.
+- Validation: direct upload slice 26/26; complete affected slice 57/57; Release build 0 warnings/errors; `git diff --check` clean apart from existing line-ending notices.

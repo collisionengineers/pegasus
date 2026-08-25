@@ -29,3 +29,7 @@ Production migration permission read-back, the fresh screenshot journey, queue c
 ## Independent review corrections
 
 Codex review of `c205afb0` found two actionable races. The implementation now reports a resolved Unidentified destination as a terminal, non-actionable outcome and suppresses every submission-level action while any member remains Working. Direct upload tests pass 25/25; the complete affected slice passes 56/56; the post-fix Release build passes with 0 warnings/errors. Fresh CI and rereview are required on the updated commit.
+
+## Second rereview corrections
+
+The group-action gate now reuses the page's existing refresh predicate, covering both nonterminal queue members and terminal Working outcomes with one condition. The grouped-image Processing guard now applies only to `NeedsSorting`, preserving terminal Blocked intake. Direct tests pass 26/26, the affected slice passes 57/57, and the Release build remains warning-free.
