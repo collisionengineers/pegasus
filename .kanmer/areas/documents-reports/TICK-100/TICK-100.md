@@ -4,7 +4,7 @@ type: ticket
 title: >-
   RPT-05 — Addenda render from accepted case data plus a versioned amendment
   without retyping the case
-status: verifying
+status: done
 area: documents-reports
 assignee: ''
 profile: feature
@@ -13,12 +13,12 @@ stageEntered:
   implementing: '2026-08-25T06:47:53.710Z'
   review: '2026-08-25T06:47:53.974Z'
   verifying: '2026-08-25T06:48:03.068Z'
+  done: '2026-08-25T06:48:17.434Z'
 labels:
   - capability
   - RPT-05
   - later
   - post-alpha
-  - blocked
 groups:
   - EPIC-004
 links:
@@ -27,35 +27,35 @@ links:
   - TICK-094
   - TICK-206
   - DOCS-004
+  - SIMPLI-014
+  - DOCS-001
+  - TICK-096
+  - TICK-208
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
+deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.729Z'
-updated: '2026-08-25T06:48:03.068Z'
+updated: '2026-08-25T06:48:37.571Z'
 ---
 
 ## What
 
-Plan and research **RPT-05**: Addenda render from accepted case data plus a versioned amendment without retyping the case
+Decide the current boundary for **RPT-05**: addenda from accepted case data plus a versioned amendment.
 
 ## Why
 
-This is allocated to **Later / 1.1.0** in `docs/capabilities.md`. It is **not designated until post-alpha** and is blocked from implementation pending its activation decision and evidence.
+RPT-05 is allocated to Later / 1.1.0, but no representative approved Collision Engineers addendum artifact or confirmed workflow/caller exists. Allocation is not activation.
 
-## Approach
+## Current decision
 
-- At activation, define the Core policy owner, caller, contract, failure behavior, and acceptance evidence.
-- Re-check the exact activation boundary in `docs/capabilities.md`; allocation alone is not implementation or deployment.
+RPT-05 is unsupported, unavailable, and fail closed. The generic imported `addendum-report` preset is not product authority and is not callable through Pegasus. General immutable successor/version rules do not supply missing addendum wording, amendment identity, approval, recovery, or caller behaviour.
 
-## Verification
+## Future activation
 
-- [ ] A task-level plan covers the capability's exact contract and tests.
-- [ ] All activation conditions are accepted before implementation starts.
+[[DOCS-004]] is the sole activation owner. It starts only when both a representative approved addendum artifact and a named real workflow/caller exist, then records the exact accepted delta and evidence before implementation.
 
-## Notes
+## Outcome
 
-- Source: `docs/capabilities.md` — RPT-05.
-- Blocked by: [[TICK-092]] — The renderer activation waits for accepted structured case and engineering data.
-- Blocked by: [[TICK-093]] — The renderer activation waits for an accepted repair-specification contract.
-- Blocked by: [[TICK-094]] — The renderer activation waits for accepted Engineer-owned outcomes and values.
+Closed at the decision/deferral tier on 2026-08-25. [[SIMPLI-014]] proves the integrated renderer activates assessment and fee-note only and leaves addendum unavailable. Obsolete implementation blocker edges were removed; ordinary links retain prerequisite and future-activation traceability. No repository diff, PR, deployment, or cloud action belongs to this ticket.

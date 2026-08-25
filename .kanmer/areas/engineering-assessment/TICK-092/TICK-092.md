@@ -21,14 +21,13 @@ links: []
 blocks:
   - TICK-096
   - TICK-097
-  - TICK-100
   - TICK-081
   - DOCS-001
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.549Z'
-updated: '2026-08-25T06:46:37.032Z'
+updated: '2026-08-25T06:48:37.639Z'
 ---
 
 ## What

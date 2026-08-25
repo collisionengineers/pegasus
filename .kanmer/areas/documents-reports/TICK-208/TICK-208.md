@@ -16,13 +16,12 @@ groups:
 links:
   - TICK-055
   - SIMPLI-015
-blocks:
-  - TICK-100
+blocks: []
 refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:08:05.482Z'
-updated: '2026-08-19T09:40:05.258Z'
+updated: '2026-08-25T06:48:37.696Z'
 ---
 
 ## What

@@ -23,7 +23,6 @@ blocks:
   - DOCS-001
   - TICK-096
   - TICK-097
-  - TICK-100
   - TICK-081
   - TICK-092
 refs:
@@ -40,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-25T06:40:07.695Z'
+updated: '2026-08-25T06:48:37.606Z'
 ---
 
 ## What
