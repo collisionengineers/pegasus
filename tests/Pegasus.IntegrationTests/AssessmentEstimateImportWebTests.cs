@@ -221,10 +221,12 @@ public sealed partial class AssessmentEstimateImportWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IRepairSpecificationStore>();
                 services.RemoveAll<IAddCaseDocument>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetAssessmentWorkspace>(store);
                 services.AddSingleton<IRepairSpecificationStore>(store);
                 services.AddSingleton<IAddCaseDocument>(store);
                 services.AddSingleton<IAcquireCaseEditLease>(store);
@@ -295,7 +297,7 @@ public sealed partial class AssessmentEstimateImportWebTests
     /// assert exactly what the page handed to each store.
     /// </summary>
     private sealed class RecordingStores(Guid caseId)
-        : IGetCase, IRepairSpecificationStore, IAddCaseDocument, IAcquireCaseEditLease
+        : IGetCase, IGetAssessmentWorkspace, IRepairSpecificationStore, IAddCaseDocument, IAcquireCaseEditLease
     {
         public const long CaseVersion = 7;
 
@@ -331,6 +333,28 @@ public sealed partial class AssessmentEstimateImportWebTests
             CaseDetails details = new(
                 summary, workflow, null, [], null, CaseCustodyState.Pending, [], [], []);
             return Task.FromResult<CaseDetails?>(details);
+        }
+
+        public async Task<AssessmentWorkspace?> ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken = default)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            if (details is null)
+            {
+                return null;
+            }
+            var assessment = new CaseAssessmentProjection(
+                caseId,
+                details.Summary.Reference,
+                CaseVersion,
+                CaseLifecycleState.Review,
+                null,
+                [],
+                [],
+                new(null, null, null, null, null, null, null, null, null));
+            return AssessmentWorkspaceTestData.Create(
+                details, assessment, CurrentDraft, CurrentAccepted);
         }
 
         public Task<RepairSpecificationVersion> StartDraftAsync(

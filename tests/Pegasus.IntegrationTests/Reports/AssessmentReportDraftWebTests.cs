@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Reports;
@@ -37,7 +38,7 @@ public sealed partial class AssessmentReportDraftWebTests
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
-            new FakeGetCaseAssessment(FullAssessmentProjection(caseId)),
+            FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId)),
             new FakeRenderer(pdfBytes));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -47,7 +48,7 @@ public sealed partial class AssessmentReportDraftWebTests
         });
 
         var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
-        Assert.Contains("Generate report draft", html, StringComparison.Ordinal);
+        Assert.Contains(AssessmentReportProjection.RepairCostRequirement, html, StringComparison.Ordinal);
 
         using var response = await client.PostAsync(
             $"/Cases/{caseId:D}/Assessment?handler=GenerateReportDraft",
@@ -66,7 +67,7 @@ public sealed partial class AssessmentReportDraftWebTests
         using var factory = Compose(
             baseFactory,
             new FakeGetCase(caseId),
-            new FakeGetCaseAssessment(FullAssessmentProjection(caseId)),
+            FullAssessmentProjection(caseId),
             new FakeProjectionSource(ReadyInput(caseId) with { Costs = null }),
             new FakeRenderer([1]));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -94,7 +95,7 @@ public sealed partial class AssessmentReportDraftWebTests
     private static WebApplicationFactory<Program> Compose(
         IntakeWebApplicationFactory baseFactory,
         IGetCase getCase,
-        IGetCaseAssessment getCaseAssessment,
+        CaseAssessmentProjection assessment,
         IAssessmentReportProjectionSource projectionSource,
         IAssessmentReportRenderer renderer) =>
         baseFactory.WithWebHostBuilder(builder =>
@@ -102,12 +103,17 @@ public sealed partial class AssessmentReportDraftWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCaseAssessment>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IAssessmentReportProjectionSource>();
                 services.RemoveAll<IAssessmentReportRenderer>();
+                services.RemoveAll<IDocumentContentStore>();
                 services.AddSingleton(getCase);
-                services.AddSingleton(getCaseAssessment);
+                services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(assessment));
+                services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
+                    AssessmentWorkspaceTestData.Create(assessment)));
                 services.AddSingleton(projectionSource);
                 services.AddSingleton(renderer);
+                services.AddSingleton<IDocumentContentStore>(new ThrowingDocumentContentStore());
             }));
 
     private static AssessmentReportProjectionInput ReadyInput(Guid caseId)
@@ -255,5 +261,22 @@ public sealed partial class AssessmentReportDraftWebTests
             $"{family}.pdf", pdfBytes, 1,
             Convert.ToHexStringLower(SHA256.HashData(pdfBytes)),
             AssessmentReportContract.TemplateVersion, "fake");
+    }
+
+    private sealed class ThrowingDocumentContentStore : IDocumentContentStore
+    {
+        public Task StoreAsync(
+            Guid caseId, string caseReference, Guid versionId, ReadOnlyMemory<byte> content,
+            string expectedSha256, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Assessment GET must not write document content.");
+
+        public Task<Stream> OpenReadAsync(
+            Guid caseId, string caseReference, Guid versionId, string expectedSha256,
+            long expectedLength, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Assessment GET must not read document content.");
+
+        public Task DeleteAsync(
+            Guid caseId, string caseReference, Guid versionId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Assessment GET must not delete document content.");
     }
 }

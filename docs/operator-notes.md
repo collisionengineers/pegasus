@@ -536,6 +536,14 @@ The storage statements describe different layers rather than competing custody r
 
 A staged image must not be treated as definitively associated merely because it has been received. The supplied sources do not establish that movement from staging into Box is automated.
 
+## Report readiness after Review
+
+> **Source label:** `direct operator statement, 2026-08-25`
+
+"Report readiness does not need to recalculate requirements that were needed
+for a case to reach review. By virtue of it being there, these requirements are
+met. Hence this is duplication."
+
 # Additional recorded operator statements
 
 > **Source label:** `pre-deletion migration from docs/history/product/project-discovery-questionnaire.md, 2026-08-02`

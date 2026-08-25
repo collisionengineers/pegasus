@@ -268,6 +268,8 @@ public sealed class EvaHandoffStore(
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                     on occurrence.VersionId equals version.Id
+                join caseEntity in context.Cases.AsNoTracking()
+                    on occurrence.CaseId equals caseEntity.Id
                 where occurrence.CaseId == caseId
                       && version.DocumentId == occurrence.DocumentId
                 orderby occurrence.Ordinal
@@ -289,7 +291,8 @@ public sealed class EvaHandoffStore(
                     version.CustodyStatus,
                     version.IsCurrent,
                     version.IsLogicallyRemoved,
-                    occurrence.ThirdPartyVehicleConfirmedAtUtc != null))
+                    occurrence.ThirdPartyVehicleConfirmedAtUtc != null,
+                    caseEntity.CustodyRootRemoteId))
             .ToArrayAsync(cancellationToken);
         var eligibleVersionIds = EvaHandoffPolicy.SelectEligibleImages(candidateRows.Select(
                 selected => new EvaHandoffImageCandidate(
@@ -316,10 +319,14 @@ public sealed class EvaHandoffStore(
             selected => eligibleVersionIds.Contains(selected.VersionId)
                         && selected.ContentLength <= int.MaxValue)
             .ToArray();
+        var caseRootRemoteId = selectedImages.Length == 0
+            ? null
+            : selectedImages[0].CaseRootRemoteId;
         var reads = selectedImages.Select(selected => new ManagedDocumentContentRead(
                 new ManagedDocumentContentAddress(
                     caseId,
                     caseReference,
+                    caseRootRemoteId,
                     selected.OccurrenceId,
                     selected.Ordinal,
                     selected.DocumentId,
@@ -602,5 +609,6 @@ public sealed class EvaHandoffStore(
         DocumentCustodyStatus CustodyStatus,
         bool IsCurrent,
         bool IsLogicallyRemoved,
-        bool IsThirdPartyVehicle);
+        bool IsThirdPartyVehicle,
+        string? CaseRootRemoteId);
 }

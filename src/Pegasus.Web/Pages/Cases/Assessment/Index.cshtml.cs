@@ -30,8 +30,7 @@ namespace Pegasus.Web.Pages.Cases.Assessment;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class IndexModel(
     IGetCase getCase,
-    IGetCaseAssessment getAssessment,
-    IAiWorkRequestStore workRequests,
+    IGetAssessmentWorkspace getAssessmentWorkspace,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
     IRepairSpecificationStore repairSpecifications,
@@ -44,7 +43,7 @@ public sealed class IndexModel(
     /// <summary>The staff custody upload's own ceiling (Cases/Custody), reused unchanged.</summary>
     private const long MaximumEstimateUploadBytes = 10 * 1024 * 1024;
 
-    public CaseDetails? Case { get; private set; }
+    public AssessmentWorkspace? Case { get; private set; }
 
     public CaseAssessmentProjection? Assessment { get; private set; }
 
@@ -71,7 +70,7 @@ public sealed class IndexModel(
 
     /// <summary>
     /// ENG-003: the one readiness list the page renders. <see cref="ReportDraftPreparation"/>'s
-    /// <c>Reasons</c> already reuses <see cref="AssessmentPolicy.EvaluateReadiness"/> as its
+    /// <c>Reasons</c> already reuses <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/> as its
     /// base and only appends report-specific requirements on top
     /// (<see cref="Pegasus.Core.Reports.AssessmentReportProjection.Project"/>), so it is always a
     /// superset of <see cref="Assessment"/>'s own <c>Readiness</c> for the same case — using it
@@ -115,7 +114,7 @@ public sealed class IndexModel(
             {
                 return fact.ToString(CultureInfo.InvariantCulture);
             }
-            return Case?.VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles } estimate
+            return Case?.LatestVehicleObservation?.Mileage is { Unit: VehicleMileageUnit.Miles } estimate
                 ? estimate.Value.ToString(CultureInfo.InvariantCulture)
                 : null;
         }
@@ -136,7 +135,7 @@ public sealed class IndexModel(
         }
 
         var vehicle = Case?.Data?.Vehicle;
-        var details = Case?.VehicleEvidence?.LatestObservation?.Vehicle;
+        var details = Case?.LatestVehicleObservation?.Vehicle;
         return path switch
         {
             "vehicle.make" => vehicle?.Make.Confirmed?.Value ?? vehicle?.Make.Fact?.Value ?? details?.Make,
@@ -157,7 +156,7 @@ public sealed class IndexModel(
             return selected.Source.Kind == CaseDataSourceKind.VehicleLookup ? "online_data" : null;
         }
 
-        return Case?.VehicleEvidence?.LatestObservation?.Mileage is { Unit: VehicleMileageUnit.Miles }
+        return Case?.LatestVehicleObservation?.Mileage is { Unit: VehicleMileageUnit.Miles }
             ? "online_data"
             : null;
     }
@@ -250,19 +249,19 @@ public sealed class IndexModel(
             return Forbid();
         }
 
-        Case = await getCase.ExecuteAsync(new(id, actor), cancellationToken);
+        Case = await getAssessmentWorkspace.ExecuteAsync(new(id, actor), cancellationToken);
         if (Case is null)
         {
             return NotFound();
         }
 
-        Assessment = await getAssessment.ExecuteAsync(id, cancellationToken);
-        DraftSpecification = await repairSpecifications.GetCurrentDraftAsync(id, cancellationToken);
-        AcceptedSpecification = await repairSpecifications.GetCurrentAcceptedAsync(id, cancellationToken);
+        Assessment = Case.Assessment;
+        DraftSpecification = Case.DraftSpecification;
+        AcceptedSpecification = Case.AcceptedSpecification;
         ActorIsEngineer = actor.IsInRole(StaffRole.Engineer);
-        LatestRequest = await workRequests.GetLatestForCaseAsync(id, cancellationToken);
-        ReportDraftPreparation = await generateReportDraft.PrepareAsync(id, actor, cancellationToken);
-        CombinedReadiness = ReportDraftPreparation?.Reasons ?? Assessment?.Readiness ?? [];
+        LatestRequest = Case.LatestRequest;
+        ReportDraftPreparation = AssessmentReportProjection.Prepare(Assessment, costs: null);
+        CombinedReadiness = ReportDraftPreparation.Reasons;
         await EvaluatePanelStateAsync(cancellationToken);
         return Page();
     }
@@ -726,7 +725,7 @@ public sealed class IndexModel(
         }
 
         if (Case is { } details
-            && !AiWorkPolicy.IsEligibleCaseState(details.Summary.State))
+            && !AiWorkPolicy.IsEligibleCaseState(details.Header.State))
         {
             reasons.Add("The case is not in a state that accepts assessment work.");
         }

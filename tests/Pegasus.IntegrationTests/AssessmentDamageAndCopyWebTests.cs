@@ -114,10 +114,12 @@ public sealed partial class AssessmentDamageAndCopyWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCaseAssessment>();
+                services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ISaveAssessment>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(stores);
                 services.AddSingleton<IGetCaseAssessment>(stores);
+                services.AddSingleton<IGetAssessmentWorkspace>(stores);
                 services.AddSingleton<ISaveAssessment>(stores);
                 services.AddSingleton<IAcquireCaseEditLease>(stores);
             }));
@@ -154,7 +156,7 @@ public sealed partial class AssessmentDamageAndCopyWebTests
     private static partial Regex AntiforgeryTagRegex();
 
     private sealed class Recorder(Guid caseId, CaseInspectionMode? mode)
-        : IGetCase, IGetCaseAssessment, ISaveAssessment, IAcquireCaseEditLease
+        : IGetCase, IGetCaseAssessment, IGetAssessmentWorkspace, ISaveAssessment, IAcquireCaseEditLease
     {
         public List<SaveAssessmentRequest> SavedRequests { get; } = [];
 
@@ -225,6 +227,17 @@ public sealed partial class AssessmentDamageAndCopyWebTests
                 : [new(AssessmentVocabulary.ImpactLocation, SavedImpactLocation, ActorKind.Staff, "staff", DateTimeOffset.UtcNow, null, null)];
             return Task.FromResult<CaseAssessmentProjection?>(new(
                 caseId, "QDOS-2026-00042", 7, CaseLifecycleState.Review, null, fields, [], EmptyOwned));
+        }
+
+        async Task<AssessmentWorkspace?> IGetAssessmentWorkspace.ExecuteAsync(
+            GetAssessmentWorkspaceQuery query,
+            CancellationToken cancellationToken)
+        {
+            var details = await ExecuteAsync(new GetCaseQuery(query.CaseId, query.Actor), cancellationToken);
+            var assessment = await ((IGetCaseAssessment)this).ExecuteAsync(query.CaseId, cancellationToken);
+            return details is null || assessment is null
+                ? null
+                : AssessmentWorkspaceTestData.Create(details, assessment);
         }
 
         public Task<CaseAssessmentProjection> ExecuteAsync(

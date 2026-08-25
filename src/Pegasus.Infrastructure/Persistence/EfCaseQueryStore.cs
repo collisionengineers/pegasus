@@ -335,7 +335,7 @@ public sealed class EfCaseQueryStore(
         item.CreatedAtUtc,
         item.NextChaseAtUtc);
 
-    private static CaseType ParseCaseType(string value)
+    internal static CaseType ParseCaseType(string value)
     {
         if (string.Equals(value, "inspection", StringComparison.OrdinalIgnoreCase))
         {

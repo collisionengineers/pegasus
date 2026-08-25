@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Assessment;
-using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Reports;
@@ -9,21 +8,14 @@ namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// Loads an <see cref="AssessmentReportProjectionInput"/> for a case by
-/// composing the same accepted sources the rest of the app already reads
-/// from: <see cref="IGetCase"/> for case identity, addressee and
-/// authorisation (its own <c>StaffAuthorization</c> check, unchanged), <see
-/// cref="IGetCaseAssessment"/> for the assessment record, and a direct
-/// custody-document query — mirroring <c>EvaHandoffStore</c>'s own image
-/// query — for confirmed source and photograph evidence. <see
-/// cref="IGetCase"/>'s own <c>Documents</c> projection does not carry a real
-/// occurrence ordinal (<c>EfCaseQueryStore.ReadDocumentsAsync</c> never sets
-/// it), and <c>BoxDocumentContentStore</c> rejects an ordinal of zero, so
-/// photograph content is read from a query that keeps the real value instead.
+/// reusing the same bounded Assessment workspace query as the screen, then
+/// loading confirmed document metadata once. Photograph bytes use PLAT-041's
+/// ordered batch route; opening the Assessment screen never reaches this
+/// source or the content store.
 /// </summary>
 internal sealed class EfAssessmentReportProjectionSource(
     IDbContextFactory<PegasusDbContext> contextFactory,
-    IGetCase getCase,
-    IGetCaseAssessment getCaseAssessment,
+    IGetAssessmentWorkspace getAssessmentWorkspace,
     IDocumentContentStore contentStore,
     TimeProvider timeProvider) : IAssessmentReportProjectionSource
 {
@@ -33,14 +25,10 @@ internal sealed class EfAssessmentReportProjectionSource(
     public async Task<AssessmentReportProjectionInput?> GetAsync(
         Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
     {
-        var details = await getCase.ExecuteAsync(new GetCaseQuery(caseId, actor), cancellationToken);
-        if (details is null)
-        {
-            return null;
-        }
-
-        var assessment = await getCaseAssessment.ExecuteAsync(caseId, cancellationToken);
-        if (assessment is null)
+        var workspace = await getAssessmentWorkspace.ExecuteAsync(
+            new(caseId, actor),
+            cancellationToken);
+        if (workspace is null)
         {
             return null;
         }
@@ -76,20 +64,17 @@ internal sealed class EfAssessmentReportProjectionSource(
                 row.Sha256))
             .ToArray();
 
-        var photos = new List<ReportImageEvidence>();
-        foreach (var row in confirmed)
-        {
-            if (row.SemanticRole != DocumentSemanticRole.Image
-                || !PhotoMediaTypes.Contains(row.MediaType)
-                || row.ContentLength is < 0 or > int.MaxValue)
-            {
-                continue;
-            }
-
-            await using var content = await contentStore.OpenReadVersionAsync(
+        var photoRows = confirmed
+            .Where(row => row.SemanticRole == DocumentSemanticRole.Image
+                && PhotoMediaTypes.Contains(row.MediaType)
+                && row.ContentLength is >= 0 and <= int.MaxValue)
+            .ToArray();
+        var reads = photoRows
+            .Select(row => new ManagedDocumentContentRead(
                 new ManagedDocumentContentAddress(
                     caseId,
-                    details.Summary.Reference,
+                    workspace.Header.Reference,
+                    workspace.Header.CaseRootRemoteId,
                     row.OccurrenceId,
                     row.Ordinal,
                     row.DocumentId,
@@ -99,22 +84,26 @@ internal sealed class EfAssessmentReportProjectionSource(
                     row.FileName,
                     row.MediaType),
                 row.Sha256,
-                row.ContentLength,
-                cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)row.ContentLength));
-            await content.ReadExactlyAsync(bytes, cancellationToken);
-            photos.Add(new ReportImageEvidence(row.FileName, row.MediaType, bytes, row.Sha256));
-        }
+                row.ContentLength))
+            .ToArray();
+        var contents = await contentStore.ReadVersionsAsync(reads, cancellationToken);
+        var photos = photoRows
+            .Select((row, index) => new ReportImageEvidence(
+                row.FileName,
+                row.MediaType,
+                contents[index].ToArray(),
+                row.Sha256))
+            .ToArray();
 
         // Repair-cost figures have no accepted formula anywhere in the
         // domain yet (see the remarks on AssessmentReportProjectionInput);
         // this production source never fabricates one.
         return new AssessmentReportProjectionInput(
-            assessment,
-            details.Summary.Claimant,
-            details.Summary.Reference,
-            details.Summary.ClaimNumber,
-            [details.Summary.Principal],
+            workspace.Assessment,
+            workspace.Data.Claimant.Name.Current?.Value,
+            workspace.Header.Reference,
+            workspace.Data.Claim.Number.Current?.Value,
+            [workspace.Header.Principal],
             DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime),
             photos,
             sources,

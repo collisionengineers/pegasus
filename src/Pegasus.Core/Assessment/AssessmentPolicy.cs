@@ -133,7 +133,18 @@ public static class AssessmentPolicy
     /// save-blocker, and no value is ever guessed.
     /// </summary>
     public static IReadOnlyList<AssessmentReadinessItem> EvaluateReadiness(
-        CaseAssessmentProjection projection)
+        CaseAssessmentProjection projection) => Evaluate(projection, includeReviewEntryRequirements: true);
+
+    /// <summary>
+    /// Assessment and report work still required after entry to Review. Case
+    /// facts already proved by that transition are deliberately excluded.
+    /// </summary>
+    public static IReadOnlyList<AssessmentReadinessItem> EvaluatePostReviewReadiness(
+        CaseAssessmentProjection projection) => Evaluate(projection, includeReviewEntryRequirements: false);
+
+    private static List<AssessmentReadinessItem> Evaluate(
+        CaseAssessmentProjection projection,
+        bool includeReviewEntryRequirements)
     {
         ArgumentNullException.ThrowIfNull(projection);
         var items = new List<AssessmentReadinessItem>();
@@ -154,37 +165,36 @@ public static class AssessmentPolicy
             }
         }
 
-        if (projection.CaseOwned.Registration is null)
+        if (includeReviewEntryRequirements)
         {
-            items.Add(new(
-                "Vehicle registration",
-                "Case record",
-                "No confirmed registration is recorded.",
-                "Confirm it on the case details."));
-        }
-        if (projection.CaseOwned.Make is null)
-        {
-            items.Add(new(
-                "Vehicle make",
-                "Case record",
-                "No confirmed make is recorded.",
-                "Confirm it on the case details."));
-        }
-        if (projection.CaseOwned.Model is null)
-        {
-            items.Add(new(
-                "Vehicle model",
-                "Case record",
-                "No confirmed model is recorded.",
-                "Confirm it on the case details."));
-        }
-        if (projection.CaseOwned.InstructionDate is null)
-        {
-            items.Add(new(
-                "Instructions received date",
-                "Case record",
-                "No confirmed instruction date is recorded.",
-                "Confirm it on the case details."));
+            if (projection.CaseOwned.Registration is null)
+            {
+                items.Add(new(
+                    "Vehicle registration", "Case record",
+                    "No confirmed registration is recorded.",
+                    "Confirm it on the case details."));
+            }
+            if (projection.CaseOwned.Make is null)
+            {
+                items.Add(new(
+                    "Vehicle make", "Case record",
+                    "No confirmed make is recorded.",
+                    "Confirm it on the case details."));
+            }
+            if (projection.CaseOwned.Model is null)
+            {
+                items.Add(new(
+                    "Vehicle model", "Case record",
+                    "No confirmed model is recorded.",
+                    "Confirm it on the case details."));
+            }
+            if (projection.CaseOwned.InstructionDate is null)
+            {
+                items.Add(new(
+                    "Instructions received date", "Case record",
+                    "No confirmed instruction date is recorded.",
+                    "Confirm it on the case details."));
+            }
         }
 
         RequireField(AssessmentVocabulary.VehicleType, "Vehicle type", "Vehicle");
@@ -212,17 +222,19 @@ public static class AssessmentPolicy
         RequireField(AssessmentVocabulary.EngineerSignature, "Signature", "Report content");
         RequireField(AssessmentVocabulary.AgreedFee, "Agreed fee", "Report content");
 
-        var mileageSourceIsTbc = fields.TryGetValue(
-                AssessmentVocabulary.VehicleMileageSource,
-                out var mileageSource)
-            && string.Equals(mileageSource, "tbc", StringComparison.Ordinal);
-        if (!mileageSourceIsTbc && projection.CaseOwned.Mileage is null)
+        if (includeReviewEntryRequirements)
         {
-            items.Add(new(
-                "Odometer reading",
-                "Case record",
-                "No confirmed mileage is recorded and the mileage source is not To be confirmed.",
-                "Confirm the mileage on the case details, or record the mileage source as To be confirmed."));
+            var mileageSourceIsTbc = fields.TryGetValue(
+                    AssessmentVocabulary.VehicleMileageSource,
+                    out var mileageSource)
+                && string.Equals(mileageSource, "tbc", StringComparison.Ordinal);
+            if (!mileageSourceIsTbc && projection.CaseOwned.Mileage is null)
+            {
+                items.Add(new(
+                    "Odometer reading", "Case record",
+                    "No confirmed mileage is recorded and the mileage source is not To be confirmed.",
+                    "Confirm the mileage on the case details, or record the mileage source as To be confirmed."));
+            }
         }
 
         if (fields.TryGetValue(AssessmentVocabulary.LegalStatus, out var legalStatus)
@@ -257,15 +269,15 @@ public static class AssessmentPolicy
             }
         }
 
-        if (string.Equals(
+        if (includeReviewEntryRequirements
+            && string.Equals(
                 projection.CaseOwned.InspectionMode,
                 "PhysicalAddress",
                 StringComparison.Ordinal)
             && projection.CaseOwned.InspectionAddress is null)
         {
             items.Add(new(
-                "Inspection address",
-                "Case record",
+                "Inspection address", "Case record",
                 "The method is Physical without an inspection address.",
                 "Confirm the address on the case details."));
         }

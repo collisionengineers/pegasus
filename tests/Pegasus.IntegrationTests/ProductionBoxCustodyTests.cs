@@ -278,9 +278,9 @@ public sealed class ProductionBoxCustodyTests
         var first = Encoding.UTF8.GetBytes("first image revision");
         var second = Encoding.UTF8.GetBytes("second image revision");
         var other = Encoding.UTF8.GetBytes("second occurrence");
-        await documents.StoreVersionAsync(Address(caseId, 2, 1, sameName), first, Sha256(first), default);
-        await documents.StoreVersionAsync(Address(caseId, 2, 2, sameName), second, Sha256(second), default);
-        await documents.StoreVersionAsync(Address(caseId, 3, 1, sameName), other, Sha256(other), default);
+        await documents.StoreVersionAsync(Address(caseId, root.RemoteId, 2, 1, sameName), first, Sha256(first), default);
+        await documents.StoreVersionAsync(Address(caseId, root.RemoteId, 2, 2, sameName), second, Sha256(second), default);
+        await documents.StoreVersionAsync(Address(caseId, root.RemoteId, 3, 1, sameName), other, Sha256(other), default);
 
         Assert.False(box.PathExists("QDOS31001/pegasus-case-binding.json"));
         Assert.True(box.PathExists("QDOS31001/001 instruction.eml"));
@@ -443,9 +443,15 @@ public sealed class ProductionBoxCustodyTests
         Assert.False(expiresAfterPromotion.PathExists("QDOS31001/Evidence"));
     }
 
-    private static ManagedDocumentContentAddress Address(Guid caseId, int ordinal, int version, string fileName) => new(
+    private static ManagedDocumentContentAddress Address(
+        Guid caseId,
+        string caseRootRemoteId,
+        int ordinal,
+        int version,
+        string fileName) => new(
         caseId,
         "QDOS31001",
+        caseRootRemoteId,
         Guid.Parse($"10000000-0000-0000-0000-{ordinal:D12}"),
         ordinal,
         Guid.Parse($"20000000-0000-0000-0000-{ordinal:D12}"),

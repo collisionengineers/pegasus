@@ -56,8 +56,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         Validate(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
         Verify(content.Span, normalizedHash, content.Length);
-        var caseFolder = await ResolveCaseFolderAsync(address, create: true, cancellationToken)
-            ?? throw new InvalidOperationException("The managed document folder could not be resolved.");
+        var caseFolder = address.CaseRootRemoteId!;
         var fileName = FlatFileName(address);
         var existing = await client.FindChildAsync(caseFolder, fileName, "file", cancellationToken);
         if (existing is not null)
@@ -97,11 +96,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     {
         Validate(address);
         var normalizedHash = NormalizeSha256(expectedSha256);
-        var caseFolder = await ResolveCaseFolderAsync(address, create: false, cancellationToken);
-        if (caseFolder is null)
-        {
-            throw new FileNotFoundException("The document content is unavailable.");
-        }
+        var caseFolder = address.CaseRootRemoteId!;
         var file = await client.FindChildAsync(
             caseFolder,
             FlatFileName(address),
@@ -142,7 +137,11 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             var address = reads[index].Address;
             Validate(address);
             if (address.CaseId != first.CaseId
-                || !string.Equals(address.CaseReference, first.CaseReference, StringComparison.Ordinal))
+                || !string.Equals(address.CaseReference, first.CaseReference, StringComparison.Ordinal)
+                || !string.Equals(
+                    address.CaseRootRemoteId,
+                    first.CaseRootRemoteId,
+                    StringComparison.Ordinal))
             {
                 throw new ArgumentException(
                     "A managed content batch reads one Case only.", nameof(reads));
@@ -150,8 +149,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             hashes[index] = NormalizeSha256(reads[index].ExpectedSha256);
         }
 
-        var caseFolder = await ResolveCaseFolderAsync(first, create: false, cancellationToken)
-            ?? throw new FileNotFoundException("The document content is unavailable.");
+        var caseFolder = first.CaseRootRemoteId!;
         var children = await client.ListChildrenAsync(caseFolder, cancellationToken);
         var contents = new ReadOnlyMemory<byte>[reads.Count];
         await Parallel.ForEachAsync(
@@ -215,39 +213,6 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
         await client.DeleteFileAsync(created.FileId, cancellationToken);
     }
 
-    private async Task<string?> ResolveCaseFolderAsync(
-        ManagedDocumentContentAddress address,
-        bool create,
-        CancellationToken cancellationToken)
-    {
-        var rootName = CustodyNames.SafeName(address.CaseReference);
-        var root = await client.FindChildAsync(
-            client.RootFolderId,
-            rootName,
-            "folder",
-            cancellationToken);
-        if (root is null)
-        {
-            if (!create)
-            {
-                return null;
-            }
-            throw new InvalidOperationException(
-                "Managed content requires the already bound Case custody root.");
-        }
-        // DOCS-005: the case root carries no binding file; the reference-named
-        // folder resolved under the custody root is the case's, and the durable
-        // folder identity lives in the database.
-        // Operator direction (2026-08-21): the case folder holds the files
-        // themselves. The Evidence / role / occurrence / revision folders
-        // and their two binding sidecars were never asked for; they put
-        // three folders and two extra files around every single document.
-        // The occurrence and revision identity that the bindings carried is
-        // in SQL, which is already where the case root's own identity
-        // lives, and it is expressed in the file's name.
-        return root.Id;
-    }
-
     /// <summary>
     /// Whether a Box file is the revision it is supposed to be.
     ///
@@ -309,6 +274,7 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
             || address.OccurrenceOrdinal <= 0
             || address.Version <= 0
             || string.IsNullOrWhiteSpace(address.CaseReference)
+            || string.IsNullOrWhiteSpace(address.CaseRootRemoteId)
             || string.IsNullOrWhiteSpace(address.FileName)
             || string.IsNullOrWhiteSpace(address.MediaType))
         {
@@ -356,11 +322,23 @@ internal sealed class BoxDocumentContentStore(BoxContentClient client) : IDocume
     private static string NormalizeSha256(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);
-        if (value.Length != SHA256.HashSizeInBytes * 2 || !value.All(char.IsAsciiHexDigit))
+        if (value.Length != SHA256.HashSizeInBytes * 2 || !IsAsciiHex(value))
         {
             throw new ArgumentException("A SHA-256 hash is required.", nameof(value));
         }
         return value.ToLowerInvariant();
+    }
+
+    private static bool IsAsciiHex(string value)
+    {
+        foreach (var character in value)
+        {
+            if (!char.IsAsciiHexDigit(character))
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     private sealed record CreatedFile(

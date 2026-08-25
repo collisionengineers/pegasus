@@ -57,16 +57,16 @@
     than as the case being worked.
 *@
 @{
-    var caseStage = OperatorLabels.CaseStage(Model.Case!.Summary.State);
+    var caseStage = OperatorLabels.CaseStage(Model.Case!.Header.State);
 }
 <article class="record" data-state="review">
     <header class="record__head">
-        <h1>@Model.Case.Summary.Reference</h1>
+        <h1>@Model.Case.Header.Reference</h1>
         <span class="record__identity">
-            <span><b>@Model.Case.Summary.Principal</b></span>
-            <span>@(Model.Case.Summary.Registration ?? "No registration")</span>
-            <span>@OperatorLabels.CaseTypeName(Model.Case.Summary.CaseType)</span>
-            @if (Model.Case.Workflow.DueWork?.DueBy is { } dueBy)
+            <span><b>@Model.Case.Header.Principal</b></span>
+            <span>@(Model.Case.Header.Registration ?? "No registration")</span>
+            <span>@OperatorLabels.CaseTypeName(Model.Case.Header.CaseType)</span>
+            @if (Model.Case.Header.DueBy is { } dueBy)
             {
                 <span>Report due @dueBy.ToString("d MMM yyyy")</span>
             }
@@ -1069,7 +1069,7 @@
                 *@
                 <h3 class="section-label section-gap">Damage locations</h3>
                 <form method="post" asp-page-handler="SaveDamage" class="damage-grid" data-damage-grid>
-                    <input type="hidden" name="id" value="@Model.Case!.Summary.CaseId" />
+                    <input type="hidden" name="id" value="@Model.Case!.Header.CaseId" />
                     <input type="hidden" name="operationKey" value="@Model.DamageOperationKey" />
                     @foreach (var (code, label) in new[]
                     {
