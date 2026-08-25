@@ -267,6 +267,12 @@ function Get-MigrationPermissionMatrix {
     foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
         $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
     }
+    # 20260825145216_MailboxImageIntake: mailbox processing now creates and
+    # appends the same group/member rows as the Web upload route. The Worker
+    # remains append-only; UPDATE and DELETE are still absent from the matrix.
+    foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
+        $expected.Add("pegasus_worker_runtime_role|G|INSERT|$table")
+    }
     # 20260819112914_ImageInitiatedLifecycle and
     # 20260825121453_GrantWorkerImageIntakeLifecycleEvents: the Image-initiated
     # Case lifecycle event log is append-only. Web handles staff transitions
