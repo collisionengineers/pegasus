@@ -1,1 +1,3 @@
 2026-08-25 pre-promotion gate: exact SHA 7dbb7c3952fba74cab2d65a2971ee30b9bc8d273; all PR checks settled green; merge-tree audit exact; canonical test gate green (990 Core, 100 Architecture, 961 Integration/Browser, 2 expected skips); focused overlap 59/59; Local and enabled-estate PreProvision guards green. Awaiting literal MERGE AUTH GRANTED immediately before atomic main/dev fast-forward.
+
+2026-08-25 promotion: operator supplied literal MERGE AUTH GRANTED. Atomic lease-guarded push fast-forwarded origin/main from a4c57b0a to 7dbb7c3952fba74cab2d65a2971ee30b9bc8d273 while asserting origin/dev remained that SHA. Fresh fetch read both origin/main and origin/dev exactly equal to the pinned SHA.
