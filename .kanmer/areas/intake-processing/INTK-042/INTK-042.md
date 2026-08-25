@@ -2,12 +2,15 @@
 id: INTK-042
 type: ticket
 title: Publish committed intake and custody work immediately
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-25T15:19:34.322Z'
+taken_at: '2026-08-25T16:35:16.630Z'
+branch: task/intk-042-immediate-publication
+worktree: ../pegasus-worktrees/intk-042-immediate-publication
 labels: []
 groups:
   - EPIC-002
@@ -21,7 +24,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-25T15:18:39.858Z'
-updated: '2026-08-25T15:19:34.322Z'
+updated: '2026-08-25T16:35:16.630Z'
 ---
 
 ## What
