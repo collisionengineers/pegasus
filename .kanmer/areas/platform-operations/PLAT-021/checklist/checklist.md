@@ -11,3 +11,8 @@
 ## Progress notes
 
 2026-08-21: Bicep compilation, focused alert-contract test, and Release build passed. Simplification review caught and corrected an initially mis-targeted Web 5xx window edit. Concurrent full-suite execution produced unrelated shared-resource timeouts; no alert-path failure occurred.
+
+<!-- kanmer-groom:release-take:PLAT-021:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/plat-021-exception-alert`; worktree: `../pegasus-worktrees/plat-021`; taken at: `2026-08-21T10:00:08.703Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

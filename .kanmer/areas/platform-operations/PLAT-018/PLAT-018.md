@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-21T14:02:38.758Z'
   verifying: '2026-08-21T14:06:42.690Z'
   done: '2026-08-21T14:25:32.625Z'
-taken_at: '2026-08-21T14:01:07.563Z'
-branch: task/plat-018
-worktree: ../pegasus-worktrees/plat-018
 labels:
   - docs
   - design-authority
@@ -28,7 +25,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/502'
 archived: false
 created: '2026-08-21T08:25:11.433Z'
-updated: '2026-08-25T01:27:00.748Z'
+updated: '2026-08-25T06:38:05.544Z'
 ---
 
 ## What

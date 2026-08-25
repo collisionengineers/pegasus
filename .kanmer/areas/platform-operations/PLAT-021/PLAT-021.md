@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-21T10:25:50.023Z'
   verifying: '2026-08-21T14:04:40.326Z'
   done: '2026-08-21T14:52:39.063Z'
-taken_at: '2026-08-21T10:00:08.703Z'
-branch: task/plat-021-exception-alert
-worktree: ../pegasus-worktrees/plat-021
 labels:
   - production
   - monitoring
@@ -36,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T09:57:55.118Z'
-updated: '2026-08-25T01:27:00.767Z'
+updated: '2026-08-25T06:38:05.527Z'
 ---
 
 ## Why

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T12:19:02.709Z'
   verifying: '2026-08-20T12:55:23.959Z'
   done: '2026-08-21T15:10:40.717Z'
-taken_at: '2026-08-20T11:44:11.993Z'
-branch: task/tick-047-mail-05-folder-recommendation
-worktree: ../pegasus-worktrees/tick-047
 labels:
   - capability
   - MAIL-05
@@ -38,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.177Z'
-updated: '2026-08-25T01:27:00.071Z'
+updated: '2026-08-25T06:38:05.511Z'
 ---
 
 ## What

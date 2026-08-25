@@ -14,3 +14,8 @@
 ## Parked post-deployment acceptance
 
 - [x] After deployment, run the already-approved authenticated read-only production browse/search/thread journey; Deleted Items stays within the existing approved scope, with no mutation or historical reconstruction.
+
+<!-- kanmer-groom:release-take:TICK-053:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/tick-053-mail-browse-search`; worktree: `../pegasus-worktrees/tick-053`; taken at: `2026-08-20T09:58:24.766Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

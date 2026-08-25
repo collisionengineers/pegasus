@@ -11,3 +11,8 @@
 ## Progress notes
 
 2026-08-21: Full suites were initially run concurrently across three worktrees and produced unrelated QDOS regex and LocalDB connection timeouts. The Core suite passed 867/867 when rerun serially; focused Assessment tests passed 2/2. Release build passed.
+
+<!-- kanmer-groom:release-take:ENG-007:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/eng-007-assessment-prefill`; worktree: `../pegasus-worktrees/eng-007`; taken at: `2026-08-21T10:00:08.571Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

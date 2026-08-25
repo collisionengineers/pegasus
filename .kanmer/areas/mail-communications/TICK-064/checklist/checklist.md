@@ -14,3 +14,8 @@
 - 2026-08-20: Locked restore and Release build pass with zero warnings/errors. Focused Core policy/administration passed 84; focused Graph/local resolver, mailbox persistence and Web passed 14; exact committed-schema and previously deadlocked Qdos case passed 2. Canonical non-corpus run passed Core 828 and Architecture 98; Integration passed 798/799 with one unrelated SQL timeout in `IntakeWebNegativeTests.UnknownExtensionReachesReaderAndPersistsUnsupportedReceipt` while another ticket contended for shared LocalDB. No further full run was started under the coordinated serialization instruction.
 - 2026-08-20: Four-lens simplification pass recorded in plan.md; the committed-migration proof and hostile Graph paging test were the applied findings, with none left unapplied.
 - 2026-08-20: Commits `a1ae9608` and `f23f7e0e` pushed; PR #468 targets `dev`; post-implementation report and not-deployed traceability recorded.
+
+<!-- kanmer-groom:release-take:TICK-064:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/tick-064-mail-23-folder-policy`; worktree: `../pegasus-worktrees/tick-064`; taken at: `2026-08-20T09:54:49.769Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

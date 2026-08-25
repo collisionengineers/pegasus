@@ -20,3 +20,8 @@
 - 2026-08-20: committed `6cb9c59a`, pushed `task/plat-014-localdb-detection`, and opened PR #471 to `dev`: https://github.com/collisionengineers/pegasus/pull/471.
 
 - 2026-08-20: independent review filed [[PR-023]] after the first Windows CI job printed success but returned exit 1. Commit `4c7b459f` resets only the test's success-path process exit state; direct and GitHub-style local invocations pass. PR #471 re-ran and remains awaiting green CI/re-review.
+
+<!-- kanmer-groom:release-take:PLAT-014:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/plat-014-localdb-detection`; worktree: `../pegasus-worktrees/plat-014`; taken at: `2026-08-20T10:41:05.974Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

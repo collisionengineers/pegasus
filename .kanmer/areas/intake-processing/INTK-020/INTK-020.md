@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-20T14:53:26.920Z'
   verifying: '2026-08-20T16:38:26.794Z'
   done: '2026-08-20T20:51:14.288Z'
-taken_at: '2026-08-20T14:12:11.426Z'
-branch: task/intk-020-upload-one-unit
-worktree: ../pegasus-worktrees/intk-020
 labels:
   - upload
   - ui
@@ -28,7 +25,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T14:08:22.595Z'
-updated: '2026-08-25T01:26:59.628Z'
+updated: '2026-08-25T06:38:02.294Z'
 ---
 
 ## Why

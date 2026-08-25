@@ -11,3 +11,8 @@
 - [x] Run locked restore, Release build and proportional tests.
 - [x] Run and record reuse, simplification, efficiency and altitude lenses.
 - [x] Write exact PIR/traceability, push PR to dev and leave Review.
+
+<!-- kanmer-groom:release-take:TICK-057:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/tick-057-ui-14-mail-queues`; worktree: `../pegasus-worktrees/tick-057`; taken at: `2026-08-20T22:09:11.799Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

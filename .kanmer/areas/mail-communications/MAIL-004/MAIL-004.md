@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T12:06:42.628Z'
   verifying: '2026-08-21T14:17:10.016Z'
   done: '2026-08-21T14:53:13.619Z'
-taken_at: '2026-08-20T11:39:48.912Z'
-branch: task/mail-004-outlook-category-catalogue
-worktree: ../pegasus-worktrees/mail-004
 labels:
   - mail-workspace
   - administration
@@ -41,7 +38,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T09:47:32.793Z'
-updated: '2026-08-25T01:27:00.634Z'
+updated: '2026-08-25T06:38:03.816Z'
 ---
 
 ## What

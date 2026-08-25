@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T11:33:51.724Z'
   verifying: '2026-08-20T11:54:13.473Z'
   done: '2026-08-21T15:13:21.920Z'
-taken_at: '2026-08-20T10:41:05.974Z'
-branch: task/plat-014-localdb-detection
-worktree: ../pegasus-worktrees/plat-014
 labels:
   - local-development
   - offline
@@ -30,7 +27,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-20T08:56:51.802Z'
-updated: '2026-08-25T01:26:59.656Z'
+updated: '2026-08-25T06:38:03.794Z'
 ---
 
 ## Why

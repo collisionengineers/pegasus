@@ -18,3 +18,8 @@ Four-lens finding applied: removed opaque folder identity and classification/bin
 Canonical non-corpus solution selection passed: Core 834/834, Architecture 98/98, Integration 800/800 (1,732 total). After adding the explicit re-derivation unit case, the final Release build again passed with 0 warnings/errors and focused retained-mail tests passed 27/27; the earlier final-markup Web class passed 16/16.
 
 Committed `75c33641`, pushed `task/tick-047-mail-05-folder-recommendation`, and opened PR #474 to `dev`.
+
+<!-- kanmer-groom:release-take:TICK-047:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/tick-047-mail-05-folder-recommendation`; worktree: `../pegasus-worktrees/tick-047`; taken at: `2026-08-20T11:44:11.993Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

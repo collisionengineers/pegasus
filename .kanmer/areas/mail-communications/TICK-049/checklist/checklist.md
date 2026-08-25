@@ -37,3 +37,8 @@
 - [x] Prove both cancellation points, durable Uncertain, different-key exclusion, same-key probe recovery and one provider move.
 - [x] Run focused tests, full retained-mail persistence tests, Release build, diff checks and four simplification lenses.
 - [x] Record PR-044 reports/traceability, push and leave Review for an independent agent.
+
+<!-- kanmer-groom:release-take:TICK-049:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/tick-049-mail-07-confirmed-folder-move`; worktree: `../pegasus-worktrees/tick-049`; taken at: `2026-08-20T14:16:53.138Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

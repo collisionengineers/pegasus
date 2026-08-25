@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T14:53:19.600Z'
   verifying: '2026-08-20T17:50:48.891Z'
   done: '2026-08-21T15:11:06.893Z'
-taken_at: '2026-08-20T14:16:53.138Z'
-branch: task/tick-049-mail-07-confirmed-folder-move
-worktree: ../pegasus-worktrees/tick-049
 labels:
   - capability
   - MAIL-07
@@ -44,7 +41,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.217Z'
-updated: '2026-08-25T01:27:00.124Z'
+updated: '2026-08-25T06:38:05.494Z'
 ---
 
 ## What

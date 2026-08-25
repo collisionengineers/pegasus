@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-21T10:25:49.981Z'
   verifying: '2026-08-21T14:18:35.242Z'
   done: '2026-08-21T14:50:40.644Z'
-taken_at: '2026-08-21T10:00:08.531Z'
-branch: task/plat-020-runtime-grants
-worktree: ../pegasus-worktrees/plat-020
 labels:
   - defect
   - production
@@ -38,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-21T09:57:53.143Z'
-updated: '2026-08-25T01:27:00.761Z'
+updated: '2026-08-25T06:38:05.474Z'
 ---
 
 ## Why

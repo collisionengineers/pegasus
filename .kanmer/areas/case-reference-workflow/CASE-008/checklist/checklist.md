@@ -13,3 +13,8 @@
 ## Progress notes
 
 - 2026-08-20: implemented, all suites green, committed 218709e9, pushed; PR follows CASE-007's #482 in the serial merge queue.
+
+<!-- kanmer-groom:release-take:CASE-008:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `claude-code`; branch: `task/case-008-auto-vehicle-lookup`; worktree: `../pegasus-worktrees/case-008`; taken at: `2026-08-20T18:24:27.615Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

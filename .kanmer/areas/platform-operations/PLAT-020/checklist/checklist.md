@@ -12,3 +12,8 @@
 ## Progress notes
 
 2026-08-21: origin/dev already contained PR #493, which grants Worker INSERT on VehicleLookupRequests and narrows duplicate suppression. This branch adds only the missing ImageIntakes UPDATE grants. Focused runtime-role tests passed 10/10 and Release build passed. Concurrent full-suite execution caused unrelated shared-LocalDB timeouts; no changed-path failure occurred.
+
+<!-- kanmer-groom:release-take:PLAT-020:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/plat-020-runtime-grants`; worktree: `../pegasus-worktrees/plat-020`; taken at: `2026-08-21T10:00:08.531Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

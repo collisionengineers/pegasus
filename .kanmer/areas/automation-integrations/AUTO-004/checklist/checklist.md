@@ -17,3 +17,8 @@
 - 2026-08-20: Both tickets claimed on the shared worktree/branch. Implemented 35-tool governed inventory, Unidentified receipt/group projection and source download, typed Triage read/source/lifecycle/evidence/Case-association adapters, focused real-HTTP fixtures, and source-tier documentation. Focused MCP plus existing Triage replay/association tests are green (15 tests).
 
 - 2026-08-20 verification: locked restore and Release build green; task-focused HTTP/connector rerun 4/4; existing Triage/MCP set 15/15; Core 758/758; Architecture 98/98; documentation links 192/192. Full IntegrationTests: 797 passed, 14 corpus-gated skips, 2 failures — the inventory-count duplication was corrected and its focused rerun passed; the unrelated Playwright `/Administration/Configuration` navigation timeout passed alone on rerun.
+
+<!-- kanmer-groom:release-take:AUTO-004:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `codex-mcp-client`; branch: `task/auto-004-automation-parity`; worktree: `../pegasus-worktrees/auto-004`; taken at: `2026-08-20T10:37:15.247Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

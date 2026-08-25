@@ -12,3 +12,8 @@
 - [ ] Simplification pass recorded
 
 ## Progress notes
+
+<!-- kanmer-groom:release-take:INTK-020:2026-08-25 -->
+### Board-hygiene claim release — 2026-08-25
+
+Audit record written before releasing this completed ticket's stale take. Previous assignee: `claude-code`; branch: `task/intk-020-upload-one-unit`; worktree: `../pegasus-worktrees/intk-020`; taken at: `2026-08-20T14:12:11.426Z`. The branch and worktree coordinates are preserved here; this groom does not delete either.

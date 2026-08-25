@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T11:31:27.243Z'
   verifying: '2026-08-21T14:17:20.390Z'
   done: '2026-08-21T14:54:50.885Z'
-taken_at: '2026-08-20T10:37:15.247Z'
-branch: task/auto-004-automation-parity
-worktree: ../pegasus-worktrees/auto-004
 labels:
   - automation-actor
   - MCP
@@ -37,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T09:27:47.730Z'
-updated: '2026-08-25T01:27:00.303Z'
+updated: '2026-08-25T06:38:00.719Z'
 ---
 
 ## Why
