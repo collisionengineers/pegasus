@@ -92,23 +92,52 @@ public sealed partial class AssessmentReportDraftWebTests
         Assert.Contains(AssessmentReportProjection.RepairCostRequirement, afterHtml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task CaseOutsideTheCurrentExportedReviewCycleCannotGenerateDirectly()
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(
+            baseFactory,
+            new FakeGetCase(caseId),
+            FullAssessmentProjection(caseId),
+            new FakeProjectionSource(ReadyInput(caseId)),
+            new FakeRenderer([1]),
+            canOpen: false);
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=GenerateReportDraft",
+            Form(AntiforgeryValue(html), ("id", caseId.ToString("D")), ("operationKey", NewOperationKey())));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private static WebApplicationFactory<Program> Compose(
         IntakeWebApplicationFactory baseFactory,
         IGetCase getCase,
         CaseAssessmentProjection assessment,
         IAssessmentReportProjectionSource projectionSource,
-        IAssessmentReportRenderer renderer) =>
+        IAssessmentReportRenderer renderer,
+        bool canOpen = true) =>
         baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCaseAssessment>();
+                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IAssessmentReportProjectionSource>();
                 services.RemoveAll<IAssessmentReportRenderer>();
                 services.RemoveAll<IDocumentContentStore>();
                 services.AddSingleton(getCase);
                 services.AddSingleton<IGetCaseAssessment>(new FakeGetCaseAssessment(assessment));
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(new FakeGetAssessmentWorkspace(
                     AssessmentWorkspaceTestData.Create(assessment)));
                 services.AddSingleton(projectionSource);

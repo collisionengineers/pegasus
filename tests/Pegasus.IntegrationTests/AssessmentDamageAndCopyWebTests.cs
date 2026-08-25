@@ -86,6 +86,28 @@ public sealed partial class AssessmentDamageAndCopyWebTests
     }
 
     [Fact]
+    public async Task InaccessibleCaseCannotPostAssessmentChanges()
+    {
+        var caseId = Guid.NewGuid();
+        using var factory = Compose(caseId, out var recorder, canOpen: false);
+        using var client = EngineerClient(factory);
+        var html = await GetHtmlAsync(client, $"/Cases/{caseId:D}/Assessment?section=report");
+
+        using var response = await client.PostAsync(
+            $"/Cases/{caseId:D}/Assessment?handler=SaveDamage",
+            new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["__RequestVerificationToken"] = AntiforgeryValue(html),
+                ["id"] = caseId.ToString("D"),
+                ["operationKey"] = Guid.NewGuid().ToString("N"),
+                ["impactLocation"] = "left_front",
+            }));
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Empty(recorder.SavedRequests);
+    }
+
+    [Fact]
     public async Task MethodRadioPreselectsTheRecordedInspectionMode()
     {
         var caseId = Guid.NewGuid();
@@ -104,7 +126,8 @@ public sealed partial class AssessmentDamageAndCopyWebTests
     private static WebApplicationFactory<Program> Compose(
         Guid caseId,
         out Recorder recorder,
-        CaseInspectionMode? mode = null)
+        CaseInspectionMode? mode = null,
+        bool canOpen = true)
     {
         var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         var stores = new Recorder(caseId, mode);
@@ -114,11 +137,13 @@ public sealed partial class AssessmentDamageAndCopyWebTests
             {
                 services.RemoveAll<IGetCase>();
                 services.RemoveAll<IGetCaseAssessment>();
+                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<ISaveAssessment>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(stores);
                 services.AddSingleton<IGetCaseAssessment>(stores);
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
                 services.AddSingleton<IGetAssessmentWorkspace>(stores);
                 services.AddSingleton<ISaveAssessment>(stores);
                 services.AddSingleton<IAcquireCaseEditLease>(stores);

@@ -22,6 +22,58 @@ public sealed record AssessmentWorkspaceHeader(
     DateOnly? DueBy,
     string? CaseRootRemoteId);
 
+public sealed record AssessmentAccessState(
+    CaseLifecycleState State,
+    long LatestReviewVersion,
+    long? LatestExportVersion)
+{
+    public bool CanOpen => AssessmentAccessPolicy.CanOpen(this);
+}
+
+public static class AssessmentAccessPolicy
+{
+    public static bool CanOpen(AssessmentAccessState access)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        return access.State is CaseLifecycleState.Review or CaseLifecycleState.ReportPreparation
+            && access.LatestExportVersion is { } exportedVersion
+            && exportedVersion >= access.LatestReviewVersion;
+    }
+}
+
+public sealed record GetAssessmentAccessQuery(Guid CaseId, ActionActor Actor);
+
+public interface IAssessmentAccessSource
+{
+    Task<AssessmentAccessState?> GetAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IGetAssessmentAccess
+{
+    Task<AssessmentAccessState?> ExecuteAsync(
+        GetAssessmentAccessQuery query,
+        CancellationToken cancellationToken = default);
+}
+
+public sealed class GetAssessmentAccess(IAssessmentAccessSource source) : IGetAssessmentAccess
+{
+    public Task<AssessmentAccessState?> ExecuteAsync(
+        GetAssessmentAccessQuery query,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        StaffAuthorization.Require(query.Actor, StaffAccessRight.PerformCasework);
+        if (query.CaseId == Guid.Empty)
+        {
+            throw new ArgumentException("A case identifier is required.", nameof(query));
+        }
+
+        return source.GetAsync(query.CaseId, cancellationToken);
+    }
+}
+
 /// <summary>
 /// Everything the Assessment GET renders, loaded as one bounded relational
 /// projection. Document metadata and content are generation-time concerns and

@@ -30,6 +30,7 @@ namespace Pegasus.Web.Pages.Cases.Assessment;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed class IndexModel(
     IGetCase getCase,
+    IGetAssessmentAccess getAssessmentAccess,
     IGetAssessmentWorkspace getAssessmentWorkspace,
     ISendToAiControl sendToAiControl,
     GenerateCaseAssessmentReportDraft generateReportDraft,
@@ -72,9 +73,8 @@ public sealed class IndexModel(
     /// ENG-003: the one readiness list the page renders. <see cref="ReportDraftPreparation"/>'s
     /// <c>Reasons</c> already reuses <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/> as its
     /// base and only appends report-specific requirements on top
-    /// (<see cref="Pegasus.Core.Reports.AssessmentReportProjection.Project"/>), so it is always a
-    /// superset of <see cref="Assessment"/>'s own <c>Readiness</c> for the same case — using it
-    /// here loses nothing the readiness rail previously showed on its own.
+    /// (<see cref="Pegasus.Core.Reports.AssessmentReportProjection.Project"/>). The access gate
+    /// guarantees that Review-entry requirements excluded by this list already passed.
     /// </summary>
     public IReadOnlyList<AssessmentReadinessItem> CombinedReadiness { get; private set; } = [];
 
@@ -189,6 +189,10 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!await CanAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
         }
         if (!IsOperationKeyValid(operationKey))
         {
@@ -336,6 +340,10 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!await CanAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
         }
         if (!actor.IsInRole(StaffRole.Engineer))
         {
@@ -490,6 +498,10 @@ public sealed class IndexModel(
         {
             return Forbid();
         }
+        if (!await CanAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
         if (!actor.IsInRole(StaffRole.Engineer))
         {
             TempData["AssessmentError"] = "Only an Engineer can accept a repair specification.";
@@ -588,6 +600,10 @@ public sealed class IndexModel(
         {
             return Forbid();
         }
+        if (!await CanAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
+        }
 
         var sendCaseToAi = HttpContext.RequestServices.GetService<ISendCaseToAi>();
         if (sendCaseToAi is null)
@@ -633,6 +649,10 @@ public sealed class IndexModel(
         if (!TryGetActor(out var actor))
         {
             return Forbid();
+        }
+        if (!await CanAccessAsync(id, actor, cancellationToken))
+        {
+            return NotFound();
         }
 
         var reconcile = HttpContext.RequestServices.GetService<IReconcileAiWorkRequest>();
@@ -733,6 +753,14 @@ public sealed class IndexModel(
         PanelState = reasons.Count == 0 ? "available" : "unavailable";
         UnavailableReasons = reasons;
     }
+
+    private async Task<bool> CanAccessAsync(
+        Guid caseId,
+        ActionActor actor,
+        CancellationToken cancellationToken) =>
+        (await getAssessmentAccess.ExecuteAsync(
+            new(caseId, actor),
+            cancellationToken))?.CanOpen == true;
 
     private static bool IsOperationKeyValid(string value) =>
         Guid.TryParseExact(value, "N", out var operationId) && operationId != Guid.Empty;

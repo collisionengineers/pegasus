@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Identity;
@@ -17,6 +18,7 @@ namespace Pegasus.Web.Pages.Cases;
 [ResponseCache(Location = ResponseCacheLocation.None, NoStore = true)]
 public sealed partial class DetailsModel(
     IGetCase getCase,
+    IGetAssessmentAccess getAssessmentAccess,
     IAcquireCaseEditLease acquireLease,
     IRenewCaseEditLease renewLease,
     IReleaseCaseEditLease releaseLease,
@@ -72,6 +74,8 @@ public sealed partial class DetailsModel(
 
     public CaseDetails? Case { get; private set; }
 
+    public bool CanOpenAssessment { get; private set; }
+
     /// <summary>
     /// The values a refused editor submitted, held for comparison against the values the case now
     /// holds. There is no control that applies, merges, or forces them: the only way forward is to
@@ -126,6 +130,9 @@ public sealed partial class DetailsModel(
             {
                 return NotFound();
             }
+            CanOpenAssessment = (await getAssessmentAccess.ExecuteAsync(
+                new(id, actor),
+                cancellationToken))?.CanOpen == true;
             ImageIntakes = await imageIntakeQueries.ListForCaseAsync(id, cancellationToken);
             EvidenceImages = await caseEvidenceImageQueries.ListForCaseAsync(id, cancellationToken);
             if (Tab == "evidence")

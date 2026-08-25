@@ -29,9 +29,11 @@ public sealed class AssessmentVehiclePrefillWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -69,9 +71,11 @@ public sealed class AssessmentVehiclePrefillWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 var source = new FakeGetCase(caseId, includeExtractedFacts: true);
                 services.AddSingleton<IGetCase>(source);
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(source);
             }));
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions

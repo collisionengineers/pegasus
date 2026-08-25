@@ -221,11 +221,13 @@ public sealed partial class AssessmentEstimateImportWebTests
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<IGetCase>();
+                services.RemoveAll<IGetAssessmentAccess>();
                 services.RemoveAll<IGetAssessmentWorkspace>();
                 services.RemoveAll<IRepairSpecificationStore>();
                 services.RemoveAll<IAddCaseDocument>();
                 services.RemoveAll<IAcquireCaseEditLease>();
                 services.AddSingleton<IGetCase>(store);
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess());
                 services.AddSingleton<IGetAssessmentWorkspace>(store);
                 services.AddSingleton<IRepairSpecificationStore>(store);
                 services.AddSingleton<IAddCaseDocument>(store);
