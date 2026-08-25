@@ -2,13 +2,14 @@
 id: DELIV-022
 type: ticket
 title: 'Release 31: deploy mailbox Image Intake and interrupted-work recovery'
-status: review
+status: verifying
 area: delivery-repository
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-25T17:22:42.586Z'
   review: '2026-08-25T18:04:54.592Z'
+  verifying: '2026-08-25T18:16:38.905Z'
 taken_at: '2026-08-25T17:23:16.497Z'
 branch: task/deliv-022-release-31
 worktree: ../pegasus-worktrees/deliv-022-release-31
@@ -27,12 +28,13 @@ refs:
   - docs/operations.md
 commits:
   - 03149f3a
+  - a8fcf33ef60be94e1f184791d697195b66772244
 prs:
   - '552'
 deployment: production
 archived: false
 created: '2026-08-25T17:22:39.944Z'
-updated: '2026-08-25T18:04:54.592Z'
+updated: '2026-08-25T18:16:38.905Z'
 ---
 
 ## What
