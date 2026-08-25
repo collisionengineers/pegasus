@@ -20,3 +20,5 @@
 - [x] Task branch removed by GitHub merge
 - [ ] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: "release"`
+
+Closeout result: Git worktree registration was removed and refs were pruned. Windows left an empty unregistered directory at `../pegasus-worktrees/eng-018-remove-eva-activation`; deletion was denied by the host policy. Release artifacts were preserved at `C:/Users/PC/Documents/GitHub/artifacts/pegasus-release-29-b1aa68c8`.
