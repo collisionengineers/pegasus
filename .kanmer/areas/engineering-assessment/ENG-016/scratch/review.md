@@ -24,3 +24,20 @@ All 11 GitHub checks are green and the PR is mergeable. Green CI does not exerci
 ### Verdict
 
 **NEEDS CHANGES.** Do not merge, release, verify or close out ENG-016 until PR-055 through PR-060 are resolved and the PR passes a fresh independent review.
+
+## Independent re-review — PR #539 at c86b803c — NEEDS CHANGES
+
+### Changes
+Reviewed the complete 73-file diff against origin/dev, the amended blocker commit, governing FRD/ADR changes, migrations, Export/readiness implementation, tests, PR description, ticket plans/checklists/reports, and live GitHub checks.
+
+### Comments and dispositions
+- **Blocking — filed as [[PR-061]]:** `ExecuteAsync` checks `caseData.State == Review` before package construction, but `RecordExportAsync` later locks `CaseWorkflows` and never re-reads the locked state. A concurrent edit can commit a demotion to `Not ready` before Export obtains the lock, after which Export still writes history/proxy and returns the stale package. This conflicts with FRD-07's “available only while ... Review” rule.
+- **Blocking — remains owned by [[PR-059]]:** the evidence reconciliation is not complete. All PR-055–PR-060 checklist acceptance items remain unticked, ENG-016's report does not contain the plan-required complete changed-file/rationale inventory or governing-doc compliance section, and final CI is not yet recorded.
+- **Non-blocking / fixed in PR:** atomic same-key replay, unconditional completeness, ADR-0031 supersession, batch image reads, and migration roll-forward commentary are present on the amended head.
+- **Non-blocking / pending external evidence:** live CI currently has unit/infrastructure/docs/support checks green, with browser and three SQL shards still running.
+
+### Plan/report/simplification
+The product scope is appropriately simple and no speculative compatibility machinery was added. Implementation missed the implied atomic Review-state gate above. PR-059 missed its evidence/checklist plan. The simplification note is directionally honest for code, but the identical generic note copied to every blocker does not substitute for completing each ticket checklist and exact evidence.
+
+### Verdict
+**NEEDS CHANGES.** Do not merge until PR-061 is fixed, PR-059 evidence/checklists are reconciled, final CI is green, and a fresh independent review passes.
