@@ -10,10 +10,9 @@ labels:
   - design
   - documentation
 links: []
-docs_todo: true
 archived: true
 created: '2026-08-18T09:39:12.336Z'
-updated: '2026-08-25T06:38:53.680Z'
+updated: '2026-08-25T06:47:12.441Z'
 ---
 
 ## What

@@ -1,7 +1,11 @@
 # Checklist — TICK-100
 
-- [ ] [[TICK-206]] and merged [[SIMPLI-014]] evidence prove addendum-report is absent/unavailable with no legacy-ID, generic-authoring, placeholder, dormant, or assessment-clone path.
-- [ ] [[DOCS-001]], [[TICK-092]], [[TICK-093]], [[TICK-094]], [[TICK-096]], and [[TICK-208]] are merged and prove reusable immutable source/report lineage, deterministic rendering, and per-version Sent-evidence preservation without activating addenda.
-- [ ] A concrete representative addendum artifact and named real caller exist; a linked activation ticket records explicit operator approval of amendment/predecessor identity, inherited-versus-editable fields, wording/layout/signatures, readiness, approval/recovery, packaging, and representative cases.
-- [ ] FRD-11 and the existing Core-port/Infrastructure-adapter path implement only the approved amendment delta, immutable successor identity/provenance, independent approval/Sent state, and fail-closed rejection without retyping case data.
-- [ ] Focused Core/persistence/integration tests, approved real-Chromium PDF parity, retry/correction/history evidence, unsupported-path checks, and the canonical locked restore/build/test profile are green.
+- [x] Record RPT-05 as unsupported, unavailable, and fail closed at the decision/deferral tier.
+- [x] Verify merged [[SIMPLI-014]] activates assessment and fee-note only and explicitly leaves addendum unavailable.
+- [x] Confirm [[DOCS-004]] retains the representative-template plus real-caller activation trigger and all future behaviour.
+- [x] Preserve prerequisite traceability while removing obsolete implementation blocker edges to this closed decision.
+- [x] Record a zero-repository-diff PIR, retrospective self-review, and proof without claiming addendum rendering or deployment.
+
+## Progress notes
+
+- 2026-08-25: Reconciled TICK-100 to the same closed-boundary tier as [[TICK-099]]. Current `origin/dev` has no live `addendum-report` application selector and no renderer workspace; [[DOCS-004]] remains the future activation owner.

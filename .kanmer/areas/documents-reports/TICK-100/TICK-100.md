@@ -4,12 +4,15 @@ type: ticket
 title: >-
   RPT-05 — Addenda render from accepted case data plus a versioned amendment
   without retyping the case
-status: preparing
+status: verifying
 area: documents-reports
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:06:30.106Z'
+  implementing: '2026-08-25T06:47:53.710Z'
+  review: '2026-08-25T06:47:53.974Z'
+  verifying: '2026-08-25T06:48:03.068Z'
 labels:
   - capability
   - RPT-05
@@ -29,7 +32,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.729Z'
-updated: '2026-08-19T10:53:59.424Z'
+updated: '2026-08-25T06:48:03.068Z'
 ---
 
 ## What
