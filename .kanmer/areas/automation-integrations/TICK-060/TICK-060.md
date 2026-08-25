@@ -12,8 +12,6 @@ labels:
   - capability
   - API-03
   - next
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - HZN-002
@@ -24,7 +22,7 @@ refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.465Z'
-updated: '2026-08-25T06:36:41.961Z'
+updated: '2026-08-25T06:46:29.290Z'
 ---
 
 ## What

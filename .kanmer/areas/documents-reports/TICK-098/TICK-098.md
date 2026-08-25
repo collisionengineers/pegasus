@@ -18,8 +18,6 @@ labels:
   - capability
   - RPT-03
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-004
 links:
@@ -38,7 +36,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.682Z'
-updated: '2026-08-25T01:27:01.016Z'
+updated: '2026-08-25T06:46:20.552Z'
 ---
 
 ## What

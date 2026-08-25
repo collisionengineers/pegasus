@@ -9,8 +9,6 @@ profile: feature
 labels:
   - RPT-04
   - later
-  - post-alpha
-  - blocked
   - evidence-required
 groups:
   - EPIC-004
@@ -24,7 +22,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-19T10:51:29.459Z'
-updated: '2026-08-19T10:51:29.459Z'
+updated: '2026-08-25T06:46:23.590Z'
 ---
 
 ## What

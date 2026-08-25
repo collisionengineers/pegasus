@@ -12,14 +12,12 @@ labels:
   - capability
   - DATA-02
   - next
-  - post-alpha
-  - blocked
 links: []
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:03:53.474Z'
-updated: '2026-08-25T06:38:34.296Z'
+updated: '2026-08-25T06:46:26.390Z'
 ---
 
 ## What

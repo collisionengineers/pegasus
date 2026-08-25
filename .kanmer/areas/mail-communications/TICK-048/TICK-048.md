@@ -11,8 +11,6 @@ labels:
   - capability
   - MAIL-06
   - next
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - EPIC-003
@@ -20,7 +18,7 @@ links:
   - TICK-047
 archived: true
 created: '2026-08-12T15:05:19.196Z'
-updated: '2026-08-17T06:41:41.497Z'
+updated: '2026-08-25T06:46:27.961Z'
 ---
 
 ## What

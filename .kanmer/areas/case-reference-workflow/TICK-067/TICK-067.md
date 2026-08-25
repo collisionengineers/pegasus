@@ -10,14 +10,12 @@ labels:
   - capability
   - CASE-05
   - later
-  - post-alpha
-  - blocked
 links: []
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-12T15:05:39.807Z'
-updated: '2026-08-25T06:38:34.035Z'
+updated: '2026-08-25T06:46:30.367Z'
 ---
 
 ## What

@@ -14,8 +14,6 @@ labels:
   - capability
   - EXT-08
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - EPIC-004
@@ -30,7 +28,7 @@ refs:
   - docs/adr/0028-run-integrated-renderer-in-web-container-app.md
 archived: false
 created: '2026-08-12T15:05:40.146Z'
-updated: '2026-08-20T11:13:07.769Z'
+updated: '2026-08-25T06:46:34.317Z'
 ---
 
 ## What

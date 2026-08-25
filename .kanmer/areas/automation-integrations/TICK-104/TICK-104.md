@@ -18,8 +18,6 @@ labels:
   - capability
   - MCP-07
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - EPIC-005
@@ -32,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:06:02.806Z'
-updated: '2026-08-25T06:40:03.539Z'
+updated: '2026-08-25T06:46:13.893Z'
 ---
 
 ## What

@@ -9,3 +9,13 @@
 ## Retrospective reconciliation — 2026-08-25
 
 The original in-app Browser attempt was genuinely blocked and remains recorded. MAIL-004's later proof closes the same outstanding visual obligation: the standard Administration route rendered successfully, the saved-entry/status and required-Reason states were exercised, no horizontal overflow was observed at 1280 px or 512 px (200% equivalent), and the route was axe-clean. This closeout cites that later evidence; it does not rewrite the failed attempt as a success.
+
+## Closeout — PR-026
+
+- [x] PR #473 merge verified (`MERGED`, 2026-08-21T14:16:38Z)
+- [x] `proof.md` finalised with PR URL and merge date
+- [x] Moved to Done
+- [x] Outcome recorded with evidence boundary and follow-up ownership
+- [x] Git cleanup not performed in this board-only batch; no worktree, branch, or repository file was changed
+- [x] Released the stale Kanmer claim
+- [x] Archived the completed review finding

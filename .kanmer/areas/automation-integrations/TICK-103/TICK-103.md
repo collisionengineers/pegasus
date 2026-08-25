@@ -12,8 +12,6 @@ labels:
   - capability
   - AI-10
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - EPIC-005
@@ -22,7 +20,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.787Z'
-updated: '2026-08-25T06:38:34.816Z'
+updated: '2026-08-25T06:46:38.522Z'
 ---
 
 ## What

@@ -12,8 +12,6 @@ labels:
   - capability
   - EXT-11
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - HZN-002
@@ -23,7 +21,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:40.224Z'
-updated: '2026-08-25T06:38:34.764Z'
+updated: '2026-08-25T06:46:35.114Z'
 ---
 
 ## What

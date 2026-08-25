@@ -12,8 +12,6 @@ labels:
   - capability
   - AI-07
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-005
 links: []
@@ -21,7 +19,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.458Z'
-updated: '2026-08-25T06:38:34.780Z'
+updated: '2026-08-25T06:46:35.649Z'
 ---
 
 ## What

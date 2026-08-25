@@ -18,7 +18,6 @@ labels:
   - capability
   - UI-14
   - next
-  - post-alpha
 groups:
   - EPIC-003
   - EPIC-006
@@ -37,7 +36,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-25T06:38:07.310Z'
+updated: '2026-08-25T06:46:19.934Z'
 ---
 
 ## What

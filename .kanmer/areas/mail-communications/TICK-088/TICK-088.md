@@ -14,8 +14,6 @@ labels:
   - capability
   - MAIL-12
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - EPIC-006
@@ -25,7 +23,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:06:02.476Z'
-updated: '2026-08-20T09:34:43.005Z'
+updated: '2026-08-25T06:46:35.955Z'
 ---
 
 ## What

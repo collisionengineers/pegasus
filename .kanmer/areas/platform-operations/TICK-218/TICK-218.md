@@ -11,7 +11,6 @@ labels:
   - now
   - source-now
   - requires-live-approval
-  - blocked
 groups:
   - HZN-003
 links:
@@ -19,7 +18,7 @@ links:
   - TICK-001
 archived: true
 created: '2026-08-12T15:10:50.326Z'
-updated: '2026-08-17T06:42:14.759Z'
+updated: '2026-08-25T06:46:40.945Z'
 ---
 
 ## What

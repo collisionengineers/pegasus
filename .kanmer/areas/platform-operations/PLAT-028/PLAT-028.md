@@ -10,7 +10,6 @@ stageEntered:
   preparing: '2026-08-21T14:23:40.633Z'
 labels:
   - ui
-  - redesign
   - administration
   - organizations
   - principals
@@ -31,7 +30,7 @@ refs:
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.403Z'
-updated: '2026-08-25T06:36:39.430Z'
+updated: '2026-08-25T06:46:25.867Z'
 ---
 
 ## What

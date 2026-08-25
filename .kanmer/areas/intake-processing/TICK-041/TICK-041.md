@@ -10,14 +10,12 @@ labels:
   - capability
   - INT-16
   - next
-  - post-alpha
-  - blocked
 links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-08-25T06:38:34.279Z'
+updated: '2026-08-25T06:46:27.701Z'
 ---
 
 ## What

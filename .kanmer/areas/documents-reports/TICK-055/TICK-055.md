@@ -12,8 +12,6 @@ labels:
   - capability
   - CASE-23
   - next
-  - post-alpha
-  - blocked
 links:
   - PLAT-001
   - TICK-105
@@ -23,7 +21,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:19.337Z'
-updated: '2026-08-25T06:38:08.758Z'
+updated: '2026-08-25T06:46:28.489Z'
 ---
 
 ## What

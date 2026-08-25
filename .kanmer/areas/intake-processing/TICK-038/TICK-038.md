@@ -10,8 +10,6 @@ labels:
   - capability
   - INT-07
   - next
-  - post-alpha
-  - blocked
   - requires-live-approval
 links:
   - TICK-035
@@ -19,7 +17,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.552Z'
-updated: '2026-08-25T06:38:34.261Z'
+updated: '2026-08-25T06:46:27.437Z'
 ---
 
 ## What

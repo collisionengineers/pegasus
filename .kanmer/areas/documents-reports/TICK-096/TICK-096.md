@@ -14,8 +14,6 @@ labels:
   - capability
   - RPT-01
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-004
 links:
@@ -31,7 +29,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.638Z'
-updated: '2026-08-19T09:42:37.221Z'
+updated: '2026-08-25T06:46:37.977Z'
 ---
 
 ## What

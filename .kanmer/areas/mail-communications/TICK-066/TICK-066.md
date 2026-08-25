@@ -10,15 +10,13 @@ labels:
   - capability
   - MAIL-19
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.598Z'
-updated: '2026-08-25T06:38:34.633Z'
+updated: '2026-08-25T06:46:30.101Z'
 ---
 
 ## What

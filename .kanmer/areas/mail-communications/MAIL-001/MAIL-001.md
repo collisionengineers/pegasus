@@ -7,7 +7,6 @@ area: mail-communications
 assignee: ''
 profile: fix
 labels:
-  - pr-review
   - TICK-044
   - PR-411
 groups:
@@ -18,7 +17,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: true
 created: '2026-08-19T08:38:20.492Z'
-updated: '2026-08-19T09:03:10.186Z'
+updated: '2026-08-25T06:46:24.114Z'
 ---
 
 ## What

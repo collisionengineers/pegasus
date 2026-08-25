@@ -12,8 +12,6 @@ labels:
   - capability
   - AI-05
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-005
 links: []
@@ -21,7 +19,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:19.531Z'
-updated: '2026-08-25T06:38:34.315Z'
+updated: '2026-08-25T06:46:29.823Z'
 ---
 
 ## What

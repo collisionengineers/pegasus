@@ -17,7 +17,6 @@ labels:
   - capability
   - INT-14
   - next
-  - post-alpha
 links:
   - SIMPLI-013
 refs:
@@ -27,7 +26,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.571Z'
-updated: '2026-08-25T01:27:00.959Z'
+updated: '2026-08-25T06:46:18.180Z'
 ---
 
 ## What

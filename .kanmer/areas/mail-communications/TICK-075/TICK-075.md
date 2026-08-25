@@ -12,8 +12,6 @@ labels:
   - capability
   - MAIL-17
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 links:
   - TICK-055
@@ -21,7 +19,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:39.996Z'
-updated: '2026-08-25T06:38:34.747Z'
+updated: '2026-08-25T06:46:32.684Z'
 ---
 
 ## What

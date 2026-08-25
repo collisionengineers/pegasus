@@ -12,15 +12,13 @@ labels:
   - capability
   - INT-04
   - next
-  - post-alpha
-  - blocked
   - requires-live-approval
 links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-08-25T06:38:34.079Z'
+updated: '2026-08-25T06:46:26.645Z'
 ---
 
 ## What

@@ -12,8 +12,6 @@ labels:
   - capability
   - EXT-15
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - HZN-002
@@ -23,7 +21,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:05:39.851Z'
-updated: '2026-08-25T06:36:42.565Z'
+updated: '2026-08-25T06:46:30.946Z'
 ---
 
 ## What

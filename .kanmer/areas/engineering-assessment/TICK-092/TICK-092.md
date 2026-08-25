@@ -14,8 +14,6 @@ labels:
   - capability
   - CASE-31
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-003
   - EPIC-004
@@ -30,7 +28,7 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:06:02.549Z'
-updated: '2026-08-19T09:44:39.240Z'
+updated: '2026-08-25T06:46:37.032Z'
 ---
 
 ## What

@@ -16,7 +16,6 @@ labels:
   - capability
   - MAIL-05
   - next
-  - post-alpha
   - requires-live-approval
 groups:
   - EPIC-003
@@ -35,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.177Z'
-updated: '2026-08-25T06:38:05.511Z'
+updated: '2026-08-25T06:46:13.014Z'
 ---
 
 ## What

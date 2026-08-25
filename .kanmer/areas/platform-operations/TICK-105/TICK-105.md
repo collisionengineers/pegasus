@@ -10,8 +10,6 @@ labels:
   - capability
   - MI-01
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-003
 links:
@@ -22,7 +20,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.826Z'
-updated: '2026-08-25T06:38:34.452Z'
+updated: '2026-08-25T06:46:38.788Z'
 ---
 
 ## What

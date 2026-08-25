@@ -8,7 +8,6 @@ assignee: ''
 profile: feature
 labels:
   - ui
-  - redesign
   - administration
   - mailboxes
   - operator-requested
@@ -18,7 +17,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-21T13:19:14.361Z'
-updated: '2026-08-21T13:19:14.361Z'
+updated: '2026-08-25T06:46:25.282Z'
 ---
 
 ## What

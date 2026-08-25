@@ -12,8 +12,6 @@ labels:
   - capability
   - UI-15
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-003
 links: []
@@ -21,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-12T15:06:02.616Z'
-updated: '2026-08-25T06:39:13.275Z'
+updated: '2026-08-25T06:46:37.658Z'
 ---
 
 ## What

@@ -10,8 +10,6 @@ labels:
   - capability
   - API-02
   - next
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - HZN-002
@@ -22,7 +20,7 @@ links:
   - AUTO-008
 archived: true
 created: '2026-08-12T15:05:19.443Z'
-updated: '2026-08-25T06:36:41.651Z'
+updated: '2026-08-25T06:46:29.020Z'
 ---
 
 ## What

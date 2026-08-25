@@ -10,8 +10,6 @@ labels:
   - capability
   - EXT-17
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - HZN-002
@@ -21,7 +19,7 @@ refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.515Z'
-updated: '2026-08-25T06:38:34.426Z'
+updated: '2026-08-25T06:46:36.497Z'
 ---
 
 ## What

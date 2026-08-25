@@ -10,8 +10,6 @@ labels:
   - capability
   - EXT-19
   - later
-  - post-alpha
-  - blocked
   - requires-live-approval
 groups:
   - HZN-002
@@ -21,7 +19,7 @@ refs:
   - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:06:02.533Z'
-updated: '2026-08-25T06:38:34.609Z'
+updated: '2026-08-25T06:46:36.766Z'
 ---
 
 ## What

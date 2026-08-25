@@ -14,8 +14,6 @@ labels:
   - capability
   - ENG-02
   - later
-  - post-alpha
-  - blocked
 groups:
   - EPIC-003
   - EPIC-004
@@ -36,7 +34,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:06:02.590Z'
-updated: '2026-08-19T09:46:40.902Z'
+updated: '2026-08-25T06:46:37.344Z'
 ---
 
 ## What
