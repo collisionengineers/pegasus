@@ -780,8 +780,9 @@ public sealed class PollApprovedInboxTests
             DateTimeOffset failedAtUtc,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<int> RecoverExpiredLeasesAsync(
+        public Task<int> RecoverInterruptedWorkAsync(
             DateTimeOffset nowUtc,
+            DateTimeOffset staleDispatchedBeforeUtc,
             int maximumItems,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
