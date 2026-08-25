@@ -292,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 30**. A branch
+- **Deployed evidence:** the estate currently serves **release 31**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 31 | 2026-08-25 | `7dbb7c39…` | `sha256:a10dce43…` | `pegasus-prod-web-252ow37gij--7dbb7c3952fb` | `20260825145216_MailboxImageIntake` |
   | 30 | 2026-08-25 | `eaabf311…` | `sha256:40a44edb…` | `pegasus-prod-web-252ow37gij--eaabf31130be` | `20260825105037_AssessmentAccessExportVersion`, `20260825121453_GrantWorkerImageIntakeLifecycleEvents` |
   | 29 | 2026-08-25 | `b1aa68c8…` | `sha256:cb480319…` | `pegasus-prod-web-252ow37gij--b1aa68c86063` | none (head unchanged at `20260825001401_RemoveWorkflowCompletenessWaivers`) |
   | 28 | 2026-08-25 | `7e9465b0…` | `sha256:08f5f605…` | `pegasus-prod-web-252ow37gij--7e9465b00603` | `20260824123336_DropEvaHandoffTables`, `20260825001401_RemoveWorkflowCompletenessWaivers` |
@@ -342,6 +343,22 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 31** (2026-08-25, source `7dbb7c39`, image
+    `sha256:a10dce43…`, manifest SHA-256 `2187533D…`) deployed mailbox vehicle
+    images through the existing Image Intake path, near-real-time intake
+    contracts, interrupted dispatched-work recovery, and reduced successful EF
+    command-log volume. The migration bundle advanced the database to
+    `20260825145216_MailboxImageIntake`; guarded bootstrap verified 518
+    catalogued permission/denial rows and 355 effective runtime DML rows, with
+    Worker `SELECT, INSERT` on both intake-submission group tables. Azure
+    read-back matched the immutable image digest: the sole active Web revision
+    is healthy, ready and carrying 100% traffic; all nine Worker functions are
+    present and enabled; and production smoke matched the exact source and
+    product version. This proves deployment, schema, permissions, activation
+    and technical health. It does not prove a fresh operator mailbox or manual
+    upload journey, a forced queue-message-loss recovery, a full working day of
+    telemetry retention, or the separate INTK-042 sender/state-latency work.
 
   - **Release 30** (2026-08-25, source `eaabf311`, image
     `sha256:40a44edb…`, manifest SHA-256 `807777BC…`) deployed the assessment
