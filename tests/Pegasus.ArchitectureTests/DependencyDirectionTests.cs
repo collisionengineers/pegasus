@@ -406,6 +406,22 @@ public sealed class DependencyDirectionTests
             "Pegasus.Infrastructure",
             "Persistence",
             "EvaHandoffStore.cs"));
+        var evaMapping = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Pegasus.Core",
+            "Eva",
+            "CaseEvaMapping.cs"));
+        var webComposition = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Pegasus.Web",
+            "Program.cs"));
+        var platform = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "infra",
+            "modules",
+            "platform.bicep"));
         var custodyPersistence = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "src",
@@ -422,6 +438,10 @@ public sealed class DependencyDirectionTests
             "CaseEvaMapping.MapForOperatorExport",
             evaPersistence,
             StringComparison.Ordinal);
+        Assert.DoesNotContain("EvaMappingAcceptance", evaMapping, StringComparison.Ordinal);
+        Assert.DoesNotContain("EVA hand-off is not switched on", evaMapping, StringComparison.Ordinal);
+        Assert.DoesNotContain("Eva:AcceptedMapping", webComposition, StringComparison.Ordinal);
+        Assert.DoesNotContain("Eva__AcceptedMapping", platform, StringComparison.Ordinal);
         Assert.Contains(
             "contentStore.ReadVersionsAsync",
             evaPersistence,

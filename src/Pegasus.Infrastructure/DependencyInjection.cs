@@ -40,7 +40,6 @@ public static class DependencyInjection
         Action<IServiceProvider, DbContextOptionsBuilder> configureDatabase,
         Func<IServiceProvider, string>? localArtifactRootFactory = null,
         Func<IServiceProvider, RequestUploadLimits>? requestUploadLimitsFactory = null,
-        Func<IServiceProvider, EvaMappingAcceptance>? evaMappingAcceptanceFactory = null,
         Action<IServiceCollection>? documentStorage = null)
     {
         ArgumentNullException.ThrowIfNull(configureDatabase);
@@ -56,8 +55,6 @@ public static class DependencyInjection
         });
 
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton(provider =>
-            evaMappingAcceptanceFactory?.Invoke(provider) ?? EvaMappingAcceptance.Unaccepted);
         services.TryAddSingleton(VehicleLookupAvailability.Unavailable);
         services.AddScoped<EfIntakeReceiptStore>();
         services.AddScoped<EfIntakeSubmissionGroupStore>();

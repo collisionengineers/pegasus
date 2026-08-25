@@ -353,6 +353,11 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     enabled, and the post-migration check verified 512 catalogued permission
     rows and 351 effective runtime DML rows. This proves deployment and smoke;
     it does not claim a real operator export or EVA import was performed.
+    The first real operator attempt then exposed an ENG-016 merge regression:
+    deployed configuration retained mapping version 2 while Core had reverted
+    to version 1, so the remaining legacy activation check blocked every
+    Export. ENG-018 removes that obsolete check and configuration; this remains
+    a known release-28 defect until the corrective release is deployed.
 
   - **Release 27** (2026-08-24, source `7d4c8f00`, image `sha256:1e4146df…`,
     manifest SHA-256 `D81BF7A9…`) collated eleven open pull requests — #525-#535
