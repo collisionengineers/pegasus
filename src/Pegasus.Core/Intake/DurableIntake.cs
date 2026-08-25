@@ -67,7 +67,7 @@ public interface IStagedArtifactAuthority
 }
 
 public sealed record ReconcileStagedArtifactsResult(
-    int RecoveredLeases,
+    int RecoveredWorkItems,
     int Completed,
     int Retained,
     int Orphans,
@@ -213,8 +213,9 @@ public interface IIntakeWorkStore
         DateTimeOffset failedAtUtc,
         CancellationToken cancellationToken);
 
-    Task<int> RecoverExpiredLeasesAsync(
+    Task<int> RecoverInterruptedWorkAsync(
         DateTimeOffset nowUtc,
+        DateTimeOffset staleDispatchedBeforeUtc,
         int maximumItems,
         CancellationToken cancellationToken);
 
@@ -1025,8 +1026,10 @@ public sealed class ReconcileStagedArtifacts(
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumItems);
 
-        var recoveredLeases = await workStore.RecoverExpiredLeasesAsync(
-            timeProvider.GetUtcNow(),
+        var nowUtc = timeProvider.GetUtcNow();
+        var recoveredWorkItems = await workStore.RecoverInterruptedWorkAsync(
+            nowUtc,
+            nowUtc - TimeSpan.FromMinutes(1),
             maximumItems,
             cancellationToken);
         var items = await artifactStore.ListStagedAsync(maximumItems, cancellationToken);
@@ -1094,7 +1097,7 @@ public sealed class ReconcileStagedArtifacts(
         }
 
         return new(
-            recoveredLeases,
+            recoveredWorkItems,
             completed,
             retained,
             orphans,
