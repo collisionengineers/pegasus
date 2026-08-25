@@ -110,6 +110,16 @@ public sealed class SubmitMailboxImageIntake(
                 IntakeSourceChannel.Mailbox,
                 SubmissionToken(receipt.Id),
                 cancellationToken);
+            if (IntakeExceptionPolicy.IsTransientFailure(exception)
+                && group is { } completeGroup
+                && completeGroup.Members.Count == completeGroup.ExpectedMemberCount)
+            {
+                // Every child is already durable. A transient failure in the
+                // final group read must not mint a technical U alongside the
+                // image outcome those children can still settle normally.
+                return true;
+            }
+
             await registerUnidentified.ExecuteAsync(
                 BuildFailureRegistrationRequest(receipt, group),
                 cancellationToken);
