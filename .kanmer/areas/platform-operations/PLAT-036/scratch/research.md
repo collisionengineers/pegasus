@@ -1,0 +1,6 @@
+2026-08-25 live read-only research:
+- Workspace pegasus-prod-logs-252ow37gij is currently dailyQuotaGb=0.1, dataIngestionStatus=OverQuota, next reset 2026-08-26T03:00Z.
+- Seven-day Usage totals: ContainerAppConsoleLogs 492.84 MB, AppDependencies 115.89 MB, AppMetrics 47.82 MB, AppTraces 46.38 MB, AppPerformanceCounters 30.94 MB, AppRequests 14.31 MB, AppExceptions 6.30 MB.
+- ContainerAppConsoleLogs is entirely Web stdout: 1,076,364 rows / 470.01 billed MB. The dominant category is Microsoft.EntityFrameworkCore.Database.Command at Information; readiness polling repeatedly emits successful SELECT 1 and migration-history SQL.
+- Worker Application Insights remains noisy but is secondary: Worker AppDependencies 113,550 rows / 103.05 MB, of which the main SQL dependency name is 85,992 rows / 76.50 MB. Timer requests are led by PendingWorkDispatchFunction 4,179, StagedArtifactReconciliationFunction 2,233, InboxPollFunction 1,872.
+- infra/modules/platform.bicep enables ContainerAppConsoleLogs and appsettings.json leaves EF command logging at inherited Information. The smallest earn-back-first change is a Production-default log-level override for Microsoft.EntityFrameworkCore.Database.Command=Warning, with a configuration contract test. No quota or Azure write is needed for that first step.
