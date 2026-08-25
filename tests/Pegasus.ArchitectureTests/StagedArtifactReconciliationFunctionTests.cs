@@ -48,7 +48,7 @@ public sealed class StagedArtifactReconciliationFunctionTests
         Assert.Equal(50, workStore.MaximumItems);
         Assert.Equal(4, logger.States.Count);
         var state = Assert.IsAssignableFrom<IReadOnlyDictionary<string, object?>>(logger.States[0]);
-        Assert.Equal(7, state["RecoveredLeases"]);
+        Assert.Equal(7, state["RecoveredWorkItems"]);
         Assert.Equal(0, state["Completed"]);
         Assert.Equal(0, state["Retained"]);
         Assert.Equal(0, state["Orphans"]);
@@ -98,8 +98,9 @@ public sealed class StagedArtifactReconciliationFunctionTests
     {
         internal int MaximumItems { get; private set; }
 
-        public Task<int> RecoverExpiredLeasesAsync(
+        public Task<int> RecoverInterruptedWorkAsync(
             DateTimeOffset nowUtc,
+            DateTimeOffset staleDispatchedBeforeUtc,
             int maximumItems,
             CancellationToken cancellationToken)
         {
