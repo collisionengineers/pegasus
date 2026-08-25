@@ -546,8 +546,6 @@ public sealed class AssessmentPersistenceIntegrationTests
         private static readonly CaseWorkflowConfiguration Configuration = new(
             true,
             true,
-            true,
-            true,
             "case-workflow",
             1);
 

@@ -9,8 +9,6 @@ public sealed class CaseDataOperationsTests
     private static readonly CaseWorkflowConfiguration Configuration = new(
         true,
         true,
-        true,
-        true,
         "test-case-workflow",
         7);
 

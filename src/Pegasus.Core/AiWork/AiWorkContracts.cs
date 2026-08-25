@@ -152,7 +152,7 @@ public interface ISendToAiControl
 /// options and Administration entry both validate against these, so the two
 /// entry routes cannot drift: a loopback http origin without path or query,
 /// a bearer token of at least 32 characters, and a 1-60 second timeout.
-/// The loopback restriction is ADR-0021's research-preview transport
+/// The loopback restriction is ADR-0031's research-preview transport
 /// decision, not a connector-administration choice.
 /// </summary>
 public static class AiChannelConnectorRules

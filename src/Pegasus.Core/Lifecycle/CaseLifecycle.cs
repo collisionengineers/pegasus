@@ -570,8 +570,8 @@ public static class CaseLifecycleRules
         }
 
         RequireText(evidence.EvidenceReference, "Readiness evidence is required.", 200, nameof(evidence));
-        if (configuration.RequireCompleteInstructionsBeforeEngineerAssignment && !evidence.InstructionsComplete
-            || configuration.RequireCompleteImagesBeforeEngineerAssignment && !evidence.ImagesComplete
+        if (!evidence.InstructionsComplete
+            || !evidence.ImagesComplete
             || configuration.RequireStaffInstructionReviewBeforeEngineerAssignment && !evidence.InstructionsReviewedByStaff
             || configuration.RequireStaffImageReviewBeforeEngineerAssignment && !evidence.ImagesReviewedByStaff)
         {

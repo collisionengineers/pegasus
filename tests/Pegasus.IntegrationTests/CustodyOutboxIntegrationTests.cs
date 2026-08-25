@@ -1364,6 +1364,33 @@ public sealed class CustodyOutboxIntegrationTests
             && item.AggregateId == outcome.Identity.CaseId.ToString("D")
             && item.EventKind == "eva_bundle_exported"));
 
+        const string concurrentOperationKey = "44444444444444444444444444444444";
+        var concurrentActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var exporter = services.GetRequiredService<IExportCaseBundle>();
+        var concurrent = await Task.WhenAll(
+            exporter.ExecuteAsync(
+                new(outcome.Identity.CaseId, concurrentActor, concurrentOperationKey),
+                CancellationToken.None),
+            exporter.ExecuteAsync(
+                new(outcome.Identity.CaseId, concurrentActor, concurrentOperationKey),
+                CancellationToken.None));
+        Assert.All(concurrent, result => Assert.Equal(bundle.Sha256, result!.Bundle!.Sha256));
+        await using var concurrentCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Single(await concurrentCheck.ActionHistory
+            .Where(item => item.AggregateType == "Case"
+                && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                && item.EventKind == "eva_bundle_exported"
+                && item.CorrelationId == concurrentOperationKey)
+            .ToListAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => exporter.ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                concurrentOperationKey),
+            CancellationToken.None));
+
         await replayCheck.Database.ExecuteSqlInterpolatedAsync(
             $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.NotReady)} WHERE CaseId = {outcome.Identity.CaseId}");
         await Assert.ThrowsAsync<CaseNotInReviewException>(() =>
