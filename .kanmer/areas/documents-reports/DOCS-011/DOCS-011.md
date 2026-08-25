@@ -4,6 +4,7 @@ type: ticket
 title: 'Preview evidence images and documents in the case, with paging and a download'
 status: verifying
 area: documents-reports
+order: 30
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -29,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T15:19:21.004Z'
-updated: '2026-08-24T16:54:20.634Z'
+updated: '2026-08-25T00:49:44.415Z'
 ---
 
 ## What the operator asked for

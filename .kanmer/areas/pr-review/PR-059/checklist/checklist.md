@@ -17,3 +17,5 @@
 
 
 2026-08-25: implementation and focused verification completed at c86b803c. Simplification lenses: reused existing lock and batch-read conventions; removed obsolete switches and catch/retry path; no new abstraction; no deferred code finding.
+
+2026-08-25 merged-state note: ADR-0030 and ADR-0031 are present in PR #539 merge commit `d973ead358f75736bdbdec3aa123d7d88a0083bd`, and the merged documentation/link checks are green. The checkbox remains open only because Kanmer validates refs against `C:\Users\PC\Documents\GitHub\pegasus`, whose checked-out tree does not yet contain merged `dev`; `link_doc` therefore still reports both paths absent.

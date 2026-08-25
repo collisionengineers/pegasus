@@ -6,6 +6,7 @@ title: >-
   stranded
 status: verifying
 area: intake-processing
+order: 70
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -29,7 +30,7 @@ commits:
 deployment: production
 archived: false
 created: '2026-08-23T15:18:47.553Z'
-updated: '2026-08-24T16:53:58.248Z'
+updated: '2026-08-25T00:49:44.446Z'
 ---
 
 ## What the operator saw

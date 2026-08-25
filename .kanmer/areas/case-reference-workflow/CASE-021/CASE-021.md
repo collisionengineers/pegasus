@@ -6,6 +6,7 @@ title: >-
   complete
 status: verifying
 area: case-reference-workflow
+order: 20
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -24,7 +25,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-23T15:18:20.008Z'
-updated: '2026-08-24T16:54:16.615Z'
+updated: '2026-08-25T00:49:44.408Z'
 ---
 
 ## What the operator saw

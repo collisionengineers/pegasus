@@ -4,6 +4,7 @@ type: ticket
 title: Cut the export from ~45 Box round trips to a handful
 status: verifying
 area: platform-operations
+order: 110
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -24,7 +25,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-23T15:19:04.949Z'
-updated: '2026-08-24T16:54:28.376Z'
+updated: '2026-08-25T00:49:44.478Z'
 ---
 
 ## What the operator saw

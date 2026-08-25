@@ -4,6 +4,7 @@ type: ticket
 title: Retain a Triage request's images as Triage evidence
 status: verifying
 area: intake-processing
+order: 80
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -23,7 +24,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-24T08:33:08.101Z'
-updated: '2026-08-24T16:54:09.043Z'
+updated: '2026-08-25T00:49:44.453Z'
 ---
 
 ## Why

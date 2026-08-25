@@ -4,6 +4,7 @@ type: ticket
 title: Refresh the Box access token instead of minting it once per process
 status: verifying
 area: platform-operations
+order: 100
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -23,7 +24,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-23T12:09:36.762Z'
-updated: '2026-08-24T16:54:32.250Z'
+updated: '2026-08-25T00:49:44.468Z'
 ---
 
 ## Every Box read from the Web app fails one hour after the container starts

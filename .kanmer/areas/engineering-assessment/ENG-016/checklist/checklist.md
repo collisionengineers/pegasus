@@ -50,5 +50,7 @@
 - [x] Complete the full non-corpus suite
 - [x] Run `git diff --check` and scope audit
 - [x] Push normally
-- [ ] Obtain green CI on the final head
-- [ ] Hand off for independent Kanmer review
+- [x] Obtain green CI on the final head
+- [x] Hand off for independent Kanmer review
+
+2026-08-25: independent review passed, all 11 final-head checks succeeded, and PR #539 merged to dev as `d973ead358f75736bdbdec3aa123d7d88a0083bd`.

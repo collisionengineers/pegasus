@@ -10,3 +10,6 @@ PR-055, PR-056, PR-057, PR-058, PR-060 and later PR-061 are implemented on PR #5
 Release build 0 warnings/errors; Core 25; Architecture 1; combined focused Integration 12 plus migration census rerun 1; final locked-state Integration 1. Markdown placement, documentation links and diff checks pass. GitHub final CI is deliberately not claimed while amended-head jobs are pending. Deployment is unclaimed.
 
 FRD-07 and FRD-04 are recorded as Kanmer refs. ADR-0030/0031 are named in the governing compliance inventory; the board's configured older repoRoot cannot validate branch-only ADR paths until they are visible there.
+
+## Final review and merge evidence — 2026-08-25
+Independent Kanmer review passed on final head `cc6b0ee75edd413537a16445a42f95a329c309fe`. GitHub reported all 11 checks successful: changes, documentation, local-development-scripts, reference-data, infrastructure, unit, three SQL integration shards, browser, and sql-integration-coverage. PR #539 merged to `dev` at 2026-08-25T00:47:21Z as merge commit `d973ead358f75736bdbdec3aa123d7d88a0083bd`. Deployment is not claimed; merged-dev verification and proof remain next.
