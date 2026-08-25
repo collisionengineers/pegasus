@@ -1,1 +1,6 @@
 .kanmer/data/activity.jsonl
+.kanmer/data/sources/
+.kanmer/**/*.lock
+.kanmer/**/*.lock.owner-*
+.kanmer/**/*.lock.stale-*
+.kanmer/**/.*.tmp-*
