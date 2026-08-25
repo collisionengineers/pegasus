@@ -282,7 +282,7 @@ public sealed class UploadOutcomeQueries(
                 null);
         }
 
-        if (groupedImage)
+        if (groupedImage && receipt.Decision == IntakeDecision.NeedsSorting)
         {
             // Durable evaluation completes before the bounded grouped-image
             // reconciliation pass. Until that pass records a Case, Image
