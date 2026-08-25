@@ -507,8 +507,9 @@ The current and intended workflows use several different evidence transfers:
   readiness decision; suggested values do not block export, VAT and mileage
   are optional, and Case/Audit custody are not duplicate export gates. Its
   first successful generation records Pegasus's once-per-case `First sent to
-  Engineer` proxy and every export records action history; EVA still owns
-  receipt and named-Engineer assignment;
+  Engineer` proxy and every export records action history; this proves neither
+  EVA receipt nor an external EVA assignment. Pegasus may separately record an
+  optional direct assignment to one of its Engineer accounts;
 - EVA currently generates the final provider report, while Box stores produced
   Engineer Reports; a PDF's existence or custody does not prove that the report
   was sent or received; and
@@ -535,6 +536,19 @@ The storage statements describe different layers rather than competing custody r
 - Box is the intended long-term case-file repository, with one subfolder per case.
 
 A staged image must not be treated as definitively associated merely because it has been received. The supplied sources do not establish that movement from staging into Box is automated.
+
+## Report readiness after Review
+
+> **Source label:** `direct operator statement, 2026-08-25`
+
+"Report readiness does not need to recalculate requirements that were needed
+for a case to reach review. By virtue of it being there, these requirements are
+met. Hence this is duplication."
+
+The Assessment workspace is unavailable while a case is `Not ready`. It opens
+only after a successful EVA export in the current Review cycle. Engineer
+assignment is not a progression requirement: a case may remain unassigned, be
+assigned directly where required, or be assigned by an Engineer taking the work.
 
 # Additional recorded operator statements
 

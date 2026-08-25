@@ -209,7 +209,7 @@ public sealed class EfAiWorkRequestStore(
                 JsonOptions)
         });
 
-    private static AiWorkRequestRecord Map(AiWorkRequestEntity entity) => new(
+    internal static AiWorkRequestRecord Map(AiWorkRequestEntity entity) => new(
         entity.RequestId,
         entity.CaseId,
         entity.CaseReference,

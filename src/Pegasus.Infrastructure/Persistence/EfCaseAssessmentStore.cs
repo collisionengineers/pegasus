@@ -405,7 +405,7 @@ public sealed class EfCaseAssessmentStore(
         });
     }
 
-    private static CaseAssessmentProjection Map(
+    internal static CaseAssessmentProjection Map(
         CaseWorkflowEntity workflow,
         IReadOnlyList<CaseAssessmentFieldEntity> fields,
         IReadOnlyList<CaseEstimateLineEntity> lines,

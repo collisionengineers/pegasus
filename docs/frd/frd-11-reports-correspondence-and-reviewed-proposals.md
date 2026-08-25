@@ -98,15 +98,23 @@ approved, or sent by this action — it is strictly the draft-generation step
 the renderer boundary above already defines; approval and issue remain the
 separately owned human acts described below.
 
+The Assessment screen is unavailable in `Not ready`, `Held`, post-report and
+terminal states. It is available in `Review` and `Report preparation` only after
+a successful EVA export in the current Review cycle. A later optional Engineer
+assignment does not invalidate that export or gate access. Returning to Review
+for corrected case data starts a new cycle and requires a fresh export.
+
 **Readiness.** A single readiness rail decides whether the control is enabled:
-`AssessmentPolicy.EvaluateReadiness` (the same list rendered elsewhere on the
-Assessment screen) plus the few report-specific requirements the accepted
-snapshot adds beyond the assessment record — a confirmed claimant, your
-reference, an addressee, an incident date, a recognized inspection method, an
-accepted engineer signature tuple, at least one custody-confirmed photograph
-and source document, and repair-cost figures (below). A case that does not
-meet every requirement leaves the control disabled and states each
-outstanding reason by name; nothing is guessed to make the control available.
+`AssessmentPolicy.EvaluatePostReviewReadiness` (the Assessment screen's
+post-Review list) plus only requirements first introduced after the case
+entered `Review`: an accepted engineer signature tuple and repair-cost figures
+(below). Requirements already enforced by the transition into `Review` are not
+recalculated as report readiness. The saved case identity, instruction,
+inspection and custody facts are consumed when the draft is generated; if one
+is unexpectedly absent, generation fails as an invalid case state rather than
+presenting the operator with a duplicate readiness task. A case missing a true
+post-Review requirement leaves the control disabled and states that outstanding
+reason by name; nothing is guessed to make the control available.
 
 **Photographs and source evidence.** `Photos` are the case's custody-confirmed
 `Image`-role documents (current, not logically removed, custody status
@@ -115,7 +123,8 @@ for its own image evidence. `Sources` are every other custody-confirmed case
 document, reported by its own file name, version and hash. Both are real
 custody facts, not curated: the Assessment screen's photograph
 curation/ordering control is separately deferred (UI-15), so every confirmed
-image on the case is offered.
+image on the case is offered. Their absence after entry to `Review` is an
+invalid case state, not another report-readiness classification.
 
 **Repair-cost figures are not yet derivable.** No accepted formula exists
 anywhere in the domain to convert recorded estimate lines and a chosen rate

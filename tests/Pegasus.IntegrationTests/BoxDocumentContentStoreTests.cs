@@ -12,7 +12,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// Behavioral proof for the production managed-document content store against
 /// an in-memory Box: the managed layout, hash/length verification, replay
-/// semantics, delete idempotence, and child lookup beyond one Box page. No
+/// semantics, delete idempotence, and durable case-root addressing. No
 /// network call is made.
 /// </summary>
 public sealed class BoxDocumentContentStoreTests
@@ -21,6 +21,7 @@ public sealed class BoxDocumentContentStoreTests
         {"boxAppSettings":{"clientID":"client-id","appAuth":{"publicKeyID":"key-id","privateKey":"private-key","passphrase":"passphrase"}},"enterpriseID":"enterprise-id"}
         """;
     private const string ApprovedRootId = "405543781910";
+    private const string CaseRootId = "case-root-id";
 
     private static readonly Guid CaseId = Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f");
     private static readonly Guid VersionId = Guid.Parse("20314253-6475-8697-a8b9-cadbecfd0e1f");
@@ -85,6 +86,21 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     [Fact]
+    public async Task BoxContentFailsClosedWithoutThePersistedCaseRoot()
+    {
+        var box = new InMemoryBox();
+        var store = CreateStore(box);
+        var content = Encoding.UTF8.GetBytes("content");
+
+        await Assert.ThrowsAsync<ArgumentException>(() => store.StoreVersionAsync(
+            Address() with { CaseRootRemoteId = null },
+            content,
+            Sha256(content),
+            CancellationToken.None));
+        Assert.Equal(0, box.RequestCount);
+    }
+
+    [Fact]
     public async Task OpenReadFailsClosedWhenStoredContentDoesNotVerify()
     {
         var box = new InMemoryBox();
@@ -141,11 +157,8 @@ public sealed class BoxDocumentContentStoreTests
     }
 
     [Fact]
-    public async Task ChildLookupPaginatesBeyondOneBoxPage()
+    public async Task ManagedReadUsesPersistedCaseRootWithoutListingApprovedRoot()
     {
-        // The approved Box root grows by one Case/PO folder per case forever,
-        // so the lookup must keep paging past Box's 1000-item page rather than
-        // silently missing a later Case/PO.
         var box = new InMemoryBox();
         for (var i = 0; i < 1000; i++)
         {
@@ -163,12 +176,11 @@ public sealed class BoxDocumentContentStoreTests
         await stream.CopyToAsync(buffer);
 
         Assert.Equal(content, buffer.ToArray());
-        Assert.True(box.LargestItemsRequestOffset >= 1000,
-            "Expected the child lookup to request a second Box page.");
+        Assert.Equal(0, box.ApprovedRootListingCount);
     }
 
     [Fact]
-    public async Task OneManagedReadCostsFourBoxRoundTrips()
+    public async Task OneManagedReadCostsThreeBoxRoundTrips()
     {
         // PLAT-041: it used to cost nine — the case folder resolved, the file
         // found, its metadata re-fetched, and its ancestry walked twice more
@@ -188,7 +200,7 @@ public sealed class BoxDocumentContentStoreTests
         await stream.CopyToAsync(buffer);
 
         Assert.Equal(content, buffer.ToArray());
-        Assert.Equal(4, box.RequestCount - before);
+        Assert.Equal(3, box.RequestCount - before);
     }
 
     [Fact]
@@ -196,7 +208,7 @@ public sealed class BoxDocumentContentStoreTests
     {
         // PLAT-041: five photographs cost forty-five Box round trips, which is
         // the eighteen seconds the operator measured. The case folder is
-        // resolved once (1), listed once (ancestry 1 + listing 1), and then
+        // addressed directly, listed once (ancestry 1 + listing 1), and then
         // only the five downloads remain.
         var box = new InMemoryBox();
         box.BindCaseRoot();
@@ -216,7 +228,7 @@ public sealed class BoxDocumentContentStoreTests
         var contents = await store.ReadVersionsAsync(reads, CancellationToken.None);
 
         Assert.Equal(expected, contents.Select(item => item.ToArray()));
-        Assert.Equal(8, box.RequestCount - before);
+        Assert.Equal(7, box.RequestCount - before);
 
         // The archive is built from exactly these bytes in exactly this order,
         // so a batch that disagreed with the one-at-a-time reads would change
@@ -271,6 +283,7 @@ public sealed class BoxDocumentContentStoreTests
     private static ManagedDocumentContentAddress Address(int ordinal, string fileName) => new(
         CaseId,
         CaseReference,
+        CaseRootId,
         OccurrenceId,
         ordinal,
         DocumentId,
@@ -310,6 +323,7 @@ public sealed class BoxDocumentContentStoreTests
         public int UploadCount { get; private set; }
         public int DeleteCount { get; private set; }
         public int LargestItemsRequestOffset { get; private set; }
+        public int ApprovedRootListingCount { get; private set; }
         /// <summary>
         /// PLAT-041: every Box round trip, whatever it is. The export's cost was
         /// never bytes — it was the number of requests made to move them.
@@ -341,7 +355,8 @@ public sealed class BoxDocumentContentStoreTests
             {
                 return;
             }
-            var root = AddFolder(ApprovedRootId, CaseReference);
+            const string root = CaseRootId;
+            nodes[root] = new Node(root, CaseReference, "folder", ApprovedRootId);
             var bindingId = $"file-{++nextId}";
             nodes[bindingId] = new Node(
                 bindingId, "pegasus-case-binding.json", "file", root, "application/json");
@@ -402,6 +417,10 @@ public sealed class BoxDocumentContentStoreTests
                 && path.EndsWith("/items", StringComparison.Ordinal))
             {
                 var folderId = path["/2.0/folders/".Length..^"/items".Length];
+                if (folderId == ApprovedRootId)
+                {
+                    ApprovedRootListingCount++;
+                }
                 var limit = int.Parse(query["limit"] ?? "1000", CultureInfo.InvariantCulture);
                 var offset = int.Parse(query["offset"] ?? "0", CultureInfo.InvariantCulture);
                 LargestItemsRequestOffset = Math.Max(LargestItemsRequestOffset, offset);

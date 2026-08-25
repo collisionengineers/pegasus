@@ -43,7 +43,7 @@ A case owns immutable identity, principal, internal reference, type, accepted so
 The lifecycle must support:
 
 - pre-case receiving, and the sorting of material that is not definitive (this is the `Needs sorting`/`Blocked intake` path and its reasoned resolution, not a manual acceptance step applied to definitive intake — see the allocation rule above);
-- active work, `Not ready`, `Held`, `Review`, due-work visibility, and separate mandatory instruction-completeness, image-completeness, and staff-review gates before Engineers-queue eligibility; provider policy may define accepted gate evidence but may not remove a gate, and named-Engineer assignment remains EVA-owned through `0.1.0-alpha.1`;
+- active work, `Not ready`, `Held`, `Review`, due-work visibility, and separate mandatory instruction-completeness, image-completeness, and staff-review gates before Engineers-queue eligibility; provider policy may define accepted gate evidence but may not remove a gate;
 
 - manual chasing with the exact schedule below;
 - inspection/report preparation appropriate to desktop assessment;
@@ -72,10 +72,11 @@ the original image record shows its formal Case target.
 State changes are explicit Core transitions. UI labels, Worker handlers, APIs, and MCP tools call the same use cases; they do not implement parallel policy.
 
 When a Case passes its staff-review gate, it becomes visible in the Engineers
-queue. Through `0.1.0-alpha.1`, named-Engineer assignment and reassignment remain
-authoritative in EVA; Pegasus neither assigns nor mirrors a named Engineer.
-That authority transfers only with the accepted `1.0.0` Engineer-workbench
-capabilities and caller evidence.
+queue. Assignment is optional: staff may assign an eligible Pegasus Engineer
+directly when required, or an Engineer may take an unassigned case when starting
+work. Assignment is ownership, not readiness, and never substitutes for a
+missing Review or export gate. Pegasus assignment does not prove EVA receipt or
+an external EVA assignment.
 
 Incoming cancellation classification or association never changes a Case automatically. In the focused alpha, mailbox processing records the settled classification for every route-accepted received message and may automatically associate QDOS-direct correspondence with its Case under the accepted ADR-0020 predicates, but only an incoming instruction creates intake work and no classification or association mutates Case state; a separately retained and reasonedly associated cancellation message may support an authorised staff action to place a pre-report Case in `Held pending staff decision`, confirm `Provider cancelled`, or release it. Release requires the message to be reasonedly recategorised, unlinked, or reassociated first. Every original and corrected classification/association, actor, time, reason, and evidence remains permanent history.
 

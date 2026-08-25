@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Pegasus.Core.Actors;
+using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
@@ -19,6 +20,37 @@ namespace Pegasus.IntegrationTests;
 [Trait("Category", "SqlServer")]
 public sealed partial class CaseDetailsWebTests
 {
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task AssessmentControlReflectsTheSharedAccessDecision(
+        bool canOpen,
+        bool expectsLink)
+    {
+        using var baseFactory = new IntakeWebApplicationFactory();
+        var store = new RecordingCaseDetailsStore();
+        using var factory = baseFactory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                Substitute<IGetCase>(services, store);
+                services.RemoveAll<IGetAssessmentAccess>();
+                services.AddSingleton<IGetAssessmentAccess>(new FakeGetAssessmentAccess(canOpen));
+            }));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var actionBar = RecordBar(html);
+
+        Assert.Contains("Open assessment", actionBar, StringComparison.Ordinal);
+        Assert.Equal(expectsLink, actionBar.Contains(
+            $"/Cases/{store.CaseId:D}/Assessment",
+            StringComparison.OrdinalIgnoreCase));
+    }
+
     /// <summary>
     /// PLAT-011: the case history table shows the resolved actor name, never the
     /// raw actor subject id (docs/design/README.md:168) — a Staff row shows its

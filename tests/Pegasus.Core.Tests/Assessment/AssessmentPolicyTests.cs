@@ -12,6 +12,28 @@ public sealed class AssessmentPolicyTests
     private static readonly ActionActor PlainStaff =
         ActionActor.Staff(Guid.NewGuid(), [StaffRole.User]);
 
+    [Theory]
+    [InlineData(CaseLifecycleState.NotReady, 4L, 4L, false)]
+    [InlineData(CaseLifecycleState.Review, 4L, null, false)]
+    [InlineData(CaseLifecycleState.Review, 4L, 3L, false)]
+    [InlineData(CaseLifecycleState.Review, 4L, 4L, true)]
+    [InlineData(CaseLifecycleState.Review, 4L, 5L, true)]
+    [InlineData(CaseLifecycleState.ReportPreparation, 4L, 4L, true)]
+    [InlineData(CaseLifecycleState.PostReport, 4L, 4L, false)]
+    public void AssessmentAccessRequiresAnExportInTheCurrentReviewCycle(
+        CaseLifecycleState state,
+        long latestReviewVersion,
+        long? latestExportVersion,
+        bool expected)
+    {
+        var access = new AssessmentAccessState(
+            state,
+            latestReviewVersion,
+            latestExportVersion);
+
+        Assert.Equal(expected, access.CanOpen);
+    }
+
     [Fact]
     public void UnknownFieldPathFailsClosed()
     {
