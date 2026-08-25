@@ -166,6 +166,71 @@ public sealed class UploadOutcomeQueriesTests
     }
 
     [Fact]
+    public async Task CompletedGroupedImageWithoutASettledDestinationIsStillProcessing()
+    {
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            mediaType: "image/jpeg");
+
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: Guid.NewGuid());
+
+        Assert.Equal(UploadOutcomeKind.Working, result.Kind);
+        Assert.True(result.IsStillWorking);
+        Assert.False(result.IsOpenDecision);
+        Assert.Null(result.PrimaryAction);
+        Assert.Null(result.Attach);
+    }
+
+    [Fact]
+    public async Task ResolvedGroupedUnidentifiedItemIsReportedWithoutPollingOrAnotherDecision()
+    {
+        var receiptId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var unidentifiedId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            mediaType: "image/jpeg");
+        var resolved = new UnidentifiedItem(
+            unidentifiedId,
+            1,
+            "U1",
+            UnidentifiedOrigin.SubmissionGroup(groupId),
+            UnidentifiedReasonCode.NoUsableIdentification,
+            "No usable registration was found.",
+            UnidentifiedState.Resolved,
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            DateTimeOffset.UtcNow,
+            ActionActor.Automation("vrm"),
+            StaffActor,
+            "Matched outside Pegasus.",
+            UnidentifiedResolutionTargetKind.ExternalReference,
+            "external-1",
+            "EXTERNAL-1",
+            1);
+
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: groupId,
+            unidentifiedByGroup: resolved);
+
+        Assert.Equal(UploadOutcomeKind.Resolved, result.Kind);
+        Assert.False(result.IsStillWorking);
+        Assert.False(result.IsOpenDecision);
+        Assert.Contains("EXTERNAL-1", result.Message, StringComparison.Ordinal);
+        Assert.Equal($"/Unidentified/{unidentifiedId:D}", result.PrimaryAction?.Url);
+        Assert.Null(result.Attach);
+    }
+
+    [Fact]
     public async Task BlockedIntakeCannotBecomeACaseAndIsNotOfferedOne()
     {
         var receiptId = Guid.NewGuid();
@@ -176,6 +241,27 @@ public sealed class UploadOutcomeQueriesTests
 
         Assert.Equal(UploadOutcomeKind.CannotBecomeCase, result.Kind);
         Assert.Contains("blocked", result.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task BlockedGroupedImageRemainsTerminal()
+    {
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.BlockedIntake,
+            mediaType: "image/jpeg");
+
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: Guid.NewGuid());
+
+        Assert.Equal(UploadOutcomeKind.CannotBecomeCase, result.Kind);
+        Assert.False(result.IsStillWorking);
+        Assert.False(result.IsOpenDecision);
+        Assert.Null(result.Attach);
     }
 
     [Fact]
@@ -291,11 +377,12 @@ public sealed class UploadOutcomeQueriesTests
         Guid? manualLinkedCaseId = null,
         string? manualLinkedCaseReference = null,
         long? manualAssociationVersion = null,
-        ActorKind? manualAssociationActorKind = null) =>
+        ActorKind? manualAssociationActorKind = null,
+        string mediaType = "application/pdf") =>
         new(
             id,
             "example.pdf",
-            "application/pdf",
+            mediaType,
             1024,
             "hash",
             new(IntakeSourceChannel.ManualUpload, "token"),
@@ -314,6 +401,24 @@ public sealed class UploadOutcomeQueriesTests
             "1",
             null,
             null,
+            Assets: mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                ? [
+                    new(
+                        Guid.NewGuid(),
+                        "uploaded source",
+                        "example.jpg",
+                        mediaType,
+                        IntakeAssetKind.Source,
+                        IntakeAssetDisposition.Source,
+                        1024,
+                        new string('A', 64),
+                        "test-storage-key",
+                        null,
+                        null,
+                        null,
+                        null)
+                  ]
+                : null,
             AcceptedCaseId: acceptedCaseId,
             AcceptedCaseReference: acceptedCaseReference,
             CaseMatchDecision: caseMatchDecision,
