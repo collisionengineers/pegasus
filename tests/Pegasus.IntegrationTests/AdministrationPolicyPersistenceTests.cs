@@ -22,8 +22,6 @@ public sealed class AdministrationPolicyPersistenceTests
         var request = new UpdateWorkflowConfigurationRequest(
             false,
             true,
-            false,
-            true,
             initial.PolicyVersion,
             actor,
             "Review the Engineer-assignment gates",
@@ -34,7 +32,6 @@ public sealed class AdministrationPolicyPersistenceTests
 
         Assert.Equal(initial.PolicyVersion + 1, updated.PolicyVersion);
         Assert.Equal(updated, replay);
-        Assert.False(updated.RequireCompleteInstructionsBeforeEngineerAssignment);
         Assert.False(updated.RequireStaffInstructionReviewBeforeEngineerAssignment);
         await Assert.ThrowsAsync<WorkflowConfigurationVersionConflictException>(
             () => command.ExecuteAsync(

@@ -14,27 +14,16 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
     // EvaHandoffDownloadOperations (its two replay ledgers).
     //
     // EvaFirstHandoffProxies SURVIVES -- it feeds the dashboard's "Sent to
-    // Engineer" count -- but loses two columns that no longer have a source:
-    // RevisionId, a required foreign key into a table being dropped, and
-    // OperationKey, which an export does not carry. The once-per-case
-    // guarantee is the primary key on CaseId, which is untouched, as are both
-    // CK_EvaFirstHandoffProxies_* checks.
+    // Engineer" count -- but loses RevisionId and OperationKey because the
+    // proxy now records only the once-per-case first-send fact. Export does
+    // carry an operation key; its per-export replay and audit record belongs
+    // in ActionHistory instead. The proxy guarantee remains its CaseId primary
+    // key, and both CK_EvaFirstHandoffProxies_* checks remain.
     //
-    // NOT ADDITIVE, unlike the usual release rule (docs/runbook.md, rollback
-    // step 3): an application built before ENG-016 reads and writes all three
-    // tables on the hand-off path, so rolling back behind this migration
-    // breaks EVA hand-off generation and download until it rolls forward.
-    // The recovery strategy the rule demands is that there is nothing to
-    // recover: the hand-off is switched off in production and its tables have
-    // never held a row (docs/operations.md -- EvaHandoffRevisions and
-    // EvaHandoffDownloadOperations are empty). Affected capability: EXT-03.
-    //
-    // Down() restores the schema, not the data: three empty tables and two
-    // empty columns. Note that it recreates RevisionId as a REQUIRED foreign
-    // key defaulted to Guid.Empty, so Down() succeeds only while
-    // EvaFirstHandoffProxies is empty. That is true today and is why this is
-    // reversible at all; a database that has recorded an export must not be
-    // rolled back through this migration without first clearing those rows.
+    // This permitted pre-cutover removal follows ADR-0030: recovery is to roll
+    // forward, never to restore the removed development-state hand-off path.
+    // Down() is EF development scaffolding and is not the supported recovery
+    // procedure. Affected capability: EXT-03.
     public partial class DropEvaHandoffTables : Migration
     {
         /// <inheritdoc />

@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Pegasus.Core.Cases;
@@ -121,20 +122,11 @@ public sealed class EvaHandoffStore(
     /// <c>CK_EvaFirstHandoffProxies_*</c> check constraints refuse it again in
     /// the database.
     ///
-    /// The read is the ordinary path; the primary key on <c>CaseId</c> is what
-    /// actually enforces "once". Two exports of the same case racing — an
-    /// operator double-pressing Export is the realistic way — can both read
-    /// nothing and both insert, and the second is refused by that key. Losing
-    /// that race produces exactly the intended end state, one row, so it is not
-    /// an error to report. It is only swallowed once the row is confirmed
-    /// present.
-    ///
-    /// Any other write failure fails the whole export rather than handing over
-    /// a file whose "first sent to Engineer" fact was silently not recorded.
-    /// It is translated here, as the deleted hand-off translated
-    /// <c>DbUpdateConcurrencyException</c>, so no page has to know what EF
-    /// throws: <c>DbUpdateException</c> derives straight from
-    /// <c>Exception</c> and would otherwise miss every caller's catch filter.
+    /// The short database section takes the existing case-workflow row lock.
+    /// Same-case exports therefore observe replay and the first-send proxy in
+    /// commit order, while package creation and image reads stay outside the
+    /// transaction. The proxy primary key remains the final once-per-case
+    /// database constraint.
     /// </summary>
     private async Task RecordExportAsync(
         PegasusDbContext context,
@@ -145,6 +137,11 @@ public sealed class EvaHandoffStore(
         EvaBundle bundle,
         CancellationToken cancellationToken)
     {
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        await AcquireExportRecordLockAsync(context, request.CaseId, cancellationToken);
+
         var aggregateId = request.CaseId.ToString("D");
         const string eventKind = "eva_bundle_exported";
         var afterJson = DocumentActionHistory.Serialize(new
@@ -187,6 +184,7 @@ public sealed class EvaHandoffStore(
                 request.Actor,
                 reason: null,
                 afterJson);
+            await transaction.CommitAsync(cancellationToken);
             return;
         }
 
@@ -223,43 +221,29 @@ public sealed class EvaHandoffStore(
             afterJson: afterJson);
         history.PolicyVersion = $"{source.MappingKey}/v{source.MappingVersion}";
         context.ActionHistory.Add(history);
-        try
-        {
-            await context.SaveChangesAsync(cancellationToken);
-        }
-        catch (DbUpdateException exception)
-        {
-            context.ChangeTracker.Clear();
-            if (!await ProxyExistsAsync(context, request.CaseId, cancellationToken))
-            {
-                throw new InvalidOperationException(
-                    "The export could not record the First sent to Engineer proxy.",
-                    exception);
-            }
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
 
-            var concurrentHistory = await context.ActionHistory
-                .SingleOrDefaultAsync(
-                    item => item.AggregateType == "Case"
-                        && item.AggregateId == aggregateId
-                        && item.EventKind == eventKind
-                        && item.CorrelationId == request.OperationKey,
-                    cancellationToken);
-            if (concurrentHistory is not null)
-            {
-                DocumentActionHistory.RequireExactReplay(
-                    concurrentHistory,
-                    "Case",
-                    aggregateId,
-                    eventKind,
-                    request.Actor,
-                    reason: null,
-                    afterJson);
-                return;
-            }
-
-            context.ActionHistory.Add(history);
-            await context.SaveChangesAsync(cancellationToken);
+    private static async Task AcquireExportRecordLockAsync(
+        PegasusDbContext context,
+        Guid caseId,
+        CancellationToken cancellationToken)
+    {
+        if (!context.Database.IsSqlServer())
+        {
+            return;
         }
+
+        _ = await context.CaseWorkflows
+            .FromSqlInterpolated($"""
+                SELECT *
+                FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
+                WHERE [CaseId] = {caseId}
+                """)
+            .AsNoTracking()
+            .Select(item => item.CaseId)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private static Task<bool> ProxyExistsAsync(
@@ -328,13 +312,12 @@ public sealed class EvaHandoffStore(
             .Select(candidate => candidate.VersionId)
             .ToHashSet();
 
-        var images = new List<EvaBundleImage>();
-        foreach (var selected in candidateRows.Where(
+        var selectedImages = candidateRows.Where(
             selected => eligibleVersionIds.Contains(selected.VersionId)
-                        && selected.ContentLength <= int.MaxValue))
-        {
-            await using var content = await contentStore.OpenReadVersionAsync(
-                new(
+                        && selected.ContentLength <= int.MaxValue)
+            .ToArray();
+        var reads = selectedImages.Select(selected => new ManagedDocumentContentRead(
+                new ManagedDocumentContentAddress(
                     caseId,
                     caseReference,
                     selected.OccurrenceId,
@@ -346,10 +329,14 @@ public sealed class EvaHandoffStore(
                     selected.FileName,
                     selected.MediaType),
                 selected.Sha256,
-                selected.ContentLength,
-                cancellationToken);
-            var bytes = GC.AllocateUninitializedArray<byte>(checked((int)selected.ContentLength));
-            await content.ReadExactlyAsync(bytes, cancellationToken);
+                selected.ContentLength))
+            .ToArray();
+        var contents = await contentStore.ReadVersionsAsync(reads, cancellationToken);
+
+        var images = new List<EvaBundleImage>(selectedImages.Length);
+        for (var index = 0; index < selectedImages.Length; index++)
+        {
+            var selected = selectedImages[index];
             images.Add(new(
                 selected.OccurrenceId,
                 selected.DocumentId,
@@ -360,7 +347,7 @@ public sealed class EvaHandoffStore(
                 selected.SemanticRole,
                 selected.Source,
                 selected.SourceOccurrenceIdentity,
-                bytes,
+                contents[index].ToArray(),
                 selected.Sha256,
                 CustodyConfirmed: true,
                 IsCurrent: true,

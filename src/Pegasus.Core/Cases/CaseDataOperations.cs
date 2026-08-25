@@ -77,10 +77,8 @@ public static class CaseCompletenessPolicy
         // policy — nobody is going to confirm evidence a staff member never
         // touched — so every one of them was born Not ready and stayed there.
         var satisfiesPolicy =
-            (!configuration.RequireCompleteInstructionsBeforeEngineerAssignment
-                || completeness.InstructionComplete)
-            && (!configuration.RequireCompleteImagesBeforeEngineerAssignment
-                || completeness.ImagesComplete)
+            completeness.InstructionComplete
+            && completeness.ImagesComplete
             && (automaticallyDefinitive
                 || ((!configuration.RequireStaffInstructionReviewBeforeEngineerAssignment
                         || completeness.InstructionConfirmedByStaff)

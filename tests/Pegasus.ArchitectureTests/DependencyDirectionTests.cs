@@ -422,6 +422,14 @@ public sealed class DependencyDirectionTests
             "CaseEvaMapping.MapForOperatorExport",
             evaPersistence,
             StringComparison.Ordinal);
+        Assert.Contains(
+            "contentStore.ReadVersionsAsync",
+            evaPersistence,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            "contentStore.OpenReadVersionAsync",
+            evaPersistence,
+            StringComparison.Ordinal);
         // The once-per-case proxy is a Core port the store calls, never an
         // adapter the store manufactures.
         Assert.Contains(

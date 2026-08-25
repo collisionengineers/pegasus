@@ -94,7 +94,7 @@ internal sealed record CaseUpdateDetailsToolResult(
 
 /// <summary>
 /// Automation Actor assessment tools (the tranche specified by
-/// ADR-0021 / FRD-10 (docs/adr/0021-automation-actor-direct-write-assessment-contract.md,
+/// ADR-0031 / FRD-10 (docs/adr/0031-automation-actor-contract-without-eva-export-tools.md,
 /// docs/frd/frd-10-mcp-automation-and-actor-boundary.md)): direct writes over the same
 /// Core commands, edit lease, and version guards as a staff save, attributed
 /// to the Automation actor with the values stored unconfirmed until staff
