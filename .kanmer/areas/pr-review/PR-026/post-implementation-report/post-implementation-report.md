@@ -1,17 +1,19 @@
-# Post-implementation report — PR-026 (incomplete)
+# Post-implementation report — PR-026
 
-## Completed
+## Summary
 
-Reconciled `docs/design/README.md` and `docs/capabilities.md` with the operator-activated narrow local Administrator route. The text records the selected existing Administration pattern, rejected generic/workspace alternatives, independent PR review, and preserves all deployment/Graph/message-mutation/release boundaries. Documentation links, placement and diff checks pass.
+The deferred-UI review finding is resolved. The original documentation reconciliation shipped in PR #473, and MAIL-004's later final verification supplied the desktop/200%-zoom evidence that PR-026's first browser attempt could not obtain. No new repository change was needed for this retrospective closeout.
 
-## Outstanding blocker
+## Evidence reconciliation
 
-The dedicated `PegasusMail004Visual` local database was migrated and initialized and the authenticated DevelopmentOffline app was started for the route. The in-app Browser runtime returned `No browser is available` and listed no browser instances. Therefore the desktop and 200%-zoom manual visual inspection has not been performed and is not claimed.
+- PR #473 is merged to `dev` at `4d00c3b7cb51511f44cb8afdb30d223730a1b1f6` (2026-08-21T14:16:38Z).
+- MAIL-004 proof records the live standard Administration presentation with no Graph identifiers.
+- Its local rendered inspection exercised the add/save status notice and required-Reason validation.
+- It records no horizontal overflow at 1280 px or 512 px, the latter being the planned 200%-zoom equivalent, and an axe-clean result.
+- The design-authority reconciliation shipped in the same PR; the route remains Administrator-only.
 
-PR-026 remains Implementing until that visual evidence is available. Commits `0b112237`, `90cc72cd`; shared PR #473.
+## Scope and disposition
 
-## Browser retry — 2026-08-21
+This resolves only the PR-026 design/manual-visual finding. It does not claim MAIL-13 delivery, arbitrary category mutation, Graph master-category synchronization, or a new design system. The earlier failed Browser attempt remains truthful history.
 
-The explicit in-app Browser bootstrap failed with `Browser use requires a trusted Node REPL browser service` before selection or navigation. No Chrome, standalone Playwright, or other workaround was used. The dedicated visual database was not recreated. Cleanup verified `PegasusMail004Visual` absent; the earlier owned Web process was found by its exact worktree executable path and stopped, leaving no listener on port 5234.
-
-The desktop/200%-zoom evidence remains the sole blocker; PR-026 stays Implementing.
+Simplification pass: **n/a — retrospective Kanmer evidence reconciliation with no repository diff**.

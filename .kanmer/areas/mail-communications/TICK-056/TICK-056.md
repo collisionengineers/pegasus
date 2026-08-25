@@ -16,8 +16,6 @@ labels:
   - capability
   - UI-10
   - next
-  - post-alpha
-  - blocked
 groups:
   - EPIC-003
   - EPIC-006
@@ -32,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-25T06:38:07.406Z'
+updated: '2026-08-25T06:46:06.278Z'
 ---
 
 ## What

@@ -19,7 +19,6 @@ labels:
   - capability
   - ENG-01
   - later
-  - post-alpha
 groups:
   - EPIC-003
   - EPIC-004
@@ -46,7 +45,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:06:02.568Z'
-updated: '2026-08-25T01:26:59.763Z'
+updated: '2026-08-25T06:46:05.728Z'
 ---
 
 ## Outcome
