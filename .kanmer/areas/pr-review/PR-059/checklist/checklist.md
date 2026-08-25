@@ -14,3 +14,6 @@
 - [ ] Write PR-059’s post-implementation report with the reconciliation audit and explicitly record deployment as unclaimed.
 
 ## Progress notes
+
+
+2026-08-25: implementation and focused verification completed at c86b803c. Simplification lenses: reused existing lock and batch-read conventions; removed obsolete switches and catch/retry path; no new abstraction; no deferred code finding.

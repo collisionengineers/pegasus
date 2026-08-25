@@ -9,3 +9,6 @@
 ## Progress notes
 
 (append with `set_ticket_doc(doc: "checklist", append: true)`)
+
+
+2026-08-25: implementation and focused verification completed at c86b803c. Simplification lenses: reused existing lock and batch-read conventions; removed obsolete switches and catch/retry path; no new abstraction; no deferred code finding.
