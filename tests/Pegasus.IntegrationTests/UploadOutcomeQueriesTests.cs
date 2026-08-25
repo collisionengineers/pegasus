@@ -166,6 +166,28 @@ public sealed class UploadOutcomeQueriesTests
     }
 
     [Fact]
+    public async Task CompletedGroupedImageWithoutASettledDestinationIsStillProcessing()
+    {
+        var receiptId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            mediaType: "image/jpeg");
+
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: Guid.NewGuid());
+
+        Assert.Equal(UploadOutcomeKind.Working, result.Kind);
+        Assert.True(result.IsStillWorking);
+        Assert.False(result.IsOpenDecision);
+        Assert.Null(result.PrimaryAction);
+        Assert.Null(result.Attach);
+    }
+
+    [Fact]
     public async Task BlockedIntakeCannotBecomeACaseAndIsNotOfferedOne()
     {
         var receiptId = Guid.NewGuid();
@@ -291,11 +313,12 @@ public sealed class UploadOutcomeQueriesTests
         Guid? manualLinkedCaseId = null,
         string? manualLinkedCaseReference = null,
         long? manualAssociationVersion = null,
-        ActorKind? manualAssociationActorKind = null) =>
+        ActorKind? manualAssociationActorKind = null,
+        string mediaType = "application/pdf") =>
         new(
             id,
             "example.pdf",
-            "application/pdf",
+            mediaType,
             1024,
             "hash",
             new(IntakeSourceChannel.ManualUpload, "token"),
@@ -314,6 +337,24 @@ public sealed class UploadOutcomeQueriesTests
             "1",
             null,
             null,
+            Assets: mediaType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)
+                ? [
+                    new(
+                        Guid.NewGuid(),
+                        "uploaded source",
+                        "example.jpg",
+                        mediaType,
+                        IntakeAssetKind.Source,
+                        IntakeAssetDisposition.Source,
+                        1024,
+                        new string('A', 64),
+                        "test-storage-key",
+                        null,
+                        null,
+                        null,
+                        null)
+                  ]
+                : null,
             AcceptedCaseId: acceptedCaseId,
             AcceptedCaseReference: acceptedCaseReference,
             CaseMatchDecision: caseMatchDecision,

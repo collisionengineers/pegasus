@@ -174,9 +174,8 @@ public sealed class UploadOutcomeQueries(
         if (receipt is null)
         {
             // The record has not caught up with the queue status yet; the
-            // page will refresh again shortly (RefreshAutomatically is still
-            // driven by status.Status, which is Complete here — the caller
-            // simply re-renders "processing" for one more refresh).
+            // caller re-renders "processing", which keeps the grouped page's
+            // outcome-driven automatic refresh active for another read.
             return new(UploadOutcomeKind.Working, "Processing", "The file is being processed.", null, null);
         }
 
@@ -217,9 +216,9 @@ public sealed class UploadOutcomeQueries(
         // the Core-owned image-only-material rule (not a media-type sniff)
         // keeps an instruction document in a mixed group from being
         // mislabelled with the images' registration.
-        if (receipt.Decision == IntakeDecision.ImageIntakeRegistered
-            || (submissionGroupId is not null
-                && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)))
+        var groupedImage = submissionGroupId is not null
+            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
+        if (receipt.Decision == IntakeDecision.ImageIntakeRegistered || groupedImage)
         {
             var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
             if (detail is { State: ImageInitiatedCaseState.MergedIntoInstructionCase, MergedIntoCaseId: { } mergedCaseId })
@@ -263,6 +262,20 @@ public sealed class UploadOutcomeQueries(
                 "Needs review",
                 "This could not be matched automatically and needs a staff decision.",
                 new("Review", $"/Unidentified/{unidentified.Id:D}"),
+                null);
+        }
+
+        if (groupedImage)
+        {
+            // Durable evaluation completes before the bounded grouped-image
+            // reconciliation pass. Until that pass records a Case, Image
+            // Intake, or Unidentified destination, the group has no honest
+            // terminal outcome and must not expose a staff decision.
+            return new(
+                UploadOutcomeKind.Working,
+                "Processing",
+                "The submission is being processed.",
+                null,
                 null);
         }
 
