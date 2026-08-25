@@ -2,7 +2,7 @@
 id: INTK-041
 type: ticket
 title: Define near-real-time two-stage durable intake
-status: verifying
+status: done
 area: intake-processing
 assignee: codex-mcp-client
 profile: feature
@@ -10,9 +10,7 @@ stageEntered:
   preparing: '2026-08-25T15:19:21.411Z'
   review: '2026-08-25T15:23:42.110Z'
   verifying: '2026-08-25T15:36:07.836Z'
-taken_at: '2026-08-25T15:20:41.591Z'
-branch: task/intk-041-near-real-time-intake
-worktree: ../pegasus-worktrees/intk-041-near-real-time-intake
+  done: '2026-08-25T15:36:44.115Z'
 labels: []
 groups:
   - EPIC-002
@@ -29,14 +27,15 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/adr/0002-dotnet-modular-monolith-on-azure.md
-docs_todo: true
+  - docs/adr/0032-near-real-time-durable-intake-triggering.md
 commits:
   - 5c4f4990
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/547'
+deployment: n/a
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-25T15:36:07.836Z'
+updated: '2026-08-25T15:37:04.815Z'
 ---
 
 ## What
@@ -51,3 +50,4 @@ The current polling path adds visible stale states and avoidable latency while s
 - Specify truthful sender/status behaviour, p95 latency, recovery timers, telemetry, and cost guardrails.
 
 ## Outcome
+PR #547 merged the INT-33/FRD/ADR contract into dev at f437f3b7. Independent review found and PR-062 corrected the partial-supersession metadata before merge. Documentation validation passed; runtime implementation continues in the linked blocked tickets. No cloud or mailbox state changed.

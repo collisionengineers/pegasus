@@ -9,3 +9,10 @@
 - [x] Validate links, frontmatter/index consistency, focused docs checks, and `git diff --check`.
 - [x] Run the docs-only simplification pass and record its disposition.
 - [x] Write the post-implementation report, commit, push, open PR #547 to `dev`, and move the ticket to Review.
+
+## Closeout
+
+- [x] PR #547 merged to dev and proof finalized.
+- [ ] Record outcome/deployment, remove ticket worktree/branch, and release claim.
+
+- [x] Recorded outcome/deployment, removed ticket worktree/branch, and released claim.
