@@ -211,7 +211,8 @@ public sealed class UploadGroupStatusModel(
         var open = memberResults
             .Where(result => result.outcome is { IsOpenDecision: true })
             .ToArray();
-        OpenGroupDecision = GroupRegistrationOutcome is null && open.Length > 0;
+        var anyWorking = memberResults.Any(result => result.outcome is { IsStillWorking: true });
+        OpenGroupDecision = GroupRegistrationOutcome is null && !anyWorking && open.Length > 0;
         OpenMemberReceiptIds = open
             .Select(result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId)
             .ToArray();

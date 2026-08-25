@@ -188,6 +188,49 @@ public sealed class UploadOutcomeQueriesTests
     }
 
     [Fact]
+    public async Task ResolvedGroupedUnidentifiedItemIsReportedWithoutPollingOrAnotherDecision()
+    {
+        var receiptId = Guid.NewGuid();
+        var groupId = Guid.NewGuid();
+        var unidentifiedId = Guid.NewGuid();
+        var status = StatusOf(QueuedIntakeStatusKind.Complete, receiptId: receiptId);
+        var receipt = MakeReceipt(
+            receiptId,
+            IntakeDecision.NeedsSorting,
+            mediaType: "image/jpeg");
+        var resolved = new UnidentifiedItem(
+            unidentifiedId,
+            1,
+            "U1",
+            UnidentifiedOrigin.SubmissionGroup(groupId),
+            UnidentifiedReasonCode.NoUsableIdentification,
+            "No usable registration was found.",
+            UnidentifiedState.Resolved,
+            DateTimeOffset.UtcNow.AddMinutes(-1),
+            DateTimeOffset.UtcNow,
+            ActionActor.Automation("vrm"),
+            StaffActor,
+            "Matched outside Pegasus.",
+            UnidentifiedResolutionTargetKind.ExternalReference,
+            "external-1",
+            "EXTERNAL-1",
+            1);
+
+        var result = await BuildAsync(
+            status,
+            receipt,
+            submissionGroupId: groupId,
+            unidentifiedByGroup: resolved);
+
+        Assert.Equal(UploadOutcomeKind.Resolved, result.Kind);
+        Assert.False(result.IsStillWorking);
+        Assert.False(result.IsOpenDecision);
+        Assert.Contains("EXTERNAL-1", result.Message, StringComparison.Ordinal);
+        Assert.Equal($"/Unidentified/{unidentifiedId:D}", result.PrimaryAction?.Url);
+        Assert.Null(result.Attach);
+    }
+
+    [Fact]
     public async Task BlockedIntakeCannotBecomeACaseAndIsNotOfferedOne()
     {
         var receiptId = Guid.NewGuid();
