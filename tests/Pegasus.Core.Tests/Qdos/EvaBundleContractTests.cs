@@ -93,14 +93,14 @@ public sealed class EvaBundleContractTests
     }
 
     [Fact]
-    public void MissingAcceptedMappingVersionEvidenceIsRejected()
+    public void AStaleMappingVersionIsRejected()
     {
-        var source = Source() with { MappingAcceptanceEvidence = " " };
+        var source = Source() with { MappingVersion = CaseEvaMapping.MappingVersion - 1 };
 
         var exception = Assert.Throws<InvalidOperationException>(
             () => EvaBundleSchema.CreateOfflineReplay(source, Images()));
 
-        Assert.Contains("accepted mapping/config version", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("current mapping version", exception.Message, StringComparison.Ordinal);
     }
 
     // ENG-014's regression guard. Before this test the exported layout was
@@ -325,8 +325,7 @@ public sealed class EvaBundleContractTests
                 $"case-data/v{index + 1}"))
                 .ToArray(),
             CaseEvaMapping.MappingKey,
-            CaseEvaMapping.MappingVersion,
-            "accepted-evidence:test");
+            CaseEvaMapping.MappingVersion);
     }
 
     private static EvaBundleImages Images(IReadOnlyList<Guid>? order = null)

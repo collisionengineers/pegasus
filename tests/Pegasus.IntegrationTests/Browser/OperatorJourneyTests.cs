@@ -35,14 +35,6 @@ public sealed class OperatorJourneyTests
             javaScriptEnabled: false,
             configureWebHost: builder =>
             {
-                builder.ConfigureAppConfiguration((_, configuration) =>
-                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["Eva:AcceptedMapping:Key"] = CaseEvaMapping.MappingKey,
-                        ["Eva:AcceptedMapping:Version"] = CaseEvaMapping.MappingVersion
-                            .ToString(CultureInfo.InvariantCulture),
-                        ["Eva:AcceptedMapping:EvidenceReference"] = "browser-controlled-accepted-mapping"
-                    }));
                 builder.ConfigureServices(services =>
                 {
                     services.RemoveAll<IVehicleEvidenceQueries>();
