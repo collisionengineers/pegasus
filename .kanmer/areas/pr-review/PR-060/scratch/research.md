@@ -1,0 +1,1 @@
+Read-only evidence checked on 2026-08-25: PR #539 request/store contract, migration source at the PR head, accepted ADR-0030 on origin/dev, live PR description, and ENG-016 plan/research/post-implementation report. Minimal result: comments only; no schema or runtime change.
