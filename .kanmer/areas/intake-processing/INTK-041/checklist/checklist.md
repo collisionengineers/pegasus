@@ -8,4 +8,4 @@
 - [x] Register INT-33 and update required navigation.
 - [x] Validate links, frontmatter/index consistency, focused docs checks, and `git diff --check`.
 - [x] Run the docs-only simplification pass and record its disposition.
-- [ ] Write the post-implementation report, commit, push, open the PR to `dev`, and move the ticket to Review.
+- [x] Write the post-implementation report, commit, push, open PR #547 to `dev`, and move the ticket to Review.

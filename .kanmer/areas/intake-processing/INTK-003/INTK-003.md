@@ -16,9 +16,11 @@ links:
   - SIMPLI-010
 blocks:
   - INTK-042
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-17T11:46:06.025Z'
-updated: '2026-08-25T15:19:28.780Z'
+updated: '2026-08-25T15:24:11.306Z'
 ---
 
 ## What

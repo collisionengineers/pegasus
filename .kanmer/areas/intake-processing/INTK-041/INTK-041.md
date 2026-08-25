@@ -2,12 +2,13 @@
 id: INTK-041
 type: ticket
 title: Define near-real-time two-stage durable intake
-status: implementing
+status: review
 area: intake-processing
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-25T15:19:21.411Z'
+  review: '2026-08-25T15:23:42.110Z'
 taken_at: '2026-08-25T15:20:41.591Z'
 branch: task/intk-041-near-real-time-intake
 worktree: ../pegasus-worktrees/intk-041-near-real-time-intake
@@ -28,9 +29,13 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/adr/0002-dotnet-modular-monolith-on-azure.md
 docs_todo: true
+commits:
+  - 5c4f4990
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/547'
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-25T15:22:38.634Z'
+updated: '2026-08-25T15:23:42.110Z'
 ---
 
 ## What
