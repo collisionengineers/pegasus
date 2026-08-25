@@ -2,12 +2,14 @@
 id: TICK-214
 type: ticket
 title: Decide the long-term MCPB host and distribution boundary
-status: preparing
+status: review
 area: documents-reports
 assignee: ''
 profile: feature
 stageEntered:
   preparing: '2026-08-19T09:03:59.534Z'
+  implementing: '2026-08-25T06:50:06.674Z'
+  review: '2026-08-25T06:50:06.999Z'
 labels:
   - now
   - source-now
@@ -21,7 +23,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-12T15:08:05.885Z'
-updated: '2026-08-19T09:03:59.534Z'
+updated: '2026-08-25T06:50:06.999Z'
 ---
 
 ## What
@@ -49,4 +51,4 @@ This remains an unresolved current-work item in the canonical Kanmer board; it i
 
 ## Tracker migration
 
-Authority references were retargeted by [[KANMER-001]] after the legacy tracker was retired.
+Authority references were retargeted by [[KANMER-001]] after t
