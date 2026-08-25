@@ -16,10 +16,14 @@ labels:
   - operator-reported
 links:
   - PLAT-041
+refs:
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
+  - docs/frd/frd-05-documents-extraction-and-custody.md
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 deployment: not-deployed
 archived: false
 created: '2026-08-25T08:46:50.919Z'
-updated: '2026-08-25T08:47:03.040Z'
+updated: '2026-08-25T08:48:17.804Z'
 ---
 
 ## What
