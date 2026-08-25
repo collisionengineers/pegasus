@@ -2,7 +2,7 @@
 id: ADR-0032
 status: accepted
 date: 2026-08-25
-supersedes: [ADR-0002]
+supersedes: []
 superseded_by: []
 related_capabilities: [INT-33]
 related_frd: [FRD-02, FRD-08]
