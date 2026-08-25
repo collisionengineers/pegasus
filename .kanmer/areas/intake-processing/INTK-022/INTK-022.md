@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T18:59:59.060Z'
   verifying: '2026-08-20T19:47:41.824Z'
   done: '2026-08-20T20:52:20.726Z'
-taken_at: '2026-08-20T18:45:00.465Z'
-branch: task/intk-022-queues-one-table
-worktree: ../pegasus-worktrees/intk-022
 labels:
   - ui
   - design
@@ -26,7 +23,7 @@ refs:
   - docs/frd/frd-03-triage.md
 archived: false
 created: '2026-08-20T18:44:30.327Z'
-updated: '2026-08-25T01:27:00.581Z'
+updated: '2026-08-25T06:38:31.839Z'
 ---
 
 ## Why

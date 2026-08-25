@@ -21,9 +21,11 @@ groups:
 links: []
 blocks:
   - TICK-081
+refs:
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:05:40.173Z'
-updated: '2026-08-25T06:36:44.532Z'
+updated: '2026-08-25T06:38:34.373Z'
 ---
 
 ## What

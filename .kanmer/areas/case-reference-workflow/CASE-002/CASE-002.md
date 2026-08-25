@@ -16,10 +16,14 @@ links:
   - TICK-208
   - CASE-004
 docs_todo: true
-archived: false
+archived: true
 created: '2026-08-18T09:39:12.311Z'
-updated: '2026-08-19T10:59:28.341Z'
+updated: '2026-08-25T06:38:09.090Z'
 ---
+
+## Disposition
+
+Merged into [[TICK-055]] on 2026-08-25. TICK-055 now retains the operator correction, exact-report lifecycle boundary, verification conditions, and the links to [[PLAT-001]], [[TICK-105]], and [[TICK-208]].
 
 ## What
 

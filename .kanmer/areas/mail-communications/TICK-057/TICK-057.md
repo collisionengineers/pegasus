@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-20T22:46:54.024Z'
   verifying: '2026-08-20T23:26:02.156Z'
   done: '2026-08-21T15:10:09.883Z'
-taken_at: '2026-08-20T22:09:11.799Z'
-branch: task/tick-057-ui-14-mail-queues
-worktree: ../pegasus-worktrees/tick-057
 labels:
   - capability
   - UI-14
@@ -40,7 +37,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.394Z'
-updated: '2026-08-25T01:27:00.998Z'
+updated: '2026-08-25T06:38:07.310Z'
 ---
 
 ## What

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-22T22:47:18.344Z'
   verifying: '2026-08-22T22:47:22.082Z'
   done: '2026-08-22T22:47:48.915Z'
-taken_at: '2026-08-22T19:49:20.437Z'
-branch: task/qdos26011-regressions
-worktree: ../pegasus-worktrees/qdos26011-regressions
 labels:
   - qdos26011
   - config
@@ -25,7 +22,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-22T19:42:25.382Z'
-updated: '2026-08-25T01:27:00.798Z'
+updated: '2026-08-25T06:38:33.333Z'
 ---
 
 ## Why

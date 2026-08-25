@@ -12,11 +12,10 @@ labels:
 links:
   - CASE-019
   - DOCS-009
-docs_todo: true
 deployment: n/a
 archived: false
 created: '2026-08-22T23:56:16.433Z'
-updated: '2026-08-22T23:56:16.433Z'
+updated: '2026-08-25T06:38:46.270Z'
 ---
 
 ## The gap

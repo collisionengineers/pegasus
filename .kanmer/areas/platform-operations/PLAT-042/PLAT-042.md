@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-24T10:36:44.353Z'
   verifying: '2026-08-24T14:56:50.256Z'
   done: '2026-08-24T16:55:25.265Z'
-taken_at: '2026-08-24T10:34:42.606Z'
-branch: task/plat-042-additive-rule-at-cutover
-worktree: ../pegasus-worktrees/plat-042
 labels:
   - governance
   - runbook
@@ -27,7 +24,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-24T10:34:11.430Z'
-updated: '2026-08-25T01:27:00.810Z'
+updated: '2026-08-25T06:38:33.350Z'
 ---
 
 ## What

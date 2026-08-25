@@ -23,8 +23,8 @@ links:
   - TICK-094
   - TICK-096
   - TICK-097
-blocks:
   - PLAT-007
+blocks:
   - TICK-208
   - TICK-096
   - TICK-097
@@ -35,7 +35,7 @@ refs:
   - docs/adr/0025-integrate-renderer-and-extractor-into-the-application.md
 archived: false
 created: '2026-08-19T08:56:26.089Z'
-updated: '2026-08-19T10:31:16.350Z'
+updated: '2026-08-25T06:38:57.230Z'
 ---
 
 ## What

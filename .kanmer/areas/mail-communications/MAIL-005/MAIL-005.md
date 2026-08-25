@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T19:15:59.362Z'
   verifying: '2026-08-20T20:26:15.620Z'
   done: '2026-08-20T20:52:47.232Z'
-taken_at: '2026-08-20T19:05:14.913Z'
-branch: task/mail-005-inbox-case-links
-worktree: ../pegasus-worktrees/mail-tiles
 labels:
   - ui
   - mail
@@ -25,7 +22,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-20T19:04:50.916Z'
-updated: '2026-08-25T01:27:00.640Z'
+updated: '2026-08-25T06:38:31.857Z'
 ---
 
 ## Why

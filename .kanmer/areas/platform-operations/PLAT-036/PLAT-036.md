@@ -11,10 +11,9 @@ labels:
   - needs-operator-decision
   - cost
 links: []
-docs_todo: true
 archived: false
 created: '2026-08-22T06:02:29.302Z'
-updated: '2026-08-22T06:02:29.302Z'
+updated: '2026-08-25T06:38:46.308Z'
 ---
 
 ## Why

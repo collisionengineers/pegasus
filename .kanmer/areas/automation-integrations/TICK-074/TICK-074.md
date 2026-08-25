@@ -15,9 +15,11 @@ labels:
 groups:
   - EPIC-005
 links: []
+refs:
+  - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-12T15:05:39.972Z'
-updated: '2026-08-17T06:41:46.261Z'
+updated: '2026-08-25T06:38:34.726Z'
 ---
 
 ## What

@@ -17,9 +17,11 @@ groups:
   - HZN-002
   - EPIC-009
 links: []
+refs:
+  - docs/frd/frd-07-eva-and-external-engineering-handoff.md
 archived: false
 created: '2026-08-12T15:06:02.533Z'
-updated: '2026-08-25T06:36:47.618Z'
+updated: '2026-08-25T06:38:34.609Z'
 ---
 
 ## What

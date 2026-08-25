@@ -17,9 +17,11 @@ labels:
   - requires-live-approval
 links:
   - TICK-055
+refs:
+  - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 archived: false
 created: '2026-08-12T15:05:39.996Z'
-updated: '2026-08-17T06:41:46.463Z'
+updated: '2026-08-25T06:38:34.747Z'
 ---
 
 ## What

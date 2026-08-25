@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T19:24:43.526Z'
   verifying: '2026-08-20T20:27:38.048Z'
   done: '2026-08-21T15:12:01.370Z'
-taken_at: '2026-08-20T19:03:31.754Z'
-branch: task/tick-051-mail-09-automatic-case-association
-worktree: ../pegasus-worktrees/tick-051
 labels:
   - capability
   - MAIL-09
@@ -38,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.257Z'
-updated: '2026-08-25T01:27:00.984Z'
+updated: '2026-08-25T06:38:07.343Z'
 ---
 
 ## What

@@ -11,28 +11,21 @@ labels:
   - documentation
 links: []
 docs_todo: true
-archived: false
+archived: true
 created: '2026-08-18T09:39:12.336Z'
-updated: '2026-08-18T09:39:12.336Z'
+updated: '2026-08-25T06:38:53.680Z'
 ---
 
 ## What
 
-Copy or record the Claude Design project's `github.md` screen map — which maps every prototype to the Razor page it was built from — as a repository reference artefact.
+Preserve the Claude Design screen-to-Razor-page map as a tracked repository reference.
 
-## Why
+## Evidence
 
-The Claude Design project `710bb42f` carries a `github.md` that maps every screen prototype to the Razor page it was built from. [[PLAT-001]]'s research used it as the authoritative file mapping, and it proved genuinely useful — but it currently lives only inside the Claude Design project, not in the repository. If the design project is lost or re-synced, the mapping is gone.
+The requested map already exists and is tracked at `design/planning-and-old-designs/PegasusClaudeDesign/github.md`. It records the prototype-to-Razor-page mapping used by [[PLAT-001]].
 
-## Approach
-
-- Copy `github.md` from the Claude Design project to `docs/design/screen-map.md` (or `docs/design/claude-design-screen-map.md`).
-- Update `docs/index.md` to link it.
-- Record it as a reference artefact, not a governing doc.
-
-## Verification
-
-- [ ] The screen map exists in the repository under `docs/design/`.
-- [ ] `docs/index.md` links to it.
+Creating a second copy under `docs/design/` would duplicate the reference and conflict with the repository rule that new Markdown belongs only to a PRD, FRD, or ADR.
 
 ## Outcome
+
+Delivered by the existing tracked reference. Archived on 2026-08-25; no duplicate file or index entry is required.

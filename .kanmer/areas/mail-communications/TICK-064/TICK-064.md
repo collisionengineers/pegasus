@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-20T10:38:31.768Z'
   verifying: '2026-08-20T11:37:57.789Z'
   done: '2026-08-21T15:12:56.054Z'
-taken_at: '2026-08-20T09:54:49.769Z'
-branch: task/tick-064-mail-23-folder-policy
-worktree: ../pegasus-worktrees/tick-064
 labels:
   - capability
   - MAIL-23
@@ -44,7 +41,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.554Z'
-updated: '2026-08-25T01:27:00.093Z'
+updated: '2026-08-25T06:38:07.388Z'
 ---
 
 ## What

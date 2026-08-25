@@ -14,9 +14,11 @@ labels:
   - blocked
   - requires-live-approval
 links: []
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-12T15:05:19.598Z'
-updated: '2026-08-17T06:41:44.752Z'
+updated: '2026-08-25T06:38:34.633Z'
 ---
 
 ## What

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T23:52:41.229Z'
   verifying: '2026-08-21T00:06:12.930Z'
   done: '2026-08-21T15:09:19.172Z'
-taken_at: '2026-08-20T23:32:08.760Z'
-branch: task/tick-056-ui-10-mail-workspace
-worktree: ../pegasus-worktrees/tick-056
 labels:
   - capability
   - UI-10
@@ -35,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.367Z'
-updated: '2026-08-25T01:26:59.783Z'
+updated: '2026-08-25T06:38:07.406Z'
 ---
 
 ## What

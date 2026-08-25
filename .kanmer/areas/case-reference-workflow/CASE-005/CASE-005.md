@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T17:40:51.357Z'
   verifying: '2026-08-20T18:22:38.218Z'
   done: '2026-08-20T20:51:40.671Z'
-taken_at: '2026-08-20T16:45:00.646Z'
-branch: task/case-005-allocation-deadlock
-worktree: ../pegasus-worktrees/case-005
 labels:
   - defect
   - concurrency
@@ -26,7 +23,7 @@ refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-19T14:05:43.815Z'
-updated: '2026-08-25T01:27:00.318Z'
+updated: '2026-08-25T06:38:29.880Z'
 ---
 
 ## What

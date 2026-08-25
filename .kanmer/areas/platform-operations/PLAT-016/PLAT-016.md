@@ -13,9 +13,6 @@ stageEntered:
   review: '2026-08-20T14:16:45.504Z'
   verifying: '2026-08-20T14:16:51.517Z'
   done: '2026-08-20T20:51:00.663Z'
-taken_at: '2026-08-20T14:07:03.826Z'
-branch: task/design-no-explanations
-worktree: ../pegasus-worktrees/t0-design-rules
 labels:
   - design
   - governance
@@ -24,7 +21,7 @@ links: []
 deployment: n/a
 archived: false
 created: '2026-08-20T14:06:46.148Z'
-updated: '2026-08-25T01:26:59.690Z'
+updated: '2026-08-25T06:38:33.367Z'
 ---
 
 ## Why

@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-23T14:48:50.535Z'
   verifying: '2026-08-23T14:48:57.000Z'
   done: '2026-08-23T15:17:33.433Z'
-taken_at: '2026-08-23T12:11:41.198Z'
-branch: task/qdos26012-regressions
-worktree: ../pegasus-worktrees/qdos26012-regressions
 labels:
   - u34
   - production-defect
@@ -24,7 +21,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-23T12:10:00.492Z'
-updated: '2026-08-25T01:27:00.675Z'
+updated: '2026-08-25T06:38:33.282Z'
 ---
 
 ## One regex, four symptoms, on a routine forward

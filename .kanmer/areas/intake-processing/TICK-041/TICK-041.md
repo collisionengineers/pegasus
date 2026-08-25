@@ -13,9 +13,11 @@ labels:
   - post-alpha
   - blocked
 links: []
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.610Z'
-updated: '2026-08-17T06:41:40.227Z'
+updated: '2026-08-25T06:38:34.279Z'
 ---
 
 ## What

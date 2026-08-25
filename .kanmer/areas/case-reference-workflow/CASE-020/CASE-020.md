@@ -12,11 +12,10 @@ labels:
 links:
   - CASE-018
   - ENG-013
-docs_todo: true
 deployment: not-deployed
 archived: false
 created: '2026-08-22T21:58:43.680Z'
-updated: '2026-08-22T21:58:43.680Z'
+updated: '2026-08-25T06:38:46.290Z'
 ---
 
 ## The defect

@@ -13,9 +13,11 @@ labels:
   - post-alpha
   - blocked
 links: []
+refs:
+  - docs/frd/frd-01-case-identity-and-lifecycle.md
 archived: false
 created: '2026-08-12T15:05:39.807Z'
-updated: '2026-08-17T06:41:44.920Z'
+updated: '2026-08-25T06:38:34.035Z'
 ---
 
 ## What

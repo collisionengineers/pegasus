@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-20T20:53:55.997Z'
   verifying: '2026-08-20T20:54:00.869Z'
   done: '2026-08-20T20:54:05.685Z'
-taken_at: '2026-08-20T20:02:52.883Z'
-branch: task/deliv-014-release-15
-worktree: ../pegasus-worktrees/deliv-014
 labels:
   - release
   - deployment
@@ -26,7 +23,7 @@ refs:
   - docs/engineering.md
 archived: false
 created: '2026-08-20T20:02:19.215Z'
-updated: '2026-08-25T01:27:00.397Z'
+updated: '2026-08-25T06:38:30.002Z'
 ---
 
 ## Why

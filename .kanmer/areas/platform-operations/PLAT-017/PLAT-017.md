@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T20:01:10.363Z'
   verifying: '2026-08-20T20:53:10.885Z'
   done: '2026-08-20T20:53:20.349Z'
-taken_at: '2026-08-20T19:59:28.047Z'
-branch: n/a-operations
-worktree: n/a-operations
 labels:
   - operations
   - azure
@@ -24,7 +21,7 @@ refs:
   - docs/runbook.md
 archived: false
 created: '2026-08-20T19:59:01.329Z'
-updated: '2026-08-25T01:27:00.742Z'
+updated: '2026-08-25T06:38:33.384Z'
 ---
 
 ## Why

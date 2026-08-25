@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-22T20:17:32.001Z'
   verifying: '2026-08-22T21:56:46.458Z'
   done: '2026-08-23T01:45:23.447Z'
-taken_at: '2026-08-22T19:49:17.465Z'
-branch: task/qdos26011-regressions
-worktree: ../pegasus-worktrees/qdos26011-regressions
 labels:
   - qdos26011
   - operator-requested
@@ -31,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-22T19:42:25.356Z'
-updated: '2026-08-25T01:27:00.379Z'
+updated: '2026-08-25T06:38:29.927Z'
 ---
 
 ## Why — operator direction (2026-08-22, QDOS26011)

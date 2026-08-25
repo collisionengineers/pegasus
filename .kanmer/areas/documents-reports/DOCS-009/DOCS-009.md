@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-22T20:17:28.673Z'
   verifying: '2026-08-22T21:56:39.155Z'
   done: '2026-08-22T22:46:30.023Z'
-taken_at: '2026-08-22T19:49:13.261Z'
-branch: task/qdos26011-regressions
-worktree: ../pegasus-worktrees/qdos26011-regressions
 labels:
   - qdos26011
 links: []
@@ -27,7 +24,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-22T19:42:25.308Z'
-updated: '2026-08-25T01:27:00.442Z'
+updated: '2026-08-25T06:38:31.808Z'
 ---
 
 ## The defect

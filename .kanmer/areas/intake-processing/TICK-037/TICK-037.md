@@ -15,9 +15,11 @@ labels:
   - requires-live-approval
 links:
   - TICK-035
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.533Z'
-updated: '2026-08-17T06:41:39.543Z'
+updated: '2026-08-25T06:38:34.242Z'
 ---
 
 ## What

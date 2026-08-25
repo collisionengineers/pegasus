@@ -14,9 +14,6 @@ stageEntered:
   review: '2026-08-20T11:11:50.033Z'
   verifying: '2026-08-20T14:15:45.734Z'
   done: '2026-08-21T15:12:28.788Z'
-taken_at: '2026-08-20T09:58:24.766Z'
-branch: task/tick-053-mail-browse-search
-worktree: ../pegasus-worktrees/tick-053
 labels:
   - capability
   - MAIL-11
@@ -50,7 +47,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.296Z'
-updated: '2026-08-25T01:27:00.081Z'
+updated: '2026-08-25T06:38:07.289Z'
 ---
 
 ## What

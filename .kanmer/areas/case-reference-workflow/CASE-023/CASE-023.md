@@ -11,10 +11,9 @@ labels:
   - notes
   - durability
 links: []
-docs_todo: true
 archived: false
 created: '2026-08-24T14:15:05.282Z'
-updated: '2026-08-24T14:15:05.282Z'
+updated: '2026-08-25T06:38:46.217Z'
 ---
 
 ## The defect

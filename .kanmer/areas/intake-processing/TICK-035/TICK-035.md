@@ -16,9 +16,11 @@ labels:
   - blocked
   - requires-live-approval
 links: []
+refs:
+  - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:03:53.493Z'
-updated: '2026-08-19T09:16:11.293Z'
+updated: '2026-08-25T06:38:34.079Z'
 ---
 
 ## What

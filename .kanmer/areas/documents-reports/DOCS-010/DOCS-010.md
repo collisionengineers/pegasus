@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-23T14:48:43.258Z'
   verifying: '2026-08-23T14:48:46.681Z'
   done: '2026-08-23T15:17:53.909Z'
-taken_at: '2026-08-23T12:11:37.271Z'
-branch: task/qdos26012-regressions
-worktree: ../pegasus-worktrees/qdos26012-regressions
 labels:
   - qdos26011
   - production-defect
@@ -28,7 +25,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T00:20:37.666Z'
-updated: '2026-08-25T01:27:00.447Z'
+updated: '2026-08-25T06:38:31.791Z'
 ---
 
 ## Root cause — confirmed from the production exception

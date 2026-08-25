@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T20:53:13.536Z'
   verifying: '2026-08-20T22:05:21.309Z'
   done: '2026-08-21T15:08:54.873Z'
-taken_at: '2026-08-20T20:31:22.084Z'
-branch: task/tick-052-mail-10-manual-case-association
-worktree: 'C:/Users/Alex/Documents/GitHub/pegasus-worktrees/tick-052'
 labels:
   - capability
   - MAIL-10
@@ -37,7 +34,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.275Z'
-updated: '2026-08-25T01:27:00.990Z'
+updated: '2026-08-25T06:38:07.360Z'
 ---
 
 ## What

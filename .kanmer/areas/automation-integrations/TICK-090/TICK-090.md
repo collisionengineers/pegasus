@@ -17,9 +17,11 @@ groups:
   - HZN-002
   - EPIC-009
 links: []
+refs:
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.515Z'
-updated: '2026-08-25T06:36:47.126Z'
+updated: '2026-08-25T06:38:34.426Z'
 ---
 
 ## What

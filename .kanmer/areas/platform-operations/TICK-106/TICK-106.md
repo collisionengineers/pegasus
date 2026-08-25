@@ -18,9 +18,11 @@ groups:
   - EPIC-003
 links:
   - TICK-075
+refs:
+  - docs/frd/frd-06-vehicle-and-engineering-evidence.md
 archived: false
 created: '2026-08-12T15:06:02.846Z'
-updated: '2026-08-17T06:41:53.105Z'
+updated: '2026-08-25T06:38:34.477Z'
 ---
 
 ## What

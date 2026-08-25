@@ -12,9 +12,6 @@ stageEntered:
   review: '2026-08-20T18:06:36.026Z'
   verifying: '2026-08-20T18:57:20.790Z'
   done: '2026-08-21T15:11:34.082Z'
-taken_at: '2026-08-20T17:53:50.130Z'
-branch: task/tick-050-mail-08-suggested-next-action
-worktree: ../pegasus-worktrees/tick-050
 labels:
   - capability
   - MAIL-08
@@ -35,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.237Z'
-updated: '2026-08-25T01:27:00.978Z'
+updated: '2026-08-25T06:38:07.326Z'
 ---
 
 ## What

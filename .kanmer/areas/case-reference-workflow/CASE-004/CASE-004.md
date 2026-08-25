@@ -13,11 +13,16 @@ labels:
 links:
   - PLAT-001
   - CASE-002
+  - CASE-017
 docs_todo: true
-archived: false
+archived: true
 created: '2026-08-19T10:59:18.139Z'
-updated: '2026-08-19T10:59:18.139Z'
+updated: '2026-08-25T06:38:23.512Z'
 ---
+
+## Disposition
+
+Superseded by [[CASE-017]], which delivered the Notes timeline for operator-authored and system entries and is recorded as Done in production. The pre-delivery statements below are retained only as historical context.
 
 ## What
 
@@ -53,3 +58,8 @@ The existing inactive notes interface remains non-persistent until this capabili
 ## Decision record
 
 Operator decision, 2026-08-19: case notes are a real future capability.
+
+
+## Outcome
+
+Archived on 2026-08-25 because the intended capability is now owned by the delivered [[CASE-017]].
