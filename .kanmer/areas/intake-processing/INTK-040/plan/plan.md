@@ -44,3 +44,7 @@ Independent review covered reuse, simplification, efficiency and abstraction alt
 ## Review fix — 2026-08-25
 
 Independent PR review found that a recoverable final group read could fail after every child member was already durable. Registering a technical U in that state would compete with the complete group's normal Image Intake outcome. The catch now suppresses a technical U only for a transient failure when durable membership is complete; incomplete groups retain the group-scoped technical failure, and non-transient identity conflicts still fail closed. A focused regression covers the completed-group case.
+
+## CI correction — 2026-08-25
+
+The grant-carrying migration requires the existing Azure bootstrap permission census to agree with the deployed least-privilege result. Updated `scripts/Invoke-AzureDatabaseBootstrap.ps1` to include Worker INSERT on the two grouped-intake tables while preserving the existing absence of UPDATE/DELETE. Local deployment-plan validation and the migration-grant census pass.

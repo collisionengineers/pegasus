@@ -44,3 +44,11 @@ Run on merged `dev` (and again on the exact release candidate before production)
 - Run `OtherwiseUnidentifiedMailSubmitsOnlyDirectPhotosAsOneImageGroup` — expect one mailbox group containing exactly three direct JPEGs, no parent U-item, idempotent replay, and one unassociated AB12CDE Image-initiated Case with those three images.
 - Run the full non-corpus/non-browser Integration profile — implementation result: 910 passed, 2 expected skips; the affected SQL-backed scenario passed again after the final simplification.
 - Inspect migration `20260825145216_MailboxImageIntake` and its schema census assertion for the parent FK/index and Worker INSERT grants.
+
+## CI correction
+
+| File | Change | Why |
+|---|---|---|
+| `scripts/Invoke-AzureDatabaseBootstrap.ps1` | Added migration `20260825145216_MailboxImageIntake` and its two Worker INSERT grants to the exact bootstrap permission census | Keeps bootstrap validation and deployed least privilege aligned with the grant-carrying migration |
+
+Verification added: `scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` passes, and `scripts/Test-MigrationGrants.ps1` reports all 72 migration files accounted for.

@@ -43,3 +43,35 @@ The post-implementation report names all seven changed files and accurately desc
 ## CI addendum
 
 Live PR checks subsequently completed: `changes`, `documentation`, `local-development-scripts`, and `reference-data` all passed; build and infrastructure lanes were skipped by the docs-only path classifier. The needs-changes verdict remains solely because [[PR-062]] is unresolved.
+
+# Independent re-review — PR #547
+
+Reviewer did not implement INTK-041 or [[PR-062]].
+
+## Changes since the first review
+
+- [[PR-062]] is Done and its correction is present in PR #547 at head `800cdc7c421d28ceff526b38dc2876b8999d284d`.
+- `docs/adr/0002-dotnet-modular-monolith-on-azure.md` now has `superseded_by: []`.
+- `docs/adr/0032-near-real-time-durable-intake-triggering.md` now has `supersedes: []`.
+- Both ADRs remain accepted, while ADR status prose and the ADR index retain the exact polling/timer-first partial replacement. This matches the ADR-0030 clause-level precedent and resolves the only prior blocker.
+- The remaining seven-file documentation result and post-implementation report are unchanged and still agree.
+
+## Comments and disposition
+
+- Prior blocking comment: **fixed-in-PR** by [[PR-062]] / PR #549, merged into this branch at `800cdc7c`.
+- New blocking comments: none.
+- New non-blocking comments: none.
+- `open-questions` still contains no unresolved question.
+
+## Checks
+
+- [[PR-062]] status: Done; its outcome records merge into the INTK-041 branch.
+- PR #547: open, mergeable, target `dev`, head `800cdc7c421d28ceff526b38dc2876b8999d284d`.
+- Exact metadata correction inspected from the branch and the two-commit correction diff.
+- Live CI for the corrected head: `changes`, `documentation`, `local-development-scripts`, and `reference-data` passed; application and infrastructure lanes were path-skipped for the docs-only diff.
+- Previous independent checks remain applicable: Markdown placement passed, 200 documentation links resolved, capability census was 203 planned plus 29 Not planned with alpha count 132, and `git diff --check` passed.
+- Report versus diff, governing authority, scope, and docs-only simplicity pass remain accurate.
+
+## Verdict
+
+**Pass.** The sole blocking review finding is resolved, the corrected head is green and mergeable, and the ticket is ready to merge into `dev` and move one stage to Verifying.

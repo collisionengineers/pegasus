@@ -2,13 +2,14 @@
 id: INTK-041
 type: ticket
 title: Define near-real-time two-stage durable intake
-status: review
+status: verifying
 area: intake-processing
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-25T15:19:21.411Z'
   review: '2026-08-25T15:23:42.110Z'
+  verifying: '2026-08-25T15:36:07.836Z'
 taken_at: '2026-08-25T15:20:41.591Z'
 branch: task/intk-041-near-real-time-intake
 worktree: ../pegasus-worktrees/intk-041-near-real-time-intake
@@ -35,7 +36,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/547'
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-25T15:23:42.110Z'
+updated: '2026-08-25T15:36:07.836Z'
 ---
 
 ## What
