@@ -292,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 14**. A branch
+- **Deployed evidence:** the estate currently serves **release 28**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 28 | 2026-08-25 | `7e9465b0…` | `sha256:08f5f605…` | `pegasus-prod-web-252ow37gij--7e9465b00603` | `20260824123336_DropEvaHandoffTables`, `20260825001401_RemoveWorkflowCompletenessWaivers` |
   | 27 | 2026-08-24 | `7d4c8f00…` | `sha256:1e4146df…` | `pegasus-prod-web-252ow37gij--7d4c8f005261` | `20260824090400_DropEvaHandoffProvenanceAndManifest` |
   | 26 | 2026-08-23 | `7d6a948a…` | `sha256:d64e76ba…` | `pegasus-prod-web-252ow37gij--7d6a948a2f34` | none (head unchanged at `20260822223626_BackfillVehicleLookupSuggestions`) |
   | 25 | 2026-08-23 | `75570b99…` | `sha256:e99ade3c…` | `pegasus-prod-web-252ow37gij--75570b99d713` | none (head unchanged at `20260822223626_BackfillVehicleLookupSuggestions`) |
@@ -339,6 +340,19 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 28** (2026-08-25, source `7e9465b0`, image
+    `sha256:08f5f605…`, manifest SHA-256 `C5943AFC…`) deployed ENG-016's single
+    staff Export route. Export is available only while the case is in Review,
+    rechecks that state under the same database lock as replay/history writes,
+    records one action-history entry and the once-per-case EVA proxy, and emits
+    the EVA archive without a second handoff workflow or Automation MCP tool.
+    The release removed the superseded EVA handoff tables and the two obsolete
+    completeness-waiver columns. Exact-SHA/version smoke passed, the Web
+    revision is ready with 100% traffic, all nine Worker functions remain
+    enabled, and the post-migration check verified 512 catalogued permission
+    rows and 351 effective runtime DML rows. This proves deployment and smoke;
+    it does not claim a real operator export or EVA import was performed.
 
   - **Release 27** (2026-08-24, source `7d4c8f00`, image `sha256:1e4146df…`,
     manifest SHA-256 `D81BF7A9…`) collated eleven open pull requests — #525-#535
