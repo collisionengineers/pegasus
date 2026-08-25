@@ -42,3 +42,14 @@ Trust Review as the single lifecycle decision for instruction/image completeness
 - **Efficiency:** Removed an extra EVA root-id query by carrying `CustodyRootRemoteId` through its existing document query. The requested .NET performance scan covered 16 changed production C# files: 0 sync-over-async, 0 culture-sensitive literal comparisons, 0 new HttpClient/serializer-options sites, and 0 unsealed leaf-class candidates. One hot-path allocation was fixed by replacing LINQ character enumeration in Box SHA validation with a direct loop.
 - **Altitude:** A nullable root id remains valid at the generic/local content-store boundary; `BoxDocumentContentStore` alone enforces it before any remote request. This preserves the supported local store while keeping production Box access fail-closed.
 - **Disposition:** No unapplied behavior-preserving findings remain. Existing EF-translated LINQ and small bounded projection materializations were retained because replacing them would add complexity without reducing the measured remote/SQL latency driver.
+
+## Review correction — 2026-08-25
+
+The P2 follow-up establishes a missing access invariant. Assessment is operator-accessible only in Review or Report preparation after a successful EVA export in the current Review cycle. Engineer assignment is optional allocation and is not an access/readiness requirement.
+
+Implementation:
+1. Persist the workflow version of every latest successful EVA export and reject recording an export built from a stale workflow snapshot.
+2. Add one Core-owned access decision using lifecycle state, latest Review-entry version and latest exported version. Later assignment/workflow version increments do not invalidate an export; a new Review cycle does.
+3. Apply the decision to the Case-page control, Assessment GET and all Assessment-page POST handlers, plus report generation. Preserve NotReady assessment/MCP writes outside this operator page.
+4. Remove the unused eager full-readiness evaluation from the new workspace source and correct affected documentation/comments.
+5. Add focused policy, persistence and Web tests, rerun simplification, restore/build/focused/full tests, then update this plan/report and PR.

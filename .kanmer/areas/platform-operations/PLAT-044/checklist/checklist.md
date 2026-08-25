@@ -19,3 +19,12 @@ Verification completed on 2026-08-25:
 - Architecture — 99 passed, 0 failed.
 - Integration — 949 passed, 16 corpus-dependent skips, 0 failed.
 - Focused regressions separately proved six workspace reader commands, zero Assessment GET document-content I/O, one ordered report-photo batch, post-Review readiness semantics, and Box request counts/root fencing.
+
+## Review correction
+
+- [ ] Persist and concurrency-check latest successful EVA export workflow version.
+- [ ] Implement the shared current-Review-cycle Assessment access decision.
+- [ ] Gate the Case-page control, Assessment GET/POST handlers, and report generation without gating automation/MCP writes.
+- [ ] Remove the unused workspace full-readiness calculation and reconcile governing documentation.
+- [ ] Add focused tests for lifecycle, export-cycle, optional assignment, direct POST, and preserved NotReady automation.
+- [ ] Rerun simplification, Release verification, and update the PR.
