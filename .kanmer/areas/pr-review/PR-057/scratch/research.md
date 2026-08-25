@@ -1,0 +1,1 @@
+2026-08-25: Compared the ENG-016 PR branch with origin/dev and searched current docs/code for ADR-0021 and the two exact EVA MCP tool names. Minimal route is ADR-0031 replacing ADR-0021 as the current contract, with no replacement automation path. Research/files/open-questions are complete; no operator-only question remains.
