@@ -26,10 +26,13 @@ refs:
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
 commits:
   - 8a9508f6
+  - e45ab67e3043f75f70813db4ef8f4fe50b22e3d2
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/544'
 deployment: not-deployed
 archived: false
 created: '2026-08-25T08:46:50.919Z'
-updated: '2026-08-25T10:07:34.510Z'
+updated: '2026-08-25T10:13:51.870Z'
 ---
 
 ## What
