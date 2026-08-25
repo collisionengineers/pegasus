@@ -18,7 +18,7 @@ never renumbered or reused.
 | ADR | Title | Related FRD |
 | --- | --- | --- |
 | [0001](0001-hybrid-pdf-extraction.md) | Hybrid PDF extraction | FRD-05 |
-| [0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure | — |
+| [0002](0002-dotnet-modular-monolith-on-azure.md) | .NET modular monolith on Azure (polling/trigger mechanism partially superseded by ADR-0032) | — |
 | [0003](0003-pdfpig-for-first-qdos-slice.md) | PdfPig for the first QDOS embedded-text slice | FRD-05 |
 | [0004](0004-provider-api-and-staff-mcp-authentication.md) | Provider API and staff MCP authentication | FRD-09, FRD-10 |
 | [0005](0005-multiformat-intake-assets.md) | Multi-format intake and review assets | FRD-02, FRD-05 |
@@ -40,6 +40,7 @@ never renumbered or reused.
 | [0029](0029-image-initiated-case-projection.md) | Image-initiated Case projection | FRD-01/02/05/06/12 |
 | [0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | — |
 | [0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | FRD-07, FRD-10, FRD-11 |
+| [0032](0032-near-real-time-durable-intake-triggering.md) | Near-real-time durable intake triggering | FRD-02, FRD-08 |
 
 ## Superseded and relocated
 

@@ -21,7 +21,7 @@ never reused.
 
 The additional stable IDs split compound outcomes or explicit boundaries; they
 do not invent a second product scope. Active timing uses `Now`, `Next`, `Later`,
-or `Not planned`. All 202 planned capabilities have an exact first-introduction
+or `Not planned`. All 203 planned capabilities have an exact first-introduction
 target; the 29 permanent boundaries remain `unallocated`. Allocation,
 implementation, registration, build, deployment, live verification, and
 acceptance remain separate states.
@@ -230,6 +230,7 @@ callers.
 | AI-05 | Automatic AI-assisted image readiness assessment of the current Case image set | Later | 1.0.0 | [Ordinary-image VRM and image analysis](frd/frd-06-vehicle-and-engineering-evidence.md#ordinary-image-vrm-and-image-analysis) | Allocation only; each image addition, replacement, or removal produces a source/versioned advisory on registration overview, damage close-up, and the applicable reflection criterion. It neither affects Case lifecycle nor returns an AI Proposal; activation still requires its own contract and caller evidence. |
 | MAIL-23 | Map the detailed taxonomy to operational queues and designated Outlook folders | Next | 0.3.0 | [Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing) | Operator-activated for local implementation after programme review (2026-08-20): the Core logical-folder policy, approved-mailbox bindings, and administrator-only read-only folder-resolution control are implemented and test-backed. This does not activate MAIL-05 recommendation, MAIL-06 confirmation, MAIL-07 move, deployment, or live-mailbox writes; those retain their own evidence and approval gates. |
 | INT-32 | Instruction/image halves retain separate age and chase state; definitive pairing notifies staff that the job is ready | Now | 0.1.0-alpha.1 | [Requirements](frd/frd-02-intake-and-source-identity.md#intake-and-source-identity) | Coupled to INT-28 (operator-directed 2026-08-03). Pairing visibility is the derived `Associated with Case` state across intake, Image-intake, and case surfaces; each half keeps its own registered/received chronology. |
+| INT-33 | Near-real-time durable email and manual-upload intake with truthful transient state and loss recovery | Now | 0.1.0-alpha.1 | [Source occurrence and dispatch identity](frd/frd-02-intake-and-source-identity.md#source-occurrence-and-dispatch-identity); [Mailbox wake-up and recovery](frd/frd-08-email-mailbox-and-background-processing.md#mailbox-wake-up-and-recovery) | Required for alpha intake responsiveness. The ordinary path targets ten-second p95 from durable receipt while immediate publication and Graph wake-up retain slow recovery paths; deployment and seven-day cost proof remain separate evidence. |
 | MAIL-19 | Automatically send chasers or other outbound messages | Later | 0.5.0 | [Requirements](frd/frd-08-email-mailbox-and-background-processing.md#email-mailbox-and-background-processing) | Allocation only; owning evidence still required. |
 | CASE-05 | Diminution cases | Later | 0.5.0 | [Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
 | CASE-06 | Commercial cases | Later | 0.5.0 | [Requirements](frd/frd-01-case-identity-and-lifecycle.md#case-identity-and-lifecycle) | Allocation only; owning evidence still required. |
@@ -328,7 +329,7 @@ credential, external operation, deployment, or acceptance. The
 
 | Order | Target release | Stage and dependency intent | Count |
 | ---: | --- | --- | ---: |
-| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 131 |
+| 01 | `0.1.0-alpha.1` | Existing QDOS-alpha scope; allocation unchanged, not a completion claim | 132 |
 | 02 | `0.2.0` | Provider expansion and intake fidelity after QDOS acceptance | 5 |
 | 03 | `0.3.0` | Four-mailbox classification, association, folder actions, email workspace and email MCP | 20 |
 | 04 | `0.4.0` | Principal-scoped provider API and post-report query/dispute casework | 5 |
@@ -341,7 +342,7 @@ credential, external operation, deployment, or acceptance. The
 | 11 | `1.3.0` | Engineer-reviewed query proposals, staff-selected AI Assessor, and conditional Automation/Send-to-AI administration | 3 |
 | 12 | `1.4.0` | Conditional capture and domain outcomes after direct promotion decisions | 3 |
 
-The 202 planned capabilities use these twelve targets; 29 permanent boundaries
+The 203 planned capabilities use these twelve targets; 29 permanent boundaries
 remain `Not planned / unallocated`.
 
 Sequence constraints:
