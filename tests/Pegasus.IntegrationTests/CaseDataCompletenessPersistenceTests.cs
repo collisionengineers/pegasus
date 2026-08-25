@@ -451,8 +451,6 @@ public sealed class CaseDataCompletenessPersistenceTests
         private static readonly CaseWorkflowConfiguration Configuration = new(
             true,
             true,
-            true,
-            true,
             "case-workflow",
             1);
 

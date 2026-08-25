@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -1258,8 +1259,56 @@ public sealed class CustodyOutboxIntegrationTests
             }
         }
 
-        var export = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
-            new(outcome.Identity.CaseId, ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator])),
+        var exporter = services.GetRequiredService<IExportCaseBundle>();
+        const string demotionRaceKey = "55555555555555555555555555555555";
+        await using (var lockContext = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            await using var transaction = await lockContext.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable);
+            var lockedWorkflow = await lockContext.CaseWorkflows
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [CaseId] = {outcome.Identity.CaseId}
+                    """)
+                .SingleAsync();
+            var racedExport = Task.Run(() => exporter.ExecuteAsync(
+                new(
+                    outcome.Identity.CaseId,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    demotionRaceKey),
+                CancellationToken.None));
+            await Task.Delay(250);
+            Assert.False(racedExport.IsCompleted);
+            lockedWorkflow.State = CaseLifecycleState.NotReady.ToString();
+            await lockContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await Assert.ThrowsAsync<CaseNotInReviewException>(() => racedExport);
+        }
+        await using (var rejectedCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            Assert.Empty(await rejectedCheck.EvaFirstHandoffProxies
+                .Where(item => item.CaseId == outcome.Identity.CaseId)
+                .ToListAsync());
+            Assert.Empty(await rejectedCheck.ActionHistory
+                .Where(item => item.AggregateType == "Case"
+                    && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                    && item.EventKind == "eva_bundle_exported"
+                    && item.CorrelationId == demotionRaceKey)
+                .ToListAsync());
+            await rejectedCheck.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.Review)} WHERE CaseId = {outcome.Identity.CaseId}");
+        }
+
+        var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        const string firstOperationKey = "11111111111111111111111111111111";
+        var export = await exporter.ExecuteAsync(
+            new(outcome.Identity.CaseId, firstActor, firstOperationKey),
             CancellationToken.None);
 
         Assert.NotNull(export);
@@ -1310,16 +1359,93 @@ public sealed class CustodyOutboxIntegrationTests
             Encoding.UTF8.GetString(bundle.JsonContent),
             StringComparison.Ordinal);
 
-        // An export is a read: it records no revision and no hand-off proxy.
+        // ENG-016: an export is the act that records the once-per-case
+        // First sent to Engineer proxy. It used to record nothing -- the
+        // gated hand-off did -- and this assertion is the inverse of the one
+        // it replaces.
         await using var context = await services
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
             .CreateDbContextAsync();
-        Assert.Empty(await context.EvaHandoffRevisions
+        var proxy = Assert.Single(await context.EvaFirstHandoffProxies
             .Where(item => item.CaseId == outcome.Identity.CaseId)
             .ToListAsync());
-        Assert.Empty(await context.EvaFirstHandoffProxies
+        Assert.False(proxy.ClaimsExternalDelivery);
+        Assert.False(proxy.ClaimsEngineerAssignment);
+        Assert.Single(await context.ActionHistory
+            .Where(item => item.AggregateType == "Case"
+                && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                && item.EventKind == "eva_bundle_exported")
+            .ToListAsync());
+
+        // And only the first success records one. A second export of the same
+        // case produces the same archive and no second row.
+        var again = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                "22222222222222222222222222222222"),
+            CancellationToken.None);
+        Assert.NotNull(again);
+        Assert.Equal(bundle.Sha256, again!.Bundle!.Sha256);
+        await using var recheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var single = Assert.Single(await recheck.EvaFirstHandoffProxies
             .Where(item => item.CaseId == outcome.Identity.CaseId)
             .ToListAsync());
+        Assert.Equal(proxy.RecordedAtUtc, single.RecordedAtUtc);
+        Assert.Equal(2, await recheck.ActionHistory.CountAsync(item =>
+            item.AggregateType == "Case"
+            && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+            && item.EventKind == "eva_bundle_exported"));
+
+        var replay = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+            new(outcome.Identity.CaseId, firstActor, firstOperationKey),
+            CancellationToken.None);
+        Assert.Equal(bundle.Sha256, replay!.Bundle!.Sha256);
+        await using var replayCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Equal(2, await replayCheck.ActionHistory.CountAsync(item =>
+            item.AggregateType == "Case"
+            && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+            && item.EventKind == "eva_bundle_exported"));
+
+        const string concurrentOperationKey = "44444444444444444444444444444444";
+        var concurrentActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
+        var concurrent = await Task.WhenAll(
+            exporter.ExecuteAsync(
+                new(outcome.Identity.CaseId, concurrentActor, concurrentOperationKey),
+                CancellationToken.None),
+            exporter.ExecuteAsync(
+                new(outcome.Identity.CaseId, concurrentActor, concurrentOperationKey),
+                CancellationToken.None));
+        Assert.All(concurrent, result => Assert.Equal(bundle.Sha256, result!.Bundle!.Sha256));
+        await using var concurrentCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        Assert.Single(await concurrentCheck.ActionHistory
+            .Where(item => item.AggregateType == "Case"
+                && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                && item.EventKind == "eva_bundle_exported"
+                && item.CorrelationId == concurrentOperationKey)
+            .ToListAsync());
+        await Assert.ThrowsAsync<InvalidOperationException>(() => exporter.ExecuteAsync(
+            new(
+                outcome.Identity.CaseId,
+                ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                concurrentOperationKey),
+            CancellationToken.None));
+
+        await replayCheck.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.NotReady)} WHERE CaseId = {outcome.Identity.CaseId}");
+        await Assert.ThrowsAsync<CaseNotInReviewException>(() =>
+            services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+                new(
+                    outcome.Identity.CaseId,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    "33333333333333333333333333333333"),
+                CancellationToken.None));
     }
 
     /// <summary>

@@ -15,12 +15,6 @@ public sealed class ConfigurationModel(
     public CaseWorkflowConfiguration Configuration { get; private set; } = null!;
 
     [BindProperty]
-    public bool RequireCompleteInstructionsBeforeEngineerAssignment { get; set; }
-
-    [BindProperty]
-    public bool RequireCompleteImagesBeforeEngineerAssignment { get; set; }
-
-    [BindProperty]
     public bool RequireStaffInstructionReviewBeforeEngineerAssignment { get; set; }
 
     [BindProperty]
@@ -68,8 +62,6 @@ public sealed class ConfigurationModel(
             {
                 var updated = await updateWorkflowConfiguration.ExecuteAsync(
                     new(
-                        RequireCompleteInstructionsBeforeEngineerAssignment,
-                        RequireCompleteImagesBeforeEngineerAssignment,
                         RequireStaffInstructionReviewBeforeEngineerAssignment,
                         RequireStaffImageReviewBeforeEngineerAssignment,
                         ExpectedVersion,
@@ -113,10 +105,6 @@ public sealed class ConfigurationModel(
             return;
         }
 
-        RequireCompleteInstructionsBeforeEngineerAssignment =
-            Configuration.RequireCompleteInstructionsBeforeEngineerAssignment;
-        RequireCompleteImagesBeforeEngineerAssignment =
-            Configuration.RequireCompleteImagesBeforeEngineerAssignment;
         RequireStaffInstructionReviewBeforeEngineerAssignment =
             Configuration.RequireStaffInstructionReviewBeforeEngineerAssignment;
         RequireStaffImageReviewBeforeEngineerAssignment =

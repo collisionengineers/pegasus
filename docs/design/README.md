@@ -872,7 +872,7 @@ Deferred AI may propose but must not mutate, accept or send autonomously. Future
 
 One recorded exception (operator widening, 2026-08-03; extended by the
 operator-approved AI-09 specification —
-[ADR-0021](../adr/0021-automation-actor-direct-write-assessment-contract.md) and
+[ADR-0031](../adr/0031-automation-actor-contract-without-eva-export-tools.md) and
 [FRD-11](../frd/frd-11-reports-correspondence-and-reviewed-proposals.md), the
 re-entry specification for exactly this slice): the Engineer assessment
 workbench (UI-15) exists as design markup under

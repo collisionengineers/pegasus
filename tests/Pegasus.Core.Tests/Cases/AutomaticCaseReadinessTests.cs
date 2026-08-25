@@ -13,8 +13,6 @@ namespace Pegasus.Core.Tests.Cases;
 public sealed class AutomaticCaseReadinessTests
 {
     private static readonly CaseWorkflowConfiguration RequiresEverything = new(
-        RequireCompleteInstructionsBeforeEngineerAssignment: true,
-        RequireCompleteImagesBeforeEngineerAssignment: true,
         RequireStaffInstructionReviewBeforeEngineerAssignment: true,
         RequireStaffImageReviewBeforeEngineerAssignment: true,
         PolicyKey: "case-workflow",
@@ -43,6 +41,27 @@ public sealed class AutomaticCaseReadinessTests
                     RequiresEverything,
                     automaticallyDefinitive: true)
                 .SatisfiesPolicy);
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void CompletenessCannotBeWaivedByStaffReviewConfiguration(
+        bool requireInstructionReview,
+        bool requireImageReview)
+    {
+        var configuration = new CaseWorkflowConfiguration(
+            requireInstructionReview,
+            requireImageReview,
+            "case-workflow",
+            1);
+
+        Assert.False(CaseCompletenessPolicy.Evaluate(
+            new(false, true, false, true), configuration).SatisfiesPolicy);
+        Assert.False(CaseCompletenessPolicy.Evaluate(
+            new(true, false, true, false), configuration).SatisfiesPolicy);
+    }
 
     [Fact]
     public void TheReadinessRuleAndTheAcceptancePolicyAgreeOnTheWaiver()

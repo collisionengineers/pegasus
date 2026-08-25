@@ -502,21 +502,21 @@ The current and intended workflows use several different evidence transfers:
 - an in-house request-scoped link receives images/documents into Pegasus intake;
   upload success is not case creation, Case/PO allocation, Box custody, EVA
   handoff, or external delivery;
-- the focused alpha EVA handoff is a reviewed JSON/image download for
-  manual drag-and-drop. Its first successful generation is only Pegasus's
-  once-per-case `First sent to Engineer` proxy; EVA still owns receipt and
-  named-Engineer assignment;
-- the local Pegasus caller now enforces Review stage, applicable confirmed
-  custody, current accepted evidence and all eligible Case-vehicle images,
-  then retains a business revision for authenticated, reasoned download. It
-  makes no EVA network call; production Box migration, deployment, external
-  receipt, named-Engineer assignment and operator drag-and-drop acceptance
-  remain separate evidence states;
+- the focused alpha EVA export is the current send-to-Engineer route: a
+  reviewed JSON/image download for manual import into EVA. `Review` is its one
+  readiness decision; suggested values do not block export, VAT and mileage
+  are optional, and Case/Audit custody are not duplicate export gates. Its
+  first successful generation records Pegasus's once-per-case `First sent to
+  Engineer` proxy and every export records action history; EVA still owns
+  receipt and named-Engineer assignment;
 - EVA currently generates the final provider report, while Box stores produced
   Engineer Reports; a PDF's existence or custody does not prove that the report
   was sent or received; and
-- a provider submission API, a future EVA API, and report delivery are separate
-  contracts and authorizations.
+- the planned successors are the EVA API when EVA fixes it, then direct
+  estimating-system integrations that replace EVA; AI-generated estimates may
+  instead remain in Pegasus for Engineer review and report generation; and
+- a provider submission API and report delivery remain separate contracts and
+  authorizations.
 
 **Evidence-only limitation:** the supplied EVA schema does not establish a
 usable Pegasus caller or an accepted proxy fetch, create-with-children,

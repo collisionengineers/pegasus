@@ -16,8 +16,6 @@ internal sealed class LocalEvaHandoffProxy(TimeProvider timeProvider) : IEvaHand
         cancellationToken.ThrowIfCancellationRequested();
         StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
         if (request.CaseId == Guid.Empty
-            || request.Revision <= 0
-            || string.IsNullOrWhiteSpace(request.OperationKey)
             || request.BundleSha256.Length != 64
             || request.BundleSha256.Any(character => !char.IsAsciiHexDigit(character)))
         {
