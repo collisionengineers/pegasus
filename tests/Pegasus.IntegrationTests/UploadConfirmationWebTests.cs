@@ -382,6 +382,10 @@ public sealed class UploadConfirmationWebTests
             ]);
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
         await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var reconcileScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
+        }
 
         var redirect = await PostGroupHandlerAsync(
             client,
