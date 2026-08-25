@@ -41,3 +41,21 @@ The product scope is appropriately simple and no speculative compatibility machi
 
 ### Verdict
 **NEEDS CHANGES.** Do not merge until PR-061 is fixed, PR-059 evidence/checklists are reconciled, final CI is green, and a fresh independent review passes.
+
+## Fresh independent re-review — PR #539 at cc6b0ee7 — PASS
+
+### Changes checked
+Re-read the complete diff against origin/dev and the two-file PR-061 amendment; checked the Export/readiness path, migrations, governing FRD/ADRs, tests, current PR body, ENG-016 and PR-055–PR-061 plans/checklists/reports, simplification dispositions, and final GitHub run 32794216105.
+
+### Comments and dispositions
+- **Fixed in PR:** the locked workflow query now returns current State and rejects any non-Review state before replay, proxy, ActionHistory or commit.
+- **Fixed in PR:** the SQL regression holds the workflow row before starting Export, commits a NotReady demotion, then proves CaseNotInReview and zero proxy/history. This deterministically establishes the required ordering.
+- **Fixed in ticket evidence:** PR-055–PR-061 acceptance checklists and reports match the implemented head. PR-059 honestly records the board repoRoot limitation for branch-only ADR-0030/0031; the files and their compliance were inspected directly, so no ritual link mutation is required before merge.
+- **No comment:** prior replay, completeness, ADR supersession, batch-read and migration findings remain fixed.
+- **CI:** all final-head checks passed: changes, documentation, local-development-scripts, reference-data, infrastructure, unit, browser, SQL shards 1–3 and SQL coverage.
+
+### Plan/report/simplification
+The plan did not miss implied scope. Implementation now satisfies the plan and governing behavior. Reports and grouped file inventory honestly account for the diff. The simplification pass is credible: existing lifecycle, transaction/lock, mapper, batch content path, history helper and proxy were reused; obsolete duplicate paths/settings were removed; no speculative abstraction, rollback or compatibility path was added.
+
+### Verdict
+**PASS.** No substantive or non-blocking finding remains. The two unticked ENG-016 checklist entries were external gates and are now evidenced here: final CI is green and independent Kanmer review passed. Standing delegation permits the owning reviewer/orchestrator to merge and move tickets to Verifying.
