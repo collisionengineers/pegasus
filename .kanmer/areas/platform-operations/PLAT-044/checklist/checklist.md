@@ -22,9 +22,9 @@ Verification completed on 2026-08-25:
 
 ## Review correction
 
-- [ ] Persist and concurrency-check latest successful EVA export workflow version.
-- [ ] Implement the shared current-Review-cycle Assessment access decision.
-- [ ] Gate the Case-page control, Assessment GET/POST handlers, and report generation without gating automation/MCP writes.
-- [ ] Remove the unused workspace full-readiness calculation and reconcile governing documentation.
-- [ ] Add focused tests for lifecycle, export-cycle, optional assignment, direct POST, and preserved NotReady automation.
-- [ ] Rerun simplification, Release verification, and update the PR.
+- [x] Persist and concurrency-check latest successful EVA export workflow version.
+- [x] Implement the shared current-Review-cycle Assessment access decision.
+- [x] Gate the Case-page control, Assessment GET/POST handlers, and report generation without gating automation/MCP writes.
+- [x] Remove the unused workspace full-readiness calculation and reconcile governing documentation.
+- [x] Add focused tests for lifecycle, export-cycle, optional assignment, direct POST, and preserved NotReady automation.
+- [x] Rerun simplification, Release verification, and update the PR.
