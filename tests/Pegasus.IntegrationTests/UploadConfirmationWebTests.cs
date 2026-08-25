@@ -1,9 +1,12 @@
 ﻿using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Web.Presentation;
 
 namespace Pegasus.IntegrationTests;
 
@@ -291,6 +294,10 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, upload.StatusCode);
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
         await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var reconcileScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
+        }
 
         var groupPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.Contains("This submission", groupPage, StringComparison.Ordinal);
@@ -327,6 +334,10 @@ public sealed class UploadConfirmationWebTests
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
         var processed = await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
         var memberReceiptId = IntakeWebDriver.ReceiptId(processed);
+        await using (var reconcileScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
+        }
 
         var redirect = await PostGroupHandlerAsync(
             client,
@@ -382,6 +393,10 @@ public sealed class UploadConfirmationWebTests
             ]);
         var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
         await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+        await using (var reconcileScope = factory.Services.CreateAsyncScope())
+        {
+            await IntakeWebDriver.ReconcileGroupedImageIntakeAsync(reconcileScope.ServiceProvider);
+        }
 
         var redirect = await PostGroupHandlerAsync(
             client,
@@ -429,6 +444,51 @@ public sealed class UploadConfirmationWebTests
         Assert.Equal(HttpStatusCode.Redirect, replay);
         var afterPage = await IntakeWebDriver.GetHtmlAsync(client, $"/Upload/Group/{groupId:D}");
         Assert.DoesNotContain("This submission", afterPage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task WorkingMemberWithAnOpenSiblingWithholdsTheGroupDecision()
+    {
+        using var factory = new IntakeWebApplicationFactory(
+            "Development",
+            true,
+            recognitionEngine: new FakeVrmRecognitionEngine());
+        using var uploadClient = IntakeWebDriver.CreateClient(factory);
+        var form = await IntakeWebDriver.GetUploadFormTokensAsync(uploadClient);
+        var upload = await IntakeWebDriver.PostUploadManyAsync(
+            uploadClient,
+            form.AntiforgeryToken,
+            form.ExternalReceiptToken,
+            [
+                ("overview.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64)),
+                ("close-up.png", "image/png", Convert.FromBase64String(MultiFormatFixture.TinyPngBase64))
+            ]);
+        var groupId = Guid.Parse(upload.Location!.OriginalString.Split('/').Last());
+        await IntakeWebDriver.ProcessQueuedAsync(factory, upload);
+
+        IntakeSubmissionGroup group;
+        await using (var scope = factory.Services.CreateAsyncScope())
+        {
+            group = (await scope.ServiceProvider
+                .GetRequiredService<IIntakeSubmissionGroupStore>()
+                .GetAsync(groupId, CancellationToken.None))!;
+        }
+
+        using var pageFactory = factory.WithWebHostBuilder(builder =>
+            builder.ConfigureServices(services =>
+            {
+                services.RemoveAll<IUploadOutcomeQueries>();
+                services.AddSingleton<IUploadOutcomeQueries>(
+                    new WorkingAndOpenGroupOutcomes(group.Members[0].StagedReceiptId));
+            }));
+        using var pageClient = pageFactory.CreateClient();
+
+        var html = await IntakeWebDriver.GetHtmlAsync(pageClient, $"/Upload/Group/{groupId:D}");
+
+        Assert.Contains("data-auto-refresh=\"2000\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("id=\"group-decision-title\"", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Add the submission to this case", html, StringComparison.Ordinal);
+        Assert.DoesNotContain("Create a vehicle-image case", html, StringComparison.Ordinal);
     }
 
     private static IEnumerable<int> SplitOccurrences(string haystack, string needle)
@@ -497,5 +557,28 @@ public sealed class UploadConfirmationWebTests
         Assert.NotNull(receipt);
         Assert.Equal(caseId, receipt!.CurrentCaseId);
         Assert.NotNull(receipt.ManualAssociationVersion);
+    }
+
+    private sealed class WorkingAndOpenGroupOutcomes(Guid workingStagedReceiptId) : IUploadOutcomeQueries
+    {
+        public Task<UploadOutcomeView> BuildAsync(
+            QueuedIntakeStatus status,
+            Guid? submissionGroupId,
+            ActionActor actor,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(status.StagedReceiptId == workingStagedReceiptId
+                ? new UploadOutcomeView(
+                    UploadOutcomeKind.Working,
+                    "Processing",
+                    "The submission is being processed.",
+                    null,
+                    null)
+                : new UploadOutcomeView(
+                    UploadOutcomeKind.NeedsReview,
+                    "Needs review",
+                    "This needs a staff decision.",
+                    new("Review", $"/Unidentified/{Guid.NewGuid():D}"),
+                    null,
+                    new(status.ProcessedReceiptId ?? status.StagedReceiptId)));
     }
 }
