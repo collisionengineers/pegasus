@@ -1,7 +1,6 @@
 using Pegasus.Core.Actors;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Custody;
-using Pegasus.Core.Eva;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Tasks;
 using Pegasus.Core.Workflow;
@@ -121,7 +120,6 @@ public sealed record CaseDetails(
     public IReadOnlyList<CaseTaskRecord> Tasks { get; init; } = [];
     public GeneratedCaseChaser? LatestChaser { get; init; }
     public CaseVehicleEvidence? VehicleEvidence { get; init; }
-    public EvaHandoffPreparation? EvaHandoff { get; init; }
     public IReadOnlyList<CaseCustodyPreparation> Custody { get; init; } = [];
 
     /// <summary>
@@ -265,7 +263,6 @@ public sealed class GetCase(
     ICaseQueryStore store,
     ICaseDataQueries caseDataQueries,
     IVehicleEvidenceQueries vehicleEvidenceQueries,
-    IEvaHandoffQueries evaHandoffQueries,
     ICaseCustodyQueries caseCustodyQueries,
     ICaseDueChaserQueries dueChaserQueries,
     ICaseTaskQueries taskQueries,
@@ -276,8 +273,6 @@ public sealed class GetCase(
         caseDataQueries ?? throw new ArgumentNullException(nameof(caseDataQueries));
     private readonly IVehicleEvidenceQueries _vehicleEvidenceQueries =
         vehicleEvidenceQueries ?? throw new ArgumentNullException(nameof(vehicleEvidenceQueries));
-    private readonly IEvaHandoffQueries _evaHandoffQueries =
-        evaHandoffQueries ?? throw new ArgumentNullException(nameof(evaHandoffQueries));
     private readonly ICaseCustodyQueries _caseCustodyQueries =
         caseCustodyQueries ?? throw new ArgumentNullException(nameof(caseCustodyQueries));
     private readonly ICaseDueChaserQueries _dueChaserQueries =
@@ -307,13 +302,11 @@ public sealed class GetCase(
         var data = await _caseDataQueries.GetAsync(query.CaseId, cancellationToken)
             ?? throw new InvalidDataException("The accepted case is missing its typed data projection.");
         var vehicleEvidence = await _vehicleEvidenceQueries.GetAsync(query.CaseId, cancellationToken);
-        var evaHandoff = await _evaHandoffQueries.GetPreparationAsync(query.CaseId, cancellationToken);
         var custody = await _caseCustodyQueries.GetPreparationsAsync(query.CaseId, cancellationToken);
         var latestChaser = await _dueChaserQueries.GetLatestAsync(query.CaseId, cancellationToken);
         var tasks = await _taskQueries.ListAsync(query.CaseId, cancellationToken);
         if (data.Identity.CaseId != details.Workflow.CaseId
             || vehicleEvidence is not null && vehicleEvidence.CaseId != details.Workflow.CaseId
-            || evaHandoff is not null && evaHandoff.CaseId != details.Workflow.CaseId
             || latestChaser is not null && latestChaser.CaseId != details.Workflow.CaseId
             || tasks.Any(item => item.CaseId != details.Workflow.CaseId))
         {
@@ -337,7 +330,6 @@ public sealed class GetCase(
         {
             Data = data,
             VehicleEvidence = vehicleEvidence,
-            EvaHandoff = evaHandoff,
             Custody = custody,
             LatestChaser = latestChaser,
             Tasks = tasks,

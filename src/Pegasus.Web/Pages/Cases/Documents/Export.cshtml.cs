@@ -16,17 +16,36 @@ public sealed partial class ExportModel(
     private const long MaximumArchiveBytes = 100L * 1024 * 1024;
 
     /// <summary>
-    /// CASE-019: the case's own export — the EVA-format archive of its
-    /// photographs and the thirteen mapped fields.
-    ///
-    /// A GET, because it is a read: no case version, no operation key, no edit
-    /// lease. The operator asked for their file, not to change anything. The
-    /// POST below is the separate selective export of chosen document
-    /// versions, which does edit the case's document custody and keeps its
-    /// lease.
+    /// ENG-016: Export answered a GET with the archive until this ticket, so a
+    /// bookmark, a browser history entry or a stale link can still point here.
+    /// Without a handler Razor Pages renders the (contentless) page and returns
+    /// a blank 200, which reads as a broken route; this sends them to the case
+    /// instead. It cannot export: producing the package is the POST below.
     /// </summary>
-    public async Task<IActionResult> OnGetAsync(
+    public IActionResult OnGet(Guid caseId) =>
+        caseId == Guid.Empty ? NotFound() : RedirectToDetails(caseId);
+
+    /// <summary>
+    /// CASE-019 / ENG-016: the case's own export — the EVA-format archive of
+    /// its photographs and the thirteen mapped fields, and since ENG-016 the
+    /// only act that produces one.
+    ///
+    /// A POST, and it was a GET until ENG-016. The export now records the
+    /// once-per-case `First sent to Engineer` proxy, and a GET that records a
+    /// business event is a hazard: a browser prefetch or an ordinary refresh
+    /// would both fire it, and it carried no antiforgery token. There is no
+    /// GET handler left, so the route answers 405 to one.
+    ///
+    /// The handler is named because the unnamed POST on this page is already
+    /// the selective export of chosen document versions, which does edit the
+    /// case's document custody and keeps its lease. This one still takes no
+    /// case version or edit lease. Its operation key makes the action-history
+    /// record replay-safe; the proxy's separate once-per-case guarantee remains
+    /// the primary key on `EvaFirstHandoffProxies`.
+    /// </summary>
+    public async Task<IActionResult> OnPostBundleAsync(
         Guid caseId,
+        string operationKey,
         CancellationToken cancellationToken)
     {
         if (caseId == Guid.Empty)
@@ -40,7 +59,9 @@ public sealed partial class ExportModel(
 
         try
         {
-            var export = await exportCaseBundle.ExecuteAsync(new(caseId, actor), cancellationToken);
+            var export = await exportCaseBundle.ExecuteAsync(
+                new(caseId, actor, RequireOperationKey(operationKey)),
+                cancellationToken);
             if (export is null)
             {
                 return NotFound();
@@ -56,6 +77,8 @@ public sealed partial class ExportModel(
 
             Response.Headers.CacheControl = "private, no-store";
             Response.Headers.XContentTypeOptions = "nosniff";
+            Response.Headers["Content-Digest"] =
+                $"sha-256=:{Convert.ToBase64String(Convert.FromHexString(bundle.Sha256))}:";
             return File(bundle.Content, "application/zip", fileName);
         }
         catch (StaffAuthorizationException)
@@ -66,6 +89,11 @@ public sealed partial class ExportModel(
         // transport failure is an ordinary way for it to fail. Without
         // HttpRequestException here the operator got the generic error page
         // instead of their case with a reason on it.
+        //
+        // ENG-016: this route now writes the First sent to Engineer proxy, and
+        // as a GET it never wrote anything at all. A failed write arrives here
+        // as InvalidOperationException — EvaHandoffStore translates it, so no
+        // page has to know what EF throws.
         catch (Exception exception) when (exception is ArgumentException
             or InvalidOperationException
             or InvalidDataException
@@ -91,6 +119,11 @@ public sealed partial class ExportModel(
         && !fileName.Contains('/', StringComparison.Ordinal)
         && !fileName.Contains('\\', StringComparison.Ordinal)
         && !fileName.Any(char.IsControl);
+
+    private static string RequireOperationKey(string value) =>
+        Guid.TryParseExact(value, "N", out var operationId)
+            ? operationId.ToString("N")
+            : throw new ArgumentException("The operation key is invalid.", nameof(value));
 
     [LoggerMessage(
         Level = LogLevel.Warning,

@@ -119,7 +119,7 @@ A required but skipped selected trait fails. Optional inactive profiles do not b
 | EVA | Exact local JSON/image-bundle contract and reconciliation metadata | Operator drag/drop acceptance and any later authorised API sandbox |
 | Provider API | Not implemented: no endpoint, client, credential, or caller | Settled actor/client/authentication contract, real caller evidence, and separately approved activation |
 | Automation MCP | Implemented; composition gate **enabled in production by release 9** (ADR-0026) with a Key Vault-backed client secret; integration tests drive token issuance, denial, tool calls (including the direct-write assessment tranche), and the kill switch over HTTP; live token/inventory/denial/history/kill-switch evidence recorded on 2026-08-18 under Production environment | Real external client evidence, production certificate/transport decisions, and separately approved activation |
-| Send to AI channel hand-off | Implemented but composition-gated off by default (`Features:SendToAi`, DevelopmentOffline only); integration tests drive the pointer hand-off, refusal, reconcile, and the Administrator switch against a local fake connector | The recorded round-trip evidence run with a real Claude Code channel session, and any production activation, which additionally needs a non-preview transport decision (ADR-0021) |
+| Send to AI channel hand-off | Implemented but composition-gated off by default (`Features:SendToAi`, DevelopmentOffline only); integration tests drive the pointer hand-off, refusal, reconcile, and the Administrator switch against a local fake connector | The recorded round-trip evidence run with a real Claude Code channel session, and any production activation, which additionally needs a non-preview transport decision (ADR-0031) |
 | Direct authorised-terminal deployment | Bicep compile/lint and local configuration checks | Approved preflight, package/migration identity, deployment, health smoke, rollback |
 | Backup/recovery | LocalDB backup/restore into a new disposable database | Azure SQL PITR and the one-time alpha RPO/RTO exercise |
 
@@ -146,7 +146,7 @@ client-credentials registration.
 
 When enabled, the ingress issues short-lived scoped access tokens
 (`automation.cases`, `automation.intake`, `automation.documents`,
-`automation.assessment`) for exactly one vendor-neutral Automation client
+`automation.assessment`, `automation.mail`) for exactly one vendor-neutral Automation client
 whose identifier and secret come from configuration/user-secrets and are
 never tracked or displayed. Every tool invocation is permanent action
 history attributed to the Automation actor with a correlation identifier;
@@ -156,8 +156,8 @@ switch (disable refuses new tokens outright and rejects already-issued
 tokens within seconds). A staff browser identity is not a substitute for
 that actor and is never accepted on `/mcp`.
 
-Every automation action is recorded exactly as a human action is (ADR-0021):
-the fourteen tools wrap the same Core commands, edit lease, operation-key
+Every automation action is recorded exactly as a human action is (ADR-0031):
+the 33 tools wrap the same Core commands, edit lease, operation-key
 replay, and version guards as the staff app, assessment values written by
 the automation carry the unconfirmed mark until staff review at manual
 engineer assignment, and the migration

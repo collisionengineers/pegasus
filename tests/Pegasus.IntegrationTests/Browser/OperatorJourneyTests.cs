@@ -24,7 +24,7 @@ namespace Pegasus.IntegrationTests.Browser;
 public sealed class OperatorJourneyTests
 {
     [Fact]
-    public async Task CustodyRecoveryAndEvaHandoffAreKeyboardUsableWithoutInternalIdentifiersOrExternalClaims()
+    public async Task CustodyRecoveryAndExportAreKeyboardUsableWithoutInternalIdentifiersOrExternalClaims()
     {
         var repositoryFixture = RepositoryEvaFixture.Load();
         var vehicleEvidence = new BrowserVehicleEvidenceQueries();
@@ -69,12 +69,6 @@ public sealed class OperatorJourneyTests
         AssertOperatorSafe(initialText, accepted.CaseId);
 
         await EnterEditModeByKeyboardAsync(support.Page);
-        // The outstanding-items list is a closed disclosure; open it to read.
-        await support.Page.Locator("section:has(#case-eva-title) details.readiness-summary > summary").ClickAsync();
-        var editingText = await support.Page.Locator("main").InnerTextAsync();
-        Assert.Contains("At least one stored vehicle image is required", editingText,
-            StringComparison.Ordinal);
-        Assert.Contains("Case custody has not been confirmed", editingText, StringComparison.Ordinal);
 
         // The seeder takes its own edit authority, so finish editing first.
         var finishButton = support.Page.GetByRole(
@@ -88,11 +82,6 @@ public sealed class OperatorJourneyTests
             support.Services, accepted.CaseId, repositoryFixture);
         await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
         await EnterEditModeByKeyboardAsync(support.Page);
-        await support.Page.Locator("section:has(#case-eva-title) details.readiness-summary > summary").ClickAsync();
-        Assert.DoesNotContain(
-            "At least one stored vehicle image is required",
-            await support.Page.Locator("main").InnerTextAsync(),
-            StringComparison.Ordinal);
         var retryButton = support.Page.GetByRole(
             AriaRole.Button,
             new PageGetByRoleOptions { Name = "Retry custody", Exact = true });
@@ -124,44 +113,29 @@ public sealed class OperatorJourneyTests
         Assert.DoesNotContain("Case evidence \u2014 Failed", confirmedText, StringComparison.Ordinal);
         Assert.DoesNotContain("Case custody has not been confirmed", confirmedText, StringComparison.Ordinal);
 
-        await EnterEditModeByKeyboardAsync(support.Page);
-        await SubmitGenerateByKeyboardAsync(support.Page, "Prepare the reviewed deterministic handoff.");
-        var generatedText = await support.Page.Locator("main").InnerTextAsync();
-        // One generated handoff, integrity-verified; the page names the file,
-        // never a version integer (CASE-007 copy rules).
-        Assert.Equal(1, CountOccurrences(generatedText, "integrity verified"));
-        AssertOperatorSafe(generatedText, accepted.CaseId);
-
-        await EnterEditModeByKeyboardAsync(support.Page);
-        await SubmitGenerateByKeyboardAsync(support.Page, "Repeat unchanged reviewed handoff preparation.");
-        var replayText = await support.Page.Locator("main").InnerTextAsync();
-        Assert.Equal(1, CountOccurrences(replayText, "integrity verified"));
-
-        await EnterEditModeByKeyboardAsync(support.Page);
-        var downloadButton = support.Page.GetByRole(
-            AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Download handoff", Exact = true });
-        var downloadForm = downloadButton.Locator("xpath=ancestor::form");
-        await downloadForm.GetByLabel("Reason", new() { Exact = true })
-            .FillAsync("Download the reviewed handoff for manual EVA drag-and-drop.");
-        var responseTask = support.Page.WaitForResponseAsync(value =>
-            value.Request.Method == "POST"
-            && value.Url.Contains("/Eva/Download", StringComparison.OrdinalIgnoreCase));
-        var downloadTask = support.Page.WaitForDownloadAsync();
-        await downloadButton.FocusAsync();
-        await downloadButton.PressAsync("Enter");
-        var downloadResponse = await responseTask;
-        var download = await downloadTask;
-        Assert.Equal(200, downloadResponse.Status);
-        var path = Assert.IsType<string>(await download.PathAsync());
-        var bytes = await File.ReadAllBytesAsync(path);
-        var digest = Convert.ToBase64String(SHA256.HashData(bytes));
-        var headers = await downloadResponse.AllHeadersAsync();
-        Assert.Equal($"sha-256=:{digest}:", headers["content-digest"]);
-        Assert.Equal($"EVA-{accepted.Reference}-Revision-001.zip", download.SuggestedFilename);
-        Assert.DoesNotContain(accepted.CaseId.ToString("D"), download.SuggestedFilename,
+        // ENG-016: one act. Export is a form post in the action bar -- it was
+        // an anchor, and it answers with the file rather than a redirect. The
+        // gated hand-off's generate/replay/download sequence is gone.
+        var firstDownload = await ExportByKeyboardAsync(support.Page);
+        Assert.Equal($"EVA-{accepted.Reference}.zip", firstDownload.SuggestedFilename);
+        Assert.DoesNotContain(accepted.CaseId.ToString("D"), firstDownload.SuggestedFilename,
             StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotMatch("[0-9a-f]{32,64}", download.SuggestedFilename);
+        Assert.DoesNotMatch("[0-9a-f]{32,64}", firstDownload.SuggestedFilename);
+        var firstBytes = await File.ReadAllBytesAsync(
+            Assert.IsType<string>(await firstDownload.PathAsync()));
+        AssertOperatorSafe(
+            await support.Page.Locator("main").InnerTextAsync(),
+            accepted.CaseId);
+
+        // Exporting again is the same act, not a revision: same archive, same
+        // name. The once-per-case proxy behind it is asserted in
+        // CustodyOutboxIntegrationTests, which can read the row.
+        var secondDownload = await ExportByKeyboardAsync(support.Page);
+        Assert.Equal(firstDownload.SuggestedFilename, secondDownload.SuggestedFilename);
+        Assert.Equal(
+            SHA256.HashData(firstBytes),
+            SHA256.HashData(await File.ReadAllBytesAsync(
+                Assert.IsType<string>(await secondDownload.PathAsync()))));
 
         Assert.False(await support.Page.EvaluateAsync<bool>("() => navigator.javaEnabled()"));
     }
@@ -397,17 +371,26 @@ public sealed class OperatorJourneyTests
             StringComparison.Ordinal);
     }
 
-    private static async Task SubmitGenerateByKeyboardAsync(IPage page, string reason)
+    /// <summary>
+    /// Presses Export in the action bar by keyboard and returns the file it
+    /// answers with. It carries no reason field: an export is a label and a
+    /// control, and the design authority bans copy beyond that.
+    /// </summary>
+    private static async Task<IDownload> ExportByKeyboardAsync(IPage page)
     {
         var button = page.GetByRole(
             AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Generate EVA handoff", Exact = true });
+            new PageGetByRoleOptions { Name = "Export", Exact = true });
         Assert.True(await button.IsVisibleAsync(), await page.Locator("main").InnerTextAsync());
-        var form = button.Locator("xpath=ancestor::form");
-        await form.GetByLabel("Reason", new() { Exact = true }).FillAsync(reason);
+        Assert.True(await button.IsEnabledAsync(), await page.Locator("main").InnerTextAsync());
+        var responseTask = page.WaitForResponseAsync(value =>
+            value.Request.Method == "POST"
+            && value.Url.Contains("/Documents/Export", StringComparison.OrdinalIgnoreCase));
+        var downloadTask = page.WaitForDownloadAsync();
         await button.FocusAsync();
         await button.PressAsync("Enter");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        Assert.Equal(200, (await responseTask).Status);
+        return await downloadTask;
     }
 
     private static CaseVehicleEvidence ConfirmedVehicle(

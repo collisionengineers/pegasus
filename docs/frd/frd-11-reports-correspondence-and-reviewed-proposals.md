@@ -174,7 +174,7 @@ its own versioned, authorised contract. Staff-selected AI Assessor and
 Engineer-reviewed query proposals remain proposals until the authorised human
 accepts or rejects them through Core.
 
-The vendor-neutral `Send to AI` work transport (AI-09; reworded by ADR-0021
+The vendor-neutral `Send to AI` work transport (AI-09; governed by ADR-0031
 under the operator's 2026-08-03 direct-write decision) hands a scoped worker
 a pointer to one case — never case content — and the worker returns its work
 as ordinary Automation Actor writes through the same Core commands, edit

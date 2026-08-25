@@ -101,6 +101,8 @@ public sealed partial class DetailsModel(
 
     public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
 
+    public string ExportOperationKey { get; } = NewOperationKey();
+
     public Guid ReportApprovalId { get; } = Guid.NewGuid();
 
     public DateTimeOffset ManualChaseAttemptedAtUtc { get; private set; }
@@ -377,7 +379,7 @@ public sealed partial class DetailsModel(
                         inspectionAddress,
                         inspectionMode)),
                 cancellationToken),
-            "Case data was saved with attributable field provenance.");
+            "Case data was saved. The case is Not ready until completeness is confirmed again.");
 
     private void RestoreLeaseState(Guid caseId, ActionActor actor)
     {

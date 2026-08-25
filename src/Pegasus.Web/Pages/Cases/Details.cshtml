@@ -118,14 +118,23 @@
         }
         @* CASE-019: the route parameter is caseId, not id. Sending id meant
            link generation had nothing to fill the route with, so the control
-           rendered without an href at all and pressing it did nothing. *@
+           rendered without an href at all and pressing it did nothing.
+           ENG-016: a form post, not an anchor — the export records the
+           once-per-case First sent to Engineer proxy, so a prefetched or
+           refreshed GET must not be able to fire it. *@
         <span class="gated" data-condition="@(canExport ? null : "Available in Review")">
-            <a class="btn @(canExport ? string.Empty : "is-disabled")"
-               asp-page="/Cases/Documents/Export" asp-route-caseId="@summary.CaseId"
-               aria-disabled="@(canExport ? "false" : "true")">
-                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                Export
-            </a>
+            <form method="post" asp-page="/Cases/Documents/Export"
+                  asp-route-caseId="@summary.CaseId" asp-page-handler="Bundle"
+                  class="record__bar-form">
+                <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
+                @* `.btn:disabled` is the styling for a real control;
+                   `.btn.is-disabled` is the fallback for a disabled anchor,
+                   which this stopped being. *@
+                <button type="submit" class="btn" disabled="@(canExport ? null : "disabled")">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                    Export
+                </button>
+            </form>
         </span>
         <span class="record__bar-end">
             <span class="record__bar-rule" aria-hidden="true"></span>

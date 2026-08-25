@@ -9,8 +9,6 @@ public sealed class CaseDataOperationsTests
     private static readonly CaseWorkflowConfiguration Configuration = new(
         true,
         true,
-        true,
-        true,
         "test-case-workflow",
         7);
 
@@ -91,6 +89,21 @@ public sealed class CaseDataOperationsTests
             new(InspectionAddress: "1 Test Street, London")));
         Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
             new(InspectionMode: CaseInspectionMode.PhysicalAddress)));
+    }
+
+    [Fact]
+    public void NormalizeRequiresMileageAndUnitTogether()
+    {
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(VehicleMileage: 72_850)));
+        Assert.Throws<InvalidOperationException>(() => CaseDataPolicy.Normalize(
+            new(VehicleMileageUnit: "miles")));
+
+        var normalized = CaseDataPolicy.Normalize(
+            new(VehicleMileage: 72_850, VehicleMileageUnit: " miles "));
+
+        Assert.Equal(72_850, normalized.VehicleMileage);
+        Assert.Equal("miles", normalized.VehicleMileageUnit);
     }
 
     [Fact]
