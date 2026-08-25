@@ -17,9 +17,9 @@ labels:
 links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
-archived: false
+archived: true
 created: '2026-08-18T09:39:12.370Z'
-updated: '2026-08-24T14:51:06.946Z'
+updated: '2026-08-25T06:58:52.876Z'
 ---
 
 ## What
