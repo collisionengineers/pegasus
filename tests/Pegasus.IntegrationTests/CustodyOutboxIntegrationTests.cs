@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.IO.Compression;
 using System.Security.Cryptography;
@@ -1258,9 +1259,55 @@ public sealed class CustodyOutboxIntegrationTests
             }
         }
 
+        var exporter = services.GetRequiredService<IExportCaseBundle>();
+        const string demotionRaceKey = "55555555555555555555555555555555";
+        await using (var lockContext = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            await using var transaction = await lockContext.Database.BeginTransactionAsync(
+                IsolationLevel.Serializable);
+            var lockedWorkflow = await lockContext.CaseWorkflows
+                .FromSqlInterpolated($"""
+                    SELECT *
+                    FROM [CaseWorkflows] WITH (UPDLOCK, HOLDLOCK)
+                    WHERE [CaseId] = {outcome.Identity.CaseId}
+                    """)
+                .SingleAsync();
+            var racedExport = Task.Run(() => exporter.ExecuteAsync(
+                new(
+                    outcome.Identity.CaseId,
+                    ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]),
+                    demotionRaceKey),
+                CancellationToken.None));
+            await Task.Delay(250);
+            Assert.False(racedExport.IsCompleted);
+            lockedWorkflow.State = CaseLifecycleState.NotReady.ToString();
+            await lockContext.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            await Assert.ThrowsAsync<CaseNotInReviewException>(() => racedExport);
+        }
+        await using (var rejectedCheck = await services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync())
+        {
+            Assert.Empty(await rejectedCheck.EvaFirstHandoffProxies
+                .Where(item => item.CaseId == outcome.Identity.CaseId)
+                .ToListAsync());
+            Assert.Empty(await rejectedCheck.ActionHistory
+                .Where(item => item.AggregateType == "Case"
+                    && item.AggregateId == outcome.Identity.CaseId.ToString("D")
+                    && item.EventKind == "eva_bundle_exported"
+                    && item.CorrelationId == demotionRaceKey)
+                .ToListAsync());
+            await rejectedCheck.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE CaseWorkflows SET State = {nameof(CaseLifecycleState.Review)} WHERE CaseId = {outcome.Identity.CaseId}");
+        }
+
         var firstActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
         const string firstOperationKey = "11111111111111111111111111111111";
-        var export = await services.GetRequiredService<IExportCaseBundle>().ExecuteAsync(
+        var export = await exporter.ExecuteAsync(
             new(outcome.Identity.CaseId, firstActor, firstOperationKey),
             CancellationToken.None);
 
@@ -1366,7 +1413,6 @@ public sealed class CustodyOutboxIntegrationTests
 
         const string concurrentOperationKey = "44444444444444444444444444444444";
         var concurrentActor = ActionActor.Staff(Guid.NewGuid(), [StaffRole.Administrator]);
-        var exporter = services.GetRequiredService<IExportCaseBundle>();
         var concurrent = await Task.WhenAll(
             exporter.ExecuteAsync(
                 new(outcome.Identity.CaseId, concurrentActor, concurrentOperationKey),
