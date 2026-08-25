@@ -15,13 +15,14 @@ labels:
   - research
 groups:
   - HZN-002
+  - EPIC-009
 links:
   - TICK-058
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-21T14:19:30.094Z'
-updated: '2026-08-21T14:20:04.663Z'
+updated: '2026-08-25T06:36:39.151Z'
 ---
 
 ## What

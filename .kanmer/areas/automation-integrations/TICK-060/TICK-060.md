@@ -17,13 +17,14 @@ labels:
   - requires-live-approval
 groups:
   - HZN-002
+  - EPIC-009
 links:
   - TICK-058
 refs:
   - docs/frd/frd-09-provider-and-intermediary-routes.md
 archived: false
 created: '2026-08-12T15:05:19.465Z'
-updated: '2026-08-21T14:42:16.513Z'
+updated: '2026-08-25T06:36:41.961Z'
 ---
 
 ## What

@@ -17,12 +17,13 @@ labels:
   - requires-live-approval
 groups:
   - HZN-002
+  - EPIC-009
 links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-12T15:05:39.851Z'
-updated: '2026-08-21T12:30:17.048Z'
+updated: '2026-08-25T06:36:42.565Z'
 ---
 
 ## What

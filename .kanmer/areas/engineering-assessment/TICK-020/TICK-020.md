@@ -22,6 +22,7 @@ labels:
 groups:
   - HZN-002
   - HZN-003
+  - EPIC-009
 links: []
 refs:
   - docs/frd/frd-06-vehicle-and-engineering-evidence.md
@@ -32,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.163Z'
-updated: '2026-08-25T01:27:00.916Z'
+updated: '2026-08-25T06:36:40.341Z'
 ---
 
 ## What
