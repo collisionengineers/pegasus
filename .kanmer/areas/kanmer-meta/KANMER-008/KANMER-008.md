@@ -18,7 +18,7 @@ links:
 deployment: n/a
 archived: false
 created: '2026-08-25T06:58:08.309Z'
-updated: '2026-08-25T06:58:08.309Z'
+updated: '2026-08-25T06:59:56.267Z'
 ---
 
 ## What
@@ -52,6 +52,10 @@ Release 28 completed TICK-222, DELIV-017, ENG-016, and PR-055 through PR-061 whi
 
 TICK-222 is Done, released, and no longer claims outstanding documentation, but it remains area-less. Three fresh Kanmer `update_item` attempts failed with Windows `EPERM` while renaming its ticket folder. KANMER-006 owns the retry after setup/reconnect releases that process lock; no manual filesystem move was attempted.
 
+## Concurrent GUI change after the groom
+
+At 06:58:52Z the GUI archived PLAT-005 while it was still Implementing and taken. That action was outside this groom and was preserved. The board now reports ten visible active takes; PLAT-005 retains its claim inside the archive and needs the human owner's intended disposition.
+
 ## Outcome
 
-The pre-audit-record result is 312 active and 170 archived tickets, with 0 warnings, 0 off-board stages, no redundant target labels, 56/56 approved archive targets retired, and only 11 legitimate active takes (ten Verifying tickets and PLAT-005 Implementing). No repository source, Git branch/worktree, PR, deployment, cloud, or external-system write was performed.
+Before this audit record and the later GUI action, the groom result was 312 active and 170 archived tickets with 11 legitimate active takes. The final live snapshot is 312 active and 171 archived tickets: 82 Backlog, 19 Preparing, 0 Implementing, 0 Review, 10 Verifying, and 201 Done. It has 0 warnings, 0 off-board stages, no redundant target labels, and 56/56 approved archive targets retired. No repository source, Git branch/worktree, PR, deployment, cloud, or external-system write was performed by this groom.
