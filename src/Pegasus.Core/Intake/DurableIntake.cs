@@ -427,7 +427,8 @@ public sealed class ProcessQueuedIntake(
     Pegasus.Core.ImageIntake.IImageIntakeAutomation? imageIntakeAutomation = null,
     IRegisterUnidentified? registerUnidentified = null,
     ReconcileUnidentifiedDestinations? unidentifiedDestinations = null,
-    AssociateRetainedMailWithCase? automaticMailCaseAssociation = null) : IProcessQueuedIntake
+    AssociateRetainedMailWithCase? automaticMailCaseAssociation = null,
+    SubmitMailboxImageIntake? mailboxImageIntake = null) : IProcessQueuedIntake
 {
     private const string SystemActor = "system-worker:intake-processing";
     private static readonly TimeSpan ProcessingLeaseDuration = TimeSpan.FromMinutes(5);
@@ -514,9 +515,12 @@ public sealed class ProcessQueuedIntake(
                 return QueuedIntakeProcessingOutcome.RetryScheduled;
             }
 
+            var replayMailboxImagesHandled = mailboxImageIntake is not null
+                && await mailboxImageIntake.HasSubmissionAsync(completedReceipt, cancellationToken);
             await SynchronizeUnidentifiedAsync(
                 completedReceipt,
                 replayTriage,
+                replayMailboxImagesHandled,
                 cancellationToken);
             // A failed attempt is deliberately not registered as Unidentified,
             // so reporting a finished pass here would leave an accepted request
@@ -535,6 +539,7 @@ public sealed class ProcessQueuedIntake(
 
         IntakeReceipt processed;
         IntakeEvaluationRevision evaluation;
+        var mailboxImagesHandled = false;
         try
         {
             var content = await artifactStore.ReadAsync(stagedReceipt.StorageKey, cancellationToken)
@@ -567,6 +572,13 @@ public sealed class ProcessQueuedIntake(
                 workItem.IsReevaluation,
                 isFinalAttempt,
                 cancellationToken);
+            if (mailboxImageIntake is not null)
+            {
+                mailboxImagesHandled = await mailboxImageIntake.ExecuteAsync(
+                    processed,
+                    isFinalAttempt,
+                    cancellationToken);
+            }
             evaluation = await workStore.CompleteProcessingAsync(
                 workItem.Id,
                 workItem.LeaseToken,
@@ -639,7 +651,11 @@ public sealed class ProcessQueuedIntake(
             return QueuedIntakeProcessingOutcome.RetryScheduled;
         }
 
-        await SynchronizeUnidentifiedAsync(processed, triage, cancellationToken);
+        await SynchronizeUnidentifiedAsync(
+            processed,
+            triage,
+            mailboxImagesHandled,
+            cancellationToken);
         return triage == TriageCreationOutcome.Failed
             ? QueuedIntakeProcessingOutcome.RetryScheduled
             : QueuedIntakeProcessingOutcome.Completed;
@@ -719,10 +735,12 @@ public sealed class ProcessQueuedIntake(
     private async Task SynchronizeUnidentifiedAsync(
         IntakeReceipt receipt,
         TriageCreationOutcome triage,
+        bool mailboxImagesHandled,
         CancellationToken cancellationToken)
     {
         if (registerUnidentified is not null
             && ProcessIntake.IsDeferredForAutomation(receipt)
+            && !mailboxImagesHandled
             && !(ProcessIntake.IsTriageRequest(receipt)
                 && triage is not TriageCreationOutcome.NotQualifying))
         {
