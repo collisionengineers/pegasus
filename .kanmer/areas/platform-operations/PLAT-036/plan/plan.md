@@ -29,3 +29,7 @@ Source verification proves valid JSON and exact category level; Release build pr
 - **Hiding failures:** Warning retains warnings and errors.
 - **Losing independent diagnostics:** console diagnostic setting is untouched.
 - **Premature paid change:** no quota/IaC/cloud mutation.
+
+## Simplification pass — 2026-08-25
+
+Independent reuse/simplification/efficiency/altitude review passed with no changes. The diff uses the existing ASP.NET logging category override and ArchitectureTests configuration/root-discovery convention; one setting is the smallest mechanism and acts at the correct Web host boundary. No processor, sampling policy, quota/IaC change, wrapper, or duplicate path was added. Extracting the repeated test root helper for one caller would be disproportionate.
