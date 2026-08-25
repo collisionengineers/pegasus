@@ -20,9 +20,10 @@ links: []
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/frd/frd-12-operator-experience.md
+deployment: production
 archived: false
 created: '2026-08-20T19:04:50.916Z'
-updated: '2026-08-25T06:38:31.857Z'
+updated: '2026-08-25T06:40:08.179Z'
 ---
 
 ## Why

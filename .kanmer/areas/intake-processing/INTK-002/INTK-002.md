@@ -1,9 +1,7 @@
 ---
 id: INTK-002
 type: ticket
-title: >-
-  Intake duplication chores: adapter-wide fault naming, one decision-code table,
-  Web-composition assertion, leftover port
+title: Name intake adapter faults and assert the Web composition boundary
 status: backlog
 area: intake-processing
 assignee: ''
@@ -16,27 +14,27 @@ links:
   - SIMPLI-010
 archived: false
 created: '2026-08-17T11:10:37.292Z'
-updated: '2026-08-17T12:00:17.228Z'
+updated: '2026-08-25T06:40:23.157Z'
 ---
 
 ## What
 
-Carry-forward from the simplification passes on [[SIMPLI-009]] (PR #385) and [[SIMPLI-010]]:
+Carry forward two focused intake simplification chores from [[SIMPLI-009]] and [[SIMPLI-010]]:
 
-- Adapter-wide fault naming: `AzureBlobIntakeArtifactStore` translates only its read/upload paths; `FileSystemIntakeArtifactStore` throws raw `IOException`; EF stores surface raw SQL faults; `EfIntakeReceiptStore.StoreAsync` throws a bare `InvalidOperationException` after three consecutive deadlocks (terminal under the new taxonomy). Adapters should name faults (`IntakeDependencyUnavailableException` / a named concurrency conflict) so `ProcessQueuedIntake.IsTransientProcessingFailure` matches intake types only.
-- One decision-code table: `EfOperationsStore.MapIntakeState` is a second hand-kept copy of `EfIntakeReceiptStore.ParseDecision`'s string set, and `IntakeMcpTools` a third — SIMPLI-010 had to edit two of them to remove one code. Collapse onto `ParseDecision` (same assembly) or a shared code table; note `ParseDecision` throws on unknown codes where `MapIntakeState` returns `Unknown` (and omits `blocked_intake`/`image_intake_registered`), so decide the fail-closed behaviour explicitly.
-- `DependencyDirectionTests`: a fact that `Pegasus.Web` composes no queue client and cannot resolve `ProcessQueuedIntake` (today asserted only inside `QdosIntakeWebTests`).
-- `IIntakeSubmission` has one implementation (`ReceiveIntake`) and two Web callers — fold the callers onto `ReceiveIntake` and delete the interface and its registration unless a test double is genuinely wanted.
+1. Name adapter faults across the queued-intake path so Core transient-failure policy matches intake-owned exception types rather than raw BCL or provider exceptions.
+2. Add an architecture assertion that Pegasus.Web composes neither a queue client nor `ProcessQueuedIntake`.
 
 ## Why
 
-One place per taxonomy and per code table; adapters name faults, Core matches its own types; invariants asserted where architecture tests live; no leftover abstraction.
+`AzureBlobIntakeArtifactStore` names only some failures, while the file-system and EF paths can surface raw I/O, SQL, or terminal deadlock exceptions. Core should classify supported intake faults, not guess over provider exceptions. The Web composition boundary is currently asserted only inside a feature integration test and belongs in the architecture tests.
+
+`IIntakeSubmission` is deliberately not part of this ticket: it has real Web callers, so its existence alone is not evidence of an obsolete abstraction. The decision-code and operator-label work is owned by [[INTK-004]].
 
 ## Verification
 
-- [ ] `IsTransientProcessingFailure` lists no BCL exception types once every adapter in the processor's path names its faults (or the plan records why one remains).
-- [ ] Exactly one place enumerates persisted intake decision codes; Operations and MCP read through it.
-- [ ] Architecture test fails if Web registers a queue client or the processor.
-- [ ] `IIntakeSubmission` removed or its second concrete need recorded.
+- [ ] Every supported adapter failure reaching queued-intake retry policy is translated to a named intake fault, or a concrete exception is documented.
+- [ ] `IsTransientProcessingFailure` contains no raw BCL/provider exception taxonomy once the adapters own translation.
+- [ ] The dependency-direction suite fails if Web registers a queue client or resolves `ProcessQueuedIntake`.
+- [ ] No decision-code table, label mapping, or `IIntakeSubmission` removal is implemented under this ticket.
 
 ## Outcome

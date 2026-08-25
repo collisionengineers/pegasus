@@ -21,9 +21,10 @@ links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-03-triage.md
+deployment: production
 archived: false
 created: '2026-08-20T18:44:30.327Z'
-updated: '2026-08-25T06:38:31.839Z'
+updated: '2026-08-25T06:40:07.655Z'
 ---
 
 ## Why

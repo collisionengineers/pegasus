@@ -21,9 +21,10 @@ links:
   - DELIV-012
 refs:
   - docs/frd/frd-01-case-identity-and-lifecycle.md
+deployment: production
 archived: false
 created: '2026-08-19T14:05:43.815Z'
-updated: '2026-08-25T06:38:29.880Z'
+updated: '2026-08-25T06:40:07.550Z'
 ---
 
 ## What

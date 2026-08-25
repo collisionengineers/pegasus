@@ -22,9 +22,10 @@ links: []
 blocks: []
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
+deployment: n/a
 archived: false
 created: '2026-08-13T12:12:48.943Z'
-updated: '2026-08-25T01:26:59.949Z'
+updated: '2026-08-25T06:40:09.034Z'
 ---
 
 ## What

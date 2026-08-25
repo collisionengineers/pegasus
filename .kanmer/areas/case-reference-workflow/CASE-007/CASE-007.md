@@ -22,9 +22,10 @@ links: []
 refs:
   - docs/frd/frd-12-operator-experience.md
   - docs/frd/frd-01-case-identity-and-lifecycle.md
+deployment: production
 archived: false
 created: '2026-08-20T17:39:20.825Z'
-updated: '2026-08-25T06:38:29.911Z'
+updated: '2026-08-25T06:40:07.510Z'
 ---
 
 ## Why

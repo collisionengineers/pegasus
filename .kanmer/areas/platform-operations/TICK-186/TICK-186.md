@@ -19,9 +19,10 @@ links:
   - TICK-009
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.505Z'
-updated: '2026-08-25T01:27:01.043Z'
+updated: '2026-08-25T06:40:08.157Z'
 ---
 
 ## What

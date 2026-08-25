@@ -12,7 +12,7 @@ labels:
   - follow-up
   - MCP-05
   - mail-workspace
-  - post-alpha
+  - next
 groups:
   - EPIC-005
   - EPIC-006
@@ -34,7 +34,7 @@ refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
 archived: false
 created: '2026-08-20T09:23:33.334Z'
-updated: '2026-08-20T09:23:50.263Z'
+updated: '2026-08-25T06:41:06.893Z'
 ---
 
 ## What

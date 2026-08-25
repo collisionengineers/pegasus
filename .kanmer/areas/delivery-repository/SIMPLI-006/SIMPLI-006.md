@@ -16,9 +16,10 @@ groups:
 links:
   - SIMPLI-001
 blocks: []
+deployment: n/a
 archived: false
 created: '2026-08-13T12:12:48.821Z'
-updated: '2026-08-25T01:26:59.834Z'
+updated: '2026-08-25T06:40:09.442Z'
 ---
 
 ## What

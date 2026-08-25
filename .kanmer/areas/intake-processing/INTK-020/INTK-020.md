@@ -23,9 +23,10 @@ links: []
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-12-operator-experience.md
+deployment: production
 archived: false
 created: '2026-08-20T14:08:22.595Z'
-updated: '2026-08-25T06:38:02.294Z'
+updated: '2026-08-25T06:40:07.592Z'
 ---
 
 ## Why

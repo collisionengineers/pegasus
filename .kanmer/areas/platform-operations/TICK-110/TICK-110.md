@@ -23,9 +23,10 @@ links:
   - TICK-001
 refs:
   - docs/adr/0014-local-to-production-deployment.md
+deployment: production
 archived: false
 created: '2026-08-12T15:08:02.263Z'
-updated: '2026-08-25T01:27:01.022Z'
+updated: '2026-08-25T06:40:08.204Z'
 ---
 
 ## What
