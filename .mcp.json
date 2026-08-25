@@ -2,13 +2,13 @@
   "mcpServers": {
     "kanmer": {
       "type": "stdio",
-      "command": "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\Kanmer.exe",
+      "command": "C:\\Users\\PC\\AppData\\Local\\Programs\\Kanmer\\Kanmer.exe",
       "args": [
-        "C:\\Users\\Alex\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanmer-mcp.cjs",
+        "C:\\Users\\PC\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanmer-mcp.cjs",
         "--root",
-        "C:\\Users\\Alex\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer",
+        "C:\\Users\\PC\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer",
         "--repo-root",
-        "C:\\Users\\Alex\\Documents\\GitHub\\pegasus"
+        "C:\\Users\\PC\\Documents\\GitHub\\pegasus"
       ],
       "env": {
         "ELECTRON_RUN_AS_NODE": "1"
