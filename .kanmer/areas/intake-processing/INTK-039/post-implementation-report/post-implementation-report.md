@@ -33,3 +33,7 @@ Codex review of `c205afb0` found two actionable races. The implementation now re
 ## Second rereview corrections
 
 The group-action gate now reuses the page's existing refresh predicate, covering both nonterminal queue members and terminal Working outcomes with one condition. The grouped-image Processing guard now applies only to `NeedsSorting`, preserving terminal Blocked intake. Direct tests pass 26/26, the affected slice passes 57/57, and the Release build remains warning-free.
+
+## Merge
+
+All eleven CI checks passed on `44d1356d`. The operator explicitly directed merge despite another automated rereview cycle. PR #545 merged into `dev` as `eaabf31130bee9073a1b2e450a24d8fe6d83ce22`.

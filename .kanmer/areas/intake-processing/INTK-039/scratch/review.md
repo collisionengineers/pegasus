@@ -13,3 +13,7 @@ PR #545 targets `dev` from `task/intk-039-image-lifecycle-merge` at `c205afb0`. 
 - P1 nonterminal queue member allowed partial group action: **applied** by gating `OpenGroupDecision` on the existing `RefreshAutomatically` predicate.
 - P2 grouped Blocked intake polled forever: **applied** by limiting the Processing guard to `NeedsSorting` and adding a focused terminal regression.
 - No additional hosted fixture or abstraction was added.
+
+## Merge — 2026-08-25
+
+Operator explicitly directed merge after all eleven CI checks passed, overriding further automated rereview churn. PR #545 merged to `dev` as `eaabf31130bee9073a1b2e450a24d8fe6d83ce22`; head was `44d1356dcb1af6cb613212bfefb6c98129eb7629`.
