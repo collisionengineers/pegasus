@@ -51,14 +51,6 @@ public sealed record EvaAcceptedCaseEvidence(
     EvaEvidenceValue Mileage,
     EvaEvidenceValue MileageUnit);
 
-public sealed record EvaMappingAcceptance(
-    string? MappingKey,
-    int? MappingVersion,
-    string? EvidenceReference)
-{
-    public static EvaMappingAcceptance Unaccepted { get; } = new(null, null, null);
-}
-
 public sealed record EvaFieldProvenance(
     string Name,
     string Value,
@@ -70,22 +62,16 @@ public sealed record EvaBundleSource(
     EvaReplayFields Fields,
     IReadOnlyList<EvaFieldProvenance> Provenance,
     string MappingKey,
-    int MappingVersion,
-    string MappingAcceptanceEvidence);
+    int MappingVersion);
 
 /// <summary>
 /// One operator export of a case: the bundle source, and the fields the case
 /// simply does not hold, so the operator learns about a gap before the file
-/// reaches EVA rather than after. <see cref="BlockingReasons"/> carries only
-/// the activation gate — nothing about a case's own data blocks an export.
+/// reaches EVA rather than after.
 /// </summary>
 public sealed record EvaOperatorExport(
-    EvaBundleSource? Source,
-    IReadOnlyList<string> UnrecordedFields,
-    IReadOnlyList<string> BlockingReasons)
-{
-    public bool IsReady => Source is not null && BlockingReasons.Count == 0;
-}
+    EvaBundleSource Source,
+    IReadOnlyList<string> UnrecordedFields);
 
 /// <summary>
 /// Maps one case into the fixed thirteen-field EVA shape. Since ENG-016 there
@@ -119,9 +105,7 @@ public static partial class CaseEvaMapping
     private const int InspectionAddressLines = 6;
 
     public const string MappingKey = "qdos-eva-13-field-mapping";
-    public const int MappingVersion = 1;
-    public const string ActivationGateReason =
-        "EVA hand-off is not switched on.";
+    public const int MappingVersion = 2;
 
     /// <summary>
     /// Named source for an inspection date the case did not carry, so the
@@ -132,22 +116,6 @@ public static partial class CaseEvaMapping
     /// in-memory guard inside EvaBundleSchema.ValidateSource.
     /// </summary>
     public const string ExportDateSource = "SystemDefault:Export date";
-
-    /// <summary>
-    /// Whether the EVA field mapping is switched on at all: the
-    /// operator-accepted mapping must be present and be exactly the mapping
-    /// this code writes. The one owner of that question, and the only thing
-    /// that can block an export. <see cref="ActivationGateReason"/> keeps its
-    /// existing operator-facing wording: message text is a closed,
-    /// operator-approved list, not this ticket's to reword.
-    /// </summary>
-    public static bool IsSwitchedOn(EvaMappingAcceptance acceptance)
-    {
-        ArgumentNullException.ThrowIfNull(acceptance);
-        return string.Equals(acceptance.MappingKey, MappingKey, StringComparison.Ordinal)
-            && acceptance.MappingVersion == MappingVersion
-            && !string.IsNullOrWhiteSpace(acceptance.EvidenceReference);
-    }
 
     /// <summary>
     /// Maps a case for the operator's export of it (CASE-019) — since ENG-016
@@ -161,12 +129,11 @@ public static partial class CaseEvaMapping
     ///
     /// The rules, all of them:
     ///
-    /// 1. Only an unaccepted mapping blocks. Nothing about the case does.
-    /// 2. A missing inspection date becomes <paramref name="today"/>, per
+    /// 1. A missing inspection date becomes <paramref name="today"/>, per
     ///    operator direction (2026-08-22), recorded as a system default the
     ///    same way an absent instruction date already resolves to the receipt
     ///    date.
-    /// 3. Any other absent field is emitted empty, keeps status
+    /// 2. Any other absent field is emitted empty, keeps status
     ///    <see cref="EvaEvidenceStatus.Unrecorded"/>, and is named in
     ///    <see cref="EvaOperatorExport.UnrecordedFields"/> so the operator is
     ///    told before they download rather than after they import.
@@ -177,15 +144,9 @@ public static partial class CaseEvaMapping
     /// </summary>
     public static EvaOperatorExport MapForOperatorExport(
         EvaAcceptedCaseEvidence evidence,
-        EvaMappingAcceptance acceptance,
         DateOnly today)
     {
         ArgumentNullException.ThrowIfNull(evidence);
-        ArgumentNullException.ThrowIfNull(acceptance);
-        if (!IsSwitchedOn(acceptance))
-        {
-            return new(null, [], [ActivationGateReason]);
-        }
 
         var resolved = RequiredMappedFields(evidence)
             .Select(field => field.Name == "Inspection Date"
@@ -217,10 +178,8 @@ public static partial class CaseEvaMapping
                 ToReplayFields(resolved),
                 provenance,
                 MappingKey,
-                MappingVersion,
-                acceptance.EvidenceReference!.Trim()),
-            unrecorded,
-            []);
+                MappingVersion),
+            unrecorded);
     }
 
     /// <summary>

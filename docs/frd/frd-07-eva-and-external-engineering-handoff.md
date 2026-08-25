@@ -22,8 +22,8 @@ Pressing Export confirms the values currently populated on the reviewed case.
 A populated suggestion is therefore exportable and keeps its `Suggested`
 provenance. VAT and mileage are optional. Mileage and mileage unit must be
 saved together when mileage is present. If Inspection Date is blank, the
-export date is emitted as the named system default. An unaccepted mapping is a
-configuration failure and blocks export.
+export date is emitted as the named system default. Export has no separate EVA
+activation or mapping-acceptance switch.
 
 The package contains deterministic UTF-8 JSON in this exact key order and every
 eligible retained Case-vehicle image:

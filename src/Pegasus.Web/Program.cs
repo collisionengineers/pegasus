@@ -548,14 +548,6 @@ builder.Services.AddPegasusInfrastructure((serviceProvider, options) =>
         ?? throw new InvalidOperationException("Connection string 'Pegasus' is required.");
     options.UseSqlServer(connectionString);
 }, localArtifactRootFactory, requestUploadLimitsFactory: requestUploadLimitsFactory,
-evaMappingAcceptanceFactory: serviceProvider =>
-{
-    var configuration = serviceProvider.GetRequiredService<IConfiguration>();
-    return new EvaMappingAcceptance(
-        configuration["Eva:AcceptedMapping:Key"],
-        configuration.GetValue<int?>("Eva:AcceptedMapping:Version"),
-        configuration["Eva:AcceptedMapping:EvidenceReference"]);
-},
 documentStorage: !productionProfile
     ? null
     : (Action<IServiceCollection>)(registrations => registrations.AddProductionDocumentStorage(

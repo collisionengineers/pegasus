@@ -292,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 28**. A branch
+- **Deployed evidence:** the estate currently serves **release 29**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 29 | 2026-08-25 | `b1aa68c8…` | `sha256:cb480319…` | `pegasus-prod-web-252ow37gij--b1aa68c86063` | none (head unchanged at `20260825001401_RemoveWorkflowCompletenessWaivers`) |
   | 28 | 2026-08-25 | `7e9465b0…` | `sha256:08f5f605…` | `pegasus-prod-web-252ow37gij--7e9465b00603` | `20260824123336_DropEvaHandoffTables`, `20260825001401_RemoveWorkflowCompletenessWaivers` |
   | 27 | 2026-08-24 | `7d4c8f00…` | `sha256:1e4146df…` | `pegasus-prod-web-252ow37gij--7d4c8f005261` | `20260824090400_DropEvaHandoffProvenanceAndManifest` |
   | 26 | 2026-08-23 | `7d6a948a…` | `sha256:d64e76ba…` | `pegasus-prod-web-252ow37gij--7d6a948a2f34` | none (head unchanged at `20260822223626_BackfillVehicleLookupSuggestions`) |
@@ -341,6 +342,20 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   What each release proved beyond smoke:
 
+  - **Release 29** (2026-08-25, source `b1aa68c8`, image
+    `sha256:cb480319…`, manifest SHA-256 `35C73A4D…`) deployed ENG-018's
+    correction to the single Export route. The obsolete
+    `EvaMappingAcceptance` check and its operator-facing “EVA hand-off is not
+    switched on” error are absent; the three `Eva__AcceptedMapping__*`
+    Container App settings were removed by provision. Mapping identity remains
+    version 2 as package/history metadata, while `Review` remains the sole
+    business-readiness gate. The immutable artifact and deployment-plan checks
+    passed, production smoke matched the exact source/version, the new Web
+    revision is ready with 100% traffic, and all nine Worker functions remain
+    enabled. No migration was required. This proves deployment and live
+    configuration removal; it does not claim an authenticated operator Export
+    or EVA import was performed.
+
   - **Release 28** (2026-08-25, source `7e9465b0`, image
     `sha256:08f5f605…`, manifest SHA-256 `C5943AFC…`) deployed ENG-016's single
     staff Export route. Export is available only while the case is in Review,
@@ -353,6 +368,11 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     enabled, and the post-migration check verified 512 catalogued permission
     rows and 351 effective runtime DML rows. This proves deployment and smoke;
     it does not claim a real operator export or EVA import was performed.
+    The first real operator attempt then exposed an ENG-016 merge regression:
+    deployed configuration retained mapping version 2 while Core had reverted
+    to version 1, so the remaining legacy activation check blocked every
+    Export. Release 29 deployed ENG-018's removal of that obsolete check and
+    configuration.
 
   - **Release 27** (2026-08-24, source `7d4c8f00`, image `sha256:1e4146df…`,
     manifest SHA-256 `D81BF7A9…`) collated eleven open pull requests — #525-#535
