@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests;
 
@@ -45,8 +46,8 @@ public sealed class RecoveryTests
             services.GetRequiredService<IStagedArtifactAuthority>(),
             services.GetRequiredService<IIntakeArtifactStore>(),
             clock);
-        Assert.Equal(1, (await reconciler.ExecuteAsync(10)).RecoveredLeases);
-        Assert.Equal(0, (await reconciler.ExecuteAsync(10)).RecoveredLeases);
+        Assert.Equal(1, (await reconciler.ExecuteAsync(10)).RecoveredWorkItems);
+        Assert.Equal(0, (await reconciler.ExecuteAsync(10)).RecoveredWorkItems);
 
         var recovered = await store.ClaimDispatchAsync(
             clock.GetUtcNow(),
@@ -56,6 +57,150 @@ public sealed class RecoveryTests
         var recoveredWork = recovered!;
         Assert.Equal(first.StagedReceiptId, recoveredWork.StagedReceiptId);
         Assert.NotEqual(claimedWork.LeaseToken, recoveredWork.LeaseToken);
+    }
+
+    [Fact]
+    public async Task LostDispatchedMessageIsRecoveredAfterOneMinuteAndProcessedOnce()
+    {
+        var clock = new AdjustableTimeProvider(new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero));
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<IIntakeWorkStore>();
+        var received = await new ReceiveIntake(
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            store,
+            clock).ExecuteAsync(
+                CreateSource("lost-dispatched-message"),
+                "qdos-alpha:lost-dispatched-message");
+        var firstDispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await store.MarkDispatchedAsync(
+            firstDispatch.Id,
+            firstDispatch.LeaseToken!,
+            clock.GetUtcNow(),
+            CancellationToken.None);
+        var reconciler = new ReconcileStagedArtifacts(
+            store,
+            services.GetRequiredService<IStagedArtifactAuthority>(),
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            clock);
+
+        clock.Advance(TimeSpan.FromSeconds(59));
+        Assert.Equal(0, (await reconciler.ExecuteAsync(10)).RecoveredWorkItems);
+        Assert.Null(await store.ClaimDispatchAsync(
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, (await reconciler.ExecuteAsync(10)).RecoveredWorkItems);
+        Assert.Equal(0, (await reconciler.ExecuteAsync(10)).RecoveredWorkItems);
+        var recoveredDispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+            clock.GetUtcNow(),
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        Assert.Equal(received.StagedReceiptId, recoveredDispatch.StagedReceiptId);
+        Assert.Equal(firstDispatch.AttemptCount, recoveredDispatch.AttemptCount);
+        await store.MarkDispatchedAsync(
+            recoveredDispatch.Id,
+            recoveredDispatch.LeaseToken!,
+            clock.GetUtcNow(),
+            CancellationToken.None);
+
+        var processor = IntakeWebDriver.CreateProcessor(services);
+        Assert.Equal(
+            QueuedIntakeProcessingOutcome.Completed,
+            await processor.ExecuteAsync(received.StagedReceiptId));
+        Assert.Equal(
+            QueuedIntakeProcessingOutcome.NoOp,
+            await processor.ExecuteAsync(received.StagedReceiptId));
+        var evaluation = Assert.IsType<IntakeEvaluationRevision>(
+            await store.GetCompletedEvaluationAsync(
+                received.StagedReceiptId,
+                CancellationToken.None));
+        Assert.Equal(1, evaluation.Revision);
+    }
+
+    [Fact]
+    public async Task RecoveryLimitUsesTheTimeEachWorkItemBecameRecoverable()
+    {
+        var nowUtc = new DateTimeOffset(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
+        var clock = new AdjustableTimeProvider(nowUtc);
+        using var factory = new IntakeWebApplicationFactory(clock);
+        await using var scope = factory.Services.CreateAsyncScope();
+        var services = scope.ServiceProvider;
+        var store = services.GetRequiredService<IIntakeWorkStore>();
+        var receiver = new ReceiveIntake(
+            services.GetRequiredService<IIntakeArtifactStore>(),
+            store,
+            clock);
+
+        var lostDispatch = await receiver.ExecuteAsync(
+            CreateSource("recovery-order-dispatched"),
+            "qdos-alpha:recovery-order-dispatched");
+        var dispatchClaim = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+            nowUtc,
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await store.MarkDispatchedAsync(
+            dispatchClaim.Id,
+            dispatchClaim.LeaseToken!,
+            nowUtc,
+            CancellationToken.None);
+
+        var expiredProcessing = await receiver.ExecuteAsync(
+            CreateSource("recovery-order-processing"),
+            "qdos-alpha:recovery-order-processing");
+        var processingDispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
+            nowUtc,
+            TimeSpan.FromMinutes(1),
+            CancellationToken.None));
+        await store.MarkDispatchedAsync(
+            processingDispatch.Id,
+            processingDispatch.LeaseToken!,
+            nowUtc,
+            CancellationToken.None);
+        Assert.NotNull(await store.ClaimProcessingAsync(
+            expiredProcessing.StagedReceiptId,
+            nowUtc,
+            TimeSpan.FromMinutes(5),
+            CancellationToken.None));
+
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using (var context = await contextFactory.CreateDbContextAsync())
+        {
+            await context.IntakeWorkItems
+                .Where(item => item.StagedReceiptId == lostDispatch.StagedReceiptId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.DueAtUtc, nowUtc - TimeSpan.FromSeconds(70)));
+            await context.IntakeWorkItems
+                .Where(item => item.StagedReceiptId == expiredProcessing.StagedReceiptId)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.LeaseExpiresAtUtc, nowUtc - TimeSpan.FromSeconds(30)));
+        }
+
+        Assert.Equal(1, await store.RecoverInterruptedWorkAsync(
+            nowUtc,
+            nowUtc - TimeSpan.FromMinutes(1),
+            1,
+            CancellationToken.None));
+
+        await using var verification = await contextFactory.CreateDbContextAsync();
+        Assert.Equal(
+            "dispatched",
+            await verification.IntakeWorkItems
+                .Where(item => item.StagedReceiptId == lostDispatch.StagedReceiptId)
+                .Select(item => item.State)
+                .SingleAsync());
+        Assert.Equal(
+            "retry_scheduled",
+            await verification.IntakeWorkItems
+                .Where(item => item.StagedReceiptId == expiredProcessing.StagedReceiptId)
+                .Select(item => item.State)
+                .SingleAsync());
     }
 
     [Fact]
