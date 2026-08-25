@@ -1,28 +1,13 @@
-# Release completion checklist
+# Acceptance completion checklist
 
-## Migrated validation — [[TICK-031]]
+## Operator acceptance
 
-- [ ] Link evidence for the real end-to-end workflow.
-- [ ] Record designated-operator acceptance separately from deployment evidence.
+- [ ] Record designated-operator acceptance of the demonstrated QDOS production workflow against real end-to-end work.
 
-## Migrated validation — [[TICK-032]]
+## Management approval
 
-- [ ] Present the exact release and workflow evidence to Collision Engineers management.
-- [ ] Record explicit management approval separately from implementation, deployment, and operator acceptance.
+- [ ] Record explicit Collision Engineers management approval, including the date and exact production-use scope.
 
-## Migrated validation — [[TICK-108]]
+## Progress notes
 
-- [ ] Recover the clean immutable manifest for the post-release-8 source.
-- [ ] Recover and verify the image and migration transcript.
-- [ ] Assign a numbered release only if the artifacts prove the complete release route.
-- [ ] Obtain exact-target approval before any live Azure or credential operation.
-
-## Migrated validation — [[TICK-218]]
-
-- [ ] Confirm each prerequisite production journey and its evidence.
-- [ ] Record designated-operator acceptance only for behavior actually demonstrated.
-
-## Migrated validation — [[TICK-219]]
-
-- [ ] Present the demonstrated workflow evidence and recorded operator acceptance.
-- [ ] Record an explicit management decision for the intended release scope.
+- 2026-08-25 — Board grooming removed ten obsolete release-recovery checklist entries. Numbered release execution and its immutable evidence are already recorded in `docs/operations.md`; only the two human approvals above remain.

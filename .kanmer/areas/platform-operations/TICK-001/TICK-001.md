@@ -1,11 +1,11 @@
 ---
 id: TICK-001
 type: ticket
-title: Complete the QDOS alpha production release
+title: Record QDOS production acceptance and management approval
 status: backlog
 area: platform-operations
 assignee: ''
-profile: feature
+profile: chore
 labels:
   - capability
   - OPS-10
@@ -14,23 +14,27 @@ labels:
 groups:
   - HZN-003
 links: []
+refs:
+  - docs/adr/0014-local-to-production-deployment.md
 archived: false
 created: '2026-08-12T15:03:52.764Z'
-updated: '2026-08-20T03:21:51.297Z'
+updated: '2026-08-25T06:41:26.480Z'
 ---
 
 ## What
 
-Complete the QDOS alpha production release — **re-scoped 2026-08-20**: the release-execution limbs of this ticket are satisfied (13 numbered releases have shipped with immutable manifests, digests, revisions, and migration transcripts — see `docs/operations.md` release table). What remains is acceptance, which is not agent-executable:
+Record the two approvals still required to complete QDOS production acceptance:
 
-- [ ] Designated-operator acceptance of the QDOS production workflow against real end-to-end work.
-- [ ] Explicit Collision Engineers management approval of production use (OPS-25; `docs/capabilities.md` records OPS-10 as "operator acceptance outstanding").
+- designated-operator acceptance of the real end-to-end production workflow;
+- explicit Collision Engineers management approval of the production-use scope.
 
 ## Why
 
-The capability inventory allocates OPS-10 to Now. The recover-the-manifest / assign-a-numbered-release limbs became moot once the numbered release process (release 8 onwards) was operating; keeping them open misstates the estate.
+The release-execution work is complete: numbered releases have shipped with immutable manifests, digests, revisions, and migration transcripts recorded in `docs/operations.md`. Treating that delivered work as still open obscures the only remaining decisions, which cannot be supplied by an agent.
 
 ## Verification
 
-- [ ] Operator acceptance recorded in `docs/operator-notes.md` or a linked decision.
-- [ ] Management approval recorded with date and scope.
+- [ ] Operator acceptance is recorded in `docs/operator-notes.md` or a linked protected decision without changing its meaning.
+- [ ] Management approval is recorded with its date and exact scope.
+
+## Outcome

@@ -5,7 +5,7 @@ title: Fail the build when a runtime role writes a table it has no grant on
 status: backlog
 area: platform-operations
 assignee: ''
-profile: feature
+profile: chore
 labels:
   - testing
   - least-privilege
@@ -14,7 +14,7 @@ links: []
 docs_todo: true
 archived: false
 created: '2026-08-22T04:52:30.443Z'
-updated: '2026-08-22T04:52:30.443Z'
+updated: '2026-08-25T06:41:31.634Z'
 ---
 
 ## Why
