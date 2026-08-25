@@ -41,3 +41,10 @@ Correct the two proven faults at their existing owners: grant the Worker the app
 - **Efficiency:** the added polling predicate is an in-memory pass over already-rendered outcomes; existing member reads remain parallel and no new database round-trip was introduced.
 - **Altitude:** Core continues to own lifecycle policy, Infrastructure owns SQL permissions, and Web owns operator presentation. No layer gained another layer's business decision.
 - **Disposition:** no behaviour-preserving simplification findings required a code change.
+
+### Review-fix simplification pass — 2026-08-25
+
+- The reviewer found two correctness gaps in the intermediate-state guard. Both were applied.
+- A distinct terminal `Resolved` presentation state is required because resolved Unidentified destinations are neither open decisions nor processing, and can represent non-Case targets; reusing an existing kind would misstate the result.
+- The group decision now adds one boolean condition over outcomes already loaded. No new service, read, fallback path, or policy owner was introduced.
+- The hosted regression uses the existing Web factory and replaces only the outcome query boundary needed to reproduce the mixed Working/open race.

@@ -25,3 +25,7 @@
 ## Remaining release proof
 
 Production migration permission read-back, the fresh screenshot journey, queue count/row equality, custody fold, and selective pre-release reset remain verification work after the reviewed PR merges and the exact-SHA release receives its required approvals.
+
+## Independent review corrections
+
+Codex review of `c205afb0` found two actionable races. The implementation now reports a resolved Unidentified destination as a terminal, non-actionable outcome and suppresses every submission-level action while any member remains Working. Direct upload tests pass 25/25; the complete affected slice passes 56/56; the post-fix Release build passes with 0 warnings/errors. Fresh CI and rereview are required on the updated commit.

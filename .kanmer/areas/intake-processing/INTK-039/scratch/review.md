@@ -1,3 +1,9 @@
 ## Review hand-off — 2026-08-25
 
 PR #545 targets `dev` from `task/intk-039-image-lifecycle-merge` at `c205afb0`. Local validation is green: focused 54/54; full Core 981/981, Architecture 99/99, Integration 956 passed / 16 skipped / 0 failed. Review must check plan coverage, implementation coverage, and the recorded simplification dispositions before merge.
+
+## Review findings disposition — 2026-08-25
+
+- P2 resolved-Unidentified infinite polling: **applied**. Added an explicit terminal Resolved outcome and regression coverage for an external-reference destination.
+- P1 partial group action during mixed Working/open state: **applied**. Any Working outcome now withholds the group decision; a hosted page regression proves refresh remains active and all group actions are absent.
+- Post-fix validation: direct upload slice 25/25; full affected slice 56/56; Release build 0 warnings/errors.
