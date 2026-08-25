@@ -4,10 +4,12 @@ type: ticket
 title: >-
   Make queued upload status honest for retry-scheduled work and auto-associated
   receipts
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-25T15:19:39.900Z'
 labels: []
 groups:
   - EPIC-002
@@ -21,7 +23,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-25T15:18:47.636Z'
+updated: '2026-08-25T15:19:39.900Z'
 ---
 
 ## What

@@ -2,10 +2,12 @@
 id: INTK-042
 type: ticket
 title: Publish committed intake and custody work immediately
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-25T15:19:34.322Z'
 labels: []
 groups:
   - EPIC-002
@@ -19,7 +21,7 @@ refs:
   - docs/frd/frd-05-documents-extraction-and-custody.md
 archived: false
 created: '2026-08-25T15:18:39.858Z'
-updated: '2026-08-25T15:18:47.581Z'
+updated: '2026-08-25T15:19:34.322Z'
 ---
 
 ## What

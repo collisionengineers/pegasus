@@ -2,10 +2,12 @@
 id: INTK-041
 type: ticket
 title: Define near-real-time two-stage durable intake
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-25T15:19:21.411Z'
 labels: []
 groups:
   - EPIC-002
@@ -20,7 +22,7 @@ blocks:
 docs_todo: true
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-25T15:18:47.405Z'
+updated: '2026-08-25T15:19:21.411Z'
 ---
 
 ## What

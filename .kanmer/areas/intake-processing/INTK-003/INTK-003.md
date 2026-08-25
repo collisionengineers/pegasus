@@ -2,10 +2,12 @@
 id: INTK-003
 type: ticket
 title: Recover dispatched intake work whose queue message never arrives
-status: backlog
+status: preparing
 area: intake-processing
 assignee: ''
 profile: fix
+stageEntered:
+  preparing: '2026-08-25T15:19:28.780Z'
 labels: []
 groups:
   - EPIC-002
@@ -16,7 +18,7 @@ blocks:
   - INTK-042
 archived: false
 created: '2026-08-17T11:46:06.025Z'
-updated: '2026-08-25T15:18:47.452Z'
+updated: '2026-08-25T15:19:28.780Z'
 ---
 
 ## What
