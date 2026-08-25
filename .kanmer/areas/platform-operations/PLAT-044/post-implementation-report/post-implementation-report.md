@@ -37,3 +37,19 @@ The dated simplification dispositions are recorded in the plan. The requested .N
 ## Deployment
 
 Not deployed. No Azure or other external state was changed.
+
+## Review correction outcome — 2026-08-25
+
+Assessment access now requires Review or Report preparation plus a successful EVA export from the current Review cycle. Re-entering Review invalidates the previous export until a new one succeeds. Later workflow changes do not invalidate it. Engineer assignment remains optional and does not affect access, readiness, or export.
+
+The Case-page control, Assessment workspace and mutating page handlers, and report generation all enforce the rule. NotReady automation/MCP assessment writes remain available outside the operator Assessment page.
+
+Verification after the correction:
+
+- Release solution build: 0 warnings, 0 errors.
+- Core: 981 passed.
+- Architecture: 99 passed.
+- Full integration baseline after fixture corrections: 954 passed, 16 expected skips, 0 failed.
+- Final focused integration against the latest query shape: 24 passed, 0 failed.
+- EF migration model check: no pending model changes.
+- `git diff --check`: clean.

@@ -53,3 +53,10 @@ Implementation:
 3. Apply the decision to the Case-page control, Assessment GET and all Assessment-page POST handlers, plus report generation. Preserve NotReady assessment/MCP writes outside this operator page.
 4. Remove the unused eager full-readiness evaluation from the new workspace source and correct affected documentation/comments.
 5. Add focused policy, persistence and Web tests, rerun simplification, restore/build/focused/full tests, then update this plan/report and PR.
+
+## Review-correction simplification pass — 2026-08-25
+
+- **Reuse:** The access result is one Core policy consumed by Case details, Assessment, and report generation. The persistence query reuses the existing workflow-event and EVA proxy stores.
+- **Simplicity:** Engineer assignment was kept entirely outside access/readiness; no compatibility path, feature flag, cache, or assignment abstraction was added. The unused eager full-readiness evaluation was deleted.
+- **Query shape:** An attempted shared projected EF query was removed after focused tests proved it was not composable. The two small translatable projections retain shared Core policy and avoid a new query abstraction solely for textual deduplication.
+- **Disposition:** No unapplied behavior-preserving findings remain.
