@@ -2,12 +2,15 @@
 id: MAIL-013
 type: ticket
 title: Wake approved mailbox intake through Graph change notifications
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-25T15:26:56.915Z'
+taken_at: '2026-08-26T14:57:23.032Z'
+branch: task/mail-013-graph-wake
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/mail-013-graph-wake'
 labels: []
 groups:
   - EPIC-006
@@ -21,7 +24,7 @@ refs:
   - docs/adr/0032-near-real-time-durable-intake-triggering.md
 archived: false
 created: '2026-08-25T15:18:39.919Z'
-updated: '2026-08-26T13:59:54.002Z'
+updated: '2026-08-26T14:57:23.032Z'
 ---
 
 ## What
