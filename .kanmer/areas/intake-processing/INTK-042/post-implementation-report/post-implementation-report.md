@@ -44,3 +44,13 @@ dotnet test tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj --con
 ```
 
 Expected: build/plan/Core/architecture commands pass; integration output is captured to replace the local-host stall evidence. Before deployment, confirm the Web identity has only the two Storage Queue Data Message Sender assignments, then DELIV-021 measures received-to-complete latency and queue failures.
+
+## Review remediation — 2026-08-26
+
+The first independent review blocked the PR. The branch now:
+- makes committed receipt/external publication a required Core dependency rather than a nullable optional service;
+- treats a recoverable release failure after a failed send as lease-expiry recovery, preserving the already-committed acknowledgement;
+- emits correlated, bounded `Pegasus.Core.Intake` and `Pegasus.Core.Custody` publication activities with identifier, path, and outcome tags;
+- adds focused route tests for manual receipt, acceptance, replacement, vehicle request, image registration, image merge, failed release, and a deployment-plan assertion for Web's two queue-scoped Message Sender assignments.
+
+Validation after remediation: Core tests passed **999**; Architecture tests passed **100**; the local Bicep deployment-plan validation passed. The integration subset remains deliberately pending, not passed.

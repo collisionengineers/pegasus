@@ -42,3 +42,7 @@ Core tests prove exact-ID publication, enqueue-before-mark, no broad outbox scan
 - **Efficiency:** direct publication does one indexed exact-ID claim; it does not scan pending work or wait for the five-second timer.
 - **Altitude:** Core owns leasing and recovery; Infrastructure only sends identifiers; Web never processes messages. The only new public value is an already-committed image external-work ID required to publish its existing outbox row.
 - **Disposition:** no further behaviour-preserving simplification found. The selected integration suite remains pending because concurrent local integration hosts stalled it; this is recorded for review rather than hidden.
+
+## Review remediation — 2026-08-26
+
+Independent review found that a failed best-effort release could escape after the queue send had failed, that required publication could be silently omitted through nullable composition, and that route/telemetry/RBAC proof was incomplete. The correction makes the two committed-publisher ports mandatory in both composition roots, suppresses a recoverable release failure so lease expiry remains the fallback, and records bounded correlated publication activities. Tests now exercise receipt, acceptance, replacement, vehicle, image-register, image-merge, release-failure, and queue-sender-role paths.

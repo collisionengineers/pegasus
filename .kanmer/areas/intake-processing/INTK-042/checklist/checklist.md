@@ -8,4 +8,4 @@
 - [x] Change timer-first schedules/comments to recovery-only cadence.
 - [x] Add Web sender-only configuration/RBAC without deploying.
 - [ ] Complete focused integration validation where the local SQL test host is responsive; update the implementation report.
-- [ ] Run the simplification pass, commit, push, open the PR to `dev`, and move to Review.
+- [x] Run the simplification pass, commit, push, open the PR to `dev`, move to Review, and correct the independent-review findings.
