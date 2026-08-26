@@ -47,3 +47,27 @@ PR #562 replaces the hand-authored Test UI inventory and pages with a JSON manif
 ## Verdict
 
 **Needs changes.** Prior findings 1 and 4 are resolved. Finding 2 remains, and finding 3 is syntactically resolved but still violates visual parity for evidence-image states. Compare browser output from the actual captured/live Razor page (with its image responses/assets available) against the offline snapshot, or materialize approved local image sources before comparison. Do not claim live/offline screenshot parity by comparing two identical rewritten local files.
+
+# Final independent re-review — commit 44d16f46 — 2026-08-26
+
+## Prior findings
+
+1. **Resolved — state selection.** Explicit markers remain in place and the four formerly incorrect defaults render their declared current branches.
+2. **Resolved — browser evidence.** The tautological two-local-file comparison was removed. Durable verification now keeps normalized Razor byte equality, opens every committed offline page in Chromium, captures a full-page screenshot, and requires every visible image to decode with positive natural width. The report also records the actual Chrome live/offline check and exact sign-in DOM/geometry comparison.
+3. **Resolved — offline images and root URLs.** The middleware captures exact `image/*` response bytes; generation substitutes matching Razor image URLs with data URLs before GUID/route rewriting. The committed vehicle and grouped-upload evidence images contain captured PNG bytes rather than `#`, and catalogue validation reports zero broken local references.
+4. **Resolved — GUID normalization.** Per-page deterministic GUID placeholders remain and no raw GUID is present in generated pages.
+
+## Checks
+
+- Inspected commit `44d16f46` and the response-capture/generator/browser-test changes.
+- `scripts/Test-UiCatalogue.ps1`: pass — 52 routed sources, 57 prototypes, 0 broken local references.
+- Confirmed embedded image data in vehicle detail and upload group pages; no visible `img src=\"#\"` remains.
+- A local `Update-TestUiSnapshots.ps1 -Verify -SkipCapture` attempt could not build because an existing .NET/MSBuild process 75056 held `Pegasus.Core.dll`; this is a concurrent-worktree lock, not a failure of the test. The committed report supplies the clean verification evidence.
+
+## Plan/report/simplification
+
+The implementation now meets the corrected current 57-state plan and its Razor-origin/offline-viewability boundary. The report accurately records the review corrections and live/offline Chrome evidence. The simplification pass remains honest: the solution reuses the existing integration host, tests, assets and Playwright, and adds no production runtime path.
+
+## Verdict
+
+**Approve.** No remaining blocking finding in PR #562 at `44d16f46`. Merge remains subject to the repository's green-CI requirement; this reviewer did not merge.
