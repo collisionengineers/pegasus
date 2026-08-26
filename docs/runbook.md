@@ -1021,8 +1021,8 @@ production subscription, tenant, resource group, and Worker, then confirms the
 deployed Worker's settings consistently match the expected activation. It does
 not require the previous release to already use the new release's function
 names. The post-provision smoke below enforces the new release's exact
-nine-setting census. Do not provision if the fresh inventory or activation
-baseline differs.
+nine-setting census and one-minute recovery schedule. Do not provision if the
+fresh inventory or activation baseline differs.
 
 Only after the separately approved exact-target gate passes, provision with
 the already reviewed release inputs, then read back the Worker state:

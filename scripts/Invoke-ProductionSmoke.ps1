@@ -50,7 +50,7 @@ $settingsJson = (& az functionapp config appsettings list `
     --subscription $SubscriptionId `
     --resource-group $ResourceGroupName `
     --name $workerAppName `
-    --query "[?starts_with(name, 'AzureWebJobs.')].{name:name,value:value}" `
+    --query "[?starts_with(name, 'AzureWebJobs.') && ends_with(name, '.Disabled')].{name:name,value:value}" `
     --output json) -join "`n"
 if ($LASTEXITCODE -ne 0) {
     throw "Unable to read Worker app settings from $ResourceGroupName/$workerAppName."
@@ -115,6 +115,19 @@ if (-not $valuesAreExact) {
 
 Write-Output "Production Worker activation smoke passed ($ExpectedWorkerActivation)."
 if ($WorkerOnly) {
+    if (-not $ActivationOnly) {
+        $recoverySchedule = (& az functionapp config appsettings list `
+            --subscription $SubscriptionId `
+            --resource-group $ResourceGroupName `
+            --name $workerAppName `
+            --query "[?name == 'PendingWorkRecoverySchedule'].value | [0]" `
+            --output tsv) -join "`n"
+        if ($LASTEXITCODE -ne 0 -or
+            -not [StringComparer]::Ordinal.Equals($recoverySchedule.Trim(), '0 * * * * *')) {
+            throw 'The live PendingWorkRecoverySchedule is not configured to run once per minute.'
+        }
+    }
+
     return
 }
 
