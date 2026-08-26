@@ -133,7 +133,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
         // CASE-008: any active case whose current registration has never been
         // looked up gets one automatic vehicle lookup enqueued; the existing
-        // dispatch timer and external-work queue carry it from there. Same
+        // dispatch timer and unified work queue carry it from there. Same
         // existing timer trigger deliberately; this is not a new schedule.
         var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
         LogAutomaticVehicleLookups(logger, vehicleLookups);
