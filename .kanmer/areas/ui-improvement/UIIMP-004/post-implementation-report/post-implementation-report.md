@@ -41,3 +41,7 @@ Chrome was used against the real Development Razor host at `http://localhost:523
 - The tautological two-local-file comparison was removed. Durable verification now combines normalized Razor byte comparison with Chromium rendering of every offline page, non-empty screenshots, and positive dimensions for every visible image.
 
 Commit: `44d16f46`.
+
+## GitHub CI SDK correction — 2026-08-26
+
+PR run 32991612398 failed the same mail-workspace route-preservation assertion twice on GitHub while the focused test and exact 306-test shard passed locally (305 passed, 1 intentional skip). The runner log showed the shared build action installed SDK 10.0.400 from `10.0.x`; the repository baseline is 10.0.302 and local validation used 10.0.303. Commit `f7c87173` makes the action's claimed pinned behavior real by installing 10.0.302 and restricting `global.json` roll-forward to the latest patch in that feature band. `dotnet --version`, the exact shard, actionlint, and `git diff --check` pass locally. Fresh GitHub CI is pending.
