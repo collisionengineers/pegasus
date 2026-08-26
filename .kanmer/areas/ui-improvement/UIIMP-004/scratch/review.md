@@ -125,3 +125,22 @@ Repository workflow says the plan owns whole-task scope and review must compare 
 The corrected plan now matches commit `f840d48a`: it records the disproven and fully reverted SDK hypothesis, the GitHub/Linux candidate-anchor mailbox omission, operator authorization for the one-link `QueryHelpers.AddQueryString` correction, the exact-anchor regression assertion, and focused plus fresh GitHub shard-1 acceptance.
 
 **Formal plan blocker cleared.** The implementation remains independently approved. Run 33004368148 is active; merge remains gated only by the required green CI result.
+
+# Final Mail binding re-review — commit e46845c2 — 2026-08-26
+
+## Findings
+
+**Approve.**
+
+- The disproven explicit URL-builder workaround is fully removed, including its `QueryHelpers` import and PageModel method.
+- The original candidate anchor Tag Helper and its existing route values are restored exactly.
+- The net product change is one direct GET-boundary read: `Request.Query["mailbox"]` is normalized with the existing whitespace/null rule before retained-message lookup, outside-list-scope calculation, Back/candidate route rendering, or any other consumer.
+- This does not bypass mailbox authorization or business policy. Mailbox remains list context only; the retained message is still loaded and authorized through the existing `getRetainedMail` path.
+- POST handlers retain the existing bound `MailboxFilter` behavior; only `OnGetAsync` overrides the unreliable GET property-binding result from the canonical request query.
+- Multiple/missing/whitespace values retain the effective string/null handling already used by the property path; no new compatibility layer or abstraction was introduced.
+- The regression test remains correctly narrowed to the exact `targetCaseId` candidate anchor and asserts the decoded link preserves mailbox and page context.
+- The plan's Final CI root cause correction matches this implementation and its fresh shard-1 acceptance condition.
+
+## Verdict
+
+No correctness, simplicity, or scope blocker remains at `e46845c2`. Merge remains subject to the active GitHub run completing green; this reviewer did not merge.
