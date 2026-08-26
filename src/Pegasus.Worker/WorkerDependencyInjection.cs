@@ -96,7 +96,7 @@ public static class WorkerDependencyInjection
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
             var provisioning = serviceProvider.GetRequiredService<WorkerStorageProvisioning>();
             return new AzureQueueIntakeWorkEnqueuer(
-                queues.IntakeWorkQueue,
+                queues.WorkQueue,
                 provisioning.AllowLocalCreateIfNotExists);
         });
         services.AddScoped<ReceiveIntake>();
@@ -123,7 +123,7 @@ public static class WorkerDependencyInjection
             var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
             var provisioning = serviceProvider.GetRequiredService<WorkerStorageProvisioning>();
             return new AzureQueueExternalWorkEnqueuer(
-                queues.ExternalWorkQueue,
+                queues.WorkQueue,
                 provisioning.AllowLocalCreateIfNotExists);
         });
         services.AddScoped<DispatchPendingExternalWork>();
