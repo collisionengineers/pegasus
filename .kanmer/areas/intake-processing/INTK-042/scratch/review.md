@@ -55,3 +55,15 @@ The reviewed head remained `4e1cc7c4e62ca700fd8f9e3b0518577979302cf7`, but requi
 - `QdosAllocationRecoveryBrowserTests.FailedAllocationShowsSafeRecoveryWithoutRawIdentifiers` — retry action timeout.
 
 All three failures occur on Web mutation paths now awaiting immediate publication, so they cannot be dismissed as unrelated without evidence. SQL integration shards were still running when the browser failure became final. Per the repository merge gate, PR #553 was not merged.
+
+# Merge gate update — head dfda320d — 2026-08-26
+
+The narrow `IntakeWebApplicationFactory` override fixed the original Browser regression: Browser passed 49/49 on the fresh run. The head remained unchanged.
+
+Merge is still blocked because all three SQL integration shards failed. The failures are deterministic composition fallout from making committed publication required:
+
+- Multiple mailbox/estate and other integration service collections register `ReceiveIntake` without `ICommittedIntakeWorkPublisher`, causing DI activation failures.
+- Other required external-publisher consumers fail similarly across the shards.
+- Production-profile readiness Web factories now fail startup because the newly required `IntakeQueue:ServiceUri` / `ExternalWorkQueue:ServiceUri` values are not supplied.
+
+The TestServer fix is correct but too narrowly applied to `IntakeWebApplicationFactory`; every intentional test composition must now provide the required publisher port or valid production queue configuration. PR #553 was not merged.
