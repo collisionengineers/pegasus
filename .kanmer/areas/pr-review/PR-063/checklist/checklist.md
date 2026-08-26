@@ -25,3 +25,14 @@
 ## PR-064 evidence correction — 2026-08-26
 
 This supersedes PR-063’s earlier statement that its first rerun had corrected all 39 defaults. Review found two remaining contradictions: organization-edit’s inventory claimed no principals/roles despite its populated Work Provider markup, and vehicle-image detail claimed registered images while rendering an image with no source. [[PR-064]] corrected both, rechecked all 39 defaults against the PR-063 mapping/current Razor owners, and found no additional contradiction. The validator now also rejects absent, empty, and whitespace-only image sources.
+
+## Closeout — PR-063
+
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised with PR URL and merge date
+- [x] Moved to final stage
+- [ ] Outcome and traceability recorded
+- [ ] PR-063 worktree removed
+- [ ] PR-063 branch deleted
+- [ ] `git fetch --prune` and `git worktree prune`
+- [ ] Ticket claim released
