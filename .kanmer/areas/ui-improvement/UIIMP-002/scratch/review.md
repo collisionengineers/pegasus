@@ -43,3 +43,41 @@ Reviewer did not implement this ticket.
 ## Verdict
 
 **Needs changes.** Do not merge PR #556 or move UIIMP-002 to Verifying. [[PR-063]] blocks the ticket until the fidelity/evidence defects are corrected and the PR is re-reviewed.
+
+# Consolidated independent re-review — PR #556 — 2026-08-26
+
+Reviewer did not implement UIIMP-002. This is the final consolidated review after [[PR-063]] and [[PR-064]]; ordinary HTML fidelity nits were not expanded into further tickets.
+
+## Changes
+
+- `docs/design/README.md` records the disposable Test UI boundary, naming convention, branch-claim evidence, and separation from Live UI.
+- `docs/design/test-ui/index.html` is the sole 52-route inventory and links 60 static state pages for the 39 visual routes.
+- `docs/design/test-ui/pages/*.html` supplies the standalone authenticated, navless-auth, and external-shell replicas using the tracked stylesheet and approved assets.
+- `scripts/Test-UiCatalogue.ps1` validates route/classification coverage, branch-claim presence, unique state/file mappings, local references, usable image sources, orphan prototypes, and publish isolation.
+
+## Comments and disposition
+
+1. **Prior blocking fidelity findings — fixed in PR.** [[PR-063]] restored the normal defining interaction in defaults and mapped every visual state to an explicit Razor/PageModel branch. The previously cited principal-create and roles defaults now contain their defining forms/tables.
+2. **Prior contradictory branch claims — fixed in PR.** [[PR-064]] makes organization-edit's claim agree with its populated Work Provider/principal markup and makes vehicle-image detail truthfully claim an awaiting-instruction branch with no registered images. Direct comparison with both current Razor owners confirms those corrections.
+3. **Prior false whitespace evidence — fixed in PR.** `git diff --check origin/dev...HEAD` exits zero with no output at PR head `05e9e1e5`.
+4. **Report/checklist truth — corrected in ticket.** Both documents explicitly supersede the earlier broad browser/fidelity claims, distinguish structural validation from manual semantic comparison, record representative rather than universal browser evidence, and identify the two later corrections.
+5. **CI checkout timeout — infrastructure-only, rerun passed.** The first `changes` attempt was cancelled after checkout fetch hit its five-minute limit before repository checks ran. The failed job was rerun; changes, documentation, local-development-scripts, and reference-data all passed. Build-irrelevant test lanes were correctly skipped by classification.
+6. **Non-blocking — won't-do-because.** Static replicas necessarily omit server handlers and cannot mechanically prove every semantic detail. The catalogue and report state that limitation; it is consistent with the ticket's disposable design-evidence boundary.
+
+## Required review questions
+
+- **Did the plan omit anything implied by the ticket?** No. It covers the isolated catalogue, every routed source, page/state fidelity, asset reuse, validation, documentation, accessibility evidence, and publish isolation.
+- **Did implementation omit anything in the plan?** No correctness or security blocker remains. The prior omissions and contradictory claims were corrected by [[PR-063]] and [[PR-064]].
+- **Was the simplification pass honest with dispositions?** Yes after correction. The plan now names the rejected skeletons and subsequent fidelity/focus corrections, and the ticket evidence explicitly supersedes claims disproved by earlier review.
+
+## Checks
+
+- Read the complete ticket folder, all pipeline documents, all prior scratch reviews, the full PR file inventory/diff, the current Razor owners for the prior contradictions, `docs/design/README.md`, and FRD-12.
+- `./scripts/Test-UiCatalogue.ps1`: passed — 52 routed sources, 60 prototypes, 0 broken local references.
+- `git diff --check origin/dev...HEAD`: passed with no output.
+- Worktree: clean at PR head `05e9e1e5cdb4daf4b18bca4e43d787c6405e8d69`.
+- GitHub Actions rerun: all applicable jobs green.
+
+## Verdict
+
+**Pass.** The earlier blockers are resolved, the evidence is now truthful, no open question remains, and no correctness/security blocker warrants another review ticket. Merge PR #556 into `dev` and move [[UIIMP-002]] to Verifying.

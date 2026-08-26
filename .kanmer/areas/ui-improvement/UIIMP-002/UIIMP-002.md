@@ -2,13 +2,14 @@
 id: UIIMP-002
 type: ticket
 title: Create throwaway HTML replicas of every Pegasus page
-status: review
+status: verifying
 area: ui-improvement
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-26T12:10:20.448Z'
   review: '2026-08-26T12:43:27.260Z'
+  verifying: '2026-08-26T13:29:37.042Z'
 taken_at: '2026-08-26T12:17:30.378Z'
 branch: task/uiimp-002-test-ui
 worktree: ../pegasus-worktrees/uiimp-002-test-ui
@@ -27,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-26T12:09:14.815Z'
-updated: '2026-08-26T12:43:27.260Z'
+updated: '2026-08-26T13:29:37.042Z'
 ---
 
 ## What
