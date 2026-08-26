@@ -12,17 +12,6 @@
     <div>
         <p class="eyebrow">Upload status</p>
         <h1>@Model.Heading</h1>
-        @* Once the confirmation section below has something to say, it says
-           it once — the generic "Processing is complete."/failure sentence
-           here would otherwise repeat the same fact a second time. *@
-        @if (Model.Outcome is null)
-        {
-            <p class="lede" aria-live="polite">@Model.Message</p>
-        }
-        else if (Model.IsDuplicate)
-        {
-            <p class="lede" aria-live="polite">@Model.Status.SourceFileName was already received. No duplicate was created.</p>
-        }
     </div>
 </header>
 
@@ -36,7 +25,7 @@
    nest a second main landmark inside the shared shell. *@
 <section class="panel"
          aria-labelledby="upload-file-heading"
-         data-auto-refresh="@(Model.RefreshAutomatically ? "2000" : null)">
+         data-auto-refresh="@Model.AutomaticRefreshMilliseconds">
     <h2 id="upload-file-heading" class="section-label">@Model.Status.SourceFileName</h2>
     <dl class="detail-list">
         <div><dt>Received</dt><dd>@OperatorLabels.OfficeTime(Model.Status.ReceivedAtUtc)</dd></div>

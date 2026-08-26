@@ -20,11 +20,16 @@ public sealed class EfQueuedIntakeStatusQueries(
                 item.SourceFileName,
                 item.ReceivedAtUtc,
                 State = item.WorkItem!.State,
+                item.WorkItem.DueAtUtc,
                 item.WorkItem.ProcessedReceiptId,
                 item.WorkItem.FailureCode,
-                CaseId = context.CaseIntakeLinks
+                AcceptedCaseId = context.CaseIntakeLinks
                     .Where(link => link.IntakeReceiptId == item.WorkItem.ProcessedReceiptId)
                     .Select(link => (Guid?)link.CaseId)
+                    .FirstOrDefault(),
+                ManualAssociation = context.IntakeManualAssociations
+                    .Where(association => association.IntakeReceiptId == item.WorkItem.ProcessedReceiptId)
+                    .Select(association => new { association.CaseId, association.IsActive })
                     .FirstOrDefault()
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -33,13 +38,20 @@ public sealed class EfQueuedIntakeStatusQueries(
             return null;
         }
 
+        var workState = EfIntakeWorkStore.ParseState(staged.State);
+        var caseId = staged.ManualAssociation is null
+            ? staged.AcceptedCaseId
+            : staged.ManualAssociation.IsActive
+                ? staged.ManualAssociation.CaseId
+                : null;
         return new(
             staged.Id,
             staged.SourceFileName,
             staged.ReceivedAtUtc,
-            QueuedIntakeStatusKinds.FromWorkState(EfIntakeWorkStore.ParseState(staged.State)),
+            QueuedIntakeStatusKinds.FromWorkState(workState),
             staged.ProcessedReceiptId,
-            staged.CaseId,
-            staged.FailureCode);
+            caseId,
+            staged.FailureCode,
+            workState == IntakeWorkState.RetryScheduled ? staged.DueAtUtc : null);
     }
 }

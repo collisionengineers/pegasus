@@ -26,26 +26,16 @@ public sealed class UploadStatusModel(
     public bool RefreshAutomatically =>
         Status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing;
 
+    public int? AutomaticRefreshMilliseconds => RefreshAutomatically
+        ? QueuedIntakeRefreshDelay.GetMilliseconds(Status, DateTimeOffset.UtcNow)
+        : null;
+
     public string Heading => Status.Status switch
     {
         QueuedIntakeStatusKind.Received => "Received",
         QueuedIntakeStatusKind.Processing => "Processing",
         QueuedIntakeStatusKind.Complete => "Complete",
         QueuedIntakeStatusKind.Failed => "Failed",
-        _ => throw new InvalidOperationException("The queued intake status is not recognized.")
-    };
-
-    public string Message => IsDuplicate
-        ? $"{Status.SourceFileName} was already received. No duplicate was created. {StateMessage}"
-        : StateMessage;
-
-    private string StateMessage => Status.Status switch
-    {
-        QueuedIntakeStatusKind.Received =>
-            "The file is safely received and waiting for background processing.",
-        QueuedIntakeStatusKind.Processing => "The file is being processed.",
-        QueuedIntakeStatusKind.Complete => "Processing is complete.",
-        QueuedIntakeStatusKind.Failed => OperatorLabels.IntakeFailure(Status.FailureCode) + ".",
         _ => throw new InvalidOperationException("The queued intake status is not recognized.")
     };
 

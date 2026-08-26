@@ -91,7 +91,8 @@ public sealed record QueuedIntakeStatus(
     QueuedIntakeStatusKind Status,
     Guid? ProcessedReceiptId,
     Guid? CaseId,
-    string? FailureCode);
+    string? FailureCode,
+    DateTimeOffset? RetryDueAtUtc = null);
 
 public static class QueuedIntakeStatusKinds
 {
@@ -104,13 +105,34 @@ public static class QueuedIntakeStatusKinds
     {
         IntakeWorkState.Pending
             or IntakeWorkState.Dispatching
-            or IntakeWorkState.Dispatched
-            or IntakeWorkState.RetryScheduled => QueuedIntakeStatusKind.Received,
-        IntakeWorkState.Processing => QueuedIntakeStatusKind.Processing,
+            or IntakeWorkState.Dispatched => QueuedIntakeStatusKind.Received,
+        IntakeWorkState.RetryScheduled
+            or IntakeWorkState.Processing => QueuedIntakeStatusKind.Processing,
         IntakeWorkState.Completed => QueuedIntakeStatusKind.Complete,
         IntakeWorkState.Failed => QueuedIntakeStatusKind.Failed,
         _ => throw new InvalidOperationException($"Unknown IntakeWorkState value '{(int)state}'.")
     };
+}
+
+public static class QueuedIntakeRefreshDelay
+{
+    private const int ImmediateMilliseconds = 2_000;
+    private const int MaximumMilliseconds = 60_000;
+
+    public static int GetMilliseconds(QueuedIntakeStatus status, DateTimeOffset nowUtc)
+    {
+        ArgumentNullException.ThrowIfNull(status);
+        if (status.Status is not (QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing)
+            || status.RetryDueAtUtc is not { } dueAtUtc)
+        {
+            return ImmediateMilliseconds;
+        }
+
+        return Math.Clamp(
+            (int)Math.Ceiling((dueAtUtc - nowUtc).TotalMilliseconds),
+            ImmediateMilliseconds,
+            MaximumMilliseconds);
+    }
 }
 
 public interface IQueuedIntakeStatusQueries

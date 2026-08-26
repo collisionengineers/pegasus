@@ -47,6 +47,31 @@ public sealed class UploadGroupStatusModel(
                 || status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing)
         || Outcomes.Values.Any(outcome => outcome?.IsStillWorking == true);
 
+    public int? AutomaticRefreshMilliseconds
+    {
+        get
+        {
+            if (!RefreshAutomatically)
+            {
+                return null;
+            }
+
+            var delays = Statuses.Values
+                .Where(status => status is null
+                    || status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing)
+                .Select(status => status is null
+                    ? 2_000
+                    : QueuedIntakeRefreshDelay.GetMilliseconds(status, DateTimeOffset.UtcNow))
+                .ToList();
+            if (Outcomes.Values.Any(outcome => outcome?.IsStillWorking == true))
+            {
+                delays.Add(2_000);
+            }
+
+            return delays.Min();
+        }
+    }
+
     /// <summary>
     /// Set when any member still needs a staff decision: the submission is
     /// decided once, as one unit, never per file.
