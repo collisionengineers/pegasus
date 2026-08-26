@@ -2,12 +2,15 @@
 id: UIIMP-004
 type: ticket
 title: Generate Test UI snapshots from current Razor rendering
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-26T14:16:14.522Z'
+taken_at: '2026-08-26T14:17:08.925Z'
+branch: task/uiimp-004-razor-snapshots
+worktree: ../pegasus-worktrees/uiimp-004-razor-snapshots
 labels:
   - ui
   - design
@@ -20,7 +23,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-26T14:16:09.318Z'
-updated: '2026-08-26T14:16:14.522Z'
+updated: '2026-08-26T14:17:08.925Z'
 ---
 
 ## What
