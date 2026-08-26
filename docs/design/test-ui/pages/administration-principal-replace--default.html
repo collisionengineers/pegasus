@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -119,8 +119,8 @@
                             <label for="SuccessorOrganizationId">Successor Work Provider organization</label>
                             <select data-val="true" data-val-required="The SuccessorOrganizationId field is required." id="SuccessorOrganizationId" name="SuccessorOrganizationId">
                                 <option value="">Select an organization</option>
-                                    <option value="4416d69e-c8eb-4fec-bcc1-49cfb3d72de6">QDOS development fixture</option>
-                                    <option value="637b91b5-8e5b-4e02-9a4e-96854bcd2192" selected="selected">Web Caller Provider</option>
+                                    <option value="test-ui-guid-3">QDOS development fixture</option>
+                                    <option value="test-ui-guid-1" selected="selected">Web Caller Provider</option>
                             </select>
                             <span class="field-validation-valid" data-valmsg-for="SuccessorOrganizationId" data-valmsg-replace="true"></span>
                         </div>

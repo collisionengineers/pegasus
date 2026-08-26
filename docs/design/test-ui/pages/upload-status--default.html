@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Access denied · Pegasus</title>
+    <title>Upload status · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -27,20 +27,89 @@
   <symbol id="icon-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
 </svg>
 
-    <div class="auth-shell">
-        <main id="main-content" tabindex="-1">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-rail-shell">
+        <header class="app-rail">
+            <a class="app-rail__brand" aria-label="Pegasus dashboard" href="dashboard--default.html">
+                <span>
+                    <img class="mark" src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                </span>
+                <b>Pegasus</b>
+            </a>
+            <nav class="app-rail__nav" aria-label="Primary">
+                <a class="rail-link" href="dashboard--default.html">
+                    <span>Dashboard</span>
+                </a>
+                    <a class="rail-link" href="inbox--default.html">
+                        <span>Inbox</span>
+                    </a>
+                    <a class="rail-link" href="upload--default.html">
+                        <span>Upload</span>
+                    </a>
+                <a class="rail-link" href="queues--default.html">
+                    <span>Queues</span>
+                        <span class="rail-link__count rail-link__count--waiting">0</span>
+                </a>
+                <a class="rail-link" href="cases--default.html">
+                    <span>Cases</span>
+                </a>
+                    <a class="rail-link" href="operations--default.html">
+                        <span>Operations</span>
+                    </a>
+                    <a class="rail-link" href="administration--default.html">
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="app-rail__user" role="group" aria-label="User">
+                    <span class="app-rail__name">development-offline-administrator</span>
+                    <a class="app-rail__action" href="password-change--default.html">Change password</a>
+                    <form method="post" action="#">
+                        <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </div>
+        </header>
+        <main id="main-content" class="app-rail-main" tabindex="-1">
 
-<div class="auth-card ">
-    <p class="auth-card__mark">COLLISION ENGINEERS</p>
-    <h1>Access denied</h1>
-    <p>Your account does not have access to this page.</p>
-        <div class="auth-card__actions">
-            <a class="secondary-action" href="dashboard--default.html">Return to Dashboard</a>
+<div class="form-column form-column--wide">
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">Upload status</p>
+        <h1>Complete</h1>
+            <p class="lede" aria-live="polite">ordinary-correspondence.eml was already received. No duplicate was created.</p>
+    </div>
+</header>
+
+<section class="panel"
+         aria-labelledby="upload-file-heading"
+         data-auto-refresh="">
+    <h2 id="upload-file-heading" class="section-label">ordinary-correspondence.eml</h2>
+    <dl class="detail-list">
+        <div><dt>Received</dt><dd>06 May 2031 11:30</dd></div>
+    </dl>
+
+        <div class="upload-outcome">
+        <span class="status-chip status-chip--amber">
+    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+    <span>Unidentified</span>
+</span>
+
+    <p class="upload-outcome__message">This could not be matched automatically and needs a staff decision.</p>
+        <div class="button-row">
+                <a class="primary-action" href="unidentified-details--default.html">Review</a>
         </div>
+</div>
+
+
+    <div class="button-row">
+        <a class="secondary-action" href="upload-status--default.html">Refresh</a>
+        <a class="secondary-action" href="upload--default.html">Upload another file</a>
+    </div>
+</section>
 </div>
 
         </main>
     </div>
+
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
 
 </body>

@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -95,7 +95,7 @@
                 <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             <details class="upload-attach" data-refresh-hold>
                 <summary class="secondary-action">Add to an existing case</summary>
-                <form method="post" class="upload-attach__form" data-case-search data-case-search-url="/Upload/Group/0f38e672-83ad-48a9-83e8-4f472d631361?handler=CaseSearch" action="upload-group-status--default.html">
+                <form method="post" class="upload-attach__form" data-case-search data-case-search-url="upload-group-status--default.html" action="upload-group-status--default.html">
                     <input type="hidden" name="caseId" value="" data-case-search-value />
                     <label for="group-attach-input">Case</label>
                     <input id="group-attach-input"
@@ -124,8 +124,8 @@
         <h2 id="group-status-title" class="section-label">Files in this submission</h2>
         <ol class="upload-outcome-list">
                 <li>
-                        <a class="upload-thumb" href="/Received/bc7ab0e8-befe-4d38-85a1-cba335d099a0/Image" target="_blank">
-                            <img src="/Received/bc7ab0e8-befe-4d38-85a1-cba335d099a0/Image"
+                        <a class="upload-thumb" href="#" target="_blank">
+                            <img src="#"
                                  loading="lazy"
                                  alt="overview.png" />
                         </a>
@@ -141,8 +141,8 @@
 
                 </li>
                 <li>
-                        <a class="upload-thumb" href="/Received/bdab1216-e59d-40a9-8123-2ecf398b04bc/Image" target="_blank">
-                            <img src="/Received/bdab1216-e59d-40a9-8123-2ecf398b04bc/Image"
+                        <a class="upload-thumb" href="#" target="_blank">
+                            <img src="#"
                                  loading="lazy"
                                  alt="close-up.png" />
                         </a>

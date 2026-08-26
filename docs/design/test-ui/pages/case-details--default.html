@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">integration-user</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -97,13 +97,13 @@
 
     <div class="record__bar">
                 <form method="post" class="record__bar-form" action="case-details--default.html">
-                    <input type="hidden" name="id" value="f2738987-9384-4225-a5fe-593d834cc96f" />
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
                     <input type="hidden" name="expectedVersion" value="0" />
                     <input type="hidden" name="operationKey" value="{{operationkey}}" />
                     <button type="submit" class="btn">Edit case</button>
                 <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
         <span class="gated" data-condition="Available in Review">
-            <form method="post" class="record__bar-form" action="/Cases/f2738987-9384-4225-a5fe-593d834cc96f/Documents/Export?handler=Bundle">
+            <form method="post" class="record__bar-form" action="#">
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
                 <button type="submit" class="btn" disabled="disabled">
                     <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>

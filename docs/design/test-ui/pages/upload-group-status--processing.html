@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -104,8 +104,8 @@
         </div>
         <details class="upload-attach" data-refresh-hold>
             <summary class="secondary-action">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form" data-case-search data-case-search-url="/Upload/Group/7b8f5e5b-577f-40cd-a266-7fc5791d3ae4?handler=CaseSearch" action="upload-group-status--default.html">
-                <input type="hidden" name="receiptId" value="1f05d8a2-5883-4aaf-9524-451a7d61b153" />
+            <form method="post" class="upload-attach__form" data-case-search data-case-search-url="upload-group-status--default.html" action="upload-group-status--default.html">
+                <input type="hidden" name="receiptId" value="test-ui-guid-3" />
                 <input type="hidden" name="caseId" value="" data-case-search-value />
                 <label for="case-attach-1f05d8a258834aaf9524451a7d61b153-input">Case</label>
                 <input id="case-attach-1f05d8a258834aaf9524451a7d61b153-input"

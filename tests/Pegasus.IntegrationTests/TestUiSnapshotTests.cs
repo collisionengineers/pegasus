@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Microsoft.Playwright;
 
 namespace Pegasus.IntegrationTests;
 
@@ -21,6 +22,7 @@ public sealed partial class TestUiSnapshotTests
             ["sign-in--signed-out"] = new("You are signed out"),
             ["administration-accounts--empty"] = new("No staff accounts are available."),
             ["administration-configuration--default"] = new("Workflow configuration"),
+            ["administration-mail-categories--default"] = new("<title>Outlook categories"),
             ["case-details--unavailable"] = new("<h1>Case unavailable</h1>"),
             ["case-details--conflict"] = new("case changed", "Case unavailable"),
             ["cases--empty"] = new("No matching cases."),
@@ -28,14 +30,17 @@ public sealed partial class TestUiSnapshotTests
             ["vehicle-images--empty"] = new("No Image-initiated Cases match this view."),
             ["inbox--empty"] = new("empty-state"),
             ["inbox--unavailable"] = new(">Unavailable<"),
+            ["inbox--default"] = new("<h1>Inbox</h1>"),
             ["operations--empty"] = new("empty-state"),
             ["queues--empty"] = new("No cases are waiting."),
             ["upload--validation"] = new("validation-summary-errors"),
             ["upload-group-status--processing"] = new("data-auto-refresh=\"2000\""),
             ["upload-group-status--needs-decision"] = new("needs a staff decision"),
+            ["upload-group-status--default"] = new("Open case"),
             ["upload-request--validation"] = new("Choose a document to upload."),
             ["upload-status--processing"] = new("data-auto-refresh=\"2000\""),
-            ["upload-status--needs-decision"] = new("needs a staff decision")
+            ["upload-status--needs-decision"] = new("needs a staff decision"),
+            ["upload-status--default"] = new("<h1>Complete</h1>")
         };
 
     [Fact]
@@ -69,6 +74,35 @@ public sealed partial class TestUiSnapshotTests
             Assert.True(
                 file.Value == await File.ReadAllTextAsync(path),
                 $"Generated Test UI file is stale: {file.Key}");
+        }
+        await VerifyBrowserParityAsync(catalogueRoot, generated);
+    }
+
+    private static async Task VerifyBrowserParityAsync(string catalogueRoot, IReadOnlyDictionary<string, string> generated)
+    {
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
+        foreach (var file in generated.Where(file => file.Key.StartsWith("pages/", StringComparison.Ordinal)))
+        {
+            var committedPath = Path.Combine(catalogueRoot, file.Key.Replace('/', Path.DirectorySeparatorChar));
+            var sourcePath = Path.Combine(Path.GetDirectoryName(committedPath)!, ".test-ui-live.html");
+            await File.WriteAllTextAsync(sourcePath, file.Value, new UTF8Encoding(false));
+            try
+            {
+                var sourcePage = await browser.NewPageAsync(new() { ViewportSize = new() { Width = 1440, Height = 1000 } });
+                var committedPage = await browser.NewPageAsync(new() { ViewportSize = new() { Width = 1440, Height = 1000 } });
+                await Task.WhenAll(
+                    sourcePage.GotoAsync(new Uri(sourcePath).AbsoluteUri, new() { WaitUntil = WaitUntilState.NetworkIdle }),
+                    committedPage.GotoAsync(new Uri(committedPath).AbsoluteUri, new() { WaitUntil = WaitUntilState.NetworkIdle }));
+                Assert.Equal(await sourcePage.ContentAsync(), await committedPage.ContentAsync());
+                Assert.Equal(await sourcePage.ScreenshotAsync(new() { FullPage = true }), await committedPage.ScreenshotAsync(new() { FullPage = true }));
+                await sourcePage.CloseAsync();
+                await committedPage.CloseAsync();
+            }
+            finally
+            {
+                File.Delete(sourcePath);
+            }
         }
     }
 
@@ -123,6 +157,17 @@ public sealed partial class TestUiSnapshotTests
         html = VolatileGuidValueRegex().Replace(html, match =>
             match.Groups[1].Value + "{{" + match.Groups[2].Value.ToLowerInvariant() + "}}" + match.Groups[3].Value);
         html = CacheBusterRegex().Replace(html, "$1{{asset-version}}");
+        var guidNumber = 0;
+        var guids = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        html = GuidRegex().Replace(html, match =>
+        {
+            if (!guids.TryGetValue(match.Value, out var replacement))
+            {
+                replacement = $"test-ui-guid-{++guidNumber}";
+                guids[match.Value] = replacement;
+            }
+            return replacement;
+        });
 
         var outputDirectoryDepth = outputFile.Count(character => character == '/') + 1;
         var sourcePrefix = string.Concat(Enumerable.Repeat("../", outputDirectoryDepth + 2));
@@ -142,7 +187,7 @@ public sealed partial class TestUiSnapshotTests
                 .States.FirstOrDefault(state => state.State == "default")?.File;
             if (target is null)
             {
-                return match.Value;
+                return $"{attribute}=\"#\"";
             }
             var currentDirectory = Path.GetDirectoryName(outputFile)?.Replace('\\', '/') ?? string.Empty;
             var relative = Path.GetRelativePath(currentDirectory, target).Replace('\\', '/');
@@ -273,8 +318,11 @@ public sealed partial class TestUiSnapshotTests
     [GeneratedRegex("\\.[a-z0-9]{8,}\\.([a-z0-9]+)$", RegexOptions.IgnoreCase)]
     private static partial Regex FingerprintedAssetRegex();
 
-    [GeneratedRegex("((?:href|action))=\"(/[^\"]*)\"", RegexOptions.IgnoreCase)]
+    [GeneratedRegex("((?:href|action|src|data-case-search-url|data-download-href|value))=\"(/[^\"]*)\"", RegexOptions.IgnoreCase)]
     private static partial Regex ApplicationUrlRegex();
+
+    [GeneratedRegex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", RegexOptions.IgnoreCase)]
+    private static partial Regex GuidRegex();
 
     [GeneratedRegex("[ \\t]+(?=\\n)")]
     private static partial Regex TrailingWhitespaceRegex();
