@@ -49,3 +49,7 @@ PR run 32991612398 failed the same mail-workspace route-preservation assertion t
 ### Reviewer correction
 
 Independent review blocked the initial 10.0.302 setup pin because local passing evidence used 10.0.303 and the repository-wide scope had not been added to the ticket plan. Commit `c7b47a29` pins both `global.json` and the shared action to the validated 10.0.303 baseline; the operator-requested CI resolution and its revert-if-unproven acceptance rule are now explicit in the plan. Fresh GitHub proof remains required.
+
+### Confirmed mail-route fix
+
+The clean 10.0.303 GitHub run failed identically, disproving the SDK hypothesis; commit `f5d072c5` restores the original SDK/action settings. Commit `77d2a04a` narrows the assertion to the exact matching case anchor and exposed that its generated URL omitted `mailbox` on the GitHub/Linux runner. Commit `f840d48a` replaces only that anchor's individual Tag Helper route attributes with `QueryHelpers.AddQueryString` over the same PageModel values. The focused end-to-end test passes locally and fresh GitHub proof plus independent re-review are pending.

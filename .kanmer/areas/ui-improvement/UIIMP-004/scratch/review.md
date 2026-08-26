@@ -93,3 +93,29 @@ The two settings are mechanically compatible. Every .NET CI lane uses `.github/a
 ## Verdict
 
 **Block pending scope/evidence correction.** There is no intrinsic `setup-dotnet`/`global.json` incompatibility, but PR #562 should not carry this unplanned repository-wide change on the evidence currently supplied. If the active GitHub run proves 10.0.302 and the owning ticket is explicitly expanded by the operator, re-review can clear the technical evidence point; otherwise move the pin to its own ticket/PR.
+
+# Independent re-review — commit f840d48a — 2026-08-26
+
+## Code and test
+
+**Technically approved.** The SDK experiment is fully reverted: relative to `origin/dev`, neither `global.json` nor the shared build action has a net change.
+
+The Mail candidate-link fix is correct and narrow:
+
+- only the candidate anchor at `Message.cshtml:472-481` changes;
+- `AssociationCandidateUrl` passes the same message id, mailbox, folder, page, search, queue, section, case query and target case id values previously supplied through Tag Helpers;
+- `QueryHelpers.AddQueryString` is an existing repository convention (`Cases/Index.cshtml.cs`) and correctly omits null values and encodes supplied values;
+- invariant page-number formatting and D-format GUIDs are explicit;
+- the test now extracts the exact anchor containing the expected `targetCaseId`, HTML-decodes its href, and checks the two route values GitHub demonstrated were at risk. It no longer passes because those strings occur elsewhere in the page.
+
+No unnecessary abstraction or compatibility path was added.
+
+## Remaining blocking documentation issue
+
+The operator authorized expanding UIIMP-004 to resolve the GitHub failure, but the ticket plan does **not yet record the implemented final scope**. Its “CI-resolution scope expansion” still limits work to SDK determinism and explicitly says “Do not change the unrelated MailWorkspace behavior”; that hypothesis was disproven and reverted. The actual narrow MailWorkspace URL fix is described only in the post-implementation report.
+
+Repository workflow says the plan owns whole-task scope and review must compare implementation against it. Update the plan expansion to record: SDK hypothesis disproven/reverted; GitHub isolated the candidate-anchor URL omission; authorized scope is the one-link `QueryHelpers` correction and exact-anchor regression test; acceptance is focused/local plus fresh GitHub shard. Then the diff and plan will agree.
+
+## Verdict
+
+**Block only on plan correction and required green CI.** The implementation itself is approved and has no remaining correctness, simplicity, or net toolchain concern.
