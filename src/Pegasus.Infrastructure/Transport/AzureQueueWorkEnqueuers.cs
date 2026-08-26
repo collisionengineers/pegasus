@@ -24,7 +24,7 @@ public sealed class AzureQueueIntakeWorkEnqueuer(
             await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
         }
         await queueClient.SendMessageAsync(
-            stagedReceiptId.ToString("D"),
+            UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.Intake, stagedReceiptId),
             cancellationToken: cancellationToken);
     }
 }
@@ -45,7 +45,70 @@ public sealed class AzureQueueExternalWorkEnqueuer(
             await queueClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
         }
         await queueClient.SendMessageAsync(
-            workItemId.ToString("D"),
+            UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.External, workItemId),
             cancellationToken: cancellationToken);
+    }
+}
+
+public enum UnifiedWorkQueueKind
+{
+    Intake,
+    External
+}
+
+/// <summary>
+/// The single critical-work queue contract. Both identifiers are GUIDs, so the
+/// kind is explicit rather than inferred from a database lookup.
+/// </summary>
+public static class UnifiedWorkQueueMessage
+{
+    private const string IntakePrefix = "intake:";
+    private const string ExternalPrefix = "external:";
+
+    public static string Format(UnifiedWorkQueueKind kind, Guid identifier)
+    {
+        if (identifier == Guid.Empty)
+        {
+            throw new ArgumentException("A durable work identifier is required.", nameof(identifier));
+        }
+
+        return kind switch
+        {
+            UnifiedWorkQueueKind.Intake => $"{IntakePrefix}{identifier:D}",
+            UnifiedWorkQueueKind.External => $"{ExternalPrefix}{identifier:D}",
+            _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        };
+    }
+
+    public static bool TryParse(
+        string? message,
+        out UnifiedWorkQueueKind kind,
+        out Guid identifier)
+    {
+        kind = default;
+        identifier = Guid.Empty;
+        if (message is null)
+        {
+            return false;
+        }
+
+        var prefix = message.StartsWith(IntakePrefix, StringComparison.Ordinal)
+            ? IntakePrefix
+            : message.StartsWith(ExternalPrefix, StringComparison.Ordinal)
+                ? ExternalPrefix
+                : null;
+        if (prefix is null
+            || !Guid.TryParseExact(message[prefix.Length..], "D", out identifier)
+            || identifier == Guid.Empty
+            || !string.Equals(message, $"{prefix}{identifier:D}", StringComparison.Ordinal))
+        {
+            identifier = Guid.Empty;
+            return false;
+        }
+
+        kind = prefix == IntakePrefix
+            ? UnifiedWorkQueueKind.Intake
+            : UnifiedWorkQueueKind.External;
+        return true;
     }
 }

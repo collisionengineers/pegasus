@@ -35,14 +35,12 @@ $ErrorActionPreference = 'Stop'
 
 $expectedWorkerSettings = @(
     'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-    'AzureWebJobs.IntakeWorkFunction.Disabled',
-    'AzureWebJobs.IntakePoisonFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
     'AzureWebJobs.InboxPollFunction.Disabled',
     'AzureWebJobs.SentEvidencePollFunction.Disabled',
-    'AzureWebJobs.DueWorkSweepFunction.Disabled',
-    'AzureWebJobs.ExternalWorkFunction.Disabled',
-    'AzureWebJobs.ExternalPoisonFunction.Disabled'
+    'AzureWebJobs.DueWorkSweepFunction.Disabled'
 )
 $workerAppName = 'pegasus-prod-worker-252ow37gij'
 
@@ -89,7 +87,7 @@ foreach ($expectedName in $expectedWorkerSettings) {
     }
 }
 if (-not $ActivationOnly -and -not $censusIsExact) {
-    throw 'The live Worker disabled-setting census differs from the exact nine-function release contract.'
+    throw 'The live Worker disabled-setting census differs from the exact seven-function release contract.'
 }
 
 $expectedDisabledValue = if ($ExpectedWorkerActivation -eq 'approved-live-worker') {

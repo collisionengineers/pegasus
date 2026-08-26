@@ -1,6 +1,7 @@
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
+using Pegasus.Infrastructure.Transport;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
 
@@ -32,39 +33,52 @@ public sealed partial class PendingWorkRecoveryFunction(
         int externalWorkCount);
 }
 
-public sealed class IntakeWorkFunction(ProcessQueuedIntake processQueuedIntake)
+public sealed class UnifiedWorkFunction(
+    IProcessQueuedIntake processQueuedIntake,
+    IProcessQueuedExternalWork processQueuedExternalWork)
 {
-    [Function(nameof(IntakeWorkFunction))]
-    public Task RunAsync(
+    [Function(nameof(UnifiedWorkFunction))]
+    public async Task RunAsync(
         [QueueTrigger("intake-work", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
-        if (!QueueMessageIdentifier.TryParse(message, out var stagedReceiptId))
+        if (!UnifiedWorkQueueMessage.TryParse(message, out var kind, out var identifier))
         {
             throw new InvalidDataException(
-                "The intake work message does not contain one canonical staged receipt identifier.");
+                "The unified work message does not contain one typed canonical durable identifier.");
         }
 
-        return processQueuedIntake.ExecuteAsync(stagedReceiptId, cancellationToken);
+        switch (kind)
+        {
+            case UnifiedWorkQueueKind.Intake:
+                await processQueuedIntake.ExecuteAsync(identifier, cancellationToken);
+                return;
+            case UnifiedWorkQueueKind.External:
+                await processQueuedExternalWork.ExecuteAsync(identifier, cancellationToken);
+                return;
+            default:
+                throw new InvalidDataException("The unified work message has an unsupported kind.");
+        }
     }
 }
-
-public sealed class IntakePoisonFunction(ReconcilePoisonedQueueWork reconcilePoisonedQueueWork)
+public sealed class UnifiedWorkPoisonFunction(ReconcilePoisonedQueueWork reconcilePoisonedQueueWork)
 {
-    [Function(nameof(IntakePoisonFunction))]
+    [Function(nameof(UnifiedWorkPoisonFunction))]
     public Task RunAsync(
         [QueueTrigger("intake-work-poison", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
-        if (!QueueMessageIdentifier.TryParse(message, out var stagedReceiptId))
+        if (!UnifiedWorkQueueMessage.TryParse(message, out var kind, out var identifier))
         {
             throw new InvalidDataException(
-                "The intake poison message does not contain one canonical staged receipt identifier.");
+                "The unified poison message does not contain one typed canonical durable identifier.");
         }
 
         return reconcilePoisonedQueueWork.ExecuteAsync(
-            PoisonedQueueWorkKind.Intake,
-            stagedReceiptId,
+            kind == UnifiedWorkQueueKind.Intake
+                ? PoisonedQueueWorkKind.Intake
+                : PoisonedQueueWorkKind.External,
+            identifier,
             cancellationToken);
     }
 }
@@ -119,7 +133,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
         // CASE-008: any active case whose current registration has never been
         // looked up gets one automatic vehicle lookup enqueued; the existing
-        // dispatch timer and external-work queue carry it from there. Same
+        // dispatch timer and unified work queue carry it from there. Same
         // existing timer trigger deliberately; this is not a new schedule.
         var vehicleLookups = await reconcileAutomaticVehicleLookups.ExecuteAsync(50, cancellationToken);
         LogAutomaticVehicleLookups(logger, vehicleLookups);
@@ -160,20 +174,4 @@ public sealed partial class StagedArtifactReconciliationFunction(
         int candidates,
         int resolved,
         int failures);
-}
-
-internal static class QueueMessageIdentifier
-{
-    public static bool TryParse(string message, out Guid identifier)
-    {
-        if (Guid.TryParseExact(message, "D", out identifier)
-            && identifier != Guid.Empty
-            && string.Equals(message, identifier.ToString("D"), StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        identifier = Guid.Empty;
-        return false;
-    }
 }

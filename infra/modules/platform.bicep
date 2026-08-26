@@ -142,16 +142,6 @@ resource intakePoisonQueue 'Microsoft.Storage/storageAccounts/queueServices/queu
   name: 'intake-work-poison'
 }
 
-resource externalQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
-  parent: transportQueueService
-  name: 'external-work'
-}
-
-resource externalPoisonQueue 'Microsoft.Storage/storageAccounts/queueServices/queues@2023-05-01' = {
-  parent: transportQueueService
-  name: 'external-work-poison'
-}
-
 resource custodyStorage 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   name: custodyStorageName
   location: location
@@ -328,12 +318,6 @@ resource webIntakeQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-0
   properties: { roleDefinitionId: queueDataMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
-resource webExternalQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(externalQueue.id, webIdentity.id, queueDataMessageSenderRole)
-  scope: externalQueue
-  properties: { roleDefinitionId: queueDataMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
-}
-
 resource workerTransientCustodyOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(transientIntakeContainer.id, workerIdentity.id, blobDataOwnerRole)
   scope: transientIntakeContainer
@@ -429,7 +413,6 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
             { name: 'CustodyStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
             { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
-            { name: 'ExternalWorkQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
             { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
             { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
             // Mailbox administration's "add an address" resolve port alone (MAIL-002):
@@ -489,7 +472,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
       }
     }
   }
-  dependsOn: [webRegistryPull, webTelemetryPublisher, webIntakeQueueSender, webExternalQueueSender]
+  dependsOn: [webRegistryPull, webTelemetryPublisher, webIntakeQueueSender]
 }
 
 resource functionPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
@@ -521,7 +504,16 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         }
       }
       runtime: { name: 'dotnet-isolated', version: '10.0' }
-      scaleAndConcurrency: { maximumInstanceCount: 20, instanceMemoryMB: 2048 }
+      scaleAndConcurrency: {
+        maximumInstanceCount: 20
+        instanceMemoryMB: 2048
+        alwaysReady: [
+          {
+            name: 'function:UnifiedWorkFunction'
+            instanceCount: 1
+          }
+        ]
+      }
     }
     siteConfig: {
       ftpsState: 'Disabled'
@@ -534,7 +526,6 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'AzureIdentity__WorkerClientId', value: workerIdentity.properties.clientId }
         { name: 'IntakeStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
-        { name: 'ExternalWorkQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         // Recovery only: every committing caller attempts exact-ID publication.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
@@ -542,14 +533,12 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.IntakeWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.IntakePoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.InboxPollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.SentEvidencePollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.DueWorkSweepFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.ExternalWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.ExternalPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
         { name: 'APPLICATIONINSIGHTS_AUTHENTICATION_STRING', value: 'Authorization=AAD;ClientId=${workerIdentity.properties.clientId}' }
         { name: 'APPLICATIONINSIGHTS_ENABLEADAPTIVESAMPLING', value: 'true' }
