@@ -2,12 +2,13 @@
 id: UIIMP-001
 type: ticket
 title: Add Live UI and Test UI local-development modes
-status: implementing
+status: review
 area: ui-improvement
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-26T12:10:20.425Z'
+  review: '2026-08-26T13:47:35.462Z'
 taken_at: '2026-08-26T13:34:55.762Z'
 branch: task/uiimp-001-live-test-ui-modes
 worktree: ../pegasus-worktrees/uiimp-001-live-test-ui-modes
@@ -17,9 +18,14 @@ labels:
   - local-development
 links: []
 blocks: []
+commits:
+  - 4a157be2
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/559'
+deployment: n/a
 archived: false
 created: '2026-08-26T12:09:14.790Z'
-updated: '2026-08-26T13:34:55.762Z'
+updated: '2026-08-26T13:47:35.462Z'
 ---
 
 ## What

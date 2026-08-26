@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/559 targeting dev. Focused UI mode/catalogue checks, Release build, documentation checks, and publish exclusion passed. Full non-Corpus run was stopped after more than eight minutes; Core passed 999/999 and two unrelated WorkerActivationReleaseContract fixture tests failed.
