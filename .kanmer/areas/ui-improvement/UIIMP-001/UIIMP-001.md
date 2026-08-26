@@ -11,9 +11,6 @@ stageEntered:
   review: '2026-08-26T13:47:35.462Z'
   verifying: '2026-08-26T13:52:17.421Z'
   done: '2026-08-26T13:54:24.773Z'
-taken_at: '2026-08-26T13:34:55.762Z'
-branch: task/uiimp-001-live-test-ui-modes
-worktree: ../pegasus-worktrees/uiimp-001-live-test-ui-modes
 labels:
   - ui
   - design
@@ -28,7 +25,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-26T12:09:14.790Z'
-updated: '2026-08-26T13:54:42.853Z'
+updated: '2026-08-26T13:56:25.307Z'
 ---
 
 ## What
