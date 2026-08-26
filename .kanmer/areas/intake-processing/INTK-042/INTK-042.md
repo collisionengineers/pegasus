@@ -21,7 +21,6 @@ links: []
 blocks:
   - MAIL-013
   - INTK-001
-  - INTK-043
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-05-documents-extraction-and-custody.md
@@ -34,7 +33,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/553'
 archived: false
 created: '2026-08-25T15:18:39.858Z'
-updated: '2026-08-26T09:38:11.599Z'
+updated: '2026-08-26T12:23:04.979Z'
 ---
 
 ## What
