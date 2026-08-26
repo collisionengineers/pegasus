@@ -2,33 +2,42 @@
 
 ## Governing docs
 
-- `docs/frd/frd-02-intake-and-source-identity.md`: retain one Core-owned, durable, fail-closed route for both e-mail and upload.
+- `docs/frd/frd-02-intake-and-source-identity.md`: one Core-owned, durable, fail-closed route for e-mail and upload.
 - `docs/frd/frd-05-documents-extraction-and-custody.md`: custody remains complete, immutable and idempotent.
-- Create a thin ADR superseding the scale-to-zero critical-path portion of ADR-0032; update the intake PRD/FRD with the five-second best-effort total and provider attribution.
+- ADR-0033 supersedes ADR-0032's scale-to-zero decision for the critical work path.
+
+## Scope
+
+This ticket removes the measured queue-function cold-start path. It does not claim to solve mailbox-provider delivery, stale UI state, image-model startup, or Box provider time; those retain their own evidence and tickets.
 
 ## Approach
 
-Use one typed queue and one warm queue-trigger function for mailbox-discovered and manually-uploaded work. A normal process message performs reading, identification, classification, extraction, case allocation and Box custody in one invocation. Retry/recovery stays durable but is not a normal hop. Reuse the existing Core processors and Infrastructure ports; do not create a second implementation.
+Use one typed `intake-work` queue and one warm queue-trigger function. It dispatches to the existing intake or external-work Core processor, so durable records, claims, recovery, and business policy remain unchanged. The normal custody hand-off is another message on that same warm function, not an external queue or a new service.
 
 ## Steps
 
-1. Add a fixed correlated stage vocabulary and explicit timing around queue claim, reading, retention, allocation and each custody operation. Configure telemetry so required performance spans and exceptions are not sampled, without recording content.
-2. Replace the normal intake/external queue hand-off with the typed unified dispatcher. Preserve commit-before-publication, leases, idempotency and recovery; run ordinary custody inline.
-3. Preload the existing image model in the warm worker. Configure exactly one always-ready 2 GB instance for the unified function in Bicep; keep scale-out for bursts.
-4. Benchmark every supported repository input cohort, before and after, with p50/p95/p99, queue wait, stage breakdown, retries and provider attribution. Apply source-reader/hash/copy or EF changes only where the new trace proves a material bottleneck.
-5. Bound concurrent Blob retention and Box uploads after folder creation. Preserve ordinal names, all required assets, cancellation, retry behaviour and exactly-once custody outcome.
-6. Update governing and as-built documentation. `MAIL-013` subsequently replaces regular mailbox polling with Graph wake-up plus a five-minute recovery poll; `INTK-001` corrects the observable sender/retry state.
-7. Run focused and full verification, simplify the branch diff, then report, commit, push and open a `dev` PR.
+1. Add low-cardinality timing spans around durable intake claim, retained source processing, and allocation; retain dependency and exception telemetry.
+2. Replace the two queue transports and two queue functions with the typed unified route; remove obsolete queue RBAC, settings, poison queue, function census, and local test configuration.
+3. Configure one 2 GiB always-ready `UnifiedWorkFunction` in the Flex Consumption Bicep template, retaining burst scale-out.
+4. Update the PRD/FRD/capability target and create ADR-0033. Leave as-built/deployed documentation unchanged until deployment proves it.
+5. Verify the worker composition, deployment plan, Bicep compilation, Core tests, and configuration-startup tests.
+6. Measure a deployed cohort before considering ONNX preload, concurrency, EF, MIME, or Box changes. Route mailbox wake-up to [[MAIL-013]] and truthful sender/state projection to [[INTK-001]].
 
 ## Acceptance evidence
 
-- Manual uploads and mailbox-discovered work use the same Core route and have no normal custody queue delay.
-- Pegasus-controlled p95 is at most five seconds per supported input cohort. Total Outlook-arrival-to-confirmed-Box-custody p95 is reported separately; a provider-only miss is explicit rather than hidden.
-- All existing integrity, classification, extraction, case-allocation and custody tests remain green.
-- Deployment verification checks the exact unified function’s always-ready configuration, telemetry receipt and a genuine manual-upload/mailbox cohort.
+- Both publishers use the same typed queue; the Worker routes each type to its existing owning Core processor.
+- The critical queue consumer has one 2 GiB always-ready instance; the old external queue/function/settings no longer exist.
+- P95 stage attribution is available without source content.
+- The five-second target remains a deployment measurement, not a local-build claim.
 
 ## Risks
 
-- Graph and Box can exceed the total target; stage attribution prevents false Pegasus blame.
-- Parallel asset work can affect custody ordering; preserve assigned ordinal/name before starting concurrent transfers.
-- 2 GB has one CPU; move to 4 GB only if post-change traces meet the documented CPU threshold.
+- Graph and Box can exceed the total target; telemetry must attribute that delay rather than hide it.
+- A combined message without an explicit kind would confuse two GUID identifiers; parsing is strict and fails closed.
+
+## Simplification pass — 2026-08-26
+
+- Reused the two existing enqueue ports and two existing Core processors; no new business service, queue client abstraction, or retry policy was introduced.
+- Kept custody as a separate durable message rather than inlining it into intake. This preserves its existing claim/recovery contract while removing the measured cold external-worker hop.
+- Did not preload ONNX or parallelize retention/Box uploads: no new trace proves either is the current bottleneck, and both would add startup/concurrency risk.
+- Replaced obsolete pre-release queue/function/configuration paths instead of retaining compatibility handling for bare GUID messages.
