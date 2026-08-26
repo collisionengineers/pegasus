@@ -465,7 +465,11 @@ public sealed class PollApprovedInboxTests
                 Source,
                 artifacts,
                 artifacts,
-                new ReceiveIntake(artifacts, new WorkStore(), timeProvider),
+                new ReceiveIntake(
+                    artifacts,
+                    new WorkStore(),
+                    timeProvider,
+                    new CommittedWorkPublisherDouble()),
                 Retained,
                 timeProvider);
         }
@@ -734,6 +738,12 @@ public sealed class PollApprovedInboxTests
         }
 
         public Task<IntakeWorkItem?> ClaimDispatchAsync(
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IntakeWorkItem?> ClaimDispatchAsync(
+            Guid stagedReceiptId,
             DateTimeOffset nowUtc,
             TimeSpan leaseDuration,
             CancellationToken cancellationToken) => throw new NotSupportedException();

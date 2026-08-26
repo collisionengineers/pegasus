@@ -151,6 +151,10 @@ pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode PreProvision -Environment pega
   -WorkerActivation 'approved-live-worker' -ExpectedLiveWorkerActivation 'approved-live-worker'
 ```
 
+Pre-provision validates the currently deployed Worker's activation without
+requiring its function names to match the incoming artifact. Post-deployment
+smoke remains the exact function census gate.
+
 ## 6. Provision
 
 ```pwsh

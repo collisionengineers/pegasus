@@ -156,7 +156,7 @@ public sealed class ImageIntakeLifecycleTests
         var committed = new ImageIntakeRecord(Guid.NewGuid(), Origin(), "AB12CDE", "AB12CDE-01");
         var store = new FakeStore { Replay = new(committed) };
 
-        var actual = await new RegisterImageIntake(store).ExecuteAsync(
+        var actual = await new RegisterImageIntake(store, new CommittedWorkPublisherDouble()).ExecuteAsync(
             Request(),
             CancellationToken.None);
 
@@ -174,22 +174,25 @@ public sealed class ImageIntakeLifecycleTests
         };
 
         await Assert.ThrowsAsync<ImageIntakeOperationConflictException>(
-            () => new RegisterImageIntake(store).ExecuteAsync(Request(), CancellationToken.None));
+            () => new RegisterImageIntake(store, new CommittedWorkPublisherDouble()).ExecuteAsync(Request(), CancellationToken.None));
         Assert.Equal(0, store.RegisterCount);
     }
 
     [Fact]
     public async Task UnseenOperationRegisters()
     {
-        var store = new FakeStore();
+        var workItemId = Guid.NewGuid();
+        var store = new FakeStore { PendingExternalWorkId = workItemId };
+        var publisher = new CommittedWorkPublisherDouble();
 
-        var actual = await new RegisterImageIntake(store).ExecuteAsync(
+        var actual = await new RegisterImageIntake(store, publisher).ExecuteAsync(
             Request(),
             CancellationToken.None);
 
         Assert.Equal(1, store.ProbeCount);
         Assert.Equal(1, store.RegisterCount);
         Assert.Equal("AB12CDE-01", actual.ImageIntakeReference);
+        Assert.Equal([workItemId], publisher.ExternalWorkIds);
     }
 
     private sealed class FakeStore : IImageIntakeStore
@@ -201,6 +204,8 @@ public sealed class ImageIntakeLifecycleTests
         public int ProbeCount { get; private set; }
 
         public int RegisterCount { get; private set; }
+
+        public Guid? PendingExternalWorkId { get; init; }
 
         public Task<ImageIntakeOperationReplay?> ProbeRegisterReplayAsync(
             RegisterImageIntakeRequest request,
@@ -221,7 +226,8 @@ public sealed class ImageIntakeLifecycleTests
                 Guid.NewGuid(),
                 request.Origin,
                 request.NormalizedVehicleRegistration,
-                ImageIntakeReferenceFormat.Create(request.NormalizedVehicleRegistration, 1)));
+                ImageIntakeReferenceFormat.Create(request.NormalizedVehicleRegistration, 1),
+                PendingExternalWorkId: PendingExternalWorkId));
         }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(

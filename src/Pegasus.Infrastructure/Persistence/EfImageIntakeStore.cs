@@ -201,9 +201,10 @@ public sealed class EfImageIntakeStore(
         // Same durable outbox convention as EfCaseAcceptanceStore.AcceptAsync:
         // the Box folder for this Image-initiated Case is created by queued
         // external work, so an unreachable Box can never block registration.
+        var custodyWorkId = Guid.NewGuid();
         context.ExternalWorkItems.Add(new ExternalWorkItemEntity
         {
-            Id = Guid.NewGuid(),
+            Id = custodyWorkId,
             ImageIntake = entity,
             ImageIntakeId = entity.Id,
             Kind = ExternalWorkKinds.CreateImageCaseCustody,
@@ -271,7 +272,7 @@ public sealed class EfImageIntakeStore(
             throw new IntakeVersionConflictException();
         }
 
-        return Map(entity);
+        return Map(entity) with { PendingExternalWorkId = custodyWorkId };
     }
 
     /// <summary>
@@ -612,15 +613,17 @@ public sealed class EfImageIntakeStore(
             CaseId = caseId,
             CaseReference = caseReference
         });
+        Guid? mergeWorkId = null;
         if (caseId is { } linkedCaseId)
         {
             // Fold the image-case Box folder into the paired case through the
             // same durable outbox that created it: the transition commits here
             // regardless of Box availability, and the queued work moves the
             // contents and removes the emptied folder (INTK-014).
+            mergeWorkId = Guid.NewGuid();
             context.ExternalWorkItems.Add(new ExternalWorkItemEntity
             {
-                Id = Guid.NewGuid(),
+                Id = mergeWorkId.Value,
                 ImageIntake = entity,
                 ImageIntakeId = entity.Id,
                 CaseId = linkedCaseId,
@@ -645,7 +648,7 @@ public sealed class EfImageIntakeStore(
         }
         await context.SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
-        return Map(entity);
+        return Map(entity) with { PendingExternalWorkId = mergeWorkId };
     }
 
     public async Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(

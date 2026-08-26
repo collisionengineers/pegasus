@@ -50,7 +50,7 @@ flowchart LR
 
 The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API caller remains separately gated. The Automation MCP ingress is implemented inside `Pegasus.Web` behind a composition gate that is off by default; when the gate is off no automation route exists, and live activation remains separately approved.
 
-The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment by exact-SHA fast-forward releases of `main`; this topology was rechecked after release 31 on 2026-08-25 and is unchanged. The current production state (release, revision, migration head, gate settings) is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
+The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment by exact-SHA fast-forward releases of `main`; this topology was rechecked after release 32 on 2026-08-26 and is unchanged. The current production state (release, revision, migration head, gate settings) is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
 
 ## Components and dependency direction
 
@@ -193,7 +193,8 @@ This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and IN
 ```text
 Staff Intake Razor Page
   -> ReceiveIntake stages original bytes and Pending work
-  -> Worker dispatcher publishes the staged receipt id
+  -> committing Web or Worker caller publishes the staged receipt id immediately
+  -> one-minute Worker recovery republishes only interrupted Pending work
   -> intake-work queue
   -> Worker ProcessQueuedIntake
   -> QDOS IInstructionExtractionPolicy

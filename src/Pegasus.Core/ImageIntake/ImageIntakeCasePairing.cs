@@ -1,5 +1,6 @@
 using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
+using Pegasus.Core.Custody;
 
 namespace Pegasus.Core.ImageIntake;
 
@@ -53,7 +54,8 @@ public sealed class ImageIntakeCasePairing(
     IImageIntakeStore imageIntakeStore,
     IImageIntakeCaseCandidates caseCandidates,
     IIntakeMutationStore intakeMutationStore,
-    TimeProvider timeProvider) : IImageIntakeCasePairing
+    TimeProvider timeProvider,
+    ICommittedExternalWorkPublisher committedExternalWorkPublisher) : IImageIntakeCasePairing
 {
     public async Task PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -140,7 +142,7 @@ public sealed class ImageIntakeCasePairing(
             return;
         }
 
-        await imageIntakeStore.MergeAsync(
+        var merged = await imageIntakeStore.MergeAsync(
             new(
                 detail.Record.Id,
                 caseId,
@@ -149,5 +151,9 @@ public sealed class ImageIntakeCasePairing(
                 $"The Image-initiated case {detail.Record.ImageIntakeReference} was merged into the linked formal Case.",
                 detail.LifecycleVersion),
             cancellationToken);
+        if (merged.PendingExternalWorkId is { } workItemId)
+        {
+            await committedExternalWorkPublisher.PublishAsync(workItemId, cancellationToken);
+        }
     }
 }
