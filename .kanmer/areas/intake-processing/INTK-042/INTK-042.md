@@ -2,7 +2,7 @@
 id: INTK-042
 type: ticket
 title: Publish committed intake and custody work immediately
-status: review
+status: verifying
 area: intake-processing
 order: 10
 assignee: codex-mcp-client
@@ -10,6 +10,7 @@ profile: feature
 stageEntered:
   preparing: '2026-08-25T15:19:34.322Z'
   review: '2026-08-26T08:31:00.717Z'
+  verifying: '2026-08-26T09:38:11.599Z'
 taken_at: '2026-08-25T16:35:16.630Z'
 branch: task/intk-042-immediate-publication
 worktree: ../pegasus-worktrees/intk-042-immediate-publication
@@ -33,7 +34,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/553'
 archived: false
 created: '2026-08-25T15:18:39.858Z'
-updated: '2026-08-26T09:24:16.514Z'
+updated: '2026-08-26T09:38:11.599Z'
 ---
 
 ## What

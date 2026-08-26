@@ -67,3 +67,15 @@ Merge is still blocked because all three SQL integration shards failed. The fail
 - Production-profile readiness Web factories now fail startup because the newly required `IntakeQueue:ServiceUri` / `ExternalWorkQueue:ServiceUri` values are not supplied.
 
 The TestServer fix is correct but too narrowly applied to `IntakeWebApplicationFactory`; every intentional test composition must now provide the required publisher port or valid production queue configuration. PR #553 was not merged.
+
+# Final independent review and merge gate — head eae300f9 — 2026-08-26
+
+The final remediation is limited to test composition and correct replay expectation:
+
+- the shared LocalDB integration harness supplies the mandatory intake/external publisher ports with the existing test-only in-memory double while retaining real durable outbox persistence;
+- Production-profile readiness factories provide syntactically valid inert Azure Queue service URIs so startup validation can reach the readiness behavior under test;
+- image registration replay now expects the transient newly-created work ID to be absent, matching the Core rule that replay does not republish old external work.
+
+This resolves the preceding SQL DI/startup failures without weakening production composition or introducing an optional runtime path. The reviewed head remained `eae300f98f86ff3cfda290494d2ad239bafabb3f`. All required checks passed: changes, documentation, local scripts, reference data, infrastructure, unit, browser, all three SQL shards, and SQL integration coverage.
+
+**Final verdict: PASS and eligible to merge.**
