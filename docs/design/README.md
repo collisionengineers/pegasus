@@ -21,6 +21,22 @@ Detailed durable product-design owners are the
 activation boundaries are owned by the
 [capability inventory](../capabilities.md#capabilities) alone.
 
+## Test UI
+
+[The Test UI catalogue](test-ui/index.html) is the disposable, offline
+catalogue of current routed Web surfaces. Open it directly from the repository
+to inspect or alter static HTML replicas without .NET, authentication, a
+database, or external services. State files use the
+pages/route-key--state.html convention; the inventory in the index is the
+single route-classification list.
+
+The catalogue is design evidence only. It does not implement, approve, deploy,
+or simulate server behaviour, and it is never an application or publish input.
+Its markup reuses the current Web classes and tracked assets, but approval of a
+Test UI experiment is separate from implementation in the Live Razor pages.
+Run scripts/Test-UiCatalogue.ps1 after adding, removing, or changing a routed
+Razor page.
+
 
 ## Product direction
 
