@@ -2,12 +2,13 @@
 id: MAIL-013
 type: ticket
 title: Wake approved mailbox intake through Graph change notifications
-status: implementing
+status: review
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-25T15:26:56.915Z'
+  review: '2026-08-26T16:18:16.013Z'
 taken_at: '2026-08-26T14:57:23.032Z'
 branch: task/mail-013-graph-wake
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/mail-013-graph-wake'
@@ -22,9 +23,13 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
   - docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md
   - docs/adr/0032-near-real-time-durable-intake-triggering.md
+commits:
+  - c74c3257
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/563'
 archived: false
 created: '2026-08-25T15:18:39.919Z'
-updated: '2026-08-26T14:57:23.032Z'
+updated: '2026-08-26T16:18:16.013Z'
 ---
 
 ## What
