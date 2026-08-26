@@ -30,6 +30,7 @@ public sealed class MessageModel(
     IReverseIntakeLink reverseIntakeLink) : StaffPageModel
 {
     public const string LinkAssociationAction = "Link";
+    private string? mailboxRouteValue;
 
     public const string UnlinkAssociationAction = "Unlink";
 
@@ -171,7 +172,8 @@ public sealed class MessageModel(
 
         ListFolder = listFolder;
         var mailbox = Request.Query["mailbox"].ToString();
-        MailboxFilter = string.IsNullOrWhiteSpace(mailbox) ? null : mailbox.Trim();
+        mailboxRouteValue = string.IsNullOrWhiteSpace(mailbox) ? null : mailbox.Trim();
+        MailboxFilter = mailboxRouteValue;
 
         RetainedMailDetail? detail;
         try
@@ -977,7 +979,7 @@ public sealed class MessageModel(
             $"/Inbox/{messageId:D}",
             new Dictionary<string, string?>
             {
-                ["mailbox"] = Request.Query["mailbox"].ToString(),
+                ["mailbox"] = mailboxRouteValue ?? MailboxFilter,
                 ["folder"] = FolderRouteValue,
                 ["pageNumber"] = PageRouteValue?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["search"] = SearchTerm,
