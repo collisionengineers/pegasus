@@ -25,3 +25,23 @@ PR #553 adds exact-ID post-commit claims to both durable outboxes, calls the imm
 ## Verdict
 
 **NEEDS CHANGES — not fit to merge even if the remaining CI checks pass.** The implementation must preserve truthful committed outcomes across secondary release failure, add the governing publication signal, make publication a required application dependency/boundary, and add focused proof for the real call paths, image work-ID handoff, and sender-only Web authorization. No implementation edits or merge were performed by this reviewer.
+
+# Independent re-review — remediation commit 4e1cc7c4 — 2026-08-26
+
+## Disposition of prior blockers
+
+1. **Committed outcome after release failure — resolved.** Both immediate publishers now catch a recoverable secondary `ReleaseDispatchAsync` failure, retain the committed outcome, and rely on the existing one-minute lease-expiry recovery. Focused intake and external tests prove this case.
+
+2. **Publication observability — resolved.** The existing Core intake ActivitySource and a custody ActivitySource now emit bounded immediate-publication activities carrying the durable identifier, path, outcome, error type, and status. The intake test observes the actual Activity. The tags contain no source content.
+
+3. **Optional publication dependencies — resolved.** The six application boundaries now require `ICommittedIntakeWorkPublisher` or `ICommittedExternalWorkPublisher`; Web and Worker bind those ports to the existing dispatchers. There is no nullable/default no-publication route.
+
+4. **Application/RBAC proof — resolved for code review.** Focused tests now prove ReceiveIntake/manual publication, acceptance, replacement, vehicle request, image registration, and image merge pass their exact committed IDs. The deployment-plan test pins the built-in Storage Queue Data Message Sender role and the two queue-scoped assignments. Code inspection confirms Web receives no queue contributor/processor assignment.
+
+## Updated report and simplification
+
+The post-implementation report now names the remediation and remains honest that the selected local SQL subset did not complete. Required publisher ports are a proportionate composition/test boundary; the same existing dispatcher implements both immediate publication and slow recovery policy, with no parallel business implementation. Shared Infrastructure senders and removal of Worker-only copies remain valid simplifications.
+
+## Verdict
+
+**PASS ON IMPLEMENTATION; CONDITIONALLY FIT TO MERGE.** Commit `4e1cc7c4` resolves all four blocking review findings. It is fit to merge only after the current PR run completes successfully, including all SQL integration shards/coverage (which supplies the repository integration rerun still missing locally), browser, unit, infrastructure, and other required checks. No merge was performed during this re-review.
