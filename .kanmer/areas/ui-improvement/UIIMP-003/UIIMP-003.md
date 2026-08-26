@@ -2,10 +2,12 @@
 id: UIIMP-003
 type: ticket
 title: Integrate approved Test UI experiments into Live Razor pages
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-26T12:10:20.470Z'
 labels:
   - ui
   - design
@@ -15,7 +17,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-26T12:09:14.838Z'
-updated: '2026-08-26T12:09:14.838Z'
+updated: '2026-08-26T12:10:20.470Z'
 ---
 
 ## What

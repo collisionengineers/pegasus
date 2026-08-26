@@ -2,10 +2,12 @@
 id: UIIMP-001
 type: ticket
 title: Add Live UI and Test UI local-development modes
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-26T12:10:20.425Z'
 labels:
   - ui
   - design
@@ -15,7 +17,7 @@ blocks:
   - UIIMP-002
 archived: false
 created: '2026-08-26T12:09:14.790Z'
-updated: '2026-08-26T12:09:17.683Z'
+updated: '2026-08-26T12:10:20.425Z'
 ---
 
 ## What
