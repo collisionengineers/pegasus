@@ -2,13 +2,14 @@
 id: MAIL-013
 type: ticket
 title: Wake approved mailbox intake through Graph change notifications
-status: review
+status: verifying
 area: mail-communications
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
   preparing: '2026-08-25T15:26:56.915Z'
   review: '2026-08-26T16:18:16.013Z'
+  verifying: '2026-08-26T16:37:45.060Z'
 taken_at: '2026-08-26T14:57:23.032Z'
 branch: task/mail-013-graph-wake
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/mail-013-graph-wake'
@@ -30,7 +31,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/563'
 archived: false
 created: '2026-08-25T15:18:39.919Z'
-updated: '2026-08-26T16:35:33.223Z'
+updated: '2026-08-26T16:37:45.060Z'
 ---
 
 ## What
