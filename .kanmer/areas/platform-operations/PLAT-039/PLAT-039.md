@@ -2,15 +2,16 @@
 id: PLAT-039
 type: ticket
 title: Refresh the Box access token instead of minting it once per process
-status: verifying
+status: done
 area: platform-operations
-order: 100
+order: 555
 assignee: claude-code
 profile: fix
 stageEntered:
   implementing: '2026-08-23T12:13:46.823Z'
   review: '2026-08-23T14:48:33.792Z'
   verifying: '2026-08-23T14:48:38.369Z'
+  done: '2026-08-26T14:38:20.544Z'
 taken_at: '2026-08-23T12:11:34.164Z'
 branch: task/qdos26012-regressions
 worktree: ../pegasus-worktrees/qdos26012-regressions
@@ -27,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-23T12:09:36.762Z'
-updated: '2026-08-25T06:42:07.789Z'
+updated: '2026-08-26T14:38:20.544Z'
 ---
 
 ## Every Box read from the Web app fails one hour after the container starts

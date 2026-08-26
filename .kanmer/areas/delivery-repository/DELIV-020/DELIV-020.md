@@ -20,9 +20,9 @@ commits:
 prs:
   - '546'
 deployment: n/a
-archived: false
+archived: true
 created: '2026-08-25T14:08:03.922Z'
-updated: '2026-08-25T14:11:47.748Z'
+updated: '2026-08-26T14:39:30.925Z'
 ---
 
 Refresh the two required deployed-state snapshots after production release of `eaabf31130bee9073a1b2e450a24d8fe6d83ce22`. Documentation-only; records immutable artifact, active Azure revision, migrations, Worker activation, smoke evidence, and the operator-approved selective reset.
