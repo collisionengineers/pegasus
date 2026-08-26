@@ -11,3 +11,5 @@
 - [x] Add focused protocol, identity, lifecycle, retry, overlap, sender, composition and grant tests.
 - [x] Run locked restore/build, focused/full tests and deployment-plan validation.
 - [x] Run and record the simplification pass; write the implementation report and PR to `dev`.
+- [x] Address [[PR-067]] by preserving retained evidence and restrictive dependants through exact stable-ID migration.
+- [x] Address [[PR-068]] by enforcing and proving the complete Graph webhook contract.

@@ -62,3 +62,8 @@ Independent reuse, simplification, efficiency and altitude review completed over
 - Reworded fallback-era comments/test names for the single persisted-estate model.
 - Kept disable/resume cursor coverage: it proves required recovery behaviour, not compatibility.
 - Confirmed no mailbox-only queue/function, second processor, feature flag, compatibility path or capacity change remains.
+
+## Independent review corrections — 2026-08-26
+
+- [[PR-067]]: ordinary migration now maps poll, poison and retained state through the exact saved Graph identity, preserves retained attachments and restrictive folder-move dependants, and fails closed on an unmapped row. It performs no reset or evidence deletion; any pre-launch reset remains a separately authorised operation under ADR-0024.
+- [[PR-068]]: all queued created and lifecycle notifications now pass the same clientState, tenant, active-subscription and exact-resource checks. Unknown lifecycle events and unsupported changes are rejected. Tests cover all lifecycle kinds, malformed/unknown/wrong-secret/wrong-tenant/wrong-resource/unsupported/oversized input, successful 202 and queue-failure 5xx.
