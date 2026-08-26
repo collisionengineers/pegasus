@@ -25,3 +25,25 @@ PR #562 replaces the hand-authored Test UI inventory and pages with a JSON manif
 ## Verdict
 
 **Needs changes.** The report does not match the actual generated output or the ticket's parity acceptance criteria. The simplification pass is structurally honest about reuse and isolation, but its “no further simplification” disposition does not compensate for the correctness gaps above.
+
+# Independent re-review — commit 35292cff — 2026-08-26
+
+## Re-check of prior blockers
+
+1. **Resolved — default selection.** Explicit markers were added for the four affected defaults, and the committed pages now render Outlook categories, Inbox, completed grouped upload, and completed upload rather than Access Denied.
+
+2. **Still blocking — Chromium parity is tautological and does not compare Live rendering with offline rendering.** `VerifyBrowserParityAsync` writes `file.Value` (the already normalized and URL-rewritten generated HTML) to `.test-ui-live.html` beside the committed file, after the preceding assertion established that `file.Value` equals the committed bytes. It then opens those two same-directory, byte-identical local files and compares them (`TestUiSnapshotTests.cs:81-98`). This necessarily gives both pages the same rewritten URLs and broken/missing assets. It is not a browser render of the live application response or live URL, so it cannot substantiate the report's “live/offline” post-JavaScript DOM and screenshot parity claim.
+
+3. **Partially resolved, still blocking for visual parity — root URLs no longer escape offline and validation checks them, but current evidence images are replaced with `#`.** Unmatched application URLs now become inert fragments and the validator no longer ignores root references. That is correct for non-executable form/download targets. It is not correct for visual image sources: `vehicle-images-details--default.html:121` and `upload-group-status--needs-decision.html:128,145` now contain `<img src=\"#\">`. Live Razor serves actual authorized evidence thumbnails at those locations. The tautological browser comparison uses the same `#` sources on both sides, so it cannot detect this visible loss. Absolute visual parity remains unproved and false for these states.
+
+4. **Resolved — GUID normalization.** GUIDs are consistently mapped to per-page typed placeholders before URL rewriting, and no raw GUID remains in generated pages.
+
+## Verification performed
+
+- `Update-TestUiSnapshots.ps1 -Verify -SkipCapture`: pass, 1/1 snapshot test in 57 seconds.
+- Searched all generated pages: no remaining root-relative references and no raw GUIDs.
+- Inspected the four corrected default pages and the Chromium comparison implementation.
+
+## Verdict
+
+**Needs changes.** Prior findings 1 and 4 are resolved. Finding 2 remains, and finding 3 is syntactically resolved but still violates visual parity for evidence-image states. Compare browser output from the actual captured/live Razor page (with its image responses/assets available) against the offline snapshot, or materialize approved local image sources before comparison. Do not claim live/offline screenshot parity by comparing two identical rewritten local files.
