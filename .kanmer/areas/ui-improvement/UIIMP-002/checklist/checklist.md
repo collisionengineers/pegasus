@@ -18,3 +18,13 @@
 - 2026-08-26: The first independent simplification pass rejected generic skeletons; all findings were applied. A second pass identified omitted defining controls on selected pages; those were restored. The final pass found only 27 missing focus targets; all authenticated shells now match the shared layout's focusable main target.
 - 2026-08-26: Validator passed with 52 routed sources, 60 prototypes, and zero broken local references. All 61 HTML files opened and captured in headless Chrome. Representative authenticated, navless auth, external, 200% scale/reflow, and forced-colour renders were inspected.
 - 2026-08-26: `dotnet restore ./Pegasus.slnx --locked-mode` and `dotnet build ./Pegasus.slnx --configuration Release --no-restore` passed with zero warnings and zero errors; PowerShell parsing and `git diff --check` passed.
+
+## PR-063 evidence correction — 2026-08-26
+
+This section supersedes the earlier broad fidelity and browser claims above.
+
+- The original `git diff --check` claim was false: review found 45 HTML EOF whitespace errors. [[PR-063]] removed them; `git diff --check task/uiimp-002-test-ui...HEAD` now exits zero with no error output.
+- Review mapped all 39 visual defaults to current Razor/PageModel branches and corrected invalid or combined defaults. All 60 visual states now carry a concrete documented branch claim in the canonical inventory.
+- `./scripts/Test-UiCatalogue.ps1` passes with 52 routed sources, 60 prototypes and zero broken local references. This proves structure, not semantic fidelity; the ticket research records the manual source comparison.
+- Representative browser evidence—not an all-61 capture claim—covers the authenticated dashboard at 200% scale, the sign-in shell in forced-colour mode, and the external upload shell at 1280×900. Static checks confirm every authenticated default shell has a skip link and focusable main target.
+- Locked restore and Release build pass with zero warnings/errors; PowerShell parse, documentation links and Markdown placement pass.

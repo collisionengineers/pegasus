@@ -30,3 +30,11 @@ Review receives the full mapping in research, inventory branch claims, validator
 - A static prototype cannot execute Razor mechanics: preserve rendered controls/content and keep the existing non-runtime boundary explicit.
 - Stacked topology can become stale: base from the exact parent head and target only the parent branch.
 - No abstraction is justified: use the existing inventory, validator, HTML files, real stylesheet and layouts.
+
+## Simplification pass — 2026-08-26
+
+- Reuse: retained the existing standalone HTML files, canonical inventory, validator, real `site.css`, assets and layout vocabulary. Extracting a template/runtime would break the double-clickable boundary.
+- Simplification: the inventory's `branch` field is the smallest reviewable source-branch claim; no helper, generator or parallel metadata owner was added.
+- Efficiency: the bounded validator scans 52 routed sources and 60 prototypes directly; no cache or combined framework is justified.
+- Altitude: README owns the human evidence contract, the index owns route/state facts, and the validator enforces structural presence.
+- Independent-lens correctness findings: replaced all 21 generic non-default branch placeholders with concrete PageModel/state conditions and changed the validator wording from “reviewed” to “documented,” because it verifies presence rather than semantic truth.
