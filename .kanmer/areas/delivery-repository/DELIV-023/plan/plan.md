@@ -23,3 +23,7 @@ Pre-provision passes against release 31's old enabled timer name; post-deploymen
 - Efficiency: the same single Azure settings read serves both checks; no additional cloud call or retry.
 - Altitude: the strict release contract remains the default and post-deployment gate. No compatibility path or retained legacy implementation was added.
 - Findings: no further behaviour-preserving simplification identified.
+
+## Review disposition — 2026-08-26
+
+Independent review correctly found that the plan's one-minute post-deployment proof was not implemented and that the activation query was broader than `*.Disabled`. Both findings were applied: activation-only now filters to real disabled settings, and strict Worker smoke reads and requires `PendingWorkRecoverySchedule = 0 * * * * *`.

@@ -21,3 +21,9 @@
 ## Remaining
 
 Independent PR review, CI, merge, exact-SHA promotion, release deployment, strict post-deployment smoke, and current-state documentation.
+
+## Review fixes
+
+- Narrowed the activation inventory to `AzureWebJobs.*.Disabled` settings.
+- Added strict post-deployment readback of `PendingWorkRecoverySchedule = 0 * * * * *`.
+- Re-ran parsing, local deployment-plan validation, live activation-only smoke, and diff checks successfully.

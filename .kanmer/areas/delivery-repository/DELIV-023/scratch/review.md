@@ -22,3 +22,16 @@
 ## Verdict
 
 **FAIL / NEEDS CHANGES.** Do not merge. Add a live post-deployment assertion for `PendingWorkRecoverySchedule = '0 * * * * *'`, add focused distinction tests/static guards for it, and make activation-only prove that the non-empty inventory consists of actual `.Disabled` activation settings. Release 32 and current-state documentation remain honestly listed as post-merge work and are not claimed by this PR.
+
+# Independent re-review — remediation c2c4bcc4 — 2026-08-26
+
+## Disposition
+
+- **Activation inventory blocker resolved.** The Azure query now includes only names beginning `AzureWebJobs.` and ending `.Disabled`, so the non-empty inventory is genuinely a function activation inventory. Uniform expected values still apply.
+- **Schedule blocker not fully resolved.** The new live `PendingWorkRecoverySchedule` read is nested inside `if ($WorkerOnly)`. The canonical release skill’s post-deployment smoke invokes the default `WebAndWorker` parameter set (BaseUri/SHA/version) without `-WorkerOnly`, so it skips the schedule read entirely. That means the actual full post-deployment smoke can still pass with a wrong/missing recovery schedule. The static regex check only proves the schedule code exists somewhere; it does not prove the normal smoke path executes it.
+
+## Verdict
+
+**FAIL / NEEDS CHANGES.** Move the strict schedule assertion onto every non-`ActivationOnly` smoke path (including the default WebAndWorker post-deployment command), while keeping it skipped only for activation-only pre-provision. Then add a static/behavioral guard that ties the schedule assertion to `-not $ActivationOnly`, not merely to the presence of the schedule string.
+
+No implementation edit or merge was performed.

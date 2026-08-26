@@ -23,12 +23,13 @@ refs:
   - docs/operations.md
 commits:
   - 5e1fb7aa
+  - c2c4bcc4
 prs:
   - '554'
 deployment: production
 archived: false
 created: '2026-08-26T10:40:08.668Z'
-updated: '2026-08-26T10:43:29.936Z'
+updated: '2026-08-26T10:45:42.290Z'
 ---
 
 ## What
