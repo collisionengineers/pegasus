@@ -83,3 +83,124 @@ Microsoft's published Outlook `message` notification latency is **less than one 
 ## Open questions
 
 None for implementation planning. The five-second end-to-end ambition remains a measurement goal, not a promise Microsoft Graph's documented message-notification SLA can support.
+
+## Addendum — current implementation versus proposed implementation (2026-08-26)
+
+### The boundary that actually changes
+
+MAIL-013 does **not** replace identification, classification, extraction, case matching, allocation, Image Intake, custody, sender resolution, or the durable intake queue. Those stages already have one Core-owned implementation.
+
+It replaces only the first scheduling hop for email:
+
+- **Current:** a 15-second Worker timer discovers that the Inbox changed.
+- **Proposed:** Microsoft Graph tells the warm Web app that the Inbox changed; Web queues a mailbox wake; Worker runs the same delta/intake route.
+
+Everything from `ReceiveIntake` onward is intended to remain the same. This distinction matters: MAIL-013 can remove pre-receipt polling delay and idle polling work, but it cannot by itself make slow downstream classification, extraction or case creation faster.
+
+### Current route, traced from `origin/dev` at `1a8fda3e`
+
+1. `InboxPollFunction` fires from `ApprovedInboxPollSchedule`, currently deployed as `*/15 * * * * *`.
+2. The Function calls `PollApprovedInbox.ExecuteAsync(50, system-worker actor)`.
+3. `PollApprovedInbox` calls `IApprovedIntakeMailboxes.ListPollableAsync`, validates the full returned estate, then visits every mailbox sequentially.
+4. `EfApprovedInboxPollStore.ClaimAsync` re-checks approval in a serializable transaction, rejects a mailbox that is not yet due or is already leased, and otherwise grants a one-minute lease.
+5. `GraphMailClient` runs the stored folder delta cursor, validates every next/delta URI against the exact Graph mailbox and Inbox folder, requests immutable IDs, and downloads MIME for each admitted message.
+6. For each message, `PollApprovedInbox` prepares the provider-neutral source and calls `ReceiveIntake.ExecuteAsync`.
+7. Since INTK-042, `ReceiveIntake` commits the staged receipt/work row and immediately asks `DispatchPendingIntakeWork` to publish that exact receipt ID to `intake-work`. A publication failure does not erase the committed receipt; the one-minute recovery sweep can republish it.
+8. After intake acceptance, the mailbox route inserts the retained-message projection and advances the mailbox cursor. A failed retain or cursor advance leaves the cursor replayable; unique source/retained identities make replay safe within the current identity model.
+9. `IntakeWorkFunction` consumes the receipt ID and calls `ProcessQueuedIntake`, which owns identification, classification, extraction, association/allocation, Image Intake and terminal/retry outcomes.
+10. Mail UI reads the retained-message and receipt projections. MAIL-009 already derives a provisional effective sender from retained evidence until the later route decision exists, so it does not need the webhook to invent or update a sender.
+
+Sources: `src/Pegasus.Worker/MailboxFunctions.cs`, `src/Pegasus.Core/Intake/MailboxIntake.cs`, `src/Pegasus.Infrastructure/Persistence/EfApprovedInboxPollStore.cs`, `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs`, `src/Pegasus.Core/Intake/DurableIntake.cs`, `src/Pegasus.Worker/IntakeFunctions.cs`, and `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs`.
+
+### Proposed route
+
+1. The six-hour Worker maintenance caller ensures each enabled approved Inbox has one exact-scope basic `created` Graph subscription.
+2. Graph POSTs validation or a normal/lifecycle notification to the existing warm Web app.
+3. The Web callback:
+   - returns a validation token directly; or
+   - validates the bounded batch, constant-time `clientState`, tenant, active subscription, scope and enabled mailbox;
+   - publishes only the canonical approved-mailbox/subscription identifiers to `mailbox-wake`;
+   - returns 202 after the queue send, or 5xx when a valid wake could not be queued.
+4. `MailboxWakeFunction` consumes the wake, resolves and revalidates the approved mailbox, and calls a targeted entry point on the existing `PollApprovedInbox` owner.
+5. That targeted entry point uses the same SQL lease, Graph delta, MIME, `ReceiveIntake`, retained-message and cursor code as the current timer route.
+6. The existing Inbox timer runs every five minutes as recovery. It still enumerates the estate and enters the same mailbox lease path.
+7. Lifecycle `missed`, `subscriptionRemoved` and `reauthorizationRequired` events schedule renewal/recreation and the same delta recovery; they do not process messages in Web.
+
+### Side-by-side comparison
+
+| Concern | Current implementation | Proposed implementation | Consequence |
+|---|---|---|---|
+| Ordinary trigger | Worker timer every 15 seconds | Graph callback, then Azure Queue wake | Removes the fixed local poll wait but adds dependency on Graph delivery latency. |
+| Idle behaviour | Lists the estate and attempts mailbox claims/delta work on every tick even when no mail arrived | No Inbox read until Graph sends a wake; six-hour subscription maintenance plus five-minute recovery remains | Fewer idle Function/Graph operations. |
+| Timer frequency | 172,800 schedule occurrences in a 30-day month at 15 seconds | 8,640 recovery occurrences at five minutes | 95% fewer Inbox timer occurrences; this is not a claim about total Worker executions because callbacks and queue wakes are demand-driven. |
+| Mailbox targeting | One tick enumerates and sequentially visits the complete approved estate | Ordinary wake names one mailbox; recovery still visits the estate | A busy/changed mailbox no longer makes every ordinary wake inspect every mailbox. |
+| Web responsibility | No inbound notification endpoint; Web already publishes committed upload work to Azure Queue | Adds one narrow anonymous Graph protocol endpoint and one mailbox-wake sender | Web remains a transport boundary, not a mail reader or processor. |
+| Worker responsibility | Timer, delta/cursor, intake and queue processing | Queue wake plus the same delta/cursor/intake; slower fallback and subscription maintenance | Worker remains sole mailbox and intake owner. |
+| Graph reads | Delta query is timer-initiated | Delta query is wake-initiated, with timer/lifecycle recovery | Provider reading semantics stay unchanged. |
+| Durable intake | `ReceiveIntake` commits, immediately publishes `intake-work`, then recovery can republish | Exactly the same | MAIL-013 must reuse INTK-042; no second intake queue or publisher. |
+| Downstream processing | `IntakeWorkFunction → ProcessQueuedIntake` | Exactly the same | No classification/extraction/case-creation rewrite or speed-up is implied. |
+| Duplicate protection | Poll lease, delta cursor, source identity, retained-message uniqueness and queued-work claims | Same controls, now also covering duplicate Graph and Queue delivery | At-least-once notifications do not require a second idempotency system. |
+| Failure recovery | 30-second mailbox failure release, next 15-second tick, queue poison/recovery | Graph retry, wake poison, lifecycle delta recovery and five-minute fallback, plus existing intake recovery | More explicit trigger recovery, while processing recovery remains unchanged. |
+| Sender/state display | Retained projection can appear before processing; MAIL-009 derives the original/provisional effective sender from retained evidence | Same projection and sender policy, reached sooner when the wake is prompt | The proposed trigger must not create a placeholder desk sender or a second UI state model. |
+| Hosting | Warm Web 1/1; Flex Worker scale-to-zero | Same | No new runtime and no speculative always-ready charge. |
+| External latency | Predictable local wait of 0–15 seconds before the delta call, plus Graph/delta/processing time | No local schedule wait, but Graph documents message notification delivery at under one minute average and up to three minutes | The proposal improves the controllable Pegasus segment; it cannot guarantee five seconds from Exchange receipt. |
+
+### Manual upload comparison
+
+Manual upload has already received the important post-commit improvement that the email route will reuse:
+
+- Web calls `ReceiveIntake`.
+- The durable staged receipt/work commit happens before acknowledgement.
+- INTK-042 immediately publishes the receipt ID to `intake-work`.
+- `IntakeWorkFunction` runs the same `ProcessQueuedIntake` stages.
+
+Therefore manual upload does not need a Graph wake or the new mailbox-wake queue. Current email differs only because it must first discover a message in an external mailbox. After `ReceiveIntake`, email and upload already converge on the same durable processing route.
+
+### Complexity comparison
+
+The proposal adds a callback, one identifier queue, subscription state and lifecycle maintenance. That is more source code than a timer alone, but each piece is required by the external Graph protocol:
+
+- the callback must finish promptly and cannot hold Graph open through a delta/intake pass;
+- the queue is the existing host boundary between warm Web and Worker;
+- subscription state is required because Graph subscriptions expire and callbacks identify a subscription;
+- lifecycle/renewal work is required to avoid silently losing notifications;
+- fallback polling remains because Graph documents missed/dropped notification conditions.
+
+The simplest coherent form is therefore one callback URL for both normal and lifecycle notifications, one mailbox-wake queue, one targeted Core mailbox method, one maintenance caller and the existing timer slowed to recovery. Combining callback, delta and processing would reduce the number of named components but would duplicate ownership, violate Graph's response deadline and make failures less durable.
+
+### Important implementation gap: current mailbox identity is still obsolete
+
+The current code does not yet implement ADR-0024 even though FRD-08 and the proposed subscription design require it:
+
+- `ApprovedMailboxEntity.Id` is the stable internal `Guid`.
+- `ApprovedIntakeMailbox` currently omits that `Guid` and carries only Graph mailbox identity, address and folder identity.
+- `EfApprovedMailboxStore.ListPollableAsync` maps `MailboxIdentity` into `ApprovedIntakeMailbox.MailboxId`.
+- `ApprovedInboxPollStates`, poison rows, retained messages and receipt tokens are consequently keyed by the replaceable Graph mailbox identity.
+- `EfApprovedInboxPollStore` contains an adoption path that re-keys state by Graph identity while carrying the old delta cursor; its own code comment records that Graph then rejects the cursor scope and that clearing it risks duplicate receipts.
+- `docs/current-architecture.md` and `docs/runbook.md` explicitly describe stable mailbox identity/fresh-start as accepted but not implemented.
+
+The proposed callback intends to queue `ApprovedMailbox.Id`, and its SQL subscription row intends to relate one-to-one to that ID. Simply adding this new stable row while the downstream poll/receipt route remains Graph-keyed would leave two mailbox identities in one flow and extend an acknowledged pre-release defect.
+
+Implication for the next planning pass: implementation must reach one coherent ADR-0024 state before or as MAIL-013 lands. At minimum the pollable-mailbox model, targeted lookup, poll state, cursor-scope fingerprint, activation boundary, poison/retained/source identity and receipt-token derivation must agree on `ApprovedMailbox.Id`. No separate Kanmer ticket currently owns that implementation, so `kanmer-plan` must either include the required migration in MAIL-013 or create and link an explicit blocker before execution. It must not layer Graph subscriptions on top of the obsolete Graph-keyed state or preserve both paths.
+
+Sources: `src/Pegasus.Core/Identity/ApprovedMailboxAdministration.cs`, `src/Pegasus.Infrastructure/Persistence/EfApprovedMailboxStore.cs`, `src/Pegasus.Infrastructure/Persistence/EfApprovedInboxPollStore.cs`, `src/Pegasus.Infrastructure/Persistence/AdministrationPolicyEntities.cs`, `docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md`, `docs/current-architecture.md`, and `docs/runbook.md`.
+
+### What the proposed change can and cannot improve
+
+**It can improve:**
+
+- the 0–15 second local discovery delay;
+- repeated idle Inbox polling and associated Function/Graph work;
+- ordinary targeting from whole-estate to one mailbox;
+- trigger-stage observability and lifecycle recovery;
+- how quickly the existing retained/intake route starts after a Graph wake arrives.
+
+**It cannot by itself improve:**
+
+- Microsoft Graph's own notification delivery latency;
+- MIME download time or Graph throttling;
+- identification, classification, extraction, allocation, Image Intake or case-creation execution time after `intake-work` is published;
+- UI refresh cadence after backend state commits;
+- any remaining sender/state defect inside the existing retained-mail projection.
+
+Those later segments need their own measured traces and focused remediation if they remain slow after MAIL-013.

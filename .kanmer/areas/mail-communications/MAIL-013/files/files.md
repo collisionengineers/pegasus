@@ -45,3 +45,19 @@
 ## Deliberately out of scope
 
 No product-code implementation during planning; no cloud/mailbox writes; no resource data; no inline Graph/delta/intake work in Web; no new host, Event Grid, Event Hubs, generic event bus, cache or always-ready Function; no Sent Items subscription; no historical replay; no sender, classification, extraction, allocation, Image Intake or case-creation rewrite. Deployment/current-state documentation and live latency/cost proof remain DELIV-021 work after implementation merges.
+
+## Research addendum — stable mailbox identity ripple
+
+The current-versus-proposed comparison found that ADR-0024's stable identity is not implemented. The next planning pass must expand or prerequisite the following files before a Graph subscription can safely queue `ApprovedMailbox.Id`:
+
+| Path | Additional reason/risk |
+|---|---|
+| `src/Pegasus.Core/Identity/ApprovedMailboxAdministration.cs` | `ApprovedIntakeMailbox` currently drops the internal `Guid`; it needs one coherent stable identity plus provider coordinates. |
+| `src/Pegasus.Infrastructure/Persistence/EfApprovedMailboxStore.cs` | Project the internal ID and provide an exact approved-mailbox lookup for targeted wakes without enumerating the estate. |
+| `src/Pegasus.Infrastructure/Persistence/EfApprovedInboxPollStore.cs` | Replace Graph-identity re-key/adoption with stable-ID state, versioned cursor scope and the accepted per-mailbox activation boundary. The current cursor-carrying adoption path is explicitly unsafe. |
+| `src/Pegasus.Infrastructure/Persistence/MailboxEntities.cs`, `MailboxModelConfiguration.cs`, `PegasusDbContext.cs` | Poll state, poison, retained message and subscription relations must use one stable approved-mailbox key and enforce scope/activation consistency. |
+| `src/Pegasus.Core/Intake/MailboxIntake.cs` | Receipt occurrence/token construction, leases and retained metadata must agree on the stable ID while Graph mailbox/folder values remain replaceable read coordinates. |
+| `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs` and receipt persistence | Preserve existing business evidence and uniqueness while removing the replaceable Graph identity as the source key; avoid a dual-read/dual-write compatibility path in this pre-release system. |
+| Migration and mailbox integration tests | Establish the intended current schema and disposable pre-release transition allowed by ADR-0024/runbook authority; prove fresh-start filtering, scope mismatch, 410 handling and no duplicate receipt identity. |
+
+No existing Kanmer ticket was found that owns this ADR-0024 implementation. This is a planning dependency, not optional cleanup.
