@@ -58,7 +58,8 @@ Start` (after `Initialize-LocalDevelopment.ps1` has run once) for the default
 Live UI, which manages the database, Azurite, Web, and Functions host. Use
 `pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test` to open
 the disposable static UI catalogue without starting Pegasus or its local
-dependencies.
+dependencies. The catalogue is generated from current Razor renders with
+`pwsh ./scripts/Update-TestUiSnapshots.ps1`; its HTML is not edited manually.
 
 The first `dotnet run` applies every committed Development migration and exits;
 the second starts Web against the migrated database. Normal Web startup never

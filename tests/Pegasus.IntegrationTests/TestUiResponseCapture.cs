@@ -1,0 +1,85 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+
+namespace Pegasus.IntegrationTests;
+
+internal sealed class TestUiResponseCaptureStartupFilter : IStartupFilter
+{
+    public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next) => app =>
+    {
+        app.UseMiddleware<TestUiResponseCaptureMiddleware>();
+        next(app);
+    };
+}
+
+internal sealed class TestUiResponseCaptureMiddleware(RequestDelegate next)
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var captureDirectory = Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_CAPTURE_DIR");
+        if (string.IsNullOrWhiteSpace(captureDirectory))
+        {
+            await next(context);
+            return;
+        }
+
+        var originalBody = context.Response.Body;
+        await using var buffer = new MemoryStream();
+        context.Response.Body = buffer;
+        try
+        {
+            await next(context);
+            buffer.Position = 0;
+            if (context.Response.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                using var reader = new StreamReader(buffer, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+                var html = await reader.ReadToEndAsync(context.RequestAborted);
+                await CaptureAsync(captureDirectory, context, html, context.RequestAborted);
+                buffer.Position = 0;
+            }
+
+            await buffer.CopyToAsync(originalBody, context.RequestAborted);
+        }
+        finally
+        {
+            context.Response.Body = originalBody;
+        }
+    }
+
+    private static async Task CaptureAsync(
+        string captureDirectory,
+        HttpContext context,
+        string html,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(captureDirectory);
+        var request = $"{context.Request.Method} {context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}";
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request + "\n" + html))).ToLowerInvariant();
+        var itemDirectory = Path.Combine(captureDirectory, hash);
+        Directory.CreateDirectory(itemDirectory);
+        var metadata = new CapturedResponse(
+            context.Request.Method,
+            context.Request.PathBase + context.Request.Path,
+            context.Request.QueryString.Value ?? string.Empty);
+        await File.WriteAllTextAsync(
+            Path.Combine(itemDirectory, "response.json"),
+            JsonSerializer.Serialize(metadata, JsonOptions),
+            cancellationToken);
+        await File.WriteAllTextAsync(
+            Path.Combine(itemDirectory, "response.html"),
+            html,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false),
+            cancellationToken);
+    }
+
+    private sealed record CapturedResponse(string Method, string Path, string Query);
+}

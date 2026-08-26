@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $catalogueRoot = Join-Path $repoRoot 'docs/design/test-ui'
 $indexPath = Join-Path $catalogueRoot 'index.html'
+$manifestPath = Join-Path $catalogueRoot 'catalogue.json'
 $pagesRoot = Join-Path $catalogueRoot 'pages'
 $errors = [System.Collections.Generic.List[string]]::new()
 
@@ -12,16 +13,10 @@ if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
     throw "Test UI index not found: $indexPath"
 }
 
-$index = Get-Content -LiteralPath $indexPath -Raw
-$match = [regex]::Match(
-    $index,
-    '<script\s+id="route-inventory"\s+type="application/json">(?<json>[\s\S]*?)</script>',
-    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-if (-not $match.Success) {
-    throw 'The Test UI index has no route-inventory JSON block.'
+if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+    throw "Test UI catalogue manifest not found: $manifestPath"
 }
-
-$inventory = @($match.Groups['json'].Value | ConvertFrom-Json)
+$inventory = @(Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json)
 $allowedClassifications = @('visual', 'redirect', 'download', 'protocol')
 $sourceRoot = Join-Path $repoRoot 'src/Pegasus.Web/Pages'
 $routedSources = @(
@@ -122,7 +117,8 @@ foreach ($htmlFile in $htmlFiles) {
             $html,
             '<img\b[^>]*>',
             [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
-        if ($image.Value -notmatch '(?i)\bsrc\s*=\s*["'']\s*[^\s"''][^"'']*["'']') {
+        if ($image.Value -notmatch '(?i)\bsrc\s*=\s*["'']\s*[^\s"''][^"'']*["'']' -and
+            $image.Value -notmatch '(?i)\bdata-evidence-image\b[^>]*\bhidden\b') {
             $errors.Add("Image has no non-empty source in $($relativeFile): $($image.Value)")
         }
     }
@@ -132,7 +128,7 @@ foreach ($htmlFile in $htmlFiles) {
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
     foreach ($reference in $references) {
         $target = $reference.Groups['target'].Value
-        if ($target -match '^(?:#|https?:|mailto:|data:|javascript:)') {
+        if ($target -match '^(?:/|#|https?:|mailto:|data:|javascript:)') {
             continue
         }
         $targetWithoutFragment = ($target -split '[?#]', 2)[0]
