@@ -172,3 +172,29 @@ Accordingly both retained corrections are necessary: canonical GET population fi
 ## Verdict
 
 No correctness, necessity, simplicity, or plan-alignment blocker remains at `d119bd39`. Merge remains conditional on the active fresh GitHub run, especially SQL shard 1, completing green.
+
+# Corrupted mailbox-value final review — commit 60d6ebea — 2026-08-26
+
+## Evidence and necessity
+
+The custom CI diagnostic materially strengthens the root cause: the candidate URL carried an unrelated GUID as `mailbox` while `pageNumber`, `caseQuery`, and `targetCaseId` were correct. This proves the mutable bound `MailboxFilter` value is corrupted on the runner; it is not merely omitted by URL generation.
+
+The immutable request query is consequently the authoritative source at both required boundaries:
+
+- `OnGetAsync` normalizes it for PageModel consumers such as list-scope and other navigation state.
+- `AssociationCandidateUrl` reads it directly at render time so this diagnosed anchor cannot inherit the corrupted property value.
+
+## Correctness and simplicity
+
+**Approve.**
+
+- The one-line builder change is sufficient and remains encoded through `QueryHelpers.AddQueryString`.
+- All seven other candidate route values continue using their existing PageModel sources and were demonstrated correct in the diagnostic URL.
+- No authorization or business-policy decision is moved to raw query data; mailbox is navigation/list context, and retained-mail authorization remains unchanged.
+- The exact-anchor test retains useful full-URL failure output and passes locally.
+- A separate cache, field, wrapper, or generic query accessor would add machinery without improving authority: `Request.Query` is already the immutable source and only this one render path requires bypassing the corrupted property.
+- The plan's Exact corrupted-value evidence section matches the implementation, evidence, scope, and fresh shard-1 acceptance condition.
+
+## Verdict
+
+No correctness, simplicity, scope, or plan-alignment blocker remains at `60d6ebea`. Merge remains conditional on the fresh GitHub SQL shard 1 and all required checks completing green.
