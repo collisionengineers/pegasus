@@ -178,6 +178,7 @@ public sealed class MailWorkspaceWebTests
             search,
             $"<a(?=[^>]*targetCaseId={firstCaseId:D})[^>]*href=\"([^\"]+)\"",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Groups[1].Value);
+        Console.WriteLine($"Case candidate URL: {candidateUrl}");
         Assert.Contains("mailbox=instructions", candidateUrl, StringComparison.Ordinal);
         Assert.Contains("pageNumber=2", candidateUrl, StringComparison.Ordinal);
 
