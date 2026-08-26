@@ -2,45 +2,52 @@
 
 ## Outcome
 
-Replace 15-second Inbox polling as the ordinary trigger with a Microsoft Graph basic-notification wake, while preserving one Worker-owned mailbox lease/delta/intake route. Keep the existing Inbox timer at five minutes solely for recovery. Reuse the current warm Web app, SQL database, Azure Storage Queue transport, Flex Worker and managed identities; add no runtime and no always-ready capacity.
+Replace the 15-second ordinary Inbox poll with a targeted Graph wake while retaining one Worker-owned mailbox/delta/intake implementation. Reuse INTK-043's unified warm queue and poison route. Keep one five-minute recovery timer, which also performs subscription maintenance only when its six-hour due time is reached.
 
-Microsoft documents Outlook message notification delivery at under one minute average and up to three minutes. The implementation must make Pegasus's own callback and processing fast and observable, but must not claim Graph can guarantee five-second end-to-end delivery.
+## Governing docs
 
-## Ordered implementation
+- `docs/frd/frd-08-email-mailbox-and-background-processing.md`: exact callback, subscription, lifecycle, fresh-start, fallback and neutral-sender behaviour.
+- `docs/frd/frd-02-intake-and-source-identity.md`: identifiers only cross the queue; the Worker remains the processing owner.
+- `docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md`: implement stable mailbox identity and remove cursor-carrying Graph-identity adoption.
+- `docs/adr/0032-near-real-time-durable-intake-triggering.md`: Web validates/enqueues, Worker reads Graph, and polling is recovery.
 
-1. **Create the targeted Core seam.** In `MailboxIntake.cs`, expose one approved-mailbox execution path that performs the same actor validation, mailbox validation, approval re-check, SQL claim, delta read, retention, cursor advancement and recoverable release as the existing estate poll. Refactor only enough for both estate fallback and targeted wake to call the same private implementation.
+No governing document change is planned.
 
-2. **Add the minimal subscription model and persistence.** Add one SQL row per `ApprovedMailbox.Id` with subscription id, exact resource/scope fingerprint, expiry, lifecycle/maintenance state and last result. Add focused Core ports/use cases and an EF store using the existing mailbox entity/model/concurrency conventions. Give Web lookup-only access and Worker lifecycle-write access. Do not persist clientState.
+## Dependencies
 
-3. **Add the Graph subscription adapter.** Reuse `GraphApprovedSources` authentication and HTTP conventions. Create basic `changeType: created` subscriptions on the exact approved Inbox with the same notification/lifecycle URL; renew within 48 hours using PATCH; use one PATCH to reauthorize and renew; recreate missing, removed, expired, lifecycle-URL-missing or wrong-scope subscriptions. Map missed/removed gaps to the existing delta recovery path.
+INTK-043 blocks MAIL-013 because both touch the queue envelope, unified Worker function, poison route, composition and infrastructure. Start implementation from current `origin/dev` only after INTK-043 merges. DELIV-021 remains blocked by MAIL-013 and owns deployment/live proof.
 
-4. **Add the shared mailbox-wake queue and Web callback.** Extend INTK-042's Infrastructure queue transport with one canonical identifier-only mailbox-wake message. Map `POST /hooks/microsoft-graph/mail` on Web. Return URL-decoded validation tokens as 200/text/plain. For bounded notification batches, validate clientState in constant time plus tenant, active subscription, exact scope and enabled mailbox; enqueue valid wakes; return 202 after send. Ignore invalid items without queueing or detailed errors; return 5xx when a valid wake cannot be published so Graph retries. Do no Graph read or intake work inline.
+## Implementation
 
-5. **Add Worker callers without another business path.** Add the `mailbox-wake` queue trigger, explicit poison trigger and six-hour subscription-maintenance timer in `MailboxFunctions.cs`. The wake trigger resolves and revalidates the mailbox, then calls the targeted Core seam. Change `ApprovedInboxPollSchedule` to `0 */5 * * * *`; it remains the same estate-wide recovery use case.
-
-6. **Wire existing Azure resources and least privilege.** Update Bicep/configuration for the queue, Key Vault-backed clientState, exact callback URL, schedules, function census and Web-send/Worker-consume permissions. Preserve deployed Web `minReplicas: 1`, `maxReplicas: 1`; preserve Worker Flex scale-to-zero with no always-ready entry. Add no live subscription or deployment in this implementation ticket.
-
-7. **Prove protocol, security, durability and ownership.** Add focused tests for the ten-second validation protocol contract, sub-three-second design boundary, bounded batches, secret/scope rejection, queue-send failure, one subscription per Inbox, renew/reauthorize/recreate, lifecycle delta recovery, duplicate delivery, poison handling, disabled mailboxes, fallback overlap, neutral sender and host dependency direction. Extend deployment-plan/smoke assertions without logging secrets.
-
-8. **Verify and prepare review.** Run locked restore, Release build, focused tests, full tests and deployment-plan validation. Run the required simplification lenses over only this branch's diff, remove duplicate or speculative machinery, record dispositions in this plan, then write the implementation report, commit, push and open the PR to `dev`. Deployment and measured production proof stay with `DELIV-021`.
+1. **Establish one mailbox identity.** Change inbound estate, poll state, poison, retained message and receipt occurrence identity to `ApprovedMailbox.Id`. Add activation time and cursor-scope fingerprint. Remove the Graph-identity adoption path; a scope change/410 fails closed into explicit fresh-start activation.
+2. **Add minimal subscription policy/state.** Add focused Core records/ports and one SQL row per enabled Inbox containing only mailbox ID, Graph subscription ID, resource, expiry, lifecycle state and last maintenance result. Keep clientState in protected configuration.
+3. **Implement Graph subscription operations.** Reuse existing Graph authentication/HTTP handling for exact-Inbox basic `created` subscriptions, renewal/reauthorization by one PATCH, and recreate after removal/expiry/wrong scope.
+4. **Add the Web protocol boundary.** Map `POST /hooks/microsoft-graph/mail`. Return decoded validation tokens as `200 text/plain`. For a bounded batch, verify clientState and active tenant/subscription/scope, then publish mailbox/subscription identifiers with a bounded lifecycle kind. Return `202` after send and 5xx if a valid wake cannot be queued. Do no Graph read or intake work.
+5. **Reuse the unified warm Worker route.** Extend INTK-043's queue envelope and `UnifiedWorkFunction` with mailbox wake handling. Resolve and revalidate the mailbox, then enter the same lease/delta path as fallback polling. Extend the unified poison handler to record the failure; add no mailbox queue or Function.
+6. **Make the existing timer recovery-only.** Rename it truthfully, set five minutes, and in the same invocation claim subscription maintenance only when due at six hours before running the estate fallback. Duplicate wake/fallback work remains safe under the existing mailbox lease.
+7. **Wire and observe.** Add the secret reference, callback URL, SQL grants, configuration, telemetry and deployment assertions. Preserve the capacity configuration inherited after INTK-043; MAIL-013 neither adds nor removes always-ready capacity.
+8. **Verify and prepare review.** Prove protocol deadlines, stable identity/fresh-start, lifecycle repair, retry/poison, duplicate overlap, sender neutrality, ownership, least privilege and exact infrastructure. Run locked restore/build, focused and full tests, deployment-plan validation and the required simplification pass; then write the implementation report and PR. Deployment stays with DELIV-021.
 
 ## Acceptance evidence
 
-- Graph validation responds exactly with decoded text/plain token.
-- Valid callbacks durably enqueue and acknowledge within the Graph three-second delivery window under test; invalid callbacks queue nothing and disclose nothing.
-- Web never reads Graph mail, advances cursors or runs intake.
-- Worker wake and five-minute fallback enter one lease/delta path and remain idempotent under overlap/retry.
-- Each enabled approved Inbox has at most one exact-scope active subscription; lifecycle recovery cannot lose the delta gap.
-- ClientState never appears in SQL, queue bodies, telemetry, responses or proof.
-- Sender remains neutral until MAIL-009's effective sender is established.
-- Web remains one warm replica; Worker remains zero always-ready.
-- Telemetry separates Graph delivery time from Pegasus callback, queue, delta and processing time.
-- No claim is made that Microsoft Graph guarantees five-second Exchange-to-Pegasus delivery.
+- Web returns the exact decoded validation token and never performs mailbox/intake work.
+- A valid notification is queued and acknowledged within Graph's three-second delivery window in tests; invalid input queues nothing and leaks no secret.
+- The queue and Function inventory remains INTK-043's single unified work route.
+- Targeted wake and five-minute fallback enter the same mailbox lease/delta implementation.
+- Operational mail state uses `ApprovedMailbox.Id`; the old re-key/adoption and dual identity are absent.
+- One enabled Inbox has at most one exact-scope subscription; maintenance, missed, removed and reauthorization paths recover through delta.
+- The forwarding desk is never introduced as a temporary sender.
+- Telemetry separates Graph delivery, callback, queue, delta, durable receipt and downstream processing.
+- Evidence states that Microsoft documents message notification latency as under one minute average and up to three minutes; no five-second Exchange-to-Pegasus guarantee is claimed.
 
-## Dependencies and sequencing
+## Risks and controls
 
-INTK-040 and INTK-042 are already merged into the current `origin/dev` baseline. MAIL-013 is not blocked by another implementation ticket. It continues to block `DELIV-021`, which owns approved deployment, live Graph subscription creation, latency/recovery/cost observation, and current-state documentation.
+- **Graph delay or loss:** measure provider time separately; retain lifecycle recovery and five-minute fallback.
+- **Duplicate delivery:** stable mailbox ID, existing lease/cursor and receipt idempotency remain authoritative.
+- **Anonymous endpoint abuse:** exact route, small body/batch limits, constant-time secret comparison and uniform invalid response.
+- **Identity migration:** one target schema and explicit fresh-start; no compatibility path or carried cursor.
+- **Concurrent INTK-043 changes:** dependency prevents overlapping implementation; rebase and reuse its final contract.
 
-## Simplification constraints
+## Simplification pass
 
-Reuse the current mailbox lease/delta implementation, shared Queue sender pattern, EF mailbox model, Web endpoint convention, Worker poison convention and managed identities. Add only the external-boundary ports required by Graph/SQL/Queue. Do not add a notification framework, dispatcher hierarchy, second cursor owner, second intake owner, new store/runtime, compatibility path, feature flag, rich-notification encryption, or speculative always-ready capacity.
+Implementation must confirm that the diff adds no mailbox-only queue/function, generic notification framework, second processor, feature flag, compatibility layer or capacity change. Record actual findings and dispositions here before review.
