@@ -174,8 +174,12 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&pageNumber=2&caseQuery=MAIL31001");
         Assert.Contains(">MAIL31001</strong>", search, StringComparison.Ordinal);
-        Assert.Contains("mailbox=instructions", search, StringComparison.Ordinal);
-        Assert.Contains("pageNumber=2", search, StringComparison.Ordinal);
+        var candidateUrl = WebUtility.HtmlDecode(Regex.Match(
+            search,
+            $"<a(?=[^>]*targetCaseId={firstCaseId:D})[^>]*href=\"([^\"]+)\"",
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Groups[1].Value);
+        Assert.Contains("mailbox=instructions", candidateUrl, StringComparison.Ordinal);
+        Assert.Contains("pageNumber=2", candidateUrl, StringComparison.Ordinal);
 
         var target = await GetHtmlAsync(
             client,
