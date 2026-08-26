@@ -74,8 +74,6 @@ public sealed class WorkerAzureClientCompositionTests
     [InlineData(WorkerAzureClientFactory.IntakeStorageServiceUriKey, "https://storage.example.test/intake-staging")]
     [InlineData(WorkerAzureClientFactory.IntakeQueueServiceUriKey, null)]
     [InlineData(WorkerAzureClientFactory.IntakeQueueServiceUriKey, "intake-work")]
-    [InlineData(WorkerAzureClientFactory.ExternalWorkQueueServiceUriKey, null)]
-    [InlineData(WorkerAzureClientFactory.ExternalWorkQueueServiceUriKey, "external-work")]
     public void ProductionRejectsMissingOrInvalidStorageServiceUrisBeforeRegistration(
         string key,
         string? configuredUri)
@@ -167,11 +165,9 @@ public sealed class WorkerAzureClientCompositionTests
         Assert.Equal(Guid.Parse(WorkerClientId), productionOptions.WorkerClientId);
         Assert.Equal(new Uri(StorageServiceUri), productionOptions.IntakeStorageServiceUri);
         Assert.Equal(new Uri(StorageServiceUri), productionOptions.IntakeQueueServiceUri);
-        Assert.Equal(new Uri(StorageServiceUri), productionOptions.ExternalWorkQueueServiceUri);
 
         var queueClients = provider.GetRequiredService<WorkerQueueClients>();
-        Assert.Equal(new Uri($"{StorageServiceUri}intake-work"), queueClients.IntakeWorkQueue.Uri);
-        Assert.Equal(new Uri($"{StorageServiceUri}external-work"), queueClients.ExternalWorkQueue.Uri);
+        Assert.Equal(new Uri($"{StorageServiceUri}intake-work"), queueClients.WorkQueue.Uri);
         Assert.Equal(
             new Uri($"{StorageServiceUri}transient-intake"),
             provider.GetRequiredService<BlobContainerClient>().Uri);
@@ -191,15 +187,10 @@ public sealed class WorkerAzureClientCompositionTests
         Assert.Null(provider.GetService<BlobContainerClient>());
 
         var queueClients = provider.GetRequiredService<WorkerQueueClients>();
-        Assert.True(queueClients.IntakeWorkQueue.Uri.IsLoopback);
-        Assert.True(queueClients.ExternalWorkQueue.Uri.IsLoopback);
+        Assert.True(queueClients.WorkQueue.Uri.IsLoopback);
         Assert.EndsWith(
             "/devstoreaccount1/intake-work",
-            queueClients.IntakeWorkQueue.Uri.AbsolutePath,
-            StringComparison.Ordinal);
-        Assert.EndsWith(
-            "/devstoreaccount1/external-work",
-            queueClients.ExternalWorkQueue.Uri.AbsolutePath,
+            queueClients.WorkQueue.Uri.AbsolutePath,
             StringComparison.Ordinal);
         Assert.True(
             provider.GetRequiredService<WorkerStorageProvisioning>()
@@ -217,27 +208,25 @@ public sealed class WorkerAzureClientCompositionTests
         var provisioning = new WorkerStorageProvisioning(allowLocalCreateIfNotExists: false);
 
         await provisioning.EnsureQueueExistsAsync(clients.IntakeQueue, CancellationToken.None);
-        await provisioning.EnsureQueueExistsAsync(clients.ExternalQueue, CancellationToken.None);
         await provisioning.EnsureContainerExistsAsync(clients.Container, CancellationToken.None);
 
         Assert.Empty(handler.Requests);
     }
 
     [Fact]
-    public async Task DevelopmentOfflineProvisioningCreatesBothQueuesAndBlobContainer()
+    public async Task DevelopmentOfflineProvisioningCreatesTheUnifiedQueueAndBlobContainer()
     {
         using var handler = new RecordingStorageHandler();
         var clients = CreateRecordingClients(handler);
         var provisioning = new WorkerStorageProvisioning(allowLocalCreateIfNotExists: true);
 
         await provisioning.EnsureQueueExistsAsync(clients.IntakeQueue, CancellationToken.None);
-        await provisioning.EnsureQueueExistsAsync(clients.ExternalQueue, CancellationToken.None);
         await provisioning.EnsureContainerExistsAsync(clients.Container, CancellationToken.None);
 
-        Assert.Equal(3, handler.Requests.Count);
+        Assert.Equal(2, handler.Requests.Count);
         Assert.All(handler.Requests, request => Assert.Equal(HttpMethod.Put, request.Method));
         Assert.Equal(
-            ["/intake-work", "/external-work", "/intake-staging"],
+            ["/intake-work", "/intake-staging"],
             handler.Requests.Select(request => request.Uri.AbsolutePath));
     }
 
@@ -281,7 +270,6 @@ public sealed class WorkerAzureClientCompositionTests
             [WorkerAzureClientFactory.WorkerClientIdKey] = WorkerClientId,
             [WorkerAzureClientFactory.IntakeStorageServiceUriKey] = StorageServiceUri,
             [WorkerAzureClientFactory.IntakeQueueServiceUriKey] = StorageServiceUri,
-            [WorkerAzureClientFactory.ExternalWorkQueueServiceUriKey] = StorageServiceUri,
             ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
             ["Graph:MailboxId"] = "mailbox-id",
             ["Graph:MailboxAddress"] = "instructions@example.test",
@@ -340,10 +328,6 @@ public sealed class WorkerAzureClientCompositionTests
                 new Uri("https://storage.example.test/intake-work"),
                 credential,
                 queueOptions),
-            new QueueClient(
-                new Uri("https://storage.example.test/external-work"),
-                credential,
-                queueOptions),
             new BlobContainerClient(
                 new Uri("https://storage.example.test/intake-staging"),
                 credential,
@@ -352,7 +336,6 @@ public sealed class WorkerAzureClientCompositionTests
 
     private sealed record RecordingClients(
         QueueClient IntakeQueue,
-        QueueClient ExternalQueue,
         BlobContainerClient Container);
 
     private sealed class StaticTokenCredential : TokenCredential

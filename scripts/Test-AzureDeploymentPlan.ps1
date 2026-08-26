@@ -29,14 +29,12 @@ $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
 $expectedWorkerSettings = @(
     'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-    'AzureWebJobs.IntakeWorkFunction.Disabled',
-    'AzureWebJobs.IntakePoisonFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
     'AzureWebJobs.InboxPollFunction.Disabled',
     'AzureWebJobs.SentEvidencePollFunction.Disabled',
-    'AzureWebJobs.DueWorkSweepFunction.Disabled',
-    'AzureWebJobs.ExternalWorkFunction.Disabled',
-    'AzureWebJobs.ExternalPoisonFunction.Disabled'
+    'AzureWebJobs.DueWorkSweepFunction.Disabled'
 )
 # The executed production runbook (azure-production-replacement-plan.md) and
 # the one-off predecessor archive/retirement scripts were retired after the
@@ -183,6 +181,7 @@ Assert-Text $parameters '"workerActivation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASU
 Assert-Text $platformBicep "webImageReference\s*=\s*'\$\{containerRegistryName\}\.azurecr\.io/pegasus/web@\$\{webImageDigest\}'" 'The template must own the exact ACR and repository image prefix.'
 Assert-Text $platformBicep "webActivation\s*==\s*'approved'[\s\S]*?startsWith\(webImageDigest,\s*'sha256:'\)[\s\S]*?length\(webImageDigest\)\s*==\s*71[\s\S]*?length\(webRevisionSuffix\)\s*==\s*12" 'Approved Web activation must require a sha256 digest and exact revision suffix.'
 Assert-Text $platformBicep "workerActivationApproved\s*=\s*workerActivation\s*==\s*'approved-live-worker'" 'Only the exact approved-live-worker value may enable the production Worker.'
+Assert-Text $platformBicep "scaleAndConcurrency:\s*\{[\s\S]*?instanceMemoryMB:\s*2048[\s\S]*?alwaysReady:\s*\[[\s\S]*?name:\s*'function:UnifiedWorkFunction'[\s\S]*?instanceCount:\s*1" 'The Worker must retain one 2 GiB always-ready unified queue consumer.'
 Assert-Text $platformBicep "resource\s+webContainerApp[\s\S]*?if\s*\(webActivationApproved\)" 'The Web Container App must be conditional on approved activation.'
 Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must use the exact supplied digest reference.'
 Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
@@ -199,7 +198,6 @@ Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEna
 Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
 Assert-Text $platformBicep "queueDataMessageSenderRole\s*=\s*subscriptionResourceId\('Microsoft.Authorization/roleDefinitions',\s*'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a'\)" 'The Web must use the built-in Storage Queue Data Message Sender role.'
 Assert-Text $platformBicep "resource\s+webIntakeQueueSender[\s\S]*?scope:\s*intakeQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to intake-work.'
-Assert-Text $platformBicep "resource\s+webExternalQueueSender[\s\S]*?scope:\s*externalQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to external-work.'
 if ([regex]::Matches($platformBicep, 'roleDefinitionId:\s*monitoringMetricsPublisherRole').Count -ne 2) {
     throw 'Both Web and Worker identities must receive Monitoring Metrics Publisher at Application Insights.'
 }
@@ -222,7 +220,7 @@ $sourceWorkerNames = @($sourceWorkerNameMatches | ForEach-Object { $_.Groups[1].
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
     -Actual $sourceWorkerNames `
-    -Failure 'The Worker template must contain the exact nine-function disabled-setting name census.'
+    -Failure 'The Worker template must contain the exact seven-function disabled-setting name census.'
 $sourceWorkerConditionalMatches = [regex]::Matches(
     $platformBicep,
     "name:\s*'(AzureWebJobs\.[^']+\.Disabled)'\s*,\s*value:\s*workerActivationApproved\s*\?\s*'false'\s*:\s*'true'"
@@ -319,7 +317,7 @@ $smokeWorkerSettings = @($smokeWorkerMatches | ForEach-Object { $_.Groups[1].Val
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
     -Actual $smokeWorkerSettings `
-    -Failure 'Production smoke must inspect the exact nine-function disabled-setting census.'
+    -Failure 'Production smoke must inspect the exact seven-function disabled-setting census.'
 Assert-Text $productionSmoke 'az\s+functionapp\s+config\s+appsettings\s+list' 'Production smoke must read the live Worker app settings.'
 Assert-Text $productionSmoke "ExpectedWorkerActivation\s*-eq\s*'approved-live-worker'[\s\S]*?'false'[\s\S]*?'true'" 'Production smoke must map approved-live-worker to enabled settings and disabled to disabled settings.'
 Assert-Text $productionSmoke 'HashSet\[string\][\s\S]*StringComparer\]::Ordinal' 'Production smoke must compare every Worker setting name with ordinal semantics.'
@@ -343,7 +341,7 @@ $compiledWorkerNames = @($compiledWorkerNameMatches | ForEach-Object { $_.Groups
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
     -Actual $compiledWorkerNames `
-    -Failure 'The compiled template must contain the exact nine-function disabled-setting name census.'
+    -Failure 'The compiled template must contain the exact seven-function disabled-setting name census.'
 $compiledWorkerConditionalMatches = [regex]::Matches(
     $compiledTemplateJson,
     '"name"\s*:\s*"(AzureWebJobs\.[^"]+\.Disabled)"\s*,\s*"value"\s*:\s*"\[if\(variables\(''workerActivationApproved''\), ''false'', ''true''\)\]"'
@@ -354,7 +352,7 @@ $compiledConditionalWorkerNames = @(
 Assert-ExactOrdinalCensus `
     -Expected $expectedWorkerSettings `
     -Actual $compiledConditionalWorkerNames `
-    -Failure 'The compiled template must contain the exact nine-function fail-closed Worker setting expressions.'
+    -Failure 'The compiled template must contain the exact seven-function fail-closed Worker setting expressions.'
 Assert-Text $compiledTemplateJson '"workerActivationApproved"\s*:\s*"\[equals\(parameters\(''workerActivation''\), ''approved-live-worker''\)\]"' 'The compiled template must enable the Worker only for the exact approved-live-worker input.'
 Assert-Text $compiledTemplateJson '"workerActivation"\s*:\s*\{\s*"type"\s*:\s*"string"\s*,\s*"defaultValue"\s*:\s*"disabled"' 'The compiled template must retain the fail-closed Worker activation default.'
 
