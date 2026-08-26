@@ -329,7 +329,7 @@ Assert-Text $productionSmoke 'WorkerOnly' 'Production smoke must expose its read
 Assert-Text $productionSmoke 'ActivationOnly' 'Production smoke must expose activation-only validation for pre-provision releases that rename functions.'
 Assert-Text $productionSmoke 'if\s*\(\s*-not\s+\$ActivationOnly\s+-and\s+-not\s+\$censusIsExact\s*\)' 'Production smoke must keep the exact Worker census as its default.'
 Assert-Text $productionSmoke "ends_with\(name, '\.Disabled'\)" 'Production smoke activation validation must inspect only function disabled settings.'
-Assert-Text $productionSmoke "PendingWorkRecoverySchedule[\s\S]*?'0 \* \* \* \* \*'" 'Production smoke must require the live recovery timer to run once per minute.'
+Assert-Text $productionSmoke "if\s*\(\s*-not\s+\$ActivationOnly\s*\)[\s\S]*?PendingWorkRecoverySchedule[\s\S]*?'0 \* \* \* \* \*'[\s\S]*?if\s*\(\s*\$WorkerOnly\s*\)" 'Every post-deployment smoke path must require the live recovery timer to run once per minute.'
 
 $compiledTemplateJson = (& az bicep build --file $mainBicepPath --stdout) -join "`n"
 if ($LASTEXITCODE -ne 0) {

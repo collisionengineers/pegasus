@@ -114,20 +114,20 @@ if (-not $valuesAreExact) {
 }
 
 Write-Output "Production Worker activation smoke passed ($ExpectedWorkerActivation)."
-if ($WorkerOnly) {
-    if (-not $ActivationOnly) {
-        $recoverySchedule = (& az functionapp config appsettings list `
-            --subscription $SubscriptionId `
-            --resource-group $ResourceGroupName `
-            --name $workerAppName `
-            --query "[?name == 'PendingWorkRecoverySchedule'].value | [0]" `
-            --output tsv) -join "`n"
-        if ($LASTEXITCODE -ne 0 -or
-            -not [StringComparer]::Ordinal.Equals($recoverySchedule.Trim(), '0 * * * * *')) {
-            throw 'The live PendingWorkRecoverySchedule is not configured to run once per minute.'
-        }
+if (-not $ActivationOnly) {
+    $recoverySchedule = (& az functionapp config appsettings list `
+        --subscription $SubscriptionId `
+        --resource-group $ResourceGroupName `
+        --name $workerAppName `
+        --query "[?name == 'PendingWorkRecoverySchedule'].value | [0]" `
+        --output tsv) -join "`n"
+    if ($LASTEXITCODE -ne 0 -or
+        -not [StringComparer]::Ordinal.Equals($recoverySchedule.Trim(), '0 * * * * *')) {
+        throw 'The live PendingWorkRecoverySchedule is not configured to run once per minute.'
     }
+}
 
+if ($WorkerOnly) {
     return
 }
 
