@@ -90,7 +90,7 @@ public sealed class WorkerActivationReleaseContractTests
 
         Assert.Matches(
             @"scaleAndConcurrency:\s*\{[\s\S]*?instanceMemoryMB:\s*2048[\s\S]*?" +
-            @"alwaysReady:\s*\[[\s\S]*?name:\s*'UnifiedWorkFunction'[\s\S]*?" +
+            @"alwaysReady:\s*\[[\s\S]*?name:\s*'function:UnifiedWorkFunction'[\s\S]*?" +
             @"instanceCount:\s*1",
             platformBicep);
     }

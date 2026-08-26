@@ -509,7 +509,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         instanceMemoryMB: 2048
         alwaysReady: [
           {
-            name: 'UnifiedWorkFunction'
+            name: 'function:UnifiedWorkFunction'
             instanceCount: 1
           }
         ]

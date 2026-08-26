@@ -181,7 +181,7 @@ Assert-Text $parameters '"workerActivation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASU
 Assert-Text $platformBicep "webImageReference\s*=\s*'\$\{containerRegistryName\}\.azurecr\.io/pegasus/web@\$\{webImageDigest\}'" 'The template must own the exact ACR and repository image prefix.'
 Assert-Text $platformBicep "webActivation\s*==\s*'approved'[\s\S]*?startsWith\(webImageDigest,\s*'sha256:'\)[\s\S]*?length\(webImageDigest\)\s*==\s*71[\s\S]*?length\(webRevisionSuffix\)\s*==\s*12" 'Approved Web activation must require a sha256 digest and exact revision suffix.'
 Assert-Text $platformBicep "workerActivationApproved\s*=\s*workerActivation\s*==\s*'approved-live-worker'" 'Only the exact approved-live-worker value may enable the production Worker.'
-Assert-Text $platformBicep "scaleAndConcurrency:\s*\{[\s\S]*?instanceMemoryMB:\s*2048[\s\S]*?alwaysReady:\s*\[[\s\S]*?name:\s*'UnifiedWorkFunction'[\s\S]*?instanceCount:\s*1" 'The Worker must retain one 2 GiB always-ready unified queue consumer.'
+Assert-Text $platformBicep "scaleAndConcurrency:\s*\{[\s\S]*?instanceMemoryMB:\s*2048[\s\S]*?alwaysReady:\s*\[[\s\S]*?name:\s*'function:UnifiedWorkFunction'[\s\S]*?instanceCount:\s*1" 'The Worker must retain one 2 GiB always-ready unified queue consumer.'
 Assert-Text $platformBicep "resource\s+webContainerApp[\s\S]*?if\s*\(webActivationApproved\)" 'The Web Container App must be conditional on approved activation.'
 Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must use the exact supplied digest reference.'
 Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
