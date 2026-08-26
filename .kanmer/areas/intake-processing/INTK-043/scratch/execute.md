@@ -1,0 +1,1 @@
+Opened PR https://github.com/collisionengineers/pegasus/pull/560 at head ec39cc181ec4c7bc5c08e2a7ecbde0e23b1ee8b1 after merging current origin/dev. Required verification passed; hand off to kanmer-review. No merge or deployment performed.
