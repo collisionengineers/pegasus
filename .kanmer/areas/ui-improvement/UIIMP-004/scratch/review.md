@@ -144,3 +144,31 @@ The corrected plan now matches commit `f840d48a`: it records the disproven and f
 ## Verdict
 
 No correctness, simplicity, or scope blocker remains at `e46845c2`. Merge remains subject to the active GitHub run completing green; this reviewer did not merge.
+
+# Combined-boundary final review — commit d119bd39 — 2026-08-26
+
+## Necessity
+
+The GitHub matrix demonstrates two independent faults rather than one speculative workaround:
+
+- property binder + Tag Helper: candidate URL omits mailbox;
+- property binder + explicit builder: candidate URL still omits mailbox because the model property is null;
+- direct query population + Tag Helper: candidate URL still omits mailbox despite the populated model property.
+
+Accordingly both retained corrections are necessary: canonical GET population fixes the model boundary, and explicit generation fixes this one failing URL boundary.
+
+## Correctness and simplicity
+
+**Approve.**
+
+- `OnGetAsync` reads and normalizes `Request.Query["mailbox"]` before every consumer, without changing authorization, retained-message lookup policy, POST binding, or other query values.
+- `AssociationCandidateUrl` uses the established `QueryHelpers.AddQueryString` convention and exactly the same eight values as the replaced candidate anchor Tag Helper: mailbox, folder, page, search, queue, section, case query, and target case id.
+- Null route values are omitted; non-null values are encoded; page and GUID formatting are deterministic.
+- Only the case-search candidate anchor uses the explicit builder. All other links and handlers remain on existing conventions.
+- The exact-anchor regression test addresses the demonstrated failure and cannot pass from unrelated mailbox/page text elsewhere in the response.
+- There is no SDK/workflow net change.
+- The plan's Combined boundary fix accurately records the evidence, authorized scope, implementation, and fresh shard-1 acceptance requirement.
+
+## Verdict
+
+No correctness, necessity, simplicity, or plan-alignment blocker remains at `d119bd39`. Merge remains conditional on the active fresh GitHub run, especially SQL shard 1, completing green.

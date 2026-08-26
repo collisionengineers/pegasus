@@ -46,3 +46,7 @@ The SDK hypothesis was disproven by a clean GitHub run under 10.0.303 and all SD
 ### Final CI root cause correction
 
 A fresh run proved the explicit URL-builder workaround still omitted `mailbox`, so that workaround is removed and the original Tag Helper restored. The isolated candidate URL establishes that `MailboxFilter` is null during the GitHub GET even though `CaseQuery` binds and the raw request contains `mailbox=instructions`. The final fix reads the canonical `mailbox` value directly from `Request.Query` in `OnGetAsync`, applies the existing trim/null normalization, and leaves all other route generation unchanged. Acceptance remains the exact-anchor focused test and a fresh green SQL shard 1.
+
+### Combined boundary fix
+
+The GitHub evidence matrix isolates two independent failures: renamed-property binding plus Tag Helper generation fails; explicit candidate URL with the unpopulated property fails; direct query population plus the Tag Helper still fails. Therefore the final correction combines both narrow changes: populate `MailboxFilter` from the canonical GET query and generate only the case-candidate URL explicitly with `QueryHelpers` over the same eight values. No other links or handlers change. Acceptance remains focused exact-anchor pass, independent review, and fresh green SQL shard 1.

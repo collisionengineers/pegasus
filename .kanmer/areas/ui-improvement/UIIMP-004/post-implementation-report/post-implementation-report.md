@@ -57,3 +57,7 @@ The clean 10.0.303 GitHub run failed identically, disproving the SDK hypothesis;
 ### Final root cause
 
 Run 33004368148 proved the explicit `QueryHelpers` candidate URL still lacked `mailbox`, so commit `e46845c2` removes that workaround and restores the original Tag Helper. The failure is the renamed `MailboxFilter` GET property arriving null on the GitHub runner despite the raw `mailbox` query. `OnGetAsync` now reads that canonical query key directly and applies the existing trim/null normalization. The exact-anchor focused regression passes locally; fresh GitHub proof and final re-review are pending.
+
+### Combined GitHub fix
+
+Run 33005929015 showed direct query population alone still failed at the exact candidate URL. The evidence matrix now establishes two required boundaries: explicit GET population and explicit candidate URL generation. Commit `d119bd39` combines the two already-focused corrections; the exact-anchor test passes locally. Fresh GitHub proof and final independent review remain pending.
