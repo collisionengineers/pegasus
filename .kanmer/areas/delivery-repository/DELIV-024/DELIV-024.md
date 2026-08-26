@@ -2,15 +2,14 @@
 id: DELIV-024
 type: ticket
 title: Record release 32 deployed state
-status: review
+status: done
 area: delivery-repository
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   review: '2026-08-26T11:02:16.197Z'
-taken_at: '2026-08-26T11:01:21.562Z'
-branch: task/deliv-024-release-32-docs
-worktree: ../pegasus-worktrees/deliv-024-release-32-docs
+  verifying: '2026-08-26T11:05:32.363Z'
+  done: '2026-08-26T11:05:38.090Z'
 labels:
   - release
   - documentation
@@ -26,7 +25,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-26T11:01:03.953Z'
-updated: '2026-08-26T11:03:45.056Z'
+updated: '2026-08-26T11:05:41.604Z'
 ---
 
 ## What
