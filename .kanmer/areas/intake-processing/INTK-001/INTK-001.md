@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Make queued upload status honest for retry-scheduled work and auto-associated
   receipts
-status: preparing
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T15:19:39.900Z'
+taken_at: '2026-08-26T12:49:06.099Z'
+branch: task/intk-001-truthful-status
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/intk-001-truthful-status'
 labels: []
 groups:
   - EPIC-002
@@ -23,7 +26,7 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-17T11:10:37.268Z'
-updated: '2026-08-25T15:19:39.900Z'
+updated: '2026-08-26T12:49:06.099Z'
 ---
 
 ## What

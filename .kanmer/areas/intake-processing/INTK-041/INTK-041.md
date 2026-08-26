@@ -19,8 +19,6 @@ links: []
 blocks:
   - INTK-003
   - INTK-042
-  - MAIL-013
-  - INTK-001
   - INTK-043
 refs:
   - docs/prd/pegasus-product.md
@@ -35,7 +33,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-25T15:18:14.748Z'
-updated: '2026-08-25T15:37:04.815Z'
+updated: '2026-08-26T12:48:50.311Z'
 ---
 
 ## What
