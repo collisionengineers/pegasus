@@ -255,7 +255,8 @@ public sealed class ProviderInspectionModeAcceptanceTests
                 var acceptIntake = new AcceptIntake(
                     acceptanceStore,
                     new FixedConfiguration(),
-                    new EfProviderInspectionModeStore(factory));
+                    new EfProviderInspectionModeStore(factory),
+                    new CommittedWorkPublisherDouble());
                 var dataStore = new EfCaseDataStore(factory, timeProvider);
                 var workflowStore = new EfCaseWorkflowStore(factory, timeProvider);
                 return new(

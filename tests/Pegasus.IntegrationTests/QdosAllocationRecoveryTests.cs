@@ -582,7 +582,7 @@ public sealed class QdosAllocationRecoveryTests
         var store = services.GetRequiredService<IIntakeWorkStore>();
         var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
 
-        var received = await new ReceiveIntake(artifactStore, store, clock).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, store, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
             new(
                 email.FileName,
                 email.MediaType,
@@ -670,7 +670,7 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<IIntakeWorkStore>(),
             factory.Services);
         var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
-        var received = await new ReceiveIntake(artifactStore, workStore, clock).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, workStore, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
             new(
                 email.FileName,
                 email.MediaType,
@@ -845,6 +845,7 @@ public sealed class QdosAllocationRecoveryTests
         public Task<IntakeStagedReceipt?> FindBySourceIdentityAsync(IntakeSourceIdentity sourceIdentity, CancellationToken cancellationToken) => inner.FindBySourceIdentityAsync(sourceIdentity, cancellationToken);
         public Task<ReceivedIntake> ReceiveAsync(IntakeStagedReceipt receipt, string operationKey, CancellationToken cancellationToken) => inner.ReceiveAsync(receipt, operationKey, cancellationToken);
         public Task<IntakeWorkItem?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+        public Task<IntakeWorkItem?> ClaimDispatchAsync(Guid stagedReceiptId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) => inner.ClaimDispatchAsync(stagedReceiptId, nowUtc, leaseDuration, cancellationToken);
         public Task<IntakeWorkItem?> FindWorkItemAsync(Guid stagedReceiptId, CancellationToken cancellationToken) => inner.FindWorkItemAsync(stagedReceiptId, cancellationToken);
         public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset nowUtc, CancellationToken cancellationToken) => inner.MarkDispatchedAsync(workItemId, leaseToken, nowUtc, cancellationToken);
         public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) => inner.ReleaseDispatchAsync(workItemId, leaseToken, dueAtUtc, cancellationToken);

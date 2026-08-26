@@ -364,7 +364,8 @@ public sealed class CaseMatchIntegrationTests
                     new AcceptIntake(
                         acceptanceStore,
                         new FixedConfiguration(),
-                        new EfProviderInspectionModeStore(factory)),
+                        new EfProviderInspectionModeStore(factory),
+                        new CommittedWorkPublisherDouble()),
                     new SaveCase(dataStore),
                     new AcquireCaseEditLease(workflowStore));
             }

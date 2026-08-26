@@ -1,4 +1,5 @@
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Workflow;
@@ -13,6 +14,7 @@ public sealed class AcceptIntake(
     ICaseAcceptanceStore acceptanceStore,
     ICaseWorkflowConfiguration configuration,
     IProviderInspectionModeStore inspectionModeStore,
+    ICommittedExternalWorkPublisher committedExternalWorkPublisher,
     IImageIntakeCasePairing? imageIntakeCasePairing = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
@@ -116,6 +118,12 @@ public sealed class AcceptIntake(
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
         _ = CaseInitialWorkflowState.From(outcome.InitialState);
+        if (!outcome.IsDuplicate)
+        {
+            await committedExternalWorkPublisher.PublishAsync(
+                outcome.CustodyWorkId,
+                cancellationToken);
+        }
         if (!outcome.IsDuplicate && imageIntakeCasePairing is not null)
         {
             try

@@ -11,6 +11,7 @@ using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
+using Pegasus.Infrastructure.Transport;
 
 namespace Pegasus.Worker;
 
@@ -90,7 +91,14 @@ public static class WorkerDependencyInjection
             serviceProvider.GetRequiredService<EfIntakeWorkStore>());
         services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
             serviceProvider.GetRequiredService<EfIntakeWorkStore>());
-        services.AddSingleton<IIntakeWorkEnqueuer, AzureQueueIntakeWorkQueue>();
+        services.AddSingleton<IIntakeWorkEnqueuer>(serviceProvider =>
+        {
+            var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
+            var provisioning = serviceProvider.GetRequiredService<WorkerStorageProvisioning>();
+            return new AzureQueueIntakeWorkEnqueuer(
+                queues.IntakeWorkQueue,
+                provisioning.AllowLocalCreateIfNotExists);
+        });
         services.AddScoped<ReceiveIntake>();
         services.AddScoped<IIntakeSubmission>(serviceProvider =>
             serviceProvider.GetRequiredService<ReceiveIntake>());
@@ -99,6 +107,8 @@ public static class WorkerDependencyInjection
             serviceProvider.GetRequiredService<SubmitGroupedIntake>());
         services.AddScoped<SubmitMailboxImageIntake>();
         services.AddScoped<DispatchPendingIntakeWork>();
+        services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
+            serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
         services.AddScoped<ProcessQueuedIntake>();
         services.AddScoped<IProcessQueuedIntake>(serviceProvider =>
             serviceProvider.GetRequiredService<ProcessQueuedIntake>());
@@ -108,8 +118,17 @@ public static class WorkerDependencyInjection
         services.AddScoped<ReconcileAutomaticVehicleLookups>();
         services.AddScoped<ResolveIntake>();
         services.AddScoped<ReevaluateIntake>();
-        services.AddSingleton<IExternalWorkEnqueuer, AzureQueueExternalWorkQueue>();
+        services.AddSingleton<IExternalWorkEnqueuer>(serviceProvider =>
+        {
+            var queues = serviceProvider.GetRequiredService<WorkerQueueClients>();
+            var provisioning = serviceProvider.GetRequiredService<WorkerStorageProvisioning>();
+            return new AzureQueueExternalWorkEnqueuer(
+                queues.ExternalWorkQueue,
+                provisioning.AllowLocalCreateIfNotExists);
+        });
         services.AddScoped<DispatchPendingExternalWork>();
+        services.AddScoped<ICommittedExternalWorkPublisher>(serviceProvider =>
+            serviceProvider.GetRequiredService<DispatchPendingExternalWork>());
         services.AddScoped<ReconcilePoisonedExternalWork>();
         services.AddScoped<ReconcilePoisonedQueueWork>();
         services.AddScoped<DispatchPendingWork>();

@@ -18,13 +18,15 @@ public sealed class VehicleWorkflowTests
         var command = RequestCommand();
         var unavailable = new RequestVehicleLookup(
             new RecordingRequestStore(),
-            VehicleLookupAvailability.Unavailable);
+            VehicleLookupAvailability.Unavailable,
+            new CommittedWorkPublisherDouble());
         await Assert.ThrowsAsync<VehicleLookupUnavailableException>(() =>
             unavailable.ExecuteAsync(command, CancellationToken.None));
 
         var available = new RequestVehicleLookup(
             new RecordingRequestStore(),
-            VehicleLookupAvailability.DevelopmentOfflineReplay);
+            VehicleLookupAvailability.DevelopmentOfflineReplay,
+            new CommittedWorkPublisherDouble());
         await Assert.ThrowsAsync<StaffAuthorizationException>(() =>
             available.ExecuteAsync(
                 command with { Actor = ActionActor.SystemWorker("vehicle-test") },
@@ -39,9 +41,11 @@ public sealed class VehicleWorkflowTests
     public async Task ExactRequestIsNormalizedAndDelegatedOnce()
     {
         var store = new RecordingRequestStore();
+        var publisher = new CommittedWorkPublisherDouble();
         var useCase = new RequestVehicleLookup(
             store,
-            VehicleLookupAvailability.DevelopmentOfflineReplay);
+            VehicleLookupAvailability.DevelopmentOfflineReplay,
+            publisher);
 
         var result = await useCase.ExecuteAsync(RequestCommand(), CancellationToken.None);
 
@@ -49,6 +53,7 @@ public sealed class VehicleWorkflowTests
         var recorded = Assert.Single(store.Commands);
         Assert.Equal("AB12CDE", recorded.Registration);
         Assert.Equal("vehicle-request", recorded.OperationKey);
+        Assert.Equal([result.WorkItemId], publisher.ExternalWorkIds);
     }
 
     [Fact]

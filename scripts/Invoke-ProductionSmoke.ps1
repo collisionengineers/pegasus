@@ -31,7 +31,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $expectedWorkerSettings = @(
-    'AzureWebJobs.PendingWorkDispatchFunction.Disabled',
+    'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
     'AzureWebJobs.IntakeWorkFunction.Disabled',
     'AzureWebJobs.IntakePoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',

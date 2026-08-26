@@ -15,7 +15,7 @@ public sealed class WorkerActivationReleaseContractTests
         "InboxPollFunction",
         "IntakePoisonFunction",
         "IntakeWorkFunction",
-        "PendingWorkDispatchFunction",
+        "PendingWorkRecoveryFunction",
         "SentEvidencePollFunction",
         "StagedArtifactReconciliationFunction"
     ];
@@ -114,7 +114,7 @@ public sealed class WorkerActivationReleaseContractTests
                 "platform.bicep");
             var platformBicep = File.ReadAllText(platformBicepPath);
             const string marker =
-                "        { name: 'AzureWebJobs.PendingWorkDispatchFunction.Disabled'";
+                "        { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled'";
             var mutatedPlatformBicep = platformBicep.Replace(
                 marker,
                 "        { name: 'AzureWebJobs.Rogue-Function.Disabled', value: 'false' }" +
