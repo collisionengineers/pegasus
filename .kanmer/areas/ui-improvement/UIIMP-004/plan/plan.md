@@ -34,3 +34,7 @@ Investigation removed three obsolete branches that current PageModels cannot ren
 - Efficiency: capture is environment-gated and piggybacks on existing tests; no second web host, template engine, converter, runtime mode or production service was added.
 - Altitude: the implementation stays test/documentation-only; application behavior and deployment composition are unchanged.
 - Disposition: no further behavior-preserving simplification identified.
+
+## CI-resolution scope expansion — 2026-08-26
+
+The operator explicitly asked to check and resolve the failing GitHub issue on PR #562. The runner used SDK 10.0.400 despite the shared build action describing a pinned SDK, while the exact 306-test SQL shard passes on the repository machine with SDK 10.0.303. Keep this expansion limited to making the existing SDK contract deterministic: install 10.0.303 in the shared action and restrict `global.json` roll-forward to patch servicing. Do not change the unrelated MailWorkspace behavior or weaken its assertion. Acceptance is a fresh GitHub run that reports the effective 10.0.303 SDK and passes the previously failing SQL shard; otherwise revert this hypothesis and continue diagnosis.

@@ -45,3 +45,7 @@ Commit: `44d16f46`.
 ## GitHub CI SDK correction — 2026-08-26
 
 PR run 32991612398 failed the same mail-workspace route-preservation assertion twice on GitHub while the focused test and exact 306-test shard passed locally (305 passed, 1 intentional skip). The runner log showed the shared build action installed SDK 10.0.400 from `10.0.x`; the repository baseline is 10.0.302 and local validation used 10.0.303. Commit `f7c87173` makes the action's claimed pinned behavior real by installing 10.0.302 and restricting `global.json` roll-forward to the latest patch in that feature band. `dotnet --version`, the exact shard, actionlint, and `git diff --check` pass locally. Fresh GitHub CI is pending.
+
+### Reviewer correction
+
+Independent review blocked the initial 10.0.302 setup pin because local passing evidence used 10.0.303 and the repository-wide scope had not been added to the ticket plan. Commit `c7b47a29` pins both `global.json` and the shared action to the validated 10.0.303 baseline; the operator-requested CI resolution and its revert-if-unproven acceptance rule are now explicit in the plan. Fresh GitHub proof remains required.
