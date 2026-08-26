@@ -25,21 +25,22 @@ activation boundaries are owned by the
 
 [The Test UI catalogue](test-ui/index.html) is the disposable, offline
 catalogue of current routed Web surfaces. Open it directly from the repository
-to inspect or alter static HTML replicas without .NET, authentication, a
+to inspect generated static HTML snapshots without .NET, authentication, a
 database, or external services. State files use the
-pages/route-key--state.html convention; the inventory in the index is the
-single route-classification list.
+pages/route-key--state.html convention; `catalogue.json` is the single
+route-classification and state list.
 
 The catalogue is design evidence only. It does not implement, approve, deploy,
 or simulate server behaviour, and it is never an application or publish input.
-Its markup reuses the current Web classes and tracked assets, but approval of a
+Its markup is captured from the current Razor pages and PageModels, with only
+volatile security/operation values and local URLs normalized. Do not edit the
+generated HTML by hand. Approval of a
 Test UI experiment is separate from implementation in the Live Razor pages.
 Each visual state names the current Razor/PageModel branch it represents in the
-catalogue inventory. The validator requires that review claim; semantic
-fidelity still requires source comparison because route and link coverage alone
-cannot prove rendered-page fidelity.
-Run scripts/Test-UiCatalogue.ps1 after adding, removing, or changing a routed
-Razor page.
+catalogue manifest. Regenerate and verify after changing a routed Razor page:
+`scripts/Update-TestUiSnapshots.ps1`, then
+`scripts/Update-TestUiSnapshots.ps1 -Verify` and
+`scripts/Test-UiCatalogue.ps1`.
 
 
 ## Product direction

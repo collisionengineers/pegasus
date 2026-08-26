@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Upload received · Pegasus</title>
+    <title>Inbox · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -40,7 +40,7 @@
                 <a class="rail-link" href="dashboard--default.html">
                     <span>Dashboard</span>
                 </a>
-                    <a class="rail-link" href="inbox--default.html">
+                    <a class="rail-link" aria-current="page" href="inbox--default.html">
                         <span>Inbox</span>
                     </a>
                     <a class="rail-link" href="upload--default.html">
@@ -71,67 +71,86 @@
         <main id="main-content" class="app-rail-main" tabindex="-1">
 
 <header class="page-heading">
-    <h1>Upload received</h1>
+    <h1>Inbox</h1>
+    <div class="refresh" data-refresh-region role="status" aria-live="polite">
+        <span>Never updated</span>
+        <span class="status-chip status-chip--neutral">
+    <svg class="icon" aria-hidden="true"><use href="#icon-alert-circle" /></svg>
+    <span>Unavailable</span>
+</span>
+
+    <form method="get" data-refresh-form>
+        <button type="submit" title="Refresh" aria-label="Refresh">
+            <svg class="icon icon--spin" aria-hidden="true"><use href="#icon-refresh-cw" /></svg>
+            <span class="vh" data-refresh-label>Refresh</span>
+        </button>
+    </form>
+</div>
+
 </header>
 
 
-<div class="form-column">
-    <section class="panel"
-             aria-labelledby="group-status-title"
-             data-auto-refresh="2000">
-        <h2 id="group-status-title" class="section-label">Files in this submission</h2>
-        <ol class="upload-outcome-list">
-                <li>
-                        <p class="upload-outcome__file">overview.png</p>
-                        <div class="upload-outcome">
-        <span class="field-hint">Processing</span>
-    <p class="upload-outcome__message">The submission is being processed.</p>
-</div>
+<nav class="subtabs section-gap" aria-label="Folder">
+        <a aria-current="page" href="inbox--default.html">Inbox</a>
+        <a href="inbox--default.html">Sent</a>
+        <a href="inbox--default.html">Deleted items</a>
+</nav>
 
-                </li>
-                <li>
-                        <p class="upload-outcome__file">close-up.png</p>
-                        <div class="upload-outcome">
-        <span class="status-chip status-chip--amber">
-    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-    <span>Unidentified</span>
-</span>
-
-    <p class="upload-outcome__message">This needs a staff decision.</p>
-        <div class="button-row">
-                <a class="primary-action" href="unidentified-details--default.html">Review</a>
-                <a class="secondary-action" href="upload--default.html">Cancel</a>
+    <form method="get" class="panel filterbar section-gap" aria-label="Mail view">
+        <div class="filterbar__line">
+            <label for="mail-view">Queue or detailed classification</label>
+            <select id="mail-view" name="queue">
+                <option value="" selected="selected">All retained mail</option>
+                <optgroup label="Operational queues">
+                        <option value="receiving-work">Receiving work</option>
+                        <option value="queries">Queries</option>
+                        <option value="other">Other</option>
+                        <option value="unidentified">Unidentified</option>
+                        <option value="triage">Triage</option>
+                </optgroup>
+                <optgroup label="Detailed classifications">
+                        <option value="classification:received:General:autoreply">General &#xB7; Autoreply</option>
+                        <option value="classification:received:General:undeliverable">General &#xB7; Undeliverable</option>
+                        <option value="classification:received:General:acknowledgement">General &#xB7; Acknowledgement</option>
+                        <option value="classification:received:General:general-chase">General &#xB7; General chase</option>
+                        <option value="classification:received:General:case-summary">General &#xB7; Case summary</option>
+                        <option value="classification:received:Billing:payment-notification">Billing &#xB7; Payment notification</option>
+                        <option value="classification:received:Billing:remittance">Billing &#xB7; Remittance</option>
+                        <option value="classification:received:Billing:invoice-request">Billing &#xB7; Invoice request</option>
+                        <option value="classification:received:Billing:general-billing">Billing &#xB7; General billing</option>
+                        <option value="classification:received:NonClientRelated">Not client related</option>
+                        <option value="classification:received:InProgressCases:cancellation">In-progress case &#xB7; Cancellation</option>
+                        <option value="classification:received:InProgressCases:case-update">In-progress case &#xB7; Case update</option>
+                        <option value="classification:received:InProgressCases:client-chasing-for-update">In-progress case &#xB7; Client chasing for update</option>
+                        <option value="classification:received:InProgressCases:provider-chasing-for-update">In-progress case &#xB7; Provider chasing for update</option>
+                        <option value="classification:received:InProgressCases:ongoing-correspondence">In-progress case &#xB7; Ongoing correspondence</option>
+                        <option value="classification:received:PreInstructionEmails:pre-formal-instruction-request">Pre-instruction &#xB7; Pre formal instruction request</option>
+                        <option value="classification:received:PreInstructionEmails:images-received">Pre-instruction &#xB7; Images received</option>
+                        <option value="classification:received:InternalCc">Internal CC</option>
+                        <option value="classification:sent:ReportSent">Sent &#xB7; Report sent</option>
+                        <option value="classification:sent:CaseRejected">Sent &#xB7; Case rejected</option>
+                        <option value="classification:sent:QuerySent">Sent &#xB7; Query sent</option>
+                        <option value="classification:sent:AdditionalImageRequest">Sent &#xB7; Additional image request</option>
+                </optgroup>
+            </select>
+            <button class="btn btn--dark" type="submit">Show view</button>
         </div>
-        <details class="upload-attach" data-refresh-hold>
-            <summary class="secondary-action">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form" data-case-search data-case-search-url="/Upload/Group/7b8f5e5b-577f-40cd-a266-7fc5791d3ae4?handler=CaseSearch" action="upload-group-status--default.html">
-                <input type="hidden" name="receiptId" value="1f05d8a2-5883-4aaf-9524-451a7d61b153" />
-                <input type="hidden" name="caseId" value="" data-case-search-value />
-                <label for="case-attach-1f05d8a258834aaf9524451a7d61b153-input">Case</label>
-                <input id="case-attach-1f05d8a258834aaf9524451a7d61b153-input"
-                       name="reference"
-                       type="text"
-                       maxlength="60"
-                       required
-                       autocomplete="off"
-                       spellcheck="false"
-                       aria-describedby="case-attach-1f05d8a258834aaf9524451a7d61b153-hint"
-                       data-case-search-input />
-                <p id="case-attach-1f05d8a258834aaf9524451a7d61b153-hint" class="field-hint">Search by case reference, registration or claimant, then choose the case this belongs to.</p>
-                <ul id="case-attach-1f05d8a258834aaf9524451a7d61b153-list" class="case-search-list" hidden data-case-search-list></ul>
-                <label for="case-attach-1f05d8a258834aaf9524451a7d61b153-reason">Reason for adding to this case</label>
-                <textarea id="case-attach-1f05d8a258834aaf9524451a7d61b153-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                <div class="button-row">
-                    <button type="submit" class="primary-action">Add to this case</button>
-                </div>
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        </details>
-</div>
+    </form>
 
-                </li>
-        </ol>
-    </section>
-</div>
+<form method="get" class="panel filterbar section-gap" role="search">
+    <div class="filterbar__line">
+        <label for="mail-search" class="vh">Search retained mail in current folders</label>
+        <input id="mail-search" name="search" maxlength="200"
+               placeholder="Message body or attachment" />
+        <button class="btn btn--dark" type="submit">Search</button>
+    </div>
+</form>
+
+    <div class="mark-empty">
+    <img class="mark mark--md" src="../../../../src/Pegasus.Web/wwwroot/images/marks/mailboxes.png" alt="" aria-hidden="true" />
+        <p class="empty-state">No mail has been received.</p>
+    </div>
+
 
         </main>
     </div>

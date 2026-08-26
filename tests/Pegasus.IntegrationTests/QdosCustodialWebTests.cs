@@ -52,6 +52,15 @@ public sealed class QdosCustodialWebTests
         using var formResponse = await client.GetAsync(route);
         formResponse.EnsureSuccessStatusCode();
         var formHtml = await formResponse.Content.ReadAsStringAsync();
+        using (var invalidForm = new MultipartFormDataContent())
+        {
+            invalidForm.Add(new StringContent(AntiforgeryValue(formHtml)), "__RequestVerificationToken");
+            invalidForm.Add(new StringContent(InputValue(formHtml, "Token")), "Token");
+            invalidForm.Add(new StringContent(InputValue(formHtml, "OperationKey")), "OperationKey");
+            using var invalid = await client.PostAsync(route, invalidForm);
+            Assert.Equal(HttpStatusCode.OK, invalid.StatusCode);
+            Assert.Contains("Choose a document to upload.", await invalid.Content.ReadAsStringAsync(), StringComparison.Ordinal);
+        }
         using var form = new MultipartFormDataContent();
         form.Add(new StringContent(AntiforgeryValue(formHtml)), "__RequestVerificationToken");
         form.Add(new StringContent(InputValue(formHtml, "Token")), "Token");
@@ -80,7 +89,7 @@ public sealed class QdosCustodialWebTests
         Assert.DoesNotContain(handler.Token, completionHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("public-proof.txt", completionHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"Upload\"", completionHtml, StringComparison.Ordinal);
-        Assert.Equal(3, handler.QueryCount);
+        Assert.Equal(4, handler.QueryCount);
     }
 
 

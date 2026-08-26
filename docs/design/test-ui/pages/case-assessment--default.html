@@ -1,2 +1,507 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Assessment · Pegasus Test UI</title><link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css"></head><body><a class="skip-link" href="#main-content">Skip to main content</a><div class="app-rail-shell"><header class="app-rail"><a class="app-rail__brand" href="dashboard--default.html" aria-label="Pegasus dashboard"><span><img class="mark" src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true"></span><b>Pegasus</b></a><nav class="app-rail__nav" aria-label="Primary"><a class="rail-link" href="dashboard--default.html"><span>Dashboard</span></a><a class="rail-link" href="inbox--default.html"><span>Inbox</span></a><a class="rail-link" href="upload--default.html"><span>Upload</span></a><a class="rail-link" href="queues--default.html"><span>Queues</span></a><a class="rail-link" href="cases--default.html" aria-current="page"><span>Cases</span></a><a class="rail-link" href="operations--default.html"><span>Operations</span></a><a class="rail-link" href="administration--default.html"><span>Administration</span></a></nav><div class="app-rail__user" role="group" aria-label="User"><span class="app-rail__name">development-offline-administrator</span><a class="app-rail__action" href="password-change--default.html">Change password</a><form><button class="app-rail__action app-rail__action--quiet" type="button">Sign out</button></form></div></header><main id="main-content" class="app-rail-main" tabindex="-1"><article class="record"><header class="record__head"><h1>CE-100</h1><span class="record__identity"><span><b>QDS</b></span><span>AB12 CDE</span><span>Inspection</span></span><span class="record__head-end"><span class="status-chip">Review</span></span></header><div class="record__accent"></div><div class="record__bar"><span class="gated" data-condition="Available once the estimating-service link is agreed"><a class="btn is-disabled" aria-disabled="true">Open in Glass's</a></span><span class="gated" data-condition="Available once the estimating-service link is agreed"><a class="btn is-disabled" aria-disabled="true">Open in Audatex</a></span><a class="btn">Import estimate</a><span class="record__bar-end"><span class="record__bar-rule" aria-hidden="true"></span><a class="btn btn--dark" href="case-details--default.html">Back to the case</a></span></div><nav class="section-tabs" aria-label="Assessment sections"><a aria-current="page">Vehicle</a><a>Incident &amp; impact</a><a>Inspection</a><a>Valuation</a><a>Repair specification</a><a>Findings</a><a>Report content</a><a>Estimate</a></nav><div class="record__body"><section class="panel"><h2 class="section-label">Readiness</h2><p class="empty-state">No readiness issues.</p></section><section class="panel section-gap"><h2 class="section-label">Send to Claude</h2><form><button type="button" class="secondary-action">Send to Claude</button></form></section><section class="panel section-gap"><h2 class="section-label">Report draft</h2><form><button class="secondary-action">Generate report draft</button></form></section><section class="panel section-gap"><h2>Vehicle</h2><div class="form-grid"><label>Registration<input value="AB12 CDE" required></label><label>Vehicle type<select required><option>Car</option></select></label><label>Make<input required></label><label>Model<input required></label><label>Year<input required></label><label>VIN<input></label><label>Engine size<input type="number" min="0"></label><label>Fuel<input></label><label>Mileage<input type="number" min="0"></label><label>Source<select><option>Not recorded</option><option>Online data</option><option>Owner</option></select></label><label>Pre-incident condition<select required><option>Good</option></select></label></div><div class="button-row section-gap"><button class="primary-action">Save vehicle</button></div></section></div></article></main></div></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Assessment · Pegasus</title>
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+</head>
+<body>
+    <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="icon-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="icon-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></symbol>
+  <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="icon-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></symbol>
+  <symbol id="icon-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+  <symbol id="icon-alert-triangle" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></symbol>
+  <symbol id="icon-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="icon-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></symbol>
+  <symbol id="icon-filter" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></symbol>
+  <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="icon-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
+</svg>
+
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-rail-shell">
+        <header class="app-rail">
+            <a class="app-rail__brand" aria-label="Pegasus dashboard" href="dashboard--default.html">
+                <span>
+                    <img class="mark" src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                </span>
+                <b>Pegasus</b>
+            </a>
+            <nav class="app-rail__nav" aria-label="Primary">
+                <a class="rail-link" href="dashboard--default.html">
+                    <span>Dashboard</span>
+                </a>
+                    <a class="rail-link" href="inbox--default.html">
+                        <span>Inbox</span>
+                    </a>
+                    <a class="rail-link" href="upload--default.html">
+                        <span>Upload</span>
+                    </a>
+                <a class="rail-link" href="queues--default.html">
+                    <span>Queues</span>
+                        <span class="rail-link__count rail-link__count--waiting">0</span>
+                </a>
+                <a class="rail-link" aria-current="page" href="cases--default.html">
+                    <span>Cases</span>
+                </a>
+                    <a class="rail-link" href="operations--default.html">
+                        <span>Operations</span>
+                    </a>
+                    <a class="rail-link" href="administration--default.html">
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="app-rail__user" role="group" aria-label="User">
+                    <span class="app-rail__name">development-offline-administrator</span>
+                    <a class="app-rail__action" href="password-change--default.html">Change password</a>
+                    <form method="post" action="/Account/SignOut">
+                        <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </div>
+        </header>
+        <main id="main-content" class="app-rail-main" tabindex="-1">
+
+<a class="back-link" href="case-details--default.html">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    <span>Back to the case</span>
+</a>
+
+<article class="record" data-state="review">
+    <header class="record__head">
+        <h1>CE-100</h1>
+        <span class="record__identity">
+            <span><b>Approved Principal</b></span>
+            <span>PK12TMZ</span>
+            <span>Inspection</span>
+        </span>
+        <span class="record__head-end">
+            <span class="status-chip status-chip--navy">
+    <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+    <span>Review</span>
+</span>
+
+        </span>
+    </header>
+    <div class="record__accent"></div>
+
+    <div class="record__bar">
+        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Open in Glass's
+            </a>
+        </span>
+        <span class="gated" data-condition="Available once the estimating-service link is agreed">
+            <a class="btn is-disabled" aria-disabled="true">
+                <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+                Open in Audatex
+            </a>
+        </span>
+        <a class="btn" href="case-assessment--default.html">
+            <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+            Import estimate
+        </a>
+        <span class="record__bar-end">
+            <span class="record__bar-rule" aria-hidden="true"></span>
+            <a class="btn btn--dark" href="case-details--default.html">Back to the case</a>
+        </span>
+    </div>
+
+    <nav class="section-tabs" aria-label="Assessment sections">
+            <a href="case-assessment--default.html"
+               aria-current="page">Vehicle</a>
+            <a href="case-assessment--default.html">Incident and impact</a>
+            <a href="case-assessment--default.html">Inspection</a>
+            <a href="case-assessment--default.html">Valuation</a>
+            <a href="case-assessment--default.html">Estimate</a>
+            <a href="case-assessment--default.html">Findings</a>
+            <a href="case-assessment--default.html">Report content</a>
+    </nav>
+
+    <div class="record__body">
+
+
+<div class="workbench-grid">
+    <aside aria-label="Assessment readiness">
+        <section class="panel" aria-labelledby="readiness-title">
+            <h2 id="readiness-title" class="section-label">Readiness</h2>
+                <details class="readiness-summary" data-hover-disclosure>
+                    <summary>
+                        <span class="status-chip status-chip--amber">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>1 issue detected</span>
+                        </span>
+                    </summary>
+                    <ul class="blocker-list">
+                            <li class="blocker" data-state="not-ready">
+                                <strong>Repair cost figures</strong>
+                                <small>Estimate lines and rate card. No accepted formula exists yet to convert recorded estimate lines and the chosen rate card into a labour rate and repair cost (EXT-09, open decision D2). This becomes available once EXT-09&#x27;s estimate-derivation formula is accepted.</small>
+                            </li>
+                    </ul>
+                </details>
+        </section>
+
+        <section class="panel" aria-labelledby="report-draft-title">
+            <h2 id="report-draft-title" class="section-label">Report draft</h2>
+            <p>Nothing is saved or sent.</p>
+
+                <div class="status-card status-card--attention">
+                    <h3>Not ready</h3>
+                    <p>1 issue detected — see Readiness above for the list.</p>
+                </div>
+        </section>
+    </aside>
+
+    <div>
+            <section class="panel" aria-labelledby="vehicle-title">
+                <h2 id="vehicle-title">Vehicle</h2>
+                <div class="form-grid section-gap">
+                    <div>
+                        <label class="req" for="vehicle-registration">Registration</label>
+                        <input type="text" aria-required="true" id="vehicle-registration" name="vehicle.registration" />
+                    </div>
+                    <div>
+                        <label class="req" for="vehicle-type">Vehicle type</label>
+                        <select aria-required="true" id="vehicle-type" name="vehicle.vehicle_type">
+                            <option value=""></option>
+                            <option value="car">Car</option>
+                            <option value="van">Van</option>
+                            <option value="motorcycle">Motorcycle</option>
+                            <option value="scooter">Scooter</option>
+                            <option value="bicycle">Bicycle</option>
+                            <option value="trailer">Trailer</option>
+                            <option value="caravan">Caravan</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="req" for="vehicle-make">Make</label>
+                        <input type="text" aria-required="true" id="vehicle-make" name="vehicle.make" />
+                    </div>
+                    <div>
+                        <label class="req" for="vehicle-model">Model</label>
+                        <input type="text" aria-required="true" id="vehicle-model" name="vehicle.model" />
+                    </div>
+                    <div>
+                        <label class="req" for="vehicle-year">Year</label>
+                        <input type="text" aria-required="true" id="vehicle-year" name="vehicle.year" class="tabular" value='2012' />
+                    </div>
+                    <div>
+                        <label for="vehicle-vin">VIN</label>
+                        <input type="text" id="vehicle-vin" name="vehicle.vin" />
+                    </div>
+                    <div>
+                        <label for="vehicle-engine">Engine size</label>
+                        <input type="number" id="vehicle-engine" name="vehicle.engine_cc" min="0" step="1" class="tabular" />
+                    </div>
+                    <div>
+                        <label for="vehicle-fuel">Fuel</label>
+                        <input type="text" id="vehicle-fuel" name="vehicle.fuel" />
+                    </div>
+                    <div>
+                        <label for="vehicle-odometer">Mileage</label>
+                        <input type="number" id="vehicle-odometer" name="vehicle.odometer_miles" min="0" step="1" class="tabular" />
+                    </div>
+                    <div>
+                        <label for="vehicle-mileage-source">Source</label>
+                        <select id="vehicle-mileage-source" name="vehicle.mileage_source">
+                            <option value=""></option>
+                            <option value="online_data">Online data</option>
+                            <option value="owner">Owner</option>
+                            <option value="repairer">Repairer</option>
+                            <option value="principal">Principal</option>
+                            <option value="average">Average</option>
+                            <option value="tbc">To be confirmed</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="req" for="vehicle-condition">Pre-incident condition</label>
+                        <select aria-required="true" id="vehicle-condition" name="vehicle.condition">
+                            <option value=""></option>
+                            <option value="poor">Poor</option>
+                            <option value="below_average">Below average</option>
+                            <option value="average">Average</option>
+                            <option value="good">Good</option>
+                            <option value="excellent">Excellent</option>
+                        </select>
+                    </div>
+                </div>
+                <h3 class="section-label section-gap">Vehicle history</h3>
+                <div class="history-check">
+                    <button type="button" class="btn" disabled>
+                        <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                        Check vehicle history
+                    </button>
+                    <p class="empty-state">No history check has been run for this vehicle.</p>
+                </div>
+
+                <div class="button-row section-gap">
+                    <button type="button" class="primary-action">Save vehicle</button>
+                </div>
+            </section>
+
+
+
+
+
+
+    </div>
+</div>
+
+    </div>
+</article>
+
+
+
+
+        </main>
+    </div>
+
+    <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
+
+    <script>
+        // ENG-003: the readiness summary is a native <details> disclosure,
+        // so click and Enter/Space already open it and a screen reader
+        // already announces it correctly with no script at all. This only
+        // adds mouse hover and bare keyboard focus as two more ways in,
+        // without touching the native toggle — an operator with JavaScript
+        // disabled still reaches every item.
+        (function () {
+            document.querySelectorAll('[data-hover-disclosure]').forEach(function (details) {
+                var summary = details.querySelector('summary');
+                if (!summary) { return; }
+
+                function openNow() { details.open = true; }
+                function closeIfIdle() {
+                    if (!details.matches(':hover') && !details.matches(':focus-within')) {
+                        details.open = false;
+                    }
+                }
+
+                details.addEventListener('mouseenter', openNow);
+                details.addEventListener('mouseleave', closeIfIdle);
+                summary.addEventListener('focus', openNow);
+                summary.addEventListener('blur', closeIfIdle);
+            });
+        }());
+    </script>
+    <script>
+        // PAV sensitivity slider: a review aid that writes nothing. It keeps
+        // the range and numeric inputs in step and recomputes the indicative
+        // settlement as text. No animation, no colour signalling, no network.
+        (function () {
+            var host = document.querySelector('[data-pav-slider]');
+            if (!host) { return; }
+
+            var range = host.querySelector('#pav-range');
+            var exact = host.querySelector('#pav-value');
+            var settlement = host.querySelector('[data-pav-settlement]');
+            var salvage = parseFloat(host.getAttribute('data-pav-salvage'));
+            var isTotalLoss = host.getAttribute('data-pav-total-loss') === 'true';
+            if (!range || !exact) { return; }
+
+            function formatPounds(value) {
+                return '£' + value.toLocaleString('en-GB', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 2
+                });
+            }
+
+            function update(value) {
+                var figure = parseFloat(value);
+                if (!isFinite(figure)) { return; }
+                range.value = String(figure);
+                exact.value = String(figure);
+                if (settlement && isTotalLoss && isFinite(salvage)) {
+                    settlement.textContent = formatPounds(figure - salvage)
+                        + ' at a PAV of ' + formatPounds(figure);
+                }
+            }
+
+            range.addEventListener('input', function () { update(range.value); });
+            exact.addEventListener('input', function () { update(exact.value); });
+            update(range.value);
+        }());
+    </script>
+    <script>
+        // Ember field behind the Send to Claude glyph. Decoration only: it draws
+        // to a canvas layered under the label and reads nothing from the page.
+        //
+        // The particle placement comes from a seeded generator rather than
+        // Math.random, so every load of a given button produces the same drift
+        // instead of fresh noise each time.
+        //
+        // It does not start at all under reduced motion, and it stops itself
+        // when the button leaves the document, so a hidden panel does not keep
+        // an animation frame alive.
+        (function () {
+            var motionIsWelcome = !window.matchMedia
+                || !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (!motionIsWelcome) { return; }
+
+            var palette = ['#ffd9c2', '#a9c7e8', '#c3d1ad'];
+
+            function seededRandom(seed) {
+                return function () {
+                    seed |= 0;
+                    seed = seed + 0x6D2B79F5 | 0;
+                    var t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+                    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+                    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+                };
+            }
+
+            function attachEmbers(button, seed) {
+                var canvas = document.createElement('canvas');
+                canvas.setAttribute('aria-hidden', 'true');
+                button.prepend(canvas);
+
+                var context = canvas.getContext('2d');
+                if (!context) { return; }
+
+                var random = seededRandom(seed);
+                var particles = [];
+                for (var i = 0; i < 10; i++) {
+                    particles.push({
+                        baseX: random(),
+                        baseY: random(),
+                        radius: 1.1 + random() * 1.6,
+                        speed: 0.4 + random() * 0.5,
+                        phase: random() * Math.PI * 2,
+                        colour: palette[i % palette.length]
+                    });
+                }
+
+                function resize() {
+                    var box = button.getBoundingClientRect();
+                    canvas.width = box.width;
+                    canvas.height = box.height;
+                }
+
+                resize();
+                window.addEventListener('resize', resize);
+
+                var time = 0;
+                var hovered = false;
+                button.addEventListener('mouseenter', function () { hovered = true; });
+                button.addEventListener('mouseleave', function () { hovered = false; });
+
+                function draw() {
+                    if (!button.isConnected) { return; }
+
+                    time += hovered ? 0.028 : 0.012;
+                    context.clearRect(0, 0, canvas.width, canvas.height);
+
+                    particles.forEach(function (particle) {
+                        var x = (particle.baseX * canvas.width)
+                            + Math.sin(time * particle.speed + particle.phase) * (canvas.width * 0.06);
+                        var y = (particle.baseY * canvas.height)
+                            + Math.cos(time * particle.speed * 1.3 + particle.phase) * (canvas.height * 0.22);
+
+                        context.beginPath();
+                        context.fillStyle = particle.colour;
+                        context.globalAlpha = Math.max(0, 0.35 + 0.25 * Math.sin(time * 2 + particle.phase));
+                        context.shadowBlur = 6;
+                        context.shadowColor = particle.colour;
+                        context.arc(x, y, particle.radius, 0, Math.PI * 2);
+                        context.fill();
+                    });
+
+                    context.globalAlpha = 1;
+                    window.requestAnimationFrame(draw);
+                }
+
+                window.requestAnimationFrame(draw);
+            }
+
+            document.querySelectorAll('.send-action').forEach(function (button, index) {
+                attachEmbers(button, 90210 + index);
+            });
+        }());
+    </script>
+    <script>
+        // Presentation only: opens the confirm dialog, keeps focus inside it,
+        // returns focus to the invoking control, and reveals the in-flight
+        // state so each state in this panel can be seen. No case data moves.
+        (function () {
+            var dialog = document.getElementById('send-confirm');
+            if (!dialog) { return; }
+
+            var opener = document.querySelector('[data-send-open]');
+            var available = document.querySelector('[data-send-available]');
+            var inFlight = document.querySelector('[data-send-state="in-flight"]');
+            var invoker = null;
+
+            function focusable() {
+                return Array.prototype.filter.call(
+                    dialog.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+                    function (element) { return !element.disabled && !element.hidden; });
+            }
+
+            function close() {
+                dialog.hidden = true;
+                document.removeEventListener('keydown', onKeydown, true);
+                if (invoker) { invoker.focus(); }
+            }
+
+            function onKeydown(event) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    close();
+                    return;
+                }
+                if (event.key !== 'Tab') { return; }
+                var items = focusable();
+                if (items.length === 0) { return; }
+                var first = items[0];
+                var last = items[items.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+
+            if (opener) {
+                opener.addEventListener('click', function () {
+                    invoker = opener;
+                    dialog.hidden = false;
+                    document.addEventListener('keydown', onKeydown, true);
+                    var items = focusable();
+                    if (items.length > 0) { items[0].focus(); }
+                });
+            }
+
+            dialog.addEventListener('click', function (event) {
+                if (event.target === dialog) { close(); }
+            });
+
+            var cancel = dialog.querySelector('[data-send-cancel]');
+            if (cancel) { cancel.addEventListener('click', close); }
+
+            var confirmButton = dialog.querySelector('[data-send-confirm]');
+            if (confirmButton) {
+                confirmButton.addEventListener('click', function () {
+                    close();
+                    if (available) { available.hidden = true; }
+                    if (inFlight) { inFlight.hidden = false; }
+                    var form = document.getElementById('send-to-claude-form');
+                    if (form) { form.submit(); }
+                });
+            }
+        }());
+    </script>
+
+</body>
+</html>

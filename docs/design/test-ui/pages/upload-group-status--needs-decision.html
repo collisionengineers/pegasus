@@ -76,20 +76,76 @@
 
 
 <div class="form-column">
+        <section class="panel form-panel" aria-labelledby="group-decision-title" data-refresh-hold>
+            <h2 id="group-decision-title" class="section-label">This submission</h2>
+                <form method="post" class="upload-group-register" action="upload-group-status--default.html">
+                    <label for="group-registration">Vehicle registration</label>
+                    <input id="group-registration"
+                           name="vehicleRegistration"
+                           type="text"
+                           maxlength="20"
+                           required
+                           autocomplete="off"
+                           spellcheck="false" />
+                    <label for="group-registration-reason">Reason</label>
+                    <input id="group-registration-reason" name="reason" maxlength="500" required />
+                    <div class="button-row">
+                        <button type="submit" class="primary-action">Create a vehicle-image case</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <details class="upload-attach" data-refresh-hold>
+                <summary class="secondary-action">Add to an existing case</summary>
+                <form method="post" class="upload-attach__form" data-case-search data-case-search-url="/Upload/Group/0f38e672-83ad-48a9-83e8-4f472d631361?handler=CaseSearch" action="upload-group-status--default.html">
+                    <input type="hidden" name="caseId" value="" data-case-search-value />
+                    <label for="group-attach-input">Case</label>
+                    <input id="group-attach-input"
+                           name="reference"
+                           type="text"
+                           maxlength="60"
+                           required
+                           autocomplete="off"
+                           spellcheck="false"
+                           data-case-search-input />
+                    <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
+                    <label for="group-attach-reason">Reason</label>
+                    <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                    <div class="button-row">
+                        <button type="submit" class="secondary-action">Add the submission to this case</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </details>
+            <div class="button-row">
+                <a class="secondary-action" href="upload--default.html">Cancel</a>
+            </div>
+        </section>
     <section class="panel"
              aria-labelledby="group-status-title"
-             data-auto-refresh="2000">
+             data-auto-refresh="">
         <h2 id="group-status-title" class="section-label">Files in this submission</h2>
         <ol class="upload-outcome-list">
                 <li>
+                        <a class="upload-thumb" href="/Received/bc7ab0e8-befe-4d38-85a1-cba335d099a0/Image" target="_blank">
+                            <img src="/Received/bc7ab0e8-befe-4d38-85a1-cba335d099a0/Image"
+                                 loading="lazy"
+                                 alt="overview.png" />
+                        </a>
                         <p class="upload-outcome__file">overview.png</p>
                         <div class="upload-outcome">
-        <span class="field-hint">Processing</span>
-    <p class="upload-outcome__message">The submission is being processed.</p>
+        <span class="status-chip status-chip--amber">
+    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+    <span>Unidentified</span>
+</span>
+
+    <p class="upload-outcome__message">This could not be matched automatically and needs a staff decision.</p>
 </div>
 
                 </li>
                 <li>
+                        <a class="upload-thumb" href="/Received/bdab1216-e59d-40a9-8123-2ecf398b04bc/Image" target="_blank">
+                            <img src="/Received/bdab1216-e59d-40a9-8123-2ecf398b04bc/Image"
+                                 loading="lazy"
+                                 alt="close-up.png" />
+                        </a>
                         <p class="upload-outcome__file">close-up.png</p>
                         <div class="upload-outcome">
         <span class="status-chip status-chip--amber">
@@ -97,35 +153,7 @@
     <span>Unidentified</span>
 </span>
 
-    <p class="upload-outcome__message">This needs a staff decision.</p>
-        <div class="button-row">
-                <a class="primary-action" href="unidentified-details--default.html">Review</a>
-                <a class="secondary-action" href="upload--default.html">Cancel</a>
-        </div>
-        <details class="upload-attach" data-refresh-hold>
-            <summary class="secondary-action">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form" data-case-search data-case-search-url="/Upload/Group/7b8f5e5b-577f-40cd-a266-7fc5791d3ae4?handler=CaseSearch" action="upload-group-status--default.html">
-                <input type="hidden" name="receiptId" value="1f05d8a2-5883-4aaf-9524-451a7d61b153" />
-                <input type="hidden" name="caseId" value="" data-case-search-value />
-                <label for="case-attach-1f05d8a258834aaf9524451a7d61b153-input">Case</label>
-                <input id="case-attach-1f05d8a258834aaf9524451a7d61b153-input"
-                       name="reference"
-                       type="text"
-                       maxlength="60"
-                       required
-                       autocomplete="off"
-                       spellcheck="false"
-                       aria-describedby="case-attach-1f05d8a258834aaf9524451a7d61b153-hint"
-                       data-case-search-input />
-                <p id="case-attach-1f05d8a258834aaf9524451a7d61b153-hint" class="field-hint">Search by case reference, registration or claimant, then choose the case this belongs to.</p>
-                <ul id="case-attach-1f05d8a258834aaf9524451a7d61b153-list" class="case-search-list" hidden data-case-search-list></ul>
-                <label for="case-attach-1f05d8a258834aaf9524451a7d61b153-reason">Reason for adding to this case</label>
-                <textarea id="case-attach-1f05d8a258834aaf9524451a7d61b153-reason" name="reason" maxlength="500" rows="2" required></textarea>
-                <div class="button-row">
-                    <button type="submit" class="primary-action">Add to this case</button>
-                </div>
-            <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-        </details>
+    <p class="upload-outcome__message">This could not be matched automatically and needs a staff decision.</p>
 </div>
 
                 </li>
