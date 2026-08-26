@@ -159,7 +159,8 @@ Use the owned commands rather than manually composing service terminals:
 ```powershell
 pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start # Live UI (default)
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Status
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Smoke
 pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Stop
@@ -172,6 +173,13 @@ failed check prints its exact repair command. Initialization restores the
 committed tool/package locks, installs the Playwright Chromium binary selected
 by the pinned package, checks the Offline profile, starts LocalDB, and creates
 only ignored local state.
+
+`-UiMode Live` is the default and uses the owned runtime lifecycle described
+below. `-UiMode Test` is a Start-only shortcut that opens
+`docs/design/test-ui/index.html` in the default browser. It does not require
+initialization and creates no database, storage, process, port, manifest, or
+artifact state. `Status`, `Smoke`, `Stop`, `Reset`, run IDs, startup timeouts,
+and failure controls apply only to Live UI runs.
 
 `Cloud` is a separate static prerequisite profile for an already-approved live
 operation. `pwsh ./scripts/Invoke-Doctor.ps1 -Profile Cloud` checks the pinned
@@ -585,10 +593,13 @@ Run these commands from PowerShell 7 at the repository root:
 ```powershell
 pwsh ./scripts/Invoke-Doctor.ps1 -Profile Offline
 pwsh ./scripts/Initialize-LocalDevelopment.ps1
-pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start # Live UI (default)
+pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test
 ```
 
-Initialization resolves the exact checkout `HEAD` and requires the tracked and
+Test UI opens the tracked static catalogue without initialization or local
+runtime resources. Live UI initialization resolves the exact checkout `HEAD`
+and requires the tracked and
 untracked working tree to remain clean before restore, immediately before and
 after the Debug build, and before publishing its marker. The build disables
 incremental compilation so the dependency graph is rebuilt from those clean
