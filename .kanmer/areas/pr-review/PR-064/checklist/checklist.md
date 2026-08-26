@@ -32,3 +32,14 @@
 - [ ] delete `task/pr-064-test-ui-contradictions`
 - [ ] `git fetch --prune` + `git worktree prune`
 - [ ] `take_ticket action: "release"`
+
+### Closeout completion — 2026-08-26
+
+- [x] Moved to final stage.
+- [x] Outcome recorded in ticket body with PR, merge commit, follow-up, and deployment status.
+- [x] PR-064 worktree registration and tracked contents removed; the path no longer appears in `git worktree list`.
+- [x] Local branch `task/pr-064-test-ui-contradictions` deleted after merged PR verification.
+- [x] `git fetch --prune` and `git worktree prune` completed.
+- [x] Ticket released last.
+
+Cleanup note: Windows left the now-unregistered directory containing only ignored build output (`src/`, `tests/`, `workspaces/`, and `t2fix.log`). Recursive filesystem deletion was denied by the execution policy; no tracked worktree or branch remains.
