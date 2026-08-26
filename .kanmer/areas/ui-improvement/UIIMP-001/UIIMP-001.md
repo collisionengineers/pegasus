@@ -2,12 +2,15 @@
 id: UIIMP-001
 type: ticket
 title: Add Live UI and Test UI local-development modes
-status: preparing
+status: implementing
 area: ui-improvement
-assignee: ''
+assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-26T12:10:20.425Z'
+taken_at: '2026-08-26T13:34:55.762Z'
+branch: task/uiimp-001-live-test-ui-modes
+worktree: ../pegasus-worktrees/uiimp-001-live-test-ui-modes
 labels:
   - ui
   - design
@@ -16,7 +19,7 @@ links: []
 blocks: []
 archived: false
 created: '2026-08-26T12:09:14.790Z'
-updated: '2026-08-26T12:11:24.860Z'
+updated: '2026-08-26T13:34:55.762Z'
 ---
 
 ## What
