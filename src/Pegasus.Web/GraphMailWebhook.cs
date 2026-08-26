@@ -61,9 +61,8 @@ internal static class GraphMailWebhook
                 timeProvider.GetUtcNow(),
                 cancellationToken);
             if (subscription is null
-                || (string.IsNullOrWhiteSpace(notification.LifecycleEvent)
-                    && (!string.Equals(notification.ChangeType, "created", StringComparison.Ordinal)
-                        || !MatchesSubscribedMailbox(subscription.Resource, notification.Resource))))
+                || !MatchesSubscribedMailbox(subscription.Resource, notification.Resource)
+                || !TryParseWakeKind(notification, out var wakeKind))
             {
                 continue;
             }
@@ -73,7 +72,6 @@ internal static class GraphMailWebhook
                 continue;
             }
 
-            var wakeKind = ParseWakeKind(notification.LifecycleEvent);
             await enqueuer.EnqueueAsync(
                 subscription.ApprovedMailboxId,
                 subscriptionId,
@@ -84,13 +82,21 @@ internal static class GraphMailWebhook
         return Results.Accepted();
     }
 
-    private static MailboxWakeKind ParseWakeKind(string? lifecycleEvent) => lifecycleEvent switch
+    private static bool TryParseWakeKind(
+        GraphNotification notification,
+        out MailboxWakeKind wakeKind)
     {
-        "missed" => MailboxWakeKind.Missed,
-        "subscriptionRemoved" => MailboxWakeKind.SubscriptionRemoved,
-        "reauthorizationRequired" => MailboxWakeKind.ReauthorizationRequired,
-        _ => MailboxWakeKind.Created
-    };
+        wakeKind = notification.LifecycleEvent switch
+        {
+            "missed" => MailboxWakeKind.Missed,
+            "subscriptionRemoved" => MailboxWakeKind.SubscriptionRemoved,
+            "reauthorizationRequired" => MailboxWakeKind.ReauthorizationRequired,
+            _ => MailboxWakeKind.Created
+        };
+        return string.IsNullOrWhiteSpace(notification.LifecycleEvent)
+            ? string.Equals(notification.ChangeType, "created", StringComparison.Ordinal)
+            : notification.LifecycleEvent is "missed" or "subscriptionRemoved" or "reauthorizationRequired";
+    }
 
     private static bool MatchesSecret(string? presented, string expected)
     {

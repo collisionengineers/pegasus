@@ -11,12 +11,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // Pre-release operational state is disposable. Start the stable mailbox identity
-            // model cleanly instead of carrying Graph-keyed cursors into the target schema.
-            migrationBuilder.Sql("DELETE FROM [dbo].[ApprovedInboxPoisonMessages];");
-            migrationBuilder.Sql("DELETE FROM [dbo].[RetainedMailboxMessages];");
-            migrationBuilder.Sql("DELETE FROM [dbo].[ApprovedInboxPollStates];");
-
             migrationBuilder.DropForeignKey(
                 name: "FK_ApprovedInboxPoisonMessages_ApprovedInboxPollStates_MailboxId",
                 table: "ApprovedInboxPoisonMessages");
@@ -37,13 +31,60 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_ApprovedInboxPoisonMessages_MailboxId_OccurrenceKey",
                 table: "ApprovedInboxPoisonMessages");
 
-            migrationBuilder.DropColumn(
-                name: "MailboxId",
-                table: "ApprovedInboxPollStates");
+            migrationBuilder.DropIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_CanonicalInternetMessageIdentity",
+                table: "RetainedMailboxMessages");
 
-            migrationBuilder.DropColumn(
+            migrationBuilder.DropIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_ImmutableMessageId",
+                table: "RetainedMailboxMessages");
+
+            migrationBuilder.DropIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_FolderScope_ReceivedAtUtc_Id",
+                table: "RetainedMailboxMessages");
+
+            migrationBuilder.Sql(
+                "IF EXISTS (SELECT 1 FROM [dbo].[ApprovedInboxPollStates] state " +
+                "LEFT JOIN [dbo].[ApprovedMailboxes] mailbox ON mailbox.[MailboxIdentity] = state.[MailboxId] " +
+                "WHERE mailbox.[Id] IS NULL) THROW 51000, 'An approved Inbox poll state has no exact approved mailbox identity.', 1;");
+            migrationBuilder.Sql(
+                "IF EXISTS (SELECT 1 FROM [dbo].[ApprovedInboxPoisonMessages] poison " +
+                "LEFT JOIN [dbo].[ApprovedMailboxes] mailbox ON mailbox.[MailboxIdentity] = poison.[MailboxId] " +
+                "WHERE mailbox.[Id] IS NULL) THROW 51000, 'An approved Inbox poison message has no exact approved mailbox identity.', 1;");
+            migrationBuilder.Sql(
+                "IF EXISTS (SELECT 1 FROM [dbo].[RetainedMailboxMessages] retained " +
+                "LEFT JOIN [dbo].[ApprovedMailboxes] mailbox ON mailbox.[MailboxIdentity] = retained.[MailboxId] " +
+                "WHERE mailbox.[Id] IS NULL) THROW 51000, 'A retained mailbox message has no exact approved mailbox identity.', 1;");
+            migrationBuilder.Sql(
+                "UPDATE state SET [MailboxId] = CONVERT(nvarchar(36), mailbox.[Id]) " +
+                "FROM [dbo].[ApprovedInboxPollStates] state " +
+                "JOIN [dbo].[ApprovedMailboxes] mailbox ON mailbox.[MailboxIdentity] = state.[MailboxId];");
+            migrationBuilder.Sql(
+                "UPDATE poison SET [MailboxId] = CONVERT(nvarchar(36), mailbox.[Id]) " +
+                "FROM [dbo].[ApprovedInboxPoisonMessages] poison " +
+                "JOIN [dbo].[ApprovedMailboxes] mailbox ON mailbox.[MailboxIdentity] = poison.[MailboxId];");
+            migrationBuilder.Sql(
+                "UPDATE retained SET [MailboxId] = CONVERT(nvarchar(36), mailbox.[Id]) " +
+                "FROM [dbo].[RetainedMailboxMessages] retained " +
+                "JOIN [dbo].[ApprovedMailboxes] mailbox ON mailbox.[MailboxIdentity] = retained.[MailboxId];");
+
+            migrationBuilder.AlterColumn<Guid>(
                 name: "MailboxId",
-                table: "ApprovedInboxPoisonMessages");
+                table: "ApprovedInboxPollStates",
+                type: "uniqueidentifier",
+                nullable: false,
+                oldClrType: typeof(string),
+                oldType: "nvarchar(100)",
+                oldMaxLength: 100);
+
+            migrationBuilder.AlterColumn<Guid>(
+                name: "MailboxId",
+                table: "ApprovedInboxPoisonMessages",
+                type: "uniqueidentifier",
+                nullable: false,
+                oldClrType: typeof(string),
+                oldType: "nvarchar(100)",
+                oldMaxLength: 100);
 
             migrationBuilder.AlterColumn<Guid>(
                 name: "MailboxId",
@@ -54,18 +95,21 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 oldType: "nvarchar(100)",
                 oldMaxLength: 100);
 
+            migrationBuilder.RenameColumn(
+                name: "MailboxId",
+                table: "ApprovedInboxPollStates",
+                newName: "ApprovedMailboxId");
+
+            migrationBuilder.RenameColumn(
+                name: "MailboxId",
+                table: "ApprovedInboxPoisonMessages",
+                newName: "ApprovedMailboxId");
+
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "ActivatedAtUtc",
                 table: "ApprovedMailboxes",
                 type: "datetimeoffset",
                 nullable: true);
-
-            migrationBuilder.AddColumn<Guid>(
-                name: "ApprovedMailboxId",
-                table: "ApprovedInboxPollStates",
-                type: "uniqueidentifier",
-                nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
 
             migrationBuilder.AddColumn<DateTimeOffset>(
                 name: "ActivatedAtUtc",
@@ -82,13 +126,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 maxLength: 64,
                 nullable: false,
                 defaultValue: "");
-
-            migrationBuilder.AddColumn<Guid>(
-                name: "ApprovedMailboxId",
-                table: "ApprovedInboxPoisonMessages",
-                type: "uniqueidentifier",
-                nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
 
             migrationBuilder.AddPrimaryKey(
                 name: "PK_ApprovedInboxPollStates",
@@ -147,6 +184,25 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "ApprovedMailboxSubscriptions",
                 column: "SubscriptionId",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_CanonicalInternetMessageIdentity",
+                table: "RetainedMailboxMessages",
+                columns: new[] { "MailboxId", "CanonicalInternetMessageIdentity" },
+                unique: true,
+                filter: "[CanonicalInternetMessageIdentity] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_ImmutableMessageId",
+                table: "RetainedMailboxMessages",
+                columns: new[] { "MailboxId", "ImmutableMessageId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_FolderScope_ReceivedAtUtc_Id",
+                table: "RetainedMailboxMessages",
+                columns: new[] { "MailboxId", "FolderScope", "ReceivedAtUtc", "Id" },
+                descending: new[] { false, false, true, false });
 
             migrationBuilder.Sql(
                 "IF DATABASE_PRINCIPAL_ID(N'pegasus_web_runtime_role') IS NOT NULL " +
@@ -210,13 +266,21 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "IX_ApprovedInboxPoisonMessages_ApprovedMailboxId_OccurrenceKey",
                 table: "ApprovedInboxPoisonMessages");
 
+            migrationBuilder.DropIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_CanonicalInternetMessageIdentity",
+                table: "RetainedMailboxMessages");
+
+            migrationBuilder.DropIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_ImmutableMessageId",
+                table: "RetainedMailboxMessages");
+
+            migrationBuilder.DropIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_FolderScope_ReceivedAtUtc_Id",
+                table: "RetainedMailboxMessages");
+
             migrationBuilder.DropColumn(
                 name: "ActivatedAtUtc",
                 table: "ApprovedMailboxes");
-
-            migrationBuilder.DropColumn(
-                name: "ApprovedMailboxId",
-                table: "ApprovedInboxPollStates");
 
             migrationBuilder.DropColumn(
                 name: "ActivatedAtUtc",
@@ -226,9 +290,33 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 name: "ScopeFingerprint",
                 table: "ApprovedInboxPollStates");
 
-            migrationBuilder.DropColumn(
+            migrationBuilder.RenameColumn(
                 name: "ApprovedMailboxId",
-                table: "ApprovedInboxPoisonMessages");
+                table: "ApprovedInboxPollStates",
+                newName: "MailboxId");
+
+            migrationBuilder.RenameColumn(
+                name: "ApprovedMailboxId",
+                table: "ApprovedInboxPoisonMessages",
+                newName: "MailboxId");
+
+            migrationBuilder.AlterColumn<string>(
+                name: "MailboxId",
+                table: "ApprovedInboxPollStates",
+                type: "nvarchar(100)",
+                maxLength: 100,
+                nullable: false,
+                oldClrType: typeof(Guid),
+                oldType: "uniqueidentifier");
+
+            migrationBuilder.AlterColumn<string>(
+                name: "MailboxId",
+                table: "ApprovedInboxPoisonMessages",
+                type: "nvarchar(100)",
+                maxLength: 100,
+                nullable: false,
+                oldClrType: typeof(Guid),
+                oldType: "uniqueidentifier");
 
             migrationBuilder.AlterColumn<string>(
                 name: "MailboxId",
@@ -239,21 +327,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 oldClrType: typeof(Guid),
                 oldType: "uniqueidentifier");
 
-            migrationBuilder.AddColumn<string>(
-                name: "MailboxId",
-                table: "ApprovedInboxPollStates",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: false,
-                defaultValue: "");
-
-            migrationBuilder.AddColumn<string>(
-                name: "MailboxId",
-                table: "ApprovedInboxPoisonMessages",
-                type: "nvarchar(100)",
-                maxLength: 100,
-                nullable: false,
-                defaultValue: "");
+            migrationBuilder.Sql(
+                "UPDATE state SET [MailboxId] = mailbox.[MailboxIdentity] " +
+                "FROM [dbo].[ApprovedInboxPollStates] state JOIN [dbo].[ApprovedMailboxes] mailbox " +
+                "ON mailbox.[Id] = TRY_CONVERT(uniqueidentifier, state.[MailboxId]);");
+            migrationBuilder.Sql(
+                "UPDATE poison SET [MailboxId] = mailbox.[MailboxIdentity] " +
+                "FROM [dbo].[ApprovedInboxPoisonMessages] poison JOIN [dbo].[ApprovedMailboxes] mailbox " +
+                "ON mailbox.[Id] = TRY_CONVERT(uniqueidentifier, poison.[MailboxId]);");
+            migrationBuilder.Sql(
+                "UPDATE retained SET [MailboxId] = mailbox.[MailboxIdentity] " +
+                "FROM [dbo].[RetainedMailboxMessages] retained JOIN [dbo].[ApprovedMailboxes] mailbox " +
+                "ON mailbox.[Id] = TRY_CONVERT(uniqueidentifier, retained.[MailboxId]);");
 
             migrationBuilder.AddPrimaryKey(
                 name: "PK_ApprovedInboxPollStates",
@@ -271,6 +356,25 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 table: "ApprovedInboxPoisonMessages",
                 columns: new[] { "MailboxId", "OccurrenceKey" },
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_CanonicalInternetMessageIdentity",
+                table: "RetainedMailboxMessages",
+                columns: new[] { "MailboxId", "CanonicalInternetMessageIdentity" },
+                unique: true,
+                filter: "[CanonicalInternetMessageIdentity] IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_ImmutableMessageId",
+                table: "RetainedMailboxMessages",
+                columns: new[] { "MailboxId", "ImmutableMessageId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_RetainedMailboxMessages_MailboxId_FolderScope_ReceivedAtUtc_Id",
+                table: "RetainedMailboxMessages",
+                columns: new[] { "MailboxId", "FolderScope", "ReceivedAtUtc", "Id" },
+                descending: new[] { false, false, true, false });
 
             migrationBuilder.AddForeignKey(
                 name: "FK_ApprovedInboxPoisonMessages_ApprovedInboxPollStates_MailboxId",

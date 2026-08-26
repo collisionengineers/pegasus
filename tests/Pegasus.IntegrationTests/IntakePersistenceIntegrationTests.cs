@@ -204,6 +204,62 @@ public sealed class IntakePersistenceIntegrationTests
             "SELECT COUNT(*) FROM sys.tables WHERE name = N'CaseManualChases'"));
     }
 
+    [Fact]
+    public async Task StableMailboxMigrationPreservesRetainedEvidenceAndRestrictiveDependants()
+    {
+        await using var database = await LocalDbTestDatabase.CreateAsync(migrate: false);
+        await using var context = await database.CreateContextAsync();
+        await context.Database.MigrateAsync("20260825145216_MailboxImageIntake");
+
+        var mailboxId = Guid.Parse("49f47eb9-c5b0-464f-b8f0-8c90ba061728");
+        var messageId = Guid.NewGuid();
+        var attachmentId = Guid.NewGuid();
+        var moveId = Guid.NewGuid();
+        var poisonId = Guid.NewGuid();
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes SET MailboxIdentity = 'legacy-graph', InboxFolderIdentity = 'inbox'
+            WHERE Id = '{mailboxId:D}';
+            INSERT INTO ApprovedInboxPollStates (MailboxId, MailboxAddress, [Cursor], DueAtUtc)
+            VALUES ('legacy-graph', 'instructions@collisionengineers.co.uk', 'retained-cursor', '2031-05-06T10:30:00+00:00');
+            INSERT INTO ApprovedInboxPoisonMessages
+                (Id, MailboxId, OccurrenceKey, ImmutableMessageId, FileName, ReceivedAtUtc, FailureCode, CursorAfterMessage, QuarantinedAtUtc)
+            VALUES
+                ('{poisonId:D}', 'legacy-graph', '{new string('a', 64)}', 'poison-message', 'poison.eml', '2031-05-06T10:30:00+00:00', 'fixture', 'cursor-after', '2031-05-06T10:31:00+00:00');
+            INSERT INTO RetainedMailboxMessages
+                (Id, MailboxId, MailboxAddress, FolderScope, FolderIdentity, ImmutableMessageId, ExternalReceiptToken,
+                 ToAddressesJson, CcAddressesJson, IsRead, SourceLength, SourceSha256, ReceivedAtUtc, RetainedAtUtc)
+            VALUES
+                ('{messageId:D}', 'legacy-graph', 'instructions@collisionengineers.co.uk', 'inbox', 'inbox', 'retained-message',
+                 'retained-token', '[]', '[]', 0, 10, '{new string('b', 64)}', '2031-05-06T10:30:00+00:00', '2031-05-06T10:31:00+00:00');
+            INSERT INTO RetainedMailboxAttachments
+                (Id, RetainedMailboxMessageId, Ordinal, FileName, MediaType, ContentLength)
+            VALUES ('{attachmentId:D}', '{messageId:D}', 0, 'evidence.pdf', 'application/pdf', 10);
+            INSERT INTO RetainedMailFolderMoves
+                (Id, RetainedMailboxMessageId, OperationKey, RequestHash, ExpectedClassificationVersion,
+                 ExpectedRecommendationPolicyKey, ExpectedRecommendationPolicyVersion, ExpectedMailboxVersion,
+                 MailboxId, ImmutableMessageId, SourceFolderId, DestinationFolderId, FolderType, Actor,
+                 ActorRolesJson, Reason, Outcome, RecordedAtUtc)
+            VALUES
+                ('{moveId:D}', '{messageId:D}', '{Guid.NewGuid():D}', '{new string('c', 64)}', 1,
+                 'fixture-policy', 1, 1, 'legacy-graph', 'retained-message', 'inbox', 'processed', 'Processed',
+                 'system:fixture', '[]', 'fixture', 'pending', '2031-05-06T10:32:00+00:00');
+            """);
+
+        await context.Database.MigrateAsync();
+
+        Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
+            $"SELECT MailboxId FROM RetainedMailboxMessages WHERE Id = '{messageId:D}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM RetainedMailboxAttachments WHERE RetainedMailboxMessageId = '{messageId:D}'"));
+        Assert.Equal(1, await database.ScalarAsync<int>(
+            $"SELECT COUNT(*) FROM RetainedMailFolderMoves WHERE RetainedMailboxMessageId = '{messageId:D}'"));
+        Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
+            "SELECT ApprovedMailboxId FROM ApprovedInboxPollStates"));
+        Assert.Equal(mailboxId, await database.ScalarAsync<Guid>(
+            "SELECT ApprovedMailboxId FROM ApprovedInboxPoisonMessages"));
+    }
+
     /// <remarks>
     /// The dashboard tile that reads this count shipped permanently zero: it
     /// compared the persisted decision against the enum's name
