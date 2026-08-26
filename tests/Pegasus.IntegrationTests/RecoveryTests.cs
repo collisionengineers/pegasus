@@ -22,7 +22,8 @@ public sealed class RecoveryTests
         var receiver = new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             store,
-            clock);
+            clock,
+            new CommittedWorkPublisherDouble());
         var source = CreateSource("lease-recovery");
 
         var first = await receiver.ExecuteAsync(source, "qdos-alpha:lease-recovery");
@@ -70,7 +71,8 @@ public sealed class RecoveryTests
         var received = await new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             store,
-            clock).ExecuteAsync(
+            clock,
+            new CommittedWorkPublisherDouble()).ExecuteAsync(
                 CreateSource("lost-dispatched-message"),
                 "qdos-alpha:lost-dispatched-message");
         var firstDispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
@@ -136,7 +138,8 @@ public sealed class RecoveryTests
         var receiver = new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             store,
-            clock);
+            clock,
+            new CommittedWorkPublisherDouble());
 
         var lostDispatch = await receiver.ExecuteAsync(
             CreateSource("recovery-order-dispatched"),
@@ -216,7 +219,8 @@ public sealed class RecoveryTests
         var receiver = new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             store,
-            clock);
+            clock,
+            new CommittedWorkPublisherDouble());
         var received = await receiver.ExecuteAsync(
             CreateSource("immediate-dispatch"),
             "qdos-alpha:immediate-dispatch");
@@ -251,7 +255,7 @@ public sealed class RecoveryTests
         var services = scope.ServiceProvider;
         var store = services.GetRequiredService<IIntakeWorkStore>();
         var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
-        var receiver = new ReceiveIntake(artifactStore, store, clock);
+        var receiver = new ReceiveIntake(artifactStore, store, clock, new CommittedWorkPublisherDouble());
         var received = await receiver.ExecuteAsync(
             CreateSource("process-once"),
             "qdos-alpha:process-once");
@@ -309,7 +313,8 @@ public sealed class RecoveryTests
         var receiver = new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             store,
-            clock);
+            clock,
+            new CommittedWorkPublisherDouble());
         var sources = Enumerable.Range(1, 8)
             .Select(index => CreateSource($"parallel-receive-{index}"))
             .ToArray();
@@ -342,7 +347,8 @@ public sealed class RecoveryTests
         var receiver = new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             services.GetRequiredService<IIntakeWorkStore>(),
-            clock);
+            clock,
+            new CommittedWorkPublisherDouble());
         var source = CreateSource("parallel-duplicate");
 
         var received = await Task.WhenAll(Enumerable.Range(1, 8).Select(index =>
@@ -369,7 +375,8 @@ public sealed class RecoveryTests
         var receiver = new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             store,
-            clock);
+            clock,
+            new CommittedWorkPublisherDouble());
         var received = await receiver.ExecuteAsync(
             CreateSource("poison-replay"),
             "qdos-alpha:poison-replay");
@@ -479,7 +486,7 @@ public sealed class RecoveryTests
         TimeProvider clock,
         string name)
     {
-        var received = await new ReceiveIntake(artifactStore, store, clock).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, store, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
             CreateSource($"{name}-failure"),
             $"qdos-alpha:failure:{name}");
         var dispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
@@ -506,7 +513,8 @@ public sealed class RecoveryTests
         var received = await new ReceiveIntake(
             services.GetRequiredService<IIntakeArtifactStore>(),
             store,
-            clock).ExecuteAsync(
+            clock,
+            new CommittedWorkPublisherDouble()).ExecuteAsync(
                 CreateSource("processing-status"),
                 "qdos-alpha:processing-status");
         var dispatch = Assert.IsType<IntakeWorkItem>(await store.ClaimDispatchAsync(
@@ -544,7 +552,7 @@ public sealed class RecoveryTests
         await using var scope = factory.Services.CreateAsyncScope();
         var services = scope.ServiceProvider;
         var store = services.GetRequiredService<IIntakeWorkStore>();
-        var received = await new ReceiveIntake(artifactStore, store, clock).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, store, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
             CreateSource("retry-exhaustion"),
             "qdos-alpha:retry-exhaustion");
         var processor = IntakeWebDriver.CreateProcessor(services);

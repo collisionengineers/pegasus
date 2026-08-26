@@ -346,7 +346,8 @@ public sealed class CaseDataCompletenessPersistenceTests
                 var accept = new AcceptIntake(
                     acceptanceStore,
                     configuration,
-                    new EfProviderInspectionModeStore(factory));
+                    new EfProviderInspectionModeStore(factory),
+                    new CommittedWorkPublisherDouble());
                 var outcome = await accept.ExecuteAsync(
                     new(
                         receiptId,

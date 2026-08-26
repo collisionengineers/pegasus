@@ -465,7 +465,11 @@ public sealed class PollApprovedInboxTests
                 Source,
                 artifacts,
                 artifacts,
-                new ReceiveIntake(artifacts, new WorkStore(), timeProvider),
+                new ReceiveIntake(
+                    artifacts,
+                    new WorkStore(),
+                    timeProvider,
+                    new CommittedWorkPublisherDouble()),
                 Retained,
                 timeProvider);
         }

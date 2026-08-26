@@ -163,7 +163,7 @@ public interface IVehicleEvidenceQueries
 public sealed class RequestVehicleLookup(
     IRequestVehicleLookupStore store,
     VehicleLookupAvailability availability,
-    Pegasus.Core.Custody.DispatchPendingExternalWork? dispatchPendingExternalWork = null) : IRequestVehicleLookup
+    Pegasus.Core.Custody.ICommittedExternalWorkPublisher committedExternalWorkPublisher) : IRequestVehicleLookup
 {
     private readonly IRequestVehicleLookupStore store =
         store ?? throw new ArgumentNullException(nameof(store));
@@ -195,9 +195,7 @@ public sealed class RequestVehicleLookup(
                 EditLeaseToken = command.EditLeaseToken.Trim()
             },
             cancellationToken);
-        await (dispatchPendingExternalWork?.ExecuteCommittedAsync(
-            outcome.WorkItemId,
-            cancellationToken) ?? Task.CompletedTask);
+        await committedExternalWorkPublisher.PublishAsync(outcome.WorkItemId, cancellationToken);
         return outcome;
     }
 

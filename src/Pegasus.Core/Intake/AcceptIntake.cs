@@ -14,8 +14,8 @@ public sealed class AcceptIntake(
     ICaseAcceptanceStore acceptanceStore,
     ICaseWorkflowConfiguration configuration,
     IProviderInspectionModeStore inspectionModeStore,
-    IImageIntakeCasePairing? imageIntakeCasePairing = null,
-    DispatchPendingExternalWork? dispatchPendingExternalWork = null) : IAcceptIntake
+    ICommittedExternalWorkPublisher committedExternalWorkPublisher,
+    IImageIntakeCasePairing? imageIntakeCasePairing = null) : IAcceptIntake
 {
     public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         AcceptIntakeRequest request,
@@ -118,9 +118,9 @@ public sealed class AcceptIntake(
 
         var outcome = await acceptanceStore.AcceptAsync(acceptance, cancellationToken);
         _ = CaseInitialWorkflowState.From(outcome.InitialState);
-        if (!outcome.IsDuplicate && dispatchPendingExternalWork is not null)
+        if (!outcome.IsDuplicate)
         {
-            await dispatchPendingExternalWork.ExecuteCommittedAsync(
+            await committedExternalWorkPublisher.PublishAsync(
                 outcome.CustodyWorkId,
                 cancellationToken);
         }

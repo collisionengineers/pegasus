@@ -582,7 +582,7 @@ public sealed class QdosAllocationRecoveryTests
         var store = services.GetRequiredService<IIntakeWorkStore>();
         var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
 
-        var received = await new ReceiveIntake(artifactStore, store, clock).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, store, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
             new(
                 email.FileName,
                 email.MediaType,
@@ -670,7 +670,7 @@ public sealed class QdosAllocationRecoveryTests
             services.GetRequiredService<IIntakeWorkStore>(),
             factory.Services);
         var artifactStore = services.GetRequiredService<IIntakeArtifactStore>();
-        var received = await new ReceiveIntake(artifactStore, workStore, clock).ExecuteAsync(
+        var received = await new ReceiveIntake(artifactStore, workStore, clock, new CommittedWorkPublisherDouble()).ExecuteAsync(
             new(
                 email.FileName,
                 email.MediaType,
