@@ -26,9 +26,17 @@ This section supersedes the earlier broad fidelity and browser claims above.
 - The original `git diff --check` claim was false: review found 45 HTML EOF whitespace errors. [[PR-063]] removed them; `git diff --check task/uiimp-002-test-ui...HEAD` now exits zero with no error output.
 - Review mapped all 39 visual defaults to current Razor/PageModel branches and corrected invalid or combined defaults. All 60 visual states now carry a concrete documented branch claim in the canonical inventory.
 - `./scripts/Test-UiCatalogue.ps1` passes with 52 routed sources, 60 prototypes and zero broken local references. This proves structure, not semantic fidelity; the ticket research records the manual source comparison.
-- Representative browser evidence—not an all-61 capture claim—covers the authenticated dashboard at 200% scale, the sign-in shell in forced-colour mode, and the external upload shell at 1280×900. Static checks confirm every authenticated default shell has a skip link and focusable main target.
+- Representative browser evidence—not an all-61 capture claim—covers the authenticated dashboard at 200%, forced-colour sign-in, and external upload at 1280×900. Static checks confirm every authenticated default shell has a skip link and focusable main target.
 - Locked restore and Release build pass with zero warnings/errors; PowerShell parse, documentation links and Markdown placement pass.
 
 ## PR-064 evidence correction — 2026-08-26
 
 This supersedes the PR-063 statement that its first rerun had corrected every default. [[PR-064]] found and corrected two remaining contradictions: organization-edit’s branch claim now matches its populated Work Provider/principal markup, and vehicle-image detail now selects the valid no-images branch. The existing validator now rejects absent, empty, and whitespace-only image sources. A renewed 39-default source/markup recheck found no additional contradiction; positive validation remains 52 routed sources / 60 prototypes / 0 broken local references.
+
+## Closeout checklist — 2026-08-26
+
+- [x] Confirm PR #556 is merged.
+- [x] Confirm proof is final on exact merged dev commit.
+- [x] Record outcome, commits, PRs, and deployment status.
+- [x] Remove only the UIIMP-002 ticket worktree and branch; prune its remote branch if present.
+- [x] Release the ticket claim last.
