@@ -1,0 +1,4 @@
+interface:
+  display_name: "Razor Pages UI Implementation"
+  short_description: "Build maintainable Razor Pages interfaces"
+  default_prompt: "Use $razor-pages-ui-implementation to implement this UI with suitable Razor Pages patterns."
