@@ -9,7 +9,7 @@ runs:
   steps:
     - uses: actions/setup-dotnet@v6
       with:
-        dotnet-version: 10.0.302
+        dotnet-version: 10.0.303
         # Keyed on every lock file in the solution, so a package graph change
         # cannot be served from a stale cache. On a miss the restore below
         # behaves exactly as an uncached one and the cache is written at the
