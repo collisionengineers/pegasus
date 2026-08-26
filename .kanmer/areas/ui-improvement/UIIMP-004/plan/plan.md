@@ -1,32 +1,36 @@
 # Plan — UIIMP-004
 
-## Approach
+## Current target
 
-Replace the parallel handwritten UI with deterministic output from the real Razor application. Reuse `IntakeWebApplicationFactory`, `BrowserTestSupport`, existing test fixtures, current layouts/assets and Playwright. One manifest owns the 52 route classifications and 60 selected states; a scenario registry implements only the setup needed to render each named state.
+Replace the parallel handwritten Test UI with deterministic HTML captured from the real Razor application. The current catalogue has 52 routed sources and 57 renderable visual states.
 
-## Governing docs
+Investigation removed three obsolete branches that current PageModels cannot render (`dashboard--stale`, `received-details--partial`, and `operations--failed`) and renamed three reworked outcomes to their current terms (`inbox--unavailable`, and upload group/status `--needs-decision`).
 
-- Meets `docs/frd/frd-12-operator-experience.md` by capturing the current server-known state, preserving semantic/accessibility markup and validating responsive, zoom, forced-colour and reduced-motion behavior.
-- Does not modify FRD-12 or Live UI behavior.
+## Implementation
 
-## Steps
+1. Keep route/state ownership in `docs/design/test-ui/catalogue.json` and generate the index from it.
+2. Reuse `IntakeWebApplicationFactory` and existing integration scenarios; install a test-only response-capture middleware only when `PEGASUS_TEST_UI_CAPTURE_DIR` is set.
+3. Add focused current-branch renders only for states not already exercised by the existing suite.
+4. Select each manifest state by route plus current rendered branch marker.
+5. Normalize antiforgery/operation/cache values, mapped-static-asset fingerprints and trailing indentation; rewrite root-relative assets and visual navigation to repository-local targets. Preserve rendered elements, attributes, form wiring, SVGs, data hooks, layout and scripts.
+6. Generate all pages only after every manifest state has a captured match; remove only orphaned generated HTML in the catalogue pages directory.
+7. Verify by a clean application recapture followed by byte comparison with the committed normalized output.
+8. Keep Test UI disconnected from application/publish inputs and retain the existing Live/Test launcher boundary.
+9. Update the design authority, README and runbook.
 
-1. Convert the embedded inventory into a single JSON manifest that retains source, route, classification, reason, state, output path and scenario key. Generate the index from it.
-2. Extend the existing integration browser support only where needed to expose captured post-JavaScript DOM and isolated scenario configuration; do not add a second web host abstraction.
-3. Implement the 60 scenario keys using current PageModel conditions, existing repository fixtures/helpers, real invalid requests and existing failure doubles. Record readiness selectors so capture waits for the actual state.
-4. Normalize only documented volatile antiforgery/operation/lease/cache/generated values. Rewrite only root-relative application assets and internal routes to local targets. Preserve every other rendered node and attribute.
-5. Add an explicit PowerShell update command that captures to a temporary tree, validates it, and replaces generated Test UI files only on success. Ordinary validation captures to temp and byte-compares without tracked writes.
-6. Replace all manual prototypes and catalogue HTML with generated output carrying provenance metadata. Update the existing validator to consume the manifest rather than owning another inventory.
-7. Add parity tests: all routes/states covered; post-normalization DOM exact; live/offline screenshots identical at standard viewport for all states; representative responsive/200%-zoom/forced-colour/reduced-motion/keyboard/axe checks; negative tests for unauthorized transforms and manual drift.
-8. Update design/readme/runbook guidance, correct the prior parity claim through this ticket, run canonical restore/build/focused tests and publish isolation.
-9. Run the required simplification pass over the branch diff and record reuse, simplification, efficiency and altitude findings before PR.
+## Verification
 
-## Proof
+- Clean capture suite: 260 passed, 11 expected corpus skips, 0 failed.
+- Snapshot update and verify: 57/57 generated states.
+- Catalogue: 52 routed sources, 57 prototypes, 0 broken local references.
+- Release build: 0 warnings, 0 errors.
+- Live/Test UI launcher checks and `git diff --check`: pass.
+- Deployment: n/a.
 
-Verification on merged `dev` reruns clean regeneration, all-state DOM and screenshot parity, focused accessibility checks, restore/build and publish isolation. Proof names exact counts and any environment prerequisites; deployment is `n/a`.
+## Simplification pass — 2026-08-26
 
-## Risks
-
-- Some states require scoped dependency overrides or real invalid posts; use existing factory composition and doubles rather than HTML mutation.
-- Request-specific values must be normalized narrowly; every rule is allow-listed and negative-tested.
-- File-origin behavior can differ from HTTP; screenshot comparison catches offline regressions while DOM comparison catches structural drift.
+- Reuse: existing integration factories, authentication, database fixtures, failure doubles, Web tests, CSS/JS and launcher retained.
+- Simplification: removed the separate handwritten inventory and six obsolete/renamed files; one JSON manifest now owns classification and states.
+- Efficiency: capture is environment-gated and piggybacks on existing tests; no second web host, template engine, converter, runtime mode or production service was added.
+- Altitude: the implementation stays test/documentation-only; application behavior and deployment composition are unchanged.
+- Disposition: no further behavior-preserving simplification identified.
