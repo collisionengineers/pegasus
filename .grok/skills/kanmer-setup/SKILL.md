@@ -166,11 +166,6 @@ on the second run is not reconciliation.
 A genuinely fresh project has no issues, no plans and no history to mine. Then,
 and only then, build the board from a brief.
 
-Use [`docs/manual/greenfield.md`](../../../../docs/manual/greenfield.md) to choose
-the appropriate initial depth and keep the first horizon bounded. It is a
-planning aid, not an alternative to this brief-first interview or its explicit
-confirmation before board creation.
-
 This is the path that needs the `--init` opt-in when the server was started
 without a root (see step 1): the board is created lazily by the first write, and
 without the opt-in the server will not have started.
