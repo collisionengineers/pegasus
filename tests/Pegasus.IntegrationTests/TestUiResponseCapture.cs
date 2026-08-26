@@ -46,6 +46,11 @@ internal sealed class TestUiResponseCaptureMiddleware(RequestDelegate next)
                 await CaptureAsync(captureDirectory, context, html, context.RequestAborted);
                 buffer.Position = 0;
             }
+            else if (context.Response.ContentType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                await CaptureAssetAsync(captureDirectory, context, buffer.ToArray(), context.RequestAborted);
+                buffer.Position = 0;
+            }
 
             await buffer.CopyToAsync(originalBody, context.RequestAborted);
         }
@@ -53,6 +58,28 @@ internal sealed class TestUiResponseCaptureMiddleware(RequestDelegate next)
         {
             context.Response.Body = originalBody;
         }
+    }
+
+    private static async Task CaptureAssetAsync(
+        string captureDirectory,
+        HttpContext context,
+        byte[] content,
+        CancellationToken cancellationToken)
+    {
+        Directory.CreateDirectory(captureDirectory);
+        var request = $"{context.Request.PathBase}{context.Request.Path}{context.Request.QueryString}";
+        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(request))).ToLowerInvariant();
+        var itemDirectory = Path.Combine(captureDirectory, "assets", hash);
+        Directory.CreateDirectory(itemDirectory);
+        var metadata = new CapturedAsset(
+            context.Request.PathBase + context.Request.Path,
+            context.Request.QueryString.Value ?? string.Empty,
+            context.Response.ContentType!);
+        await File.WriteAllTextAsync(
+            Path.Combine(itemDirectory, "asset.json"),
+            JsonSerializer.Serialize(metadata, JsonOptions),
+            cancellationToken);
+        await File.WriteAllBytesAsync(Path.Combine(itemDirectory, "response.bin"), content, cancellationToken);
     }
 
     private static async Task CaptureAsync(
@@ -82,4 +109,5 @@ internal sealed class TestUiResponseCaptureMiddleware(RequestDelegate next)
     }
 
     private sealed record CapturedResponse(string Method, string Path, string Query);
+    private sealed record CapturedAsset(string Path, string Query, string ContentType);
 }
