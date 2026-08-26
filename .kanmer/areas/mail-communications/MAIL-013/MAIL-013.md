@@ -17,9 +17,11 @@ blocks:
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+  - docs/adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md
+  - docs/adr/0032-near-real-time-durable-intake-triggering.md
 archived: false
 created: '2026-08-25T15:18:39.919Z'
-updated: '2026-08-25T15:26:56.915Z'
+updated: '2026-08-26T13:59:54.002Z'
 ---
 
 ## What

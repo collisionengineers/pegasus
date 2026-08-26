@@ -18,13 +18,14 @@ links:
   - AUTO-008
 blocks:
   - DELIV-021
+  - MAIL-013
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 commits:
   - 6c42d53d
 archived: false
 created: '2026-08-25T15:18:40.610Z'
-updated: '2026-08-26T12:54:09.549Z'
+updated: '2026-08-26T13:59:54.026Z'
 ---
 
 ## What
