@@ -51,3 +51,14 @@ INTK-043 blocks MAIL-013 because both touch the queue envelope, unified Worker f
 ## Simplification pass
 
 Implementation must confirm that the diff adds no mailbox-only queue/function, generic notification framework, second processor, feature flag, compatibility layer or capacity change. Record actual findings and dispositions here before review.
+
+## Simplification pass — 2026-08-26
+
+Independent reuse, simplification, efficiency and altitude review completed over the branch diff.
+
+- Replaced the notification hot path's full-estate load with one keyed database query.
+- Removed Graph resource/write policy from Core and persistence; the Graph adapter is the single owner.
+- Removed an unused mailbox member from the generic queue-kind enum.
+- Reworded fallback-era comments/test names for the single persisted-estate model.
+- Kept disable/resume cursor coverage: it proves required recovery behaviour, not compatibility.
+- Confirmed no mailbox-only queue/function, second processor, feature flag, compatibility path or capacity change remains.
