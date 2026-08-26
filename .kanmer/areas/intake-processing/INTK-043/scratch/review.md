@@ -50,3 +50,22 @@ The post-implementation report accounts for every changed file and its stated ra
 ## Verdict
 
 **Needs changes.** The diff substantially follows the ticket plan and report, but the central warm-capacity setting is not valid for an individually scaled queue function and required CI is not green. PR #560 was not merged and INTK-043 remains in Review. Re-review the corrected, unchanged replacement head after [[PR-066]] and [[PR-065]] land.
+
+# Re-review addendum — 2026-08-26
+
+Exact head reviewed: `520827c5744bd151464280ca2c5f1c315f19a5ba`.
+
+## Corrected finding dispositions
+
+1. [[PR-066]] — **fixed-in-PR**. Commit `912cb49c` changes exactly `alwaysReady[].name` to Azure Flex's required `function:UnifiedWorkFunction` and updates the C# and PowerShell guards. It leaves the runtime Function name, `AzureWebJobs.UnifiedWorkFunction.Disabled`, queue name, function census, and transport unchanged. Focused evidence: activation contract tests 14/14 PASS, local deployment-plan and compiled-Bicep validation PASS, and diff validation PASS.
+2. [[PR-065]] — **fixed on dev and synchronized**. The later merge commit removes the inherited broken Kanmer setup link. The synchronized `.agents/skills/razor-pages-ui-*` files are pre-existing current-`dev` content and do not alter INTK-043 product behavior or scope.
+
+## Exact-head checks
+
+GitHub repository-check run `32981774968`: 11/11 successful, 0 failing, 0 pending. Passed: changes, documentation, local-development-scripts, reference-data, infrastructure, unit, browser, SQL integration shards 1-3, and SQL integration coverage.
+
+The replacement head remains mergeable and no new unplanned INTK file change was introduced beyond the three-file [[PR-066]] correction. The earlier report, governing-doc, code, test, and simplification conclusions otherwise remain unchanged.
+
+## Verdict
+
+**Pass.** Both blocking comments are fixed with evidence, all required CI is green on the exact reviewed head, and the dev synchronization is unrelated inherited content rather than hidden INTK scope. Merge PR #560 to `dev` under standing delegation, then move INTK-043 one stage to Verifying.
