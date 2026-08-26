@@ -55,7 +55,7 @@ public sealed class ImageIntakeCasePairing(
     IImageIntakeCaseCandidates caseCandidates,
     IIntakeMutationStore intakeMutationStore,
     TimeProvider timeProvider,
-    DispatchPendingExternalWork? dispatchPendingExternalWork = null) : IImageIntakeCasePairing
+    ICommittedExternalWorkPublisher committedExternalWorkPublisher) : IImageIntakeCasePairing
 {
     public async Task PairAcceptedCaseAsync(Guid caseId, CancellationToken cancellationToken)
     {
@@ -151,10 +151,9 @@ public sealed class ImageIntakeCasePairing(
                 $"The Image-initiated case {detail.Record.ImageIntakeReference} was merged into the linked formal Case.",
                 detail.LifecycleVersion),
             cancellationToken);
-        if (merged.PendingExternalWorkId is { } workItemId
-            && dispatchPendingExternalWork is not null)
+        if (merged.PendingExternalWorkId is { } workItemId)
         {
-            await dispatchPendingExternalWork.ExecuteCommittedAsync(workItemId, cancellationToken);
+            await committedExternalWorkPublisher.PublishAsync(workItemId, cancellationToken);
         }
     }
 }

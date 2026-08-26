@@ -255,11 +255,21 @@ public interface IIntakeWorkEnqueuer
     Task EnqueueAsync(Guid stagedReceiptId, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The post-commit intake publication boundary. Composition must provide it;
+/// callers may not silently acknowledge committed work without attempting its
+/// queue publication.
+/// </summary>
+public interface ICommittedIntakeWorkPublisher
+{
+    Task PublishAsync(Guid stagedReceiptId, CancellationToken cancellationToken);
+}
+
 public sealed class ReceiveIntake(
     IIntakeArtifactStore artifactStore,
     IIntakeWorkStore workStore,
     TimeProvider timeProvider,
-    DispatchPendingIntakeWork? dispatchPendingWork = null) : IIntakeSubmission
+    ICommittedIntakeWorkPublisher committedWorkPublisher) : IIntakeSubmission
 {
     private const int MaximumFileNameLength = 260;
     private const int MaximumMediaTypeLength = 200;
@@ -364,11 +374,7 @@ public sealed class ReceiveIntake(
     private Task PublishCommittedAsync(
         ReceivedIntake received,
         CancellationToken cancellationToken) =>
-        dispatchPendingWork is null
-            ? Task.CompletedTask
-            : dispatchPendingWork.ExecuteCommittedAsync(
-                received.StagedReceiptId,
-                cancellationToken);
+        committedWorkPublisher.PublishAsync(received.StagedReceiptId, cancellationToken);
 
     private static void ValidateLength(string value, int maximumLength, string parameterName)
     {
@@ -384,9 +390,10 @@ public sealed class ReceiveIntake(
 public sealed class DispatchPendingIntakeWork(
     IIntakeWorkStore workStore,
     IIntakeWorkEnqueuer workEnqueuer,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : ICommittedIntakeWorkPublisher
 {
     private static readonly TimeSpan DispatchLeaseDuration = TimeSpan.FromMinutes(1);
+    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Intake");
 
     /// <summary>
     /// Attempts publication for one already-committed receipt. A transport
@@ -402,6 +409,10 @@ public sealed class DispatchPendingIntakeWork(
             throw new ArgumentException("A staged receipt identifier is required.", nameof(stagedReceiptId));
         }
 
+        using var activity = Telemetry.StartActivity("publish_committed_intake_work");
+        activity?.SetTag("intake.staged_receipt_id", stagedReceiptId);
+        activity?.SetTag("intake.publication.path", "immediate");
+
         var workItem = await workStore.ClaimDispatchAsync(
             stagedReceiptId,
             timeProvider.GetUtcNow(),
@@ -409,6 +420,7 @@ public sealed class DispatchPendingIntakeWork(
             cancellationToken);
         if (workItem is null)
         {
+            activity?.SetTag("intake.publication.outcome", "already_claimed_or_complete");
             return;
         }
 
@@ -425,16 +437,36 @@ public sealed class DispatchPendingIntakeWork(
                 workItem.LeaseToken,
                 timeProvider.GetUtcNow(),
                 cancellationToken);
+            activity?.SetTag("intake.publication.outcome", "published");
+            activity?.SetStatus(ActivityStatusCode.Ok);
         }
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
-            await workStore.ReleaseDispatchAsync(
-                workItem.Id,
-                workItem.LeaseToken,
-                timeProvider.GetUtcNow(),
-                CancellationToken.None);
+            activity?.SetTag("intake.publication.enqueue_error", exception.GetType().Name);
+            try
+            {
+                await workStore.ReleaseDispatchAsync(
+                    workItem.Id,
+                    workItem.LeaseToken,
+                    timeProvider.GetUtcNow(),
+                    CancellationToken.None);
+                activity?.SetTag("intake.publication.outcome", "enqueue_failed_released");
+            }
+            catch (Exception releaseException) when (IntakeExceptionPolicy.IsRecoverable(releaseException))
+            {
+                // The lease expires even if this best-effort release cannot be
+                // persisted. The committed receipt remains acknowledged and
+                // the recovery sweep reclaims it after the lease.
+                activity?.SetTag("intake.publication.release_error", releaseException.GetType().Name);
+                activity?.SetTag("intake.publication.outcome", "enqueue_failed_lease_expiry_recovery");
+            }
+
+            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
         }
     }
+
+    public Task PublishAsync(Guid stagedReceiptId, CancellationToken cancellationToken) =>
+        ExecuteCommittedAsync(stagedReceiptId, cancellationToken);
 
     public async Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken = default)
     {

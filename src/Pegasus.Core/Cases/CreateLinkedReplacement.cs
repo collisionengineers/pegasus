@@ -9,7 +9,7 @@ namespace Pegasus.Core.Cases;
 /// </summary>
 public sealed class CreateLinkedReplacement(
     ILinkedCaseReplacementStore store,
-    DispatchPendingExternalWork? dispatchPendingExternalWork = null) : ICreateLinkedReplacement
+    ICommittedExternalWorkPublisher committedExternalWorkPublisher) : ICreateLinkedReplacement
 {
     private readonly ILinkedCaseReplacementStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
@@ -47,9 +47,9 @@ public sealed class CreateLinkedReplacement(
                 ReplacementPrincipalCode = principalCode
             },
             cancellationToken);
-        if (!outcome.IsDuplicate && dispatchPendingExternalWork is not null)
+        if (!outcome.IsDuplicate)
         {
-            await dispatchPendingExternalWork.ExecuteCommittedAsync(
+            await committedExternalWorkPublisher.PublishAsync(
                 outcome.CustodyWorkId,
                 cancellationToken);
         }

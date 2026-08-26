@@ -20,7 +20,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Equal(2, mutationStore.AutoLinks.Count);
@@ -44,7 +44,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
@@ -64,7 +64,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
@@ -85,7 +85,7 @@ public sealed class ImageIntakeCasePairingTests
             FailFor = first.OriginReceiptId
         };
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         var link = Assert.Single(mutationStore.AutoLinks);
@@ -106,7 +106,7 @@ public sealed class ImageIntakeCasePairingTests
         };
         var mutationStore = new FakeMutationStore();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, new CommittedWorkPublisherDouble())
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
@@ -143,14 +143,18 @@ public sealed class ImageIntakeCasePairingTests
         };
         var candidates = new FakeCandidates();
         var mutationStore = new FakeMutationStore();
+        var workItemId = Guid.NewGuid();
+        queries.PendingExternalWorkId = workItemId;
+        var publisher = new CommittedWorkPublisherDouble();
 
-        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System)
+        await new ImageIntakeCasePairing(queries, candidates, mutationStore, TimeProvider.System, publisher)
             .PairAcceptedCaseAsync(CaseId, CancellationToken.None);
 
         Assert.Empty(mutationStore.AutoLinks);
         var merge = Assert.Single(queries.Merges);
         Assert.Equal(detail.Record.Id, merge.ImageIntakeId);
         Assert.Equal(CaseId, merge.CaseId);
+        Assert.Equal([workItemId], publisher.ExternalWorkIds);
     }
 
     private static ImageIntakeSummary Summary(
@@ -174,6 +178,8 @@ public sealed class ImageIntakeCasePairingTests
         public Dictionary<Guid, ImageIntakeDetail> ByOriginReceipt { get; init; } = [];
 
         public List<MergeImageInitiatedCaseRequest> Merges { get; } = [];
+
+        public Guid? PendingExternalWorkId { get; set; }
 
         public Task<ImageIntakeOperationReplay?> ProbeRegisterReplayAsync(
             RegisterImageIntakeRequest request,
@@ -201,7 +207,8 @@ public sealed class ImageIntakeCasePairingTests
                     Guid.NewGuid()),
                 "AB12CDE",
                 "AB12CDE-01",
-                ImageInitiatedCaseState.MergedIntoInstructionCase));
+                ImageInitiatedCaseState.MergedIntoInstructionCase,
+                PendingExternalWorkId: PendingExternalWorkId));
         }
 
         public Task<IReadOnlyList<ImageIntakeSummary>> ListAsync(

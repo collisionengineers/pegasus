@@ -638,7 +638,11 @@ builder.Services.AddSingleton<IExternalWorkEnqueuer>(
         externalWorkQueue ?? throw new InvalidOperationException("The external-work queue is not configured."),
         allowLocalQueueCreation));
 builder.Services.AddScoped<DispatchPendingIntakeWork>();
+builder.Services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
+    serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
 builder.Services.AddScoped<DispatchPendingExternalWork>();
+builder.Services.AddScoped<ICommittedExternalWorkPublisher>(serviceProvider =>
+    serviceProvider.GetRequiredService<DispatchPendingExternalWork>());
 // Presentation-layer read model for the Upload confirmation surface: composes
 // existing Core read ports only, and every action it offers routes to the
 // existing page that performs it (see Pegasus.Web.Presentation.UploadOutcome).

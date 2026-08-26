@@ -107,6 +107,8 @@ public static class WorkerDependencyInjection
             serviceProvider.GetRequiredService<SubmitGroupedIntake>());
         services.AddScoped<SubmitMailboxImageIntake>();
         services.AddScoped<DispatchPendingIntakeWork>();
+        services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
+            serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
         services.AddScoped<ProcessQueuedIntake>();
         services.AddScoped<IProcessQueuedIntake>(serviceProvider =>
             serviceProvider.GetRequiredService<ProcessQueuedIntake>());
@@ -125,6 +127,8 @@ public static class WorkerDependencyInjection
                 provisioning.AllowLocalCreateIfNotExists);
         });
         services.AddScoped<DispatchPendingExternalWork>();
+        services.AddScoped<ICommittedExternalWorkPublisher>(serviceProvider =>
+            serviceProvider.GetRequiredService<DispatchPendingExternalWork>());
         services.AddScoped<ReconcilePoisonedExternalWork>();
         services.AddScoped<ReconcilePoisonedQueueWork>();
         services.AddScoped<DispatchPendingWork>();

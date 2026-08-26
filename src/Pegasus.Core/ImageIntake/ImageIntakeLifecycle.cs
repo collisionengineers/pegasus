@@ -7,7 +7,7 @@ namespace Pegasus.Core.ImageIntake;
 
 public sealed class RegisterImageIntake(
     IImageIntakeStore store,
-    DispatchPendingExternalWork? dispatchPendingExternalWork = null) : IRegisterImageIntake
+    ICommittedExternalWorkPublisher committedExternalWorkPublisher) : IRegisterImageIntake
 {
     private readonly IImageIntakeStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -23,10 +23,9 @@ public sealed class RegisterImageIntake(
         }
 
         var registered = await _store.RegisterAsync(request, cancellationToken);
-        if (registered.PendingExternalWorkId is { } workItemId
-            && dispatchPendingExternalWork is not null)
+        if (registered.PendingExternalWorkId is { } workItemId)
         {
-            await dispatchPendingExternalWork.ExecuteCommittedAsync(workItemId, cancellationToken);
+            await committedExternalWorkPublisher.PublishAsync(workItemId, cancellationToken);
         }
 
         return registered;

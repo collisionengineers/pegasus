@@ -197,6 +197,9 @@ Assert-Text $platformBicep "minReplicas:\s*1[\s\S]*?maxReplicas:\s*1" 'The Web C
 Assert-Text $platformBicep "cpu:\s*json\('1\.0'\)[\s\S]*?memory:\s*'2Gi'" 'The Web Container App must use 1.0 vCPU and 2 GiB.'
 Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
 Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
+Assert-Text $platformBicep "queueDataMessageSenderRole\s*=\s*subscriptionResourceId\('Microsoft.Authorization/roleDefinitions',\s*'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a'\)" 'The Web must use the built-in Storage Queue Data Message Sender role.'
+Assert-Text $platformBicep "resource\s+webIntakeQueueSender[\s\S]*?scope:\s*intakeQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to intake-work.'
+Assert-Text $platformBicep "resource\s+webExternalQueueSender[\s\S]*?scope:\s*externalQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to external-work.'
 if ([regex]::Matches($platformBicep, 'roleDefinitionId:\s*monitoringMetricsPublisherRole').Count -ne 2) {
     throw 'Both Web and Worker identities must receive Monitoring Metrics Publisher at Application Insights.'
 }
