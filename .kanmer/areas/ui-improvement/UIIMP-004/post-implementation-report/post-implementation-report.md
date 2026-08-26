@@ -69,3 +69,7 @@ The custom-message run captured `/Inbox/...?...mailbox=<unrelated-guid>&pageNumb
 ### Authentication overwrite correction
 
 The corrupt mailbox GUID is the integration administrator identity, proving post-handler overwrite rather than a malformed client URL. Commit `74371f98` captures the raw GET mailbox into a private non-bindable field before other work and uses it for the candidate URL, with the existing bound property retained for other/non-GET consumers. Focused regression passes; fresh CI and review are pending.
+
+### Null-context review correction
+
+Commit `5287ee81` adds an initialization flag so a GET with no mailbox remains intentionally null instead of falling back to the corrupted bound property. The existing no-mailbox candidate-search scenario now asserts the exact anchor contains no mailbox parameter. Both focused candidate tests pass locally.

@@ -58,3 +58,7 @@ The custom failure message captured the full GitHub candidate URL: `mailbox` was
 ### Authentication-ID overwrite root cause
 
 The exact corrupt GUID is `DevelopmentOfflineIdentity.AdministratorId`, proving the public bindable mailbox value and render-time query view are overwritten after the handler begins. Capture the canonical raw mailbox at the start of `OnGetAsync` into a private non-bindable field, assign the public property for existing consumers, and have the candidate URL prefer that immutable field with the bound property only as the non-GET fallback. Acceptance remains exact-anchor focused pass, independent review, and fresh green shard 1.
+
+### Null mailbox distinction
+
+Independent review identified that a nullable snapshot alone cannot distinguish an initialized GET with no mailbox from a non-GET render. Track initialization separately: an initialized GET uses its captured nullable value, while only a render without any GET snapshot may fall back to the bound property. Extend the existing no-mailbox case-candidate test to assert the exact result anchor has no mailbox parameter. Both focused candidate tests must pass.

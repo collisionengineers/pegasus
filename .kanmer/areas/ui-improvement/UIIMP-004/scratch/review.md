@@ -226,3 +226,21 @@ Add/adjust focused coverage for a candidate-search GET with no mailbox query to 
 ## Verdict
 
 **Needs changes.** The approach is necessary and simple, but the nullable coalescing fallback is not a correct discriminator. No other scope or design issue found.
+
+# Nullable snapshot final re-review — commit 5287ee81 — 2026-08-26
+
+## Resolution
+
+**Approve.**
+
+- `mailboxRouteValueInitialized` is set whenever `OnGetAsync` captures the canonical query, independently of whether the normalized value is non-null.
+- `AssociationCandidateUrl` now uses the captured nullable value for every initialized GET and uses public `MailboxFilter` only for a render path that never took a GET snapshot.
+- This prevents an absent/whitespace GET mailbox from falling through to the demonstrated corrupted administrator GUID.
+- The existing no-mailbox case-search test targets the exact candidate anchor for the seeded case and now asserts that anchor contains no `mailbox` parameter.
+- The non-null exact-anchor regression continues to prove `mailbox=instructions` and `pageNumber=2` are preserved.
+- The private field and boolean are request-scoped PageModel state, non-bindable, initialized before asynchronous work, and the minimum state needed to distinguish “captured null” from “not captured.”
+- `git diff --check origin/dev...5287ee81` passes.
+
+## Verdict
+
+The prior blocker is fully resolved. No correctness, simplicity, scope, or plan-alignment finding remains at `5287ee81`. Merge remains conditional on the fresh GitHub run, especially SQL shard 1, completing green.
