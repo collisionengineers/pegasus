@@ -178,9 +178,12 @@ public sealed class MailWorkspaceWebTests
             search,
             $"<a(?=[^>]*targetCaseId={firstCaseId:D})[^>]*href=\"([^\"]+)\"",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant).Groups[1].Value);
-        Console.WriteLine($"Case candidate URL: {candidateUrl}");
-        Assert.Contains("mailbox=instructions", candidateUrl, StringComparison.Ordinal);
-        Assert.Contains("pageNumber=2", candidateUrl, StringComparison.Ordinal);
+        Assert.True(
+            candidateUrl.Contains("mailbox=instructions", StringComparison.Ordinal),
+            $"Case candidate URL did not preserve mailbox context: {candidateUrl}");
+        Assert.True(
+            candidateUrl.Contains("pageNumber=2", StringComparison.Ordinal),
+            $"Case candidate URL did not preserve page context: {candidateUrl}");
 
         var target = await GetHtmlAsync(
             client,
