@@ -61,7 +61,10 @@ public sealed class ImageIntakePersistenceTests
         Assert.Equal("AB12CDE-02", second.ImageIntakeReference);
 
         var replay = await register.ExecuteAsync(firstRequest, CancellationToken.None);
-        Assert.Equal(first, replay);
+        // The outbox ID is returned only from the commit that created it so
+        // Core can publish that exact item. A replay is the same registration,
+        // but it intentionally does not publish the old work item again.
+        Assert.Equal(first with { PendingExternalWorkId = null }, replay);
         await Assert.ThrowsAsync<ImageIntakeOperationConflictException>(
             () => register.ExecuteAsync(
                 firstRequest with { Reason = "Altered request details" },
