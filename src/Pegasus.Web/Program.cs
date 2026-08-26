@@ -27,6 +27,7 @@ using Pegasus.Core.Identity;
 using Pegasus.Web.AiWork;
 using Pegasus.Web.Mcp;
 using Pegasus.Web.Pages.Uploads;
+using Pegasus.Web;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
@@ -141,6 +142,8 @@ if (productionProfile)
         "CustodyStorage:AccountName",
         "CustodyStorage:ServiceUri",
         "Graph:BaseUri",
+        "Graph:TenantId",
+        "Graph:ChangeNotificationClientState",
         "Box:BaseUri",
         "Box:UploadUri",
         "Box:RootFolderId",
@@ -627,6 +630,10 @@ builder.Services.AddSingleton<IExternalWorkEnqueuer>(
     new AzureQueueExternalWorkEnqueuer(
         intakeWorkQueue ?? throw new InvalidOperationException("The unified work queue is not configured."),
         allowLocalQueueCreation));
+builder.Services.AddSingleton<IMailboxWakeEnqueuer>(
+    new AzureQueueMailboxWakeEnqueuer(
+        intakeWorkQueue ?? throw new InvalidOperationException("The unified work queue is not configured."),
+        allowLocalQueueCreation));
 builder.Services.AddScoped<DispatchPendingIntakeWork>();
 builder.Services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
     serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
@@ -993,6 +1000,9 @@ app.MapGet("/diagnostics/version", () => Results.Ok(new
     version = productVersion,
     sourceSha
 })).AllowAnonymous();
+app.MapPost("/hooks/microsoft-graph/mail", GraphMailWebhook.HandleAsync)
+    .WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(64 * 1024))
+    .AllowAnonymous();
 app.MapRazorPages()
    .WithStaticAssets();
 if (automationMcpOptions is not null)

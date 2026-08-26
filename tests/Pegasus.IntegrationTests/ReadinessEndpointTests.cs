@@ -335,7 +335,9 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Box:RootFolderId"] = "405543781910",
             ["Box:ConfigJson"] = TestBoxConfigJson,
             ["Box:ClientSecret"] = "test-client-secret",
-            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/"
+            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
+            ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+            ["Graph:ChangeNotificationClientState"] = "integration-client-state"
         };
         foreach (var setting in settings)
         {

@@ -14,6 +14,7 @@ param webRevisionSuffix string
 param graphMailboxId string
 param graphInboxFolderId string
 param graphSentFolderId string
+param graphChangeNotificationClientStateSecretUri string
 param boxConfigJsonSecretUri string
 param boxClientSecretSecretUri string
 param automationMcpClientSecretUri string
@@ -392,6 +393,11 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
           keyVaultUrl: automationMcpClientSecretUri
           identity: webIdentity.id
         }
+        {
+          name: 'graph-change-notification-client-state'
+          keyVaultUrl: graphChangeNotificationClientStateSecretUri
+          identity: webIdentity.id
+        }
       ]
     }
     template: {
@@ -419,6 +425,8 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             // Web never polls a mailbox, so no Graph__MailboxId/InboxFolderId/SentFolderId
             // here — only the base URI, matching the Worker's Graph__BaseUri exactly.
             { name: 'Graph__BaseUri', value: 'https://graph.microsoft.com/v1.0/' }
+            { name: 'Graph__TenantId', value: tenant().tenantId }
+            { name: 'Graph__ChangeNotificationClientState', secretRef: 'graph-change-notification-client-state' }
             { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
             { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
             { name: 'Box__RootFolderId', value: '405543781910' }
@@ -529,14 +537,14 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         // Recovery only: every committing caller attempts exact-ID publication.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
-        { name: 'ApprovedInboxPollSchedule', value: '*/15 * * * * *' }
+        { name: 'ApprovedInboxPollSchedule', value: '0 */5 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
-        { name: 'AzureWebJobs.InboxPollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.InboxRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.SentEvidencePollFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.DueWorkSweepFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'APPLICATIONINSIGHTS_CONNECTION_STRING', value: applicationInsights.properties.ConnectionString }
@@ -551,6 +559,9 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Graph__MailboxAddress', value: 'instructions@collisionengineers.co.uk' }
         { name: 'Graph__InboxFolderId', value: graphInboxFolderId }
         { name: 'Graph__SentFolderId', value: graphSentFolderId }
+        { name: 'Graph__TenantId', value: tenant().tenantId }
+        { name: 'Graph__ChangeNotificationUrl', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/hooks/microsoft-graph/mail' }
+        { name: 'Graph__ChangeNotificationClientState', value: '@Microsoft.KeyVault(SecretUri=${graphChangeNotificationClientStateSecretUri})' }
         { name: 'Box__BaseUri', value: 'https://api.box.com/2.0/' }
         { name: 'Box__UploadUri', value: 'https://upload.box.com/api/2.0/' }
         { name: 'Box__RootFolderId', value: '405543781910' }

@@ -99,17 +99,22 @@ public sealed class MailWorkspaceBrowserTests
 
     private static async Task<Guid> SeedMessageAsync(IServiceProvider services)
     {
-        const string mailboxId = "browser-mail";
+        const string mailboxKey = "browser-mail";
+        var mailboxId = TestMailboxId.From(mailboxKey);
         const string mailboxAddress = "browser-mail@collisionengineers.co.uk";
         await using var scope = services.CreateAsyncScope();
         var contextFactory = scope.ServiceProvider
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
+            await TestMailboxId.EnsureApprovedAsync(
+                context, mailboxKey, mailboxAddress, NowUtc.AddDays(-1));
             context.ApprovedInboxPollStates.Add(new()
             {
-                MailboxId = mailboxId,
+                ApprovedMailboxId = mailboxId,
                 MailboxAddress = mailboxAddress,
+                ScopeFingerprint = new string('A', 64),
+                ActivatedAtUtc = NowUtc.AddDays(-1),
                 DueAtUtc = NowUtc,
                 LastCompletedAtUtc = NowUtc.AddMinutes(-1)
             });
@@ -122,7 +127,7 @@ public sealed class MailWorkspaceBrowserTests
                     mailboxId,
                     mailboxAddress,
                     "browser-message-1",
-                    $"{mailboxId.Length}:{mailboxId}browser-message-1",
+                    $"{mailboxKey.Length}:{mailboxKey}browser-message-1",
                     NowUtc,
                     1024,
                     new string('A', 64),
