@@ -24,7 +24,10 @@ param(
     [string] $ExpectedWorkerActivation,
 
     [Parameter(Mandatory, ParameterSetName = 'WorkerOnly')]
-    [switch] $WorkerOnly
+    [switch] $WorkerOnly,
+
+    [Parameter(ParameterSetName = 'WorkerOnly')]
+    [switch] $ActivationOnly
 )
 
 Set-StrictMode -Version Latest
@@ -54,6 +57,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $workerSettings = @($settingsJson | ConvertFrom-Json)
+if ($workerSettings.Count -eq 0) {
+    throw 'The live Worker has no AzureWebJobs settings to validate.'
+}
+
 $expectedNames = [Collections.Generic.HashSet[string]]::new(
     [StringComparer]::Ordinal
 )
@@ -81,7 +88,7 @@ foreach ($expectedName in $expectedWorkerSettings) {
         $censusIsExact = $false
     }
 }
-if (-not $censusIsExact) {
+if (-not $ActivationOnly -and -not $censusIsExact) {
     throw 'The live Worker disabled-setting census differs from the exact nine-function release contract.'
 }
 
