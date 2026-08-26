@@ -343,6 +343,35 @@ internal sealed class EfExternalWorkStore(
         }
     }
 
+    public async Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+        Guid workItemId,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken)
+    {
+        if (workItemId == Guid.Empty)
+        {
+            throw new ArgumentException("An external work item identifier is required.", nameof(workItemId));
+        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseDuration, TimeSpan.Zero);
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var leaseToken = Guid.NewGuid().ToString("N");
+        var leaseExpiresAtUtc = nowUtc.Add(leaseDuration);
+        var claimed = await context.ExternalWorkItems
+            .Where(item => item.Id == workItemId
+                && item.State == "pending"
+                && item.DueAtUtc <= nowUtc)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.State, "dispatching")
+                .SetProperty(item => item.LeaseToken, leaseToken)
+                .SetProperty(item => item.LeaseExpiresAtUtc, leaseExpiresAtUtc)
+                .SetProperty(item => item.FailureCode, (string?)null)
+                .SetProperty(item => item.FailureReason, (string?)null),
+                cancellationToken);
+        return claimed == 1 ? new(workItemId, leaseToken) : null;
+    }
+
     public async Task MarkDispatchedAsync(
         Guid workItemId,
         string leaseToken,

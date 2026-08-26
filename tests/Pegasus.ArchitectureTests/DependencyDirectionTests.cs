@@ -289,6 +289,13 @@ public sealed class DependencyDirectionTests
             CancellationToken cancellationToken) =>
             Task.FromResult<ExternalWorkDispatchClaim?>(null);
 
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+            Guid workItemId,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<ExternalWorkDispatchClaim?>(null);
+
         public Task MarkDispatchedAsync(
             Guid workItemId,
             string leaseToken,

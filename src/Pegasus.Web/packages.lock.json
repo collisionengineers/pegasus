@@ -116,6 +116,15 @@
           "System.IO.Hashing": "8.0.0"
         }
       },
+      "Azure.Storage.Queues": {
+        "type": "Transitive",
+        "resolved": "12.24.0",
+        "contentHash": "YSR051EMu421JZNCOyOB2JpVyA4bSW8CnbTYmYlwxsYIUJuwiMy2toSXIoq9RKG9PuBtnT5dS9M6QCYNGaswAw==",
+        "dependencies": {
+          "Azure.Core": "1.47.3",
+          "Azure.Storage.Common": "12.25.0"
+        }
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.6.2",
@@ -1049,6 +1058,7 @@
         "dependencies": {
           "Azure.Identity": "[1.21.0, )",
           "Azure.Storage.Blobs": "[12.26.0, )",
+          "Azure.Storage.Queues": "[12.24.0, )",
           "Box.Sdk.Gen": "[1.12.0, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.10, )",

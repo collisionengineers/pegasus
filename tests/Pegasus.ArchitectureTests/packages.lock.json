@@ -1656,6 +1656,7 @@
         "dependencies": {
           "Azure.Identity": "[1.21.0, )",
           "Azure.Storage.Blobs": "[12.26.0, )",
+          "Azure.Storage.Queues": "[12.24.0, )",
           "Box.Sdk.Gen": "[1.12.0, )",
           "DocumentFormat.OpenXml": "[3.5.1, )",
           "Microsoft.AspNetCore.DataProtection.Abstractions": "[10.0.10, )",

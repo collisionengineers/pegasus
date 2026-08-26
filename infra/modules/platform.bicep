@@ -37,6 +37,7 @@ var workerActivationApproved = workerActivation == 'approved-live-worker'
 var blobDataOwnerRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b7e6dc6d-f1e8-4753-8033-0f276bb0955b')
 var blobDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
 var queueDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '974c5e8b-45b9-4653-ba55-5f855dd0fb88')
+var queueDataMessageSenderRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a')
 var tableDataContributorRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '0a9a7e1f-b9d0-4cc4-a60d-0319b160aaa3')
 var acrPullRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
 var monitoringMetricsPublisherRole = subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '3913510d-42f4-4e42-8a64-420c390055eb')
@@ -321,6 +322,18 @@ resource workerTransportQueueContributor 'Microsoft.Authorization/roleAssignment
   properties: { roleDefinitionId: queueDataContributorRole, principalId: workerIdentity.properties.principalId, principalType: 'ServicePrincipal' }
 }
 
+resource webIntakeQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(intakeQueue.id, webIdentity.id, queueDataMessageSenderRole)
+  scope: intakeQueue
+  properties: { roleDefinitionId: queueDataMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
+}
+
+resource webExternalQueueSender 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(externalQueue.id, webIdentity.id, queueDataMessageSenderRole)
+  scope: externalQueue
+  properties: { roleDefinitionId: queueDataMessageSenderRole, principalId: webIdentity.properties.principalId, principalType: 'ServicePrincipal' }
+}
+
 resource workerTransientCustodyOwner 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   name: guid(transientIntakeContainer.id, workerIdentity.id, blobDataOwnerRole)
   scope: transientIntakeContainer
@@ -415,6 +428,8 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'TransportStorage__AccountName', value: transportStorage.name }
             { name: 'CustodyStorage__AccountName', value: custodyStorage.name }
             { name: 'CustodyStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
+            { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
+            { name: 'ExternalWorkQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
             { name: 'AZURE_CLIENT_ID', value: webIdentity.properties.clientId }
             { name: 'AzureIdentity__WebClientId', value: webIdentity.properties.clientId }
             // Mailbox administration's "add an address" resolve port alone (MAIL-002):
@@ -474,7 +489,7 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
       }
     }
   }
-  dependsOn: [webRegistryPull, webTelemetryPublisher]
+  dependsOn: [webRegistryPull, webTelemetryPublisher, webIntakeQueueSender, webExternalQueueSender]
 }
 
 resource functionPlan 'Microsoft.Web/serverfarms@2024-04-01' = {
@@ -520,15 +535,13 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'IntakeStorage__ServiceUri', value: custodyStorage.properties.primaryEndpoints.blob }
         { name: 'IntakeQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
         { name: 'ExternalWorkQueue__ServiceUri', value: transportStorage.properties.primaryEndpoints.queue }
-        // Every 15 s rather than each minute: freshly staged work is due
-        // immediately (DueAtUtc = StagedAtUtc), so this poll cadence is the
-        // dispatch latency an upload waits before processing starts (INTK-015).
-        { name: 'PendingWorkDispatchSchedule', value: '*/5 * * * * *' }
+        // Recovery only: every committing caller attempts exact-ID publication.
+        { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
         { name: 'ApprovedInboxPollSchedule', value: '*/15 * * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
-        { name: 'AzureWebJobs.PendingWorkDispatchFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
+        { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.IntakeWorkFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.IntakePoisonFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
         { name: 'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }

@@ -226,6 +226,40 @@ public sealed class EfIntakeWorkStore(
         return Map(item);
     }
 
+    public async Task<IntakeWorkItem?> ClaimDispatchAsync(
+        Guid stagedReceiptId,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken)
+    {
+        if (stagedReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException("A staged receipt identifier is required.", nameof(stagedReceiptId));
+        }
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(leaseDuration, TimeSpan.Zero);
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var item = await context.IntakeWorkItems.SingleOrDefaultAsync(
+            candidate => candidate.StagedReceiptId == stagedReceiptId
+                && (candidate.State == "pending" || candidate.State == "retry_scheduled")
+                && candidate.DueAtUtc <= nowUtc,
+            cancellationToken);
+        if (item is null)
+        {
+            return null;
+        }
+
+        item.LeaseToken = Guid.NewGuid().ToString("N");
+        item.LeaseExpiresAtUtc = nowUtc.Add(leaseDuration);
+        item.State = ToCode(IntakeWorkState.Dispatching);
+        await context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return Map(item);
+    }
+
     public Task MarkDispatchedAsync(
         Guid workItemId,
         string leaseToken,

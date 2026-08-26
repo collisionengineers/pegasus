@@ -164,6 +164,16 @@ public interface IIntakeWorkStore
         CancellationToken cancellationToken);
 
     /// <summary>
+    /// Claims one known committed receipt for publication. This is the
+    /// post-commit fast path; it must not scan or publish another receipt.
+    /// </summary>
+    Task<IntakeWorkItem?> ClaimDispatchAsync(
+        Guid stagedReceiptId,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
+
+    /// <summary>
     /// The work item for a staged receipt, whoever holds it. Read-only: this
     /// asks whether the work is still in hand, it does not claim it.
     /// </summary>
@@ -248,7 +258,8 @@ public interface IIntakeWorkEnqueuer
 public sealed class ReceiveIntake(
     IIntakeArtifactStore artifactStore,
     IIntakeWorkStore workStore,
-    TimeProvider timeProvider) : IIntakeSubmission
+    TimeProvider timeProvider,
+    DispatchPendingIntakeWork? dispatchPendingWork = null) : IIntakeSubmission
 {
     private const int MaximumFileNameLength = 260;
     private const int MaximumMediaTypeLength = 200;
@@ -312,7 +323,9 @@ public sealed class ReceiveIntake(
                 throw new IntakeSourceIdentityConflictException(existing.SourceHash, sourceHash);
             }
 
-            return await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
+            var received = await workStore.ReceiveAsync(existing, operationKey, cancellationToken);
+            await PublishCommittedAsync(received, cancellationToken);
+            return received;
         }
 
         var stagedReceiptId = Guid.NewGuid();
@@ -343,8 +356,19 @@ public sealed class ReceiveIntake(
             source.Actor,
             stagedArtifact.StorageKey,
             nowUtc);
-        return await workStore.ReceiveAsync(stagedReceipt, operationKey, cancellationToken);
+        var receivedIntake = await workStore.ReceiveAsync(stagedReceipt, operationKey, cancellationToken);
+        await PublishCommittedAsync(receivedIntake, cancellationToken);
+        return receivedIntake;
     }
+
+    private Task PublishCommittedAsync(
+        ReceivedIntake received,
+        CancellationToken cancellationToken) =>
+        dispatchPendingWork is null
+            ? Task.CompletedTask
+            : dispatchPendingWork.ExecuteCommittedAsync(
+                received.StagedReceiptId,
+                cancellationToken);
 
     private static void ValidateLength(string value, int maximumLength, string parameterName)
     {
@@ -363,6 +387,54 @@ public sealed class DispatchPendingIntakeWork(
     TimeProvider timeProvider)
 {
     private static readonly TimeSpan DispatchLeaseDuration = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// Attempts publication for one already-committed receipt. A transport
+    /// failure leaves the durable row due for the recovery sweep, while the
+    /// caller keeps its truthful committed acknowledgement.
+    /// </summary>
+    public async Task ExecuteCommittedAsync(
+        Guid stagedReceiptId,
+        CancellationToken cancellationToken = default)
+    {
+        if (stagedReceiptId == Guid.Empty)
+        {
+            throw new ArgumentException("A staged receipt identifier is required.", nameof(stagedReceiptId));
+        }
+
+        var workItem = await workStore.ClaimDispatchAsync(
+            stagedReceiptId,
+            timeProvider.GetUtcNow(),
+            DispatchLeaseDuration,
+            cancellationToken);
+        if (workItem is null)
+        {
+            return;
+        }
+
+        if (workItem.LeaseToken is null)
+        {
+            throw new InvalidOperationException("A claimed intake work item must have a lease token.");
+        }
+
+        try
+        {
+            await workEnqueuer.EnqueueAsync(workItem.StagedReceiptId, cancellationToken);
+            await workStore.MarkDispatchedAsync(
+                workItem.Id,
+                workItem.LeaseToken,
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            await workStore.ReleaseDispatchAsync(
+                workItem.Id,
+                workItem.LeaseToken,
+                timeProvider.GetUtcNow(),
+                CancellationToken.None);
+        }
+    }
 
     public async Task<int> ExecuteAsync(int maximumItems, CancellationToken cancellationToken = default)
     {

@@ -738,6 +738,12 @@ public sealed class PollApprovedInboxTests
             TimeSpan leaseDuration,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IntakeWorkItem?> ClaimDispatchAsync(
+            Guid stagedReceiptId,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task MarkDispatchedAsync(
             Guid workItemId,
             string leaseToken,

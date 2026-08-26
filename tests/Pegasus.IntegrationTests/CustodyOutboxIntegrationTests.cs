@@ -2121,6 +2121,8 @@ public sealed class CustodyOutboxIntegrationTests
     {
         public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) =>
             inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(Guid workItemId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) =>
+            inner.ClaimDispatchAsync(workItemId, nowUtc, leaseDuration, cancellationToken);
 
         public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset dispatchedAtUtc, CancellationToken cancellationToken) =>
             inner.MarkDispatchedAsync(workItemId, leaseToken, dispatchedAtUtc, cancellationToken);
@@ -2154,6 +2156,8 @@ public sealed class CustodyOutboxIntegrationTests
     {
         public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) =>
             inner.ClaimDispatchAsync(nowUtc, leaseDuration, cancellationToken);
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(Guid workItemId, DateTimeOffset nowUtc, TimeSpan leaseDuration, CancellationToken cancellationToken) =>
+            inner.ClaimDispatchAsync(workItemId, nowUtc, leaseDuration, cancellationToken);
         public Task MarkDispatchedAsync(Guid workItemId, string leaseToken, DateTimeOffset dispatchedAtUtc, CancellationToken cancellationToken) =>
             inner.MarkDispatchedAsync(workItemId, leaseToken, dispatchedAtUtc, cancellationToken);
         public Task ReleaseDispatchAsync(Guid workItemId, string leaseToken, DateTimeOffset dueAtUtc, CancellationToken cancellationToken) =>

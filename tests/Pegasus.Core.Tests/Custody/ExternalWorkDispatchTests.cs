@@ -54,6 +54,28 @@ public sealed class ExternalWorkDispatchTests
         Assert.Equal(["claim", "enqueue", "release"], events);
     }
 
+    [Fact]
+    public async Task CommittedWorkUsesItsExactIdentifierAndKeepsTheCommittedResultOnQueueFailure()
+    {
+        var events = new List<string>();
+        var workId = Guid.NewGuid();
+        var store = new RecordingStore(
+            new ExternalWorkDispatchClaim(workId, "lease-token"),
+            events);
+        var dispatcher = new DispatchPendingExternalWork(
+            store,
+            new RecordingQueue(events, new IOException("queue unavailable")),
+            new FixedTimeProvider(FixedUtcNow));
+
+        await dispatcher.ExecuteCommittedAsync(workId, CancellationToken.None);
+
+        Assert.Empty(store.Marked);
+        Assert.Equal(
+            (workId, "lease-token", FixedUtcNow),
+            Assert.Single(store.Released));
+        Assert.Equal(["claim", "enqueue", "release"], events);
+    }
+
     private sealed class RecordingQueue(
         List<string> events,
         Exception? failure = null) : IExternalWorkEnqueuer
@@ -85,6 +107,22 @@ public sealed class ExternalWorkDispatchTests
         {
             events.Add("claim");
             if (claimed)
+            {
+                return Task.FromResult<ExternalWorkDispatchClaim?>(null);
+            }
+
+            claimed = true;
+            return Task.FromResult<ExternalWorkDispatchClaim?>(claim);
+        }
+
+        public Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+            Guid workItemId,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken)
+        {
+            events.Add("claim");
+            if (claimed || workItemId != claim.WorkItemId)
             {
                 return Task.FromResult<ExternalWorkDispatchClaim?>(null);
             }
