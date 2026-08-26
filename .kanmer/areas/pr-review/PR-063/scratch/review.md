@@ -33,3 +33,36 @@ Reviewer did not implement PR-063.
 ## Verdict
 
 **Needs changes.** The 39-default mapping claim and “exact default-page fidelity” outcome are not yet true, so PR #557 was not merged and PR-063 remains in Review. Re-review after [[PR-064]] lands and CI is green.
+
+# Consolidated final independent review — 2026-08-26
+
+Reviewer: independent subagent; not the implementer.
+
+## Changes
+
+- `docs/design/test-ui/index.html`: documents the selected current Razor/PageModel branch for every visual state.
+- `docs/design/test-ui/pages/*.html`: restores the defining default-page controls and source-owned labels across the catalogue, normalizes the authenticated shell, and removes trailing blank lines.
+- `scripts/Test-UiCatalogue.ps1`: requires nonblank branch claims and rejects image elements with absent, empty, or whitespace-only sources.
+- `docs/design/README.md`: accurately distinguishes structural validation from manual semantic fidelity review.
+- Ticket evidence: PR-063's report/checklist explicitly supersede the two overbroad claims corrected by [[PR-064]].
+
+## Comments and disposition
+
+- Blocking, prior: organization-edit branch claim contradicted its populated Work Provider/principal markup. Disposition: fixed in PR by [[PR-064]]; inventory now says loaded Work Provider with one active principal and matches the page.
+- Blocking, prior: vehicle-image detail claimed an image-bearing branch while rendering an empty image source. Disposition: fixed in PR by [[PR-064]]; state now explicitly selects the no-registered-images branch and the unusable-source validator is strengthened.
+- Non-blocking: static HTML cannot prove server behavior. Disposition: documented boundary retained; no runtime or business-policy claim is made.
+- No new comments. No nested review ticket is warranted.
+
+## Evidence checked
+
+- Read PR-063 ticket, files, research, plan, checklist, open questions, post-implementation report, and resolved gates.
+- Reviewed the complete stacked diff for PR #557 after merged PR #558 / [[PR-064]], including prior-finding files and validator changes.
+- Confirmed the plan's FRD-12/design-authority boundary and the report's file inventory/simplification dispositions agree with the diff.
+- `./scripts/Test-UiCatalogue.ps1`: pass — 52 routed sources, 60 prototypes, 0 broken local references.
+- `git diff --check origin/task/uiimp-002-test-ui...HEAD`: pass with no output.
+- `scripts/Test-DocumentationLinks.ps1`: pass — 200 files checked.
+- GitHub PR #557 is mergeable/CLEAN; required repository-check jobs are successful, with irrelevant jobs skipped by the change classifier.
+
+## Verdict
+
+Pass. No correctness, security, scope, governing-document, evidence-honesty, or simplification blocker remains. Merge PR #557 into `task/uiimp-002-test-ui`, then move PR-063 to Verifying.
