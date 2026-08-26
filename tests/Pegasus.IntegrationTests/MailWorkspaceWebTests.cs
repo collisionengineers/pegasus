@@ -503,6 +503,7 @@ public sealed class MailWorkspaceWebTests
             RegexOptions.IgnoreCase | RegexOptions.Singleline | RegexOptions.CultureInvariant);
 
         Assert.True(resultLink.Success, "The matching Case must be one focusable link.");
+        Assert.DoesNotContain("mailbox=", resultLink.Value, StringComparison.OrdinalIgnoreCase);
         Assert.Single(
             Regex.Matches(
                 html,

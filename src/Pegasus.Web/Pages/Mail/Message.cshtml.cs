@@ -31,6 +31,7 @@ public sealed class MessageModel(
 {
     public const string LinkAssociationAction = "Link";
     private string? mailboxRouteValue;
+    private bool mailboxRouteValueInitialized;
 
     public const string UnlinkAssociationAction = "Unlink";
 
@@ -173,6 +174,7 @@ public sealed class MessageModel(
         ListFolder = listFolder;
         var mailbox = Request.Query["mailbox"].ToString();
         mailboxRouteValue = string.IsNullOrWhiteSpace(mailbox) ? null : mailbox.Trim();
+        mailboxRouteValueInitialized = true;
         MailboxFilter = mailboxRouteValue;
 
         RetainedMailDetail? detail;
@@ -979,7 +981,7 @@ public sealed class MessageModel(
             $"/Inbox/{messageId:D}",
             new Dictionary<string, string?>
             {
-                ["mailbox"] = mailboxRouteValue ?? MailboxFilter,
+                ["mailbox"] = mailboxRouteValueInitialized ? mailboxRouteValue : MailboxFilter,
                 ["folder"] = FolderRouteValue,
                 ["pageNumber"] = PageRouteValue?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["search"] = SearchTerm,
