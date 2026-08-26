@@ -130,6 +130,13 @@ public sealed class StagedArtifactReconciliationFunctionTests
             CancellationToken cancellationToken) =>
             throw UnexpectedCall();
 
+        public Task<IntakeWorkItem?> ClaimDispatchAsync(
+            Guid stagedReceiptId,
+            DateTimeOffset nowUtc,
+            TimeSpan leaseDuration,
+            CancellationToken cancellationToken) =>
+            throw UnexpectedCall();
+
         public Task MarkDispatchedAsync(
             Guid workItemId,
             string leaseToken,

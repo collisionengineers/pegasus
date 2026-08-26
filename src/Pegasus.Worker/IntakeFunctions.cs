@@ -6,13 +6,17 @@ using Microsoft.Extensions.Logging;
 
 namespace Pegasus.Worker;
 
-public sealed partial class PendingWorkDispatchFunction(
+/// <summary>
+/// Slow reconciliation for publication attempts missed after their durable
+/// commit. Ordinary intake is published directly by its committing caller.
+/// </summary>
+public sealed partial class PendingWorkRecoveryFunction(
     DispatchPendingWork dispatchPendingWork,
-    ILogger<PendingWorkDispatchFunction> logger)
+    ILogger<PendingWorkRecoveryFunction> logger)
 {
-    [Function(nameof(PendingWorkDispatchFunction))]
+    [Function(nameof(PendingWorkRecoveryFunction))]
     public async Task RunAsync(
-        [TimerTrigger("%PendingWorkDispatchSchedule%", RunOnStartup = false)] TimerInfo timer,
+        [TimerTrigger("%PendingWorkRecoverySchedule%", RunOnStartup = false)] TimerInfo timer,
         CancellationToken cancellationToken)
     {
         var dispatched = await dispatchPendingWork.ExecuteAsync(50, cancellationToken);
@@ -21,7 +25,7 @@ public sealed partial class PendingWorkDispatchFunction(
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Dispatched {IntakeWorkCount} intake and {ExternalWorkCount} external durable work items.")]
+        Message = "Recovered publication for {IntakeWorkCount} intake and {ExternalWorkCount} external durable work items.")]
     private static partial void LogDispatchedWork(
         ILogger logger,
         int intakeWorkCount,

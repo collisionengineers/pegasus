@@ -573,7 +573,8 @@ public sealed class AssessmentPersistenceIntegrationTests
                     new AcceptIntake(
                         acceptanceStore,
                         new FixedConfiguration(),
-                        new EfProviderInspectionModeStore(factory)),
+                        new EfProviderInspectionModeStore(factory),
+                        new CommittedWorkPublisherDouble()),
                     new AcquireCaseEditLease(workflowStore),
                     new SaveAssessment(
                         new EfCaseAssessmentStore(factory, timeProvider, repairSpecifications)),
