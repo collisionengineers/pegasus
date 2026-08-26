@@ -2,12 +2,13 @@
 id: DELIV-023
 type: ticket
 title: Allow pre-release Worker timer renames through pre-provision validation
-status: implementing
+status: review
 area: delivery-repository
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-26T10:40:15.965Z'
+  review: '2026-08-26T10:43:25.787Z'
 taken_at: '2026-08-26T10:41:48.154Z'
 branch: task/deliv-023-pre-release-worker-census
 worktree: ../pegasus-worktrees/deliv-023-pre-release-worker-census
@@ -20,10 +21,14 @@ refs:
   - docs/runbook.md
   - docs/engineering.md
   - docs/operations.md
+commits:
+  - 5e1fb7aa
+prs:
+  - '554'
 deployment: production
 archived: false
 created: '2026-08-26T10:40:08.668Z'
-updated: '2026-08-26T10:41:48.154Z'
+updated: '2026-08-26T10:43:29.936Z'
 ---
 
 ## What
