@@ -119,3 +119,9 @@ Repository workflow says the plan owns whole-task scope and review must compare 
 ## Verdict
 
 **Block only on plan correction and required green CI.** The implementation itself is approved and has no remaining correctness, simplicity, or net toolchain concern.
+
+# Plan correction confirmation — 2026-08-26
+
+The corrected plan now matches commit `f840d48a`: it records the disproven and fully reverted SDK hypothesis, the GitHub/Linux candidate-anchor mailbox omission, operator authorization for the one-link `QueryHelpers.AddQueryString` correction, the exact-anchor regression assertion, and focused plus fresh GitHub shard-1 acceptance.
+
+**Formal plan blocker cleared.** The implementation remains independently approved. Run 33004368148 is active; merge remains gated only by the required green CI result.
