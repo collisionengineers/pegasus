@@ -39,6 +39,10 @@ areas:
     name: Review Findings
     color: "#ef4444"
     prefix: PR
+  - id: ui-improvement
+    name: UI Improvement
+    color: "#d946ef"
+    prefix: UIIMP
 idPrefixes:
   ticket: TICK
   plan: PLAN
