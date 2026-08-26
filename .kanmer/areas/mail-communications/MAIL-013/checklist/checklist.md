@@ -9,7 +9,7 @@
 - [x] Convert the existing Inbox timer to five-minute recovery with six-hour due maintenance; add no timer Function.
 - [x] Add secret/configuration/IaC/telemetry/smoke assertions without changing capacity.
 - [x] Add focused protocol, identity, lifecycle, retry, overlap, sender, composition and grant tests.
-- [x] Run locked restore/build, focused/full tests and deployment-plan validation.
+- [x] Run locked restore/build, Core, Architecture, focused changed-area tests and deployment-plan validation; record that the diagnostic full integration run was bounded.
 - [x] Run and record the simplification pass; write the implementation report and PR to `dev`.
 - [x] Address [[PR-067]] by preserving retained evidence and restrictive dependants through exact stable-ID migration.
 - [x] Address [[PR-068]] by enforcing and proving the complete Graph webhook contract.

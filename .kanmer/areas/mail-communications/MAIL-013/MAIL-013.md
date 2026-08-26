@@ -25,11 +25,12 @@ refs:
   - docs/adr/0032-near-real-time-durable-intake-triggering.md
 commits:
   - c74c3257
+  - fab4b06d
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/563'
 archived: false
 created: '2026-08-25T15:18:39.919Z'
-updated: '2026-08-26T16:18:16.013Z'
+updated: '2026-08-26T16:35:33.223Z'
 ---
 
 ## What
