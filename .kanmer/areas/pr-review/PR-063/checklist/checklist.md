@@ -31,8 +31,8 @@ This supersedes PR-063’s earlier statement that its first rerun had corrected 
 - [x] PR merge verified (`gh pr view --json state,mergedAt`)
 - [x] proof.md finalised with PR URL and merge date
 - [x] Moved to final stage
-- [ ] Outcome and traceability recorded
-- [ ] PR-063 worktree removed
-- [ ] PR-063 branch deleted
-- [ ] `git fetch --prune` and `git worktree prune`
-- [ ] Ticket claim released
+- [x] Outcome and traceability recorded
+- [x] PR-063 worktree removed
+- [x] PR-063 branch deleted
+- [x] `git fetch --prune` and `git worktree prune`
+- [x] Ticket claim released

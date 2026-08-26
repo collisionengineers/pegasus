@@ -1,35 +1,85 @@
 # Research — MAIL-013: Graph change-notification wake-up for approved Inbox intake
 
-## Question
+## Scope and ticket identity
 
-How can Microsoft Graph wake approved-mailbox intake promptly without moving mailbox cursors or intake processing into Web, weakening source identity, or recreating the sender-state regression?
+There is no `MAIL-031` item on the Kanmer board or in the repository. The matching existing ticket is `MAIL-013 — Wake approved mailbox intake through Graph change notifications`; this research refreshes that ticket and does not create a duplicate.
 
-## Findings
+## Verified repository and Azure state — 2026-08-26
 
-- The current production route is timer-led and Worker-owned: `InboxPollFunction` runs `%ApprovedInboxPollSchedule%`, calls `PollApprovedInbox.ExecuteAsync(50, ...)`, claims each approved mailbox under its own SQL lease/cursor, reads a bounded Graph delta page, stages the MIME through `ReceiveIntake`, retains the mailbox projection, then advances the cursor. Sources: `src/Pegasus.Worker/MailboxFunctions.cs`, `src/Pegasus.Core/Intake/MailboxIntake.cs`, `src/Pegasus.Infrastructure/Email/GraphApprovedSources.cs`.
-- Production configuration currently invokes that timer every 15 seconds. `PollApprovedInbox.ExecuteAsync` enumerates the whole approved estate and has no targeted-mailbox entry point, so simply adding another trigger to the same public method would wake every mailbox, not the notification's mailbox. Source: `infra/modules/platform.bicep:523-529` and `MailboxIntake.cs`.
-- The current Web composition deliberately contains only the Graph mailbox-address resolver and Deleted Items read path; it does not compose mailbox polling, cursor stores, retained-message writers, or Worker processing. Sources: `src/Pegasus.Web/Program.cs:180-184`, `src/Pegasus.Infrastructure/DependencyInjection.cs:594-619`. The EPIC-006 context also requires one Core-owned business implementation and keeps mailbox mutations approval-gated.
-- The production Web Container App is already an externally reachable, single always-warm replica: `minReplicas: 1`, `maxReplicas: 1`, 1 CPU and 2 GiB. Therefore the approved callback route does not require a new hosting unit or an always-ready Functions instance, and this ticket should not change Web warmth. Source: `infra/modules/platform.bicep:354-477`.
-- Microsoft Graph webhook validation sends a `validationToken` query value and requires the exact decoded token as `text/plain` within ten seconds. Normal notifications should return 2xx within three seconds; Microsoft recommends queueing and returning `202 Accepted` when processing takes longer. Source: Microsoft Learn, “Receive change notifications through webhooks”: https://learn.microsoft.com/en-us/graph/change-notifications-delivery-webhooks.
-- Basic Outlook notifications can omit resource data. Their trusted correlation is the subscription identity plus the opaque `clientState`; the callback must compare the received value with the secret used when creating the subscription. The callback does not need or receive message content and must not call Graph or run delta processing inline. Sources: the same Microsoft Learn webhook guidance and the approved ticket acceptance.
-- An Outlook message subscription has a maximum lifetime below seven days (10,080 minutes). A six-hour maintenance pass with renewal inside the last 48 hours is comfortably inside that bound and leaves several retry opportunities. Source: Microsoft Learn, subscription resource maximum lengths: https://learn.microsoft.com/en-us/graph/api/resources/subscription?view=graph-rest-1.0.
-- Graph lifecycle notifications distinguish reauthorization-required, subscription-removed and missed-notification events. A missed event is not itself the missing message; recovery must run a delta query. The existing Graph source already treats a lost/expired delta cursor as a bounded initial delta read and existing receipt/cursor rules make redelivery idempotent. Sources: https://learn.microsoft.com/en-us/graph/change-notifications-lifecycle-events and `GraphApprovedSources.cs`.
-- One subscription must be scoped to one approved mailbox Inbox. The stable Pegasus join key remains `ApprovedMailbox.Id`; Graph mailbox/folder coordinates are replaceable, versioned cursor scope. Subscription state therefore belongs in existing SQL beside the approved-mailbox/poll state, not deployment configuration. Sources: `docs/frd/frd-08-email-mailbox-and-background-processing.md:285-301`, ADR-0022 and ADR-0024.
-- ADR-0002 explicitly chose polling for the alpha because webhooks added a callback and expiring lifecycle, but also says webhooks may be added when measured latency makes polling unsuitable. MAIL-013 is the evidence-backed superseding choice; it must not silently edit ADR-0002. Source: `docs/adr/0002-dotnet-modular-monolith-on-azure.md:215-234,481-486`; governing decision work is owned by blocked-by ticket [[INTK-041]].
-- Queue publication and Web's least-privilege queue sender composition are prerequisites owned by [[INTK-042]]. MAIL-013 should reuse that shared Infrastructure adapter and role rather than leave a second Azure Queue implementation in Web or Worker. Current queue adapters are Worker-local, and Web presently has no Queue Data Contributor assignment. Sources: `src/Pegasus.Worker/AzureQueueIntakeWorkQueue.cs`, `src/Pegasus.Worker/WorkerDependencyInjection.cs:89-109`, `infra/modules/platform.bicep:318-351`.
-- MAIL-009 already removed the transient desk-address display: retained-mail reads use the route decision when available and otherwise `QdosMailRoutePolicy.ProvisionalEffectiveSender`; unresolved identity is neutral rather than the transport desk. MAIL-013 needs regression coverage across the faster wake-up path, not a second sender resolver. Sources: `src/Pegasus.Infrastructure/Persistence/EfRetainedMailboxMessageStore.cs:724-734` and [[MAIL-009]] proof.
-- [[INTK-040]] is actively implementing mailbox-image behavior in `DurableIntake.cs`, `ProcessIntake.cs`, grouped intake persistence and `MailboxIntakeIntegrationTests.cs`. MAIL-013 does not require those business-processing files; it should stay at the wake/lease/delta boundary and sequence after its blockers to avoid concurrent overlap.
+- Planning baseline is current `origin/dev` at `1a8fda3e`. PR #548 (mailbox Image Intake) and PR #553 (immediate committed-work publication) are merged into that baseline. The earlier plan's wait for INTK-040/INTK-042 is therefore obsolete.
+- INTK-042 moved the Azure Queue senders into `Pegasus.Infrastructure/Transport/AzureQueueWorkEnqueuers.cs` and composed them in both Web and Worker. MAIL-013 can reuse that transport convention and the Web queue-sender identity/RBAC; it must not recreate the old Worker-local adapters.
+- `PollApprovedInbox.ExecuteAsync` still enumerates the complete approved-mailbox estate. Its single-mailbox implementation is private. A notification-specific caller therefore needs one targeted Core entry point that reuses the same validation, SQL lease, approval re-check, Graph delta, retention, cursor advancement and failure handling.
+- The existing Worker timer remains `InboxPollFunction` on `ApprovedInboxPollSchedule`. Both `origin/dev` IaC and the deployed Function App currently use `*/15 * * * * *`.
+- Azure read-only inspection confirms the production Web Container App is externally reachable, provisioned, and fixed at `minReplicas: 1`, `maxReplicas: 1`. It is already warm enough to receive the callback; no new host or Web scale change is justified.
+- Azure read-only inspection confirms the Worker is running on Flex Consumption, .NET isolated 10, 2 GiB, maximum 20 on-demand instances, with `alwaysReady: null`. That is the platform default of zero always-ready instances.
+- The governing contract is already accepted in FRD-08 and ADR-0032: Web validates and enqueues an identifier; Worker alone reads Graph and owns mailbox cursor/intake; SQL holds subscription state; the fallback poll is recovery; scale-to-zero remains unless deployed measurements identify Worker cold start as the remaining constraint.
 
-## Implications
+## Microsoft Learn findings
 
-Use the already-warm Web app only as a narrow anonymous Graph protocol endpoint. It should answer the validation handshake directly; for a normal or lifecycle payload, enforce a small bounded request, resolve the persisted subscription, compare `clientState` in constant time, publish only stable subscription/mailbox identifiers, and return promptly. It must not read Graph, advance a cursor, retain mail, or process intake.
+### Webhook protocol
 
-A Worker queue trigger should resolve and revalidate the approved mailbox, then enter the same mailbox lease and Graph delta path used by fallback polling. The Core polling owner needs one targeted-mailbox seam that delegates to the existing single-mailbox implementation; it must not duplicate polling policy. Duplicate notifications, concurrent fallback ticks and retry delivery remain harmless because the SQL lease admits one runner and source receipts are idempotent.
+- Graph validates each `notificationUrl` (and a distinct `lifecycleNotificationUrl`, if used) by POSTing a URL-encoded `validationToken`. The endpoint must return the URL-decoded opaque token, `200 OK`, and `text/plain` within ten seconds. Returning an encoded token fails subscription creation.
+- Normal notification requests can contain a batch. Graph treats a 2xx response received within three seconds as delivered. If work cannot complete inside that window, Microsoft recommends durably queueing it and returning `202 Accepted`. A queue-send failure should return 5xx so Graph retries rather than losing the wake.
+- Graph marks an endpoint slow when more than 10% of responses exceed three seconds in a ten-minute window and delays new notifications by ten minutes. It marks an endpoint drop when more than 15% exceed the ten-second retry timeout and drops notifications for ten minutes. The callback therefore cannot perform a Graph delta read or intake work inline.
+- For basic notifications, `clientState` is the authenticity check and has a maximum length of 128 characters. It must equal the value supplied at subscription creation. Pegasus should compare it in constant time, queue no invalid item, avoid detailed error disclosure, and never log the value.
+- Source: [Receive change notifications through webhooks](https://learn.microsoft.com/graph/change-notifications-delivery-webhooks) and [subscription resource](https://learn.microsoft.com/graph/api/resources/subscription?view=graph-rest-1.0).
 
-Persist the subscription id, approved-mailbox id, exact resource/scope fingerprint, expiry and lifecycle/renewal state in the existing database. A Worker six-hour maintenance timer creates or renews one basic notification subscription per approved Inbox and records failures for retry. A removed, missed, invalid-scope or expired subscription causes renewal/recreation plus delta resynchronisation; it does not clear receipt history or create a separate intake route. Retain a five-minute fallback poll as recovery, not the primary latency mechanism.
+### Outlook subscription shape
 
-The client-state value is a secret shared by the Worker subscription client and Web validator, supplied as a Key Vault-backed configuration value. Never store or log it in SQL, queue messages, telemetry, business history, or ticket proof. Infrastructure must add only the configuration/secret reference and rights already justified by the two existing identities.
+- Outlook messages support basic notifications and folder-scoped resources. This ticket needs only `changeType: created` on the exact approved mailbox Inbox resource; `updated` and `deleted` would create unnecessary wakes for read-state, category, move and delete activity.
+- Microsoft documents a limit of 1,000 active Outlook subscriptions per mailbox across all applications. Pegasus needs one per enabled approved Inbox, far below that limit.
+- A basic Outlook message subscription can live for at most 10,080 minutes (under seven days). Six-hour maintenance with renewal before the last 48 hours provides repeated retry opportunities without adding a second scheduler.
+- Basic notifications intentionally omit message content. The queue message can remain a small stable mailbox/subscription wake; Worker obtains the actual changes from the existing folder delta cursor.
+- Source: [Outlook change notifications](https://learn.microsoft.com/graph/outlook-change-notifications-overview) and [subscription lifetime](https://learn.microsoft.com/graph/change-notifications-overview#subscription-lifetime).
+
+### Lifecycle and recovery
+
+- Outlook messages support `reauthorizationRequired`, `subscriptionRemoved`, and `missed` lifecycle notifications. The normal and lifecycle URL may be the same endpoint.
+- A lifecycle URL cannot be added to an existing subscription by PATCH. A subscription missing that URL must be recreated.
+- `missed`: acknowledge, validate, then run delta resynchronisation.
+- `subscriptionRemoved`: recreate the subscription, then use delta to fetch changes from the gap.
+- `reauthorizationRequired`: renew/reauthorize. Microsoft warns not to issue reauthorize and PATCH renewal for the same subscription within ten minutes; one PATCH with a new expiry both renews and reauthorizes.
+- These instructions fit Pegasus's existing delta cursor and idempotent receipt path. Lifecycle handling schedules that same path; it is not another mail processor.
+- Source: [Reduce missing subscriptions and change notifications](https://learn.microsoft.com/graph/change-notifications-lifecycle-events) and [message delta](https://learn.microsoft.com/graph/api/message-delta?view=graph-rest-1.0).
+
+### Latency limitation
+
+Microsoft's published Outlook `message` notification latency is **less than one minute average and up to three minutes maximum**. Graph change notifications remove Pegasus's fixed polling wait and usually reduce Graph calls, but Microsoft does not offer a five-second delivery guarantee. Therefore:
+
+- MAIL-013 can target a sub-three-second Pegasus callback acknowledgement and measure callback-to-queue, queue-to-lease, delta-to-receipt, and receipt-to-terminal-processing separately.
+- It cannot honestly prove “under five seconds from Exchange receiving the message” as a deterministic contract.
+- DELIV-021 must report the Graph-delivery share separately from Pegasus processing. If the Pegasus share misses its target, measure Worker cold start before considering always-ready capacity; do not add it speculatively.
+- Source: [Microsoft Graph change-notification latency](https://learn.microsoft.com/graph/change-notifications-overview#latency).
+
+### Azure queue and hosting behaviour
+
+- Azure Functions Storage Queue triggers retry a failed message up to five attempts and then place it on `<queue>-poison`. The existing explicit poison-function convention should be reused for mailbox wakes so terminal failures remain visible.
+- Managed identity is preferred for queue access. INTK-042 already established this transport and RBAC pattern.
+- Flex Consumption always-ready defaults to zero and adds baseline GB-second plus execution billing without free grants. It reduces cold start, but current evidence does not show cold start is the bottleneck.
+- Azure Container Apps `minReplicas >= 1` keeps an instance running. The deployed Web already has exactly one.
+- Sources: [Azure Queue trigger](https://learn.microsoft.com/azure/azure-functions/functions-bindings-storage-queue-trigger), [Flex Consumption](https://learn.microsoft.com/azure/azure-functions/flex-consumption-plan), and [Container Apps scaling](https://learn.microsoft.com/azure/container-apps/scale-app).
+
+## Chosen target
+
+1. Keep one narrow anonymous `POST /hooks/microsoft-graph/mail` endpoint on the existing warm Web app.
+2. For validation, return the decoded token exactly. For notification batches, enforce small request/body/item limits; validate `clientState`, tenant, active subscription, exact resource scope and enabled approved mailbox; enqueue one identifier-only wake per valid subscription/mailbox; return 202 after durable Azure Queue publication. Invalid items are ignored with no queue and no secret oracle. A publication failure returns 5xx for Graph retry.
+3. Add one SQL subscription row per approved Inbox. Store approved-mailbox id, Graph subscription id, exact resource/scope fingerprint, expiry, lifecycle/maintenance state and last failure. Do not store `clientState`.
+4. Add one targeted mailbox Core method that delegates to the existing single-mailbox lease/delta path. The queue trigger revalidates the mailbox at claim time. Duplicate notifications, fallback overlap and queue retries are harmless because the existing SQL lease and source receipts remain authoritative.
+5. Add one six-hour maintenance timer. Create missing subscriptions, PATCH subscriptions within 48 hours of expiry, use one PATCH for reauthorization plus renewal, and recreate removed/expired/wrong-scope subscriptions before delta recovery.
+6. Change the existing Inbox timer to `0 */5 * * * *` as recovery only. Do not add a second business path, new runtime, Event Grid/Event Hubs, resource-data encryption, a generic event bus, or always-ready Functions.
+7. Emit non-secret correlated telemetry for callback received/validated/enqueued, queue dequeued, lease claimed/skipped, delta started/completed, receipt accepted and terminal intake. Measure from Graph message `receivedDateTime` where available, while labelling Graph delivery and Pegasus processing separately.
+
+## Main risks and controls
+
+- **Graph delivers later than five seconds:** external platform limitation; measure and report separately rather than disguising it as application time.
+- **Anonymous endpoint abuse:** bounded request and batch, exact route, active-subscription/scope checks, constant-time secret comparison, uniform response for invalid content.
+- **Lost wake:** 5xx on queue failure, Graph retries, lifecycle recovery, five-minute fallback delta poll.
+- **Duplicate/concurrent wake:** one existing mailbox lease and idempotent receipt identities.
+- **Expired/removed subscription:** six-hour maintenance plus lifecycle-driven recreate/renew and delta.
+- **Secret exposure:** Key Vault-backed configuration only; no SQL, queue, logs, responses or proof.
+- **Cost creep:** reuse already-warm Web and existing Flex Worker; no always-ready instance without measured evidence and separate approved cloud change.
+- **Sender regression:** reuse MAIL-009's neutral unresolved sender/effective-sender policy; do not introduce a webhook-side sender projection.
 
 ## Open questions
 
-None. The user has approved basic notifications without resource data, the callback path, existing-SQL state, six-hour maintenance/48-hour renewal, lifecycle delta recovery, five-minute fallback polling, Worker ownership, secret handling, and the sender guard rail.
+None for implementation planning. The five-second end-to-end ambition remains a measurement goal, not a promise Microsoft Graph's documented message-notification SLA can support.

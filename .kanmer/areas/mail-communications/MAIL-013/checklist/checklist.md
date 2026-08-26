@@ -1,12 +1,14 @@
 # Checklist
 
-- [ ] Confirm INTK-042/INTK-040 are merged and take a fresh worktree.
-- [ ] Add one-per-approved-Inbox SQL subscription state/migration without clientState persistence.
-- [ ] Add targeted mailbox wake and subscription-maintenance use cases reusing the existing lease/delta owner.
-- [ ] Add Graph basic subscription/renewal/lifecycle client without resource data.
-- [ ] Add the bounded Web validation/notification callback and identifier-only enqueue.
-- [ ] Add Worker wake trigger, six-hour maintenance, and five-minute fallback.
-- [ ] Add secret/configuration/RBAC/IaC with unchanged Web warmth and no Functions always-ready.
-- [ ] Add protocol, security, persistence, lifecycle, sender, idempotency, composition, and IaC tests.
-- [ ] Run Release verification and simplification lenses.
-- [ ] Report, commit, push, open the PR to `dev`, and move to Review.
+- [ ] Create one targeted approved-mailbox Core entry point that reuses the existing lease/delta/intake implementation.
+- [ ] Add one-per-approved-Inbox subscription state, focused Core use cases/ports, EF store, migration and least-privilege grants without storing clientState.
+- [ ] Add exact-scope Graph basic `created` subscription create, PATCH renew/reauthorize and recreate handling.
+- [ ] Add the shared identifier-only `mailbox-wake` Queue transport.
+- [ ] Add the bounded anonymous Web validation/notification endpoint with exact token response, constant-time checks, 202-after-send and 5xx-on-send-failure.
+- [ ] Add Worker wake, poison and six-hour maintenance triggers; change Inbox polling to five-minute recovery.
+- [ ] Add Key Vault/configuration/RBAC/IaC and smoke-plan checks while preserving Web 1/1 replicas and Worker zero always-ready.
+- [ ] Add protocol, security, persistence, lifecycle, delta, retry, poison, sender, idempotency, composition and IaC tests.
+- [ ] Add non-secret stage telemetry that separates Graph delivery latency from Pegasus processing latency.
+- [ ] Run locked restore, Release build, focused/full tests and deployment-plan validation.
+- [ ] Run and record the required simplification pass; remove duplicate or speculative machinery.
+- [ ] Write the implementation report, commit/push, open the PR to `dev`, and move to Review; leave deployment and live proof to DELIV-021.
