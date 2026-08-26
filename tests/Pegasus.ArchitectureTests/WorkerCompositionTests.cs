@@ -60,7 +60,7 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
         }
@@ -136,7 +136,7 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
         }

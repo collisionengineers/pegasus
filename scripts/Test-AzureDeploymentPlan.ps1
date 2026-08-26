@@ -32,7 +32,7 @@ $expectedWorkerSettings = @(
     'AzureWebJobs.UnifiedWorkFunction.Disabled',
     'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
-    'AzureWebJobs.InboxPollFunction.Disabled',
+    'AzureWebJobs.InboxRecoveryFunction.Disabled',
     'AzureWebJobs.SentEvidencePollFunction.Disabled',
     'AzureWebJobs.DueWorkSweepFunction.Disabled'
 )
@@ -178,6 +178,7 @@ Assert-Text $mainBicep "param\s+webActivation\s+string\s*=\s*'disabled'" 'Base p
 Assert-Text $mainBicep "param\s+workerActivation\s+string\s*=\s*'disabled'" 'Base provisioning must leave Worker activation disabled by default.'
 Assert-Text $mainBicep 'workerActivation:\s*workerActivation' 'The main template must pass the Worker activation input to the platform module.'
 Assert-Text $parameters '"workerActivation"\s*:\s*\{\s*"value"\s*:\s*"\$\{PEGASUS_WORKER_ACTIVATION=disabled\}"\s*\}' 'The azd parameter map must default PEGASUS_WORKER_ACTIVATION to disabled.'
+Assert-Text $parameters 'GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI' 'The Graph notification clientState must be supplied as a versioned secret URI.'
 Assert-Text $platformBicep "webImageReference\s*=\s*'\$\{containerRegistryName\}\.azurecr\.io/pegasus/web@\$\{webImageDigest\}'" 'The template must own the exact ACR and repository image prefix.'
 Assert-Text $platformBicep "webActivation\s*==\s*'approved'[\s\S]*?startsWith\(webImageDigest,\s*'sha256:'\)[\s\S]*?length\(webImageDigest\)\s*==\s*71[\s\S]*?length\(webRevisionSuffix\)\s*==\s*12" 'Approved Web activation must require a sha256 digest and exact revision suffix.'
 Assert-Text $platformBicep "workerActivationApproved\s*=\s*workerActivation\s*==\s*'approved-live-worker'" 'Only the exact approved-live-worker value may enable the production Worker.'
@@ -187,6 +188,9 @@ Assert-Text $platformBicep "image:\s*webImageReference" 'The Container App must 
 Assert-Text $platformBicep "activeRevisionsMode:\s*'Single'" 'The Container App must use one active revision.'
 Assert-Text $platformBicep "targetPort:\s*8080" 'The Container App ingress must target port 8080.'
 Assert-Text $platformBicep "minReplicas:\s*1[\s\S]*?maxReplicas:\s*1" 'The Web Container App must retain exactly one always-warm replica.'
+Assert-Text $platformBicep "Graph__ChangeNotificationClientState'[\s\S]*?secretRef:\s*'graph-change-notification-client-state'" 'The Web callback must receive clientState only through its Key Vault-backed secret.'
+Assert-Text $platformBicep "Graph__ChangeNotificationUrl'[\s\S]*?/hooks/microsoft-graph/mail" 'The Worker must maintain the exact Web Graph callback URL.'
+Assert-Text $platformBicep "ApprovedInboxPollSchedule'[\s\S]*?value:\s*'0 \*/5 \* \* \* \*'" 'Approved Inbox polling must be five-minute recovery, not the ordinary intake path.'
 # Raised from 0.5 vCPU / 1 GiB on the operator's decision (2026-08-19,
 # DELIV-012) when the report renderer began running in process in this
 # container per ADR-0028: headless Chromium shares the app's CPU and memory,

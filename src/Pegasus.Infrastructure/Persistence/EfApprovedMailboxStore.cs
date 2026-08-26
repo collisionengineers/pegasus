@@ -10,9 +10,11 @@ namespace Pegasus.Infrastructure.Persistence;
 /// One Approved inbound-intake row exactly as stored, identities possibly absent.
 /// </summary>
 internal sealed record ApprovedIntakeMailboxCandidate(
+    Guid Id,
     string Address,
     string? MailboxIdentity,
-    string? InboxFolderIdentity);
+    string? InboxFolderIdentity,
+    DateTimeOffset? ActivatedAtUtc);
 
 public sealed class EfApprovedMailboxStore(
     IDbContextFactory<PegasusDbContext> contextFactory,
@@ -32,19 +34,49 @@ public sealed class EfApprovedMailboxStore(
     {
         var candidates = await ListInboundIntakeCandidatesAsync(cancellationToken);
         return candidates
-            .Where(item => item.MailboxIdentity is not null && item.InboxFolderIdentity is not null)
+            .Where(item => item.MailboxIdentity is not null
+                && item.InboxFolderIdentity is not null
+                && item.ActivatedAtUtc is not null)
             .Select(item => new ApprovedIntakeMailbox(
+                item.Id,
                 item.MailboxIdentity!,
                 item.Address,
-                item.InboxFolderIdentity!))
+                item.InboxFolderIdentity!,
+                item.ActivatedAtUtc!.Value))
             .ToArray();
     }
 
+    public async Task<ApprovedIntakeMailbox?> GetPollableAsync(
+        Guid approvedMailboxId,
+        CancellationToken cancellationToken)
+    {
+        if (approvedMailboxId == Guid.Empty)
+        {
+            return null;
+        }
+
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var approvedState = ApprovedMailboxState.Approved.ToString();
+        var candidate = await context.Set<ApprovedMailboxEntity>()
+            .AsNoTracking()
+            .Where(item => item.Id == approvedMailboxId
+                && item.State == approvedState
+                && item.AllowInboundIntake)
+            .Select(item => new ApprovedIntakeMailboxCandidate(
+                item.Id,
+                item.Address,
+                item.MailboxIdentity,
+                item.InboxFolderIdentity,
+                item.ActivatedAtUtc))
+            .SingleOrDefaultAsync(cancellationToken);
+        return candidate is { MailboxIdentity: not null, InboxFolderIdentity: not null, ActivatedAtUtc: not null }
+            ? new(candidate.Id, candidate.MailboxIdentity, candidate.Address, candidate.InboxFolderIdentity, candidate.ActivatedAtUtc.Value)
+            : null;
+    }
+
     /// <summary>
-    /// Every Approved inbound-intake row, including rows still awaiting their tenant
-    /// identities, so a composition that carries a configuration fallback can decide
-    /// what to do about them. Ordered by address, so a tick visits the estate in the
-    /// same order every time.
+    /// Every Approved inbound-intake row. Ordered by address, so a recovery tick visits
+    /// the estate in the same order every time.
     /// </summary>
     internal async Task<IReadOnlyList<ApprovedIntakeMailboxCandidate>>
         ListInboundIntakeCandidatesAsync(CancellationToken cancellationToken)
@@ -57,9 +89,11 @@ public sealed class EfApprovedMailboxStore(
             .OrderBy(item => item.Address)
             .ThenBy(item => item.Id)
             .Select(item => new ApprovedIntakeMailboxCandidate(
+                item.Id,
                 item.Address,
                 item.MailboxIdentity,
-                item.InboxFolderIdentity))
+                item.InboxFolderIdentity,
+                item.ActivatedAtUtc))
             .ToListAsync(cancellationToken);
     }
 
@@ -153,6 +187,9 @@ public sealed class EfApprovedMailboxStore(
                 MailboxIdentity = request.MailboxIdentity,
                 InboxFolderIdentity = request.InboxFolderIdentity,
                 SentFolderIdentity = request.SentFolderIdentity,
+                ActivatedAtUtc = request.State == ApprovedMailboxState.Approved
+                    ? timeProvider.GetUtcNow()
+                    : null,
                 Version = 1
             };
             context.Set<ApprovedMailboxEntity>().Add(entity);
@@ -171,21 +208,26 @@ public sealed class EfApprovedMailboxStore(
             }
 
             before = Snapshot(entity);
-            // Rebinding an identity would orphan or alias the per-mailbox cursor row,
-            // whose primary key is the mailbox identity. A bound value may be re-sent
-            // unchanged, or omitted; it may never be changed. Moving a mailbox is
-            // therefore disable-and-add, never edit.
-            entity.MailboxIdentity = BindIdentity(entity.MailboxIdentity, request.MailboxIdentity);
-            entity.InboxFolderIdentity =
-                BindIdentity(entity.InboxFolderIdentity, request.InboxFolderIdentity);
-            entity.SentFolderIdentity =
-                BindIdentity(entity.SentFolderIdentity, request.SentFolderIdentity);
-            if (before.IdentityIsBound
-                && !string.Equals(entity.Address, request.Address, StringComparison.Ordinal))
+            if (request.State == ApprovedMailboxState.Approved
+                && (before.State == ApprovedMailboxState.Disabled || entity.ActivatedAtUtc is null))
+            {
+                entity.ActivatedAtUtc = timeProvider.GetUtcNow();
+            }
+            var mayReplaceCoordinates = before.State == ApprovedMailboxState.Disabled
+                && request.State == ApprovedMailboxState.Disabled;
+            if (!mayReplaceCoordinates && before.IdentityIsBound
+                && (!string.Equals(entity.Address, request.Address, StringComparison.Ordinal)
+                    || IsDifferentIdentity(entity.MailboxIdentity, request.MailboxIdentity)
+                    || IsDifferentIdentity(entity.InboxFolderIdentity, request.InboxFolderIdentity)
+                    || IsDifferentIdentity(entity.SentFolderIdentity, request.SentFolderIdentity)))
             {
                 throw new ApprovedMailboxUpdateException(
                     ApprovedMailboxUpdateError.MailboxIdentityImmutable);
             }
+
+            entity.MailboxIdentity = request.MailboxIdentity ?? entity.MailboxIdentity;
+            entity.InboxFolderIdentity = request.InboxFolderIdentity ?? entity.InboxFolderIdentity;
+            entity.SentFolderIdentity = request.SentFolderIdentity ?? entity.SentFolderIdentity;
 
             entity.Address = request.Address;
             entity.State = request.State.ToString();
@@ -299,21 +341,8 @@ public sealed class EfApprovedMailboxStore(
         presented is null
         || recorded.SequenceEqual(presented.OrderBy(item => item.FolderType));
 
-    private static string? BindIdentity(string? current, string? requested)
-    {
-        if (requested is null || string.Equals(current, requested, StringComparison.Ordinal))
-        {
-            return current ?? requested;
-        }
-
-        if (current is not null)
-        {
-            throw new ApprovedMailboxUpdateException(
-                ApprovedMailboxUpdateError.MailboxIdentityImmutable);
-        }
-
-        return requested;
-    }
+    private static bool IsDifferentIdentity(string? current, string? requested) =>
+        requested is not null && !string.Equals(current, requested, StringComparison.Ordinal);
 
     private static void ReplaceFolderBindings(
         ApprovedMailboxEntity entity,
@@ -351,6 +380,7 @@ public sealed class EfApprovedMailboxStore(
         entity.MailboxIdentity,
         entity.InboxFolderIdentity,
         entity.SentFolderIdentity,
+        entity.ActivatedAtUtc,
         entity.Version,
         entity.FolderBindings
             .Select(item => new ApprovedMailboxFolderBinding(
@@ -370,6 +400,7 @@ public sealed class EfApprovedMailboxStore(
         snapshot.InboxFolderIdentity,
         snapshot.SentFolderIdentity,
         snapshot.IdentityIsBound,
+        snapshot.ActivatedAtUtc,
         snapshot.Version,
         snapshot.FolderBindings);
 
@@ -407,6 +438,7 @@ public sealed class EfApprovedMailboxStore(
         string? MailboxIdentity,
         string? InboxFolderIdentity,
         string? SentFolderIdentity,
+        DateTimeOffset? ActivatedAtUtc,
         int Version,
         IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings)
     {

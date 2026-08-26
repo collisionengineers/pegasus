@@ -2,8 +2,11 @@ namespace Pegasus.Infrastructure.Persistence;
 
 internal sealed class ApprovedInboxPollStateEntity
 {
-    public required string MailboxId { get; set; }
+    public Guid ApprovedMailboxId { get; set; }
+    public ApprovedMailboxEntity ApprovedMailbox { get; set; } = null!;
     public required string MailboxAddress { get; set; }
+    public required string ScopeFingerprint { get; set; }
+    public DateTimeOffset ActivatedAtUtc { get; set; }
     public string? Cursor { get; set; }
     public DateTimeOffset DueAtUtc { get; set; }
     public string? LeaseToken { get; set; }
@@ -15,7 +18,7 @@ internal sealed class ApprovedInboxPollStateEntity
 internal sealed class ApprovedInboxPoisonMessageEntity
 {
     public Guid Id { get; set; }
-    public required string MailboxId { get; set; }
+    public Guid ApprovedMailboxId { get; set; }
     public required string OccurrenceKey { get; set; }
     public required string ImmutableMessageId { get; set; }
     public required string FileName { get; set; }
@@ -42,7 +45,7 @@ internal sealed class ApprovedInboxPoisonMessageEntity
 internal sealed class RetainedMailboxMessageEntity
 {
     public Guid Id { get; set; }
-    public required string MailboxId { get; set; }
+    public Guid MailboxId { get; set; }
     public required string MailboxAddress { get; set; }
 
     /// <summary>

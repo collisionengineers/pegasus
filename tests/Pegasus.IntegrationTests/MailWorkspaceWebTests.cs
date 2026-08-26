@@ -29,6 +29,7 @@ public sealed class MailWorkspaceWebTests
     private static readonly DateTimeOffset NowUtc = new(2031, 5, 6, 10, 30, 0, TimeSpan.Zero);
 
     private const string FirstMailboxId = "instructions";
+    private static string FirstMailboxFilter => TestMailboxId.From(FirstMailboxId).ToString("D");
     private const string FirstMailboxAddress = "instructions@collisionengineers.co.uk";
     private const string SecondMailboxId = "reports";
     private const string SecondMailboxAddress = "reports@collisionengineers.co.uk";
@@ -126,7 +127,7 @@ public sealed class MailWorkspaceWebTests
         var outcome = await AcceptReceiptAsync(factory, receiptId);
 
         var page = await GetHtmlAsync(
-            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&section=case");
+            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&section=case");
         var confirmation = await PrepareAssociationAsync(client, page, "PrepareUnlinkCase");
         Assert.Contains(
             $"Unlinking this email cancels case {outcome.Identity.Reference}.",
@@ -148,7 +149,7 @@ public sealed class MailWorkspaceWebTests
             CaseLifecycleState.SourceEmailUnlinked,
             await ReadCaseStateAsync(factory.Services, outcome.Identity.CaseId));
         var unlinked = await GetHtmlAsync(
-            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&section=case");
+            client, $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&section=case");
         Assert.DoesNotContain("cancels case", unlinked, StringComparison.Ordinal);
     }
 
@@ -172,14 +173,14 @@ public sealed class MailWorkspaceWebTests
 
         var search = await GetHtmlAsync(
             client,
-            $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&pageNumber=2&caseQuery=MAIL31001");
+            $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&pageNumber=2&caseQuery=MAIL31001");
         Assert.Contains(">MAIL31001</strong>", search, StringComparison.Ordinal);
         Assert.Contains("mailbox=instructions", search, StringComparison.Ordinal);
         Assert.Contains("pageNumber=2", search, StringComparison.Ordinal);
 
         var target = await GetHtmlAsync(
             client,
-            $"/Inbox/{messageId:D}?mailbox={FirstMailboxId}&pageNumber=2&caseQuery=MAIL31001&targetCaseId={firstCaseId:D}");
+            $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&pageNumber=2&caseQuery=MAIL31001&targetCaseId={firstCaseId:D}");
         Assert.Contains("Confirm target", target, StringComparison.Ordinal);
         Assert.Contains("MAIL31001", target, StringComparison.Ordinal);
         Assert.DoesNotContain("Confirm unlink", target, StringComparison.Ordinal);
@@ -548,15 +549,15 @@ public sealed class MailWorkspaceWebTests
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var scoped = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxId}");
+        var scoped = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxFilter}");
 
-        Assert.Contains($"/Inbox?mailbox={FirstMailboxId}&amp;pageNumber=2", scoped, StringComparison.Ordinal);
+        Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}&amp;pageNumber=2", scoped, StringComparison.Ordinal);
         Assert.Contains("Page 1 of 2", scoped, StringComparison.Ordinal);
 
-        var secondPage = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxId}&pageNumber=2");
+        var secondPage = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxFilter}&pageNumber=2");
         Assert.Contains("Page 2 of 2", secondPage, StringComparison.Ordinal);
         // The row link carries the exact list position back into detail.
-        Assert.Contains($"mailbox={FirstMailboxId}&amp;pageNumber=2", secondPage, StringComparison.Ordinal);
+        Assert.Contains($"mailbox={FirstMailboxFilter}&amp;pageNumber=2", secondPage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -566,14 +567,14 @@ public sealed class MailWorkspaceWebTests
         await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 30);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxId}&pageNumber=2");
+        var html = await GetHtmlAsync(client, $"/Inbox?mailbox={FirstMailboxFilter}&pageNumber=2");
 
         // Refresh reruns the query the operator is looking at. A bare GET form
         // submits nothing and silently resets the screen to page one of
         // everything, which the requirement forbids.
         var form = Between(html, "<form method=\"get\" data-refresh-form>", "</form>");
         Assert.Contains(
-            $"name=\"mailbox\" value=\"{FirstMailboxId}\"",
+            $"name=\"mailbox\" value=\"{FirstMailboxFilter}\"",
             form,
             StringComparison.Ordinal);
         Assert.Contains("name=\"pageNumber\" value=\"2\"", form, StringComparison.Ordinal);
@@ -648,9 +649,9 @@ public sealed class MailWorkspaceWebTests
 
         var firstPage = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle");
 
-        Assert.Equal("empty-mailbox", source.MailboxId);
+        Assert.Equal(Guid.Parse("11111111-1111-1111-1111-111111111111"), source.MailboxId);
         Assert.Equal("needle", source.SearchTerm);
         Assert.Equal(100, source.MaximumMessages);
         Assert.Contains("empty@example.invalid", firstPage, StringComparison.Ordinal);
@@ -662,14 +663,14 @@ public sealed class MailWorkspaceWebTests
 
         var secondPage = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle&pageNumber=2");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle&pageNumber=2");
         Assert.Contains("Deleted match 0", secondPage, StringComparison.Ordinal);
         Assert.Contains("Page 2 of 2", secondPage, StringComparison.Ordinal);
 
         source.Result = new([], false, DeletedMailSearchState.Unavailable);
         var unavailable = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle");
         Assert.Contains(
             "Deleted Items search is unavailable. Retained Inbox mail remains available.",
             unavailable,
@@ -685,7 +686,7 @@ public sealed class MailWorkspaceWebTests
                 new Uri("https://graph.microsoft.com/v1.0/"),
                 new HttpClient(new UnexpectedHttpHandler())),
             new ApprovedMailboxEstate(
-                [new("empty-mailbox", "empty@example.invalid", "inbox-folder")]),
+                [new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "empty-mailbox", "empty@example.invalid", "inbox-folder", DateTimeOffset.MinValue)]),
             new Pegasus.Infrastructure.Intake.MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -698,7 +699,7 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle");
 
         Assert.Contains(
             "Deleted Items search is unavailable. Retained Inbox mail remains available.",
@@ -719,7 +720,7 @@ public sealed class MailWorkspaceWebTests
                 new Uri("https://graph.microsoft.com/v1.0/"),
                 new HttpClient(new MalformedDeletedGraphHandler(responseCase))),
             new ApprovedMailboxEstate(
-                [new("empty-mailbox", "empty@example.invalid", "inbox-folder")]),
+                [new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "empty-mailbox", "empty@example.invalid", "inbox-folder", DateTimeOffset.MinValue)]),
             new Pegasus.Infrastructure.Intake.MimeKitPdfPigOpenXmlIntakeSourceReader(TimeProvider.System));
         using var baseFactory = new IntakeWebApplicationFactory(useIntegrationTestAuthentication: true);
         using var factory = baseFactory.WithWebHostBuilder(builder =>
@@ -732,7 +733,7 @@ public sealed class MailWorkspaceWebTests
 
         var html = await GetHtmlAsync(
             client,
-            "/Inbox?folder=deleted&mailbox=empty-mailbox&search=needle");
+            "/Inbox?folder=deleted&mailbox=11111111-1111-1111-1111-111111111111&search=needle");
 
         Assert.Contains(
             "Deleted Items search is unavailable. Retained Inbox mail remains available.",
@@ -1017,7 +1018,7 @@ public sealed class MailWorkspaceWebTests
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 2);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var query = $"?mailbox={FirstMailboxId}&pageNumber=1";
+        var query = $"?mailbox={FirstMailboxFilter}&pageNumber=1";
         var message = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}{query}");
 
         Assert.Contains("Please inspect the vehicle", message, StringComparison.Ordinal);
@@ -1026,7 +1027,7 @@ public sealed class MailWorkspaceWebTests
         Assert.Contains("Not yet processed", message, StringComparison.Ordinal);
         Assert.Contains(">No case</dd>", message, StringComparison.Ordinal);
         // Back reconstructs the exact list position.
-        Assert.Contains($"/Inbox?mailbox={FirstMailboxId}", message, StringComparison.Ordinal);
+        Assert.Contains($"/Inbox?mailbox={FirstMailboxFilter}", message, StringComparison.Ordinal);
         // A viewer: the layout's sign-out is still the only POST on the screen.
         Assert.Equal(1, CountOccurrences(message, "method=\"post\""));
 
@@ -1378,7 +1379,9 @@ public sealed class MailWorkspaceWebTests
         var ids = await SeedAsync(factory, FirstMailboxId, FirstMailboxAddress, count: 1);
         using var client = IntakeWebDriver.CreateClient(factory);
 
-        var html = await GetHtmlAsync(client, $"/Inbox/{ids[0]:D}?mailbox={SecondMailboxId}");
+        var html = await GetHtmlAsync(
+            client,
+            $"/Inbox/{ids[0]:D}?mailbox={TestMailboxId.From(SecondMailboxId):D}");
 
         Assert.Contains(
             "This message is no longer in the view you opened it from.",
@@ -1706,7 +1709,7 @@ public sealed class MailWorkspaceWebTests
         var contextFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using var context = await contextFactory.CreateDbContextAsync();
         return await context.RetainedMailboxMessages
-            .Where(item => item.MailboxId == mailboxId && item.ImmutableMessageId == immutableMessageId)
+            .Where(item => item.MailboxId == TestMailboxId.From(mailboxId) && item.ImmutableMessageId == immutableMessageId)
             .Select(item => item.Id)
             .SingleAsync();
     }
@@ -1756,12 +1759,16 @@ public sealed class MailWorkspaceWebTests
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
-            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.MailboxId == mailboxId))
+            var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
+                context, mailboxId, mailboxAddress, NowUtc.AddDays(-1));
+            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.ApprovedMailboxId == approvedMailboxId))
             {
                 context.ApprovedInboxPollStates.Add(new()
                 {
-                    MailboxId = mailboxId,
+                    ApprovedMailboxId = approvedMailboxId,
                     MailboxAddress = mailboxAddress,
+                    ScopeFingerprint = new string('A', 64),
+                    ActivatedAtUtc = NowUtc.AddDays(-1),
                     DueAtUtc = NowUtc,
                     LastCompletedAtUtc = lastCompletedAtUtc ?? NowUtc.AddMinutes(-1)
                 });
@@ -1775,7 +1782,7 @@ public sealed class MailWorkspaceWebTests
             var identity = $"{mailboxId}-{index}";
             await store.RetainAsync(
                 new(
-                    mailboxId,
+                    TestMailboxId.From(mailboxId),
                     mailboxAddress,
                     identity,
                     $"{mailboxId.Length}:{mailboxId}{identity}",
@@ -1801,7 +1808,7 @@ public sealed class MailWorkspaceWebTests
         await using var readContext = await contextFactory.CreateDbContextAsync();
         return await readContext.RetainedMailboxMessages
             .AsNoTracking()
-            .Where(item => item.MailboxId == mailboxId)
+            .Where(item => item.MailboxId == TestMailboxId.From(mailboxId))
             .OrderByDescending(item => item.ReceivedAtUtc)
             .Select(item => item.Id)
             .ToArrayAsync();
@@ -2069,7 +2076,7 @@ public sealed class MailWorkspaceWebTests
 
     private sealed class RecordingDeletedMailSearchSource : IDeletedMailSearchSource
     {
-        internal string? MailboxId { get; private set; }
+        internal Guid? MailboxId { get; private set; }
 
         internal string? SearchTerm { get; private set; }
 
@@ -2078,7 +2085,7 @@ public sealed class MailWorkspaceWebTests
         internal DeletedMailSourceResult Result { get; set; } = new(
             Enumerable.Range(0, 26)
                 .Select(index => new DeletedMailSearchItem(
-                    "empty-mailbox",
+                    Guid.Parse("11111111-1111-1111-1111-111111111111"),
                     "empty@example.invalid",
                     $"deleted-{index}",
                     "sender@example.invalid",
@@ -2095,12 +2102,12 @@ public sealed class MailWorkspaceWebTests
         public Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
             CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<RetainedMailMailbox>>(
                 [
-                    new("empty-mailbox", "empty@example.invalid", IsPolled: true),
-                    new("other-mailbox", "other@example.invalid", IsPolled: true)
+                    new(Guid.Parse("11111111-1111-1111-1111-111111111111"), "empty@example.invalid", IsPolled: true),
+                    new(Guid.Parse("22222222-2222-2222-2222-222222222222"), "other@example.invalid", IsPolled: true)
                 ]);
 
         public Task<DeletedMailSourceResult> SearchAsync(
-            string? mailboxId,
+            Guid? mailboxId,
             string searchTerm,
             int maximumMessages,
             CancellationToken cancellationToken)

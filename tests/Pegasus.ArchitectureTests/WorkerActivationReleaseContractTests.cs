@@ -10,7 +10,7 @@ public sealed class WorkerActivationReleaseContractTests
     private static readonly string[] ExpectedFunctions =
     [
         "DueWorkSweepFunction",
-        "InboxPollFunction",
+        "InboxRecoveryFunction",
         "PendingWorkRecoveryFunction",
         "SentEvidencePollFunction",
         "StagedArtifactReconciliationFunction",
@@ -305,7 +305,7 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var settings = ExactSettings("true");
         settings.RemoveAll(setting =>
-            setting.Name == "AzureWebJobs.InboxPollFunction.Disabled");
+            setting.Name == "AzureWebJobs.InboxRecoveryFunction.Disabled");
         settings.Add(new("AzureWebJobs.inboxpollfunction.Disabled", "true"));
 
         AssertCensusRejected(settings, "AzureWebJobs.inboxpollfunction.Disabled");
@@ -316,18 +316,18 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var settings = ExactSettings("true");
         settings.RemoveAll(setting =>
-            setting.Name == "AzureWebJobs.InboxPollFunction.Disabled");
+            setting.Name == "AzureWebJobs.InboxRecoveryFunction.Disabled");
 
-        AssertCensusRejected(settings, "AzureWebJobs.InboxPollFunction.Disabled");
+        AssertCensusRejected(settings, "AzureWebJobs.InboxRecoveryFunction.Disabled");
     }
 
     [Fact]
     public void WorkerSmokeRejectsDuplicateDisabledSetting()
     {
         var settings = ExactSettings("true");
-        settings.Add(new("AzureWebJobs.InboxPollFunction.Disabled", "true"));
+        settings.Add(new("AzureWebJobs.InboxRecoveryFunction.Disabled", "true"));
 
-        AssertCensusRejected(settings, "AzureWebJobs.InboxPollFunction.Disabled");
+        AssertCensusRejected(settings, "AzureWebJobs.InboxRecoveryFunction.Disabled");
     }
 
     [Fact]
@@ -335,7 +335,7 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var settings = ExactSettings("true");
         var index = settings.FindIndex(setting =>
-            setting.Name == "AzureWebJobs.InboxPollFunction.Disabled");
+            setting.Name == "AzureWebJobs.InboxRecoveryFunction.Disabled");
         settings[index] = settings[index] with { Value = "false" };
 
         var result = RunWorkerSmoke(settings, "disabled");
@@ -346,7 +346,7 @@ public sealed class WorkerActivationReleaseContractTests
             "do not match the intended 'disabled' activation value",
             output,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("InboxPollFunction", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("InboxRecoveryFunction", output, StringComparison.Ordinal);
         Assert.DoesNotContain("false", output, StringComparison.Ordinal);
     }
 

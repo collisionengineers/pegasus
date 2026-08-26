@@ -155,7 +155,9 @@ internal sealed class MailMcpTools(
                 }
 
                 var scope = new MailWorkspaceScope(
-                    string.IsNullOrWhiteSpace(mailbox) ? null : mailbox.Trim(),
+                    Guid.TryParse(mailbox, out var mailboxId) && mailboxId != Guid.Empty
+                        ? mailboxId
+                        : null,
                     folderScope);
                 var page = await listRetainedMail.ExecuteAsync(
                     context.Actor,
@@ -175,7 +177,7 @@ internal sealed class MailMcpTools(
                     page.TotalPages,
                     page.HasUnretainedHistory,
                     mailboxes.Select(item => new MailToolMailbox(
-                        item.MailboxId,
+                        item.MailboxId.ToString("D"),
                         item.MailboxAddress,
                         item.IsPolled)).ToArray(),
                     new(
@@ -290,7 +292,7 @@ internal sealed class MailMcpTools(
 
     private static MailToolSummary Map(RetainedMailSummary summary) => new(
         summary.Id,
-        summary.MailboxId,
+        summary.MailboxId.ToString("D"),
         summary.MailboxAddress,
         summary.SenderAddress,
         summary.SenderDisplayName,

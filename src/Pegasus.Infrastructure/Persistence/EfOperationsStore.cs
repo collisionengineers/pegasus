@@ -32,10 +32,10 @@ internal sealed class EfOperationsStore(
         var mailboxRows = await context.ApprovedInboxPollStates
             .AsNoTracking()
             .OrderByDescending(item => item.DueAtUtc)
-            .ThenBy(item => item.MailboxId)
+            .ThenBy(item => item.ApprovedMailboxId)
             .Take(sourceLimit)
             .Select(item => new InboxStateRow(
-                item.MailboxId,
+                item.ApprovedMailboxId,
                 item.MailboxAddress,
                 item.DueAtUtc,
                 item.LeaseToken,
@@ -46,11 +46,11 @@ internal sealed class EfOperationsStore(
         var poisonRows = await (
                 from poison in context.ApprovedInboxPoisonMessages.AsNoTracking()
                 join mailbox in context.ApprovedInboxPollStates.AsNoTracking()
-                    on poison.MailboxId equals mailbox.MailboxId
+                    on poison.ApprovedMailboxId equals mailbox.ApprovedMailboxId
                 orderby poison.QuarantinedAtUtc descending, poison.Id
                 select new PoisonMessageRow(
                     poison.Id,
-                    poison.MailboxId,
+                    poison.ApprovedMailboxId,
                     mailbox.MailboxAddress,
                     poison.QuarantinedAtUtc,
                     poison.FailureCode,
@@ -345,11 +345,14 @@ internal sealed class EfOperationsStore(
         DateTimeOffset retryAtUtc,
         CancellationToken cancellationToken)
     {
-        var mailboxId = command.MailboxId.Trim();
+        if (!Guid.TryParse(command.MailboxId, out var mailboxId) || mailboxId == Guid.Empty)
+        {
+            throw new ArgumentException("A valid approved mailbox identity is required.", nameof(command));
+        }
         var expectedFailureCode = command.ExpectedFailureCode.Trim();
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         var updated = await context.ApprovedInboxPollStates
-            .Where(item => item.MailboxId == mailboxId
+            .Where(item => item.ApprovedMailboxId == mailboxId
                 && item.LastFailureCode == expectedFailureCode
                 && item.DueAtUtc == command.ExpectedDueAtUtc
                 && ((item.LeaseToken == null && item.LeaseExpiresAtUtc == null)
@@ -367,7 +370,7 @@ internal sealed class EfOperationsStore(
 
         var current = await context.ApprovedInboxPollStates
             .AsNoTracking()
-            .Where(item => item.MailboxId == mailboxId)
+            .Where(item => item.ApprovedMailboxId == mailboxId)
             .Select(item => new
             {
                 item.LeaseToken,
@@ -512,7 +515,7 @@ internal sealed class EfOperationsStore(
             CaseReference: null,
             PrincipalCode: null,
             item.LastFailureCode,
-            canRetry ? item.MailboxId : null,
+            canRetry ? item.MailboxId.ToString("D") : null,
             canRetry ? item.DueAtUtc : null);
     }
 
@@ -732,7 +735,7 @@ internal sealed class EfOperationsStore(
         .ToArray();
 
     private sealed record InboxStateRow(
-        string MailboxId,
+        Guid MailboxId,
         string MailboxAddress,
         DateTimeOffset DueAtUtc,
         string? LeaseToken,
@@ -758,7 +761,7 @@ internal sealed class EfOperationsStore(
 
     private sealed record PoisonMessageRow(
         Guid Id,
-        string MailboxId,
+        Guid MailboxId,
         string MailboxAddress,
         DateTimeOffset QuarantinedAtUtc,
         string FailureCode,
