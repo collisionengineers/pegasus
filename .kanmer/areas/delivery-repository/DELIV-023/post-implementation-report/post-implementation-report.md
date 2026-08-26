@@ -27,3 +27,6 @@ Independent PR review, CI, merge, exact-SHA promotion, release deployment, stric
 - Narrowed the activation inventory to `AzureWebJobs.*.Disabled` settings.
 - Added strict post-deployment readback of `PendingWorkRecoverySchedule = 0 * * * * *`.
 - Re-ran parsing, local deployment-plan validation, live activation-only smoke, and diff checks successfully.
+
+- Applied the recovery-schedule assertion to every strict post-deployment path, including full Web-and-Worker smoke; only pre-provision `ActivationOnly` skips it.
+- Corrected the static guard assertion and re-ran local validation and live activation-only smoke successfully.
