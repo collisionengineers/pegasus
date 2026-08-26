@@ -292,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 32**. A branch
+- **Deployed evidence:** the estate currently serves **release 33**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 33 | 2026-08-26 | `ee8067eca799eaa614a96488364d333093e21aaa` | `sha256:dd38dc6db0e4fb777fdfcfc193d800f4c46373d79dd5df2b676dcae5f3ba50d6` | `pegasus-prod-web-252ow37gij--ee8067eca799` | `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions` |
   | 32 | 2026-08-26 | `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223` | `sha256:bac866eeb11215c2b0dbaf949e769280aefef246c34f6cbf9436d28a486274bf` | `pegasus-prod-web-252ow37gij--cfb3e6cfd838` | none (head unchanged at `20260825145216_MailboxImageIntake`) |
   | 31 | 2026-08-25 | `7dbb7c39…` | `sha256:a10dce43…` | `pegasus-prod-web-252ow37gij--7dbb7c3952fb` | `20260825145216_MailboxImageIntake` |
   | 30 | 2026-08-25 | `eaabf311…` | `sha256:40a44edb…` | `pegasus-prod-web-252ow37gij--eaabf31130be` | `20260825105037_AssessmentAccessExportVersion`, `20260825121453_GrantWorkerImageIntakeLifecycleEvents` |
@@ -344,6 +345,26 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 33** (2026-08-26, source
+    `ee8067eca799eaa614a96488364d333093e21aaa`, image
+    `sha256:dd38dc6db0e4fb777fdfcfc193d800f4c46373d79dd5df2b676dcae5f3ba50d6`,
+    manifest SHA-256
+    `414D4958F5F468EE9A7AEDFA04ECDC706C0D6779C925B3CC3A31D4D3073678C1`)
+    deployed stable approved-mailbox identity, Microsoft Graph change-notification
+    wakes, the unified Worker work queue, and five-minute Inbox recovery. The
+    migration advanced the database to
+    `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`; the release
+    applied the four intended subscription-table denials omitted by the migration,
+    then bootstrap verified 526 catalogued permission/denial rows and 359 effective
+    runtime DML rows. The new Graph `clientState` is versioned in Key Vault with
+    secret-scoped Web and Worker access. Azure read-back matched the immutable image
+    digest; the sole Web revision is healthy with 100% traffic; all seven released
+    Worker functions are enabled; `PendingWorkRecoverySchedule` is `0 * * * * *`,
+    `ApprovedInboxPollSchedule` is `0 */5 * * * *`, and production smoke matched the
+    exact source and product version. This proves deployment, schema, permissions,
+    configuration and technical health. It does not prove sub-five-second receipt
+    of a fresh operator email.
 
   - **Release 32** (2026-08-26, source
     `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223`, image
