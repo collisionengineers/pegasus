@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pegasus Test UI</title><link rel="stylesheet" href="../../../src/Pegasus.Web/wwwroot/css/site.css"></head><body><main class="app-shell"><header class="page-header"><p class="eyebrow">Disposable design evidence</p><h1>Pegasus Test UI</h1></header><p>Static page replicas for local design experiments. These files are not implemented application behaviour.</p><section aria-labelledby="visual-pages"><h2 id="visual-pages" class="section-label">Visual routes</h2><ul id="visual-route-list" class="link-list"></ul></section><section aria-labelledby="nonvisual"><h2 id="nonvisual" class="section-label">Non-visual routes</h2><div class="table-wrap"><table><thead><tr><th>Route</th><th>Classification</th><th>Reason</th></tr></thead><tbody id="nonvisual-route-list"></tbody></table></div></section><script id="route-inventory" type="application/json">[
+  {
+    "source": "src/Pegasus.Web/Pages/Account/AccessDenied.cshtml",
+    "route": "/Account/AccessDenied",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/access-denied--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Account/PasswordChange.cshtml",
+    "route": "/Account/PasswordChange",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/password-change--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Account/SignIn.cshtml",
+    "route": "/Account/SignIn",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/sign-in--default.html"
+      },
+      {
+        "state": "validation",
+        "file": "pages/sign-in--validation.html"
+      },
+      {
+        "state": "signed-out",
+        "file": "pages/sign-in--signed-out.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Account/SignOut.cshtml",
+    "route": "/Account/SignOut",
+    "classification": "redirect",
+    "reason": "Redirects to Sign in after ending the authenticated session."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Access/Index.cshtml",
+    "route": "/Administration/Access",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-access--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Accounts/Edit.cshtml",
+    "route": "/Administration/Accounts/Edit/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-account-edit--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Accounts/Index.cshtml",
+    "route": "/Administration/Accounts",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-accounts--default.html"
+      },
+      {
+        "state": "empty",
+        "file": "pages/administration-accounts--empty.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Automation/Activity.cshtml",
+    "route": "/Administration/Automation/Activity",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-automation-activity--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Automation/Index.cshtml",
+    "route": "/Administration/Automation",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-automation--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Configuration.cshtml",
+    "route": "/Administration/Configuration",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-configuration--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Index.cshtml",
+    "route": "/Administration",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
+    "route": "/Administration/Mailboxes",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-mailboxes--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
+    "route": "/Administration/MailCategories",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-mail-categories--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Organizations/Edit.cshtml",
+    "route": "/Administration/Organizations/Edit/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-organization-edit--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Organizations/Index.cshtml",
+    "route": "/Administration/Organizations",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-organizations--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/Create.cshtml",
+    "route": "/Administration/Principals/Create",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-principal-create--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/Index.cshtml",
+    "route": "/Administration/Principals",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-principals--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/Replace.cshtml",
+    "route": "/Administration/Principals/Replace/{organizationId:guid}/{principalId:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-principal-replace--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Roles/Index.cshtml",
+    "route": "/Administration/Roles",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-roles--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml",
+    "route": "/Cases/{id:guid}/Assessment",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-assessment--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Closure.cshtml",
+    "route": "/Cases/{id:guid}/Closure",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Create.cshtml",
+    "route": "/Cases/Create",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-create--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Custody.cshtml",
+    "route": "/Cases/{id:guid}/Custody",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Details.cshtml",
+    "route": "/Cases/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-details--default.html"
+      },
+      {
+        "state": "unavailable",
+        "file": "pages/case-details--unavailable.html"
+      },
+      {
+        "state": "conflict",
+        "file": "pages/case-details--conflict.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml",
+    "route": "/Cases/{caseId:guid}/Documents/{occurrenceId:guid}/Download",
+    "classification": "download",
+    "reason": "Returns the stored document bytes inline or as a download."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Documents/Export.cshtml",
+    "route": "/Cases/{caseId:guid}/Documents/Export",
+    "classification": "download",
+    "reason": "GET redirects to case details; POST returns a ZIP archive."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Index.cshtml",
+    "route": "/Cases",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/cases--default.html"
+      },
+      {
+        "state": "empty",
+        "file": "pages/cases--empty.html"
+      },
+      {
+        "state": "unavailable",
+        "file": "pages/cases--unavailable.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Tasks.cshtml",
+    "route": "/Cases/{id:guid}/Tasks",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Vehicle.cshtml",
+    "route": "/Cases/{id:guid}/Vehicle",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Workflow.cshtml",
+    "route": "/Cases/{id:guid}/Workflow",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Connect/Authorize.cshtml",
+    "route": "/authorize",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/connector-authorize--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Error.cshtml",
+    "route": "/Error",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/error--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/ImageIntake/Details.cshtml",
+    "route": "/VehicleImages/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/vehicle-images-details--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/ImageIntake/Index.cshtml",
+    "route": "/VehicleImages",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/vehicle-images--default.html"
+      },
+      {
+        "state": "empty",
+        "file": "pages/vehicle-images--empty.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Index.cshtml",
+    "route": "/",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/dashboard--default.html"
+      },
+      {
+        "state": "stale",
+        "file": "pages/dashboard--stale.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Asset.cshtml",
+    "route": "/Received/{id:guid}/Asset/{assetId:guid}",
+    "classification": "download",
+    "reason": "Returns preserved source asset bytes."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Details.cshtml",
+    "route": "/Received/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/received-details--default.html"
+      },
+      {
+        "state": "partial",
+        "file": "pages/received-details--partial.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Image.cshtml",
+    "route": "/Received/{id:guid}/Image",
+    "classification": "download",
+    "reason": "Returns the preserved source image bytes."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Source.cshtml",
+    "route": "/Received/{id:guid}/Source",
+    "classification": "download",
+    "reason": "Returns the preserved source document bytes."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Mail/Index.cshtml",
+    "route": "/Inbox",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/inbox--default.html"
+      },
+      {
+        "state": "empty",
+        "file": "pages/inbox--empty.html"
+      },
+      {
+        "state": "failed",
+        "file": "pages/inbox--failed.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Mail/Message.cshtml",
+    "route": "/Inbox/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/inbox-message--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Operations/Index.cshtml",
+    "route": "/Operations",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/operations--default.html"
+      },
+      {
+        "state": "empty",
+        "file": "pages/operations--empty.html"
+      },
+      {
+        "state": "failed",
+        "file": "pages/operations--failed.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Search/Index.cshtml",
+    "route": "/Search",
+    "classification": "redirect",
+    "reason": "Redirects to Cases because search was merged into that screen."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/StatusCode.cshtml",
+    "route": "/status/{code:int}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/status-code--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Triage/Details.cshtml",
+    "route": "/Triage/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/triage-details--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Triage/Index.cshtml",
+    "route": "/Triage",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/queues--default.html"
+      },
+      {
+        "state": "empty",
+        "file": "pages/queues--empty.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Unidentified/Details.cshtml",
+    "route": "/Unidentified/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/unidentified-details--default.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Unidentified/Index.cshtml",
+    "route": "/Unidentified",
+    "classification": "redirect",
+    "reason": "Redirects to the Unidentified tab on Queues."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Upload.cshtml",
+    "route": "/Upload",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload--default.html"
+      },
+      {
+        "state": "validation",
+        "file": "pages/upload--validation.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/UploadGroupStatus.cshtml",
+    "route": "/Upload/Group/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-group-status--default.html"
+      },
+      {
+        "state": "processing",
+        "file": "pages/upload-group-status--processing.html"
+      },
+      {
+        "state": "failed",
+        "file": "pages/upload-group-status--failed.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Uploads/Request.cshtml",
+    "route": "/Uploads/{token}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-request--default.html"
+      },
+      {
+        "state": "validation",
+        "file": "pages/upload-request--validation.html"
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/UploadStatus.cshtml",
+    "route": "/Upload/Status/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-status--default.html"
+      },
+      {
+        "state": "processing",
+        "file": "pages/upload-status--processing.html"
+      },
+      {
+        "state": "failed",
+        "file": "pages/upload-status--failed.html"
+      }
+    ]
+  }
+]</script><script>
+const inventory = JSON.parse(document.getElementById("route-inventory").textContent);
+const visualList = document.getElementById("visual-route-list");
+const nonvisualList = document.getElementById("nonvisual-route-list");
+for (const entry of inventory) {
+  if (entry.classification === "visual") {
+    for (const state of entry.states) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = state.file;
+      link.textContent = entry.route + " · " + state.state;
+      item.append(link);
+      visualList.append(item);
+    }
+  } else {
+    const row = document.createElement("tr");
+    for (const value of [entry.route, entry.classification, entry.reason]) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.append(cell);
+    }
+    nonvisualList.append(row);
+  }
+}
+</script></main></body></html>
+
