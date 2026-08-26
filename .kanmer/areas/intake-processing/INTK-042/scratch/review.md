@@ -1,0 +1,27 @@
+# Independent review — 2026-08-26
+
+## Changes checked
+
+PR #553 adds exact-ID post-commit claims to both durable outboxes, calls the immediate publishers from receipt/case/replacement/vehicle/image application paths, moves the two queue senders into Infrastructure for Web and Worker reuse, adds Web queue-sender RBAC at queue scope, and renames the five-second normal dispatch timer to a one-minute recovery sweep.
+
+## Blocking comments
+
+1. **Committed outcomes can still be reported as failures when recovery release fails.** Both `DispatchPendingIntakeWork.ExecuteCommittedAsync` and `DispatchPendingExternalWork.ExecuteCommittedAsync` catch a recoverable send/mark exception, but then await `ReleaseDispatchAsync` without protecting the already-committed caller outcome. A transient SQL failure during release escapes the catch and makes manual upload, case acceptance/replacement, vehicle, or image registration appear failed after its transaction committed. The lease already expires safely, so this secondary recovery failure must not replace the committed acknowledgement. Current tests cover queue failure plus successful release only.
+
+2. **The required publication observability is absent.** FRD-02 requires correlated timings for durable receipt, publication, queue claim, later stages, and terminal state. The immediate publishers silently swallow recoverable publication failures and emit no Activity/metric/log for publication attempt, success, release, or release failure. The report says publication failure “is observed,” but the diff supplies no bounded correlated signal. This prevents INTK-043/DELIV-021 from separating commit-to-publish from queue/dequeue latency and hides the safety-net path the change depends on.
+
+3. **Required immediate publication is optional in every application boundary.** `ReceiveIntake`, `AcceptIntake`, `CreateLinkedReplacement`, `RequestVehicleLookup`, `RegisterImageIntake`, and `ImageIntakeCasePairing` all accept nullable publisher parameters defaulting to null and silently skip publication. Production DI currently registers the service, but the Core contract permits the required behavior to disappear without a composition error. This is also the exact optional-parameter design smell called out by the repository simplicity rails. Make the dependency required (and update callers/tests) or establish one required shared boundary.
+
+4. **The plan’s application-path and RBAC proof is not present.** New unit tests exercise the two dispatcher classes only. No changed test proves `ReceiveIntake` invokes exact-ID publication after commit, nor case/replacement/vehicle/image paths, nor that an image store’s returned `PendingExternalWorkId` is the exact committed outbox row sent. The selected SQL suite contains no new assertions for immediate publication and was not completed locally. Likewise the Bicep uses the correct Message Sender role at the two queue scopes, but there is no focused architecture/template assertion preventing contributor/receive/delete privilege or proving those exact two assignments; general Bicep validation is not the plan’s stated sender-only contract test.
+
+## Non-blocking observations
+
+- Exact-ID claims occur after stores return from committed transactions and do not scan the backlog.
+- Enqueue precedes mark-dispatched; a successful release makes failed sends due for the next one-minute recovery sweep, and mark-after-send failure remains duplicate-safe.
+- Web’s current Bicep role ID and scopes are sender-only and queue-specific; Worker retains the contributor/trigger role.
+- Moving sender adapters into Infrastructure and deleting Worker-only copies is a genuine simplification.
+- The report honestly discloses that its selected local SQL integration run did not pass, but that disclosure does not substitute for the missing assertions above.
+
+## Verdict
+
+**NEEDS CHANGES — not fit to merge even if the remaining CI checks pass.** The implementation must preserve truthful committed outcomes across secondary release failure, add the governing publication signal, make publication a required application dependency/boundary, and add focused proof for the real call paths, image work-ID handoff, and sender-only Web authorization. No implementation edits or merge were performed by this reviewer.
