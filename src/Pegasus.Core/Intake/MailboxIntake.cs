@@ -6,9 +6,11 @@ using Pegasus.Core.Identity;
 namespace Pegasus.Core.Intake;
 
 public sealed record ApprovedInboxPollLease(
-    string MailboxId,
+    Guid ApprovedMailboxId,
+    string GraphMailboxId,
     string MailboxAddress,
     string InboxFolderIdentity,
+    DateTimeOffset ActivatedAtUtc,
     string? Cursor,
     string LeaseToken);
 
@@ -96,7 +98,7 @@ public sealed record ApprovedInboxMessage(
 /// mailbox looks like now.
 /// </summary>
 public sealed record RetainedMailboxMessage(
-    string MailboxId,
+    Guid MailboxId,
     string MailboxAddress,
     string ImmutableMessageId,
     string ExternalReceiptToken,
@@ -161,14 +163,14 @@ public interface IApprovedInboxPollStore
         CancellationToken cancellationToken);
 
     Task AdvanceAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         string nextCursor,
         DateTimeOffset advancedAtUtc,
         CancellationToken cancellationToken);
 
     Task QuarantineAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         ApprovedInboxPoisonMessage message,
         string nextCursor,
@@ -176,14 +178,14 @@ public interface IApprovedInboxPollStore
         CancellationToken cancellationToken);
 
     Task CompleteAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         string nextCursor,
         DateTimeOffset completedAtUtc,
         CancellationToken cancellationToken);
 
     Task ReleaseAsync(
-        string mailboxId,
+        Guid approvedMailboxId,
         string leaseToken,
         DateTimeOffset dueAtUtc,
         string failureCode,
@@ -232,20 +234,7 @@ public sealed class PollApprovedInbox(
         ActionActor actor,
         CancellationToken cancellationToken = default)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
-        ArgumentNullException.ThrowIfNull(actor);
-        if (actor.Kind != ActorKind.SystemWorker)
-        {
-            throw new UnauthorizedAccessException("Approved inbox polling requires a system-worker actor.");
-        }
-
-        var actorCode = $"{SystemWorkerActorPrefix}{actor.SubjectId}";
-        if (actorCode.Length > MaximumActorLength)
-        {
-            throw new ArgumentException(
-                $"The system-worker identity must be {MaximumActorLength - SystemWorkerActorPrefix.Length} characters or fewer.",
-                nameof(actor));
-        }
+        var actorCode = ValidateRequest(maximumMessages, actor);
 
         var mailboxes = await approvedIntakeMailboxes.ListPollableAsync(cancellationToken);
         ArgumentNullException.ThrowIfNull(mailboxes);
@@ -286,6 +275,62 @@ public sealed class PollApprovedInbox(
         return handledMessages;
     }
 
+    public async Task<int> ExecuteMailboxAsync(
+        Guid approvedMailboxId,
+        int maximumMessages,
+        ActionActor actor,
+        CancellationToken cancellationToken = default)
+    {
+        if (approvedMailboxId == Guid.Empty)
+        {
+            throw new ArgumentException("The approved mailbox identity is required.", nameof(approvedMailboxId));
+        }
+
+        var actorCode = ValidateRequest(maximumMessages, actor);
+        var mailbox = await approvedIntakeMailboxes.GetPollableAsync(
+            approvedMailboxId,
+            cancellationToken);
+        if (mailbox is null)
+        {
+            return 0;
+        }
+
+        ValidateMailbox(mailbox);
+        var failures = new List<Exception>();
+        var handled = await PollMailboxAsync(
+            mailbox,
+            maximumMessages,
+            actorCode,
+            failures,
+            cancellationToken);
+        if (failures.Count == 1)
+        {
+            ExceptionDispatchInfo.Capture(failures[0]).Throw();
+        }
+
+        return handled;
+    }
+
+    private static string ValidateRequest(int maximumMessages, ActionActor actor)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
+        ArgumentNullException.ThrowIfNull(actor);
+        if (actor.Kind != ActorKind.SystemWorker)
+        {
+            throw new UnauthorizedAccessException("Approved inbox polling requires a system-worker actor.");
+        }
+
+        var actorCode = $"{SystemWorkerActorPrefix}{actor.SubjectId}";
+        if (actorCode.Length > MaximumActorLength)
+        {
+            throw new ArgumentException(
+                $"The system-worker identity must be {MaximumActorLength - SystemWorkerActorPrefix.Length} characters or fewer.",
+                nameof(actor));
+        }
+
+        return actorCode;
+    }
+
     private async Task<int> PollMailboxAsync(
         ApprovedIntakeMailbox mailbox,
         int maximumMessages,
@@ -321,7 +366,7 @@ public sealed class PollApprovedInbox(
                     cancellationToken))
             {
                 await pollStore.ReleaseAsync(
-                    lease.MailboxId,
+                    lease.ApprovedMailboxId,
                     lease.LeaseToken,
                     timeProvider.GetUtcNow().Add(FailureRetryDelay),
                     "mailbox_not_approved",
@@ -342,7 +387,7 @@ public sealed class PollApprovedInbox(
                 try
                 {
                     await pollStore.ReleaseAsync(
-                        lease.MailboxId,
+                        lease.ApprovedMailboxId,
                         lease.LeaseToken,
                         timeProvider.GetUtcNow().Add(FailureRetryDelay),
                         FailureCode(exception),
@@ -373,6 +418,18 @@ public sealed class PollApprovedInbox(
         var handledMessages = 0;
         foreach (var message in page.Messages)
         {
+            if (message.ReceivedAtUtc < lease.ActivatedAtUtc)
+            {
+                await pollStore.AdvanceAsync(
+                    lease.ApprovedMailboxId,
+                    lease.LeaseToken,
+                    message.NextCursor,
+                    timeProvider.GetUtcNow(),
+                    cancellationToken);
+                handledMessages++;
+                continue;
+            }
+
             PreparedMessage prepared;
             try
             {
@@ -421,7 +478,7 @@ public sealed class PollApprovedInbox(
             }
 
             await pollStore.AdvanceAsync(
-                lease.MailboxId,
+                lease.ApprovedMailboxId,
                 lease.LeaseToken,
                 message.NextCursor,
                 timeProvider.GetUtcNow(),
@@ -430,7 +487,7 @@ public sealed class PollApprovedInbox(
         }
 
         await pollStore.CompleteAsync(
-            lease.MailboxId,
+            lease.ApprovedMailboxId,
             lease.LeaseToken,
             page.NextCursor,
             timeProvider.GetUtcNow(),
@@ -490,7 +547,7 @@ public sealed class PollApprovedInbox(
         }
 
         await pollStore.QuarantineAsync(
-            lease.MailboxId,
+            lease.ApprovedMailboxId,
             lease.LeaseToken,
             new(
                 CreateOccurrenceKey(message.NextCursor),
@@ -542,7 +599,7 @@ public sealed class PollApprovedInbox(
             new(storageKey, sourceHash, message.MimeContent.Length),
             cancellationToken);
         await pollStore.QuarantineAsync(
-            lease.MailboxId,
+            lease.ApprovedMailboxId,
             lease.LeaseToken,
             new(
                 CreateOccurrenceKey(message.NextCursor),
@@ -564,7 +621,7 @@ public sealed class PollApprovedInbox(
     {
         ArgumentNullException.ThrowIfNull(mailbox);
         RequireExactIdentity(
-            mailbox.MailboxId,
+            mailbox.GraphMailboxId,
             MaximumMailboxIdentityLength,
             "approved mailbox identity");
         ArgumentException.ThrowIfNullOrWhiteSpace(mailbox.Address);
@@ -587,9 +644,17 @@ public sealed class PollApprovedInbox(
 
     private static void ValidateLease(ApprovedInboxPollLease lease)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(lease.MailboxId);
+        if (lease.ApprovedMailboxId == Guid.Empty)
+        {
+            throw new ArgumentException("The approved mailbox identity is required.");
+        }
+        ArgumentException.ThrowIfNullOrWhiteSpace(lease.GraphMailboxId);
         ArgumentException.ThrowIfNullOrWhiteSpace(lease.MailboxAddress);
         ArgumentException.ThrowIfNullOrWhiteSpace(lease.InboxFolderIdentity);
+        if (lease.ActivatedAtUtc == default)
+        {
+            throw new ArgumentException("The approved mailbox activation time is required.");
+        }
         ArgumentException.ThrowIfNullOrWhiteSpace(lease.LeaseToken);
     }
 
@@ -640,7 +705,7 @@ public sealed class PollApprovedInbox(
         ApprovedInboxMessage message,
         long maximumContentLength)
     {
-        var mailboxId = lease.MailboxId;
+        var mailboxId = lease.ApprovedMailboxId.ToString("D");
         if (string.IsNullOrWhiteSpace(message.ImmutableMessageId))
         {
             throw new MalformedApprovedInboxMessageException(
@@ -729,7 +794,7 @@ public sealed class PollApprovedInbox(
         if (message.RetainedMetadata is { } metadata)
         {
             retainedMessage = new(
-                mailboxId,
+                lease.ApprovedMailboxId,
                 lease.MailboxAddress,
                 message.ImmutableMessageId,
                 externalReceiptToken,

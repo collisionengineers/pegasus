@@ -27,7 +27,7 @@
                asp-route-folder="@Model.FolderRouteValue"
                asp-route-search="@Model.SearchTerm"
                asp-route-queue="@Model.QueueFilter"
-               aria-current="@(Model.MailboxFilter == mailbox.MailboxId ? "page" : null)">@mailbox.MailboxAddress</a>
+               aria-current="@(Model.MailboxFilter == mailbox.MailboxId.ToString("D") ? "page" : null)">@mailbox.MailboxAddress</a>
         }
     </nav>
 }

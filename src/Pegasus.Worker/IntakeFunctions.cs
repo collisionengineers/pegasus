@@ -1,6 +1,7 @@
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Identity;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Logging;
@@ -35,13 +36,48 @@ public sealed partial class PendingWorkRecoveryFunction(
 
 public sealed class UnifiedWorkFunction(
     IProcessQueuedIntake processQueuedIntake,
-    IProcessQueuedExternalWork processQueuedExternalWork)
+    IProcessQueuedExternalWork processQueuedExternalWork,
+    PollApprovedInbox pollApprovedInbox,
+    IApprovedMailboxSubscriptionStore mailboxSubscriptions,
+    TimeProvider timeProvider)
 {
+    private static readonly ActionActor MailboxWakeActor =
+        ActionActor.SystemWorker("approved-inbox-notification");
+
     [Function(nameof(UnifiedWorkFunction))]
     public async Task RunAsync(
         [QueueTrigger("intake-work", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
+        if (UnifiedWorkQueueMessage.TryParseMailbox(
+                message,
+                out var approvedMailboxId,
+                out var subscriptionId,
+                out var wakeKind))
+        {
+            var subscription = await mailboxSubscriptions.GetActiveAsync(
+                subscriptionId.ToString("D"),
+                timeProvider.GetUtcNow(),
+                cancellationToken)
+                ?? throw new InvalidDataException("The mailbox wake subscription is no longer active.");
+            if (subscription.ApprovedMailboxId != approvedMailboxId)
+            {
+                throw new InvalidDataException("The mailbox wake does not match its subscription.");
+            }
+            await pollApprovedInbox.ExecuteMailboxAsync(
+                approvedMailboxId,
+                50,
+                MailboxWakeActor,
+                cancellationToken);
+            if (wakeKind != MailboxWakeKind.Created)
+            {
+                await mailboxSubscriptions.SaveAsync(
+                    subscription with { LifecycleState = LifecycleState(wakeKind) },
+                    cancellationToken);
+            }
+            return;
+        }
+
         if (!UnifiedWorkQueueMessage.TryParse(message, out var kind, out var identifier))
         {
             throw new InvalidDataException(
@@ -60,14 +96,40 @@ public sealed class UnifiedWorkFunction(
                 throw new InvalidDataException("The unified work message has an unsupported kind.");
         }
     }
+
+    private static ApprovedMailboxSubscriptionLifecycleState LifecycleState(
+        MailboxWakeKind wakeKind) => wakeKind switch
+    {
+        MailboxWakeKind.Missed => ApprovedMailboxSubscriptionLifecycleState.Missed,
+        MailboxWakeKind.SubscriptionRemoved => ApprovedMailboxSubscriptionLifecycleState.Removed,
+        MailboxWakeKind.ReauthorizationRequired =>
+            ApprovedMailboxSubscriptionLifecycleState.ReauthorizationRequired,
+        _ => ApprovedMailboxSubscriptionLifecycleState.Active
+    };
 }
-public sealed class UnifiedWorkPoisonFunction(ReconcilePoisonedQueueWork reconcilePoisonedQueueWork)
+public sealed class UnifiedWorkPoisonFunction(
+    ReconcilePoisonedQueueWork reconcilePoisonedQueueWork,
+    IApprovedMailboxSubscriptionStore mailboxSubscriptions,
+    TimeProvider timeProvider)
 {
     [Function(nameof(UnifiedWorkPoisonFunction))]
     public Task RunAsync(
         [QueueTrigger("intake-work-poison", Connection = "AzureWebJobsStorage")] string message,
         CancellationToken cancellationToken)
     {
+        if (UnifiedWorkQueueMessage.TryParseMailbox(
+                message,
+                out var approvedMailboxId,
+                out _,
+                out _))
+        {
+            return mailboxSubscriptions.RecordMaintenanceFailureAsync(
+                approvedMailboxId,
+                "notification_poison",
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+        }
+
         if (!UnifiedWorkQueueMessage.TryParse(message, out var kind, out var identifier))
         {
             throw new InvalidDataException(

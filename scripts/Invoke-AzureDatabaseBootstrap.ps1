@@ -329,6 +329,16 @@ function Get-MigrationPermissionMatrix {
     foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|DocumentVersions")
     }
+    # 20260826151807_ApprovedMailboxStableIdentityAndSubscriptions: Web resolves
+    # callbacks read-only; Worker owns subscription creation and maintenance.
+    $expected.Add('pegasus_web_runtime_role|G|SELECT|ApprovedMailboxSubscriptions')
+    foreach ($permission in @('INSERT', 'UPDATE', 'DELETE')) {
+        $expected.Add("pegasus_web_runtime_role|D|$permission|ApprovedMailboxSubscriptions")
+    }
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_worker_runtime_role|G|$permission|ApprovedMailboxSubscriptions")
+    }
+    $expected.Add('pegasus_worker_runtime_role|D|DELETE|ApprovedMailboxSubscriptions')
     return @($expected | Sort-Object -Unique)
 }
 

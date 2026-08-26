@@ -606,7 +606,7 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
     {
         ValidateLease(lease);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maximumMessages);
-        var mailboxId = lease.MailboxId;
+        var mailboxId = lease.GraphMailboxId;
         var inboxFolderId = lease.InboxFolderIdentity;
         var cursor = GraphCursor.Parse(
             lease.Cursor,
@@ -729,7 +729,7 @@ internal sealed class GraphApprovedInboxSource(GraphMailClient client) : IApprov
     private static void ValidateLease(ApprovedInboxPollLease lease)
     {
         ArgumentNullException.ThrowIfNull(lease);
-        if (!IsExactIdentity(lease.MailboxId, MaximumMailboxIdentityLength)
+        if (!IsExactIdentity(lease.GraphMailboxId, MaximumMailboxIdentityLength)
             || !IsExactIdentity(lease.InboxFolderIdentity, MaximumFolderIdentityLength)
             || string.IsNullOrWhiteSpace(lease.MailboxAddress))
         {
@@ -755,12 +755,12 @@ internal sealed class GraphDeletedMailSearchSource(
     public async Task<IReadOnlyList<RetainedMailMailbox>> ListMailboxesAsync(
         CancellationToken cancellationToken) =>
         (await approvedMailboxes.ListPollableAsync(cancellationToken))
-            .Select(item => new RetainedMailMailbox(item.MailboxId, item.Address, true))
+            .Select(item => new RetainedMailMailbox(item.ApprovedMailboxId, item.Address, true))
             .OrderBy(item => item.MailboxAddress, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
     public async Task<DeletedMailSourceResult> SearchAsync(
-        string? mailboxId,
+        Guid? mailboxId,
         string searchTerm,
         int maximumMessages,
         CancellationToken cancellationToken)
@@ -768,7 +768,7 @@ internal sealed class GraphDeletedMailSearchSource(
         var approved = await approvedMailboxes.ListPollableAsync(cancellationToken);
         var selected = mailboxId is null
             ? approved
-            : approved.Where(item => item.MailboxId.Equals(mailboxId, StringComparison.Ordinal)).ToArray();
+            : approved.Where(item => item.ApprovedMailboxId == mailboxId).ToArray();
         if (mailboxId is not null && selected.Count == 0)
         {
             return new([], false, DeletedMailSearchState.Unavailable);
@@ -785,10 +785,10 @@ internal sealed class GraphDeletedMailSearchSource(
             foreach (var mailbox in selected)
             {
                 var folderId = await client.ResolveDeletedItemsFolderAsync(
-                    mailbox.MailboxId,
+                    mailbox.GraphMailboxId,
                     cancellationToken);
                 Uri? pageUri = client.InitialFolderMessagesUri(
-                    mailbox.MailboxId,
+                    mailbox.GraphMailboxId,
                     folderId,
                     Math.Min(maximumMessages + 1, 1000));
                 var mailboxCount = 0;
@@ -796,7 +796,7 @@ internal sealed class GraphDeletedMailSearchSource(
                 {
                     var page = await client.ReadFolderMessagesAsync(
                         pageUri,
-                        mailbox.MailboxId,
+                        mailbox.GraphMailboxId,
                         folderId,
                         cancellationToken);
                     foreach (var item in page.Items)
@@ -824,7 +824,7 @@ internal sealed class GraphDeletedMailSearchSource(
                 var mailbox = candidate.Mailbox;
                 var item = candidate.Message;
                 var mime = await client.ReadFolderMimeAsync(
-                    mailbox.MailboxId,
+                    mailbox.GraphMailboxId,
                     candidate.FolderId,
                     item.Id,
                     cancellationToken);
@@ -835,7 +835,7 @@ internal sealed class GraphDeletedMailSearchSource(
                         mime,
                         item.ReceivedAtUtc ?? DateTimeOffset.MinValue,
                         "system-worker:deleted-mail-search",
-                        new(IntakeSourceChannel.Mailbox, $"deleted:{mailbox.MailboxId}:{item.Id}")),
+                        new(IntakeSourceChannel.Mailbox, $"deleted:{mailbox.ApprovedMailboxId:D}:{item.Id}")),
                     cancellationToken);
                 if (Match(read, searchTerm) is not { Length: > 0 } found)
                 {
@@ -847,7 +847,7 @@ internal sealed class GraphDeletedMailSearchSource(
                     .Select(document => document.AttachmentOrdinal!.Value)
                     .ToHashSet();
                 matches.Add(new(
-                    mailbox.MailboxId,
+                    mailbox.ApprovedMailboxId,
                     mailbox.Address,
                     item.Id,
                     Sender(read),
