@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.WebUtilities;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -170,7 +169,8 @@ public sealed class MessageModel(
         }
 
         ListFolder = listFolder;
-        MailboxFilter = string.IsNullOrWhiteSpace(MailboxFilter) ? null : MailboxFilter.Trim();
+        var mailbox = Request.Query["mailbox"].ToString();
+        MailboxFilter = string.IsNullOrWhiteSpace(mailbox) ? null : mailbox.Trim();
 
         RetainedMailDetail? detail;
         try
@@ -970,21 +970,6 @@ public sealed class MessageModel(
         ListFolder == MailFolderScope.Inbox ? null : IndexModel.FolderCode(ListFolder);
 
     public int? PageRouteValue => PageNumber is > 1 ? PageNumber : null;
-
-    public string AssociationCandidateUrl(Guid messageId, Guid caseId) =>
-        QueryHelpers.AddQueryString(
-            $"/Inbox/{messageId:D}",
-            new Dictionary<string, string?>
-            {
-                ["mailbox"] = MailboxFilter,
-                ["folder"] = FolderRouteValue,
-                ["pageNumber"] = PageRouteValue?.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["search"] = SearchTerm,
-                ["queue"] = QueueFilter,
-                ["section"] = "case",
-                ["caseQuery"] = CaseQuery,
-                ["targetCaseId"] = caseId.ToString("D")
-            });
 
     public static string ClassificationLabel(MailClassificationOutcome? outcome) => outcome switch
     {
