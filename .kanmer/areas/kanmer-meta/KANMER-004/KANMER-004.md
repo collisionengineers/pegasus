@@ -4,7 +4,7 @@ type: ticket
 title: Consolidate Pegasus board areas around durable ownership
 status: done
 area: kanmer-meta
-order: 750
+order: 520
 assignee: codex
 profile: chore
 stageEntered:
@@ -17,7 +17,7 @@ links: []
 deployment: n/a
 archived: false
 created: '2026-08-17T06:38:11.255Z'
-updated: '2026-08-25T01:27:00.105Z'
+updated: '2026-08-26T14:34:43.461Z'
 ---
 
 ## Why

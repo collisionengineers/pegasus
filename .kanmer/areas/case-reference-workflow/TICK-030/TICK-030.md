@@ -6,7 +6,7 @@ title: >-
   from approved spreadsheets
 status: done
 area: case-reference-workflow
-order: 960
+order: 660
 assignee: ''
 profile: custom
 requires: {}
@@ -19,7 +19,7 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:53.389Z'
-updated: '2026-08-25T01:27:00.247Z'
+updated: '2026-08-26T14:34:43.717Z'
 ---
 
 ## What

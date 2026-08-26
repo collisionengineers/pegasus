@@ -6,7 +6,7 @@ title: >-
   ticket live, promote to main
 status: done
 area: delivery-repository
-order: 1240
+order: 940
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -26,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T14:02:39.637Z'
-updated: '2026-08-25T01:27:00.403Z'
+updated: '2026-08-26T14:34:44.192Z'
 ---
 
 # Why

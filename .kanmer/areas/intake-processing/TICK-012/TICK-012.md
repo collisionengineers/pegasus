@@ -4,7 +4,7 @@ type: ticket
 title: INT-25 — Automatic case creation from definitive authorised intake
 status: done
 area: intake-processing
-order: 130
+order: 120
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -30,7 +30,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.008Z'
-updated: '2026-08-25T01:26:59.699Z'
+updated: '2026-08-26T14:34:42.718Z'
 ---
 
 ## What

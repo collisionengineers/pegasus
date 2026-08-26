@@ -4,7 +4,7 @@ type: ticket
 title: Decide report-renderer analyzer strictness
 status: done
 area: documents-reports
-order: 2350
+order: 1930
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -27,7 +27,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.743Z'
-updated: '2026-08-25T01:27:01.066Z'
+updated: '2026-08-26T14:34:46.299Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Decide whether density applies to all rendered document bodies
 status: done
 area: documents-reports
-order: 200
+order: 180
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -32,7 +32,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.829Z'
-updated: '2026-08-25T01:26:59.743Z'
+updated: '2026-08-26T14:34:42.838Z'
 ---
 
 ## What

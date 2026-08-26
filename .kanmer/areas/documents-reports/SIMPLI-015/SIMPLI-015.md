@@ -6,7 +6,7 @@ title: >-
   SIMPLI-013/SIMPLI-014
 status: done
 area: documents-reports
-order: 800
+order: 560
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-14T13:18:49.985Z'
-updated: '2026-08-25T01:27:00.136Z'
+updated: '2026-08-26T14:34:43.534Z'
 ---
 
 ## What

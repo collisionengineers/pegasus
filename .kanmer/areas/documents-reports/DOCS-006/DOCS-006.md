@@ -4,7 +4,7 @@ type: ticket
 title: Retain extracted instruction images as case evidence and Box files
 status: done
 area: documents-reports
-order: 1280
+order: 980
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -22,7 +22,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T11:43:29.114Z'
-updated: '2026-08-25T01:27:00.424Z'
+updated: '2026-08-26T14:34:44.254Z'
 ---
 
 ## What

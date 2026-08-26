@@ -4,7 +4,7 @@ type: ticket
 title: Centre the operator shell's content region and redesign the Upload screen
 status: done
 area: platform-operations
-order: 1750
+order: 1450
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T07:13:42.039Z'
-updated: '2026-08-25T01:27:00.701Z'
+updated: '2026-08-26T14:34:45.218Z'
 ---
 
 ## What

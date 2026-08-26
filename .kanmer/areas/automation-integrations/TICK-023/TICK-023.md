@@ -6,7 +6,7 @@ title: >-
   vendor-neutral Automation Actor through Pegasus Core use ca…
 status: done
 area: automation-integrations
-order: 2130
+order: 1710
 assignee: ''
 profile: feature
 stageEntered:
@@ -29,7 +29,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.230Z'
-updated: '2026-08-25T01:27:00.932Z'
+updated: '2026-08-26T14:34:45.760Z'
 ---
 
 ## What

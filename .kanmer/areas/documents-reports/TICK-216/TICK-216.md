@@ -6,6 +6,7 @@ title: >-
   closed gate
 status: done
 area: documents-reports
+order: 2110
 assignee: ''
 profile: feature
 stageEntered:
@@ -30,7 +31,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:06.048Z'
-updated: '2026-08-25T06:52:31.760Z'
+updated: '2026-08-26T14:34:46.755Z'
 ---
 
 ## What

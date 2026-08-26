@@ -4,7 +4,7 @@ type: ticket
 title: OPS-14 — Production cutover and previous-artifact rollback procedure
 status: done
 area: platform-operations
-order: 2170
+order: 1750
 assignee: ''
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:03:53.369Z'
-updated: '2026-08-25T01:27:00.954Z'
+updated: '2026-08-26T14:34:45.831Z'
 ---
 
 ## What

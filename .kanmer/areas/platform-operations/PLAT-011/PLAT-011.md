@@ -6,7 +6,7 @@ title: >-
   surfaces
 status: done
 area: platform-operations
-order: 1790
+order: 1490
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T23:48:17.177Z'
-updated: '2026-08-25T01:27:00.724Z'
+updated: '2026-08-26T14:34:45.319Z'
 ---
 
 ## What

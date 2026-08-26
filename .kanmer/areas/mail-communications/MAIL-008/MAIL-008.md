@@ -4,7 +4,7 @@ type: ticket
 title: Map mail classification and folder-move reason to operator labels
 status: done
 area: mail-communications
-order: 1680
+order: 1380
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T09:37:20.423Z'
-updated: '2026-08-25T01:27:00.658Z'
+updated: '2026-08-26T14:34:45.036Z'
 ---
 
 ## What

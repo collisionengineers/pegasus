@@ -4,7 +4,7 @@ type: ticket
 title: Expose Triage casework through the Automation Actor
 status: done
 area: automation-integrations
-order: 1070
+order: 770
 assignee: codex-mcp-client
 profile: spike
 stageEntered:
@@ -31,7 +31,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T10:12:42.306Z'
-updated: '2026-08-25T06:38:29.950Z'
+updated: '2026-08-26T14:34:43.907Z'
 ---
 
 ## What

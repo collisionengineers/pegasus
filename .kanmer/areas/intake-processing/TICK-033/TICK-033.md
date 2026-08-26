@@ -6,7 +6,7 @@ title: >-
   request-scoped link for isolated unauthenticated image/d…
 status: done
 area: intake-processing
-order: 170
+order: 150
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -32,7 +32,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:53.456Z'
-updated: '2026-08-25T01:26:59.725Z'
+updated: '2026-08-26T14:34:42.779Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Switch on the accepted EVA mapping in production
 status: done
 area: platform-operations
-order: 1910
+order: 1610
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -22,7 +22,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-22T19:42:25.382Z'
-updated: '2026-08-25T06:38:33.333Z'
+updated: '2026-08-26T14:34:45.556Z'
 ---
 
 ## Why

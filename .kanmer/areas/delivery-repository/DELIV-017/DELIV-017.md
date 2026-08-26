@@ -4,7 +4,7 @@ type: ticket
 title: Record production release 28
 status: done
 area: delivery-repository
-order: 1260
+order: 960
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -25,7 +25,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-25T01:21:14.319Z'
-updated: '2026-08-25T01:27:47.546Z'
+updated: '2026-08-26T14:34:44.225Z'
 ---
 
 Record the already completed exact-SHA production deployment of ENG-016 in `docs/operations.md` and refresh `docs/current-architecture.md`. Evidence is source `7e9465b0`, image `sha256:08f5f605…`, Web revision `--7e9465b00603`, migrations `20260824123336_DropEvaHandoffTables` and `20260825001401_RemoveWorkflowCompletenessWaivers`, successful production smoke, nine enabled Worker functions, and verified database permission matrices. Documentation only; no second deployment.

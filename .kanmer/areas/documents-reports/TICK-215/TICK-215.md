@@ -4,7 +4,7 @@ type: ticket
 title: Decide where report rendering executes in production
 status: done
 area: documents-reports
-order: 1020
+order: 720
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -32,7 +32,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.967Z'
-updated: '2026-08-25T01:27:00.279Z'
+updated: '2026-08-26T14:34:43.817Z'
 ---
 
 ## What

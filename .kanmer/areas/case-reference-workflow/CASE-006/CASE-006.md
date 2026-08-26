@@ -6,7 +6,7 @@ title: >-
   Box-backed storage
 status: done
 area: case-reference-workflow
-order: 1100
+order: 800
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -35,7 +35,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T03:16:37.709Z'
-updated: '2026-08-25T01:27:00.324Z'
+updated: '2026-08-26T14:34:43.952Z'
 ---
 
 ## What

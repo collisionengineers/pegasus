@@ -4,7 +4,7 @@ type: ticket
 title: Retire the qdos-pressure nightly CI lane
 status: done
 area: delivery-repository
-order: 620
+order: 420
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -24,7 +24,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-18T10:38:32.819Z'
-updated: '2026-08-25T01:27:00.025Z'
+updated: '2026-08-26T14:34:43.278Z'
 ---
 
 ## What

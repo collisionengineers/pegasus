@@ -4,7 +4,7 @@ type: ticket
 title: Read the forwarded sender from a header block that carries a Cc line
 status: done
 area: mail-communications
-order: 1710
+order: 1410
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -21,7 +21,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-23T12:10:00.492Z'
-updated: '2026-08-25T06:38:33.282Z'
+updated: '2026-08-26T14:34:45.115Z'
 ---
 
 ## One regex, four symptoms, on a routine forward

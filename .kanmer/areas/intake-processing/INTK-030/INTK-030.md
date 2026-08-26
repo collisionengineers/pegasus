@@ -4,7 +4,7 @@ type: ticket
 title: Keep email signatures and logos out of case evidence images
 status: done
 area: intake-processing
-order: 1610
+order: 1310
 assignee: ''
 profile: fix
 stageEntered:
@@ -20,7 +20,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T18:17:19.111Z'
-updated: '2026-08-25T01:27:00.615Z'
+updated: '2026-08-26T14:34:44.870Z'
 ---
 
 ## Why

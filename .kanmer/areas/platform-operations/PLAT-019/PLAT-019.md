@@ -4,7 +4,7 @@ type: ticket
 title: Strip unapproved copy from the shared reason dialog
 status: done
 area: platform-operations
-order: 1840
+order: 1540
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -23,7 +23,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T09:37:37.987Z'
-updated: '2026-08-25T01:27:00.754Z'
+updated: '2026-08-26T14:34:45.419Z'
 ---
 
 ## What

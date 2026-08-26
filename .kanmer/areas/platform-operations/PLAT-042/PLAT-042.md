@@ -4,7 +4,7 @@ type: ticket
 title: 'Bind the additive-migration rule to cutover, not to today'
 status: done
 area: platform-operations
-order: 1930
+order: 1630
 assignee: claude-code
 profile: chore
 stageEntered:
@@ -25,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-24T10:34:11.430Z'
-updated: '2026-08-25T06:40:03.513Z'
+updated: '2026-08-26T14:34:45.599Z'
 ---
 
 ## What

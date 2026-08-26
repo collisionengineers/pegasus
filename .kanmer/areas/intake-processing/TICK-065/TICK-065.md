@@ -6,7 +6,7 @@ title: >-
   definitive pairing notifies staff that the job is ready
 status: done
 area: intake-processing
-order: 2260
+order: 1840
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -29,7 +29,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:05:19.575Z'
-updated: '2026-08-25T01:27:01.008Z'
+updated: '2026-08-26T14:34:46.040Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: No telemetry is reaching Application Insights
 status: done
 area: platform-operations
-order: 1900
+order: 1600
 assignee: ''
 profile: fix
 stageEntered:
@@ -22,7 +22,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T23:30:28.100Z'
-updated: '2026-08-25T01:27:00.792Z'
+updated: '2026-08-26T14:34:45.533Z'
 ---
 
 ## Why

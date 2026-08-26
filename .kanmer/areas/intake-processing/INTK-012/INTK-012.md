@@ -4,7 +4,7 @@ type: ticket
 title: Fix the ordinal-0 member-token ambiguity in FindForMemberSourceAsync
 status: done
 area: intake-processing
-order: 1470
+order: 1170
 assignee: group-lane
 profile: fix
 stageEntered:
@@ -29,7 +29,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-20T00:42:19.151Z'
-updated: '2026-08-25T01:27:00.536Z'
+updated: '2026-08-26T14:34:44.591Z'
 ---
 
 ## What

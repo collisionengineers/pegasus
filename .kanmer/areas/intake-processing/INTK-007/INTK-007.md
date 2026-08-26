@@ -4,7 +4,7 @@ type: ticket
 title: Replace Needs sorting with referenced Unidentified work
 status: done
 area: intake-processing
-order: 1430
+order: 1130
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -53,7 +53,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T09:46:52.709Z'
-updated: '2026-08-25T01:27:00.511Z'
+updated: '2026-08-26T14:34:44.521Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Define the missing assessment-report outcome variants
 status: done
 area: documents-reports
-order: 1000
+order: 700
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -32,7 +32,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:05.231Z'
-updated: '2026-08-25T01:27:00.269Z'
+updated: '2026-08-26T14:34:43.781Z'
 ---
 
 ## What

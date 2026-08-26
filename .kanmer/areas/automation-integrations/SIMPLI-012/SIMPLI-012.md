@@ -4,7 +4,7 @@ type: ticket
 title: Decide the post-alpha disposition of AI and MCP
 status: done
 area: automation-integrations
-order: 510
+order: 350
 assignee: ''
 profile: feature
 stageEntered:
@@ -25,7 +25,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-13T12:12:48.943Z'
-updated: '2026-08-25T06:40:09.034Z'
+updated: '2026-08-26T14:34:43.149Z'
 ---
 
 ## What

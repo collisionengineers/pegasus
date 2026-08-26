@@ -4,7 +4,7 @@ type: ticket
 title: Show each case fact once on the case page
 status: done
 area: case-reference-workflow
-order: 1190
+order: 890
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -27,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-22T19:42:25.226Z'
-updated: '2026-08-25T06:38:29.896Z'
+updated: '2026-08-26T14:34:44.115Z'
 ---
 
 ## Why — operator direction (2026-08-22, QDOS26011)

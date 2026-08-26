@@ -4,7 +4,7 @@ type: ticket
 title: Reconcile Pegasus setup with packaged Kanmer 0.3.3
 status: done
 area: kanmer-meta
-order: 740
+order: 510
 assignee: codex
 profile: custom
 requires: {}
@@ -23,7 +23,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-17T05:41:23.840Z'
-updated: '2026-08-25T06:40:08.134Z'
+updated: '2026-08-26T14:34:43.447Z'
 ---
 
 ## What

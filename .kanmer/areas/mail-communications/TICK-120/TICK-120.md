@@ -4,7 +4,7 @@ type: ticket
 title: Activate production due-by and seven-day chasing
 status: done
 area: mail-communications
-order: 2300
+order: 1880
 assignee: ''
 profile: feature
 stageEntered:
@@ -26,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:08:02.478Z'
-updated: '2026-08-25T01:27:01.035Z'
+updated: '2026-08-26T14:34:46.129Z'
 ---
 
 ## What

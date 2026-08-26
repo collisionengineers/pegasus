@@ -6,7 +6,7 @@ title: >-
   mirrored Reply classifications, Other name/reason behavi…
 status: done
 area: mail-communications
-order: 920
+order: 620
 assignee: grok-shell-kanmer
 profile: feature
 stageEntered:
@@ -33,7 +33,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-12T15:03:52.968Z'
-updated: '2026-08-25T01:27:00.224Z'
+updated: '2026-08-26T14:34:43.640Z'
 ---
 
 ## What

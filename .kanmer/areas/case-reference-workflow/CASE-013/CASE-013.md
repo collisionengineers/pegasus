@@ -4,7 +4,7 @@ type: ticket
 title: A complete case stays Not ready because no completeness flag is ever set
 status: done
 area: case-reference-workflow
-order: 1140
+order: 840
 assignee: ''
 profile: fix
 stageEntered:
@@ -22,7 +22,7 @@ docs_todo: true
 deployment: production
 archived: false
 created: '2026-08-21T23:30:27.847Z'
-updated: '2026-08-25T01:27:00.345Z'
+updated: '2026-08-26T14:34:44.020Z'
 ---
 
 ## Why

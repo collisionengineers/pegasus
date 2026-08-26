@@ -4,7 +4,7 @@ type: ticket
 title: Take the word Immutable out of every operator-facing page
 status: done
 area: case-reference-workflow
-order: 1170
+order: 870
 assignee: ''
 profile: fix
 stageEntered:
@@ -23,7 +23,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T23:30:27.991Z'
-updated: '2026-08-25T01:27:00.361Z'
+updated: '2026-08-26T14:34:44.083Z'
 ---
 
 ## Why — operator direction (2026-08-22)

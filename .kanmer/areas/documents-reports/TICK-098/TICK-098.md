@@ -6,7 +6,7 @@ title: >-
   reference provenance
 status: done
 area: documents-reports
-order: 2270
+order: 1850
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -36,7 +36,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:06:02.682Z'
-updated: '2026-08-25T06:46:20.552Z'
+updated: '2026-08-26T14:34:46.063Z'
 ---
 
 ## What

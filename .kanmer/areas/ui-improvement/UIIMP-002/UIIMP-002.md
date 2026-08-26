@@ -4,6 +4,7 @@ type: ticket
 title: Create throwaway HTML replicas of every Pegasus page
 status: done
 area: ui-improvement
+order: 2130
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
@@ -33,7 +34,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-26T12:09:14.815Z'
-updated: '2026-08-26T13:34:17.224Z'
+updated: '2026-08-26T14:34:46.801Z'
 ---
 
 ## What

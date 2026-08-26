@@ -6,7 +6,7 @@ title: >-
   toggle edit
 status: done
 area: case-reference-workflow
-order: 1110
+order: 810
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -25,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-20T17:39:20.825Z'
-updated: '2026-08-25T06:40:07.510Z'
+updated: '2026-08-26T14:34:43.970Z'
 ---
 
 ## Why

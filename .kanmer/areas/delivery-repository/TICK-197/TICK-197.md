@@ -4,7 +4,7 @@ type: ticket
 title: Establish an infra validation lane or record its deliberate absence
 status: done
 area: delivery-repository
-order: 190
+order: 170
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -28,7 +28,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-12T15:08:04.898Z'
-updated: '2026-08-25T01:26:59.737Z'
+updated: '2026-08-26T14:34:42.818Z'
 ---
 
 ## What

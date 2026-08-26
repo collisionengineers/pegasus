@@ -4,7 +4,7 @@ type: ticket
 title: Consolidate the QDOS corpus and map every extraction shape
 status: done
 area: intake-processing
-order: 1570
+order: 1270
 assignee: ''
 profile: spike
 stageEntered:
@@ -18,7 +18,7 @@ links: []
 deployment: production
 archived: false
 created: '2026-08-21T10:45:37.970Z'
-updated: '2026-08-25T01:27:00.591Z'
+updated: '2026-08-26T14:34:44.785Z'
 ---
 
 ## What

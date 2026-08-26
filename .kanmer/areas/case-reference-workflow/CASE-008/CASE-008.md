@@ -6,7 +6,7 @@ title: >-
   prefill
 status: done
 area: case-reference-workflow
-order: 1120
+order: 820
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -25,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-20T18:22:48.653Z'
-updated: '2026-08-25T06:40:07.570Z'
+updated: '2026-08-26T14:34:43.986Z'
 ---
 
 ## Why

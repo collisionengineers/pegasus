@@ -6,7 +6,7 @@ title: >-
   policy rules
 status: done
 area: intake-processing
-order: 1580
+order: 1280
 assignee: claude-code
 profile: feature
 stageEntered:
@@ -26,7 +26,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-21T12:28:23.300Z'
-updated: '2026-08-25T01:27:00.597Z'
+updated: '2026-08-26T14:34:44.805Z'
 ---
 
 ## What

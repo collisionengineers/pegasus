@@ -4,7 +4,7 @@ type: ticket
 title: 'Activate live completeness and Review, Not ready, and Held queues'
 status: done
 area: platform-operations
-order: 2290
+order: 1870
 assignee: ''
 profile: feature
 stageEntered:
@@ -27,7 +27,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-12T15:08:02.439Z'
-updated: '2026-08-25T01:27:01.029Z'
+updated: '2026-08-26T14:34:46.101Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: Resolve the SQL deadlock in parallel Qdos case allocation retries
 status: done
 area: case-reference-workflow
-order: 1090
+order: 790
 assignee: claude-code
 profile: fix
 stageEntered:
@@ -24,7 +24,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-19T14:05:43.815Z'
-updated: '2026-08-25T06:40:07.550Z'
+updated: '2026-08-26T14:34:43.938Z'
 ---
 
 ## What

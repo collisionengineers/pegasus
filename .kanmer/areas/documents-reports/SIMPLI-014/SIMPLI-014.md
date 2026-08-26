@@ -4,7 +4,7 @@ type: ticket
 title: Integrate CollisionRenderer behind a Core-owned render contract
 status: done
 area: documents-reports
-order: 570
+order: 390
 assignee: codex-mcp-client
 profile: feature
 stageEntered:
@@ -39,7 +39,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-13T14:38:42.351Z'
-updated: '2026-08-25T06:48:37.606Z'
+updated: '2026-08-26T14:34:43.226Z'
 ---
 
 ## What

@@ -6,7 +6,7 @@ title: >-
   PRs, restore git hygiene, deploy and verify production
 status: done
 area: delivery-repository
-order: 1210
+order: 910
 assignee: claude-code
 profile: custom
 requires:
@@ -52,7 +52,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-19T12:12:34.359Z'
-updated: '2026-08-25T01:27:00.387Z'
+updated: '2026-08-26T14:34:44.149Z'
 ---
 
 ## What

@@ -4,7 +4,7 @@ type: ticket
 title: OPS-22 — Genuine-corpus local evaluation harness
 status: done
 area: mail-communications
-order: 820
+order: 570
 assignee: ''
 profile: custom
 requires: {}
@@ -18,7 +18,7 @@ groups:
 links: []
 archived: false
 created: '2026-08-12T15:03:52.795Z'
-updated: '2026-08-25T01:27:00.150Z'
+updated: '2026-08-26T14:34:43.551Z'
 ---
 
 ## What
