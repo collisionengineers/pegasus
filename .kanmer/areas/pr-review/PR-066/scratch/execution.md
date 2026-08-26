@@ -1,0 +1,1 @@
+2026-08-26: Workflow disposition confirmed by the coordinating agent: the INTK-043 owner will amend PR #560. Do not create a duplicate PR-066 product branch/worktree. Keep PR-066 as the review blocker until the corrected PR #560 head proves the Bicep and both validation assertions use `function:UnifiedWorkFunction` and CI reruns green.

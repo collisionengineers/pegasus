@@ -23,3 +23,7 @@ No PRD, FRD, or ADR governs this repository-documentation defect. The ticket bri
 ## Proof
 
 The documentation-link script exits 0 and the PR's documentation check passes. PR #560 can then incorporate the landed correction and rerun its inherited failing lane.
+
+## Simplification pass — 2026-08-26
+
+n/a — docs-only. The final diff deletes only the invalid reference paragraph; no replacement abstraction, compatibility path, or documentation tree was added.
