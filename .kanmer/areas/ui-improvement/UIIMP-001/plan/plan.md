@@ -25,3 +25,10 @@ Retain command output from `scripts/Test-UiModes.ps1`, the canonical restore/bui
 - Cross-platform shell opening can drift; use the existing platform detector and cover Windows/Linux branches explicitly.
 - A Test branch placed too late could create runtime state; tests and review must confirm the branch precedes initialization and lifecycle mutex acquisition.
 - [[UIIMP-002]] blocks this ticket because the launcher must not ship with a dead Test target.
+
+## Simplification pass — 2026-08-26
+
+- Reuse: retained the existing launcher and `Get-PegasusPlatform`; added no second launcher, runtime route, service, or configuration layer.
+- Simplification: kept the production change to one parameter and one early branch; no behavior-preserving reduction was identified.
+- Efficiency: Test resolves one fixed file and starts one platform opener; it performs no initialization or resource discovery.
+- Altitude: documentation states only the user-visible mode/lifecycle contract. The independent PR review remains the separate review lens.
