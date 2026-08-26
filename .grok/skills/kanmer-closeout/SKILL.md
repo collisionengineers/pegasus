@@ -1,6 +1,6 @@
 ---
 name: kanmer-closeout
-description: Close out a verified Kanmer ticket — confirm proof.md is final, record its commits/PRs and deployment status, then remove the worktree, delete the branch, and release, so nothing stale accumulates. Runs after kanmer-verify has validated the merged result and moved the ticket to Done. Use when the user says "close out <ID>", "wrap up this ticket", or "clean up the worktree/branch". DO NOT USE FOR deciding whether the work is good (kanmer-review), verifying on merged main (kanmer-verify), or tickets whose PR hasn't merged yet.
+description: Close out a verified Done ticket or an explicitly retired post-merge verification failure — confirm proof.md and disposition are final, record traceability, then remove the worktree, delete the branch, and release so nothing stale accumulates. Use after kanmer-verify's success or terminal-retirement handoff. DO NOT USE FOR deciding whether the work is good, verifying it, or inventing a failure disposition.
 ---
 
 # Closing out a Kanmer ticket
@@ -27,8 +27,16 @@ Proceed only on `state: "MERGED"`. `OPEN` → not a closeout; stop and say so.
 
 ## 1. Kanmer half
 
-The ticket is already at **Done** — `kanmer-verify` validated the merged result
-and wrote `proof.md` on merged main. Closeout is record-keeping, not a stage move.
+The ticket is in exactly one accepted terminal shape:
+
+- **verified success** — status Done, not archived, final proof result `PASS`; or
+- **retired non-success** — status Verifying, archived, final proof result is
+  not `PASS`, and the Outcome names the operator's irrecoverable/superseded
+  reason plus a successor ticket or explicit no-successor disposition.
+
+Reject every other shape. Closeout never decides that a failure is terminal,
+archives it, moves it to Done, or changes its proof result. Those decisions and
+evidence belong to `kanmer-verify` and the operator.
 
 1. **Confirm `proof.md` is final** (`get_ticket_doc doc: "proof"`); append the PR
    URL and merge date if verify didn't.
@@ -38,7 +46,9 @@ and wrote `proof.md` on merged main. Closeout is record-keeping, not a stage mov
    or the environment it shipped to). CI auto-detection is out of scope; set it
    from what actually happened.
 3. **Record the Outcome** in the ticket body's Outcome section: follow-up ticket
-   ids and anything that shipped differently than planned.
+   ids and anything that shipped differently than planned. For retired
+   non-success, preserve the operator, reason, proof result and successor or
+   explicit no-successor disposition verbatim.
 
 ## 2. Git half
 
@@ -65,7 +75,8 @@ If the host repo doesn't auto-delete merged branches:
 ## 3. Release, last
 
 `take_ticket action: "release"` — issued only once nothing is actually in
-flight. Done: board shows the ticket finished, git shows nothing left.
+flight. Success stays Done; retired non-success stays archived in Verifying.
+In both cases Git shows nothing left and the live board has no stale taken work.
 
 ## Edge cases
 
@@ -84,8 +95,9 @@ flight. Done: board shows the ticket finished, git shows nothing left.
 
 ---
 
-**No successor — this is the end of the pipeline.** The ticket is Done, the
-worktree and branch are gone, and the ticket is released. If closeout produced
+**No successor — this is the end of the pipeline.** The ticket is either Done
+with PASS or archived in Verifying with an explicit non-success disposition;
+the worktree and branch are gone, and the ticket is released. If closeout produced
 follow-up work, that is a **new ticket** via `kanmer-tickets`, starting again at
 Backlog; it is not a continuation of this one. Control returns to whoever was
 driving — often `kanmer-auto`, which counts this ticket as finished and moves to
