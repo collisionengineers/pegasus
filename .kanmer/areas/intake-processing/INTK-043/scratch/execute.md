@@ -1,1 +1,3 @@
 Opened PR https://github.com/collisionengineers/pegasus/pull/560 at head ec39cc181ec4c7bc5c08e2a7ecbde0e23b1ee8b1 after merging current origin/dev. Required verification passed; hand off to kanmer-review. No merge or deployment performed.
+
+Resolved [[PR-066]] on PR #560: changed Flex always-ready scale-group designation to function:UnifiedWorkFunction, locked the exact value in deployment validation and architecture tests, and pushed head 912cb49c56c51cc00126ea66b0b6269c1b64f4b7. Focused architecture activation tests 14/14 PASS; local deployment-plan/compiled-Bicep validation PASS; diff check PASS. CI rerun started. Unrelated documentation-lane failure on origin/dev Kanmer skill link remains outside INTK-043.

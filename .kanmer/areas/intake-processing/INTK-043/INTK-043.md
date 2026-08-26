@@ -17,6 +17,7 @@ groups:
   - EPIC-002
 links:
   - AUTO-008
+  - PR-066
 blocks:
   - DELIV-021
   - MAIL-013
@@ -28,11 +29,12 @@ refs:
 commits:
   - 6c42d53d
   - ec39cc18
+  - 912cb49c
 prs:
   - 'https://github.com/collisionengineers/pegasus/pull/560'
 archived: false
 created: '2026-08-25T15:18:40.610Z'
-updated: '2026-08-26T14:31:20.634Z'
+updated: '2026-08-26T14:39:37.141Z'
 ---
 
 ## What
