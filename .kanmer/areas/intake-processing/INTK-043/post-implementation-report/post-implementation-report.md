@@ -60,3 +60,7 @@ On the merged target, run:
 - `git diff --check origin/dev...HEAD`
 
 After a separately authorised deployment, confirm the exact seven-function census, one always-ready `UnifiedWorkFunction`, then measure real supported intake cohorts before claiming the five-second target.
+
+## Review correction — PR-066
+
+The always-ready group now uses Azure Flex Consumption's required per-function designation `function:UnifiedWorkFunction`. `Test-AzureDeploymentPlan.ps1` and `WorkerActivationReleaseContractTests` assert that exact value so a bare, ineffective group name cannot return. Focused verification: architecture activation contract 14/14 PASS; local deployment-plan and compiled Bicep validation PASS; `git diff --check` PASS.

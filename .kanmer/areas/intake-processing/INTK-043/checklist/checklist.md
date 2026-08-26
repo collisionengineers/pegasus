@@ -7,6 +7,7 @@
 - [x] Update ADR/FRD/PRD/capability and keep deployed-state documents unchanged pending deployment.
 - [x] Run Release build, Core tests, full architecture tests, configuration-startup tests, Bicep compilation, and independent simplification review.
 - [x] Merge current `origin/dev`, commit, push, and open the PR to `dev`.
+- [x] Resolve [[PR-066]] with the required `function:UnifiedWorkFunction` Flex scale-group designation and focused validation.
 
 ## Post-merge follow-ups
 

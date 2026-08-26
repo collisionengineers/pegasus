@@ -58,3 +58,7 @@ After merging current `origin/dev` into the ticket branch:
 - `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` — PASS, including Bicep compilation and the exact seven-function fail-closed/always-ready contract.
 - `git diff --check` — PASS.
 - An additional full IntegrationTests run was stopped after more than four minutes with no progress output. This was an extra check, not a plan or checklist gate; the required startup slice above passed. CI remains the full-suite authority before merge.
+
+## Review correction — PR-066
+
+Independent review checked the Flex Consumption contract against Microsoft guidance and found the per-function always-ready group must be named `function:UnifiedWorkFunction`, not the bare Function name. Corrected Bicep and both exact contract guards. Focused architecture tests (14/14), local deployment-plan/Bicep validation and diff validation pass.
