@@ -360,11 +360,15 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     runtime DML rows. The new Graph `clientState` is versioned in Key Vault with
     secret-scoped Web and Worker access. Azure read-back matched the immutable image
     digest; the sole Web revision is healthy with 100% traffic; all seven released
-    Worker functions are enabled; `PendingWorkRecoverySchedule` is `0 * * * * *`,
-    `ApprovedInboxPollSchedule` is `0 */5 * * * *`, and production smoke matched the
-    exact source and product version. This proves deployment, schema, permissions,
-    configuration and technical health. It does not prove sub-five-second receipt
-    of a fresh operator email.
+    Worker functions are enabled. After correcting MAIL-015's invalid seven-field
+    value, the schedules are `PendingWorkRecoverySchedule=0 * * * * *`,
+    `IntakeStagedArtifactReconciliationSchedule=*/10 * * * * *`,
+    `ApprovedInboxPollSchedule=0 */5 * * * *`,
+    `SentEvidencePollSchedule=15 * * * * *`, and
+    `DueWorkSweepSchedule=0 */5 * * *`; production smoke matched the exact source
+    and product version. This proves deployment, schema, permissions, configuration
+    and technical health. It does not prove sub-five-second receipt of a fresh
+    operator email.
 
   - **Release 32** (2026-08-26, source
     `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223`, image
