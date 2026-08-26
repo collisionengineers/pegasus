@@ -45,3 +45,13 @@ The post-implementation report now names the remediation and remains honest that
 ## Verdict
 
 **PASS ON IMPLEMENTATION; CONDITIONALLY FIT TO MERGE.** Commit `4e1cc7c4` resolves all four blocking review findings. It is fit to merge only after the current PR run completes successfully, including all SQL integration shards/coverage (which supplies the repository integration rerun still missing locally), browser, unit, infrastructure, and other required checks. No merge was performed during this re-review.
+
+# Merge gate update — 2026-08-26
+
+The reviewed head remained `4e1cc7c4e62ca700fd8f9e3b0518577979302cf7`, but required CI did not become green. Browser failed 3/49:
+
+- `UploadRowsBrowserTests.SubmittingShowsEveryRowUploadingTogetherThenNavigatesOnSuccess` — navigation timeout after submit.
+- `UploadCaseSearchBrowserTests.CaseSearchComboboxIsKeyboardOperableAndCompletesTheAttachDecision` — timeout navigating to Upload/Status.
+- `QdosAllocationRecoveryBrowserTests.FailedAllocationShowsSafeRecoveryWithoutRawIdentifiers` — retry action timeout.
+
+All three failures occur on Web mutation paths now awaiting immediate publication, so they cannot be dismissed as unrelated without evidence. SQL integration shards were still running when the browser failure became final. Per the repository merge gate, PR #553 was not merged.
