@@ -54,3 +54,7 @@ The first independent review blocked the PR. The branch now:
 - adds focused route tests for manual receipt, acceptance, replacement, vehicle request, image registration, image merge, failed release, and a deployment-plan assertion for Web's two queue-scoped Message Sender assignments.
 
 Validation after remediation: Core tests passed **999**; Architecture tests passed **100**; the local Bicep deployment-plan validation passed. The integration subset remains deliberately pending, not passed.
+
+## Browser-CI remediation — 2026-08-26
+
+Browser CI proved that DevelopmentOffline TestServer hosts have no Azurite service: Web mutations waited on local queue transport and timed out. `dfda320d` replaces only the test-host publisher registrations with the existing in-memory publisher double. Production Web/Worker still require and compose their real queue publishers; Core route tests remain the proof of exact post-commit publication. The affected integration project builds successfully. The earlier CI run is invalid for merge and a fresh run is required.

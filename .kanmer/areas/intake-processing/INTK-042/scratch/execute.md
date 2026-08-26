@@ -3,3 +3,5 @@
 Opened PR #553 for commit `c0508d3f`: https://github.com/collisionengineers/pegasus/pull/553. Handing off for independent review; integration validation remains explicitly pending because the local selected suite stalled while another worktree held test hosts.
 
 Independent review blocked the first revision. Corrected all four findings in `4e1cc7c4` and pushed it to PR #553: mandatory publisher ports, release-failure lease-expiry fallback, bounded correlated publication activities, and route/RBAC proof. Validation: Core 999 passed; Architecture 100 passed; Bicep local plan passed. Requested re-review; selected SQL integration suite remains pending.
+
+Browser CI failed three Web mutation tests because DevelopmentOffline TestServer has no Azurite but now synchronously attempts immediate queue publication. Fixed test-only composition in `dfda320d` by replacing publishers with the existing in-memory double; integration project build passed. Pushed and awaiting fresh CI/re-review.
