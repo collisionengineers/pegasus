@@ -1,0 +1,1 @@
+Research found 76 cshtml files, 52 with @page and 24 partials. Several @page endpoints return files or redirects rather than HTML. Existing approved inbox previews prove double-clickable HTML under docs/design/references/mockups; docs/design/system already maps real markup/classes and copies site.css.

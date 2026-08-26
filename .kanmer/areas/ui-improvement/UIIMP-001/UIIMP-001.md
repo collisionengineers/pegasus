@@ -13,11 +13,10 @@ labels:
   - design
   - local-development
 links: []
-blocks:
-  - UIIMP-002
+blocks: []
 archived: false
 created: '2026-08-26T12:09:14.790Z'
-updated: '2026-08-26T12:10:20.425Z'
+updated: '2026-08-26T12:11:24.860Z'
 ---
 
 ## What

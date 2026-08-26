@@ -1,0 +1,1 @@
+Research found existing razor-pages-ui-design and razor-pages-ui-implementation skills already cover design-to-Razor work, including forms, antiforgery, validation, accessibility and shared-mechanism selection. A new conversion skill is not currently justified. Exact Razor files cannot be selected until a prototype is approved.

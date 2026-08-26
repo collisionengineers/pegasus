@@ -1,0 +1,1 @@
+Research verified scripts/Invoke-LocalDevelopment.ps1 is the single supported lifecycle launcher. Its Start action currently always requires initialized exact-source artifacts and creates SQL/Azurite/Web/Worker resources. Test UI must branch before Get-Initialization/Start-LocalRun and must not create a run manifest or lifecycle resources.
