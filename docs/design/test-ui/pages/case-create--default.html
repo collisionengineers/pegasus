@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -87,11 +87,11 @@
         <span>File read — confirm the extracted values below.</span>
     </p>
     <form method="post" action="case-create--default.html">
-        <input type="hidden" data-val="true" data-val-required="The ReceiptId field is required." id="ReceiptId" name="ReceiptId" value="13683e30-1b48-465d-b1ef-4e3e194b5f2c" />
-        <input type="hidden" id="OperationId" name="OperationId" value="7ab81a6fd21947daaa88ad3f8184eee9" />
+        <input type="hidden" data-val="true" data-val-required="The ReceiptId field is required." id="ReceiptId" name="ReceiptId" value="test-ui-guid-1" />
+        <input type="hidden" id="OperationId" name="OperationId" value="01634188c24640d5b7604d276029be33" />
         <input type="hidden" data-val="true" data-val-required="The ExpectedReceiptVersion field is required." id="ExpectedReceiptVersion" name="ExpectedReceiptVersion" value="0" />
         <input type="hidden" id="AddressSuggestionFingerprint" name="AddressSuggestionFingerprint" value="" />
-        <div class="validation-summary validation-summary-errors" data-valmsg-summary="true"><ul><li>This item changed while you were working. Reload and try again.</li>
+        <div class="validation-summary validation-summary-errors" data-valmsg-summary="true"><ul><li>Audits are created automatically from the retained Audit instruction and original report.</li>
 </ul></div>
 
         <section class="panel section-gap" aria-labelledby="details-title">
@@ -216,7 +216,7 @@
                 <div>
                     <label for="CaseType">Case type</label>
                     <select data-case-type-selector data-val="true" data-val-required="The CaseType field is required." id="CaseType" name="CaseType">
-                        <option value="Inspection" selected="selected">Inspection</option>
+                        <option value="Inspection">Inspection</option>
                         <option value="InspectionAndAudit">Inspection and Audit</option>
                     </select>
                     <span class="field-validation field-validation-valid" data-valmsg-for="CaseType" data-valmsg-replace="true"></span>

@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -103,7 +103,7 @@
                         <td>The retry policy was exhausted.</td>
                         <td>
                             <form method="post" action="operations--default.html">
-                                <input type="hidden" name="workItemId" value="a8dc9ef6-f4e2-4200-b93f-86588f59874f" />
+                                <input type="hidden" name="workItemId" value="test-ui-guid-2" />
                                 <input type="hidden" name="expectedAttemptCount" value="5" />
                                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
                                 <button class="btn btn--dark" type="submit">Retry this work</button>
@@ -135,12 +135,12 @@
                                     <summary class="btn">Withdraw link</summary>
                                     <form method="post" class="row-confirm" action="operations--default.html">
                                         <input type="hidden" name="requestId" value="{{requestid}}" />
-                                        <input type="hidden" name="caseId" value="61ebfb31-e132-4ad5-bdc8-6a14126e649a" />
+                                        <input type="hidden" name="caseId" value="test-ui-guid-1" />
                                         <input type="hidden" name="expectedVersion" value="4" />
                                         <input type="hidden" name="expectedCaseVersion" value="10" />
                                         <input type="hidden" name="operationKey" value="{{operationkey}}" />
-                                        <label for="withdraw-reason-f8a8126c-f2a1-4d34-8bfb-27467fe65738">Reason</label>
-                                        <input id="withdraw-reason-f8a8126c-f2a1-4d34-8bfb-27467fe65738" name="reason" maxlength="500" required />
+                                        <label for="withdraw-reason-test-ui-guid-3">Reason</label>
+                                        <input id="withdraw-reason-test-ui-guid-3" name="reason" maxlength="500" required />
                                         <button class="btn btn--dark" type="submit">Withdraw link</button>
                                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
                                 </details>

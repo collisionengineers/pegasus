@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Access denied · Pegasus</title>
+    <title>Upload received · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -27,20 +27,109 @@
   <symbol id="icon-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
 </svg>
 
-    <div class="auth-shell">
-        <main id="main-content" tabindex="-1">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-rail-shell">
+        <header class="app-rail">
+            <a class="app-rail__brand" aria-label="Pegasus dashboard" href="dashboard--default.html">
+                <span>
+                    <img class="mark" src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                </span>
+                <b>Pegasus</b>
+            </a>
+            <nav class="app-rail__nav" aria-label="Primary">
+                <a class="rail-link" href="dashboard--default.html">
+                    <span>Dashboard</span>
+                </a>
+                    <a class="rail-link" href="inbox--default.html">
+                        <span>Inbox</span>
+                    </a>
+                    <a class="rail-link" href="upload--default.html">
+                        <span>Upload</span>
+                    </a>
+                <a class="rail-link" href="queues--default.html">
+                    <span>Queues</span>
+                        <span class="rail-link__count rail-link__count--waiting">1</span>
+                </a>
+                <a class="rail-link" href="cases--default.html">
+                    <span>Cases</span>
+                </a>
+                    <a class="rail-link" href="operations--default.html">
+                        <span>Operations</span>
+                    </a>
+                    <a class="rail-link" href="administration--default.html">
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="app-rail__user" role="group" aria-label="User">
+                    <span class="app-rail__name">development-offline-administrator</span>
+                    <a class="app-rail__action" href="password-change--default.html">Change password</a>
+                    <form method="post" action="#">
+                        <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </div>
+        </header>
+        <main id="main-content" class="app-rail-main" tabindex="-1">
 
-<div class="auth-card ">
-    <p class="auth-card__mark">COLLISION ENGINEERS</p>
-    <h1>Access denied</h1>
-    <p>Your account does not have access to this page.</p>
-        <div class="auth-card__actions">
-            <a class="secondary-action" href="dashboard--default.html">Return to Dashboard</a>
+<header class="page-heading">
+    <h1>Upload received</h1>
+</header>
+
+
+<div class="form-column">
+    <section class="panel"
+             aria-labelledby="group-status-title"
+             data-auto-refresh="">
+        <h2 id="group-status-title" class="section-label">Files in this submission</h2>
+        <ol class="upload-outcome-list">
+                <li>
+                        <a class="upload-thumb" href="#" target="_blank">
+                            <img src="#"
+                                 loading="lazy"
+                                 alt="overview.png" />
+                        </a>
+                        <p class="upload-outcome__file">overview.png</p>
+                        <div class="upload-outcome">
+        <span class="status-chip status-chip--green">
+    <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+    <span>Success</span>
+</span>
+
+    <p class="upload-outcome__message">This was added to case QDOS31001.</p>
+        <div class="button-row">
+                <a class="primary-action" href="#">Open case</a>
+                <a class="secondary-action" href="received-details--default.html">Not the right case?</a>
         </div>
+</div>
+
+                </li>
+                <li>
+                        <a class="upload-thumb" href="#" target="_blank">
+                            <img src="#"
+                                 loading="lazy"
+                                 alt="close-up.png" />
+                        </a>
+                        <p class="upload-outcome__file">close-up.png</p>
+                        <div class="upload-outcome">
+        <span class="status-chip status-chip--green">
+    <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+    <span>Success</span>
+</span>
+
+    <p class="upload-outcome__message">This was added to case QDOS31001.</p>
+        <div class="button-row">
+                <a class="primary-action" href="#">Open case</a>
+                <a class="secondary-action" href="received-details--default.html">Not the right case?</a>
+        </div>
+</div>
+
+                </li>
+        </ol>
+    </section>
 </div>
 
         </main>
     </div>
+
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
 
 </body>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Access denied · Pegasus</title>
+    <title>Outlook categories · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -27,20 +27,87 @@
   <symbol id="icon-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
 </svg>
 
-    <div class="auth-shell">
-        <main id="main-content" tabindex="-1">
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-rail-shell">
+        <header class="app-rail">
+            <a class="app-rail__brand" aria-label="Pegasus dashboard" href="dashboard--default.html">
+                <span>
+                    <img class="mark" src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                </span>
+                <b>Pegasus</b>
+            </a>
+            <nav class="app-rail__nav" aria-label="Primary">
+                <a class="rail-link" href="dashboard--default.html">
+                    <span>Dashboard</span>
+                </a>
+                    <a class="rail-link" href="inbox--default.html">
+                        <span>Inbox</span>
+                    </a>
+                    <a class="rail-link" href="upload--default.html">
+                        <span>Upload</span>
+                    </a>
+                <a class="rail-link" href="queues--default.html">
+                    <span>Queues</span>
+                        <span class="rail-link__count rail-link__count--waiting">0</span>
+                </a>
+                <a class="rail-link" href="cases--default.html">
+                    <span>Cases</span>
+                </a>
+                    <a class="rail-link" href="operations--default.html">
+                        <span>Operations</span>
+                    </a>
+                    <a class="rail-link" aria-current="page" href="administration--default.html">
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="app-rail__user" role="group" aria-label="User">
+                    <span class="app-rail__name">development-offline-administrator</span>
+                    <a class="app-rail__action" href="password-change--default.html">Change password</a>
+                    <form method="post" action="#">
+                        <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </div>
+        </header>
+        <main id="main-content" class="app-rail-main" tabindex="-1">
 
-<div class="auth-card ">
-    <p class="auth-card__mark">COLLISION ENGINEERS</p>
-    <h1>Access denied</h1>
-    <p>Your account does not have access to this page.</p>
-        <div class="auth-card__actions">
-            <a class="secondary-action" href="dashboard--default.html">Return to Dashboard</a>
-        </div>
+<a class="back-link" href="administration--default.html"><svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>Back to Administration</a>
+<div class="page-heading">
+    <div>
+            <p class="eyebrow">Administration</p>
+        <h1>Outlook categories</h1>
+    </div>
 </div>
+
+ <div class="status-card" role="status">The Outlook category policy for Awaiting engineer was saved.</div> <div class="validation-summary-valid" data-valmsg-summary="true"><ul><li style="display:none"></li>
+</ul></div>
+
+<section aria-labelledby="current-categories"><h2 id="current-categories" class="section-label">Current categories</h2>
+    <div class="panel form-panel">
+      <form method="post" action="administration-mail-categories--default.html">
+        <input type="hidden" name="CategoryId" value="test-ui-guid-1" />
+        <input type="hidden" name="ExpectedVersion" value="1" />
+        <input type="hidden" name="OperationKey" value="{{operationkey}}" />
+        <label>Display name <input name="DisplayName" value="Awaiting engineer" required maxlength="255" /></label>
+        <label>State <select name="SelectedState"><option value="Active" selected="selected">Active</option><option value="Disabled">Disabled</option></select></label>
+        <label>Reason <input name="Reason" required maxlength="1000" /></label>
+        <button type="submit" class="primary-action">Save category policy</button>
+      <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+    </div>
+</section>
+
+<section class="section-gap" aria-labelledby="add-category"><h2 id="add-category" class="section-label">Add an approved category</h2>
+  <div class="panel form-panel"><form method="post" action="administration-mail-categories--default.html">
+    <input type="hidden" name="CategoryId" value="test-ui-guid-2" /><input type="hidden" name="ExpectedVersion" value="0" /><input type="hidden" name="OperationKey" value="{{operationkey}}" />
+    <label>Display name <input name="DisplayName" value="" required maxlength="255" /></label>
+    <label>State <select name="SelectedState"><option value="Active">Active</option><option value="Disabled">Disabled</option></select></label>
+    <label>Reason <input name="Reason" value="" required maxlength="1000" /></label>
+    <button type="submit" class="primary-action">Add category policy</button>
+  <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form></div>
+</section>
 
         </main>
     </div>
+
     <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
 
 </body>

@@ -128,7 +128,7 @@ foreach ($htmlFile in $htmlFiles) {
         [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
     foreach ($reference in $references) {
         $target = $reference.Groups['target'].Value
-        if ($target -match '^(?:/|#|https?:|mailto:|data:|javascript:)') {
+        if ($target -match '^(?:#|https?:|mailto:|data:|javascript:)') {
             continue
         }
         $targetWithoutFragment = ($target -split '[?#]', 2)[0]

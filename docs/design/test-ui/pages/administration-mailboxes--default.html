@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -128,8 +128,8 @@
 
     <section class="section-gap" aria-labelledby="update-policies-heading">
         <h2 id="update-policies-heading" class="section-label">Update policies</h2>
-            <div class="panel form-panel" aria-labelledby="mailbox-update-heading-2ad1b462-80b7-4c9b-b50a-3c8b95bd059b">
-                <h3 id="mailbox-update-heading-2ad1b462-80b7-4c9b-b50a-3c8b95bd059b">estate@collisionengineers.co.uk</h3>
+            <div class="panel form-panel" aria-labelledby="mailbox-update-heading-test-ui-guid-1">
+                <h3 id="mailbox-update-heading-test-ui-guid-1">estate@collisionengineers.co.uk</h3>
                 <details>
                     <summary>Logical folders (1 of 13 configured)</summary>
                     <ul>
@@ -149,7 +149,7 @@
                     </ul>
                 </details>
                 <form method="post" class="role-form" action="administration-mailboxes--default.html">
-                    <input type="hidden" name="MailboxId" value="2ad1b462-80b7-4c9b-b50a-3c8b95bd059b" />
+                    <input type="hidden" name="MailboxId" value="test-ui-guid-1" />
                     <input type="hidden" name="ExpectedVersion" value="2" />
                     <input type="hidden" name="OperationKey" value="{{operationkey}}" />
                     <label>
@@ -183,7 +183,7 @@
                     </div>
                 <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
                     <form method="post" class="role-form" action="administration-mailboxes--default.html">
-                        <input type="hidden" name="MailboxId" value="2ad1b462-80b7-4c9b-b50a-3c8b95bd059b" />
+                        <input type="hidden" name="MailboxId" value="test-ui-guid-1" />
                         <input type="hidden" name="ExpectedVersion" value="2" />
                         <input type="hidden" name="OperationKey" value="{{operationkey}}" />
                         <input type="hidden" name="Address" value="estate@collisionengineers.co.uk" />
@@ -192,8 +192,8 @@
                         <button type="submit" class="secondary-action">Resolve logical folders</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
-            <div class="panel form-panel" aria-labelledby="mailbox-update-heading-49f47eb9-c5b0-464f-b8f0-8c90ba061728">
-                <h3 id="mailbox-update-heading-49f47eb9-c5b0-464f-b8f0-8c90ba061728">instructions@collisionengineers.co.uk</h3>
+            <div class="panel form-panel" aria-labelledby="mailbox-update-heading-test-ui-guid-2">
+                <h3 id="mailbox-update-heading-test-ui-guid-2">instructions@collisionengineers.co.uk</h3>
                 <details>
                     <summary>Logical folders (0 of 13 configured)</summary>
                     <ul>
@@ -213,7 +213,7 @@
                     </ul>
                 </details>
                 <form method="post" class="role-form" action="administration-mailboxes--default.html">
-                    <input type="hidden" name="MailboxId" value="49f47eb9-c5b0-464f-b8f0-8c90ba061728" />
+                    <input type="hidden" name="MailboxId" value="test-ui-guid-2" />
                     <input type="hidden" name="ExpectedVersion" value="1" />
                     <input type="hidden" name="OperationKey" value="{{operationkey}}" />
                     <label>
@@ -253,7 +253,7 @@
     <h2 id="add-approved-mailbox-heading" class="section-label">Add an approved address</h2>
     <div class="panel form-panel">
         <form method="post" action="administration-mailboxes--default.html">
-            <input type="hidden" name="MailboxId" value="0ad61dd0-d98a-4870-80c9-64580f4bc5cf" />
+            <input type="hidden" name="MailboxId" value="test-ui-guid-3" />
             <input type="hidden" name="ExpectedVersion" value="0" />
             <input type="hidden" name="OperationKey" value="{{operationkey}}" />
             <label>

@@ -63,7 +63,7 @@
             <div class="app-rail__user" role="group" aria-label="User">
                     <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
-                    <form method="post" action="/Account/SignOut">
+                    <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
                     <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             </div>
@@ -97,13 +97,13 @@
 
     <div class="record__bar">
                 <form method="post" class="record__bar-form" action="case-details--default.html">
-                    <input type="hidden" name="id" value="0b20f6c7-4b78-4341-8213-591d74306c38" />
+                    <input type="hidden" name="id" value="test-ui-guid-1" />
                     <input type="hidden" name="expectedVersion" value="7" />
                     <input type="hidden" name="operationKey" value="{{operationkey}}" />
                     <button type="submit" class="btn">Edit case</button>
                 <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
         <span class="gated" data-condition="Available in Review">
-            <form method="post" class="record__bar-form" action="/Cases/0b20f6c7-4b78-4341-8213-591d74306c38/Documents/Export?handler=Bundle">
+            <form method="post" class="record__bar-form" action="#">
                 <input type="hidden" name="operationKey" value="{{operationkey}}" />
                 <button type="submit" class="btn" disabled="disabled">
                     <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
@@ -351,6 +351,23 @@
             <div id="case-actions"></div>
 
 
+    <section class="panel form-panel" aria-labelledby="case-proposed-values-title">
+        <h2 id="case-proposed-values-title" class="section-label">Your change was not applied</h2>
+        <p>Nothing here can be applied; enter edit mode again and re-enter the values you still want.</p>
+            <p class="notice">Some values were too long to keep in full and are shown shortened; re-enter those in full.</p>
+        <div class="table-wrap">
+            <table>
+                <thead><tr><th>Field</th><th>You proposed</th><th>The case now holds</th></tr></thead>
+                <tbody>
+                        <tr>
+                            <th>Accident circumstances</th>
+                            <td>cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc</td>
+                            <td>Rear impact</td>
+                        </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
 
 
 
