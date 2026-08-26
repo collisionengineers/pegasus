@@ -64,6 +64,145 @@ public sealed class GraphMailWebhookTests
         Assert.Equal((mailboxId, subscriptionId, MailboxWakeKind.Created), Assert.Single(enqueuer.Messages));
     }
 
+    [Theory]
+    [InlineData("missed", MailboxWakeKind.Missed)]
+    [InlineData("subscriptionRemoved", MailboxWakeKind.SubscriptionRemoved)]
+    [InlineData("reauthorizationRequired", MailboxWakeKind.ReauthorizationRequired)]
+    public async Task SupportedLifecycleNotificationQueuesTheTargetedMailboxWake(
+        string lifecycleEvent,
+        MailboxWakeKind expectedKind)
+    {
+        var mailboxId = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var enqueuer = new RecordingEnqueuer();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = Configure(baseFactory, mailboxId, subscriptionId, enqueuer);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/hooks/microsoft-graph/mail", Notification(
+            subscriptionId,
+            lifecycleEvent: lifecycleEvent));
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Equal((mailboxId, subscriptionId, expectedKind), Assert.Single(enqueuer.Messages));
+    }
+
+    [Theory]
+    [InlineData("wrong-secret", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/mailbox-id/messages/message-id", "created", null)]
+    [InlineData("integration-client-state", "wrong-tenant", "users/mailbox-id/messages/message-id", "created", null)]
+    [InlineData("integration-client-state", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/other/messages/message-id", "created", null)]
+    [InlineData("integration-client-state", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/mailbox-id/messages/message-id", "updated", null)]
+    [InlineData("integration-client-state", "858cf5b3-aa0a-47a6-9b40-4851fd0afa94", "users/mailbox-id/messages/message-id", null, "unknown")]
+    public async Task InvalidNotificationIsAcknowledgedWithoutQueueingOrDisclosure(
+        string clientState,
+        string tenantId,
+        string resource,
+        string? changeType,
+        string? lifecycleEvent)
+    {
+        var subscriptionId = Guid.NewGuid();
+        var enqueuer = new RecordingEnqueuer();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = Configure(baseFactory, Guid.NewGuid(), subscriptionId, enqueuer);
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/hooks/microsoft-graph/mail", Notification(
+            subscriptionId, clientState, tenantId, resource, changeType, lifecycleEvent));
+
+        Assert.Equal(HttpStatusCode.Accepted, response.StatusCode);
+        Assert.Empty(enqueuer.Messages);
+        Assert.DoesNotContain("integration-client-state", await response.Content.ReadAsStringAsync(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UnknownSubscriptionAndMalformedOrOversizedBatchesQueueNothing()
+    {
+        var knownSubscriptionId = Guid.NewGuid();
+        var enqueuer = new RecordingEnqueuer();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = Configure(baseFactory, Guid.NewGuid(), knownSubscriptionId, enqueuer);
+        using var client = factory.CreateClient();
+
+        using var unknown = await client.PostAsJsonAsync(
+            "/hooks/microsoft-graph/mail", Notification(Guid.NewGuid()));
+        using var malformed = await client.PostAsync(
+            "/hooks/microsoft-graph/mail", new StringContent("{", System.Text.Encoding.UTF8, "application/json"));
+        using var oversized = await client.PostAsJsonAsync("/hooks/microsoft-graph/mail", new
+        {
+            value = Enumerable.Range(0, 101).Select(_ => NotificationValue(knownSubscriptionId)).ToArray()
+        });
+
+        Assert.Equal(HttpStatusCode.Accepted, unknown.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, malformed.StatusCode);
+        Assert.Equal(HttpStatusCode.Accepted, oversized.StatusCode);
+        Assert.Empty(enqueuer.Messages);
+    }
+
+    [Fact]
+    public async Task ValidNotificationQueueFailureReturnsRetryableServerError()
+    {
+        var subscriptionId = Guid.NewGuid();
+        using var baseFactory = new IntakeWebApplicationFactory();
+        using var factory = Configure(
+            baseFactory,
+            Guid.NewGuid(),
+            subscriptionId,
+            new ThrowingEnqueuer());
+        using var client = factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync(
+            "/hooks/microsoft-graph/mail", Notification(subscriptionId));
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    private static WebApplicationFactory<Program> Configure(
+        IntakeWebApplicationFactory baseFactory,
+        Guid mailboxId,
+        Guid subscriptionId,
+        IMailboxWakeEnqueuer enqueuer)
+    {
+        const string resource = "users/mailbox-id/mailFolders/inbox-id/messages";
+        return baseFactory.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
+        {
+            services.RemoveAll<IApprovedMailboxSubscriptionStore>();
+            services.AddSingleton<IApprovedMailboxSubscriptionStore>(new SubscriptionStore(
+                new(mailboxId, subscriptionId.ToString("D"), resource,
+                    DateTimeOffset.UtcNow.AddDays(1),
+                    ApprovedMailboxSubscriptionLifecycleState.Active, null, null)));
+            services.RemoveAll<IMailboxWakeEnqueuer>();
+            services.AddSingleton(enqueuer);
+        }));
+    }
+
+    private static object Notification(
+        Guid subscriptionId,
+        string clientState = "integration-client-state",
+        string tenantId = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+        string resource = "users/mailbox-id/messages/message-id",
+        string? changeType = "created",
+        string? lifecycleEvent = null) => new
+        {
+            value = new[] { NotificationValue(subscriptionId, clientState, tenantId, resource, changeType, lifecycleEvent) }
+        };
+
+    private static object NotificationValue(
+        Guid subscriptionId,
+        string clientState = "integration-client-state",
+        string tenantId = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+        string resource = "users/mailbox-id/messages/message-id",
+        string? changeType = "created",
+        string? lifecycleEvent = null) => new
+        {
+            subscriptionId,
+            clientState,
+            tenantId,
+            resource,
+            changeType,
+            lifecycleEvent
+        };
+
     private sealed class RecordingEnqueuer : IMailboxWakeEnqueuer
     {
         public List<(Guid MailboxId, Guid SubscriptionId, MailboxWakeKind Kind)> Messages { get; } = [];
@@ -74,6 +213,13 @@ public sealed class GraphMailWebhookTests
             Messages.Add((approvedMailboxId, subscriptionId, wakeKind));
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class ThrowingEnqueuer : IMailboxWakeEnqueuer
+    {
+        public Task EnqueueAsync(Guid approvedMailboxId, Guid subscriptionId,
+            MailboxWakeKind wakeKind, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("Queue unavailable.");
     }
 
     private sealed class SubscriptionStore(ApprovedMailboxSubscription subscription)
