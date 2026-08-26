@@ -117,6 +117,15 @@ $htmlFiles = @((Get-Item -LiteralPath $indexPath)) +
     @(Get-ChildItem -LiteralPath $pagesRoot -Filter '*.html' -File)
 foreach ($htmlFile in $htmlFiles) {
     $html = Get-Content -LiteralPath $htmlFile.FullName -Raw
+    $relativeFile = $htmlFile.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
+    foreach ($image in [regex]::Matches(
+            $html,
+            '<img\b[^>]*>',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        if ($image.Value -notmatch '(?i)\bsrc\s*=\s*["'']\s*[^\s"''][^"'']*["'']') {
+            $errors.Add("Image has no non-empty source in $($relativeFile): $($image.Value)")
+        }
+    }
     $references = [regex]::Matches(
         $html,
         '(?:href|src)="(?<target>[^"]+)"',
@@ -130,7 +139,6 @@ foreach ($htmlFile in $htmlFiles) {
         $resolved = [System.IO.Path]::GetFullPath(
             (Join-Path $htmlFile.DirectoryName $targetWithoutFragment))
         if (-not (Test-Path -LiteralPath $resolved)) {
-            $relativeFile = $htmlFile.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
             $errors.Add("Broken local reference in $($relativeFile): $target")
         }
     }
