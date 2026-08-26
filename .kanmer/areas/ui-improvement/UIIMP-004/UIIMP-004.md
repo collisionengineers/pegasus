@@ -23,12 +23,13 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
   - fe1d35cb
+  - 35292cff
 prs:
   - '#562'
 deployment: n/a
 archived: false
 created: '2026-08-26T14:16:09.318Z'
-updated: '2026-08-26T15:32:42.141Z'
+updated: '2026-08-26T15:37:19.348Z'
 ---
 
 ## What

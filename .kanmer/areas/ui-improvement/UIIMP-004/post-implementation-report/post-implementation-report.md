@@ -18,3 +18,14 @@ No Live Razor behavior, runtime composition, database schema, cloud resource or 
 - `dotnet build Pegasus.slnx --configuration Release --no-restore`: pass, 0 warnings, 0 errors.
 - `scripts/Test-UiModes.ps1`: pass.
 - `git diff --check`: pass.
+
+## Independent-review corrections — 2026-08-26
+
+The first review blocked merge and identified unsafe default fallback selection, missing browser parity, live root-relative URLs, and incomplete GUID normalization. Commit `35292cff` fixes all four:
+
+- explicit current-render markers prevent Access Denied responses from satisfying four default states;
+- all opaque GUIDs normalize consistently within each page;
+- unmatched root-relative action/download/image/search URLs become inert local targets rather than broken live paths;
+- Chromium now compares post-JavaScript DOM and full-page screenshots for every generated state at 1440 x 1000.
+
+The corrected 57-state browser parity pass, catalogue validation and diff check pass.
