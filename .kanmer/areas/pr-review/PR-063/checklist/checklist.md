@@ -21,3 +21,7 @@
 - 2026-08-26: Removed 45 reported EOF whitespace errors. Catalogue, documentation, PowerShell, Markdown placement, locked restore/Release build and diff checks pass.
 - 2026-08-26: Inspected authenticated dashboard at 200%, sign-in under forced colours and external upload at 1280×900. All authenticated default shells have skip links and focusable main targets.
 - 2026-08-26: Independent simplification pass recommended no behavior-preserving structural changes. Its two correctness findings—generic branch claims and overstated validator wording—were applied.
+
+## PR-064 evidence correction — 2026-08-26
+
+This supersedes PR-063’s earlier statement that its first rerun had corrected all 39 defaults. Review found two remaining contradictions: organization-edit’s inventory claimed no principals/roles despite its populated Work Provider markup, and vehicle-image detail claimed registered images while rendering an image with no source. [[PR-064]] corrected both, rechecked all 39 defaults against the PR-063 mapping/current Razor owners, and found no additional contradiction. The validator now also rejects absent, empty, and whitespace-only image sources.

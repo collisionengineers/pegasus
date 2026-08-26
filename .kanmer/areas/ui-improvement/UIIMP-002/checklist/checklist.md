@@ -28,3 +28,7 @@ This section supersedes the earlier broad fidelity and browser claims above.
 - `./scripts/Test-UiCatalogue.ps1` passes with 52 routed sources, 60 prototypes and zero broken local references. This proves structure, not semantic fidelity; the ticket research records the manual source comparison.
 - Representative browser evidence—not an all-61 capture claim—covers the authenticated dashboard at 200% scale, the sign-in shell in forced-colour mode, and the external upload shell at 1280×900. Static checks confirm every authenticated default shell has a skip link and focusable main target.
 - Locked restore and Release build pass with zero warnings/errors; PowerShell parse, documentation links and Markdown placement pass.
+
+## PR-064 evidence correction — 2026-08-26
+
+This supersedes the PR-063 statement that its first rerun had corrected every default. [[PR-064]] found and corrected two remaining contradictions: organization-edit’s branch claim now matches its populated Work Provider/principal markup, and vehicle-image detail now selects the valid no-images branch. The existing validator now rejects absent, empty, and whitespace-only image sources. A renewed 39-default source/markup recheck found no additional contradiction; positive validation remains 52 routed sources / 60 prototypes / 0 broken local references.

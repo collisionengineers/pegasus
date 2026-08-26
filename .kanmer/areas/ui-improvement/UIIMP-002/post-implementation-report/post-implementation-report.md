@@ -44,3 +44,7 @@ Review found that route/link coverage did not prove the original default-page fi
 - removed the 45 reported EOF whitespace errors.
 
 Corrected evidence: catalogue validation passes at 52 routed sources / 60 prototypes / 0 broken references; all 39 defaults and all 60 states carry branch claims; `git diff --check task/uiimp-002-test-ui...HEAD` exits zero; locked restore and Release build pass with zero warnings/errors; documentation and PowerShell checks pass. Browser evidence is representative—authenticated dashboard at 200%, forced-colour sign-in, and external upload at 1280×900—not a claim that every file was captured. Semantic fidelity remains a manual source-review responsibility.
+
+## Correction from [[PR-064]] — 2026-08-26
+
+PR-063’s first fidelity rerun left two contradictory defaults. [[PR-064]] corrects the organization-edit inventory claim, selects a truthful no-images vehicle-detail branch, and strengthens the existing validator so absent, empty, or whitespace-only image sources cannot pass unnoticed. Its renewed check covers all 39 default mappings and found no further contradiction. The positive validator result remains 52 routed sources / 60 prototypes / 0 broken local references, and focused negative fixtures prove all three unusable-source forms fail. Deployment remains `n/a`.

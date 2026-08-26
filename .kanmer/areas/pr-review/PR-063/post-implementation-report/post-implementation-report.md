@@ -40,3 +40,7 @@ Semantic fidelity is still a source-review judgment; the validator only enforces
 ## Verification hand-off
 
 After this stacked PR is merged into UIIMP-002, rerun the catalogue validator, branch-claim audit, documentation checks, locked build and diff check on that parent branch. Deployment remains `n/a`.
+
+## Correction from [[PR-064]] — 2026-08-26
+
+The original PR-063 completion claim was still too broad: two semantic contradictions remained after its first 39-default pass. [[PR-064]] makes organization-edit’s branch claim match its populated Work Provider/principal markup, changes vehicle-image detail to the valid no-images branch, and makes the existing validator reject absent, empty, and whitespace-only image sources. The corrected rerun covers all 39 defaults with no further contradiction found. Positive catalogue validation remains 52 routed sources / 60 prototypes / 0 broken local references; focused negative fixtures for all three unusable-source forms fail as required.

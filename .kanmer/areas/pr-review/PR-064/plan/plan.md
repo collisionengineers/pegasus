@@ -30,3 +30,11 @@ Review receives the corrected inventory/page diff, validator success, distinct m
 - The no-images branch must remain coherent: remove the whole conditional Images section, not only the broken element.
 - Absolute upstream claims can drift: amend them only after the 39-default rerun.
 - Stacked topology can move: branch from and diff against the recorded exact head; target only PR-063’s branch.
+
+## Simplification pass — 2026-08-26
+
+- Reuse: kept the existing canonical inventory, standalone page, validator scan, real stylesheet/assets, and Razor-owned state vocabulary. No new fixture, parser, helper, parameter, or test project remains in the diff.
+- Simplification: selected the existing no-images Razor branch instead of introducing unrelated evidence; the validator adds one local rule inside its existing HTML loop.
+- Efficiency: one pass finds each `img` start tag while the existing reference pass continues to resolve usable paths. The catalogue is small and a DOM dependency would be disproportionate.
+- Altitude: the index owns the claimed state, the page owns static rendered evidence, and the validator owns structural failures. No business or runtime behavior moved layers.
+- Disposition: no behavior-preserving simplification finding remained. Retaining explicit absent/empty/whitespace rejection is required correctness, and retaining the separate reference-resolution loop preserves its distinct broken-path responsibility.
