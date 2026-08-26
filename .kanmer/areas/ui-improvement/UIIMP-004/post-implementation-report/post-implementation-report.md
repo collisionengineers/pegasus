@@ -65,3 +65,7 @@ Run 33005929015 showed direct query population alone still failed at the exact c
 ### Exact candidate URL evidence
 
 The custom-message run captured `/Inbox/...?...mailbox=<unrelated-guid>&pageNumber=2&section=case&caseQuery=MAIL31001&targetCaseId=...`. Commit `60d6ebea` changes only the candidate URL's mailbox source from the corrupted bound property to raw `Request.Query["mailbox"]`. The focused exact-anchor test passes locally; fresh GitHub proof and final review are pending.
+
+### Authentication overwrite correction
+
+The corrupt mailbox GUID is the integration administrator identity, proving post-handler overwrite rather than a malformed client URL. Commit `74371f98` captures the raw GET mailbox into a private non-bindable field before other work and uses it for the candidate URL, with the existing bound property retained for other/non-GET consumers. Focused regression passes; fresh CI and review are pending.

@@ -198,3 +198,31 @@ The immutable request query is consequently the authoritative source at both req
 ## Verdict
 
 No correctness, simplicity, scope, or plan-alignment blocker remains at `60d6ebea`. Merge remains conditional on the fresh GitHub SQL shard 1 and all required checks completing green.
+
+# Immutable mailbox snapshot review — commit 74371f98 — 2026-08-26
+
+## Finding
+
+**Blocking correctness issue:** `mailboxRouteValue ?? MailboxFilter` conflates two different states:
+
+1. no GET snapshot has been taken (a non-GET render, where the public-property fallback is intended); and
+2. a GET snapshot was taken and the canonical query intentionally normalized to `null` because `mailbox` was absent or whitespace.
+
+In state 2, the demonstrated post-handler corruption can set public `MailboxFilter` to the administrator GUID. The candidate builder will then fall through from the valid captured `null` and emit that corrupted GUID, recreating the defect for ordinary GETs without a mailbox filter.
+
+The private field lifecycle itself is correct: PageModels are request-scoped, capture occurs before awaits/rendering, and the field is not bindable. The exact-anchor test covers the non-null mailbox case but does not expose the null/fallback ambiguity.
+
+## Required correction
+
+Track whether the GET snapshot was initialized separately from its nullable value (for example, a private boolean set in `OnGetAsync`), then select:
+
+- captured nullable `mailboxRouteValue` whenever a GET snapshot was taken;
+- public `MailboxFilter` only when no GET snapshot exists and a non-GET path renders the page.
+
+Alternatively remove the fallback if no supported non-GET path can render the candidate list, but that claim must be verified rather than assumed.
+
+Add/adjust focused coverage for a candidate-search GET with no mailbox query to prove no unrelated mailbox is introduced.
+
+## Verdict
+
+**Needs changes.** The approach is necessary and simple, but the nullable coalescing fallback is not a correct discriminator. No other scope or design issue found.

@@ -54,3 +54,7 @@ The GitHub evidence matrix isolates two independent failures: renamed-property b
 ### Exact corrupted-value evidence
 
 The custom failure message captured the full GitHub candidate URL: `mailbox` was an unrelated GUID while `pageNumber=2`, `caseQuery=MAIL31001`, and the target case were correct. Therefore the bound `MailboxFilter` is corrupted rather than absent. The candidate URL must source its mailbox value from the immutable raw `Request.Query["mailbox"]`; the existing direct normalization remains for other PageModel consumers. The exact-anchor test keeps the full diagnostic on failure. Acceptance remains focused local pass, independent review, and fresh green shard 1.
+
+### Authentication-ID overwrite root cause
+
+The exact corrupt GUID is `DevelopmentOfflineIdentity.AdministratorId`, proving the public bindable mailbox value and render-time query view are overwritten after the handler begins. Capture the canonical raw mailbox at the start of `OnGetAsync` into a private non-bindable field, assign the public property for existing consumers, and have the candidate URL prefer that immutable field with the bound property only as the non-GET fallback. Acceptance remains exact-anchor focused pass, independent review, and fresh green shard 1.
