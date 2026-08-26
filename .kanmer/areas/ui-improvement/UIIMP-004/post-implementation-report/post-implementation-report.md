@@ -53,3 +53,7 @@ Independent review blocked the initial 10.0.302 setup pin because local passing 
 ### Confirmed mail-route fix
 
 The clean 10.0.303 GitHub run failed identically, disproving the SDK hypothesis; commit `f5d072c5` restores the original SDK/action settings. Commit `77d2a04a` narrows the assertion to the exact matching case anchor and exposed that its generated URL omitted `mailbox` on the GitHub/Linux runner. Commit `f840d48a` replaces only that anchor's individual Tag Helper route attributes with `QueryHelpers.AddQueryString` over the same PageModel values. The focused end-to-end test passes locally and fresh GitHub proof plus independent re-review are pending.
+
+### Final root cause
+
+Run 33004368148 proved the explicit `QueryHelpers` candidate URL still lacked `mailbox`, so commit `e46845c2` removes that workaround and restores the original Tag Helper. The failure is the renamed `MailboxFilter` GET property arriving null on the GitHub runner despite the raw `mailbox` query. `OnGetAsync` now reads that canonical query key directly and applies the existing trim/null normalization. The exact-anchor focused regression passes locally; fresh GitHub proof and final re-review are pending.

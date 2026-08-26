@@ -42,3 +42,7 @@ The operator explicitly asked to check and resolve the failing GitHub issue on P
 ### CI-resolution correction
 
 The SDK hypothesis was disproven by a clean GitHub run under 10.0.303 and all SDK/workflow changes were reverted. Narrowing the regression assertion to the exact matching case anchor then confirmed the GitHub/Linux rendering defect: that candidate URL omitted the active mailbox context. Under the operator-authorized request to resolve this PR's GitHub failure, replace only that candidate anchor's individual Tag Helper route attributes with the existing `QueryHelpers.AddQueryString` convention over the same eight route values, and assert the decoded URL of the exact `targetCaseId` anchor. Acceptance is the focused local test plus a fresh green GitHub run, including SQL shard 1; no other MailWorkspace behavior is in scope.
+
+### Final CI root cause correction
+
+A fresh run proved the explicit URL-builder workaround still omitted `mailbox`, so that workaround is removed and the original Tag Helper restored. The isolated candidate URL establishes that `MailboxFilter` is null during the GitHub GET even though `CaseQuery` binds and the raw request contains `mailbox=instructions`. The final fix reads the canonical `mailbox` value directly from `Request.Query` in `OnGetAsync`, applies the existing trim/null normalization, and leaves all other route generation unchanged. Acceptance remains the exact-anchor focused test and a fresh green SQL shard 1.
