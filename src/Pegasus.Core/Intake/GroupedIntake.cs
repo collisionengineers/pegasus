@@ -7,7 +7,8 @@ public sealed record IntakeSubmissionGroup(
     int ExpectedMemberCount,
     string Actor,
     DateTimeOffset ReceivedAtUtc,
-    IReadOnlyList<IntakeSubmissionGroupMember> Members)
+    IReadOnlyList<IntakeSubmissionGroupMember> Members,
+    Guid? ParentReceiptId = null)
 {
     /// <summary>
     /// Whether this submission declared more than one member. Every manual
@@ -36,7 +37,9 @@ public sealed record GroupedIntakeSubmissionRequest(
     string SubmissionToken,
     string Actor,
     DateTimeOffset ReceivedAtUtc,
-    IReadOnlyList<GroupedIntakeFile> Files);
+    IReadOnlyList<GroupedIntakeFile> Files,
+    IntakeSourceChannel Channel,
+    Guid? ParentReceiptId = null);
 
 public sealed record GroupedIntakeSubmissionResult(
     IntakeSubmissionGroup Group,
@@ -78,6 +81,7 @@ public interface IIntakeSubmissionGroupStore
         int expectedMemberCount,
         string actor,
         DateTimeOffset receivedAtUtc,
+        Guid? parentReceiptId,
         CancellationToken cancellationToken = default);
 
     Task<IntakeSubmissionGroupMember?> FindMemberAsync(
@@ -172,11 +176,12 @@ public sealed class SubmitGroupedIntake(
         var groupId = Guid.NewGuid();
         var group = await groupStore.GetOrCreateAsync(
             groupId,
-            IntakeSourceChannel.ManualUpload,
+            request.Channel,
             request.SubmissionToken,
             files.Length,
             request.Actor,
             request.ReceivedAtUtc == default ? timeProvider.GetUtcNow() : request.ReceivedAtUtc,
+            request.ParentReceiptId,
             cancellationToken);
 
         // ListMembersAsync has no per-call knowledge of duplication, so this
@@ -200,10 +205,10 @@ public sealed class SubmitGroupedIntake(
             }
 
             var childToken = GroupedIntakeMemberToken.Create(request.SubmissionToken, file.Ordinal);
-            var childOperation = $"manual-upload:{request.SubmissionToken}:{file.Ordinal}";
+            var childOperation = $"{OperationPrefix(request.Channel)}:{request.SubmissionToken}:{file.Ordinal}";
             var source = file.Source with
             {
-                SourceIdentity = new(IntakeSourceChannel.ManualUpload, childToken)
+                SourceIdentity = new(request.Channel, childToken)
             };
             var received = await submission.ExecuteAsync(source, childOperation, cancellationToken);
             await groupStore.AddMemberAsync(group.Id, file.Ordinal, received, cancellationToken);
@@ -222,4 +227,11 @@ public sealed class SubmitGroupedIntake(
 
         return new(group with { Members = members }, members);
     }
+
+    private static string OperationPrefix(IntakeSourceChannel channel) => channel switch
+    {
+        IntakeSourceChannel.ManualUpload => "manual-upload",
+        IntakeSourceChannel.Mailbox => "mailbox-image",
+        _ => throw new ArgumentOutOfRangeException(nameof(channel), channel, "Unsupported source channel.")
+    };
 }

@@ -267,16 +267,24 @@ function Get-MigrationPermissionMatrix {
     foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
         $expected.Add("pegasus_worker_runtime_role|G|SELECT|$table")
     }
-    # 20260819112914_ImageInitiatedLifecycle: the Image-initiated Case
-    # lifecycle event log is append-only. Web is the only caller (the
-    # ImageIntake lifecycle transitions run only from Web-served requests in
-    # this slice; the Worker never touches ImageIntakeLifecycleEvents), so
-    # only pegasus_web_runtime_role is granted, mirroring the migration's
-    # GRANT SELECT, INSERT / DENY UPDATE, DELETE exactly.
-    $expected.Add('pegasus_web_runtime_role|G|SELECT|ImageIntakeLifecycleEvents')
-    $expected.Add('pegasus_web_runtime_role|G|INSERT|ImageIntakeLifecycleEvents')
-    $expected.Add('pegasus_web_runtime_role|D|UPDATE|ImageIntakeLifecycleEvents')
-    $expected.Add('pegasus_web_runtime_role|D|DELETE|ImageIntakeLifecycleEvents')
+    # 20260825145216_MailboxImageIntake: mailbox processing now creates and
+    # appends the same group/member rows as the Web upload route. The Worker
+    # remains append-only; UPDATE and DELETE are still absent from the matrix.
+    foreach ($table in @('IntakeSubmissionGroups', 'IntakeSubmissionGroupMembers')) {
+        $expected.Add("pegasus_worker_runtime_role|G|INSERT|$table")
+    }
+    # 20260819112914_ImageInitiatedLifecycle and
+    # 20260825121453_GrantWorkerImageIntakeLifecycleEvents: the Image-initiated
+    # Case lifecycle event log is append-only. Web handles staff transitions
+    # and the Worker completes automatic association/merge transitions, so both
+    # runtime roles need SELECT for replay and INSERT for the new event.
+    # Neither runtime role may rewrite or delete lifecycle history.
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        $expected.Add("$role|G|SELECT|ImageIntakeLifecycleEvents")
+        $expected.Add("$role|G|INSERT|ImageIntakeLifecycleEvents")
+        $expected.Add("$role|D|UPDATE|ImageIntakeLifecycleEvents")
+        $expected.Add("$role|D|DELETE|ImageIntakeLifecycleEvents")
+    }
     # 20260820100056_ApprovedMailboxLogicalFolderBindings: the existing Web
     # mailbox-administration transaction reads and replaces the mailbox-owned
     # binding rows. The Worker has no caller and receives no grant.

@@ -41,9 +41,11 @@ public sealed class UploadGroupStatusModel(
     /// </summary>
     public UploadOutcomeView? GroupRegistrationOutcome { get; private set; }
 
-    public bool RefreshAutomatically => Statuses.Values.Any(status =>
-        status is null
-            || status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing);
+    public bool RefreshAutomatically =>
+        Statuses.Values.Any(status =>
+            status is null
+                || status.Status is QueuedIntakeStatusKind.Received or QueuedIntakeStatusKind.Processing)
+        || Outcomes.Values.Any(outcome => outcome?.IsStillWorking == true);
 
     /// <summary>
     /// Set when any member still needs a staff decision: the submission is
@@ -181,8 +183,8 @@ public sealed class UploadGroupStatusModel(
         // outcome, is an independent read against its own DbContext (every
         // store behind these ports is IDbContextFactory-backed, not shared),
         // so a group's members are read concurrently rather than one durable
-        // round-trip at a time. This page polls itself repeatedly while any
-        // member is still Received/Processing, so the saving is real.
+        // round-trip at a time. This page polls itself while a queue member or
+        // its later group-level outcome is still working, so the saving is real.
         var memberResults = await Task.WhenAll(group.Members.Select(async member =>
         {
             var status = await statuses.GetAsync(member.StagedReceiptId, cancellationToken);
@@ -209,7 +211,9 @@ public sealed class UploadGroupStatusModel(
         var open = memberResults
             .Where(result => result.outcome is { IsOpenDecision: true })
             .ToArray();
-        OpenGroupDecision = GroupRegistrationOutcome is null && open.Length > 0;
+        OpenGroupDecision = GroupRegistrationOutcome is null
+            && !RefreshAutomatically
+            && open.Length > 0;
         OpenMemberReceiptIds = open
             .Select(result => result.status!.ProcessedReceiptId ?? result.status.StagedReceiptId)
             .ToArray();

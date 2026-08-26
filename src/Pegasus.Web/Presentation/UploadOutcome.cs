@@ -24,6 +24,9 @@ public enum UploadOutcomeKind
     /// <summary>Automation abstained (no usable/unique VRM, or ambiguous instruction match with no candidate); routed to Unidentified for a staff decision there.</summary>
     NeedsReview,
 
+    /// <summary>An Unidentified item was resolved to its recorded destination. Reported, not re-offered.</summary>
+    Resolved,
+
     /// <summary>Automation abstained short of the unique-match bar, but named candidates. The staff decision this ticket offers: attach, with the operator free to choose a different case.</summary>
     PossibleMatch,
 
@@ -86,6 +89,7 @@ public sealed record UploadOutcomeView(
         UploadOutcomeKind.Working => null,
         UploadOutcomeKind.Attached or UploadOutcomeKind.ImageCaseRegistered => "Success",
         UploadOutcomeKind.NeedsReview => "Unidentified",
+        UploadOutcomeKind.Resolved => "Resolved Unidentified",
         UploadOutcomeKind.PossibleMatch or UploadOutcomeKind.ReadyToCreate => "Pending",
         UploadOutcomeKind.CannotBecomeCase or UploadOutcomeKind.Failed => "Failed",
         _ => null
@@ -174,9 +178,8 @@ public sealed class UploadOutcomeQueries(
         if (receipt is null)
         {
             // The record has not caught up with the queue status yet; the
-            // page will refresh again shortly (RefreshAutomatically is still
-            // driven by status.Status, which is Complete here — the caller
-            // simply re-renders "processing" for one more refresh).
+            // caller re-renders "processing", which keeps the grouped page's
+            // outcome-driven automatic refresh active for another read.
             return new(UploadOutcomeKind.Working, "Processing", "The file is being processed.", null, null);
         }
 
@@ -217,9 +220,9 @@ public sealed class UploadOutcomeQueries(
         // the Core-owned image-only-material rule (not a media-type sniff)
         // keeps an instruction document in a mixed group from being
         // mislabelled with the images' registration.
-        if (receipt.Decision == IntakeDecision.ImageIntakeRegistered
-            || (submissionGroupId is not null
-                && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt)))
+        var groupedImage = submissionGroupId is not null
+            && ImageIntakeLifecycleRules.IsImageOnlyMaterial(receipt);
+        if (receipt.Decision == IntakeDecision.ImageIntakeRegistered || groupedImage)
         {
             var detail = await imageIntakeQueries.GetByOriginReceiptAsync(receipt.Id, cancellationToken);
             if (detail is { State: ImageInitiatedCaseState.MergedIntoInstructionCase, MergedIntoCaseId: { } mergedCaseId })
@@ -263,6 +266,33 @@ public sealed class UploadOutcomeQueries(
                 "Needs review",
                 "This could not be matched automatically and needs a staff decision.",
                 new("Review", $"/Unidentified/{unidentified.Id:D}"),
+                null);
+        }
+
+        if (unidentified is { State: UnidentifiedState.Resolved })
+        {
+            var destination = unidentified.ResolutionTargetReference;
+            return new(
+                UploadOutcomeKind.Resolved,
+                "Resolved",
+                string.IsNullOrWhiteSpace(destination)
+                    ? "This was resolved."
+                    : $"This was resolved to {destination}.",
+                new("View", $"/Unidentified/{unidentified.Id:D}"),
+                null);
+        }
+
+        if (groupedImage && receipt.Decision == IntakeDecision.NeedsSorting)
+        {
+            // Durable evaluation completes before the bounded grouped-image
+            // reconciliation pass. Until that pass records a Case, Image
+            // Intake, or Unidentified destination, the group has no honest
+            // terminal outcome and must not expose a staff decision.
+            return new(
+                UploadOutcomeKind.Working,
+                "Processing",
+                "The submission is being processed.",
+                null,
                 null);
         }
 

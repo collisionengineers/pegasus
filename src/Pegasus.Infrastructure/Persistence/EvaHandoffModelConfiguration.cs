@@ -19,6 +19,9 @@ internal static class EvaHandoffModelConfiguration
                 table.HasCheckConstraint(
                     "CK_EvaFirstHandoffProxies_NoAssignmentClaim",
                     "[ClaimsEngineerAssignment] = 0");
+                table.HasCheckConstraint(
+                    "CK_EvaFirstHandoffProxies_ExportVersion",
+                    "[LatestExportedWorkflowVersion] IS NULL OR [LatestExportedWorkflowVersion] >= 0");
             });
             entity.HasKey(item => item.CaseId);
             entity.Property(item => item.AdapterKey).HasMaxLength(100).IsRequired();

@@ -35,6 +35,8 @@ Pegasus is designed for the observed office workload of roughly 1,000–1,200 ma
 Required qualities:
 
 - deterministic, bounded, cancellable processing;
+- truthful near-real-time intake: ordinary QDOS email and manual-upload receipts progress through identification, classification, extraction, and case creation within a ten-second p95 from durable receipt, while larger or retrying work remains visibly Processing rather than showing stale or inferred identity;
+- durable intake wake-up and recovery without making aggressive polling the normal scheduler, with normalized idle Function cost no greater than GBP 0.50 per day over a seven-day observation;
 - least privilege and fail-closed authorization;
 - encrypted transport and protected storage appropriate to the data boundary;
 - resolved and recorded retention rules for personal data and vehicle images before activating each external flow; this does not create an automated retention workflow;

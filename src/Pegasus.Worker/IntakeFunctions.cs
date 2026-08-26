@@ -80,7 +80,7 @@ public sealed partial class StagedArtifactReconciliationFunction(
         var result = await reconcileStagedArtifacts.ExecuteAsync(50, cancellationToken);
         LogStagedArtifactReconciliation(
             logger,
-            result.RecoveredLeases,
+            result.RecoveredWorkItems,
             result.Completed,
             result.Retained,
             result.Orphans,
@@ -128,10 +128,10 @@ public sealed partial class StagedArtifactReconciliationFunction(
 
     [LoggerMessage(
         Level = LogLevel.Information,
-        Message = "Reconciled staged intake artifacts: {RecoveredLeases} leases recovered, {Completed} completed and deleted, {Retained} retained, {Orphans} orphaned, {Unmatched} unmatched, and {Failures} failures.")]
+        Message = "Reconciled staged intake artifacts: {RecoveredWorkItems} work items recovered, {Completed} completed and deleted, {Retained} retained, {Orphans} orphaned, {Unmatched} unmatched, and {Failures} failures.")]
     private static partial void LogStagedArtifactReconciliation(
         ILogger logger,
-        int recoveredLeases,
+        int recoveredWorkItems,
         int completed,
         int retained,
         int orphans,

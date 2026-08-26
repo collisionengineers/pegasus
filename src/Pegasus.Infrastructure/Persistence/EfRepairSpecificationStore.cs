@@ -316,7 +316,7 @@ public sealed class EfRepairSpecificationStore(
         ConfirmedBy = actor.SubjectId, ConfirmedAtUtc = now,
     };
 
-    private static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity) => new(
+    internal static RepairSpecificationVersion Map(CaseRepairSpecificationEntity entity) => new(
         entity.Id, entity.CaseId, entity.Version,
         Enum.Parse<RepairSpecificationState>(entity.State),
         new(Enum.Parse<RepairSpecificationSourceRoute>(entity.SourceRoute),
