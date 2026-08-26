@@ -14,3 +14,12 @@
 - 2026-08-26: Confirmed [[UIIMP-002]] is merged at current `origin/dev`; its catalogue validator reports 52 routed sources and 60 prototypes.
 - 2026-08-26: `Test-UiModes.ps1`, `Test-UiCatalogue.ps1`, documentation links, Release restore, and Release build passed. The full non-Corpus test run was stopped after more than eight minutes without completion; before stopping, Core passed 999/999 and Architecture reported two pre-existing worker-release fixture failures unrelated to this diff (`WorkerSmokeAcceptsExactDisabledCensusAndBindsApprovedTarget`, `WorkerSmokeAcceptsExactApprovedCensus`).
 - 2026-08-26: Direct Web and Worker Release publish inspection found 637 files and zero Test UI paths or catalogue markers.
+
+## Closeout checklist
+
+- [x] Confirm PR #559 is merged.
+- [x] Confirm merged-commit proof is final.
+- [ ] Record outcome, commits, PR, and deployment status.
+- [ ] Remove only the UIIMP-001 worktree and branch.
+- [ ] Prune the merged remote branch if present.
+- [ ] Release the ticket claim last.
