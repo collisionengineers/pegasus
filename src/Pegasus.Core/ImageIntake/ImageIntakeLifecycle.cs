@@ -1,10 +1,13 @@
 ﻿using Pegasus.Core.Identity;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Workflow;
+using Pegasus.Core.Custody;
 
 namespace Pegasus.Core.ImageIntake;
 
-public sealed class RegisterImageIntake(IImageIntakeStore store) : IRegisterImageIntake
+public sealed class RegisterImageIntake(
+    IImageIntakeStore store,
+    DispatchPendingExternalWork? dispatchPendingExternalWork = null) : IRegisterImageIntake
 {
     private readonly IImageIntakeStore _store = store ?? throw new ArgumentNullException(nameof(store));
 
@@ -19,7 +22,14 @@ public sealed class RegisterImageIntake(IImageIntakeStore store) : IRegisterImag
             return replay.Result;
         }
 
-        return await _store.RegisterAsync(request, cancellationToken);
+        var registered = await _store.RegisterAsync(request, cancellationToken);
+        if (registered.PendingExternalWorkId is { } workItemId
+            && dispatchPendingExternalWork is not null)
+        {
+            await dispatchPendingExternalWork.ExecuteCommittedAsync(workItemId, cancellationToken);
+        }
+
+        return registered;
     }
 }
 

@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Custody;
 
@@ -498,6 +499,16 @@ public interface IExternalWorkStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Claims one known committed work item for publication without scanning
+    /// the durable outbox.
+    /// </summary>
+    Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+        Guid workItemId,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
+
     Task MarkDispatchedAsync(
         Guid workItemId,
         string leaseToken,
@@ -544,6 +555,49 @@ public sealed class DispatchPendingExternalWork(
 {
     private static readonly TimeSpan DispatchLeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailedDispatchDelay = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Best-effort publication after the transaction that created this work
+    /// has committed. Transport failure remains recoverable and never undoes
+    /// the already-created case or custody state.
+    /// </summary>
+    public async Task ExecuteCommittedAsync(
+        Guid workItemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (workItemId == Guid.Empty)
+        {
+            throw new ArgumentException("An external work item identifier is required.", nameof(workItemId));
+        }
+
+        var claim = await workStore.ClaimDispatchAsync(
+            workItemId,
+            timeProvider.GetUtcNow(),
+            DispatchLeaseDuration,
+            cancellationToken);
+        if (claim is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await workEnqueuer.EnqueueAsync(claim.WorkItemId, cancellationToken);
+            await workStore.MarkDispatchedAsync(
+                claim.WorkItemId,
+                claim.LeaseToken,
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            await workStore.ReleaseDispatchAsync(
+                claim.WorkItemId,
+                claim.LeaseToken,
+                timeProvider.GetUtcNow(),
+                CancellationToken.None);
+        }
+    }
 
     public async Task<int> ExecuteAsync(
         int maximumItems,

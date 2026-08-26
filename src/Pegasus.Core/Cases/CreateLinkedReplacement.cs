@@ -1,4 +1,5 @@
 using Pegasus.Core.Identity;
+using Pegasus.Core.Custody;
 
 namespace Pegasus.Core.Cases;
 
@@ -7,12 +8,13 @@ namespace Pegasus.Core.Cases;
 /// original, allocates the corrected identity, and records reciprocal linkage in one commit.
 /// </summary>
 public sealed class CreateLinkedReplacement(
-    ILinkedCaseReplacementStore store) : ICreateLinkedReplacement
+    ILinkedCaseReplacementStore store,
+    DispatchPendingExternalWork? dispatchPendingExternalWork = null) : ICreateLinkedReplacement
 {
     private readonly ILinkedCaseReplacementStore _store =
         store ?? throw new ArgumentNullException(nameof(store));
 
-    public Task<CaseAcceptanceOutcome> ExecuteAsync(
+    public async Task<CaseAcceptanceOutcome> ExecuteAsync(
         CreateLinkedReplacementRequest request,
         CancellationToken cancellationToken)
     {
@@ -36,7 +38,7 @@ public sealed class CreateLinkedReplacement(
         RequireText(request.EditLeaseToken, 128, "An active edit lease token is required.", nameof(request));
         var principalCode = CasePrincipalCode.Normalize(request.ReplacementPrincipalCode);
 
-        return _store.CreateAsync(
+        var outcome = await _store.CreateAsync(
             request with
             {
                 OperationKey = request.OperationKey.Trim(),
@@ -45,6 +47,14 @@ public sealed class CreateLinkedReplacement(
                 ReplacementPrincipalCode = principalCode
             },
             cancellationToken);
+        if (!outcome.IsDuplicate && dispatchPendingExternalWork is not null)
+        {
+            await dispatchPendingExternalWork.ExecuteCommittedAsync(
+                outcome.CustodyWorkId,
+                cancellationToken);
+        }
+
+        return outcome;
     }
 
     private static void RequireText(

@@ -21,6 +21,16 @@
           "Azure.Storage.Common": "12.25.0"
         }
       },
+      "Azure.Storage.Queues": {
+        "type": "Direct",
+        "requested": "[12.24.0, )",
+        "resolved": "12.24.0",
+        "contentHash": "YSR051EMu421JZNCOyOB2JpVyA4bSW8CnbTYmYlwxsYIUJuwiMy2toSXIoq9RKG9PuBtnT5dS9M6QCYNGaswAw==",
+        "dependencies": {
+          "Azure.Core": "1.47.3",
+          "Azure.Storage.Common": "12.25.0"
+        }
+      },
       "Box.Sdk.Gen": {
         "type": "Direct",
         "requested": "[1.12.0, )",

@@ -28,7 +28,7 @@ $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
 $expectedWorkerSettings = @(
-    'AzureWebJobs.PendingWorkDispatchFunction.Disabled',
+    'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
     'AzureWebJobs.IntakeWorkFunction.Disabled',
     'AzureWebJobs.IntakePoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
