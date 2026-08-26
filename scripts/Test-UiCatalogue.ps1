@@ -63,6 +63,9 @@ foreach ($entry in $inventory) {
         if ($null -eq $state) {
             continue
         }
+        if ([string]::IsNullOrWhiteSpace($state.branch)) {
+            $errors.Add("Visual state has no documented Razor branch claim: $($entry.source)|$($state.state)")
+        }
         if ($state.file -notmatch '^pages/[a-z0-9-]+--[a-z0-9-]+\.html$') {
             $errors.Add("Prototype does not follow the flat naming convention: $($state.file)")
             continue
