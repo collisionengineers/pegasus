@@ -2044,7 +2044,7 @@ public sealed class CaseWorkflowPersistenceTests
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO CaseDueWork (CaseId, MissingMaterialReason, State, NextChaseAtUtc, NextChaseAtUtcTicks, Version, ConcurrencyToken) VALUES ({notReadyCaseId}, {"Waiting for images"}, {nameof(CaseDueWorkState.Scheduled)}, {timeProvider.GetUtcNow().AddDays(3)}, {timeProvider.GetUtcNow().AddDays(3).UtcDateTime.Ticks}, {0L}, {Guid.NewGuid()})");
                 await context.Database.ExecuteSqlInterpolatedAsync(
-                    $"INSERT INTO ApprovedInboxPollStates (MailboxId, MailboxAddress, DueAtUtc) VALUES ({"approved-mailbox-identity-1"}, {"instructions@collisionengineers.co.uk"}, {timeProvider.GetUtcNow()})");
+                    $"INSERT INTO ApprovedInboxPollStates (ApprovedMailboxId, MailboxAddress, ScopeFingerprint, ActivatedAtUtc, DueAtUtc) SELECT Id, Address, REPLICATE('0', 64), {StartUtc}, {timeProvider.GetUtcNow()} FROM ApprovedMailboxes WHERE Address = {"instructions@collisionengineers.co.uk"}");
                 return new(database, factory, caseId, secondCaseId, notReadyCaseId, timeProvider);
             }
             catch

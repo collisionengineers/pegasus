@@ -35,14 +35,11 @@ internal static class AdministrationPolicyModelConfiguration
             entity.Property(item => item.InboxFolderIdentity).HasMaxLength(200);
             entity.Property(item => item.SentFolderIdentity).HasMaxLength(200);
             entity.HasIndex(item => item.Address).IsUnique();
-            // Two rows may await their identities, but a supplied identity is exclusive:
-            // it becomes the ApprovedInboxPollStates key, so an alias would share a cursor.
+            // A supplied Graph identity is exclusive to one approved mailbox.
             entity.HasIndex(item => item.MailboxIdentity)
                 .IsUnique()
                 .HasFilter("[MailboxIdentity] IS NOT NULL");
-            // The seeded production row keeps NULL identities: the real Graph identities
-            // are deployment configuration, not repository content. The read-only
-            // configuration fallback supplies them until an administrator saves them.
+            // The seeded row remains inactive until its Graph identities are saved.
             entity.HasData(new ApprovedMailboxEntity
             {
                 Id = InitialInstructionsMailboxId,
@@ -63,6 +60,22 @@ internal static class AdministrationPolicyModelConfiguration
             entity.HasOne(item => item.ApprovedMailbox)
                 .WithMany(item => item.FolderBindings)
                 .HasForeignKey(item => item.ApprovedMailboxId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ApprovedMailboxSubscriptionEntity>(entity =>
+        {
+            entity.ToTable("ApprovedMailboxSubscriptions");
+            entity.HasKey(item => item.ApprovedMailboxId);
+            entity.Property(item => item.SubscriptionId).HasMaxLength(200).IsRequired();
+            entity.Property(item => item.Resource).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.LifecycleState).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.LastMaintenanceFailureCode).HasMaxLength(100);
+            entity.HasIndex(item => item.SubscriptionId).IsUnique();
+            entity.HasIndex(item => item.ExpiresAtUtc);
+            entity.HasOne(item => item.ApprovedMailbox)
+                .WithOne()
+                .HasForeignKey<ApprovedMailboxSubscriptionEntity>(item => item.ApprovedMailboxId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

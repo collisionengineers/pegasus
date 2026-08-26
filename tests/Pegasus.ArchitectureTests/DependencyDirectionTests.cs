@@ -5,6 +5,7 @@ using Pegasus.Core;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Identity;
 using Pegasus.Worker;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
@@ -258,23 +259,48 @@ public sealed class DependencyDirectionTests
         var intakeId = Guid.NewGuid();
         var workId = Guid.NewGuid();
 
-        await new UnifiedWorkFunction(intakeProcessor, processor).RunAsync(
+        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync(
             UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.Intake, intakeId),
             CancellationToken.None);
-        await new UnifiedWorkFunction(intakeProcessor, processor).RunAsync(
+        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync(
             UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.External, workId),
             CancellationToken.None);
         var poisonReconciler = new ReconcilePoisonedQueueWork(
             null!,
             new ReconcilePoisonedExternalWork(workStore, TimeProvider.System));
-        await new UnifiedWorkPoisonFunction(poisonReconciler)
+        await new UnifiedWorkPoisonFunction(poisonReconciler, null!, TimeProvider.System)
             .RunAsync(UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.External, workId), CancellationToken.None);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new UnifiedWorkFunction(intakeProcessor, processor).RunAsync("not-a-work-id", CancellationToken.None));
+            new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync("not-a-work-id", CancellationToken.None));
 
         Assert.Equal([intakeId], intakeProcessor.ProcessedIds);
         Assert.Equal([workId], processor.ProcessedIds);
         Assert.Equal([workId], workStore.PoisonedIds);
+    }
+
+    [Fact]
+    public void UnifiedWorkQueueCarriesCanonicalMailboxWakeIdentifiers()
+    {
+        var mailboxId = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var message = UnifiedWorkQueueMessage.FormatMailbox(
+            mailboxId,
+            subscriptionId,
+            MailboxWakeKind.SubscriptionRemoved);
+
+        Assert.True(UnifiedWorkQueueMessage.TryParseMailbox(
+            message,
+            out var parsedMailboxId,
+            out var parsedSubscriptionId,
+            out var parsedKind));
+        Assert.Equal(mailboxId, parsedMailboxId);
+        Assert.Equal(subscriptionId, parsedSubscriptionId);
+        Assert.Equal(MailboxWakeKind.SubscriptionRemoved, parsedKind);
+        Assert.False(UnifiedWorkQueueMessage.TryParseMailbox(
+            message.ToUpperInvariant(),
+            out _,
+            out _,
+            out _));
     }
 
     private sealed class RecordingIntakeProcessor : IProcessQueuedIntake
