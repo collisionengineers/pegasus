@@ -20,9 +20,11 @@ blocks:
   - DELIV-021
 refs:
   - docs/frd/frd-02-intake-and-source-identity.md
+commits:
+  - 6c42d53d
 archived: false
 created: '2026-08-25T15:18:40.610Z'
-updated: '2026-08-26T12:24:00.138Z'
+updated: '2026-08-26T12:54:09.549Z'
 ---
 
 ## What
