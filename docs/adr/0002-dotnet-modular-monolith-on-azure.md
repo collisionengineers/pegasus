@@ -10,7 +10,7 @@ tags: [architecture, stack, hosting]
 ---
 # ADR-0002: .NET modular monolith on Azure App Service
 
-- Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004, deployment mechanism partially superseded by ADR-0007, and the expand-and-contract schema clause superseded by ADR-0030 for pre-cutover releases only
+- Status: Accepted; provider API/MCP authentication boundary superseded by ADR-0004, deployment mechanism partially superseded by ADR-0007, the expand-and-contract schema clause superseded by ADR-0030 for pre-cutover releases only, and polling/timer-first intake triggering partially superseded by ADR-0032
 - Date: 2026-07-23
 - Owners: Alex and the Pegasus development team
 

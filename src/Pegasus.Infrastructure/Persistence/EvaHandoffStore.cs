@@ -13,9 +13,9 @@ namespace Pegasus.Infrastructure.Persistence;
 /// <summary>
 /// The one act that produces the EVA package (ENG-016). It reads a case,
 /// maps the thirteen fields, loads every eligible retained photograph, writes
-/// the archive, records each successful export in action history, and — on the
-/// first success for that case only — records the <c>First sent to Engineer</c>
-/// proxy.
+/// the archive, records each successful export in action history, creates the
+/// <c>First sent to Engineer</c> proxy on the first success, and updates its
+/// latest exported workflow version on every success.
 ///
 /// It used to be two acts. The gated hand-off that recorded frozen revisions,
 /// moved the case version and took an edit lease is gone, together with its
@@ -40,7 +40,8 @@ public sealed class EvaHandoffStore(
     /// It takes no edit lease and does not move the case version: an export is
     /// not a case-data mutation. Its operation key makes the action-history
     /// write replay-safe. The first export also writes the once-per-case
-    /// <c>First sent to Engineer</c> proxy row.
+    /// <c>First sent to Engineer</c> proxy row; every export updates its latest
+    /// exported workflow version.
     ///
     /// Order matters. The proxy is recorded only after the archive has been
     /// built, so "first success only" is literal: an export that fails records
@@ -138,12 +139,19 @@ public sealed class EvaHandoffStore(
             context,
             request.CaseId,
             cancellationToken);
-        if (!string.Equals(
-                lockedState,
+        if (lockedState is null || !string.Equals(
+                lockedState.State,
                 CaseLifecycleState.Review.ToString(),
                 StringComparison.Ordinal))
         {
             throw new CaseNotInReviewException(request.CaseId);
+        }
+        if (lockedState.WorkflowVersion != caseData.Version)
+        {
+            throw new CaseVersionConflictException(
+                request.CaseId,
+                caseData.Version,
+                lockedState.WorkflowVersion);
         }
 
         var aggregateId = request.CaseId.ToString("D");
@@ -191,7 +199,9 @@ public sealed class EvaHandoffStore(
             return;
         }
 
-        if (!await ProxyExistsAsync(context, request.CaseId, cancellationToken))
+        var handoff = await context.EvaFirstHandoffProxies
+            .SingleOrDefaultAsync(item => item.CaseId == request.CaseId, cancellationToken);
+        if (handoff is null)
         {
             var receipt = await proxy.RecordFirstGenerationAsync(
                 new(request.CaseId, bundle.Sha256, request.Actor),
@@ -202,16 +212,22 @@ public sealed class EvaHandoffStore(
                     "The offline EVA proxy must not claim delivery or Engineer assignment.");
             }
 
-            context.EvaFirstHandoffProxies.Add(new()
+            handoff = new()
             {
                 CaseId = request.CaseId,
                 AdapterKey = receipt.AdapterKey,
                 AdapterVersion = receipt.AdapterVersion,
                 RecordedAtUtc = receipt.RecordedAtUtc,
+                LatestExportedWorkflowVersion = caseData.Version,
                 ActorSubjectId = request.Actor.SubjectId,
                 ClaimsExternalDelivery = false,
                 ClaimsEngineerAssignment = false
-            });
+            };
+            context.EvaFirstHandoffProxies.Add(handoff);
+        }
+        else
+        {
+            handoff.LatestExportedWorkflowVersion = caseData.Version;
         }
 
         var history = DocumentActionHistory.Succeeded(
@@ -228,7 +244,7 @@ public sealed class EvaHandoffStore(
         await transaction.CommitAsync(cancellationToken);
     }
 
-    private static Task<string?> ReadLockedExportStateAsync(
+    private static Task<LockedExportState?> ReadLockedExportStateAsync(
         PegasusDbContext context,
         Guid caseId,
         CancellationToken cancellationToken)
@@ -242,17 +258,11 @@ public sealed class EvaHandoffStore(
             : context.CaseWorkflows.Where(item => item.CaseId == caseId);
         return workflows
             .AsNoTracking()
-            .Select(item => item.State)
+            .Select(item => new LockedExportState(item.State, item.Version))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    private static Task<bool> ProxyExistsAsync(
-        PegasusDbContext context,
-        Guid caseId,
-        CancellationToken cancellationToken) =>
-        context.EvaFirstHandoffProxies
-            .AsNoTracking()
-            .AnyAsync(item => item.CaseId == caseId, cancellationToken);
+    private sealed record LockedExportState(string State, long WorkflowVersion);
 
     /// <summary>
     /// Every eligible retained photograph of a case, with its content, chosen
@@ -268,6 +278,8 @@ public sealed class EvaHandoffStore(
                 from occurrence in context.Set<DocumentOccurrenceEntity>().AsNoTracking()
                 join version in context.Set<DocumentVersionEntity>().AsNoTracking()
                     on occurrence.VersionId equals version.Id
+                join caseEntity in context.Cases.AsNoTracking()
+                    on occurrence.CaseId equals caseEntity.Id
                 where occurrence.CaseId == caseId
                       && version.DocumentId == occurrence.DocumentId
                 orderby occurrence.Ordinal
@@ -289,7 +301,8 @@ public sealed class EvaHandoffStore(
                     version.CustodyStatus,
                     version.IsCurrent,
                     version.IsLogicallyRemoved,
-                    occurrence.ThirdPartyVehicleConfirmedAtUtc != null))
+                    occurrence.ThirdPartyVehicleConfirmedAtUtc != null,
+                    caseEntity.CustodyRootRemoteId))
             .ToArrayAsync(cancellationToken);
         var eligibleVersionIds = EvaHandoffPolicy.SelectEligibleImages(candidateRows.Select(
                 selected => new EvaHandoffImageCandidate(
@@ -316,10 +329,14 @@ public sealed class EvaHandoffStore(
             selected => eligibleVersionIds.Contains(selected.VersionId)
                         && selected.ContentLength <= int.MaxValue)
             .ToArray();
+        var caseRootRemoteId = selectedImages.Length == 0
+            ? null
+            : selectedImages[0].CaseRootRemoteId;
         var reads = selectedImages.Select(selected => new ManagedDocumentContentRead(
                 new ManagedDocumentContentAddress(
                     caseId,
                     caseReference,
+                    caseRootRemoteId,
                     selected.OccurrenceId,
                     selected.Ordinal,
                     selected.DocumentId,
@@ -602,5 +619,6 @@ public sealed class EvaHandoffStore(
         DocumentCustodyStatus CustodyStatus,
         bool IsCurrent,
         bool IsLogicallyRemoved,
-        bool IsThirdPartyVehicle);
+        bool IsThirdPartyVehicle,
+        string? CaseRootRemoteId);
 }

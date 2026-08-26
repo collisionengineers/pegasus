@@ -68,24 +68,24 @@ public sealed record AssessmentReportProjectionResult(
 
 /// <summary>
 /// Builds an <see cref="AssessmentReportSnapshot"/> from an accepted
-/// assessment plus its case-report inputs, or names exactly what is
-/// outstanding. Reuses <see cref="AssessmentPolicy.EvaluateReadiness"/> as
-/// the single readiness rail for everything the assessment screen already
-/// tracks, and adds only the report-specific requirements
-/// <see cref="AssessmentReportSnapshot.Validate"/> layers on top (case
-/// identity, addressee, photographs, source evidence, an accepted engineer
-/// signature, and repair costs) — one readiness vocabulary
-/// (<see cref="AssessmentReadinessItem"/>), not two.
+/// assessment plus its case-report inputs, or names the assessment/report work
+/// still outstanding. Case identity, instruction and image completeness are
+/// not re-decided here: entry to Review already proved those lifecycle gates.
+/// If persisted Review data later violates one of those invariants, generation
+/// fails at the immutable snapshot boundary instead of presenting the defect as
+/// ordinary assessment work.
 /// </summary>
 public static class AssessmentReportProjection
 {
     public const string RepairCostRequirement = "Repair cost figures";
 
-    public static AssessmentReportProjectionResult Project(AssessmentReportProjectionInput input)
+    public static AssessmentReportDraftPreparation Prepare(
+        CaseAssessmentProjection assessment,
+        ReportRepairCosts? costs)
     {
-        ArgumentNullException.ThrowIfNull(input);
-        var assessment = input.Assessment;
-        var reasons = new List<AssessmentReadinessItem>(AssessmentPolicy.EvaluateReadiness(assessment));
+        ArgumentNullException.ThrowIfNull(assessment);
+        var reasons = new List<AssessmentReadinessItem>(
+            AssessmentPolicy.EvaluatePostReviewReadiness(assessment));
 
         void Require(bool ok, string requirement, string source, string whyOutstanding, string howToResolve)
         {
@@ -94,44 +94,6 @@ public static class AssessmentReportProjection
                 reasons.Add(new(requirement, source, whyOutstanding, howToResolve));
             }
         }
-
-        Require(
-            !string.IsNullOrWhiteSpace(input.ClaimantName),
-            "Claimant name", "Case record",
-            "No confirmed claimant is recorded.",
-            "Confirm it on the case details.");
-        Require(
-            !string.IsNullOrWhiteSpace(input.YourReference),
-            "Your reference", "Case record",
-            "No confirmed claim number is recorded.",
-            "Confirm it on the case details.");
-        Require(
-            input.ReportFor.Count > 0,
-            "Report addressee", "Case record",
-            "No confirmed instructing principal is recorded.",
-            "Confirm the principal on the case details.");
-        Require(
-            assessment.CaseOwned.IncidentDate is not null,
-            "Incident date", "Case record",
-            "No confirmed incident date is recorded.",
-            "Confirm it on the case details.");
-        Require(
-            input.Photos.Count > 0,
-            "Report photographs", "Case documents",
-            "No custody-confirmed photograph is attached to the case.",
-            "Attach and confirm at least one image document on the case.");
-        Require(
-            input.Sources.Count > 0,
-            "Accepted source evidence", "Case documents",
-            "No custody-confirmed source document is attached to the case.",
-            "Attach and confirm at least one document on the case.");
-
-        var assessmentMethod = MapAssessmentMethod(assessment.CaseOwned.InspectionMode);
-        Require(
-            assessmentMethod is not null,
-            "Assessment method", "Case record",
-            "The case has no recognized inspection method recorded.",
-            "Confirm the inspection method on the case details.");
 
         var engineerSignature = Field(assessment, AssessmentVocabulary.EngineerSignature);
         var engineerName = Field(assessment, AssessmentVocabulary.EngineerName);
@@ -155,24 +117,47 @@ public static class AssessmentReportProjection
         // A production caller never supplies Costs, so this fires for every
         // case today; that is the honest state of the capability, not a bug.
         Require(
-            input.Costs is not null,
+            costs is not null,
             RepairCostRequirement, "Estimate lines and rate card",
             "No accepted formula exists yet to convert recorded estimate lines and the "
                 + "chosen rate card into a labour rate and repair cost (EXT-09, open decision D2).",
             "This becomes available once EXT-09's estimate-derivation formula is accepted.");
 
-        if (reasons.Count > 0)
+        return new(reasons);
+    }
+
+    public static AssessmentReportProjectionResult Project(AssessmentReportProjectionInput input)
+    {
+        ArgumentNullException.ThrowIfNull(input);
+        var assessment = input.Assessment;
+        var preparation = Prepare(assessment, input.Costs);
+        if (!preparation.CanGenerate)
         {
-            return new(null, reasons);
+            return new(null, preparation.Reasons);
         }
+
+        var claimantName = RequiredReviewValue(input.ClaimantName, "claimant name");
+        var yourReference = RequiredReviewValue(input.YourReference, "claim number");
+        var incidentDate = RequiredReviewDate(assessment.CaseOwned.IncidentDate, "incident date");
+        var instructionDate = RequiredReviewDate(
+            assessment.CaseOwned.InstructionDate,
+            "instruction date");
+        var assessmentMethod = MapAssessmentMethod(assessment.CaseOwned.InspectionMode)
+            ?? throw new InvalidDataException(
+                "A Review case is missing its accepted inspection method.");
+        var engineerSignature = Field(assessment, AssessmentVocabulary.EngineerSignature)!;
+        var engineerName = Field(assessment, AssessmentVocabulary.EngineerName)!;
+        var engineerQualifications = Field(
+            assessment,
+            AssessmentVocabulary.EngineerQualifications)!;
 
         var snapshot = new AssessmentReportSnapshot(
             OurReference: input.OurReference,
-            YourReference: input.YourReference!,
+            YourReference: yourReference,
             ReportDate: input.ReportDate,
-            ClaimantName: input.ClaimantName!,
-            IncidentDate: assessment.CaseOwned.IncidentDate!.Value,
-            InstructionsReceived: assessment.CaseOwned.InstructionDate ?? default,
+            ClaimantName: claimantName,
+            IncidentDate: incidentDate,
+            InstructionsReceived: instructionDate,
             Assessed: ParseDate(Field(assessment, AssessmentVocabulary.IncidentAssessed)) ?? default,
             ReportFor: input.ReportFor,
             Vehicle: BuildVehicle(assessment),
@@ -206,6 +191,14 @@ public static class AssessmentReportProjection
         return new(snapshot, []);
     }
 
+    private static string RequiredReviewValue(string? value, string name) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new InvalidDataException($"A Review case is missing its accepted {name}.")
+            : value;
+
+    private static DateOnly RequiredReviewDate(DateOnly? value, string name) =>
+        value ?? throw new InvalidDataException($"A Review case is missing its accepted {name}.");
+
     private static string? Field(CaseAssessmentProjection assessment, string path) =>
         assessment.Field(path)?.Value;
 
@@ -235,7 +228,7 @@ public static class AssessmentReportProjection
     /// <summary>
     /// Groups confirmed line descriptions for the report's parts/repairs/
     /// operations lists. Every estimate line is already confirmed by the
-    /// time this runs — <see cref="AssessmentPolicy.EvaluateReadiness"/>
+    /// time this runs — <see cref="AssessmentPolicy.EvaluatePostReviewReadiness"/>
     /// blocks the whole draft on the first unconfirmed line, of any type —
     /// so this only has to group by type and drop blank descriptions.
     /// </summary>
@@ -297,10 +290,9 @@ public interface IAssessmentReportProjectionSource
 }
 
 /// <summary>
-/// The read-only preparation a control renders from: ready, or the exact
-/// reasons it is not. Mirrors the existing *Preparation naming
-/// (<see cref="Pegasus.Core.Custody.CaseCustodyPreparation"/>) rather than a
-/// new shape.
+/// The read-only preparation a control renders from: assessment/report work is
+/// complete, or the exact remaining reasons. Review-entry requirements are not
+/// repeated here.
 /// </summary>
 public sealed record AssessmentReportDraftPreparation(IReadOnlyList<AssessmentReadinessItem> Reasons)
 {
@@ -328,21 +320,21 @@ public sealed record GenerateCaseAssessmentReportDraftResult(
 /// nothing new is invented here.
 /// </summary>
 public sealed class GenerateCaseAssessmentReportDraft(
+    IGetAssessmentAccess getAssessmentAccess,
     IAssessmentReportProjectionSource source,
     GenerateAssessmentReportDraft generate)
 {
-    public async Task<AssessmentReportDraftPreparation?> PrepareAsync(
-        Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
-    {
-        var input = await source.GetAsync(caseId, actor, cancellationToken);
-        return input is null
-            ? null
-            : new AssessmentReportDraftPreparation(AssessmentReportProjection.Project(input).Reasons);
-    }
-
     public async Task<GenerateCaseAssessmentReportDraftResult> ExecuteAsync(
         Guid caseId, ActionActor actor, CancellationToken cancellationToken = default)
     {
+        var access = await getAssessmentAccess.ExecuteAsync(
+            new(caseId, actor),
+            cancellationToken);
+        if (access?.CanOpen != true)
+        {
+            return new(GenerateCaseAssessmentReportDraftOutcome.NotFound, null, []);
+        }
+
         var input = await source.GetAsync(caseId, actor, cancellationToken);
         if (input is null)
         {

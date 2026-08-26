@@ -50,6 +50,7 @@ internal sealed class EfDocumentCustodyStore(
             command.EditLeaseToken,
             timeProvider.GetUtcNow());
         var caseReference = workflow.Case.Reference;
+        var caseRootRemoteId = workflow.Case.CustodyRootRemoteId;
 
         var document = await context.Set<CaseDocumentEntity>()
             .SingleOrDefaultAsync(
@@ -112,6 +113,7 @@ internal sealed class EfDocumentCustodyStore(
         var contentAddress = Address(
             command.CaseId,
             caseReference,
+            caseRootRemoteId,
             occurrence,
             version);
         var contentWrite = await contentStore.StoreVersionAsync(
@@ -199,11 +201,11 @@ internal sealed class EfDocumentCustodyStore(
         ValidateActor(query.Actor);
         var operationKey = ValidateOperationKey(query.OperationKey);
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
-        var caseReference = await context.Set<CaseEntity>()
+        var caseIdentity = await context.Set<CaseEntity>()
             .Where(value => value.Id == query.CaseId)
-            .Select(value => value.Reference)
+            .Select(value => new { value.Reference, value.CustodyRootRemoteId })
             .SingleOrDefaultAsync(cancellationToken);
-        if (caseReference is null)
+        if (caseIdentity is null)
         {
             return null;
         }
@@ -250,7 +252,12 @@ internal sealed class EfDocumentCustodyStore(
         }
 
         var stream = await contentStore.OpenReadVersionAsync(
-            Address(query.CaseId, caseReference, item.Occurrence, item.Version),
+            Address(
+                query.CaseId,
+                caseIdentity.Reference,
+                caseIdentity.CustodyRootRemoteId,
+                item.Occurrence,
+                item.Version),
             item.Version.Sha256,
             item.Version.ContentLength,
             cancellationToken);
@@ -299,11 +306,12 @@ internal sealed class EfDocumentCustodyStore(
 
         await using var context = await dbContextFactory.CreateDbContextAsync(cancellationToken);
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
-        var caseReference = await context.Set<CaseEntity>()
+        var caseIdentity = await context.Set<CaseEntity>()
             .Where(value => value.Id == command.CaseId)
-            .Select(value => value.Reference)
+            .Select(value => new { value.Reference, value.CustodyRootRemoteId })
             .SingleOrDefaultAsync(cancellationToken)
             ?? throw new InvalidOperationException("The case is unavailable.");
+        var caseRootRemoteId = caseIdentity.CustodyRootRemoteId;
 
         // A case exports only in Review (operator decision 2026-08-04). This
         // is a precondition, not a greyed button: export had no stage
@@ -376,7 +384,8 @@ internal sealed class EfDocumentCustodyStore(
 
         var export = await BuildExportAsync(
             command.CaseId,
-            caseReference,
+            caseIdentity.Reference,
+            caseRootRemoteId,
             items,
             command.MaximumArchiveBytes,
             cancellationToken);
@@ -607,6 +616,7 @@ internal sealed class EfDocumentCustodyStore(
     private async Task<DocumentExport> BuildExportAsync(
         Guid caseId,
         string caseReference,
+        string? caseRootRemoteId,
         IReadOnlyList<ExportItem> items,
         long maximumArchiveBytes,
         CancellationToken cancellationToken)
@@ -638,7 +648,12 @@ internal sealed class EfDocumentCustodyStore(
                     entry.LastWriteTime = new DateTimeOffset(1980, 1, 1, 0, 0, 0, TimeSpan.Zero);
                     await using var destination = entry.Open();
                     await using var source = await contentStore.OpenReadVersionAsync(
-                        Address(caseId, caseReference, item.Occurrence, item.Version),
+                        Address(
+                            caseId,
+                            caseReference,
+                            caseRootRemoteId,
+                            item.Occurrence,
+                            item.Version),
                         item.Version.Sha256,
                         item.Version.ContentLength,
                         cancellationToken);
@@ -791,10 +806,12 @@ internal sealed class EfDocumentCustodyStore(
     private static ManagedDocumentContentAddress Address(
         Guid caseId,
         string caseReference,
+        string? caseRootRemoteId,
         DocumentOccurrenceEntity occurrence,
         DocumentVersionEntity version) => new(
         caseId,
         caseReference,
+        caseRootRemoteId,
         occurrence.Id,
         occurrence.Ordinal,
         occurrence.DocumentId,

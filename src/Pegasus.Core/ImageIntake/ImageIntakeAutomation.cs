@@ -378,6 +378,8 @@ public sealed class ImageIntakeAutomation(
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             activity?.SetTag("image_intake.outcome", "registration_failed");
+            activity?.SetTag("image_intake.failure_type", exception.GetType().Name);
+            activity?.SetStatus(ActivityStatusCode.Error, "registration_failed");
             return false;
         }
     }
@@ -662,6 +664,8 @@ public sealed class ImageIntakeAutomation(
         catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
         {
             activity?.SetTag("image_intake.association", "failed");
+            activity?.SetTag("image_intake.failure_type", exception.GetType().Name);
+            activity?.SetStatus(ActivityStatusCode.Error, "association_failed");
         }
     }
 }

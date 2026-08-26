@@ -93,7 +93,11 @@ public sealed class ReconcileGroupedImageIntake(
                 if (nowUtc - receipt.ProcessedAtUtc >= EscapeAfter)
                 {
                     await registerUnidentified.ExecuteAsync(
-                        ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt),
+                        group.Channel == IntakeSourceChannel.Mailbox
+                            && group.ParentReceiptId is not null
+                            && group.Members.Count < group.ExpectedMemberCount
+                            ? SubmitMailboxImageIntake.BuildFailureRegistrationRequest(group)
+                            : ProcessIntake.BuildUnidentifiedRegistrationRequest(receipt),
                         cancellationToken);
                     escaped++;
                     continue;

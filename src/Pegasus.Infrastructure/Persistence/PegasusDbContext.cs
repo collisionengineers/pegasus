@@ -292,6 +292,13 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
             entity.Property(item => item.SubmissionToken).HasMaxLength(200).IsRequired();
             entity.Property(item => item.Actor).HasMaxLength(200).IsRequired();
             entity.HasIndex(item => new { item.SourceChannel, item.SubmissionToken }).IsUnique();
+            entity.HasIndex(item => item.ParentReceiptId)
+                .IsUnique()
+                .HasFilter("[ParentReceiptId] IS NOT NULL");
+            entity.HasOne<IntakeReceiptEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.ParentReceiptId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         builder.Entity<IntakeSubmissionGroupMemberEntity>(entity =>
@@ -1450,6 +1457,7 @@ internal sealed class IntakeSubmissionGroupEntity
     public int ExpectedMemberCount { get; set; }
     public required string Actor { get; set; }
     public DateTimeOffset ReceivedAtUtc { get; set; }
+    public Guid? ParentReceiptId { get; set; }
     public List<IntakeSubmissionGroupMemberEntity> Members { get; set; } = [];
 }
 

@@ -98,6 +98,26 @@ case, reference, or downstream side effect. Staff can inspect Received,
 Processing, Complete, or Failed by the staged receipt identifier; failure wording
 is bounded and does not disclose exception or infrastructure detail.
 
+For both email and manual upload, the durable commit is followed immediately by
+a best-effort publication of the stable work identifier. Publication never
+precedes the commit and a publication failure never rolls it back. Pending work
+that was not published, including work marked dispatched whose queue delivery
+never became claimable, is eligible for idempotent recovery within one minute.
+The recovery sweep is a safety net rather than the normal scheduler. The same
+rule applies to external or custody work created by the completed intake pass:
+commit first, publish its identifier immediately, and reconcile missed
+publication without repeating an accepted downstream side effect.
+
+The ordinary path records correlated timings for durable receipt, publication,
+queue claim, source reading, identification, classification, extraction,
+association/allocation, case creation, custody hand-off, and terminal state.
+Those timings contain identifiers and bounded outcome data, never source
+content. From durable receipt, ordinary supported QDOS email and manual-upload
+work reaches Complete with its case destination, or its truthful terminal
+non-case outcome, within ten seconds at p95. A large, retrying, or legitimately
+incomplete item remains Received or Processing with no older terminal outcome
+projected over it.
+
 ### Mandatory pre-case gates
 
 Before creating a case or allocating a reference, Pegasus must establish:
@@ -149,12 +169,28 @@ Image-only material with a usable VRM therefore creates a searchable Image-initi
 readable registration that matches an existing eligible Case — in which case
 every image attaches to that Case as evidence — or it shows a readable
 registration that matches no existing Case, in which case it starts the
-Image intake's own pre-Case identity. A multi-file manual upload is one
-evidence group, not a set of independent images: a damage close-up carrying no
-registration must not detach itself from an overview image selected with it in
-the same submission, and the group — never an individual image — is the unit
+Image intake's own pre-Case identity. A multi-file image submission from a
+manual upload or the eligible mailbox-attachment route below is one evidence
+group, not a set of independent images: a damage close-up carrying no
+registration must not detach itself from an overview image submitted with it,
+and the group — never an individual image — is the unit
 that reaches an association, a pre-Case Image intake registration, or a
 `Needs sorting` outcome.
+
+- **Mailbox attachment entry.** When a newly processed mailbox message would
+  otherwise enter Unidentified, has not been routed as an instruction, Case or
+  Triage, and contains one or more direct `image/*` attachments, those direct
+  attachments are submitted as one image group through this same grouped
+  lifecycle. The original EML source, inline images, and images derived from
+  another attachment are excluded. The child image receipts preserve the
+  mailbox source channel and a durable parent-receipt relationship; the parent
+  email does not also receive an Unidentified item. Existing group precedence
+  then produces exactly one settled result: association to one eligible Case,
+  one Image-initiated Case, or one group-level Unidentified item for
+  no-readable/conflicting registrations. A terminal failure to submit the
+  attachments produces one technical-processing Unidentified item for the
+  parent receipt. Completed historical mail is not backfilled or replayed by
+  this rule.
 
 - **Membership and completeness.** A group's member count is fixed at the
   originating submission and is never inferred from however many members

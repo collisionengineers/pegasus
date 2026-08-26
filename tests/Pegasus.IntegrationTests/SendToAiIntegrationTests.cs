@@ -233,6 +233,22 @@ public sealed partial class SendToAiIntegrationTests
                     QdosPrincipal.Code,
                     new(true, true, true, true)),
                 CancellationToken.None);
+        var contextFactory = services.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
+        await using var context = await contextFactory.CreateDbContextAsync();
+        var workflowVersion = await context.CaseWorkflows
+            .Where(item => item.CaseId == outcome.Identity.CaseId)
+            .Select(item => item.Version)
+            .SingleAsync();
+        context.EvaFirstHandoffProxies.Add(new()
+        {
+            CaseId = outcome.Identity.CaseId,
+            AdapterKey = "integration-test",
+            AdapterVersion = "1",
+            RecordedAtUtc = FixedUtcNow,
+            LatestExportedWorkflowVersion = workflowVersion,
+            ActorSubjectId = "send-to-ai-integration"
+        });
+        await context.SaveChangesAsync();
         return outcome.Identity.CaseId;
     }
 

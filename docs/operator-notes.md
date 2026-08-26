@@ -276,6 +276,17 @@ The sender route and the underlying work provider are related but distinct facts
 4. For a direct-provider route, use that provider’s rules to determine instruction type and any related case.
 5. For an intermediary route, use the intermediary’s rules to determine the underlying provider, instruction type, and any related case.
 
+If a newly received email cannot otherwise be identified or routed, but carries
+directly attached vehicle photographs, those photographs enter Image Intake as
+one group through the same route as a grouped manual upload. The image-group
+outcome replaces the parent email's Unidentified outcome: one usable
+registration may associate the group to one eligible Case or create one
+Image-initiated Case, while no usable registration, conflicting registrations,
+or a terminal processing failure produces the group's one Unidentified outcome.
+The original EML, inline signature/logo images, and images derived from another
+attachment are not members of that group. This rule applies to newly processed
+mail and does not replay or alter existing Unidentified item U35.
+
 A provider may send some work directly and other work through an intermediary. Those are separate routes to the same provider. An intermediary email must not be interpreted as though it were a direct provider email.
 
 Case association must follow the identified route’s rules. Providers do not generally quote a Collision Engineers Case/PO, so Case/PO is never the universal first match. It may be used only as a lowest-priority fallback where the route’s evidence supports doing so.
@@ -507,8 +518,9 @@ The current and intended workflows use several different evidence transfers:
   readiness decision; suggested values do not block export, VAT and mileage
   are optional, and Case/Audit custody are not duplicate export gates. Its
   first successful generation records Pegasus's once-per-case `First sent to
-  Engineer` proxy and every export records action history; EVA still owns
-  receipt and named-Engineer assignment;
+  Engineer` proxy and every export records action history; this proves neither
+  EVA receipt nor an external EVA assignment. Pegasus may separately record an
+  optional direct assignment to one of its Engineer accounts;
 - EVA currently generates the final provider report, while Box stores produced
   Engineer Reports; a PDF's existence or custody does not prove that the report
   was sent or received; and
@@ -535,6 +547,19 @@ The storage statements describe different layers rather than competing custody r
 - Box is the intended long-term case-file repository, with one subfolder per case.
 
 A staged image must not be treated as definitively associated merely because it has been received. The supplied sources do not establish that movement from staging into Box is automated.
+
+## Report readiness after Review
+
+> **Source label:** `direct operator statement, 2026-08-25`
+
+"Report readiness does not need to recalculate requirements that were needed
+for a case to reach review. By virtue of it being there, these requirements are
+met. Hence this is duplication."
+
+The Assessment workspace is unavailable while a case is `Not ready`. It opens
+only after a successful EVA export in the current Review cycle. Engineer
+assignment is not a progression requirement: a case may remain unassigned, be
+assigned directly where required, or be assigned by an Engineer taking the work.
 
 # Additional recorded operator statements
 

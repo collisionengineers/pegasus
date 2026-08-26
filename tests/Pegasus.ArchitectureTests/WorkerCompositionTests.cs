@@ -53,6 +53,8 @@ public sealed class WorkerCompositionTests
                 provider.GetRequiredService<IApprovedSentSource>().GetType().FullName);
             Assert.Null(provider.GetService<LocalApprovedSentOptions>());
             Assert.NotNull(scopedServices.GetRequiredService<PollSentEvidence>());
+            Assert.NotNull(scopedServices.GetRequiredService<IGroupedIntakeSubmission>());
+            Assert.NotNull(scopedServices.GetRequiredService<SubmitMailboxImageIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkDispatchFunction>(scopedServices));

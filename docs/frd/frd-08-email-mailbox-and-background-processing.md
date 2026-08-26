@@ -300,6 +300,44 @@ never grants Exchange access; the Microsoft 365 tenant must separately admit the
 application to that mailbox, and until it does, polling that mailbox alone fails
 and says so.
 
+### Mailbox wake-up and recovery
+
+Each enabled approved Inbox has one Microsoft Graph basic change-notification
+subscription. Its durable record uses the existing approved-mailbox identity and
+stores the Graph subscription id, resource scope, expiry, lifecycle state, and
+last maintenance result in SQL. The shared client-state secret is protected
+configuration and is never stored in the subscription row, logged, returned to a
+browser, or placed on a queue.
+
+`POST /hooks/microsoft-graph/mail` is a wake-up boundary on the Web host, not a
+mail reader. For Graph validation it returns the supplied validation token as
+plain text within the protocol deadline. For notifications it validates
+clientState and the known active subscription, queues only the subscription and
+approved-mailbox identifiers, and acknowledges promptly. It does not download,
+classify, extract, associate, allocate, or mutate a mailbox message. Unknown,
+expired, malformed, or wrongly scoped notifications fail closed without queuing
+work or disclosing the secret.
+
+The Worker remains the sole owner of the mailbox lease, cursor/delta read,
+retention, shared intake call, and retry outcome. A wake message causes the same
+idempotent delta/cursor pass as polling; duplicate or coalesced notifications are
+safe. Lifecycle `missed`, `subscriptionRemoved`, and reauthorization events
+schedule the same delta resynchronisation rather than introducing another mail
+processing route.
+
+Subscription maintenance runs every six hours and renews an enabled Inbox before
+it is within 48 hours of expiry. Failure is visible per mailbox and leaves the
+five-minute per-mailbox fallback poll active. That fallback advances the same
+cursor and is recovery only; it does not create a second receipt or bypass the
+fresh-start activation boundary. Disabling a mailbox prevents notification work
+at claim time as well as stopping its next fallback poll.
+
+Until the retained message has yielded an original effective sender, Inbox and
+intake projections show a neutral Processing state. They never present the
+forwarding desk address as the sender and later replace it as though an accepted
+identity changed; the original sender appears only when established from retained
+evidence.
+
 An Outlook/Graph route must, before activation:
 
 - use an approved test/live mailbox and exact operation;

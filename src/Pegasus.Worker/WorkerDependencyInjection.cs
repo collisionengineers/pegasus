@@ -92,6 +92,12 @@ public static class WorkerDependencyInjection
             serviceProvider.GetRequiredService<EfIntakeWorkStore>());
         services.AddSingleton<IIntakeWorkEnqueuer, AzureQueueIntakeWorkQueue>();
         services.AddScoped<ReceiveIntake>();
+        services.AddScoped<IIntakeSubmission>(serviceProvider =>
+            serviceProvider.GetRequiredService<ReceiveIntake>());
+        services.AddScoped<SubmitGroupedIntake>();
+        services.AddScoped<IGroupedIntakeSubmission>(serviceProvider =>
+            serviceProvider.GetRequiredService<SubmitGroupedIntake>());
+        services.AddScoped<SubmitMailboxImageIntake>();
         services.AddScoped<DispatchPendingIntakeWork>();
         services.AddScoped<ProcessQueuedIntake>();
         services.AddScoped<IProcessQueuedIntake>(serviceProvider =>

@@ -126,7 +126,8 @@ public sealed partial class UploadModel(
                     ExternalReceiptToken,
                     $"staff:{actor.SubjectId}",
                     timeProvider.GetUtcNow(),
-                    files),
+                    files,
+                    IntakeSourceChannel.ManualUpload),
                 cancellationToken);
 
             // A one-member group is the existing single-file upload flow: it
