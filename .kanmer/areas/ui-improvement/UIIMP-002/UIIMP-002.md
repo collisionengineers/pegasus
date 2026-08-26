@@ -2,12 +2,13 @@
 id: UIIMP-002
 type: ticket
 title: Create throwaway HTML replicas of every Pegasus page
-status: implementing
+status: review
 area: ui-improvement
 assignee: codex-mcp-client
 profile: chore
 stageEntered:
   preparing: '2026-08-26T12:10:20.448Z'
+  review: '2026-08-26T12:43:27.260Z'
 taken_at: '2026-08-26T12:17:30.378Z'
 branch: task/uiimp-002-test-ui
 worktree: ../pegasus-worktrees/uiimp-002-test-ui
@@ -19,9 +20,14 @@ links: []
 blocks:
   - UIIMP-003
   - UIIMP-001
+commits:
+  - 63ce6901e9979cf5922be2ce4b361310230e62ef
+prs:
+  - 'https://github.com/collisionengineers/pegasus/pull/556'
+deployment: n/a
 archived: false
 created: '2026-08-26T12:09:14.815Z'
-updated: '2026-08-26T12:17:30.378Z'
+updated: '2026-08-26T12:43:27.260Z'
 ---
 
 ## What
