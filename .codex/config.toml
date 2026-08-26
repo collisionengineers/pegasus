@@ -6,4 +6,10 @@ remote_plugin = true
 url = "https://learn.microsoft.com/api/mcp"
 enabled = true
 
+[mcp_servers.kanmer]
+command = "cmd.exe"
+args = [ "/d", "/s", "/c", "\"%LOCALAPPDATA%\\Kanmer\\bin\\kanmer-mcp.cmd\"" ]
+
+[mcp_servers.kanmer.env]
+KANMER_BOARD_BRANCH = "kanmer-board"
 
