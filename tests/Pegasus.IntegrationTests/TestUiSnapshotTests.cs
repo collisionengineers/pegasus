@@ -58,7 +58,8 @@ public sealed partial class TestUiSnapshotTests
         var catalogueRoot = Path.Combine(repoRoot, "docs", "design", "test-ui");
         var manifest = await ReadManifestAsync(Path.Combine(catalogueRoot, "catalogue.json"));
         var candidates = await ReadCandidatesAsync(captureDirectory!);
-        var generated = Generate(manifest, candidates, catalogueRoot);
+        var assets = await ReadAssetsAsync(captureDirectory!);
+        var generated = Generate(manifest, candidates, assets, catalogueRoot);
 
         if (mode.Equals("update", StringComparison.OrdinalIgnoreCase))
         {
@@ -75,40 +76,31 @@ public sealed partial class TestUiSnapshotTests
                 file.Value == await File.ReadAllTextAsync(path),
                 $"Generated Test UI file is stale: {file.Key}");
         }
-        await VerifyBrowserParityAsync(catalogueRoot, generated);
+        await VerifyOfflineBrowserRenderAsync(catalogueRoot, generated);
     }
 
-    private static async Task VerifyBrowserParityAsync(string catalogueRoot, IReadOnlyDictionary<string, string> generated)
+    private static async Task VerifyOfflineBrowserRenderAsync(string catalogueRoot, IReadOnlyDictionary<string, string> generated)
     {
         using var playwright = await Playwright.CreateAsync();
         await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
         foreach (var file in generated.Where(file => file.Key.StartsWith("pages/", StringComparison.Ordinal)))
         {
             var committedPath = Path.Combine(catalogueRoot, file.Key.Replace('/', Path.DirectorySeparatorChar));
-            var sourcePath = Path.Combine(Path.GetDirectoryName(committedPath)!, ".test-ui-live.html");
-            await File.WriteAllTextAsync(sourcePath, file.Value, new UTF8Encoding(false));
-            try
+            var page = await browser.NewPageAsync(new() { ViewportSize = new() { Width = 1440, Height = 1000 } });
+            await page.GotoAsync(new Uri(committedPath).AbsoluteUri, new() { WaitUntil = WaitUntilState.NetworkIdle });
+            foreach (var image in await page.Locator("img:not([hidden])").AllAsync())
             {
-                var sourcePage = await browser.NewPageAsync(new() { ViewportSize = new() { Width = 1440, Height = 1000 } });
-                var committedPage = await browser.NewPageAsync(new() { ViewportSize = new() { Width = 1440, Height = 1000 } });
-                await Task.WhenAll(
-                    sourcePage.GotoAsync(new Uri(sourcePath).AbsoluteUri, new() { WaitUntil = WaitUntilState.NetworkIdle }),
-                    committedPage.GotoAsync(new Uri(committedPath).AbsoluteUri, new() { WaitUntil = WaitUntilState.NetworkIdle }));
-                Assert.Equal(await sourcePage.ContentAsync(), await committedPage.ContentAsync());
-                Assert.Equal(await sourcePage.ScreenshotAsync(new() { FullPage = true }), await committedPage.ScreenshotAsync(new() { FullPage = true }));
-                await sourcePage.CloseAsync();
-                await committedPage.CloseAsync();
+                Assert.True(await image.EvaluateAsync<int>("element => element.naturalWidth") > 0, $"Offline image failed to load: {file.Key}");
             }
-            finally
-            {
-                File.Delete(sourcePath);
-            }
+            Assert.NotEmpty(await page.ScreenshotAsync(new() { FullPage = true }));
+            await page.CloseAsync();
         }
     }
 
     private static Dictionary<string, string> Generate(
         IReadOnlyList<CatalogueEntry> manifest,
         IReadOnlyList<CapturedResponse> candidates,
+        IReadOnlyDictionary<string, string> assets,
         string catalogueRoot)
     {
         var output = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -130,7 +122,7 @@ public sealed partial class TestUiSnapshotTests
                 var stateMatch = StateMatches.GetValueOrDefault(state.Scenario);
                 var selected = routeCandidates
                     .Where(candidate => stateMatch?.Matches(candidate.Html) ?? otherMatches.All(match => !match.Matches(candidate.Html)))
-                    .Select(candidate => NormalizeAndRewrite(candidate.Html, state.File, manifest))
+                    .Select(candidate => NormalizeAndRewrite(candidate.Html, state.File, manifest, assets))
                     .Order(StringComparer.Ordinal)
                     .FirstOrDefault();
                 if (string.IsNullOrWhiteSpace(selected))
@@ -151,8 +143,18 @@ public sealed partial class TestUiSnapshotTests
     private static string NormalizeAndRewrite(
         string html,
         string outputFile,
-        IReadOnlyList<CatalogueEntry> manifest)
+        IReadOnlyList<CatalogueEntry> manifest,
+        IReadOnlyDictionary<string, string> assets)
     {
+        html = CapturedAssetUrlRegex().Replace(html, match =>
+        {
+            var url = WebUtility.HtmlDecode(match.Groups[2].Value);
+            var path = url.Split('?', '#')[0];
+            return (assets.TryGetValue(path, out var dataUrl)
+                    || assets.TryGetValue(GuidRegex().Replace(path, "{guid}"), out dataUrl))
+                ? $"{match.Groups[1].Value}=\"{dataUrl}\""
+                : match.Value;
+        });
         html = AntiforgeryValueRegex().Replace(html, "$1{{antiforgery-token}}$2");
         html = VolatileGuidValueRegex().Replace(html, match =>
             match.Groups[1].Value + "{{" + match.Groups[2].Value.ToLowerInvariant() + "}}" + match.Groups[3].Value);
@@ -268,6 +270,20 @@ public sealed partial class TestUiSnapshotTests
         return responses;
     }
 
+    private static async Task<IReadOnlyDictionary<string, string>> ReadAssetsAsync(string root)
+    {
+        var assets = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var metadataPath in Directory.EnumerateFiles(root, "asset.json", SearchOption.AllDirectories).Order(StringComparer.Ordinal))
+        {
+            var metadata = JsonSerializer.Deserialize<CapturedAssetMetadata>(await File.ReadAllTextAsync(metadataPath), JsonOptions)!;
+            var bytes = await File.ReadAllBytesAsync(Path.Combine(Path.GetDirectoryName(metadataPath)!, "response.bin"));
+            var dataUrl = $"data:{metadata.ContentType};base64,{Convert.ToBase64String(bytes)}";
+            assets[metadata.Path] = dataUrl;
+            assets.TryAdd(GuidRegex().Replace(metadata.Path, "{guid}"), dataUrl);
+        }
+        return assets;
+    }
+
     private static Regex RoutePattern(string route)
     {
         var pattern = string.Join(
@@ -299,6 +315,7 @@ public sealed partial class TestUiSnapshotTests
     }
 
     private sealed record CapturedMetadata(string Method, string Path, string Query);
+    private sealed record CapturedAssetMetadata(string Path, string Query, string ContentType);
     private sealed record CapturedResponse(string Path, string Query, string Html);
     private sealed record CatalogueEntry(string Source, string Route, string Classification, string? Reason, StateEntry[] States);
     private sealed record StateEntry(string State, string File, string Branch, string Scenario);
@@ -320,6 +337,9 @@ public sealed partial class TestUiSnapshotTests
 
     [GeneratedRegex("((?:href|action|src|data-case-search-url|data-download-href|value))=\"(/[^\"]*)\"", RegexOptions.IgnoreCase)]
     private static partial Regex ApplicationUrlRegex();
+
+    [GeneratedRegex("((?:href|src|data-download-href))=\"(/[^\"]*)\"", RegexOptions.IgnoreCase)]
+    private static partial Regex CapturedAssetUrlRegex();
 
     [GeneratedRegex("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", RegexOptions.IgnoreCase)]
     private static partial Regex GuidRegex();

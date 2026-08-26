@@ -27,7 +27,7 @@ try {
         dotnet test "$repoRoot/tests/Pegasus.IntegrationTests/Pegasus.IntegrationTests.csproj" `
             --configuration Release `
             --no-restore `
-            --filter '(FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~TestUiFocusedRenderTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests)'
+            --filter '(FullyQualifiedName~WebTests|Category=Browser|FullyQualifiedName~StaffSignInSecurityTests|FullyQualifiedName~TestUiFocusedRenderTests|FullyQualifiedName~QdosCustodialWebTests|FullyQualifiedName~AutomationConnectorAuthorizationTests|FullyQualifiedName~ImageViewingWebTests)'
         if ($LASTEXITCODE -ne 0) {
             throw "The integration capture suite failed with exit code $LASTEXITCODE."
         }
