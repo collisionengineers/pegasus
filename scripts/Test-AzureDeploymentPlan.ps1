@@ -28,7 +28,7 @@ $parametersPath = Join-Path $repositoryRoot 'infra/main.parameters.json'
 $azureYamlPath = Join-Path $repositoryRoot 'azure.yaml'
 $productionSmokePath = Join-Path $repositoryRoot 'scripts/Invoke-ProductionSmoke.ps1'
 $expectedWorkerSettings = @(
-    'AzureWebJobs.PendingWorkDispatchFunction.Disabled',
+    'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
     'AzureWebJobs.IntakeWorkFunction.Disabled',
     'AzureWebJobs.IntakePoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
@@ -197,6 +197,9 @@ Assert-Text $platformBicep "minReplicas:\s*1[\s\S]*?maxReplicas:\s*1" 'The Web C
 Assert-Text $platformBicep "cpu:\s*json\('1\.0'\)[\s\S]*?memory:\s*'2Gi'" 'The Web Container App must use 1.0 vCPU and 2 GiB.'
 Assert-Text $platformBicep "sku:\s*\{\s*name:\s*'Basic'\s*\}[\s\S]*?adminUserEnabled:\s*false" 'The production ACR must be Basic with admin credentials disabled.'
 Assert-Text $platformBicep "roleDefinitionId:\s*acrPullRole" 'The Web identity must receive AcrPull at the production ACR.'
+Assert-Text $platformBicep "queueDataMessageSenderRole\s*=\s*subscriptionResourceId\('Microsoft.Authorization/roleDefinitions',\s*'c6a89b2d-59bc-44d0-9896-0f6e12d7b80a'\)" 'The Web must use the built-in Storage Queue Data Message Sender role.'
+Assert-Text $platformBicep "resource\s+webIntakeQueueSender[\s\S]*?scope:\s*intakeQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to intake-work.'
+Assert-Text $platformBicep "resource\s+webExternalQueueSender[\s\S]*?scope:\s*externalQueue[\s\S]*?roleDefinitionId:\s*queueDataMessageSenderRole" 'The Web identity must receive sender-only access scoped to external-work.'
 if ([regex]::Matches($platformBicep, 'roleDefinitionId:\s*monitoringMetricsPublisherRole').Count -ne 2) {
     throw 'Both Web and Worker identities must receive Monitoring Metrics Publisher at Application Insights.'
 }
@@ -323,6 +326,10 @@ Assert-Text $productionSmoke 'HashSet\[string\][\s\S]*StringComparer\]::Ordinal'
 Assert-Text $productionSmoke '--subscription\s+\$SubscriptionId' 'Production smoke must pass the approved subscription explicitly to Azure CLI.'
 Assert-Text $productionSmoke "workerAppName\s*=\s*'pegasus-prod-worker-252ow37gij'" 'Production smoke must bind readback to the exact reviewed Worker identity.'
 Assert-Text $productionSmoke 'WorkerOnly' 'Production smoke must expose its read-only Worker assertion for pre-provision validation.'
+Assert-Text $productionSmoke 'ActivationOnly' 'Production smoke must expose activation-only validation for pre-provision releases that rename functions.'
+Assert-Text $productionSmoke 'if\s*\(\s*-not\s+\$ActivationOnly\s+-and\s+-not\s+\$censusIsExact\s*\)' 'Production smoke must keep the exact Worker census as its default.'
+Assert-Text $productionSmoke "ends_with\(name, '\.Disabled'\)" 'Production smoke activation validation must inspect only function disabled settings.'
+Assert-Text $productionSmoke 'if\s*\(\s*-not\s+\$ActivationOnly\s*\)[\s\S]*?PendingWorkRecoverySchedule[\s\S]*?''0 \* \* \* \* \*''[\s\S]*?if\s*\(\s*\$WorkerOnly\s*\)' 'Every post-deployment smoke path must require the live recovery timer to run once per minute.'
 
 $compiledTemplateJson = (& az bicep build --file $mainBicepPath --stdout) -join "`n"
 if ($LASTEXITCODE -ne 0) {
@@ -446,6 +453,7 @@ if ($Mode -eq 'PreProvision') {
 
     & $productionSmokePath `
         -WorkerOnly `
+        -ActivationOnly `
         -SubscriptionId 'e6076573-23a5-46a8-acef-7e22d264e5db' `
         -ResourceGroupName 'rg-pegasus-prod' `
         -ExpectedWorkerActivation $ExpectedLiveWorkerActivation

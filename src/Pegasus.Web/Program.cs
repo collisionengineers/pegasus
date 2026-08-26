@@ -7,6 +7,7 @@ using Pegasus.Core;
 using Pegasus.Core.Address;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
@@ -29,10 +30,12 @@ using Pegasus.Web.Pages.Uploads;
 using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using Azure.Storage.Queues;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Email;
+using Pegasus.Infrastructure.Transport;
 using Microsoft.ApplicationInsights.Extensibility;
 
 const string OriginalIssueClaim = "pegasus:original-issued-at";
@@ -103,6 +106,9 @@ var configuredRuntimeProfile = builder.Configuration["Runtime:Profile"]
 var developmentOfflineProfile = builder.Environment.IsDevelopment()
     && configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal);
 var productionProfile = configuredRuntimeProfile.Equals("Production", StringComparison.Ordinal);
+QueueClient? intakeWorkQueue = null;
+QueueClient? externalWorkQueue = null;
+var allowLocalQueueCreation = false;
 if (configuredRuntimeProfile.Equals(DevelopmentOfflineProfile, StringComparison.Ordinal)
     && !builder.Environment.IsDevelopment())
 {
@@ -132,6 +138,8 @@ if (productionProfile)
         "ConnectionStrings:Pegasus",
         "AzureIdentity:WebClientId",
         "TransportStorage:AccountName",
+        "IntakeQueue:ServiceUri",
+        "ExternalWorkQueue:ServiceUri",
         "CustodyStorage:AccountName",
         "CustodyStorage:ServiceUri",
         "Graph:BaseUri",
@@ -177,6 +185,24 @@ if (productionProfile)
     builder.Services.AddSingleton(
         new BlobServiceClient(custodyServiceUri, credential)
             .GetBlobContainerClient("transient-intake"));
+    var intakeQueueServiceUri = new Uri(
+        builder.Configuration["IntakeQueue:ServiceUri"]!,
+        UriKind.Absolute);
+    var externalWorkQueueServiceUri = new Uri(
+        builder.Configuration["ExternalWorkQueue:ServiceUri"]!,
+        UriKind.Absolute);
+    if (intakeQueueServiceUri.Scheme != Uri.UriSchemeHttps
+        || externalWorkQueueServiceUri.Scheme != Uri.UriSchemeHttps
+        || !intakeQueueServiceUri.Host.EndsWith(".queue.core.windows.net", StringComparison.OrdinalIgnoreCase)
+        || !externalWorkQueueServiceUri.Host.EndsWith(".queue.core.windows.net", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "IntakeQueue:ServiceUri and ExternalWorkQueue:ServiceUri must be Azure Queue HTTPS service URIs in Production.");
+    }
+    intakeWorkQueue = new QueueServiceClient(intakeQueueServiceUri, credential)
+        .GetQueueClient("intake-work");
+    externalWorkQueue = new QueueServiceClient(externalWorkQueueServiceUri, credential)
+        .GetQueueClient("external-work");
     // The mailbox-administration "add an address" resolve port alone (AddPegasusInfrastructure
     // below always composes ListApprovedMailboxes/UpdateApprovedMailbox; Web never composes
     // the Worker-only pollers that go with AddProductionExternalAdapters).
@@ -197,6 +223,15 @@ if (productionProfile)
         builder.Services.Configure<TelemetryConfiguration>(
             telemetry => telemetry.SetAzureTokenCredential(credential));
     }
+}
+else
+{
+    var queueConnectionString = builder.Configuration["AzureWebJobsStorage"]
+        ?? throw new InvalidOperationException(
+            "AzureWebJobsStorage is required for DevelopmentOffline queue transport.");
+    intakeWorkQueue = new QueueClient(queueConnectionString, "intake-work");
+    externalWorkQueue = new QueueClient(queueConnectionString, "external-work");
+    allowLocalQueueCreation = true;
 }
 var localDocumentCustodyConfigured =
     builder.Configuration.GetValue<bool>("Features:LocalDocumentCustody");
@@ -594,6 +629,20 @@ builder.Services.AddScoped<IIntakeWorkStore>(serviceProvider =>
 builder.Services.AddScoped<IStagedArtifactAuthority>(serviceProvider =>
     serviceProvider.GetRequiredService<EfIntakeWorkStore>());
 builder.Services.AddScoped<IQueuedIntakeStatusQueries, EfQueuedIntakeStatusQueries>();
+builder.Services.AddSingleton<IIntakeWorkEnqueuer>(
+    new AzureQueueIntakeWorkEnqueuer(
+        intakeWorkQueue ?? throw new InvalidOperationException("The intake queue is not configured."),
+        allowLocalQueueCreation));
+builder.Services.AddSingleton<IExternalWorkEnqueuer>(
+    new AzureQueueExternalWorkEnqueuer(
+        externalWorkQueue ?? throw new InvalidOperationException("The external-work queue is not configured."),
+        allowLocalQueueCreation));
+builder.Services.AddScoped<DispatchPendingIntakeWork>();
+builder.Services.AddScoped<ICommittedIntakeWorkPublisher>(serviceProvider =>
+    serviceProvider.GetRequiredService<DispatchPendingIntakeWork>());
+builder.Services.AddScoped<DispatchPendingExternalWork>();
+builder.Services.AddScoped<ICommittedExternalWorkPublisher>(serviceProvider =>
+    serviceProvider.GetRequiredService<DispatchPendingExternalWork>());
 // Presentation-layer read model for the Upload confirmation surface: composes
 // existing Core read ports only, and every action it offers routes to the
 // existing page that performs it (see Pegasus.Web.Presentation.UploadOutcome).

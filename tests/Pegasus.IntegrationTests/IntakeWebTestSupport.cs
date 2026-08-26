@@ -15,11 +15,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using MimeKit;
+using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Intake;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Web.Authentication;
+using Pegasus.IntegrationTests.Support;
 
 namespace Pegasus.IntegrationTests;
 
@@ -158,6 +160,14 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 }).AddScheme<AuthenticationSchemeOptions, IntegrationTestAuthenticationHandler>("IntegrationTest", _ => { });
             }
             services.RemoveAll<TimeProvider>();
+            // Browser/TestServer hosts exercise Web mutations without an
+            // Azurite process. Production must compose the required queue
+            // publishers, but this host replaces transport only after the
+            // Core route tests have proved its exact-ID call contract.
+            services.RemoveAll<ICommittedIntakeWorkPublisher>();
+            services.AddScoped<ICommittedIntakeWorkPublisher, CommittedWorkPublisherDouble>();
+            services.RemoveAll<ICommittedExternalWorkPublisher>();
+            services.AddScoped<ICommittedExternalWorkPublisher, CommittedWorkPublisherDouble>();
             services.AddSingleton(timeProvider);
             if (artifactStore is not null)
             {

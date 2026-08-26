@@ -480,7 +480,8 @@ public sealed class AutomaticImageIntakeTests
                     ImageIntakeQueries,
                     CaseCandidates,
                     MutationStore,
-                    TimeProvider.System),
+                    TimeProvider.System,
+                    new CommittedWorkPublisherDouble()),
                 TimeProvider.System);
         }
 
@@ -934,7 +935,8 @@ public sealed class AutomaticImageIntakeTests
                     ImageIntakeQueries,
                     CaseCandidates,
                     MutationStore,
-                    TimeProvider.System),
+                    TimeProvider.System,
+                    new CommittedWorkPublisherDouble()),
                 TimeProvider.System,
                 GroupStore);
         }

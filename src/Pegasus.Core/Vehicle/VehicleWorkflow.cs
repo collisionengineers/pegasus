@@ -162,14 +162,15 @@ public interface IVehicleEvidenceQueries
 
 public sealed class RequestVehicleLookup(
     IRequestVehicleLookupStore store,
-    VehicleLookupAvailability availability) : IRequestVehicleLookup
+    VehicleLookupAvailability availability,
+    Pegasus.Core.Custody.ICommittedExternalWorkPublisher committedExternalWorkPublisher) : IRequestVehicleLookup
 {
     private readonly IRequestVehicleLookupStore store =
         store ?? throw new ArgumentNullException(nameof(store));
     private readonly VehicleLookupAvailability availability =
         availability ?? throw new ArgumentNullException(nameof(availability));
 
-    public Task<RequestedVehicleLookup> ExecuteAsync(
+    public async Task<RequestedVehicleLookup> ExecuteAsync(
         RequestVehicleLookupCommand command,
         CancellationToken cancellationToken)
     {
@@ -186,7 +187,7 @@ public sealed class RequestVehicleLookup(
         }
 
         var registration = new VehicleLookupRequest(command.Registration).Registration;
-        return store.RequestAsync(
+        var outcome = await store.RequestAsync(
             command with
             {
                 Registration = registration,
@@ -194,6 +195,8 @@ public sealed class RequestVehicleLookup(
                 EditLeaseToken = command.EditLeaseToken.Trim()
             },
             cancellationToken);
+        await committedExternalWorkPublisher.PublishAsync(outcome.WorkItemId, cancellationToken);
+        return outcome;
     }
 
     internal static void ValidateCaseMutation(

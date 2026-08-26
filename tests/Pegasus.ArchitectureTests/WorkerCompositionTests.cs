@@ -57,7 +57,7 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<SubmitMailboxImageIntake>());
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
 
-            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkDispatchFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
@@ -135,7 +135,7 @@ public sealed class WorkerCompositionTests
                 scopedServices.GetRequiredService<IStagedArtifactAuthority>());
             Assert.NotNull(scopedServices.GetRequiredService<ReconcileStagedArtifacts>());
 
-            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkDispatchFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));

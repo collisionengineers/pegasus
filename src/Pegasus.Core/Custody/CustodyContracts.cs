@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Pegasus.Core.Identity;
+using Pegasus.Core.Intake;
 
 namespace Pegasus.Core.Custody;
 
@@ -498,6 +500,16 @@ public interface IExternalWorkStore
         TimeSpan leaseDuration,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Claims one known committed work item for publication without scanning
+    /// the durable outbox.
+    /// </summary>
+    Task<ExternalWorkDispatchClaim?> ClaimDispatchAsync(
+        Guid workItemId,
+        DateTimeOffset nowUtc,
+        TimeSpan leaseDuration,
+        CancellationToken cancellationToken);
+
     Task MarkDispatchedAsync(
         Guid workItemId,
         string leaseToken,
@@ -537,13 +549,88 @@ public interface IExternalWorkEnqueuer
     Task EnqueueAsync(Guid workItemId, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// The post-commit external/custody publication boundary. Composition must
+/// provide it so accepted work cannot silently await a broad recovery scan.
+/// </summary>
+public interface ICommittedExternalWorkPublisher
+{
+    Task PublishAsync(Guid workItemId, CancellationToken cancellationToken);
+}
+
 public sealed class DispatchPendingExternalWork(
     IExternalWorkStore workStore,
     IExternalWorkEnqueuer workEnqueuer,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : ICommittedExternalWorkPublisher
 {
     private static readonly TimeSpan DispatchLeaseDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan FailedDispatchDelay = TimeSpan.FromSeconds(30);
+    private static readonly ActivitySource Telemetry = new("Pegasus.Core.Custody");
+
+    /// <summary>
+    /// Best-effort publication after the transaction that created this work
+    /// has committed. Transport failure remains recoverable and never undoes
+    /// the already-created case or custody state.
+    /// </summary>
+    public async Task ExecuteCommittedAsync(
+        Guid workItemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (workItemId == Guid.Empty)
+        {
+            throw new ArgumentException("An external work item identifier is required.", nameof(workItemId));
+        }
+
+        using var activity = Telemetry.StartActivity("publish_committed_external_work");
+        activity?.SetTag("custody.work_item_id", workItemId);
+        activity?.SetTag("custody.publication.path", "immediate");
+
+        var claim = await workStore.ClaimDispatchAsync(
+            workItemId,
+            timeProvider.GetUtcNow(),
+            DispatchLeaseDuration,
+            cancellationToken);
+        if (claim is null)
+        {
+            activity?.SetTag("custody.publication.outcome", "already_claimed_or_complete");
+            return;
+        }
+
+        try
+        {
+            await workEnqueuer.EnqueueAsync(claim.WorkItemId, cancellationToken);
+            await workStore.MarkDispatchedAsync(
+                claim.WorkItemId,
+                claim.LeaseToken,
+                timeProvider.GetUtcNow(),
+                cancellationToken);
+            activity?.SetTag("custody.publication.outcome", "published");
+            activity?.SetStatus(ActivityStatusCode.Ok);
+        }
+        catch (Exception exception) when (IntakeExceptionPolicy.IsRecoverable(exception))
+        {
+            activity?.SetTag("custody.publication.enqueue_error", exception.GetType().Name);
+            try
+            {
+                await workStore.ReleaseDispatchAsync(
+                    claim.WorkItemId,
+                    claim.LeaseToken,
+                    timeProvider.GetUtcNow(),
+                    CancellationToken.None);
+                activity?.SetTag("custody.publication.outcome", "enqueue_failed_released");
+            }
+            catch (Exception releaseException) when (IntakeExceptionPolicy.IsRecoverable(releaseException))
+            {
+                activity?.SetTag("custody.publication.release_error", releaseException.GetType().Name);
+                activity?.SetTag("custody.publication.outcome", "enqueue_failed_lease_expiry_recovery");
+            }
+
+            activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+        }
+    }
+
+    public Task PublishAsync(Guid workItemId, CancellationToken cancellationToken) =>
+        ExecuteCommittedAsync(workItemId, cancellationToken);
 
     public async Task<int> ExecuteAsync(
         int maximumItems,
