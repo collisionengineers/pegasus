@@ -326,6 +326,8 @@ Assert-Text $productionSmoke 'HashSet\[string\][\s\S]*StringComparer\]::Ordinal'
 Assert-Text $productionSmoke '--subscription\s+\$SubscriptionId' 'Production smoke must pass the approved subscription explicitly to Azure CLI.'
 Assert-Text $productionSmoke "workerAppName\s*=\s*'pegasus-prod-worker-252ow37gij'" 'Production smoke must bind readback to the exact reviewed Worker identity.'
 Assert-Text $productionSmoke 'WorkerOnly' 'Production smoke must expose its read-only Worker assertion for pre-provision validation.'
+Assert-Text $productionSmoke 'ActivationOnly' 'Production smoke must expose activation-only validation for pre-provision releases that rename functions.'
+Assert-Text $productionSmoke 'if\s*\(\s*-not\s+\$ActivationOnly\s+-and\s+-not\s+\$censusIsExact\s*\)' 'Production smoke must keep the exact Worker census as its default.'
 
 $compiledTemplateJson = (& az bicep build --file $mainBicepPath --stdout) -join "`n"
 if ($LASTEXITCODE -ne 0) {
@@ -449,6 +451,7 @@ if ($Mode -eq 'PreProvision') {
 
     & $productionSmokePath `
         -WorkerOnly `
+        -ActivationOnly `
         -SubscriptionId 'e6076573-23a5-46a8-acef-7e22d264e5db' `
         -ResourceGroupName 'rg-pegasus-prod' `
         -ExpectedWorkerActivation $ExpectedLiveWorkerActivation
