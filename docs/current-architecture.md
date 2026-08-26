@@ -193,7 +193,8 @@ This is implementation evidence toward [INT-01, INT-08–13, INT-18–20, and IN
 ```text
 Staff Intake Razor Page
   -> ReceiveIntake stages original bytes and Pending work
-  -> Worker dispatcher publishes the staged receipt id
+  -> committing Web or Worker caller publishes the staged receipt id immediately
+  -> one-minute Worker recovery republishes only interrupted Pending work
   -> intake-work queue
   -> Worker ProcessQueuedIntake
   -> QDOS IInstructionExtractionPolicy
