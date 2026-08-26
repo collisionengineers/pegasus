@@ -204,7 +204,7 @@ function Get-MigrationPermissionMatrix {
     }
     $expected.Add('pegasus_web_runtime_role|D|DELETE|CaseRepairSpecifications')
     # 20260819115323_UnidentifiedWork, per-object least privilege:
-    # - UnidentifiedItems: Worker (IntakeWorkFunction -> ProcessQueuedIntake ->
+    # - UnidentifiedItems: Worker (UnifiedWorkFunction -> ProcessQueuedIntake ->
     #   ProcessIntake.ExecuteRetainedAsync -> IRegisterUnidentified.RegisterAsync)
     #   gets SELECT/INSERT/UPDATE; the UPDATE is
     #   ProcessQueuedIntake.SynchronizeUnidentifiedAsync's reconciliation
