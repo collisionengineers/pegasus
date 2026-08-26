@@ -53,10 +53,12 @@ dotnet run --project ./src/Pegasus.Web --configuration Release --launch-profile 
 
 The `SqlServer` test lane runs on Linux too once the tests are pointed at that
 container; [the runbook](docs/runbook.md#locked-restore-build-and-test) owns
-the exact variables. Prefer
-`pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start` (after
-`Initialize-LocalDevelopment.ps1` has run once), which manages the container,
-Azurite, and the Functions host for you.
+the exact variables. Prefer `pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action
+Start` (after `Initialize-LocalDevelopment.ps1` has run once) for the default
+Live UI, which manages the database, Azurite, Web, and Functions host. Use
+`pwsh ./scripts/Invoke-LocalDevelopment.ps1 -Action Start -UiMode Test` to open
+the disposable static UI catalogue without starting Pegasus or its local
+dependencies.
 
 The first `dotnet run` applies every committed Development migration and exits;
 the second starts Web against the migrated database. Normal Web startup never

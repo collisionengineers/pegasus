@@ -2,6 +2,8 @@
 param(
     [ValidateSet('Start', 'Status', 'Smoke', 'Stop', 'Reset')]
     [string]$Action = 'Status',
+    [ValidateSet('Live', 'Test')]
+    [string]$UiMode = 'Live',
     [ValidatePattern('^[0-9a-f]{32}$')]
     [string]$RunId,
     [ValidateSet('None', 'AfterWeb', 'StoragePressure')]
@@ -1484,6 +1486,45 @@ function Start-LocalRun {
 }
 
 Get-PegasusPlatform | Out-Null
+if ($UiMode -eq 'Test') {
+    if ($Action -ne 'Start') {
+        throw '-UiMode Test is valid only with -Action Start.'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($RunId)) {
+        throw '-RunId is valid only with -UiMode Live.'
+    }
+    if ($FailureMode -ne 'None' -or $PSBoundParameters.ContainsKey('StoragePressureMegabytes')) {
+        throw 'Failure controls are valid only with -UiMode Live.'
+    }
+    if ($PSBoundParameters.ContainsKey('StartupTimeoutSeconds')) {
+        throw '-StartupTimeoutSeconds is valid only with -UiMode Live.'
+    }
+
+    $cataloguePath = Join-Path $repositoryRoot 'docs/design/test-ui/index.html'
+    if (-not (Test-Path -LiteralPath $cataloguePath -PathType Leaf)) {
+        throw "Test UI catalogue not found: $cataloguePath"
+    }
+
+    $cataloguePath = [System.IO.Path]::GetFullPath($cataloguePath)
+    $catalogueUri = [System.Uri]::new($cataloguePath).AbsoluteUri
+    $platform = Get-PegasusPlatform
+    if ($platform.Kind -eq 'Windows') {
+        Start-Process -FilePath $catalogueUri
+    }
+    else {
+        $opener = Get-RequiredApplication `
+            -Name 'xdg-open' `
+            -Repair 'Install xdg-utils so Test UI can open in the default browser.'
+        Start-Process -FilePath $opener -ArgumentList $catalogueUri
+    }
+
+    [pscustomobject][ordered]@{
+        UiMode = 'Test'
+        CataloguePath = $cataloguePath
+        CatalogueUri = $catalogueUri
+    }
+    return
+}
 if ($Action -ne 'Start' -and $FailureMode -ne 'None') {
     throw '-FailureMode is valid only with -Action Start.'
 }
