@@ -50,3 +50,7 @@ A fresh run proved the explicit URL-builder workaround still omitted `mailbox`, 
 ### Combined boundary fix
 
 The GitHub evidence matrix isolates two independent failures: renamed-property binding plus Tag Helper generation fails; explicit candidate URL with the unpopulated property fails; direct query population plus the Tag Helper still fails. Therefore the final correction combines both narrow changes: populate `MailboxFilter` from the canonical GET query and generate only the case-candidate URL explicitly with `QueryHelpers` over the same eight values. No other links or handlers change. Acceptance remains focused exact-anchor pass, independent review, and fresh green SQL shard 1.
+
+### Exact corrupted-value evidence
+
+The custom failure message captured the full GitHub candidate URL: `mailbox` was an unrelated GUID while `pageNumber=2`, `caseQuery=MAIL31001`, and the target case were correct. Therefore the bound `MailboxFilter` is corrupted rather than absent. The candidate URL must source its mailbox value from the immutable raw `Request.Query["mailbox"]`; the existing direct normalization remains for other PageModel consumers. The exact-anchor test keeps the full diagnostic on failure. Acceptance remains focused local pass, independent review, and fresh green shard 1.

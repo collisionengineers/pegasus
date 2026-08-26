@@ -61,3 +61,7 @@ Run 33004368148 proved the explicit `QueryHelpers` candidate URL still lacked `m
 ### Combined GitHub fix
 
 Run 33005929015 showed direct query population alone still failed at the exact candidate URL. The evidence matrix now establishes two required boundaries: explicit GET population and explicit candidate URL generation. Commit `d119bd39` combines the two already-focused corrections; the exact-anchor test passes locally. Fresh GitHub proof and final independent review remain pending.
+
+### Exact candidate URL evidence
+
+The custom-message run captured `/Inbox/...?...mailbox=<unrelated-guid>&pageNumber=2&section=case&caseQuery=MAIL31001&targetCaseId=...`. Commit `60d6ebea` changes only the candidate URL's mailbox source from the corrupted bound property to raw `Request.Query["mailbox"]`. The focused exact-anchor test passes locally; fresh GitHub proof and final review are pending.
