@@ -1,0 +1,678 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pegasus Test UI</title><link rel="stylesheet" href="../../../src/Pegasus.Web/wwwroot/css/site.css"></head><body><main class="app-shell"><header class="page-header"><p class="eyebrow">Disposable design evidence</p><h1>Pegasus Test UI</h1></header><p>Static page replicas for local design experiments. These files are not implemented application behaviour.</p><section aria-labelledby="visual-pages"><h2 id="visual-pages" class="section-label">Visual routes</h2><ul id="visual-route-list" class="link-list"></ul></section><section aria-labelledby="nonvisual"><h2 id="nonvisual" class="section-label">Non-visual routes</h2><div class="table-wrap"><table><thead><tr><th>Route</th><th>Classification</th><th>Reason</th></tr></thead><tbody id="nonvisual-route-list"></tbody></table></div></section><script id="route-inventory" type="application/json">[
+  {
+    "source": "src/Pegasus.Web/Pages/Account/AccessDenied.cshtml",
+    "route": "/Account/AccessDenied",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/access-denied--default.html",
+        "branch": "Access-denied page."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Account/PasswordChange.cshtml",
+    "route": "/Account/PasswordChange",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/password-change--default.html",
+        "branch": "Ordinary voluntary password-change form."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Account/SignIn.cshtml",
+    "route": "/Account/SignIn",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/sign-in--default.html",
+        "branch": "Unsigned-in form without signed-out or validation notice."
+      },
+      {
+        "state": "validation",
+        "file": "pages/sign-in--validation.html",
+        "branch": "ModelState is invalid and the sign-in form is redisplayed."
+      },
+      {
+        "state": "signed-out",
+        "file": "pages/sign-in--signed-out.html",
+        "branch": "Model.SignedOut is true."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Account/SignOut.cshtml",
+    "route": "/Account/SignOut",
+    "classification": "redirect",
+    "reason": "Redirects to Sign in after ending the authenticated session."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Access/Index.cshtml",
+    "route": "/Administration/Access",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-access--default.html",
+        "branch": "Populated access-review table."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Accounts/Edit.cshtml",
+    "route": "/Administration/Accounts/Edit/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-account-edit--default.html",
+        "branch": "Loaded enabled account edit form."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Accounts/Index.cshtml",
+    "route": "/Administration/Accounts",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-accounts--default.html",
+        "branch": "Populated account table and create form."
+      },
+      {
+        "state": "empty",
+        "file": "pages/administration-accounts--empty.html",
+        "branch": "Model.Accounts.Count is zero."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Automation/Activity.cshtml",
+    "route": "/Administration/Automation/Activity",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-automation-activity--default.html",
+        "branch": "Unfiltered activity page with no records."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Automation/Index.cshtml",
+    "route": "/Administration/Automation",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-automation--default.html",
+        "branch": "Composed and enabled automation controls."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Configuration.cshtml",
+    "route": "/Administration/Configuration",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-configuration--default.html",
+        "branch": "Loaded default case-workflow policy configuration."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Index.cshtml",
+    "route": "/Administration",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration--default.html",
+        "branch": "Automation-uncomposed eight-card administration landing."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Mailboxes.cshtml",
+    "route": "/Administration/Mailboxes",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-mailboxes--default.html",
+        "branch": "One approved identity-bound mailbox before its first poll."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/MailCategories.cshtml",
+    "route": "/Administration/MailCategories",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-mail-categories--default.html",
+        "branch": "No existing categories plus add-category form."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Organizations/Edit.cshtml",
+    "route": "/Administration/Organizations/Edit/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-organization-edit--default.html",
+        "branch": "Loaded Work Provider organization with one active principal."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Organizations/Index.cshtml",
+    "route": "/Administration/Organizations",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-organizations--default.html",
+        "branch": "No organizations plus create form."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/Create.cshtml",
+    "route": "/Administration/Principals/Create",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-principal-create--default.html",
+        "branch": "Loaded organization and available work-provider create form."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/Index.cshtml",
+    "route": "/Administration/Principals",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-principals--default.html",
+        "branch": "No organizations branch."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Principals/Replace.cshtml",
+    "route": "/Administration/Principals/Replace/{organizationId:guid}/{principalId:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-principal-replace--default.html",
+        "branch": "Loaded active predecessor and available replacement form."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Administration/Roles/Index.cshtml",
+    "route": "/Administration/Roles",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/administration-roles--default.html",
+        "branch": "Populated account role-assignment table and form."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Assessment/Index.cshtml",
+    "route": "/Cases/{id:guid}/Assessment",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-assessment--default.html",
+        "branch": "Vehicle assessment section with ordinary action gates."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Closure.cshtml",
+    "route": "/Cases/{id:guid}/Closure",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Create.cshtml",
+    "route": "/Cases/Create",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-create--default.html",
+        "branch": "Allowed case creation with editable instruction draft."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Custody.cshtml",
+    "route": "/Cases/{id:guid}/Custody",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Details.cshtml",
+    "route": "/Cases/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/case-details--default.html",
+        "branch": "Loaded overview in Review with held edit lease."
+      },
+      {
+        "state": "unavailable",
+        "file": "pages/case-details--unavailable.html",
+        "branch": "The case workspace cannot load the requested editable data."
+      },
+      {
+        "state": "conflict",
+        "file": "pages/case-details--conflict.html",
+        "branch": "The submitted expected version is stale and the non-destructive conflict notice is rendered."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Documents/Download.cshtml",
+    "route": "/Cases/{caseId:guid}/Documents/{occurrenceId:guid}/Download",
+    "classification": "download",
+    "reason": "Returns the stored document bytes inline or as a download."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Documents/Export.cshtml",
+    "route": "/Cases/{caseId:guid}/Documents/Export",
+    "classification": "download",
+    "reason": "GET redirects to case details; POST returns a ZIP archive."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Index.cshtml",
+    "route": "/Cases",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/cases--default.html",
+        "branch": "Successful populated case results."
+      },
+      {
+        "state": "empty",
+        "file": "pages/cases--empty.html",
+        "branch": "The case query succeeds and Model.Results.Count is zero."
+      },
+      {
+        "state": "unavailable",
+        "file": "pages/cases--unavailable.html",
+        "branch": "The case query is unavailable and no false empty result is rendered."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Tasks.cshtml",
+    "route": "/Cases/{id:guid}/Tasks",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Vehicle.cshtml",
+    "route": "/Cases/{id:guid}/Vehicle",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Cases/Workflow.cshtml",
+    "route": "/Cases/{id:guid}/Workflow",
+    "classification": "redirect",
+    "reason": "Compatibility route redirects to the canonical case detail surface."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Connect/Authorize.cshtml",
+    "route": "/authorize",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/connector-authorize--default.html",
+        "branch": "Valid connector authorization request."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Error.cshtml",
+    "route": "/Error",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/error--default.html",
+        "branch": "Retryable error with return path and support reference."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/ImageIntake/Details.cshtml",
+    "route": "/VehicleImages/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/vehicle-images-details--default.html",
+        "branch": "Awaiting-instruction image case with no registered images."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/ImageIntake/Index.cshtml",
+    "route": "/VehicleImages",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/vehicle-images--default.html",
+        "branch": "Populated vehicle-image results."
+      },
+      {
+        "state": "empty",
+        "file": "pages/vehicle-images--empty.html",
+        "branch": "The query succeeds and Model.Results.Count is zero."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Index.cshtml",
+    "route": "/",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/dashboard--default.html",
+        "branch": "Current loaded dashboard with ordinary metrics."
+      },
+      {
+        "state": "stale",
+        "file": "pages/dashboard--stale.html",
+        "branch": "Dashboard freshness is stale and last-good values remain visible."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Asset.cshtml",
+    "route": "/Received/{id:guid}/Asset/{assetId:guid}",
+    "classification": "download",
+    "reason": "Returns preserved source asset bytes."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Details.cshtml",
+    "route": "/Received/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/received-details--default.html",
+        "branch": "Blocked-intake receipt with source evidence and held lease."
+      },
+      {
+        "state": "partial",
+        "file": "pages/received-details--partial.html",
+        "branch": "The retained receipt loads with partial processing evidence."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Image.cshtml",
+    "route": "/Received/{id:guid}/Image",
+    "classification": "download",
+    "reason": "Returns the preserved source image bytes."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Intake/Source.cshtml",
+    "route": "/Received/{id:guid}/Source",
+    "classification": "download",
+    "reason": "Returns the preserved source document bytes."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Mail/Index.cshtml",
+    "route": "/Inbox",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/inbox--default.html",
+        "branch": "Populated Inbox folder."
+      },
+      {
+        "state": "empty",
+        "file": "pages/inbox--empty.html",
+        "branch": "The current mail query succeeds and returns no rows."
+      },
+      {
+        "state": "failed",
+        "file": "pages/inbox--failed.html",
+        "branch": "The current mail query fails and no false empty result is rendered."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Mail/Message.cshtml",
+    "route": "/Inbox/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/inbox-message--default.html",
+        "branch": "Message active section with correction dialog closed."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Operations/Index.cshtml",
+    "route": "/Operations",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/operations--default.html",
+        "branch": "Populated ordinary operations work without AI limit."
+      },
+      {
+        "state": "empty",
+        "file": "pages/operations--empty.html",
+        "branch": "External work and upload-link collections are both empty."
+      },
+      {
+        "state": "failed",
+        "file": "pages/operations--failed.html",
+        "branch": "The operations query fails and failure state is rendered."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Search/Index.cshtml",
+    "route": "/Search",
+    "classification": "redirect",
+    "reason": "Redirects to Cases because search was merged into that screen."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/StatusCode.cshtml",
+    "route": "/status/{code:int}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/status-code--default.html",
+        "branch": "404 status with dashboard return enabled."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Triage/Details.cshtml",
+    "route": "/Triage/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/triage-details--default.html",
+        "branch": "Open assigned Triage item with evidence candidates."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Triage/Index.cshtml",
+    "route": "/Triage",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/queues--default.html",
+        "branch": "Triage queue tab with populated results."
+      },
+      {
+        "state": "empty",
+        "file": "pages/queues--empty.html",
+        "branch": "The selected queue query succeeds and its result collection is empty."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Unidentified/Details.cshtml",
+    "route": "/Unidentified/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/unidentified-details--default.html",
+        "branch": "Open item with retained source receipt."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Unidentified/Index.cshtml",
+    "route": "/Unidentified",
+    "classification": "redirect",
+    "reason": "Redirects to the Unidentified tab on Queues."
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Upload.cshtml",
+    "route": "/Upload",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload--default.html",
+        "branch": "Initial internal upload form."
+      },
+      {
+        "state": "validation",
+        "file": "pages/upload--validation.html",
+        "branch": "ModelState is invalid and the upload form is redisplayed."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/UploadGroupStatus.cshtml",
+    "route": "/Upload/Group/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-group-status--default.html",
+        "branch": "Completed grouped upload outcomes."
+      },
+      {
+        "state": "processing",
+        "file": "pages/upload-group-status--processing.html",
+        "branch": "At least one group member has no completed outcome and refresh remains available."
+      },
+      {
+        "state": "failed",
+        "file": "pages/upload-group-status--failed.html",
+        "branch": "A group member has a failed processing outcome."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/Uploads/Request.cshtml",
+    "route": "/Uploads/{token}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-request--default.html",
+        "branch": "Valid external upload policy and initial form."
+      },
+      {
+        "state": "validation",
+        "file": "pages/upload-request--validation.html",
+        "branch": "ModelState is invalid under a valid upload policy."
+      }
+    ]
+  },
+  {
+    "source": "src/Pegasus.Web/Pages/UploadStatus.cshtml",
+    "route": "/Upload/Status/{id:guid}",
+    "classification": "visual",
+    "states": [
+      {
+        "state": "default",
+        "file": "pages/upload-status--default.html",
+        "branch": "Completed case-created upload outcome."
+      },
+      {
+        "state": "processing",
+        "file": "pages/upload-status--processing.html",
+        "branch": "Model.Outcome is null while processing is incomplete."
+      },
+      {
+        "state": "failed",
+        "file": "pages/upload-status--failed.html",
+        "branch": "Model.Outcome is a failed processing result."
+      }
+    ]
+  }
+]</script><script>
+const inventory = JSON.parse(document.getElementById("route-inventory").textContent);
+const visualList = document.getElementById("visual-route-list");
+const nonvisualList = document.getElementById("nonvisual-route-list");
+for (const entry of inventory) {
+  if (entry.classification === "visual") {
+    for (const state of entry.states) {
+      const item = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = state.file;
+      link.textContent = entry.route + " · " + state.state;
+      item.append(link);
+      visualList.append(item);
+    }
+  } else {
+    const row = document.createElement("tr");
+    for (const value of [entry.route, entry.classification, entry.reason]) {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      row.append(cell);
+    }
+    nonvisualList.append(row);
+  }
+}
+</script></main></body></html>

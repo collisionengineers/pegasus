@@ -1,34 +1,36 @@
 # Plan — <ticket id>: <title>
 
-*The plan. Not the checklist — this is the **reasoning**; the checklist is the executable distillation of it.*
+*The plan. Not the checklist — reasoning establishes bounded work; the checklist distils it into independently observable actions.*
 
-Written FROM the ticket's `research` and `files` documents — if either is
-missing or stale, fix that first.
-
-## Approach
-
-The chosen approach and why it beat the alternatives (one paragraph).
-
+## Objective
+One bounded outcome.
+## Starting state
+Verified current behaviour, source paths, components, and constraints.
 ## Governing docs
+For each linked PRD/FRD/ADR: **Meets** the requirement, **Modifies** only with explicit authorization, or records a **New ADR**. Review checks this against the diff.
+## Required changes
+Exact behaviour and contract changes.
 
-**Required.** How this plan meets each linked PRD/FRD/ADR (`refs`). For each:
-- **Meets** — which requirement/acceptance-criterion each step satisfies; or
-- **Modifies** (only with explicit user authorization) — what changes in the doc and why; or
-- **New ADR** — the design decision this introduces, written via `kanmer-docs` and linked.
+> **Advisory:** `investigate`, `decide`, `choose`, and `determine` usually mean planner work remains. Resolve it before dispatch or use a spike. This is not a gate or regex score.
 
-`kanmer-review` checks this section holds against the diff.
-
-## Steps
-
-1. Concrete, ordered steps. Each should be checkable — checklist.md is
-   derived from this list.
-2. …
-
-## Verification
-
-How proof.md will be produced: the tests to run, the behaviours to observe,
-the commands whose output becomes the evidence.
-
-## Risks / open questions
-
-- Risk and its mitigation, or the question and who answers it.
+## Expected files
+| Action | Repo-root-relative path | Responsibility |
+|---|---|---|
+| Modify/Add/Inspect | `path/to/file` | Include generated-artifact status. |
+## Do not modify
+Protected surfaces and forbidden scope.
+## Constraints
+Only applicable compatibility, dependency, path, security/data, performance, and architectural constraints.
+## Ordered steps
+1. Input, target path/symbol, expected result, and ordering dependency.
+## Acceptance checks
+- When applicable, name the production caller, registration, route, or composition entry.
+- When applicable, prove runtime dependencies ship in the packaged/deployed artifact.
+- When applicable, schema changes include migration, grants/bootstrap census, runtime-role permission, and rollback/data-loss handling in the same diff.
+- Tests prove the claim without weakened assertions; retain exact commands and exit evidence.
+## Commands
+Focused checks, full repository rail, and post-merge/environment checks with cwd/environment.
+## Failure and deviation rules
+Stop and report failing checks, unknown APIs/files, scope expansion, dependency additions, governing conflicts, or unsafe commands; deviations are not silent redesigns.
+## Stop condition
+State the final boundary. Do not merge or start another ticket unless the approved skill phase explicitly owns it.
