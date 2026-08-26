@@ -35,3 +35,14 @@
 **FAIL / NEEDS CHANGES.** Move the strict schedule assertion onto every non-`ActivationOnly` smoke path (including the default WebAndWorker post-deployment command), while keeping it skipped only for activation-only pre-provision. Then add a static/behavioral guard that ties the schedule assertion to `-not $ActivationOnly`, not merely to the presence of the schedule string.
 
 No implementation edit or merge was performed.
+
+# Final independent re-review — head eb6899c0 — 2026-08-26
+
+Both blocking findings are resolved:
+
+- activation-only inventory is restricted to actual `AzureWebJobs.*.Disabled` settings, remains non-empty, and all values must uniformly match the expected activation;
+- the live `PendingWorkRecoverySchedule` assertion now executes for every non-`ActivationOnly` invocation before the `WorkerOnly` return, so both strict Worker-only readback and the canonical full WebAndWorker post-deployment smoke require exactly `0 * * * * *`; only pre-provision activation-only skips it.
+
+The deployment-plan guard now asserts that ordering rather than merely the presence of schedule text. Exact ordinal nine-name census remains the default. Documentation and both release-skill copies remain synchronized. The diff stays proportional and the simplification record is honest.
+
+**Final verdict: PASS on implementation.** No code-review findings remain. Repository CI was still running at review time, so merge eligibility remains conditional on the unchanged head and all required checks passing. No edit or merge was performed.
