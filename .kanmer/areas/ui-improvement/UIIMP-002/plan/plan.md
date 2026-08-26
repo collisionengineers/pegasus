@@ -28,3 +28,10 @@ Proof consists of the validator output showing complete current-route classifica
 - Static HTML can drift from Razor; using real paths/classes and failing new or removed routes keeps drift visible, while [[UIIMP-003]] governs approved reintegration.
 - Some dynamic states cannot function under `file:`; represent their visual state only and never simulate server authority.
 - The catalogue is large but remains one coherent unit because coverage and validation are one atomic contract.
+
+## Simplification pass — 2026-08-26
+
+- Reuse: retained the real `site.css`, approved marks, existing shell classes, and Razor-owned page structures; no parallel stylesheet, runtime, component library, or generator was added.
+- Simplification: made embedded JSON the single catalogue owner and generated the visible index from it; removed unused inventory metadata and added duplicate prototype/source-state rejection.
+- Efficiency: kept one direct PowerShell validator and standalone editable HTML files. No template abstraction was introduced because each disposable page is an independent concrete caller.
+- Altitude: the first independent lens correctly rejected generic outlines as underimplementation. Page-specific fidelity passes restored defining forms, tables, controls, actions, state branches, and the shared focus target. The final lens reported no remaining issue after the focus-target correction.
