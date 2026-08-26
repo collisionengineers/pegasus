@@ -2,13 +2,14 @@
 id: INTK-043
 type: ticket
 title: Remove intake and custody warm-path delay for the five-second target
-status: review
+status: verifying
 area: intake-processing
 assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T15:26:55.430Z'
   review: '2026-08-26T14:31:20.634Z'
+  verifying: '2026-08-26T14:56:37.343Z'
 taken_at: '2026-08-26T12:24:00.138Z'
 branch: task/intk-043-warm-intake
 worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/intk-043-warm-intake'
@@ -34,7 +35,7 @@ prs:
   - 'https://github.com/collisionengineers/pegasus/pull/560'
 archived: false
 created: '2026-08-25T15:18:40.610Z'
-updated: '2026-08-26T14:39:37.141Z'
+updated: '2026-08-26T14:56:37.343Z'
 ---
 
 ## What
