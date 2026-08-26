@@ -21,3 +21,14 @@
 - 2026-08-26: Documentation links, Markdown placement, locked restore and Release build pass; build has zero warnings/errors. Four-lens simplification found no remaining change.
 
 - 2026-08-26: Pushed commit `b8d2ac45` and opened stacked PR #558 targeting `task/pr-063-default-fidelity`.
+
+## Closeout — PR-064
+
+- [x] PR merge verified (`gh pr view --json state,mergedAt`)
+- [x] proof.md finalised (PR URL + merge date recorded)
+- [ ] Moved to final stage
+- [ ] Outcome recorded in ticket body (PR link, follow-ups)
+- [ ] cd out of worktree; remove PR-064 worktree
+- [ ] delete `task/pr-064-test-ui-contradictions`
+- [ ] `git fetch --prune` + `git worktree prune`
+- [ ] `take_ticket action: "release"`
