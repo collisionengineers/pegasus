@@ -1,11 +1,12 @@
 # Checklist
 
-- [ ] Confirm blocking PRs/overlap are clear; create/take a fresh worktree.
-- [ ] Add correlated low-cardinality stage spans to the one shared intake path.
-- [ ] Add telemetry correlation/cardinality/content-safety tests.
-- [ ] Produce the repeatable ordinary e-mail/manual-upload baseline artifact.
-- [ ] Record the measured dominant stage and revise the exact optimization step before coding it.
-- [ ] Apply the smallest measured optimization without changing intake semantics.
-- [ ] Produce before/after percentile evidence and run correctness suites.
-- [ ] Update as-built docs; run Release validation and simplification lenses.
-- [ ] Report, commit, push, open the PR to `dev`, and move to Review.
+- [ ] Create/take an isolated INTK-043 worktree from current `origin/dev`.
+- [ ] Add tested, low-cardinality stage telemetry and unsampled performance spans.
+- [ ] Add the unified typed queue dispatcher and remove the ordinary external-work hop.
+- [ ] Preload image automation and configure one 2 GB always-ready unified function in Bicep.
+- [ ] Measure each supported input cohort and optimize only the proven source/EF/retention bottleneck.
+- [ ] Bound concurrent asset retention and Box custody while preserving names, integrity and idempotency.
+- [ ] Add/extend correctness, timing and end-to-end route tests.
+- [ ] Update ADR/FRD/PRD/current architecture/operations and record Azure-cost decision.
+- [ ] Run restore, Release build, focused/full tests, performance cohort and simplification review.
+- [ ] Write implementation report, commit, push, open PR to `dev`, and move to Review.

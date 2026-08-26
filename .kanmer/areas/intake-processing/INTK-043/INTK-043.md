@@ -1,13 +1,16 @@
 ---
 id: INTK-043
 type: ticket
-title: Reduce ordinary intake source-reading latency to the ten-second p95 budget
-status: preparing
+title: Remove intake and custody warm-path delay for the five-second target
+status: implementing
 area: intake-processing
-assignee: ''
+assignee: codex-mcp-client
 profile: fix
 stageEntered:
   preparing: '2026-08-25T15:26:55.430Z'
+taken_at: '2026-08-26T12:24:00.138Z'
+branch: task/intk-043-warm-intake
+worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/intk-043-warm-intake'
 labels: []
 groups:
   - EPIC-002
@@ -19,18 +22,19 @@ refs:
   - docs/frd/frd-02-intake-and-source-identity.md
 archived: false
 created: '2026-08-25T15:18:40.610Z'
-updated: '2026-08-25T15:26:55.430Z'
+updated: '2026-08-26T12:24:00.138Z'
 ---
 
 ## What
-Measure and remove the ordinary QDOS e-mail/manual-upload source-reading delay so identification, classification, extraction, and case creation meet the agreed ten-second p95 budget.
+Consolidate the shared queued intake and normal custody path into one warm Worker route, instrument every material stage, and remove measured processing/custody delay for e-mail and manual upload.
 
 ## Why
-Observed intake spent about seventeen seconds between staging and post-reader processing, while later classification and case creation took roughly one second. Polling changes cannot fix this section.
+The observed 30-second route is dominated by Flex queue cold starts, heavyweight source reading, and a second cold/sequential custody path. Polling changes and immediate publication removed only a small portion.
 
 ## Acceptance
-- Add per-stage traces and an evidence-backed latency baseline.
-- Remove verified avoidable source-reader work without introducing a second intake implementation.
-- Ordinary QDOS e-mail and manual upload reach the truthful completed/case state within ten seconds p95; large inputs remain truthfully Processing.
+- Manual upload reaches confirmed custody through the warm unified route within the Pegasus-controlled five-second p95 budget.
+- E-mail uses the same route after mailbox discovery; total arrival-to-custody is measured with Outlook/Graph and Box latency attributed separately.
+- Identification, classification, extraction, allocation, integrity, idempotency and fail-closed behaviour remain Core-owned and equivalent.
+- Every processing UI state is backed by a truthful persisted outcome; [[INTK-001]] owns its display correction.
 
 ## Outcome

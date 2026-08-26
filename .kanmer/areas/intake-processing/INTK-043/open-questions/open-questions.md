@@ -1,11 +1,11 @@
 # Open questions — INTK-043
 
-- [x] Which routes share the optimization? E-mail and manual upload both continue through the existing Core-owned ProcessQueuedIntake to ProcessIntake route.
-- [x] May planning assume the source reader owns the observed interval? No. Instrument and baseline the broader queued-processing stages first; select the change only from evidence.
-- [x] What counts toward the target? Ordinary healthy intake from receipt/wake through truthful terminal/case state; report retries, cold starts and deliberately large inputs separately.
-- [x] Which safety behavior may be traded for speed? None: durability, integrity, traversal bounds, fail-closed allocation, idempotency and truthful Processing remain binding.
-- [x] When is the representative baseline taken? After blocking [[INTK-041]] and [[INTK-042]] land, so old timer/dispatch delay is not labelled reader cost.
+- [x] Is five seconds measured only after Pegasus receipt? No. Report both Outlook-arrival-to-custody and Pegasus-receipt-to-custody; the former is best effort because Outlook/Graph and Box are external.
+- [x] Does completion include custody? Yes. Confirmed Box custody is the requested completion boundary.
+- [x] Which payloads count? Every currently supported input cohort up to documented limits.
+- [x] What warm capacity starts the remediation? One function-specific 2 GB always-ready instance, then 4 GB only on measured CPU evidence.
+- [x] Is a second worker/queue path permitted? No. Normal work uses the one typed queue and one Core-owned processor; retry/recovery remains the sole later message.
 
 ## Parked (explicitly deferred)
 
-- [ ] Production p95 proof is deferred to approved deployment/observation work in [[DELIV-021]]; INTK-043 supplies instrumentation, a repeatable pre-release baseline and the measured code change without cloud writes.
+- Provider replacement is not planned. If Outlook/Graph or Box remains the sole reason the best-effort total target misses, record the evidence for a later product decision.

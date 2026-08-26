@@ -28,3 +28,20 @@ Which part of the shared queued intake path accounts for the observed delay afte
 ## Open questions
 
 No operator decision is required for planning. Root-cause selection is evidence-gated: instrumentation and baseline collection precede optimization, and the selected change must name the measured stage and preserve the constraints above.
+
+## Remediation extension — 2026-08-26
+
+### Verified current evidence
+
+- A current 1.245 MB forwarded EML with 20 retained assets took 30.55 seconds from Outlook receipt to case creation: 10.24 seconds to stage, 0.65 seconds from stage to publication, 17.92 seconds from publication to `ProcessedAt`, then about one second to case creation. Confirmed Box custody completed about 37.8 seconds after the case.
+- Manual JPG uploads spent about 17 seconds between staging and `ProcessedAt`; comparable PDFs completed that interval in 3.9–6.6 seconds. The root image reader is trivial, so the JPG interval strongly identifies queue host startup/delivery rather than parsing.
+- The production Flex Consumption Worker has no always-ready instances. Flex independently scales non-HTTP functions, so timer activity does not keep `IntakeWorkFunction` or `ExternalWorkFunction` warm.
+- SQL, Blob and worker CPU metrics are not saturated. The dominant code candidates are MIME/PDF expansion, repeated hashes/copies, sequential derived-asset Blob retention, then a second queue-trigger cold start followed by sequential Box uploads.
+- `ProcessedAtUtc` is written after source reading but before assessment/persistence, so new stage telemetry is required to distinguish host delivery from source-read cost.
+
+### Decisions
+
+- This ticket owns one typed critical-work queue and one always-ready 2 GB queue trigger. Normal processing continues in the same invocation through confirmed custody; only genuine retry/recovery becomes a new message.
+- `MAIL-013` owns Graph callback/subscription work. `INTK-001` owns display-state truthfulness. Neither is duplicated here.
+- Target all supported input cohorts. Measure the total, but count Outlook/Graph and Box provider delay separately. The five-second total remains a best-effort target because neither provider offers that delivery guarantee.
+- Keep recovery timers as recovery only. They never sit on the successful intake path.
