@@ -34,3 +34,11 @@ Core tests prove exact-ID publication, enqueue-before-mark, no broad outbox scan
 - **Duplicate delivery:** claim ownership and id-only queue messages preserve the existing at-least-once, idempotent processor contract.
 - **Privilege expansion:** Web can add messages only to `intake-work` and `external-work`; it cannot receive, delete, or process them.
 - **Deployment state:** this branch changes source and Bicep only; no deployed-state document is altered until a deployment actually occurs.
+
+## Simplification pass — 2026-08-26
+
+- **Reuse:** one exact-ID path extends the existing Core dispatchers; Web and Worker share the same two Infrastructure senders.
+- **Simplification:** removed the Worker-only queue sender copies and renamed the old normal-dispatch timer to recovery. No compatibility alias or second normal path remains.
+- **Efficiency:** direct publication does one indexed exact-ID claim; it does not scan pending work or wait for the five-second timer.
+- **Altitude:** Core owns leasing and recovery; Infrastructure only sends identifiers; Web never processes messages. The only new public value is an already-committed image external-work ID required to publish its existing outbox row.
+- **Disposition:** no further behaviour-preserving simplification found. The selected integration suite remains pending because concurrent local integration hosts stalled it; this is recorded for review rather than hidden.
