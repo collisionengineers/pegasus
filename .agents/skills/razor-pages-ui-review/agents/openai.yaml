@@ -1,0 +1,4 @@
+interface:
+  display_name: "Razor Pages UI Review"
+  short_description: "Review Razor Pages usability and quality"
+  default_prompt: "Use $razor-pages-ui-review to review this Razor Pages UI and prioritize useful improvements."
