@@ -15,3 +15,11 @@
 ## Proof
 
 Pre-provision passes against release 31's old enabled timer name; post-deployment smoke passes only after release 32 exposes the new exact census and one-minute schedule.
+
+## Simplification pass — 2026-08-26
+
+- Reuse: kept the existing production smoke and deployment-plan entry points; no new script or policy owner.
+- Simplicity: one switch changes only whether names are compared before provisioning. Empty inventories and inconsistent activation still fail.
+- Efficiency: the same single Azure settings read serves both checks; no additional cloud call or retry.
+- Altitude: the strict release contract remains the default and post-deployment gate. No compatibility path or retained legacy implementation was added.
+- Findings: no further behaviour-preserving simplification identified.
