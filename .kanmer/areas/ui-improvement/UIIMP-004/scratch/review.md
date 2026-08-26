@@ -71,3 +71,25 @@ The implementation now meets the corrected current 57-state plan and its Razor-o
 ## Verdict
 
 **Approve.** No remaining blocking finding in PR #562 at `44d16f46`. Merge remains subject to the repository's green-CI requirement; this reviewer did not merge.
+
+# Independent scope re-review — commit f7c87173 — 2026-08-26
+
+## Delta
+
+The new commit changes the shared CI action from `actions/setup-dotnet` `10.0.x` to `10.0.302` and changes `global.json` roll-forward from `latestFeature` to `latestPatch`.
+
+## Correctness
+
+The two settings are mechanically compatible. Every .NET CI lane uses `.github/actions/dotnet-build/action.yml`; setup installs the 10.0.302 feature band and `latestPatch` prevents the resolver from choosing 10.0.400. It permits a later servicing patch in the 10.0.3xx feature band when one is installed.
+
+## Blocking findings
+
+1. **The supplied local evidence does not validate the exact clean-CI SDK being requested.** The passing local shard used 10.0.303, while the shared action explicitly installs 10.0.302. On a clean runner the effective SDK can therefore be 10.0.302, not the validated 10.0.303. Either pin/install the actually validated 10.0.303, validate 10.0.302, or let the current GitHub run prove the clean-runner effective SDK and shard before merge.
+
+2. **The causal evidence is insufficient for a repository-wide toolchain policy change.** The failed GitHub run shows one MailWorkspace HTML substring assertion after 310 other shard tests passed. A passing run under 10.0.303 establishes compatibility with that SDK but does not establish that 10.0.400 caused the failure rather than test state/timing/order. No comparison under 10.0.400 or identified SDK behavioral change is recorded.
+
+3. **The change is outside UIIMP-004's planned files and implementation scope.** The ticket's files/plan cover Test UI capture, snapshots, scripts and UI documentation; they do not authorize a repository-wide SDK/CI policy change. Repository review rules say unplanned extras belong in their own ticket. This should be a separately tracked CI/toolchain fix (and then merged/rebased into the UI branch if needed), rather than being smuggled into the UI parity PR.
+
+## Verdict
+
+**Block pending scope/evidence correction.** There is no intrinsic `setup-dotnet`/`global.json` incompatibility, but PR #562 should not carry this unplanned repository-wide change on the evidence currently supplied. If the active GitHub run proves 10.0.302 and the owning ticket is explicitly expanded by the operator, re-review can clear the technical evidence point; otherwise move the pin to its own ticket/PR.
