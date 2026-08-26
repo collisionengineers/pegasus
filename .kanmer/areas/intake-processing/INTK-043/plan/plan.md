@@ -41,3 +41,20 @@ Use one typed `intake-work` queue and one warm queue-trigger function. It dispat
 - Kept custody as a separate durable message rather than inlining it into intake. This preserves its existing claim/recovery contract while removing the measured cold external-worker hop.
 - Did not preload ONNX or parallelize retention/Box uploads: no new trace proves either is the current bottleneck, and both would add startup/concurrency risk.
 - Replaced obsolete pre-release queue/function/configuration paths instead of retaining compatibility handling for bare GUID messages.
+
+## Simplification follow-up — 2026-08-26
+
+Independent reuse, simplification, efficiency and altitude review found the unified typed envelope, one queue and one always-ready caller proportionate. Applied two stale-reference corrections: the Worker comment now names the unified queue, and the runbook's incoming activation/smoke/rollback contract now names the exact seven functions. Retained `docs/current-architecture.md`'s nine-function description because it is the truthful deployed Release 32 snapshot until deployment; historical operations evidence is unchanged.
+
+## Verification refresh — 2026-08-26
+
+After merging current `origin/dev` into the ticket branch:
+
+- `dotnet restore Pegasus.slnx --locked-mode` — PASS.
+- `dotnet build Pegasus.slnx --configuration Release --no-restore --disable-build-servers` — PASS, 0 errors; the existing Functions metadata generator emitted 456 missing-optional-assembly warnings.
+- Core tests — PASS, 999/999.
+- Architecture tests — PASS, 99/99.
+- Configuration/startup integration slice — PASS, 16/16.
+- `pwsh ./scripts/Test-AzureDeploymentPlan.ps1 -Mode Local` — PASS, including Bicep compilation and the exact seven-function fail-closed/always-ready contract.
+- `git diff --check` — PASS.
+- An additional full IntegrationTests run was stopped after more than four minutes with no progress output. This was an extra check, not a plan or checklist gate; the required startup slice above passed. CI remains the full-suite authority before merge.
