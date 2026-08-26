@@ -977,7 +977,7 @@ public sealed class MessageModel(
             $"/Inbox/{messageId:D}",
             new Dictionary<string, string?>
             {
-                ["mailbox"] = MailboxFilter,
+                ["mailbox"] = Request.Query["mailbox"].ToString(),
                 ["folder"] = FolderRouteValue,
                 ["pageNumber"] = PageRouteValue?.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 ["search"] = SearchTerm,
