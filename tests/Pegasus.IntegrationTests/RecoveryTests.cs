@@ -427,7 +427,8 @@ public sealed class RecoveryTests
         var status = Assert.IsType<QueuedIntakeStatus>(
             await services.GetRequiredService<IQueuedIntakeStatusQueries>()
                 .GetAsync(received.StagedReceiptId));
-        Assert.Equal(QueuedIntakeStatusKind.Received, status.Status);
+        Assert.Equal(QueuedIntakeStatusKind.Processing, status.Status);
+        Assert.Equal(work.DueAtUtc, status.RetryDueAtUtc);
         await IntakeTestEvidence.AssertNoDurableIntakeReceiptsAsync(factory);
     }
 

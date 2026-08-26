@@ -18,6 +18,9 @@
             // that a reload would wipe; any element opting in with
             // data-refresh-hold pauses the reload while it is open.
             var reload = function () {
+                if (document.hidden) {
+                    return;
+                }
                 if (document.querySelector('[data-refresh-hold][open]')) {
                     window.setTimeout(reload, delay);
                     return;
@@ -25,6 +28,11 @@
                 window.location.reload();
             };
             window.setTimeout(reload, delay);
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden) {
+                    window.setTimeout(reload, delay);
+                }
+            });
         }
     }
 

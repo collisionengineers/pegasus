@@ -75,7 +75,7 @@
     }
     <section class="panel"
              aria-labelledby="group-status-title"
-             data-auto-refresh="@(Model.RefreshAutomatically ? "2000" : null)">
+             data-auto-refresh="@Model.AutomaticRefreshMilliseconds">
         <h2 id="group-status-title" class="section-label">Files in this submission</h2>
         @if (Model.GroupRegistrationOutcome is { } groupOutcome)
         {
