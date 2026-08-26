@@ -7,3 +7,7 @@
 ## Simplification pass — 2026-08-26
 
 n/a — docs-only. The change edits the two existing canonical current-state documents and adds no new document or duplicate release record.
+
+## Review disposition — 2026-08-26
+
+Applied both findings: release 32 now records the full exact SHA, image digest and manifest hash, and current architecture now states immediate publication by the committing caller with the one-minute Worker timer limited to interrupted-work recovery.

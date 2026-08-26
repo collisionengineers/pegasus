@@ -17,3 +17,15 @@
 ## Verdict
 
 **FAIL / NEEDS CHANGES.** Record the full exact SHA and digest in the release-32 evidence, and update the stale current intake flow to immediate commit-then-publish plus Worker recovery before claiming release-32 topology verification. No implementation edit or merge was performed.
+
+# Final independent re-review — head ddc0c0f0 — 2026-08-26
+
+Both prior docs blockers are resolved.
+
+- Operations records the full exact source SHA `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223`, image digest `sha256:bac866eeb11215c2b0dbaf949e769280aefef246c34f6cbf9436d28a486274bf`, full manifest hash, exact Web revision `pegasus-prod-web-252ow37gij--cfb3e6cfd838`, and unchanged migration head `20260825145216_MailboxImageIntake`.
+- Release evidence states strict exact-source/product smoke, immutable digest read-back, sole healthy revision with 100% traffic, exact nine Worker functions enabled, and recovery schedule `0 * * * * *`.
+- Current architecture now describes immediate publication by the committing Web/Worker caller and the one-minute Worker interrupted-publication recovery route instead of the old Worker timer-first route.
+- Operator acceptance is still explicitly outstanding, and operations correctly limits the claim to deployment/activation/technical health rather than mailbox/manual-upload latency or displayed-state acceptance.
+- The docs-only simplification remains honest and proportional: only the two canonical current-state documents are edited; checks/diff are clean.
+
+**Final verdict: PASS on the docs-only change.** CI/documentation checks were still running in the snapshot reviewed, so merge eligibility remains conditional on unchanged head and required green checks. No edit or merge was performed.
