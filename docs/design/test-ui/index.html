@@ -7,7 +7,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/access-denied--default.html"
+        "file": "pages/access-denied--default.html",
+        "branch": "Access-denied page."
       }
     ]
   },
@@ -18,7 +19,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/password-change--default.html"
+        "file": "pages/password-change--default.html",
+        "branch": "Ordinary voluntary password-change form."
       }
     ]
   },
@@ -29,15 +31,18 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/sign-in--default.html"
+        "file": "pages/sign-in--default.html",
+        "branch": "Unsigned-in form without signed-out or validation notice."
       },
       {
         "state": "validation",
-        "file": "pages/sign-in--validation.html"
+        "file": "pages/sign-in--validation.html",
+        "branch": "ModelState is invalid and the sign-in form is redisplayed."
       },
       {
         "state": "signed-out",
-        "file": "pages/sign-in--signed-out.html"
+        "file": "pages/sign-in--signed-out.html",
+        "branch": "Model.SignedOut is true."
       }
     ]
   },
@@ -54,7 +59,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-access--default.html"
+        "file": "pages/administration-access--default.html",
+        "branch": "Populated access-review table."
       }
     ]
   },
@@ -65,7 +71,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-account-edit--default.html"
+        "file": "pages/administration-account-edit--default.html",
+        "branch": "Loaded enabled account edit form."
       }
     ]
   },
@@ -76,11 +83,13 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-accounts--default.html"
+        "file": "pages/administration-accounts--default.html",
+        "branch": "Populated account table and create form."
       },
       {
         "state": "empty",
-        "file": "pages/administration-accounts--empty.html"
+        "file": "pages/administration-accounts--empty.html",
+        "branch": "Model.Accounts.Count is zero."
       }
     ]
   },
@@ -91,7 +100,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-automation-activity--default.html"
+        "file": "pages/administration-automation-activity--default.html",
+        "branch": "Unfiltered activity page with no records."
       }
     ]
   },
@@ -102,7 +112,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-automation--default.html"
+        "file": "pages/administration-automation--default.html",
+        "branch": "Composed and enabled automation controls."
       }
     ]
   },
@@ -113,7 +124,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-configuration--default.html"
+        "file": "pages/administration-configuration--default.html",
+        "branch": "Loaded default case-workflow policy configuration."
       }
     ]
   },
@@ -124,7 +136,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration--default.html"
+        "file": "pages/administration--default.html",
+        "branch": "Automation-uncomposed eight-card administration landing."
       }
     ]
   },
@@ -135,7 +148,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-mailboxes--default.html"
+        "file": "pages/administration-mailboxes--default.html",
+        "branch": "One approved identity-bound mailbox before its first poll."
       }
     ]
   },
@@ -146,7 +160,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-mail-categories--default.html"
+        "file": "pages/administration-mail-categories--default.html",
+        "branch": "No existing categories plus add-category form."
       }
     ]
   },
@@ -157,7 +172,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-organization-edit--default.html"
+        "file": "pages/administration-organization-edit--default.html",
+        "branch": "Loaded Work Provider organization with one active principal."
       }
     ]
   },
@@ -168,7 +184,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-organizations--default.html"
+        "file": "pages/administration-organizations--default.html",
+        "branch": "No organizations plus create form."
       }
     ]
   },
@@ -179,7 +196,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-principal-create--default.html"
+        "file": "pages/administration-principal-create--default.html",
+        "branch": "Loaded organization and available work-provider create form."
       }
     ]
   },
@@ -190,7 +208,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-principals--default.html"
+        "file": "pages/administration-principals--default.html",
+        "branch": "No organizations branch."
       }
     ]
   },
@@ -201,7 +220,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-principal-replace--default.html"
+        "file": "pages/administration-principal-replace--default.html",
+        "branch": "Loaded active predecessor and available replacement form."
       }
     ]
   },
@@ -212,7 +232,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/administration-roles--default.html"
+        "file": "pages/administration-roles--default.html",
+        "branch": "Populated account role-assignment table and form."
       }
     ]
   },
@@ -223,7 +244,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/case-assessment--default.html"
+        "file": "pages/case-assessment--default.html",
+        "branch": "Vehicle assessment section with ordinary action gates."
       }
     ]
   },
@@ -240,7 +262,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/case-create--default.html"
+        "file": "pages/case-create--default.html",
+        "branch": "Allowed case creation with editable instruction draft."
       }
     ]
   },
@@ -257,15 +280,18 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/case-details--default.html"
+        "file": "pages/case-details--default.html",
+        "branch": "Loaded overview in Review with held edit lease."
       },
       {
         "state": "unavailable",
-        "file": "pages/case-details--unavailable.html"
+        "file": "pages/case-details--unavailable.html",
+        "branch": "The case workspace cannot load the requested editable data."
       },
       {
         "state": "conflict",
-        "file": "pages/case-details--conflict.html"
+        "file": "pages/case-details--conflict.html",
+        "branch": "The submitted expected version is stale and the non-destructive conflict notice is rendered."
       }
     ]
   },
@@ -288,15 +314,18 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/cases--default.html"
+        "file": "pages/cases--default.html",
+        "branch": "Successful populated case results."
       },
       {
         "state": "empty",
-        "file": "pages/cases--empty.html"
+        "file": "pages/cases--empty.html",
+        "branch": "The case query succeeds and Model.Results.Count is zero."
       },
       {
         "state": "unavailable",
-        "file": "pages/cases--unavailable.html"
+        "file": "pages/cases--unavailable.html",
+        "branch": "The case query is unavailable and no false empty result is rendered."
       }
     ]
   },
@@ -325,7 +354,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/connector-authorize--default.html"
+        "file": "pages/connector-authorize--default.html",
+        "branch": "Valid connector authorization request."
       }
     ]
   },
@@ -336,7 +366,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/error--default.html"
+        "file": "pages/error--default.html",
+        "branch": "Retryable error with return path and support reference."
       }
     ]
   },
@@ -347,7 +378,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/vehicle-images-details--default.html"
+        "file": "pages/vehicle-images-details--default.html",
+        "branch": "Awaiting-instruction image case with no registered images."
       }
     ]
   },
@@ -358,11 +390,13 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/vehicle-images--default.html"
+        "file": "pages/vehicle-images--default.html",
+        "branch": "Populated vehicle-image results."
       },
       {
         "state": "empty",
-        "file": "pages/vehicle-images--empty.html"
+        "file": "pages/vehicle-images--empty.html",
+        "branch": "The query succeeds and Model.Results.Count is zero."
       }
     ]
   },
@@ -373,11 +407,13 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/dashboard--default.html"
+        "file": "pages/dashboard--default.html",
+        "branch": "Current loaded dashboard with ordinary metrics."
       },
       {
         "state": "stale",
-        "file": "pages/dashboard--stale.html"
+        "file": "pages/dashboard--stale.html",
+        "branch": "Dashboard freshness is stale and last-good values remain visible."
       }
     ]
   },
@@ -394,11 +430,13 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/received-details--default.html"
+        "file": "pages/received-details--default.html",
+        "branch": "Blocked-intake receipt with source evidence and held lease."
       },
       {
         "state": "partial",
-        "file": "pages/received-details--partial.html"
+        "file": "pages/received-details--partial.html",
+        "branch": "The retained receipt loads with partial processing evidence."
       }
     ]
   },
@@ -421,15 +459,18 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/inbox--default.html"
+        "file": "pages/inbox--default.html",
+        "branch": "Populated Inbox folder."
       },
       {
         "state": "empty",
-        "file": "pages/inbox--empty.html"
+        "file": "pages/inbox--empty.html",
+        "branch": "The current mail query succeeds and returns no rows."
       },
       {
         "state": "failed",
-        "file": "pages/inbox--failed.html"
+        "file": "pages/inbox--failed.html",
+        "branch": "The current mail query fails and no false empty result is rendered."
       }
     ]
   },
@@ -440,7 +481,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/inbox-message--default.html"
+        "file": "pages/inbox-message--default.html",
+        "branch": "Message active section with correction dialog closed."
       }
     ]
   },
@@ -451,15 +493,18 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/operations--default.html"
+        "file": "pages/operations--default.html",
+        "branch": "Populated ordinary operations work without AI limit."
       },
       {
         "state": "empty",
-        "file": "pages/operations--empty.html"
+        "file": "pages/operations--empty.html",
+        "branch": "External work and upload-link collections are both empty."
       },
       {
         "state": "failed",
-        "file": "pages/operations--failed.html"
+        "file": "pages/operations--failed.html",
+        "branch": "The operations query fails and failure state is rendered."
       }
     ]
   },
@@ -476,7 +521,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/status-code--default.html"
+        "file": "pages/status-code--default.html",
+        "branch": "404 status with dashboard return enabled."
       }
     ]
   },
@@ -487,7 +533,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/triage-details--default.html"
+        "file": "pages/triage-details--default.html",
+        "branch": "Open assigned Triage item with evidence candidates."
       }
     ]
   },
@@ -498,11 +545,13 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/queues--default.html"
+        "file": "pages/queues--default.html",
+        "branch": "Triage queue tab with populated results."
       },
       {
         "state": "empty",
-        "file": "pages/queues--empty.html"
+        "file": "pages/queues--empty.html",
+        "branch": "The selected queue query succeeds and its result collection is empty."
       }
     ]
   },
@@ -513,7 +562,8 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/unidentified-details--default.html"
+        "file": "pages/unidentified-details--default.html",
+        "branch": "Open item with retained source receipt."
       }
     ]
   },
@@ -530,11 +580,13 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/upload--default.html"
+        "file": "pages/upload--default.html",
+        "branch": "Initial internal upload form."
       },
       {
         "state": "validation",
-        "file": "pages/upload--validation.html"
+        "file": "pages/upload--validation.html",
+        "branch": "ModelState is invalid and the upload form is redisplayed."
       }
     ]
   },
@@ -545,15 +597,18 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/upload-group-status--default.html"
+        "file": "pages/upload-group-status--default.html",
+        "branch": "Completed grouped upload outcomes."
       },
       {
         "state": "processing",
-        "file": "pages/upload-group-status--processing.html"
+        "file": "pages/upload-group-status--processing.html",
+        "branch": "At least one group member has no completed outcome and refresh remains available."
       },
       {
         "state": "failed",
-        "file": "pages/upload-group-status--failed.html"
+        "file": "pages/upload-group-status--failed.html",
+        "branch": "A group member has a failed processing outcome."
       }
     ]
   },
@@ -564,11 +619,13 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/upload-request--default.html"
+        "file": "pages/upload-request--default.html",
+        "branch": "Valid external upload policy and initial form."
       },
       {
         "state": "validation",
-        "file": "pages/upload-request--validation.html"
+        "file": "pages/upload-request--validation.html",
+        "branch": "ModelState is invalid under a valid upload policy."
       }
     ]
   },
@@ -579,15 +636,18 @@
     "states": [
       {
         "state": "default",
-        "file": "pages/upload-status--default.html"
+        "file": "pages/upload-status--default.html",
+        "branch": "Completed case-created upload outcome."
       },
       {
         "state": "processing",
-        "file": "pages/upload-status--processing.html"
+        "file": "pages/upload-status--processing.html",
+        "branch": "Model.Outcome is null while processing is incomplete."
       },
       {
         "state": "failed",
-        "file": "pages/upload-status--failed.html"
+        "file": "pages/upload-status--failed.html",
+        "branch": "Model.Outcome is a failed processing result."
       }
     ]
   }
@@ -616,4 +676,3 @@ for (const entry of inventory) {
   }
 }
 </script></main></body></html>
-

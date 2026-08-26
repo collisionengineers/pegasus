@@ -63,6 +63,9 @@ foreach ($entry in $inventory) {
         if ($null -eq $state) {
             continue
         }
+        if ([string]::IsNullOrWhiteSpace($state.branch)) {
+            $errors.Add("Visual state has no documented Razor branch claim: $($entry.source)|$($state.state)")
+        }
         if ($state.file -notmatch '^pages/[a-z0-9-]+--[a-z0-9-]+\.html$') {
             $errors.Add("Prototype does not follow the flat naming convention: $($state.file)")
             continue
@@ -114,6 +117,15 @@ $htmlFiles = @((Get-Item -LiteralPath $indexPath)) +
     @(Get-ChildItem -LiteralPath $pagesRoot -Filter '*.html' -File)
 foreach ($htmlFile in $htmlFiles) {
     $html = Get-Content -LiteralPath $htmlFile.FullName -Raw
+    $relativeFile = $htmlFile.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
+    foreach ($image in [regex]::Matches(
+            $html,
+            '<img\b[^>]*>',
+            [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        if ($image.Value -notmatch '(?i)\bsrc\s*=\s*["'']\s*[^\s"''][^"'']*["'']') {
+            $errors.Add("Image has no non-empty source in $($relativeFile): $($image.Value)")
+        }
+    }
     $references = [regex]::Matches(
         $html,
         '(?:href|src)="(?<target>[^"]+)"',
@@ -127,7 +139,6 @@ foreach ($htmlFile in $htmlFiles) {
         $resolved = [System.IO.Path]::GetFullPath(
             (Join-Path $htmlFile.DirectoryName $targetWithoutFragment))
         if (-not (Test-Path -LiteralPath $resolved)) {
-            $relativeFile = $htmlFile.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
             $errors.Add("Broken local reference in $($relativeFile): $target")
         }
     }
