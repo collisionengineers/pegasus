@@ -1,14 +1,9 @@
 [features]
-apps = false
-remote_plugin = false
+apps = true
+remote_plugin = true
 
 [mcp_servers.mcp_microsoftdocs]
 url = "https://learn.microsoft.com/api/mcp"
 enabled = true
 
-[mcp_servers.kanmer]
-command = "C:\\Users\\PC\\AppData\\Local\\Programs\\Kanmer\\Kanmer.exe"
-args = [ "C:\\Users\\PC\\AppData\\Local\\Programs\\Kanmer\\resources\\mcp\\kanmer-mcp.cjs", "--root", "C:\\Users\\PC\\Documents\\GitHub\\pegasus\\.worktrees\\kanmer", "--repo-root", "C:\\Users\\PC\\Documents\\GitHub\\pegasus" ]
 
-[mcp_servers.kanmer.env]
-ELECTRON_RUN_AS_NODE = "1"
