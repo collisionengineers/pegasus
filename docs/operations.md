@@ -292,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 34**. A branch
+- **Deployed evidence:** the estate currently serves **release 35**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 35 | 2026-08-27 | `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f` | `sha256:694c562f9b686877b73e30015a65d35b52c05e5a4b0c455219388c157a0892c8` | `pegasus-prod-web-252ow37gij--3a1a017c8dea` | `20260827100901_ReactivateBoundApprovedMailboxes` (data-only, matched zero rows) |
   | 34 | 2026-08-27 | `1ec65dc894f121f4bb5b31ae82c818a401d08beb` | `sha256:b04bad2c2ee8109d3309eb99b3d6610aca8f1319869f92db7c12e17fcb9d2bf0` | `pegasus-prod-web-252ow37gij--1ec65dc894f1` | none (head unchanged at `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`) |
   | 33 | 2026-08-26 | `ee8067eca799eaa614a96488364d333093e21aaa` | `sha256:dd38dc6db0e4fb777fdfcfc193d800f4c46373d79dd5df2b676dcae5f3ba50d6` | `pegasus-prod-web-252ow37gij--ee8067eca799` | `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions` |
   | 32 | 2026-08-26 | `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223` | `sha256:bac866eeb11215c2b0dbaf949e769280aefef246c34f6cbf9436d28a486274bf` | `pegasus-prod-web-252ow37gij--cfb3e6cfd838` | none (head unchanged at `20260825145216_MailboxImageIntake`) |
@@ -346,6 +347,50 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 35** (2026-08-27, source
+    `3a1a017c8dea0cde21aa94cbbe15e82f07a6f54f`, image
+    `sha256:694c562f9b686877b73e30015a65d35b52c05e5a4b0c455219388c157a0892c8`,
+    manifest SHA-256
+    `CA81E6F7D9A1A63C9CC8460614E728B601E206919CB6653E7CB5A681D9EF10CF`)
+    applied migration `20260827100901_ReactivateBoundApprovedMailboxes`
+    (data-only): `__EFMigrationsHistory` head advanced to that id and
+    `ApprovedMailboxes` still holds one row for `instructions@…` with
+    `ActivatedAtUtc = 2026-08-27 10:20:33Z` unchanged, confirming the UPDATE
+    matched zero rows as expected — the mailbox was already reactivated by
+    an earlier operator action. Bootstrap verified the unchanged 526
+    catalogued permission/denial rows and 359 effective runtime DML rows (no
+    grant-carrying migration this release). `azd provision` carried the
+    bicep-declared 0.5 GB daily cap to both `pegasus-prod-appi-252ow37gij`
+    (`dataVolumeCap.cap`) and `pegasus-prod-logs-252ow37gij`
+    (`workspaceCapping.dailyQuotaGb`) — both read back 0.5 immediately after
+    provision, raising the ceiling from the 0.1 GB that had silenced
+    telemetry by mid-morning since release 19. Azure read-back matched the
+    immutable image digest; the sole Web revision
+    `pegasus-prod-web-252ow37gij--3a1a017c8dea` is `RunningAtMaxScale` with
+    100% traffic in Single mode; the Worker `config-zip` deployment
+    completed and all seven released functions are enabled with
+    `ApprovedInboxPollSchedule=0 */5 * * * *` unchanged. Production smoke
+    matched the exact source and product version and, for the first time,
+    included `Inbox intake liveness smoke passed` (Graph subscription
+    `09018cc2…` read `Active`, expiring 2026-09-02 10:25:00Z, last poll
+    2026-08-27 19:45:12Z), and the same subscription row read back directly
+    from `ApprovedMailboxSubscriptions` matches. An `AppDependencies` query
+    over the 14 minutes following the Worker deploy (19:48–20:02Z) returned
+    223 Worker dependency records, all `Success = true`, with the workspace
+    still `RespectQuota` (not `OverQuota`) — no successful SQL dependency
+    rows appeared in that window, consistent with the deployed
+    `SqlDependencyTelemetryFilter` dropping them while non-SQL (Graph
+    polling) dependencies continued to report; this is a post-deploy
+    observation, not a controlled before/after comparison against the
+    unfiltered baseline. This proves deployment, schema (no change),
+    permissions (unchanged), configuration, the new telemetry caps and
+    technical health. It does not by itself prove the new 0.5 GB cap
+    survives a full working day of combined Web and Worker volume
+    (PLAT-034, open), nor the INTK-044 Audit-allocation recovery path or
+    the Mailboxes page's Activated/Subscription columns under a live
+    operator session — the latter's screenshot evidence is
+    operator-supplied and was not captured by this agent.
 
   - **Release 34** (2026-08-27, source
     `1ec65dc894f121f4bb5b31ae82c818a401d08beb`, image
@@ -736,8 +781,10 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     dependencies, requests, exceptions and traces are untouched), and
     `platform.bicep` declares a single 0.5 GB daily cap for both the
     component and the workspace, with the 90% warning and cap-hit
-    notifications kept on. The live caps stay at 0.1 GB until the next
-    provision, or an approved `az` update, applies the declared value.
+    notifications kept on. Release 35 (2026-08-27) applied it: both the
+    component `dataVolumeCap.cap` on `pegasus-prod-appi-252ow37gij` and the
+    workspace `dailyQuotaGb` on `pegasus-prod-logs-252ow37gij` read back 0.5
+    immediately after that provision, and the deployed Worker filter is live.
 
   - **Release 18** (2026-08-22, source `1f3be493`, image `sha256:818fe360…`)
     carried the QDOS26009 operator findings. An automatically created case can
@@ -1198,8 +1245,8 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 - **Monitoring/cost:** 31-day retention, adaptive sampling, a 0.5 GB/day
   cap declared once in `infra/modules/platform.bicep` for both the
   Application Insights component (resets 00:00Z) and the Log Analytics
-  workspace (resets 03:00Z) — live caps still 0.1 GB until the next
-  provision applies it — £75 monthly budget notifying
+  workspace (resets 03:00Z) — release 35 (2026-08-27) applied it; both live
+  caps read back 0.5 GB after that provision — £75 monthly budget notifying
   `digital@collisionengineers.co.uk` at actual 50/80/100% and forecast 100%.
   Since release 16 the Sev1 application-exception scheduled-query rule
   deduplicates by operation and normalized signature over a 15-minute
