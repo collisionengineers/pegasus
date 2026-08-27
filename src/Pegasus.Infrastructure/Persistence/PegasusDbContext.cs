@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 
@@ -59,6 +59,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         Set<CaseEditLeaseOperationEntity>();
     internal DbSet<EvaFirstHandoffProxyEntity> EvaFirstHandoffProxies =>
         Set<EvaFirstHandoffProxyEntity>();
+    internal DbSet<EvaSubmissionEntity> EvaSubmissions => Set<EvaSubmissionEntity>();
     internal DbSet<CaseReportApprovalEntity> CaseReportApprovals => Set<CaseReportApprovalEntity>();
     internal DbSet<CaseReportSentEvidenceEntity> CaseReportSentEvidence => Set<CaseReportSentEvidenceEntity>();
     internal DbSet<CaseDueWorkEntity> CaseDueWork => Set<CaseDueWorkEntity>();
@@ -171,6 +172,7 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
         CaseMatchModelConfiguration.Configure(builder);
         VehicleModelConfiguration.Configure(builder);
         EvaHandoffModelConfiguration.Configure(builder);
+        EvaSubmissionModelConfiguration.Configure(builder);
         AssessmentModelConfiguration.Configure(builder);
         IntakeAllocationModelConfiguration.Configure(builder);
 
@@ -417,6 +419,16 @@ public sealed class PegasusDbContext(DbContextOptions<PegasusDbContext> options)
                 .HasMaxLength(40)
                 .IsRequired()
                 .HasDefaultValue("physical_address");
+            // EXT-04: both default off, so adding the columns switches nothing
+            // on. They are independent by operator decision, which makes
+            // automatic-without-manual legal - that principal submits
+            // unattended and has no button.
+            entity.Property(item => item.EvaManualSubmission)
+                .IsRequired()
+                .HasDefaultValue(false);
+            entity.Property(item => item.EvaAutomaticSubmission)
+                .IsRequired()
+                .HasDefaultValue(false);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => item.Code).IsUnique();
             entity.HasIndex(item => item.PredecessorId).IsUnique();
@@ -1048,6 +1060,8 @@ internal sealed class PrincipalEntity
     public PrincipalEntity? Successor { get; set; }
     public bool IsActive { get; set; }
     public string InspectionMode { get; set; } = "physical_address";
+    public bool EvaManualSubmission { get; set; }
+    public bool EvaAutomaticSubmission { get; set; }
     public long Version { get; set; }
     public List<CaseEntity> Cases { get; set; } = [];
 }

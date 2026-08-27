@@ -131,6 +131,23 @@ public interface IEvaApiTransport
 }
 
 /// <summary>
+/// Which of a principal's two settings authorises this submission.
+///
+/// It travels on the request because the settings are independent: a
+/// principal may allow automatic submission and no manual one, or the
+/// reverse, so "may this proceed?" cannot be answered without knowing which
+/// act is being attempted.
+/// </summary>
+public enum EvaSubmissionTrigger
+{
+    /// <summary>An operator pressed the button.</summary>
+    Manual,
+
+    /// <summary>The case reached Review and the worker picked it up.</summary>
+    Automatic
+}
+
+/// <summary>
 /// One submission of one case to EVA.
 ///
 /// Like the export it takes an operation key for replay-safe action history
@@ -139,7 +156,8 @@ public interface IEvaApiTransport
 public sealed record SubmitCaseToEvaRequest(
     Guid CaseId,
     ActionActor Actor,
-    string OperationKey);
+    string OperationKey,
+    EvaSubmissionTrigger Trigger);
 
 public sealed record SubmitCaseToEvaResult(
     EvaSubmissionResult? Submission,

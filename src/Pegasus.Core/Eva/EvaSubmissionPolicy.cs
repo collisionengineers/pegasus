@@ -19,6 +19,22 @@ public sealed record EvaSubmissionModes(bool Manual, bool Automatic)
 }
 
 /// <summary>
+/// Reads a principal's persisted EVA submission settings, the way
+/// <see cref="Cases.IProviderInspectionModeStore"/> reads its inspection mode.
+///
+/// A principal code that names no active principal returns
+/// <see cref="EvaSubmissionModes.Disabled"/> rather than null: an unknown
+/// principal has not enabled anything, and failing closed is the same answer
+/// as switched off.
+/// </summary>
+public interface IEvaSubmissionModeStore
+{
+    Task<EvaSubmissionModes> GetForPrincipalAsync(
+        string principalCode,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>
 /// The one owner of EVA API submission decisions: who may submit, when a case
 /// may be submitted twice (never), and what EVA's answer means.
 ///
@@ -58,6 +74,23 @@ public static class EvaSubmissionPolicy
     {
         ArgumentNullException.ThrowIfNull(modes);
         return modes.Automatic;
+    }
+
+    /// <summary>
+    /// Whether the principal's settings authorise the act being attempted.
+    /// Each trigger consults its own setting and only its own — an automatic
+    /// principal does not thereby gain a button, and a manual one does not
+    /// thereby start submitting on its own.
+    /// </summary>
+    public static bool Allows(EvaSubmissionModes modes, EvaSubmissionTrigger trigger)
+    {
+        ArgumentNullException.ThrowIfNull(modes);
+        return trigger switch
+        {
+            EvaSubmissionTrigger.Manual => AllowsManualSubmission(modes),
+            EvaSubmissionTrigger.Automatic => AllowsAutomaticSubmission(modes),
+            _ => throw new ArgumentOutOfRangeException(nameof(trigger))
+        };
     }
 
     /// <summary>
