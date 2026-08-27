@@ -20,7 +20,7 @@ internal sealed class EfApprovedMailboxPollStatusQueries(
             .AsNoTracking()
             .OrderBy(item => item.MailboxAddress)
             .Select(item => new ApprovedMailboxPollStatus(
-                item.MailboxId,
+                item.ApprovedMailboxId,
                 item.MailboxAddress,
                 item.DueAtUtc,
                 item.LastCompletedAtUtc,

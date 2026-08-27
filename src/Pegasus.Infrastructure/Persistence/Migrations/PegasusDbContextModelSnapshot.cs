@@ -533,6 +533,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid>("ApprovedMailboxId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("CursorAfterMessage")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -553,11 +556,6 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<string>("ImmutableMessageId")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
-
-                    b.Property<string>("MailboxId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
 
                     b.Property<string>("OccurrenceKey")
                         .IsRequired()
@@ -587,7 +585,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MailboxId", "OccurrenceKey")
+                    b.HasIndex("ApprovedMailboxId", "OccurrenceKey")
                         .IsUnique();
 
                     b.HasIndex("QuarantinedAtUtc", "Id")
@@ -598,9 +596,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity", b =>
                 {
-                    b.Property<string>("MailboxId")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<Guid>("ApprovedMailboxId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ActivatedAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Cursor")
                         .HasColumnType("nvarchar(max)");
@@ -627,12 +627,18 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
-                    b.HasKey("MailboxId");
+                    b.Property<string>("ScopeFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)")
+                        .IsFixedLength();
+
+                    b.HasKey("ApprovedMailboxId");
 
                     b.HasIndex("MailboxAddress")
                         .IsUnique();
 
-                    b.HasIndex("DueAtUtc", "MailboxId")
+                    b.HasIndex("DueAtUtc", "ApprovedMailboxId")
                         .IsDescending(true, false);
 
                     b.ToTable("ApprovedInboxPollStates", (string)null);
@@ -643,6 +649,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset?>("ActivatedAtUtc")
+                        .HasColumnType("datetimeoffset");
 
                     b.Property<string>("Address")
                         .IsRequired()
@@ -715,6 +724,46 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasKey("ApprovedMailboxId", "FolderType");
 
                     b.ToTable("ApprovedMailboxFolderBindings", (string)null);
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxSubscriptionEntity", b =>
+                {
+                    b.Property<Guid>("ApprovedMailboxId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTimeOffset>("ExpiresAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("LastMaintainedAtUtc")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<string>("LastMaintenanceFailureCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("LifecycleState")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<string>("Resource")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("SubscriptionId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("ApprovedMailboxId");
+
+                    b.HasIndex("ExpiresAtUtc");
+
+                    b.HasIndex("SubscriptionId")
+                        .IsUnique();
+
+                    b.ToTable("ApprovedMailboxSubscriptions", (string)null);
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedOutlookCategoryEntity", b =>
@@ -4739,10 +4788,8 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .HasMaxLength(320)
                         .HasColumnType("nvarchar(320)");
 
-                    b.Property<string>("MailboxId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                    b.Property<Guid>("MailboxId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTimeOffset>("ReceivedAtUtc")
                         .HasColumnType("datetimeoffset");
@@ -5862,9 +5909,20 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                 {
                     b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity", null)
                         .WithMany()
-                        .HasForeignKey("MailboxId")
+                        .HasForeignKey("ApprovedMailboxId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", "ApprovedMailbox")
+                        .WithOne()
+                        .HasForeignKey("Pegasus.Infrastructure.Persistence.ApprovedInboxPollStateEntity", "ApprovedMailboxId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedMailbox");
                 });
 
             modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxFolderBindingEntity", b =>
@@ -5872,6 +5930,17 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", "ApprovedMailbox")
                         .WithMany("FolderBindings")
                         .HasForeignKey("ApprovedMailboxId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedMailbox");
+                });
+
+            modelBuilder.Entity("Pegasus.Infrastructure.Persistence.ApprovedMailboxSubscriptionEntity", b =>
+                {
+                    b.HasOne("Pegasus.Infrastructure.Persistence.ApprovedMailboxEntity", "ApprovedMailbox")
+                        .WithOne()
+                        .HasForeignKey("Pegasus.Infrastructure.Persistence.ApprovedMailboxSubscriptionEntity", "ApprovedMailboxId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

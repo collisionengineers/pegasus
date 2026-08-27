@@ -130,6 +130,8 @@ public sealed class LocalIntakeAccessTests
             ["CustodyStorage:AccountName"] = "pegasuscustody",
             ["CustodyStorage:ServiceUri"] = "https://pegasuscustody.blob.core.windows.net/",
             ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
+            ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+            ["Graph:ChangeNotificationClientState"] = "integration-client-state",
             ["Box:BaseUri"] = "https://api.box.com/2.0/",
             ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
             ["Box:RootFolderId"] = "405543781910",

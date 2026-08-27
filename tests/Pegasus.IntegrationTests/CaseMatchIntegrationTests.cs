@@ -435,10 +435,16 @@ public sealed class CaseMatchIntegrationTests
                 await context.Database.ExecuteSqlInterpolatedAsync(
                     $"INSERT INTO InstructionDrafts (IntakeReceiptId, VehicleRegistration) VALUES ({id}, {registration})");
             }
+            var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
+                context,
+                mailboxId,
+                $"{mailboxId}@example.test",
+                StartUtc);
+            await context.SaveChangesAsync();
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"IF NOT EXISTS (SELECT 1 FROM ApprovedInboxPollStates WHERE MailboxId = {mailboxId}) INSERT INTO ApprovedInboxPollStates (MailboxId, MailboxAddress, DueAtUtc) VALUES ({mailboxId}, {$"{mailboxId}@example.test"}, {StartUtc})");
+                $"IF NOT EXISTS (SELECT 1 FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = {approvedMailboxId}) INSERT INTO ApprovedInboxPollStates (ApprovedMailboxId, MailboxAddress, ScopeFingerprint, ActivatedAtUtc, DueAtUtc) VALUES ({approvedMailboxId}, {$"{mailboxId}@example.test"}, {new string('0', 64)}, {StartUtc}, {StartUtc})");
             await context.Database.ExecuteSqlInterpolatedAsync(
-                $"INSERT INTO RetainedMailboxMessages (Id, MailboxId, MailboxAddress, FolderScope, FolderIdentity, ImmutableMessageId, ConversationIdentity, ExternalReceiptToken, ToAddressesJson, CcAddressesJson, SourceLength, SourceSha256, ReceivedAtUtc, RetainedAtUtc, IsRead) VALUES ({messageId}, {mailboxId}, {"intake@example.test"}, {"inbox"}, {"inbox-folder"}, {$"immutable-{messageId:N}"}, {conversationIdentity}, {externalToken}, {"[]"}, {"[]"}, {50L}, {sourceHash}, {StartUtc}, {StartUtc}, {false})");
+                $"INSERT INTO RetainedMailboxMessages (Id, MailboxId, MailboxAddress, FolderScope, FolderIdentity, ImmutableMessageId, ConversationIdentity, ExternalReceiptToken, ToAddressesJson, CcAddressesJson, SourceLength, SourceSha256, ReceivedAtUtc, RetainedAtUtc, IsRead) VALUES ({messageId}, {approvedMailboxId}, {"intake@example.test"}, {"inbox"}, {"inbox-folder"}, {$"immutable-{messageId:N}"}, {conversationIdentity}, {externalToken}, {"[]"}, {"[]"}, {50L}, {sourceHash}, {StartUtc}, {StartUtc}, {false})");
             return id;
         }
 
