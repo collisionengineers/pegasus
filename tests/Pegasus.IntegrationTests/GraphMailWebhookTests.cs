@@ -225,6 +225,10 @@ public sealed class GraphMailWebhookTests
     private sealed class SubscriptionStore(ApprovedMailboxSubscription subscription)
         : IApprovedMailboxSubscriptionStore
     {
+        public Task<IReadOnlyList<ApprovedMailboxSubscription>> ListAsync(
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ApprovedMailboxSubscription>>([subscription]);
+
         public Task<ApprovedMailboxSubscription?> GetActiveAsync(string subscriptionId,
             DateTimeOffset nowUtc, CancellationToken cancellationToken) =>
             Task.FromResult<ApprovedMailboxSubscription?>(
