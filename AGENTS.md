@@ -21,7 +21,7 @@ disagree.
 - **Gates constrain `move_item` and nothing else** — creation in any stage is ungated, and `gh pr merge` is outside the engine, so an unmet gate never stops a merge.
 - An unticked `- [ ]` in `open-questions/` blocks a move: tick it, or move it below the literal `## Parked (explicitly deferred)` with a reason.
 - Read the whole ticket folder before starting — documents are folders (`research/`, `plan/`, …), so there may be several files per type. If the ticket is in a group, read the group's `context.md` too: the constraint binding the batch is written once, there.
-- Work each ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage.
+- Work each fresh ticket on its own branch and worktree: worktree `.worktrees/<id>`, branch `<id>-<slug>`; `take_ticket` records both and moves the stage. A resumed execution packet is available only in `implementing` and must validate/reuse the exact recorded branch and **worktree root** — never create a second worktree or take the ticket again. It must not name the board, shared source checkout, another active ticket's worktree, or any child of those; its checked-out branch and Git common directory must match the record and source repository. Pause by retaining that taken record; never release a paused ticket while its worktree/branch remains a resume target.
 - Write pipeline documents with `set_ticket_doc`. Running notes go to `append_scratch` — scratch is the notepad and is never gated, and neither is anything under `reference/` or `assets/`.
 - Proof is written on merged `main`, after review and the merge, not before.
 - Archive, don't delete. Reference other items with [[ID]] wiki-links.
@@ -86,6 +86,87 @@ Pegasus is Collision Engineers' clean-room case-management and reporting
 application. Read the Kanmer board (`.kanmer/`, via the `kanmer` tools) for current work, then the
 [documentation index](docs/index.md) for the file that owns your question and
 the authority rule.
+
+## Commands
+
+Canonical solution commands (`--locked-mode` enforces the committed package
+locks); run these before delivery:
+
+```powershell
+dotnet restore ./Pegasus.slnx --locked-mode
+dotnet build ./Pegasus.slnx --configuration Release --no-restore
+dotnet test ./Pegasus.slnx --configuration Release --no-build --filter "Category!=Corpus"
+```
+
+Identical on Windows and Linux (`pwsh` either way). Focused per-project forms
+and the two complementary integration-test filters are in
+[the runbook](docs/runbook.md#locked-restore-build-and-test).
+
+## Architecture map
+
+- `src/Pegasus.Core` — business policy and ports; the one owner of business
+  rules.
+- `src/Pegasus.Infrastructure` — adapters implementing Core's ports; depends
+  on Core only.
+- `src/Pegasus.Web` / `src/Pegasus.Worker` — composition roots; depend on both
+  Core and Infrastructure.
+- `tests/` — `Pegasus.Core.Tests`, `Pegasus.ArchitectureTests`,
+  `Pegasus.IntegrationTests`.
+- `docs/` — the PRD/FRD/ADR governance tree (below);
+  [`docs/current-architecture.md`](docs/current-architecture.md) is the
+  as-built system shape and dependency direction, and
+  [`docs/operations.md`](docs/operations.md) is deployed/runtime state.
+- `.kanmer/` — the Kanmer board (see Kanmer operating instructions above).
+- `workspaces/` — independently buildable, non-caller source imports; never
+  referenced by the application without a separately accepted integration
+  contract.
+- `corpus/` — local, ignored, immutable domain evidence; never committed,
+  renamed, or modified.
+- `infra/` — deployment infrastructure.
+
+## Conventions
+
+- Markdown: the H1 is line 1, a blank line precedes every heading, tables use
+  the compact `| --- |` delimiter, and prose is hard-wrapped near 78 columns
+  ([engineering](docs/engineering.md#markdown-convention)).
+- A new repository Markdown file is a PRD, FRD, or technical ADR only;
+  everything else edits an existing canonical file
+  ([New Markdown placement](#new-markdown-placement)).
+- `Pegasus.Core` owns business policy; a second implementation of a business
+  rule anywhere else is a stop condition
+  ([Product invariants](#product-invariants),
+  [engineering](docs/engineering.md#one-core-owner)).
+- The [Simplicity rails](#simplicity-rails) below (search-before-build, one
+  list per concept, no speculative abstraction) bind every change.
+
+## Gotchas
+
+- One platform per workstation — Windows+PowerShell 7 or Linux+PowerShell 7 —
+  never mixed in a single run or evidence record
+  ([runbook](docs/runbook.md#supported-platform)). Release operations stay
+  Windows-only regardless of dev platform (ADR-0007).
+- `corpus/` is local, ignored, and immutable — never upload, publish, commit,
+  rename, or modify it.
+- A closed composition or feature gate is a disabled flag, not a partially
+  shipped feature — never claim or document it as delivered before it has a
+  real caller and activation evidence.
+- Never delete a case; wrong-principal work closes as `Created in error` with
+  a linked replacement instead, and neither reference is reused.
+- `docs/operator-notes.md` is protected — stop for user resolution before
+  changing its meaning.
+
+## Verification
+
+- The canonical solution commands above are the delivery gate.
+- Prove the actual caller, not just a green build — a registration, a green
+  build, and a deployed feature are different evidence tiers
+  ([engineering](docs/engineering.md#required-evidence-tiers)).
+- After any deployment, refresh
+  [`docs/current-architecture.md`](docs/current-architecture.md) and
+  [`docs/operations.md`](docs/operations.md) in the same task; a deploy that
+  leaves either stale is unfinished.
+- A ticket's `proof/proof.md` is required before it reaches Done, and is
+  written on merged `main` after review and merge, not before.
 
 ## Documentation model — PRD, FRD, ADR
 
