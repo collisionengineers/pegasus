@@ -20,6 +20,8 @@ appsettings.*.local.json
 **/artifacts/
 /artifacts/
 # Tool and editor working state
+/.codex/config.toml
+/.mcp.json
 /.claude/
 /.vs/
 /.obsidian/workspace.json
