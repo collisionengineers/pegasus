@@ -32,16 +32,19 @@ internal sealed partial class EfIntakeAllocationStore(
         CancellationToken cancellationToken)
     {
         await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        // Two parallel Begins for one receipt are the textbook
+        // check-then-insert race (CASE-005). An exclusive transaction-scoped
+        // application lock per receipt makes them queue: the second
+        // transaction then sees the first's committed attempt and resolves
+        // through the existing replay/suppression branches, which is the
+        // designed convergence. That lock, plus the unique indexes on
+        // OperationKey and (IntakeReceiptId, AttemptNumber), is the whole
+        // guard — this used to run Serializable as well, whose key-range
+        // locks made Begins for two *different* receipts deadlock on the
+        // same index gap when a mailbox batch arrived together (INTK-044).
         await using var transaction = await context.Database.BeginTransactionAsync(
-            IsolationLevel.Serializable,
+            IsolationLevel.ReadCommitted,
             cancellationToken);
-        // Two parallel Begins for one receipt each take Serializable
-        // key-range shared locks on the reads below and then insert — the
-        // textbook check-then-insert deadlock (CASE-005). An exclusive
-        // transaction-scoped application lock per receipt makes them queue
-        // instead: the second transaction then sees the first's committed
-        // attempt and resolves through the existing replay/suppression
-        // branches, which is the designed convergence.
         var lockResource = $"intake-allocation:{request.Command.ReceiptId:N}";
         await context.Database.ExecuteSqlAsync(
             $"""

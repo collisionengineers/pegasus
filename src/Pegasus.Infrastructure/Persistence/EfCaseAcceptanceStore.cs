@@ -666,12 +666,18 @@ public sealed class EfCaseAcceptanceStore(
                 .Select(role => role.ToString())
                 .ToArray());
 
+    // INTK-044: two Serializable acceptances for one principal deadlock on the
+    // sequence row, and EF's non-retrying execution strategy reports that as
+    // InvalidOperationException("…likely due to a transient failure…") →
+    // DbUpdateException → SqlException 1205. Only the DbUpdateException layer
+    // was unwrapped, so the deadlock escaped this loop as an unclassified
+    // fault. Unwrap every layer, as EfIntakeReceiptStore already does.
     private static bool IsRetryableConcurrencyFailure(Exception exception) => exception switch
     {
         DbUpdateConcurrencyException => true,
         SqlException { Number: 1205 or 2601 or 2627 } => true,
-        DbUpdateException { InnerException: { } innerException } =>
-            IsRetryableConcurrencyFailure(innerException),
+        _ when exception.InnerException is not null =>
+            IsRetryableConcurrencyFailure(exception.InnerException),
         _ => false
     };
 }
