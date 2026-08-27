@@ -2,13 +2,14 @@
 id: DELIV-028
 type: ticket
 title: Restore the design authority after the design-system removal
-status: review
+status: verifying
 area: delivery-repository
 assignee: claude-fable-5
 profile: chore
 stageEntered:
   implementing: '2026-08-27T08:50:04.573Z'
   review: '2026-08-27T08:50:15.945Z'
+  verifying: '2026-08-27T08:51:45.070Z'
 taken_at: '2026-08-27T08:49:13.116Z'
 branch: task/docs-007-restore-design-readme
 worktree: ../pegasus-worktrees/docs-007-restore-design-readme
@@ -20,10 +21,14 @@ links:
   - DELIV-027
 refs:
   - docs/index.md
+commits:
+  - 0925d990
+prs:
+  - '569'
 deployment: n/a
 archived: false
 created: '2026-08-27T08:49:00.457Z'
-updated: '2026-08-27T08:50:15.945Z'
+updated: '2026-08-27T08:52:22.608Z'
 ---
 
 ## Why
