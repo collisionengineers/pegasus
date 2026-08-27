@@ -15,3 +15,9 @@ Reviewer: fresh general-purpose agent, read-only, with live Azure read-back.
   "not yet implemented" text is correct against `origin/dev`.
 
 Verdict: **NEEDS CHANGES → fixed**; re-check of `5405ad00` requested.
+
+## Re-check — 5405ad00
+
+Only the three lines in the release-33 bullet changed; the statement now
+matches reality (PR #566 open, `origin/dev` bicep still seven-field).
+Verdict: **APPROVE**. Merge after #566 so the docs and `dev` agree.
