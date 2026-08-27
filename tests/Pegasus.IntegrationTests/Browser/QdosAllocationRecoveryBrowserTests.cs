@@ -1,7 +1,9 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
+using Pegasus.Infrastructure.Persistence;
 
 namespace Pegasus.IntegrationTests.Browser;
 
@@ -164,6 +166,67 @@ public sealed class QdosAllocationRecoveryBrowserTests
         Assert.DoesNotContain(caseId.ToString("D"), successReceiptText, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Retry case creation", successReceiptText, StringComparison.OrdinalIgnoreCase);
 
+    }
+
+    // INTK-044. An automatic standalone Audit that failed for an unclassified
+    // reason is not a dead end: the receipt offers the reasoned retry, and the
+    // retry re-runs the same retained-evidence path to an `a.` reference.
+    [Fact]
+    public async Task UnexpectedAutomaticAuditFailureIsRetriedFromTheReceipt()
+    {
+        await using var support = await BrowserTestSupport.StartAsync(
+            useIntegrationTestAuthentication: true);
+        await AllocationTestData.SeedPrincipalAsync(support.Services, "AUDITX");
+        var receipt = await AllocationTestData.StoreDefinitiveReceiptAsync(
+            support.Services,
+            CaseType.Audit,
+            "AUDITX");
+        var evidenceId = await AllocationTestData.SeedAutomaticAuditEvidenceAsync(
+            support.Services,
+            receipt.Id);
+        await using (var scope = support.Services.CreateAsyncScope())
+        {
+            var services = scope.ServiceProvider;
+            var failed = await new AllocateIntake(
+                    services.GetRequiredService<IIntakeReceiptQueries>(),
+                    services.GetRequiredService<IIntakeAllocationStore>(),
+                    new ThrowingAcceptIntake(new InvalidOperationException("test-only acceptance fault")),
+                    services.GetRequiredService<TimeProvider>(),
+                    services.GetRequiredService<IStandaloneAuditEvidenceQueries>())
+                .AttemptAutomaticAsync(receipt.Id, Guid.NewGuid());
+            Assert.Equal(IntakeAllocationFailureKind.Unexpected, failed?.State.FailureKind);
+            Assert.True(failed?.State.CanRetry);
+        }
+
+        var response = await support.GoToAsync($"/Received/{receipt.Id:D}");
+        Assert.Equal(200, response.Status);
+        var visibleText = await support.Page.Locator("main").InnerTextAsync();
+        Assert.Contains("Case not created", visibleText, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("test-only", visibleText, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
+
+        await support.Page.GetByLabel("Reason for retrying case creation")
+            .FillAsync("Retry after the fault cleared.");
+        var navigation = support.Page.WaitForURLAsync("**/Cases/**");
+        await support.Page.GetByRole(
+            AriaRole.Button,
+            new PageGetByRoleOptions { Name = "Retry case creation" }).ClickAsync();
+        await navigation;
+
+        var heading = (await support.Page.GetByRole(
+            AriaRole.Heading,
+            new PageGetByRoleOptions { Level = 1 }).InnerTextAsync()).Trim();
+        Assert.Contains("a.AUDITX", heading, StringComparison.Ordinal);
+
+        await using var context = await support.Services
+            .GetRequiredService<IDbContextFactory<PegasusDbContext>>()
+            .CreateDbContextAsync();
+        var created = await context.Set<CaseEntity>()
+            .AsNoTracking()
+            .SingleAsync(item => item.OriginIntakeReceiptId == receipt.Id);
+        Assert.Equal("audit", created.Type);
+        Assert.Equal(evidenceId, created.StandaloneAuditEvidenceId);
+        Assert.StartsWith("a.AUDITX", created.Reference, StringComparison.Ordinal);
     }
 
     [Fact]
