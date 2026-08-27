@@ -1,0 +1,39 @@
+---
+id: MAIL-016
+type: ticket
+title: Correct the stale mailbox assertion left by MAIL-013
+status: backlog
+area: mail-communications
+assignee: ''
+profile: fix
+labels:
+  - mailbox
+  - tests
+  - ci
+links:
+  - MAIL-013
+  - UIIMP-004
+refs:
+  - docs/frd/frd-08-email-mailbox-and-background-processing.md
+deployment: n/a
+archived: false
+created: '2026-08-27T08:16:52.507Z'
+updated: '2026-08-27T08:16:52.507Z'
+---
+
+## Problem
+
+[[MAIL-013]] changed `MailWorkspaceWebTests.FirstMailboxFilter` to the stable
+mailbox GUID (`TestMailboxId.From("instructions")`), but
+`ExactMessageCanBeSearchedLinkedUnlinkedAndLinkedToAReplacement` still asserts
+the literal `mailbox=instructions`. PR #563 merged with `sql-integration (1)`
+red on exactly that assertion; #562 and #566 inherit the failure. The CI
+diagnostic URL shows the page echoing the requested GUID correctly — the
+product is right, the assertion is stale.
+
+## Required outcome
+
+Assert `mailbox={FirstMailboxFilter}`; no product change. `dev` green again.
+The nine `fix(mail)` workaround commits on [[UIIMP-004]] are reverted there.
+
+## Outcome
