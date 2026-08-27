@@ -350,7 +350,6 @@ The upstream source directory may be absent from a clean checkout. The checksum-
  | Asset | Upstream source & SHA-256 | Web runtime destination & SHA-256 | Mapping & usage |
  | --- | --- | --- | --- |
  | Primary logo | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `src/Pegasus.Web/wwwroot/images/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | Byte-for-byte copy embedded in `_Layout.cshtml` header navbar link. Replaces fake `CE` mark and unproven favicon link. |
- | Primary logo (design-system preview copy) | `docs/design/brand/logos/logo_no_margin.png`<br>`E7247BE45911C46905343473E4C57B9F6ED7A450563D19C508C2D9652C2C63E2` | `docs/design/system/src/logo.png`<br>`7A6BD1CE2A57EB47BA9C7BA011935596D64ADE655FE02FFF1854497B962A33AA` | Bicubic downscale to 416×232 (27 KB) of the master, inlined as a data URI into the Claude Design bundle's `AppNav` so previews are self-contained. Not a Web runtime asset; the Web keeps the byte-for-byte copy above. |
 
 ### Icons
 
@@ -531,7 +530,7 @@ The selection rationale is strongest shared-office awareness and truthful day/we
 | Worklist-first | Highest repeated case-queue throughput, initially focused on `Not ready`, with a selector limited to `Not ready`, `Review` and `Held`. It weakens whole-office day/week visibility. It must not become a generic cross-feature list; Intake and Triage remain dedicated, the summary is read-only, and consequential actions open focused flows. No bulk actions, saved personal queues, inline lifecycle mutation or speculative email work. |
 | Case-first | Clearest auditability and deep case context, with Cases/search as the landing and Operations retained as a full named route. It makes shared queue scanning less immediate and cannot be the earliest implementation. No generic Close, notes substitute, percentage completeness, named Engineer assignment, inline external editing, estimator, valuation, finance, AI or mobile controls. |
 
-The comparison rasters remain selection evidence: [Operations-first](references/mockups/candidate-a-operations-first.png), [Worklist-first](references/mockups/candidate-b-worklist-first.png), and [Case-first](references/mockups/candidate-c-case-first.png). Their styling and details are not automatically approved.
+The three comparison rasters were selection evidence only; they were removed from the repository on 2026-08-27 and remain in Git history. Their styling and details were never approved.
 
 ## Current Development caller
 
@@ -993,7 +992,6 @@ A supported desktop reflow does not alter the permanent mobile-product boundary.
 | Decision rationale | [Decision records](../adr/README.md) | Does not itself prove implementation |
 | Change evidence | Git history | Does not replace caller, deployment or acceptance evidence |
 | External reference qualification | [Reference index](../../reference/README.md) | Reference presence never creates authority |
-| Claude Design system (design-tool bindings) | `docs/design/system/` — React bindings that render the classes of `site.css` byte-for-byte (`dist/styles.css` is a build-time copy, never a second token file); `.design-sync/` holds the sync config, per-component previews and conventions | claude.ai/design project “Pegasus Design System”. Design-tool output only: not referenced by `Pegasus.slnx`, the Web runtime, or any deployment; not a caller. Refresh after any `site.css` change (`cd docs/design/system && npm run build`, then `/design-sync`) |
 
 The original `collision-engineers-design-dev` bundle supplied the shared logo, colour, type and icon foundation but explicitly did not define this internal command-centre application. The repository imports only approved shared essentials and renderer assets. Marketing layouts, imagery, fonts, WhatsApp styling, scroll reveals and mobile navigation are excluded. The source bundle is not retained as a second design system.
 
@@ -1097,7 +1095,7 @@ Operations-first is selected for the `0.1.0-alpha.1` landing and navigation stra
 
 ### Historical material
 
-The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are recorded in the [design authority](README.md) (product direction, and rejected alternatives retained as evidence). Their obsolete planning files are retired; the [Operations-first](references/mockups/candidate-a-operations-first.png), [Worklist-first](references/mockups/candidate-b-worklist-first.png), and [Case-first](references/mockups/candidate-c-case-first.png) rasters remain immutable selection evidence. The current design route is [design](README.md), with interaction detail in [ui-spec.md](README.md#ui-specification).
+The selected Operations-first direction and the rejected Worklist-first and Case-first comparisons are recorded in the [design authority](README.md) (product direction, and rejected alternatives retained as evidence). Their obsolete planning files and the three comparison rasters are retired to Git history. The current design route is [design](README.md), with interaction detail in [ui-spec.md](README.md#ui-specification).
 
 ## UI specification
 
