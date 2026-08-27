@@ -2,10 +2,13 @@
 id: MAIL-016
 type: ticket
 title: Correct the stale mailbox assertion left by MAIL-013
-status: backlog
+status: preparing
 area: mail-communications
-assignee: ''
+assignee: claude-fable-5
 profile: fix
+taken_at: '2026-08-27T08:17:32.053Z'
+branch: task/mail-016-stale-mailbox-assertion
+worktree: ../pegasus-worktrees/mail-016-stale-mailbox-assertion
 labels:
   - mailbox
   - tests
@@ -18,7 +21,7 @@ refs:
 deployment: n/a
 archived: false
 created: '2026-08-27T08:16:52.507Z'
-updated: '2026-08-27T08:16:52.507Z'
+updated: '2026-08-27T08:17:32.053Z'
 ---
 
 ## Problem
