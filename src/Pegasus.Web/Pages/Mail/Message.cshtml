@@ -472,7 +472,11 @@
                             <div class="queue-list section-gap">
                                 @foreach (var candidate in caseResults)
                                 {
-                                    <a href="@Model.AssociationCandidateUrl(summary.Id, candidate.CaseId)"
+                                    <a asp-page="/Mail/Message" asp-route-id="@summary.Id"
+                                       asp-route-mailbox="@Model.MailboxFilter" asp-route-folder="@Model.FolderRouteValue"
+                                       asp-route-pageNumber="@Model.PageRouteValue" asp-route-search="@Model.SearchTerm"
+                                       asp-route-queue="@Model.QueueFilter" asp-route-section="case"
+                                       asp-route-caseQuery="@Model.CaseQuery" asp-route-targetCaseId="@candidate.CaseId"
                                        aria-current="@(Model.TargetCase?.Summary.CaseId == candidate.CaseId ? "page" : null)">
                                         <span><strong>@candidate.Reference</strong></span>
                                         <span>@(candidate.Registration ?? "Not recorded") · @(candidate.Claimant ?? "Not recorded")</span>
