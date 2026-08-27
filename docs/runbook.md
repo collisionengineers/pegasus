@@ -930,7 +930,10 @@ a clean tree at an exact HEAD), `Test-AzureDeploymentPlan.ps1` (local, artifact,
 pre-upload, and pre-migration validation), `Invoke-AzureDatabaseBootstrap.ps1`
 and `Invoke-ProductionAdministratorBootstrap.ps1` (manifest-SHA-gated), and
 `Invoke-ProductionSmoke.ps1` (health, exact version/SHA, anonymous-denial,
-https-redirect, and exact Worker activation assertions). The
+https-redirect, exact Worker activation, and inbox intake liveness
+assertions — an activated intake mailbox, an unexpired `Active` Graph
+subscription, and a completed inbound poll within 15 minutes, read from the
+production database with the bootstrap access-token pattern). The
 executed 2026-08-02 sequence and its evidence gates are recorded in the retired
 runbook (git history, `azure-production-replacement-plan.md`). The one-off
 predecessor archive/retirement scripts completed their purpose in that run and
@@ -1072,7 +1075,10 @@ azd env set PEGASUS_WORKER_ACTIVATION approved-live-worker `
 ```
 
 In the same later-release terminal, the full post-release smoke adds the same
-readback to the existing Web gates:
+readback and the inbox intake liveness gate (activated intake mailbox,
+unexpired `Active` subscription, poll completed within 15 minutes) to the
+existing Web gates; it needs the `SqlServer` module and an Azure CLI identity
+that can read `pegasus`:
 
 ```powershell
 ./scripts/Invoke-ProductionSmoke.ps1 `
