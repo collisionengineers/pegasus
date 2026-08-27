@@ -1,0 +1,180 @@
+using Pegasus.Core.Identity;
+
+namespace Pegasus.Core.Eva;
+
+/// <summary>
+/// EXT-04: what one EVA API submission is known to have achieved.
+///
+/// FRD-07 requires these four to stay distinct — "external success, rejection,
+/// partial or unknown outcomes must remain distinct when those routes are
+/// implemented" — so this is deliberately not a boolean, and no caller may
+/// collapse it into one.
+/// </summary>
+public enum EvaSubmissionOutcome
+{
+    /// <summary>EVA accepted the instruction and returned its identifiers.</summary>
+    Succeeded,
+
+    /// <summary>
+    /// EVA refused the instruction and said why. Terminal: the same payload
+    /// will be refused again, so it is never retried.
+    /// </summary>
+    Rejected,
+
+    /// <summary>
+    /// EVA accepted the instruction but something it should have returned did
+    /// not arrive — an accepted envelope with no identifier. The case reached
+    /// EVA; what it became there is not fully known.
+    /// </summary>
+    Partial,
+
+    /// <summary>
+    /// Delivery itself is unknown: a transport failure, a timeout, or an
+    /// opaque server error. The instruction may or may not have been created,
+    /// which is why a case in this state is never resubmitted automatically —
+    /// EVA has no idempotency and a blind retry can duplicate the claim.
+    /// </summary>
+    Unknown
+}
+
+/// <summary>
+/// One image travelling to EVA, already read and integrity-checked.
+/// <paramref name="Name"/> is the file name without its extension and
+/// <paramref name="Extension"/> carries the leading dot, which is the shape
+/// EVA's file model documents.
+/// </summary>
+public sealed record EvaInstructionFile(
+    string Name,
+    string Extension,
+    ReadOnlyMemory<byte> Content);
+
+/// <summary>
+/// The EVA-shaped instruction: our case in EVA's own field names.
+///
+/// Only fields Pegasus can populate honestly appear here. EVA's request model
+/// is far wider (repairer block, estimate money, private-hire licensing,
+/// salvage); a field the case does not hold is not invented, because
+/// fabricated domain data is a stop condition.
+///
+/// Four of the thirteen mapped values have no EVA instruction field at all —
+/// EVA's model carries no mileage, no instruction date, no inspection date and
+/// no unambiguous claimant-name field. They travel in
+/// <see cref="Notes"/> as labelled lines rather than being guessed into
+/// <c>PrincipalName</c> or <c>TPName</c>, whose meanings are not established
+/// by any accepted source. See <see cref="CaseEvaApiMapping"/>.
+/// </summary>
+public sealed record EvaInstructionPayload(
+    string RequestFrom,
+    string ExternalRef,
+    string ClaimNumber,
+    string InsurerName,
+    string VehicleRegistration,
+    string VehicleDescription,
+    DateOnly? IncidentDate,
+    string Cause,
+    string VatStatus,
+    string InspectionType,
+    string CoverType,
+    string VehicleDriveable,
+    string InUse,
+    string InstructionEmail,
+    EvaInspectionLocation Location,
+    string Notes,
+    IReadOnlyList<EvaInstructionFile> Files);
+
+/// <summary>
+/// The inspection-location block. Pegasus stores the inspection address as one
+/// collapsed line and exports it as six; EVA wants it split across named
+/// fields, so the same six-line resolution feeds both.
+/// </summary>
+public sealed record EvaInspectionLocation(
+    string Name,
+    string Address,
+    string Town,
+    string City,
+    string County,
+    string Postcode);
+
+/// <summary>
+/// What EVA said. Both identifiers are kept: <paramref name="EvaId"/> is the
+/// response envelope's own id, and <paramref name="FileReference"/> is the
+/// number EVA embeds in its human-readable message. They are different values
+/// and operators quote the second one.
+/// </summary>
+public sealed record EvaSubmissionResult(
+    EvaSubmissionOutcome Outcome,
+    string? EvaId,
+    string? FileReference,
+    string? FailureCode,
+    string? FailureDetail,
+    int ImagesSent)
+{
+    public bool IsDelivered => Outcome is EvaSubmissionOutcome.Succeeded
+        or EvaSubmissionOutcome.Partial;
+}
+
+/// <summary>
+/// The EVA network boundary, and the only place in Pegasus that talks to EVA.
+///
+/// It has exactly one method because Pegasus performs exactly one EVA
+/// operation. EVA's update endpoints (<c>Claim/Update</c>,
+/// <c>Claim/LocationUpdate</c>, <c>Claim/AuthorityStatusUpdate</c>) are not
+/// suitable for this product's use case — operator decision, 2026-08-27 — so
+/// a submitted case is never updated over the API. Adding a second method here
+/// is a scope change, not an implementation detail.
+/// </summary>
+public interface IEvaApiTransport
+{
+    Task<EvaSubmissionResult> SubmitInstructionAsync(
+        EvaInstructionPayload payload,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// One submission of one case to EVA.
+///
+/// Like the export it takes an operation key for replay-safe action history
+/// and no edit lease: submitting does not change the case version.
+/// </summary>
+public sealed record SubmitCaseToEvaRequest(
+    Guid CaseId,
+    ActionActor Actor,
+    string OperationKey);
+
+public sealed record SubmitCaseToEvaResult(
+    EvaSubmissionResult? Submission,
+    IReadOnlyList<string> UnrecordedFields,
+    IReadOnlyList<string> BlockingReasons)
+{
+    public bool IsSubmitted => Submission is not null;
+}
+
+public interface ISubmitCaseToEva
+{
+    Task<SubmitCaseToEvaResult?> ExecuteAsync(
+        SubmitCaseToEvaRequest request,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// A case whose principal has not enabled the act that was attempted.
+/// </summary>
+public sealed class EvaSubmissionNotEnabledException(Guid caseId)
+    : InvalidOperationException(
+        "The principal has not enabled EVA API submission for this case.")
+{
+    public Guid CaseId { get; } = caseId;
+}
+
+/// <summary>
+/// A case that has already reached EVA. EVA has no idempotency of its own — a
+/// second instruction creates a second claim — so this is refused here and by
+/// a unique index in the database.
+/// </summary>
+public sealed class EvaAlreadySubmittedException(Guid caseId, string? fileReference)
+    : InvalidOperationException(
+        "The case has already been submitted to EVA.")
+{
+    public Guid CaseId { get; } = caseId;
+    public string? FileReference { get; } = fileReference;
+}
