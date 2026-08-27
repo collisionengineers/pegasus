@@ -3,9 +3,8 @@ using Microsoft.EntityFrameworkCore;
 namespace Pegasus.IntegrationTests;
 
 /// <summary>
-/// The upgrade adds identity to the approved estate without touching a single existing
-/// row's meaning. The already-deployed mailbox stays Approved with its identities unset,
-/// which is exactly what the read-only configuration fallback then covers.
+/// The historical upgrade added nullable Graph identity columns without changing the
+/// seeded mailbox row.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class ApprovedMailboxIdentityMigrationTests

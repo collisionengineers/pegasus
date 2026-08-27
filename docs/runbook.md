@@ -964,11 +964,12 @@ Two route facts recorded by release 9 (details in operations):
 
 The currently implemented production Worker gate is fail-closed and two-state.
 `PEGASUS_WORKER_ACTIVATION` maps to the infrastructure input with a default of
-`disabled`; only the exact value `approved-live-worker` renders the nine
+`disabled`; only the exact value `approved-live-worker` renders the seven
 `AzureWebJobs.<function>.Disabled` settings as `false`. Omission, an empty or
 misspelled value, and every other value render them as `true`.
 
-The exact production Worker is currently **enabled**: all nine settings read
+Before the unified Worker release, the exact production Worker is **enabled**:
+all nine deployed settings read
 `false`, all nine function definitions remain discoverable, and the azd input
 `PEGASUS_WORKER_ACTIVATION` reads `approved-live-worker`. Every later release
 must retain that input (the enabled-estate preflight below). The dated
@@ -1032,7 +1033,7 @@ production subscription, tenant, resource group, and Worker, then confirms the
 deployed Worker's settings consistently match the expected activation. It does
 not require the previous release to already use the new release's function
 names. The post-provision smoke below enforces the new release's exact
-nine-setting census and one-minute recovery schedule. Do not provision if the
+seven-setting census and one-minute recovery schedule. Do not provision if the
 fresh inventory or activation baseline differs.
 
 Only after the separately approved exact-target gate passes, provision with
@@ -1080,10 +1081,10 @@ Populate the three release variables from the approved immutable manifest and
 fresh exact Web inventory; do not trust stale local azd outputs as deployed
 evidence.
 
-Rollback is an explicit production mutation that disables all nine functions.
+Rollback is an explicit production mutation that disables all seven functions.
 It requires fresh inventory, exact-target approval, an accepted reason and
 recovery path, and confirmation that stopping polling, dispatch, poison,
-reconciliation, sent-evidence, due-work, and external-work triggers is the
+reconciliation, sent-evidence, due-work, and unified-work triggers is the
 intended outcome. The `-AllowWorkerDisable` switch is valid only for this
 reviewed enabled-to-disabled transition:
 

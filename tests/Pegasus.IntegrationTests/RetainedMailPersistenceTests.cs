@@ -482,7 +482,7 @@ public sealed class RetainedMailPersistenceTests
         await using var scope = database.CreateAsyncScope();
         var queries = scope.ServiceProvider.GetRequiredService<IRetainedMailQueries>();
         var page = await queries.ListAsync(
-            new(MailboxId, MailFolderScope.Inbox),
+            new(TestMailboxId.From(MailboxId), MailFolderScope.Inbox),
             1,
             25,
             CancellationToken.None);
@@ -748,10 +748,12 @@ public sealed class RetainedMailPersistenceTests
                 25,
                 CancellationToken.None))
             .Items
-            .OrderBy(item => item.MailboxId, StringComparer.Ordinal)
+            .OrderBy(item => item.MailboxId)
             .ToArray();
 
-        Assert.Equal([secondMailboxId, MailboxId], retained.Select(item => item.MailboxId));
+        Assert.Equal(
+            new[] { TestMailboxId.From(secondMailboxId), TestMailboxId.From(MailboxId) }.Order(),
+            retained.Select(item => item.MailboxId));
         foreach (var item in retained)
         {
             var corrected = await command.ExecuteAsync(
@@ -947,7 +949,7 @@ public sealed class RetainedMailPersistenceTests
             new(null, MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
         Assert.Equal(MailLogicalFolderType.Instructions, searchResult.CurrentFolderType);
         Assert.Empty((await queries.ListAsync(
-            new("different-mailbox", MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
+            new(TestMailboxId.From("different-mailbox"), MailFolderScope.Inbox, "estimate"), 1, 25, CancellationToken.None)).Items);
         await using var verification = await database.CreateContextAsync();
         Assert.Equal("inbox", await verification.RetainedMailboxMessages
             .Where(item => item.Id == retained.Id)
@@ -1257,6 +1259,7 @@ public sealed class RetainedMailPersistenceTests
                         MailboxAddress,
                         inboxRoot));
                 });
+            await ActivateSeededMailboxAsync(database);
 
             await using (var scope = database.CreateAsyncScope())
             {
@@ -1312,7 +1315,7 @@ public sealed class RetainedMailPersistenceTests
         string mailboxId = MailboxId,
         string mailboxAddress = MailboxAddress,
         string? bodyPlainText = "Please inspect the vehicle.") => new(
-        mailboxId,
+        TestMailboxId.From(mailboxId),
         mailboxAddress,
         immutableMessageId,
         $"{mailboxId.Length}:{mailboxId}{immutableMessageId}",
@@ -1413,8 +1416,18 @@ public sealed class RetainedMailPersistenceTests
                 Path.GetTempPath()));
             services.AddSingleton(source);
         });
+        await ActivateSeededMailboxAsync(database);
         return database;
     }
+
+    private static Task ActivateSeededMailboxAsync(LocalDbTestDatabase database) =>
+        database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes
+            SET MailboxIdentity = '{MailboxId}', InboxFolderIdentity = 'inbox',
+                ActivatedAtUtc = '1970-01-01T00:00:00+00:00'
+            WHERE Id = '{TestMailboxId.From(MailboxId):D}';
+            """);
 
     /// <summary>
     /// The per-mailbox cursor row a retained message hangs off. The poll makes it
@@ -1427,10 +1440,34 @@ public sealed class RetainedMailPersistenceTests
         string mailboxAddress = MailboxAddress)
     {
         await using var context = await database.CreateContextAsync();
+        var approvedMailboxId = TestMailboxId.From(mailboxId);
+        var approvedMailbox = await context.ApprovedMailboxes.FindAsync(approvedMailboxId);
+        if (approvedMailbox is null)
+        {
+            context.ApprovedMailboxes.Add(new()
+            {
+                Id = approvedMailboxId,
+                Address = mailboxAddress,
+                AllowInboundIntake = true,
+                State = ApprovedMailboxState.Approved.ToString(),
+                MailboxIdentity = mailboxId,
+                InboxFolderIdentity = "inbox",
+                ActivatedAtUtc = ReceivedAtUtc.AddDays(-1),
+                Version = 1
+            });
+        }
+        else
+        {
+            approvedMailbox.MailboxIdentity = mailboxId;
+            approvedMailbox.InboxFolderIdentity = "inbox";
+            approvedMailbox.ActivatedAtUtc = ReceivedAtUtc.AddDays(-1);
+        }
         context.ApprovedInboxPollStates.Add(new()
         {
-            MailboxId = mailboxId,
+            ApprovedMailboxId = approvedMailboxId,
             MailboxAddress = mailboxAddress,
+            ScopeFingerprint = new string('A', 64),
+            ActivatedAtUtc = ReceivedAtUtc.AddDays(-1),
             DueAtUtc = ReceivedAtUtc,
             LastCompletedAtUtc = ReceivedAtUtc
         });
