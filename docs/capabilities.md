@@ -242,7 +242,7 @@ callers.
 | AI-06 | AI-assisted inspection-address suggestions | Later | 0.6.0 | [Requirements](frd/frd-10-mcp-automation-and-actor-boundary.md#mcp-automation-and-actor-boundary) | Activate only if rule-based behavior is insufficient and approvals are met. |
 | MAIL-17 | Idempotent report/fee-note send on the original Outlook thread or provider API using principal CC/delivery/standing-note preferences, followed by Box filing, completion, and management-event recording | Later | 1.2.0 | [Targeted sending and reviewed AI proposals](frd/frd-11-reports-correspondence-and-reviewed-proposals.md#targeted-sending-and-reviewed-ai-proposals) | Allocation only; exact destination, caller, custody, Sent-item/reply evidence, finality, and recovery contract required. |
 | CASE-22 | Replace EVA inspection and report-preparation work inside Pegasus | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Allocation only; route, correction/finality, migration, caller, and acceptance evidence still required. |
-| EXT-04 | Direct EVA API integration | Later | 0.7.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | Depends on a usable vendor-confirmed operation, exact contract, real caller, and separate approval; supplied schema is not authorization. |
+| EXT-04 | Direct EVA API submission of a case and its images, switchable per Principal for manual and automatic sending, at most once per case | Now | 0.1.0-alpha.1 | [Direct EVA API submission](frd/frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission) | Activated 2026-08-27 against EVA's test environment by operator direction (ADR-0034). Core policy, transport, both callers and the four-outcome model are proved locally. Live credentials, deployment and operator acceptance remain pending; EVA serves both environments from one host, so the swap is a credential change. |
 | EXT-05 | Replace EVA Engineer assignment | Later | 1.0.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | Allocation only; the alpha proxy does not name an Engineer or prove EVA receipt/assignment. |
 | EXT-06 | Replace EVA estimating without moving repair-specification authority out of Pegasus Core | Later | 1.0.0 | [Professional engineering findings and correction](frd/frd-06-vehicle-and-engineering-evidence.md#professional-engineering-findings-and-correction) | Depends on an accepted estimating route, caller, recovery, and Engineer approval evidence. |
 | EXT-07 | Replace EVA valuation while preserving separate dated/versioned source evidence and explicit Engineer selection | Later | 1.0.0 | [External boundary](frd/frd-07-eva-and-external-engineering-handoff.md#external-boundary) | No source or adapter selects the Engineer value; contracts, caller, and acceptance remain required. |
@@ -360,7 +360,9 @@ Sequence constraints:
   `AI-07` remains blocked on assignment authority;
 - `AI-02`–`AI-04` and `AI-06` remain blocked until evidence shows deterministic
   rules are insufficient;
-- `0.7.0` / `EXT-04` is optional and non-blocking, not a prerequisite for
+- `0.7.0` / `EXT-04` was brought forward to `0.1.0-alpha.1` on 2026-08-27;
+  the ladder entry below is retained as the original allocation. It remains
+  optional and non-blocking, not a prerequisite for
   `1.0.0`;
 - `EXT-16`, `EXT-17`, and `EXT-19` remain non-blocking Triage allocations and
   prohibited from implementation until their direct promotion decisions;
