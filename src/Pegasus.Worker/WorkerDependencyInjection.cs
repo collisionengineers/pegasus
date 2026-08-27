@@ -175,15 +175,7 @@ public static class WorkerDependencyInjection
     /// worker in PLAT-013.
     /// </summary>
     private static EvaApiOptions GetEvaApiOptions(IConfiguration configuration) =>
-        EvaApiOptions.Create(new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Eva:BaseUri"] = configuration["Eva:BaseUri"],
-            ["Eva:ClientId"] = configuration["Eva:ClientId"],
-            ["Eva:ClientSecret"] = configuration["Eva:ClientSecret"],
-            ["Eva:RequestFrom"] = configuration["Eva:RequestFrom"],
-            ["Eva:InspectionType"] = configuration["Eva:InspectionType"],
-            ["Eva:InstructionEmail"] = configuration["Eva:InstructionEmail"]
-        });
+        EvaApiOptions.Create(key => configuration[key]);
 
     private static BoxCustodyOptions CreateBoxCustodyOptions(IConfiguration configuration) =>
         BoxCustodyOptions.Create(

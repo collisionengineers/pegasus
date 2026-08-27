@@ -11,7 +11,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
         private const string WebRole = "pegasus_web_runtime_role";
         private const string WorkerRole = "pegasus_worker_runtime_role";
 
-        // EXT-04: EvaSubmissions is new in 20260827123536_EvaApiSubmissions and
+        // EXT-04: EvaSubmissions is new in 20260827143132_EvaApiSubmissions and
         // the least-privilege runtime roles grant nothing on a table they have
         // never heard of. Both runtimes write it — Web when an operator presses
         // Send to EVA, the Worker when a principal's automatic setting submits

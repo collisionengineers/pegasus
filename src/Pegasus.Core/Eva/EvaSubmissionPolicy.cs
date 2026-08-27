@@ -176,7 +176,6 @@ public static class EvaSubmissionPolicy
         return code switch
         {
             >= 200 and <= 299 => EvaSubmissionOutcome.Partial,
-            401 or 403 => EvaSubmissionOutcome.Rejected,
             >= 400 and <= 499 => EvaSubmissionOutcome.Rejected,
             _ => EvaSubmissionOutcome.Unknown
         };

@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 using Pegasus.Core;
@@ -461,6 +461,12 @@ public sealed class DependencyDirectionTests
             "Pegasus.Infrastructure",
             "Persistence",
             "EvaHandoffStore.cs"));
+        var evaImageReader = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "src",
+            "Pegasus.Infrastructure",
+            "Persistence",
+            "EvaCaseImageReader.cs"));
         var evaMapping = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "src",
@@ -485,7 +491,15 @@ public sealed class DependencyDirectionTests
             "EfExternalWorkStore.cs"));
         // Image eligibility and the field mapping stay Core's; the store
         // calls them and owns neither.
+        // Image eligibility is selected in exactly one place, and it is the
+        // Core policy that selects it. EXT-04 gave the case a second route to
+        // EVA, so the reader moved out of the export store to be shared by
+        // both; what must not happen is a second copy of the rule.
         Assert.Contains(
+            "EvaHandoffPolicy.SelectEligibleImages",
+            evaImageReader,
+            StringComparison.Ordinal);
+        Assert.DoesNotContain(
             "EvaHandoffPolicy.SelectEligibleImages",
             evaPersistence,
             StringComparison.Ordinal);
@@ -497,13 +511,17 @@ public sealed class DependencyDirectionTests
         Assert.DoesNotContain("EVA hand-off is not switched on", evaMapping, StringComparison.Ordinal);
         Assert.DoesNotContain("Eva:AcceptedMapping", webComposition, StringComparison.Ordinal);
         Assert.DoesNotContain("Eva__AcceptedMapping", platform, StringComparison.Ordinal);
+        // PLAT-041: a case's photographs are read in one batch, not one call
+        // per image, because a remote store resolves the case folder per call.
+        // The read moved into the shared reader with EXT-04; the rule is the
+        // same and now covers both EVA routes at once.
         Assert.Contains(
             "contentStore.ReadVersionsAsync",
-            evaPersistence,
+            evaImageReader,
             StringComparison.Ordinal);
         Assert.DoesNotContain(
             "contentStore.OpenReadVersionAsync",
-            evaPersistence,
+            evaImageReader,
             StringComparison.Ordinal);
         // The once-per-case proxy is a Core port the store calls, never an
         // adapter the store manufactures.

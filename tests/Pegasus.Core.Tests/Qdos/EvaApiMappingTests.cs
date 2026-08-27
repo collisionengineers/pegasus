@@ -17,12 +17,13 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void TheExportsValuesTravelUnderEvasFieldNames()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
 
         Assert.Equal("COLLENGAPI", payload.RequestFrom);
         Assert.Equal("QDOS26031", payload.ExternalRef);
         Assert.Equal("AKH/47743/1", payload.ClaimNumber);
         Assert.Equal("A Smith", payload.ClaimantName);
+        Assert.Equal("QDOS", payload.Agent);
         Assert.Equal("MT15OYK", payload.VehicleRegistration);
         Assert.Equal("Land Rover Defender 110", payload.VehicleDescription);
         Assert.Equal(new DateOnly(2026, 1, 31), payload.IncidentDate);
@@ -40,7 +41,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void TheExternalReferenceIsThePegasusCaseReferenceNotTheProvidersOwn()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
 
         Assert.Equal("QDOS26031", payload.ExternalRef);
         Assert.NotEqual(payload.ExternalRef, payload.ClaimNumber);
@@ -48,14 +49,13 @@ public sealed class EvaApiMappingTests
 
     /// <summary>
     /// EVA's instruction model carries no inspection-date field and no
-    /// mileage field, and the work provider lost InsName to the claimant name.
-    /// All three are named in the note rather than guessed into PrincipalName
-    /// or TPName, whose meanings no accepted source establishes.
+    /// mileage field. Both are named in the note rather than guessed into a
+    /// field whose meaning no accepted source establishes.
     /// </summary>
     [Fact]
     public void ValuesEvaHasNoFieldForAreNamedInTheNote()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
 
         Assert.Equal(
             string.Join(
@@ -75,7 +75,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void TheInstructionDateIsLeftToEvaToSetOnReceipt()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
 
         Assert.DoesNotContain("Instruction Date", payload.Notes, StringComparison.Ordinal);
         Assert.DoesNotContain("05/02/2026", payload.Notes, StringComparison.Ordinal);
@@ -92,11 +92,15 @@ public sealed class EvaApiMappingTests
         var payload = CaseEvaApiMapping.Map(
             Fields() with { Mileage = null, MileageUnit = null },
             "QDOS26031",
+            "QDOS",
             Settings,
             []);
 
         Assert.Equal(
-            string.Join('\n', "Work Provider: Connexus", "Inspection Date: 10/02/2026"),
+            string.Join(
+                '\n',
+                "Work Provider: Connexus",
+                "Inspection Date: 10/02/2026"),
             payload.Notes);
     }
 
@@ -108,6 +112,7 @@ public sealed class EvaApiMappingTests
                 null, "MT15OYK", "Defender", "A Smith", "AKH/47743/1",
                 null, null, null, null, null, null, null, null),
             "QDOS26031",
+            "QDOS",
             Settings,
             []);
 
@@ -124,6 +129,7 @@ public sealed class EvaApiMappingTests
         var payload = CaseEvaApiMapping.Map(
             Fields() with { MileageUnit = "Km" },
             "QDOS26031",
+            "QDOS",
             Settings,
             []);
 
@@ -144,6 +150,7 @@ public sealed class EvaApiMappingTests
                 InspectionAddress = "15 High Street\nWatford\nLondon\nHertfordshire\n\nWD17 1AA"
             },
             "QDOS26031",
+            "QDOS",
             Settings,
             []);
 
@@ -164,6 +171,7 @@ public sealed class EvaApiMappingTests
         var payload = CaseEvaApiMapping.Map(
             Fields() with { InspectionAddress = CaseEvaMapping.ImageBasedAssessment },
             "QDOS26031",
+            "QDOS",
             Settings,
             []);
 
@@ -179,7 +187,7 @@ public sealed class EvaApiMappingTests
     [Fact]
     public void UnheldValuesAreSentAsEvasOwnNotKnownMembers()
     {
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", Settings, []);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
 
         Assert.Equal(EvaInstructionDefaults.NotKnown, payload.InUse);
         Assert.Equal(EvaInstructionDefaults.NotKnown, payload.VehicleDriveable);
@@ -196,6 +204,7 @@ public sealed class EvaApiMappingTests
         var payload = CaseEvaApiMapping.Map(
             Fields() with { Vrm = " mt15 oyk " },
             "QDOS26031",
+            "QDOS",
             Settings,
             []);
 
@@ -212,6 +221,7 @@ public sealed class EvaApiMappingTests
         Assert.Null(CaseEvaApiMapping.Map(
             Fields() with { IncidentDate = "2026-01-31" },
             "QDOS26031",
+            "QDOS",
             Settings,
             []).IncidentDate);
 
@@ -224,9 +234,79 @@ public sealed class EvaApiMappingTests
             new("002 rear", ".png", new byte[] { 2 })
         ];
 
-        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", Settings, files);
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, files);
 
         Assert.Equal(files, payload.Files);
+    }
+
+    /// <summary>
+    /// RequestFrom identifies Collision Engineers to EVA and never varies;
+    /// Agent says which Principal the work arrived for and is the only field
+    /// that does.
+    /// </summary>
+    [Fact]
+    public void RequestFromIsFixedAndAgentCarriesThePrincipal()
+    {
+        var one = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+        var two = CaseEvaApiMapping.Map(Fields(), "AKH26100", "AKH", Settings, []);
+
+        Assert.Equal(one.RequestFrom, two.RequestFrom);
+        Assert.Equal("QDOS", one.Agent);
+        Assert.Equal("AKH", two.Agent);
+    }
+
+    /// <summary>
+    /// Agent already carries the Principal, so repeating it as a note line is
+    /// noise.
+    /// </summary>
+    [Fact]
+    public void TheWorkProviderIsNotNotedWhenItIsSimplyThePrincipal()
+    {
+        var payload = CaseEvaApiMapping.Map(
+            Fields() with { WorkProvider = "QDOS" },
+            "QDOS26031",
+            "QDOS",
+            Settings,
+            []);
+
+        Assert.DoesNotContain("Work Provider", payload.Notes, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// A work provider that is not the Principal the case was allocated to is
+    /// worth an assessor reading, so it is still named.
+    /// </summary>
+    [Fact]
+    public void AWorkProviderDifferingFromThePrincipalIsNoted()
+    {
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", "QDOS", Settings, []);
+
+        Assert.Contains("Work Provider: Connexus", payload.Notes, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Five body lines into four fields. The fifth must not vanish: EVA is
+    /// told slightly more than it asked for rather than less than the case
+    /// holds.
+    /// </summary>
+    [Fact]
+    public void AFifthAddressLineIsNotLost()
+    {
+        var payload = CaseEvaApiMapping.Map(
+            Fields() with
+            {
+                InspectionAddress = "Unit 4\nTrade Park\nWatford\nLondon\nHertfordshire\nWD17 1AA"
+            },
+            "QDOS26031",
+            "QDOS",
+            Settings,
+            []);
+
+        Assert.Equal("Unit 4", payload.Location.Address);
+        Assert.Equal("Trade Park", payload.Location.Town);
+        Assert.Equal("Watford", payload.Location.City);
+        Assert.Equal("London Hertfordshire", payload.Location.County);
+        Assert.Equal("WD17 1AA", payload.Location.Postcode);
     }
 
     private static EvaReplayFields Fields() => new(

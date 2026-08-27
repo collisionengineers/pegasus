@@ -180,11 +180,17 @@ public sealed class ProcessQueuedEvaSubmission(
         // A dependency failed before EVA was reached — Box could not be read,
         // the database was unavailable. Nothing was sent, so retrying is safe
         // and is the only branch here where that is true.
+        //
+        // No HttpRequestException here on purpose: naming it would make Core
+        // depend on System.Net.Http, which the architecture test forbids and
+        // which would be the wrong shape anyway. The EVA call cannot throw it
+        // (the transport returns an Unknown outcome instead), and the custody
+        // read's transport failure is translated to IOException at the
+        // Infrastructure boundary that raises it.
         catch (Exception exception) when (exception is IOException
             or InvalidDataException
             or TimeoutException
-            or UnauthorizedAccessException
-            or HttpRequestException)
+            or UnauthorizedAccessException)
         {
             await RescheduleOrFailAsync(
                 workItem,

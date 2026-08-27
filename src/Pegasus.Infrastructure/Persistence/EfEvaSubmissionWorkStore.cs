@@ -189,8 +189,13 @@ public sealed class EfEvaSubmissionWorkStore(
     /// EVA's failure text can be an unbounded <c>text/plain</c> body, and the
     /// column it lands in is not.
     /// </summary>
-    private static string? Truncate(string? value) =>
-        string.IsNullOrWhiteSpace(value)
-            ? null
-            : value.Length <= 400 ? value : value[..400];
+    private static string? Truncate(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        return value.Length <= 400 ? value : value[..400];
+    }
 }

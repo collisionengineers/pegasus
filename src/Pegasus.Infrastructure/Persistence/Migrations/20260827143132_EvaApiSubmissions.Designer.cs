@@ -12,7 +12,7 @@ using Pegasus.Infrastructure.Persistence;
 namespace Pegasus.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(PegasusDbContext))]
-    [Migration("20260827123536_EvaApiSubmissions")]
+    [Migration("20260827143132_EvaApiSubmissions")]
     partial class EvaApiSubmissions
     {
         /// <inheritdoc />
@@ -2768,6 +2768,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsSucceeded")
                         .HasColumnType("bit");
 
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2785,6 +2790,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_EvaSubmissions_CaseSucceeded")
                         .HasFilter("[IsSucceeded] = 1");
+
+                    b.HasIndex("CaseId", "OperationKey")
+                        .HasDatabaseName("IX_EvaSubmissions_CaseOperationKey");
 
                     b.HasIndex("CaseId", "SubmittedAtUtc")
                         .HasDatabaseName("IX_EvaSubmissions_CaseSubmittedAt");

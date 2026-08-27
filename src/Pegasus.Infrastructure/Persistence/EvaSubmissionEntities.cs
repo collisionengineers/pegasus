@@ -1,4 +1,4 @@
-namespace Pegasus.Infrastructure.Persistence;
+﻿namespace Pegasus.Infrastructure.Persistence;
 
 /// <summary>
 /// One attempt to submit a case to EVA over the API (EXT-04).
@@ -33,6 +33,14 @@ internal sealed class EvaSubmissionEntity
     /// the unique index below is what actually prevents the second send.
     /// </summary>
     public string ExternalRef { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The operation key this attempt ran under, so a replay can be answered
+    /// with the outcome that actually belongs to it. A case can carry attempts
+    /// from more than one key - an automatic sweep and a later manual send -
+    /// and recency alone would confuse the two.
+    /// </summary>
+    public string OperationKey { get; set; } = string.Empty;
 
     /// <summary>
     /// The outcome name from <c>EvaSubmissionOutcome</c>. Stored as text so

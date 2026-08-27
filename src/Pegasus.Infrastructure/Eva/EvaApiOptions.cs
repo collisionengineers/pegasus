@@ -48,23 +48,34 @@ public sealed record EvaApiOptions(
 
     public Uri InstructionUri => new(BaseUri, "Instruction/Inspection");
 
+    /// <summary>
+    /// A host hands over its own configuration lookup rather than restating
+    /// the key names, so which keys EVA needs is decided here and every host
+    /// asks for exactly those.
+    /// </summary>
+    public static EvaApiOptions Create(Func<string, string?> read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        return new(
+            RequireApprovedBaseUri(read, "Eva:BaseUri"),
+            Require(read, "Eva:ClientId"),
+            Require(read, "Eva:ClientSecret"),
+            new(
+                Require(read, "Eva:RequestFrom"),
+                RequireInspectionType(read, "Eva:InspectionType"),
+                RequireEmail(read, "Eva:InstructionEmail")));
+    }
+
     public static EvaApiOptions Create(IReadOnlyDictionary<string, string?> values)
     {
         ArgumentNullException.ThrowIfNull(values);
-        return new(
-            RequireApprovedBaseUri(values, "Eva:BaseUri"),
-            Require(values, "Eva:ClientId"),
-            Require(values, "Eva:ClientSecret"),
-            new(
-                Require(values, "Eva:RequestFrom"),
-                RequireInspectionType(values, "Eva:InspectionType"),
-                RequireEmail(values, "Eva:InstructionEmail")));
+        return Create(key => values.TryGetValue(key, out var value) ? value : null);
     }
 
-    private static string Require(IReadOnlyDictionary<string, string?> values, string key)
+    private static string Require(Func<string, string?> read, string key)
     {
-        if (!values.TryGetValue(key, out var value)
-            || string.IsNullOrWhiteSpace(value)
+        var value = read(key);
+        if (string.IsNullOrWhiteSpace(value)
             || value.Any(char.IsControl))
         {
             throw new InvalidOperationException($"{key} is required for the EVA API adapter.");
@@ -82,10 +93,10 @@ public sealed record EvaApiOptions(
     /// ".../Connect/token" and silently drop the "/api" segment.
     /// </summary>
     private static Uri RequireApprovedBaseUri(
-        IReadOnlyDictionary<string, string?> values,
+        Func<string, string?> read,
         string key)
     {
-        var value = Require(values, key);
+        var value = Require(read, key);
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri)
             || uri.Scheme != Uri.UriSchemeHttps)
         {
@@ -102,10 +113,10 @@ public sealed record EvaApiOptions(
     }
 
     private static string RequireInspectionType(
-        IReadOnlyDictionary<string, string?> values,
+        Func<string, string?> read,
         string key)
     {
-        var value = Require(values, key);
+        var value = Require(read, key);
         return InspectionTypes.Contains(value, StringComparer.Ordinal)
             ? value
             : throw new InvalidOperationException(
@@ -118,10 +129,10 @@ public sealed record EvaApiOptions(
     /// instruction to whoever last appeared on one.
     /// </summary>
     private static string RequireEmail(
-        IReadOnlyDictionary<string, string?> values,
+        Func<string, string?> read,
         string key)
     {
-        var value = Require(values, key);
+        var value = Require(read, key);
         var separator = value.IndexOf('@', StringComparison.Ordinal);
         return separator > 0
             && separator < value.Length - 1

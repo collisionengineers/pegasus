@@ -281,6 +281,7 @@ public sealed class EvaApiTransportTests
         var root = document.RootElement;
 
         Assert.Equal("COLLENGAPI", root.GetProperty("RequestFrom").GetString());
+        Assert.Equal("QDOS", root.GetProperty("Agent").GetString());
         Assert.Equal("QDOS26031", root.GetProperty("ExternalRef").GetString());
         Assert.Equal("MT15OYK", root.GetProperty("VehReg").GetString());
         Assert.Equal("A Smith", root.GetProperty("InsName").GetString());
@@ -344,6 +345,7 @@ public sealed class EvaApiTransportTests
                 "43850",
                 "Miles"),
             "QDOS26031",
+            "QDOS",
             Options().Instruction,
             files);
 

@@ -147,8 +147,7 @@ internal sealed partial class EvaApiTransport(
             outcome == EvaSubmissionOutcome.Succeeded
                 ? null
                 : Detail(response, envelope),
-            outcome == EvaSubmissionOutcome.Succeeded
-            || outcome == EvaSubmissionOutcome.Partial
+            outcome is EvaSubmissionOutcome.Succeeded or EvaSubmissionOutcome.Partial
                 ? fileCount
                 : 0);
     }
@@ -165,9 +164,7 @@ internal sealed partial class EvaApiTransport(
         var text = Trimmed(envelope?.Message)
             ?? Trimmed(response.TransportError)
             ?? Trimmed(response.Body);
-        return text is null
-            ? null
-            : text.Length <= 500 ? text : text[..500];
+        return text is null || text.Length <= 500 ? text : text[..500];
     }
 
     /// <summary>
@@ -386,6 +383,7 @@ internal static class EvaInstructionSerializer
         var body = new Dictionary<string, object?>(StringComparer.Ordinal)
         {
             ["RequestFrom"] = payload.RequestFrom,
+            ["Agent"] = payload.Agent,
             ["ExternalRef"] = payload.ExternalRef,
             ["ClmNo"] = payload.ClaimNumber,
             ["InsName"] = payload.ClaimantName,

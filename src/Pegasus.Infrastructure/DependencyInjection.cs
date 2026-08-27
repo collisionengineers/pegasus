@@ -403,7 +403,6 @@ public static class DependencyInjection
             services.AddScoped<IExportCaseBundle>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
 
-
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>
                 provider.GetRequiredService<EfDocumentCustodyStore>());

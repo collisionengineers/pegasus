@@ -64,6 +64,21 @@ public sealed record EvaInstructionFile(
 /// </summary>
 public sealed record EvaInstructionPayload(
     string RequestFrom,
+
+    /// <summary>
+    /// The Principal the case belongs to, sent as EVA's <c>Agent</c> code
+    /// (operator direction, 2026-08-27). <c>RequestFrom</c> identifies
+    /// Collision Engineers to EVA and is the same on every submission; this
+    /// says which of our Principals the work arrived for, and is the only
+    /// field that varies by Principal.
+    ///
+    /// Taken from the case's allocated Principal rather than its extracted
+    /// work-provider field, because the allocation is immutable and always
+    /// present. EVA caps the field at 10 characters where Pegasus allows 20;
+    /// a longer code is sent unchanged and refused by EVA, rather than
+    /// truncated into a different Principal.
+    /// </summary>
+    string Agent,
     string ExternalRef,
     string ClaimNumber,
 

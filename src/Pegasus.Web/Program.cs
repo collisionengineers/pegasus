@@ -606,16 +606,8 @@ documentStorage: !productionProfile
 // PLAT-013 reason as Box's.
 if (productionProfile)
 {
-    builder.Services.AddEvaApiSubmission(_ => EvaApiOptions.Create(
-        new Dictionary<string, string?>(StringComparer.Ordinal)
-        {
-            ["Eva:BaseUri"] = builder.Configuration["Eva:BaseUri"],
-            ["Eva:ClientId"] = builder.Configuration["Eva:ClientId"],
-            ["Eva:ClientSecret"] = builder.Configuration["Eva:ClientSecret"],
-            ["Eva:RequestFrom"] = builder.Configuration["Eva:RequestFrom"],
-            ["Eva:InspectionType"] = builder.Configuration["Eva:InspectionType"],
-            ["Eva:InstructionEmail"] = builder.Configuration["Eva:InstructionEmail"]
-        }));
+    builder.Services.AddEvaApiSubmission(
+        _ => EvaApiOptions.Create(key => builder.Configuration[key]));
 }
 
 builder.Services.AddPegasusReportRendering();

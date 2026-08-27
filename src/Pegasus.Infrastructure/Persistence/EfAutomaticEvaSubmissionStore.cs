@@ -73,8 +73,12 @@ public sealed class EfAutomaticEvaSubmissionStore(
             .Take(maximumItems)
             .ToArray();
 
+        if (due.Length == 0)
+        {
+            return 0;
+        }
+
         var nowUtc = timeProvider.GetUtcNow();
-        var enqueued = 0;
         foreach (var caseId in due)
         {
             context.ExternalWorkItems.Add(new()
@@ -90,19 +94,13 @@ public sealed class EfAutomaticEvaSubmissionStore(
                 AttemptCount = 0,
                 DueAtUtc = nowUtc
             });
-            enqueued++;
-        }
-
-        if (enqueued == 0)
-        {
-            return 0;
         }
 
         try
         {
             await context.SaveChangesAsync(cancellationToken);
         }
-        catch (DbUpdateException) when (enqueued > 0)
+        catch (DbUpdateException)
         {
             // A concurrent sweep inserted the same rows first. Nothing was
             // lost — the work exists — so this pass reports none rather than
@@ -111,7 +109,7 @@ public sealed class EfAutomaticEvaSubmissionStore(
             return 0;
         }
 
-        return enqueued;
+        return due.Length;
     }
 
     /// <summary>

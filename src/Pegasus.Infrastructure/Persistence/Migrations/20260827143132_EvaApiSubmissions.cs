@@ -33,6 +33,7 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     CaseId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
                     WorkflowVersion = table.Column<long>(type: "bigint", nullable: false),
                     ExternalRef = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    OperationKey = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
                     Outcome = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
                     IsSucceeded = table.Column<bool>(type: "bit", nullable: false),
                     EvaId = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
@@ -57,6 +58,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_EvaSubmissions_CaseOperationKey",
+                table: "EvaSubmissions",
+                columns: new[] { "CaseId", "OperationKey" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_EvaSubmissions_CaseSubmittedAt",

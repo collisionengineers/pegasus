@@ -2765,6 +2765,11 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsSucceeded")
                         .HasColumnType("bit");
 
+                    b.Property<string>("OperationKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<string>("Outcome")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -2782,6 +2787,9 @@ namespace Pegasus.Infrastructure.Persistence.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_EvaSubmissions_CaseSucceeded")
                         .HasFilter("[IsSucceeded] = 1");
+
+                    b.HasIndex("CaseId", "OperationKey")
+                        .HasDatabaseName("IX_EvaSubmissions_CaseOperationKey");
 
                     b.HasIndex("CaseId", "SubmittedAtUtc")
                         .HasDatabaseName("IX_EvaSubmissions_CaseSubmittedAt");

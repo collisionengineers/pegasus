@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 
 namespace Pegasus.Infrastructure.Persistence;
 
@@ -30,6 +30,7 @@ internal static class EvaSubmissionModelConfiguration
 
             entity.HasKey(item => item.Id);
             entity.Property(item => item.ExternalRef).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.OperationKey).HasMaxLength(100).IsRequired();
             entity.Property(item => item.Outcome).HasMaxLength(20).IsRequired();
             entity.Property(item => item.EvaId).HasMaxLength(100);
             entity.Property(item => item.FileReference).HasMaxLength(100);
@@ -51,6 +52,10 @@ internal static class EvaSubmissionModelConfiguration
 
             entity.HasIndex(item => new { item.CaseId, item.SubmittedAtUtc })
                 .HasDatabaseName("IX_EvaSubmissions_CaseSubmittedAt");
+
+            // The replay lookup's own index: a case's attempts under one key.
+            entity.HasIndex(item => new { item.CaseId, item.OperationKey })
+                .HasDatabaseName("IX_EvaSubmissions_CaseOperationKey");
 
             entity.HasOne<CaseEntity>()
                 .WithMany()

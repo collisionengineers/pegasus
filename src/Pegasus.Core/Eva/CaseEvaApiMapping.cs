@@ -73,6 +73,7 @@ public static class CaseEvaApiMapping
     public static EvaInstructionPayload Map(
         EvaReplayFields fields,
         string caseReference,
+        string principalCode,
         EvaInstructionSettings settings,
         IReadOnlyList<EvaInstructionFile> files)
     {
@@ -80,6 +81,7 @@ public static class CaseEvaApiMapping
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(files);
         ArgumentException.ThrowIfNullOrWhiteSpace(caseReference);
+        ArgumentException.ThrowIfNullOrWhiteSpace(principalCode);
 
         // The export's own normalisation, reused rather than repeated: this is
         // what guarantees the API and the ZIP carry byte-identical values.
@@ -87,6 +89,7 @@ public static class CaseEvaApiMapping
 
         return new(
             settings.RequestFrom,
+            principalCode.Trim(),
             caseReference.Trim(),
             Text(normalized.Reference),
             Text(normalized.ClaimantName),
@@ -101,19 +104,29 @@ public static class CaseEvaApiMapping
             EvaInstructionDefaults.NotKnown,
             settings.InstructionEmail,
             MapLocation(normalized.InspectionAddress),
-            BuildNotes(normalized),
+            BuildNotes(normalized, principalCode),
             files);
     }
 
     /// <summary>
     /// The inspection address across EVA's named location fields.
     ///
-    /// The export already resolves this to exactly six lines — five body lines
-    /// then a postcode — so that resolution is reused verbatim and simply
-    /// distributed. Line one is the address, lines two to five become town,
-    /// city and county, and line six is the postcode. An image-based
-    /// assessment arrives here as EVA's own literal in line one, which is
-    /// exactly what the drag-and-drop bundle sends today.
+    /// The export already resolves this to exactly six lines - five body
+    /// lines then a postcode - so that resolution is reused verbatim and
+    /// simply distributed across EVA's location fields.
+    ///
+    /// Five body lines into four fields means one field takes two. The
+    /// fourth and fifth body lines are joined into County, because a fifth
+    /// body line is rare and dropping it would silently lose part of an
+    /// address; EVA is told slightly more than it asked for rather than
+    /// less than the case holds.
+    ///
+    /// Name repeats the first line. EVA wants a descriptive location name
+    /// and the case holds none, so the first line of the address is the
+    /// most truthful thing available - better than inventing one, and
+    /// better than leaving a required field empty. An image-based
+    /// assessment arrives here as EVA's own literal, exactly as the
+    /// drag-and-drop bundle sends it.
     /// </summary>
     private static EvaInspectionLocation MapLocation(string? inspectionAddress)
     {
@@ -123,9 +136,15 @@ public static class CaseEvaApiMapping
             Line(lines, 0),
             Line(lines, 1),
             Line(lines, 2),
-            Line(lines, 3),
+            Join(Line(lines, 3), Line(lines, 4)),
             Line(lines, 5));
     }
+
+    /// <summary>Two address lines as one, skipping whichever is absent.</summary>
+    private static string Join(string first, string second) =>
+        string.Join(
+            ' ',
+            new[] { first, second }.Where(value => !string.IsNullOrWhiteSpace(value)));
 
     private static string Line(string[] lines, int index) =>
         index < lines.Length ? lines[index].Trim() : string.Empty;
@@ -139,11 +158,11 @@ public static class CaseEvaApiMapping
     /// them the note is empty and EVA receives an empty string, not a heading
     /// with no content.
     /// </summary>
-    private static string BuildNotes(EvaReplayFields fields)
+    private static string BuildNotes(EvaReplayFields fields, string principalCode)
     {
         var values = new[]
         {
-            fields.WorkProvider,
+            NotableWorkProvider(fields.WorkProvider, principalCode),
             fields.InspectionDate,
             Mileage(fields)
         };
@@ -160,12 +179,33 @@ public static class CaseEvaApiMapping
     /// Mileage and its unit as one value, because they are meaningless apart
     /// and the case is required to save them together.
     /// </summary>
-    private static string? Mileage(EvaReplayFields fields) =>
-        string.IsNullOrWhiteSpace(fields.Mileage)
+    /// <summary>
+    /// The work provider, but only where it says something the Agent code
+    /// does not.
+    ///
+    /// Since the claimant name took InsName, the work provider has no field of
+    /// its own. Agent now carries the Principal the case was allocated to, and
+    /// repeating that same value as a note line is noise, so it is named only
+    /// where the case's own work-provider code differs from that Principal -
+    /// which is the case actually worth an assessor reading.
+    /// </summary>
+    private static string? NotableWorkProvider(string? workProvider, string principalCode) =>
+        string.IsNullOrWhiteSpace(workProvider)
+        || workProvider.Trim().Equals(principalCode.Trim(), StringComparison.OrdinalIgnoreCase)
             ? null
-            : string.IsNullOrWhiteSpace(fields.MileageUnit)
-                ? fields.Mileage
-                : $"{fields.Mileage} {fields.MileageUnit}";
+            : workProvider;
+
+    private static string? Mileage(EvaReplayFields fields)
+    {
+        if (string.IsNullOrWhiteSpace(fields.Mileage))
+        {
+            return null;
+        }
+
+        return string.IsNullOrWhiteSpace(fields.MileageUnit)
+            ? fields.Mileage
+            : $"{fields.Mileage} {fields.MileageUnit}";
+    }
 
     /// <summary>
     /// An exported date back into a <see cref="DateOnly"/>. The export writes

@@ -103,11 +103,27 @@ public sealed class EvaSubmissionStore(
             EvaCaseEvidenceReader.Build(caseData, vehicle),
             DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime));
 
-        var images = await imageReader.LoadEligibleImagesAsync(
-            context,
-            request.CaseId,
-            caseData.Identity.Reference,
-            cancellationToken);
+        // Reading a case's photographs goes to Box, so a transport failure is
+        // an ordinary way for this to fail. It is translated here rather than
+        // left to escape: the queued worker that drives automatic submission
+        // lives in Core, and Core may not name an HTTP exception type. An
+        // unreachable document store is an I/O failure, which is what the
+        // caller needs in order to decide whether to retry.
+        List<EvaBundleImage> images;
+        try
+        {
+            images = await imageReader.LoadEligibleImagesAsync(
+                context,
+                request.CaseId,
+                caseData.Identity.Reference,
+                cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new IOException(
+                "The case's stored images could not be read for EVA submission.",
+                exception);
+        }
         if (images.Count == 0)
         {
             return new(null, export.UnrecordedFields, [EvaSubmissionPolicy.NoRetainedImagesReason]);
@@ -116,6 +132,7 @@ public sealed class EvaSubmissionStore(
         var payload = CaseEvaApiMapping.Map(
             export.Source.Fields,
             caseData.Identity.Reference,
+            caseData.Identity.PrincipalCode,
             instructionSettings,
             images.Select(ToInstructionFile).ToArray());
 
@@ -185,9 +202,14 @@ public sealed class EvaSubmissionStore(
             return null;
         }
 
+        // Keyed on the operation, not on recency. A manual send landing after
+        // an automatic attempt has its own key and its own row; answering a
+        // replay of one with the outcome of the other would report a result
+        // that never belonged to it.
         var row = await context.EvaSubmissions
             .AsNoTracking()
-            .Where(item => item.CaseId == request.CaseId)
+            .Where(item => item.CaseId == request.CaseId
+                && item.OperationKey == request.OperationKey)
             .OrderByDescending(item => item.SubmittedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
         return row is null
@@ -206,11 +228,16 @@ public sealed class EvaSubmissionStore(
     /// <summary>
     /// The attempt and its outcome, recorded together.
     ///
-    /// The case-workflow row is locked and re-checked exactly as the export
-    /// does it, so same-case submissions observe each other in commit order
-    /// and a case that left Review while EVA was thinking does not acquire a
-    /// submission record it should not have. The window is short: the network
-    /// call has already finished by the time this opens.
+    /// Deliberately unconditional. The export re-checks Review under a row
+    /// lock before it writes, because it can still decline to produce the
+    /// archive; this cannot decline anything, because by the time it runs the
+    /// request has already reached EVA. Refusing to record it for a case that
+    /// left Review while EVA was thinking would lose the fact of delivery and
+    /// let the same case be submitted a second time - which EVA, having no
+    /// idempotency, would turn into a second claim.
+    ///
+    /// So the record states what happened, and the once-per-case rule is
+    /// carried by the unique index rather than by a state re-check here.
     /// </summary>
     private async Task RecordSubmissionAsync(
         PegasusDbContext context,
@@ -232,6 +259,7 @@ public sealed class EvaSubmissionStore(
             CaseId = request.CaseId,
             WorkflowVersion = caseData.Version,
             ExternalRef = caseData.Identity.Reference,
+            OperationKey = request.OperationKey,
             Outcome = result.Outcome.ToString(),
             IsSucceeded = result.Outcome == EvaSubmissionOutcome.Succeeded,
             EvaId = result.EvaId,
