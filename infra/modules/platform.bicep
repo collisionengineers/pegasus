@@ -28,6 +28,7 @@ param dvsaScope string
 
 var suffix = take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
+var telemetryDailyCapGb = json('0.5')
 var transportStorageName = 'pegtrans${suffix}'
 var custodyStorageName = 'pegcustody${suffix}'
 var keyVaultName = 'pegasusprodkv${take(suffix, 8)}'
@@ -52,6 +53,7 @@ resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
   properties: {
     sku: { name: 'PerGB2018' }
     retentionInDays: 31
+    workspaceCapping: { dailyQuotaGb: telemetryDailyCapGb }
   }
 }
 
@@ -64,6 +66,18 @@ resource applicationInsights 'Microsoft.Insights/components@2020-02-02' = {
     Application_Type: 'web'
     WorkspaceResourceId: logAnalytics.id
     DisableLocalAuth: true
+  }
+}
+
+// MAIL-020: one number governs the component and workspace daily caps.
+resource applicationInsightsDailyCap 'Microsoft.Insights/components/pricingPlans@2017-10-01' = {
+  parent: applicationInsights
+  name: 'current'
+  properties: {
+    planType: 'Basic'
+    cap: telemetryDailyCapGb
+    warningThreshold: 90
+    stopSendNotificationWhenHitCap: false
   }
 }
 
