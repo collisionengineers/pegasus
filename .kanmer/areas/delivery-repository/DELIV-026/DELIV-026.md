@@ -2,7 +2,7 @@
 id: DELIV-026
 type: ticket
 title: Record release 33 deployed state
-status: verifying
+status: done
 area: delivery-repository
 assignee: codex-mcp-client
 profile: chore
@@ -10,9 +10,7 @@ stageEntered:
   implementing: '2026-08-26T18:45:20.238Z'
   review: '2026-08-26T18:46:46.482Z'
   verifying: '2026-08-27T08:53:53.982Z'
-taken_at: '2026-08-26T18:45:13.443Z'
-branch: task/release-33-docs
-worktree: 'C:/Users/PC/Documents/GitHub/pegasus-worktrees/release-33-docs'
+  done: '2026-08-27T09:24:13.518Z'
 labels:
   - release
   - documentation
@@ -29,7 +27,7 @@ prs:
 deployment: production
 archived: false
 created: '2026-08-26T18:45:00.176Z'
-updated: '2026-08-27T08:53:53.982Z'
+updated: '2026-08-27T09:24:58.867Z'
 ---
 
 ## Purpose

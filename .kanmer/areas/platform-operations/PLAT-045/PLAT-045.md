@@ -2,10 +2,16 @@
 id: PLAT-045
 type: ticket
 title: Fourth test-data wipe of the Azure estate after release 34
-status: backlog
+status: done
 area: platform-operations
 assignee: ''
 profile: chore
+stageEntered:
+  preparing: '2026-08-27T09:35:59.946Z'
+  implementing: '2026-08-27T09:36:23.682Z'
+  review: '2026-08-27T09:36:42.103Z'
+  verifying: '2026-08-27T09:37:10.210Z'
+  done: '2026-08-27T09:37:14.295Z'
 labels:
   - operations
   - azure
@@ -19,7 +25,7 @@ refs:
 deployment: production
 archived: false
 created: '2026-08-27T08:17:14.924Z'
-updated: '2026-08-27T08:17:14.924Z'
+updated: '2026-08-27T09:37:14.295Z'
 ---
 
 ## Why

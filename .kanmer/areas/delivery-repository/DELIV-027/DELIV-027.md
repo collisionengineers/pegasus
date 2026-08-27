@@ -2,10 +2,14 @@
 id: DELIV-027
 type: ticket
 title: 'Release 34: live Inbox recovery schedule and release record'
-status: backlog
+status: done
 area: delivery-repository
-assignee: ''
+assignee: claude-fable-5
 profile: chore
+stageEntered:
+  review: '2026-08-27T09:39:30.444Z'
+  verifying: '2026-08-27T09:39:35.469Z'
+  done: '2026-08-27T09:39:38.508Z'
 labels:
   - release
   - documentation
@@ -17,10 +21,12 @@ links:
 refs:
   - docs/current-architecture.md
   - docs/operations.md
-deployment: not-deployed
+commits:
+  - 1ec65dc894f121f4bb5b31ae82c818a401d08beb
+deployment: production
 archived: false
 created: '2026-08-27T08:17:00.253Z'
-updated: '2026-08-27T08:17:00.253Z'
+updated: '2026-08-27T09:39:41.678Z'
 ---
 
 ## Purpose
