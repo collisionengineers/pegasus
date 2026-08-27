@@ -1,3 +1,271 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>New case · Pegasus Test UI</title><link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css"></head>
-<body><a class="skip-link" href="#main-content">Skip to main content</a><div class="app-rail-shell"><header class="app-rail"><a class="app-rail__brand" href="../index.html" aria-label="Pegasus Test UI catalogue"><span><img class="mark" src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true"></span><b>Pegasus</b></a><nav class="app-rail__nav" aria-label="Primary"><a class="rail-link" href="dashboard--default.html"><span>Dashboard</span></a><a class="rail-link" href="inbox--default.html"><span>Inbox</span></a><a class="rail-link" href="upload--default.html"><span>Upload</span></a><a class="rail-link" href="queues--default.html"><span>Queues</span></a><a class="rail-link" href="cases--default.html" aria-current="page"><span>Cases</span></a><a class="rail-link" href="operations--default.html"><span>Operations</span></a><a class="rail-link" href="administration--default.html"><span>Administration</span></a></nav><div class="app-rail__user" role="group" aria-label="User"><span class="app-rail__name">development-offline-administrator</span><a class="app-rail__action" href="password-change--default.html">Change password</a><form><button class="app-rail__action app-rail__action--quiet" type="button">Sign out</button></form></div></header><main id="main-content" class="app-rail-main" tabindex="-1"><header class="page-heading"><div><p class="eyebrow">Test UI · default</p><h1>From instruction.pdf</h1></div></header><p class="status-card status-card--done" role="status">File read — confirm the extracted values below.</p><form class="form-column form-column--wide"><section class="panel section-gap"><h2 class="section-label">Details</h2><div class="datarow"><span class="datarow__field">Claimant</span><span class="datarow__value quiet">Not recorded</span><span class="datarow__end">Extracted</span></div><div class="datarow"><span class="datarow__field">Claim number</span><span class="datarow__value quiet">Not recorded</span><span class="datarow__end">Extracted</span></div><div class="datarow"><span class="datarow__field">Vehicle</span><span class="datarow__value quiet">Not recorded</span><span class="datarow__end">Extracted</span></div><div class="datarow"><span class="datarow__field">Incident date</span><span class="datarow__value quiet">Not recorded</span><span class="datarow__end">Extracted</span></div><div class="datarow"><span class="datarow__field">Instruction date</span><span class="datarow__value quiet">Not recorded</span><span class="datarow__end">Extracted</span></div><div class="datarow"><span class="datarow__field">Registration</span><span class="datarow__value">AB12 CDE</span><span class="datarow__end">Extracted</span></div><details class="draft-edit"><summary class="btn">Change a value</summary><div class="form-grid"><label>Claimant name<input></label><label>Claim number<input></label><label>Vehicle make<input></label><label>Vehicle model<input></label><label>Incident date<input type="date"></label><label>Instruction date<input type="date"></label><label>Vehicle registration<input value="AB12 CDE"></label></div></details></section><section class="panel section-gap"><h2 class="section-label">Inspection address</h2><label>Inspection address<textarea required></textarea></label></section><section class="panel section-gap"><h2 class="section-label">Case</h2><div class="form-grid"><label>Confirmed principal code<input value="QDS"></label><label>Case type<select><option>Inspection</option><option>Inspection and Audit</option></select></label></div><fieldset class="role-choices role-choices--stacked section-gap"><legend>Evidence completeness</legend><label class="choice"><input type="checkbox"> Instruction evidence is complete</label><label class="choice"><input type="checkbox"> I have confirmed the instruction evidence</label><label class="choice"><input type="checkbox"> Image evidence is complete</label><label class="choice"><input type="checkbox"> I have confirmed the image evidence</label></fieldset></section><section class="panel section-gap"><h2 class="section-label">Reason</h2><label>Why this case is being created<textarea required></textarea></label><div class="button-row section-gap"><button class="primary-action">Create case</button><a class="secondary-action" href="upload--default.html">Cancel</a></div></section></form></main></div></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>New case · Pegasus</title>
+    <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
+</head>
+<body>
+    <svg xmlns="http://www.w3.org/2000/svg" class="sprite-sheet" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <symbol id="icon-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="icon-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+  <symbol id="icon-refresh-cw" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></symbol>
+  <symbol id="icon-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+  <symbol id="icon-calendar" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></symbol>
+  <symbol id="icon-check-circle" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></symbol>
+  <symbol id="icon-alert-triangle" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" x2="12" y1="9" y2="13"/><line x1="12" x2="12.01" y1="17" y2="17"/></symbol>
+  <symbol id="icon-alert-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></symbol>
+  <symbol id="icon-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></symbol>
+  <symbol id="icon-file-text" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></symbol>
+  <symbol id="icon-filter" viewBox="0 0 24 24"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></symbol>
+  <symbol id="icon-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67 0C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="icon-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+  <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="icon-trash-2" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></symbol>
+</svg>
+
+    <a class="skip-link" href="#main-content">Skip to main content</a>
+    <div class="app-rail-shell">
+        <header class="app-rail">
+            <a class="app-rail__brand" aria-label="Pegasus dashboard" href="dashboard--default.html">
+                <span>
+                    <img class="mark" src="../../../../src/Pegasus.Web/wwwroot/images/marks/pegasus-lockup.png" alt="" aria-hidden="true" />
+                </span>
+                <b>Pegasus</b>
+            </a>
+            <nav class="app-rail__nav" aria-label="Primary">
+                <a class="rail-link" href="dashboard--default.html">
+                    <span>Dashboard</span>
+                </a>
+                    <a class="rail-link" href="inbox--default.html">
+                        <span>Inbox</span>
+                    </a>
+                    <a class="rail-link" href="upload--default.html">
+                        <span>Upload</span>
+                    </a>
+                <a class="rail-link" href="queues--default.html">
+                    <span>Queues</span>
+                        <span class="rail-link__count rail-link__count--waiting">0</span>
+                </a>
+                <a class="rail-link" aria-current="page" href="cases--default.html">
+                    <span>Cases</span>
+                </a>
+                    <a class="rail-link" href="operations--default.html">
+                        <span>Operations</span>
+                    </a>
+                    <a class="rail-link" href="administration--default.html">
+                        <span>Administration</span>
+                    </a>
+            </nav>
+            <div class="app-rail__user" role="group" aria-label="User">
+                    <span class="app-rail__name">development-offline-administrator</span>
+                    <a class="app-rail__action" href="password-change--default.html">Change password</a>
+                    <form method="post" action="#">
+                        <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
+                    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </div>
+        </header>
+        <main id="main-content" class="app-rail-main" tabindex="-1">
+
+
+<div class="form-column form-column--wide">
+<header class="page-heading">
+    <div>
+        <p class="eyebrow">New case</p>
+        <h1>From hand-keyed-instruction.pdf</h1>
+    </div>
+    <div class="page-heading-actions">
+        <a class="secondary-action" href="upload--default.html">Upload another</a>
+    </div>
+</header>
+
+    <p class="status-card status-card--done" role="status">
+        <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
+        <span>File read — confirm the extracted values below.</span>
+    </p>
+    <form method="post" action="case-create--default.html">
+        <input type="hidden" data-val="true" data-val-required="The ReceiptId field is required." id="ReceiptId" name="ReceiptId" value="test-ui-guid-1" />
+        <input type="hidden" id="OperationId" name="OperationId" value="01634188c24640d5b7604d276029be33" />
+        <input type="hidden" data-val="true" data-val-required="The ExpectedReceiptVersion field is required." id="ExpectedReceiptVersion" name="ExpectedReceiptVersion" value="0" />
+        <input type="hidden" id="AddressSuggestionFingerprint" name="AddressSuggestionFingerprint" value="" />
+        <div class="validation-summary validation-summary-errors" data-valmsg-summary="true"><ul><li>Audits are created automatically from the retained Audit instruction and original report.</li>
+</ul></div>
+
+        <section class="panel section-gap" aria-labelledby="details-title">
+            <h2 id="details-title" class="section-label">Details</h2>
+            <div>
+                <div class="datarow">
+                    <span class="datarow__field">Claimant</span>
+                        <span class="datarow__value">Hand Keyed Claimant</span>
+                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        </span>
+</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Claim number</span>
+                        <span class="datarow__value">HK-2031-001</span>
+                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        </span>
+</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Registration</span>
+                        <span class="datarow__value">AB12CDE</span>
+                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        </span>
+</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Vehicle</span>
+                        <span class="datarow__value">Example Make Example Model</span>
+                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        </span>
+</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Incident date</span>
+                        <span class="datarow__value">4 Mar 2031</span>
+                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        </span>
+</span>
+                </div>
+                <div class="datarow">
+                    <span class="datarow__field">Instruction date</span>
+                        <span class="datarow__value">5 Mar 2031</span>
+                    <span class="datarow__end">        <span class="prov" tabindex="0" role="img" aria-label="Staff" data-word="Staff">
+            <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        </span>
+</span>
+                </div>
+            </div>
+            <details class="draft-edit">
+                <summary class="btn">Change a value</summary>
+                <p>Every value is retained with who put it there.</p>
+
+
+<label for="draft-claimant-name">Claimant name</label>
+<input id="draft-claimant-name" name="ClaimantName" value="Hand Keyed Claimant" maxlength="200" autocomplete="off" />
+<small>Staff</small>
+
+<label for="draft-claim-number">Claim number</label>
+<input id="draft-claim-number" name="ClaimNumber" value="HK-2031-001" maxlength="100" autocomplete="off" />
+<small>Staff</small>
+
+<label for="draft-vehicle-registration">Vehicle registration</label>
+<input id="draft-vehicle-registration" name="VehicleRegistration" value="AB12CDE" maxlength="20" autocomplete="off" />
+<small>Staff</small>
+
+<label for="draft-vehicle-make">Vehicle make</label>
+<input id="draft-vehicle-make" name="VehicleMake" value="Example Make" maxlength="100" autocomplete="off" />
+<small>Staff</small>
+
+<label for="draft-vehicle-model">Vehicle model</label>
+<input id="draft-vehicle-model" name="VehicleModel" value="Example Model" maxlength="100" autocomplete="off" />
+<small>Staff</small>
+
+<label for="draft-vehicle-mileage">Vehicle mileage</label>
+<input id="draft-vehicle-mileage" name="VehicleMileage" type="number" min="0" value="12345" />
+<small>Staff</small>
+
+<label for="draft-accident-circumstances">Accident circumstances</label>
+<textarea id="draft-accident-circumstances" name="AccidentCircumstances" maxlength="4000" rows="3">Keyed circumstances from the retained document.</textarea>
+<small>Staff</small>
+
+<label for="draft-date-of-incident">Date of incident</label>
+<input id="draft-date-of-incident" name="DateOfIncident" type="date" value="2031-03-04" />
+<small>Staff</small>
+
+<label for="draft-instruction-date">Instruction date</label>
+<input id="draft-instruction-date" name="InstructionDate" type="date" value="2031-03-05" />
+<small>Staff</small>
+
+
+<label for="draft-inspection-date">Inspection date</label>
+<input id="draft-inspection-date" name="InspectionDate" type="date" value="2031-03-20" />
+<small>Staff</small>
+
+            </details>
+        </section>
+
+        <section class="panel section-gap" aria-labelledby="address-title">
+            <h2 id="address-title" class="section-label">Inspection address</h2>
+                <p>Nothing in this file said where the vehicle is, so enter the location yourself; it is retained as yours.</p>
+                <label for="InspectionAddress">Inspection address</label>
+                <textarea maxlength="1000" rows="3" required id="InspectionAddress" name="InspectionAddress">
+1 Example Street, Exampleton EX1 1EX</textarea>
+                <span class="field-validation field-validation-valid" data-valmsg-for="InspectionAddress" data-valmsg-replace="true"></span>
+        </section>
+
+        <section class="panel section-gap" aria-labelledby="case-title">
+            <h2 id="case-title" class="section-label">Case</h2>
+            <div class="form-grid">
+                <div>
+                    <label for="PrincipalCode">Confirmed principal code</label>
+                    <input maxlength="20" autocomplete="off" aria-describedby="principal-code-hint" type="text" id="PrincipalCode" name="PrincipalCode" value="HANDKEY" />
+                    <small id="principal-code-hint" class="field-hint">The organisation this instruction is for.</small>
+                    <span class="field-validation field-validation-valid" data-valmsg-for="PrincipalCode" data-valmsg-replace="true"></span>
+                </div>
+                <div>
+                    <label for="CaseType">Case type</label>
+                    <select data-case-type-selector data-val="true" data-val-required="The CaseType field is required." id="CaseType" name="CaseType">
+                        <option value="Inspection">Inspection</option>
+                        <option value="InspectionAndAudit">Inspection and Audit</option>
+                    </select>
+                    <span class="field-validation field-validation-valid" data-valmsg-for="CaseType" data-valmsg-replace="true"></span>
+                </div>
+            </div>
+
+            <fieldset class="role-choices role-choices--stacked section-gap">
+                <legend>Evidence completeness</legend>
+                <label class="choice">
+                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The InstructionComplete field is required." id="InstructionComplete" name="InstructionComplete" value="true" />
+                    <span>Instruction evidence is complete</span>
+                </label>
+                <label class="choice">
+                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The InstructionConfirmedByStaff field is required." id="InstructionConfirmedByStaff" name="InstructionConfirmedByStaff" value="true" />
+                    <span>I have confirmed the instruction evidence</span>
+                </label>
+                <label class="choice">
+                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The ImagesComplete field is required." id="ImagesComplete" name="ImagesComplete" value="true" />
+                    <span>Image evidence is complete</span>
+                </label>
+                <label class="choice">
+                    <input type="checkbox" checked="checked" data-val="true" data-val-required="The ImagesConfirmedByStaff field is required." id="ImagesConfirmedByStaff" name="ImagesConfirmedByStaff" value="true" />
+                    <span>I have confirmed the image evidence</span>
+                </label>
+            </fieldset>
+        </section>
+
+        <section class="panel section-gap" aria-labelledby="reason-title">
+            <h2 id="reason-title" class="section-label">Reason</h2>
+            <div class="form-grid">
+                <div class="field-wide">
+                    <label for="Reason">Why this case is being created</label>
+                    <textarea maxlength="500" rows="3" required id="Reason" name="Reason">
+Keyed the instruction detail from the retained document.</textarea>
+                    <span class="field-validation field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
+                </div>
+            </div>
+            <div class="button-row section-gap">
+                <button type="submit" class="primary-action">Create case</button>
+                <a class="secondary-action" href="upload--default.html">Cancel</a>
+            </div>
+        </section>
+    <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="InstructionComplete" type="hidden" value="false" /><input name="InstructionConfirmedByStaff" type="hidden" value="false" /><input name="ImagesComplete" type="hidden" value="false" /><input name="ImagesConfirmedByStaff" type="hidden" value="false" /></form>
+</div>
+
+        </main>
+    </div>
+
+    <script src="../../../../src/Pegasus.Web/wwwroot/js/site.js"></script>
+
+</body>
+</html>

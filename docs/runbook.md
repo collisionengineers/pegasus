@@ -608,6 +608,13 @@ of the Web and Worker runtime assemblies. `Start` refuses a changed revision,
 package lock, missing artifact, or runtime-byte mismatch before it creates or
 restarts a run.
 
+The Test UI files are generated from actual integration-test Razor responses,
+not maintained as parallel hand-written pages. Run
+`pwsh ./scripts/Update-TestUiSnapshots.ps1` to refresh them and
+`pwsh ./scripts/Update-TestUiSnapshots.ps1 -Verify` to fail when the committed
+catalogue differs from the current render. Capture requires the normal
+SQL Server integration-test prerequisite; opening Test UI does not.
+
 
 `Start` prints a generated 32-character run ID. It creates
 `artifacts/local-development/<run-id>/` with its ownership manifest, logs,

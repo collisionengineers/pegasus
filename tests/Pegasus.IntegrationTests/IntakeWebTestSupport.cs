@@ -171,6 +171,10 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
             services.RemoveAll<ICommittedExternalWorkPublisher>();
             services.AddScoped<ICommittedExternalWorkPublisher, CommittedWorkPublisherDouble>();
             services.AddSingleton(timeProvider);
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_CAPTURE_DIR")))
+            {
+                services.AddTransient<IStartupFilter, TestUiResponseCaptureStartupFilter>();
+            }
             if (artifactStore is not null)
             {
                 services.RemoveAll<IIntakeArtifactStore>();
