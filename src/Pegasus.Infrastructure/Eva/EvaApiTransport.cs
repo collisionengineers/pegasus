@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -376,7 +376,7 @@ internal static class EvaInstructionSerializer
             ["RequestFrom"] = payload.RequestFrom,
             ["ExternalRef"] = payload.ExternalRef,
             ["ClmNo"] = payload.ClaimNumber,
-            ["InsName"] = payload.InsurerName,
+            ["InsName"] = payload.ClaimantName,
             ["VehReg"] = payload.VehicleRegistration,
             ["VehDesc"] = payload.VehicleDescription,
             ["DtIncident"] = FormatDate(payload.IncidentDate),

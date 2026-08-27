@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace Pegasus.Core.Eva;
 
@@ -30,15 +30,24 @@ public static class EvaInstructionDefaults
 /// model requires. If the two ever disagree about a value, the export is
 /// right.
 ///
-/// Four values have nowhere to go. EVA's instruction model documents no
-/// mileage field, no instruction date, no inspection date, and no field whose
-/// meaning is established as "the claimant's name" — <c>PrincipalName</c> and
-/// <c>TPName</c> exist but no accepted source says either is where a claimant
-/// name belongs, and `docs/open-decisions.md` is explicit that a guessed
-/// mapping must not create or alter EVA work. So they travel as labelled lines
+/// Two decisions here came from the operator (2026-08-27) and are not
+/// derivable from EVA's documentation:
+///
+/// 1. **The claimant name is sent as <c>InsName</c>.** EVA documents that
+///    field as the insurer name; the operator's EVA instance uses it for the
+///    claimant, and they own that answer. This displaces the work provider,
+///    which has no other field of its own and so moves into the note.
+/// 2. **The instruction date is not sent at all.** EVA sets it when the
+///    instruction arrives, and for an API submission that instant *is* the
+///    instruction date — sending the case's own value would overwrite a
+///    truth with a guess at it.
+///
+/// Two values still have nowhere to go: EVA's instruction model documents no
+/// inspection-date field and no mileage field. They travel as labelled lines
 /// in <c>NotesStr</c>, where an assessor reads them and nothing is silently
-/// dropped. Confirming a real field for any of them is a follow-up, not a
-/// guess to make here.
+/// dropped. Asking EVA for real fields is deferred to its own ticket — the
+/// vendor's own documentation says the model "can be extended to include
+/// additional fields on request" — rather than guessed at here.
 /// </summary>
 public static class CaseEvaApiMapping
 {
@@ -46,14 +55,17 @@ public static class CaseEvaApiMapping
     public const int MappingVersion = 1;
 
     /// <summary>
-    /// The four exported values EVA's instruction model has no field for, in
-    /// the order they are written into the note. Named once, here, so the
-    /// note builder and its tests cannot drift.
+    /// The exported values EVA's instruction model has no field for, in the
+    /// order they are written into the note. Named once, here, so the note
+    /// builder and its tests cannot drift.
+    ///
+    /// The work provider is here because the claimant name took
+    /// <c>InsName</c>; inspection date and mileage are here because EVA has no
+    /// field for either.
     /// </summary>
     private static readonly string[] NotedFields =
     [
-        "Claimant Name",
-        "Instruction Date",
+        "Work Provider",
         "Inspection Date",
         "Mileage"
     ];
@@ -77,7 +89,7 @@ public static class CaseEvaApiMapping
             settings.RequestFrom,
             caseReference.Trim(),
             Text(normalized.Reference),
-            Text(normalized.WorkProvider),
+            Text(normalized.ClaimantName),
             Text(normalized.Vrm),
             Text(normalized.VehicleModel),
             ParseExportDate(normalized.IncidentDate),
@@ -131,8 +143,7 @@ public static class CaseEvaApiMapping
     {
         var values = new[]
         {
-            fields.ClaimantName,
-            fields.InstructionDate,
+            fields.WorkProvider,
             fields.InspectionDate,
             Mileage(fields)
         };

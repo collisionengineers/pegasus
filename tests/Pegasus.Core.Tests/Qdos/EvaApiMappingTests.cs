@@ -1,11 +1,11 @@
-using Pegasus.Core.Eva;
+﻿using Pegasus.Core.Eva;
 
 namespace Pegasus.Core.Tests.Qdos;
 
 /// <summary>
 /// EXT-04. The API mapping renames the export's settled values into EVA's
 /// field names; it must not restate them. These tests pin the rename, the
-/// four values EVA has no field for, and the address split.
+/// values EVA has no field for, and the address split.
 /// </summary>
 public sealed class EvaApiMappingTests
 {
@@ -22,7 +22,7 @@ public sealed class EvaApiMappingTests
         Assert.Equal("COLLENGAPI", payload.RequestFrom);
         Assert.Equal("QDOS26031", payload.ExternalRef);
         Assert.Equal("AKH/47743/1", payload.ClaimNumber);
-        Assert.Equal("Connexus", payload.InsurerName);
+        Assert.Equal("A Smith", payload.ClaimantName);
         Assert.Equal("MT15OYK", payload.VehicleRegistration);
         Assert.Equal("Land Rover Defender 110", payload.VehicleDescription);
         Assert.Equal(new DateOnly(2026, 1, 31), payload.IncidentDate);
@@ -47,9 +47,10 @@ public sealed class EvaApiMappingTests
     }
 
     /// <summary>
-    /// EVA's instruction model carries no mileage, no instruction date, no
-    /// inspection date, and no field established as the claimant's name. They
-    /// are named in the note rather than guessed into PrincipalName or TPName.
+    /// EVA's instruction model carries no inspection-date field and no
+    /// mileage field, and the work provider lost InsName to the claimant name.
+    /// All three are named in the note rather than guessed into PrincipalName
+    /// or TPName, whose meanings no accepted source establishes.
     /// </summary>
     [Fact]
     public void ValuesEvaHasNoFieldForAreNamedInTheNote()
@@ -59,11 +60,25 @@ public sealed class EvaApiMappingTests
         Assert.Equal(
             string.Join(
                 '\n',
-                "Claimant Name: A Smith",
-                "Instruction Date: 05/02/2026",
+                "Work Provider: Connexus",
                 "Inspection Date: 10/02/2026",
                 "Mileage: 43850 Miles"),
             payload.Notes);
+    }
+
+    /// <summary>
+    /// EVA sets the instruction date when the instruction arrives, so for an
+    /// API submission that instant is the instruction date. Sending the case's
+    /// own value would overwrite a truth with a guess at it, so it is not sent
+    /// at all - not in a field, and not in the note.
+    /// </summary>
+    [Fact]
+    public void TheInstructionDateIsLeftToEvaToSetOnReceipt()
+    {
+        var payload = CaseEvaApiMapping.Map(Fields(), "QDOS26031", Settings, []);
+
+        Assert.DoesNotContain("Instruction Date", payload.Notes, StringComparison.Ordinal);
+        Assert.DoesNotContain("05/02/2026", payload.Notes, StringComparison.Ordinal);
     }
 
     /// <summary>
@@ -75,13 +90,13 @@ public sealed class EvaApiMappingTests
     public void AValueTheCaseDoesNotHoldIsOmittedFromTheNote()
     {
         var payload = CaseEvaApiMapping.Map(
-            Fields() with { Mileage = null, MileageUnit = null, ClaimantName = null },
+            Fields() with { Mileage = null, MileageUnit = null },
             "QDOS26031",
             Settings,
             []);
 
         Assert.Equal(
-            string.Join('\n', "Instruction Date: 05/02/2026", "Inspection Date: 10/02/2026"),
+            string.Join('\n', "Work Provider: Connexus", "Inspection Date: 10/02/2026"),
             payload.Notes);
     }
 
@@ -90,7 +105,7 @@ public sealed class EvaApiMappingTests
     {
         var payload = CaseEvaApiMapping.Map(
             new EvaReplayFields(
-                "Connexus", "MT15OYK", "Defender", null, "AKH/47743/1",
+                null, "MT15OYK", "Defender", "A Smith", "AKH/47743/1",
                 null, null, null, null, null, null, null, null),
             "QDOS26031",
             Settings,

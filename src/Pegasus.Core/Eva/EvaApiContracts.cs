@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Eva;
 
@@ -56,18 +56,24 @@ public sealed record EvaInstructionFile(
 /// salvage); a field the case does not hold is not invented, because
 /// fabricated domain data is a stop condition.
 ///
-/// Four of the thirteen mapped values have no EVA instruction field at all —
-/// EVA's model carries no mileage, no instruction date, no inspection date and
-/// no unambiguous claimant-name field. They travel in
-/// <see cref="Notes"/> as labelled lines rather than being guessed into
-/// <c>PrincipalName</c> or <c>TPName</c>, whose meanings are not established
-/// by any accepted source. See <see cref="CaseEvaApiMapping"/>.
+/// Two mapped values have no EVA instruction field at all — EVA's model
+/// carries no inspection date and no mileage — so they travel in
+/// <see cref="Notes"/> as labelled lines. So does the work provider, which
+/// lost <c>InsName</c> to the claimant name. See
+/// <see cref="CaseEvaApiMapping"/> for why each.
 /// </summary>
 public sealed record EvaInstructionPayload(
     string RequestFrom,
     string ExternalRef,
     string ClaimNumber,
-    string InsurerName,
+
+    /// <summary>
+    /// Serialised as EVA's <c>InsName</c>. That field is documented as the
+    /// insurer name, but the operator's EVA instance carries the claimant
+    /// there (2026-08-27), and the property is named for what it holds rather
+    /// than for the wire field it lands in.
+    /// </summary>
+    string ClaimantName,
     string VehicleRegistration,
     string VehicleDescription,
     DateOnly? IncidentDate,
