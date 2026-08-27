@@ -404,7 +404,16 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     `DueWorkSweepSchedule=0 */5 * * * *`; production smoke matched the exact source
     and product version. This proves deployment, schema, permissions, configuration
     and technical health. It does not prove that the Inbox recovery timer fires,
-    nor sub-five-second receipt of a fresh operator email.
+    nor sub-five-second receipt of a fresh operator email. **Second release-33
+    defect (found 2026-08-27):** the migration's seed diff set
+    `ApprovedMailboxes.ActivatedAtUtc = NULL` on the live, identity-bound
+    instructions mailbox; every intake consumer requires an activation time, so
+    no poll ran and no Graph subscription was ever created
+    (`ApprovedMailboxSubscriptions` stayed empty) — the Mail page read stale and
+    the Graph-notification path was never exercised. The repair is MAIL-017's
+    `20260827100901_ReactivateBoundApprovedMailboxes`; the interim operator
+    action is re-saving the mailbox in Administration › Mailboxes, after which
+    mail received before the new activation time is skipped by design.
 
   - **Release 32** (2026-08-26, source
     `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223`, image
