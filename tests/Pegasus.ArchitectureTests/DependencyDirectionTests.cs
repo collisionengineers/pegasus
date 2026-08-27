@@ -5,7 +5,8 @@ using Pegasus.Core;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Custody;
-using Pegasus.Worker.Functions;
+using Pegasus.Core.Identity;
+using Pegasus.Worker;
 using Pegasus.Core.Documents;
 using Pegasus.Core.Eva;
 using Pegasus.Web.Pages.Cases;
@@ -14,6 +15,7 @@ using Pegasus.Core.ReferenceData;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Custody;
 using Pegasus.Infrastructure.Persistence;
+using Pegasus.Infrastructure.Transport;
 using Pegasus.Web.Pages;
 
 namespace Pegasus.ArchitectureTests;
@@ -249,23 +251,69 @@ public sealed class DependencyDirectionTests
     }
 
     [Fact]
-    public async Task ExternalWorkFunctionsRouteOnlyValidIdentifiersToOwningPorts()
+    public async Task UnifiedWorkFunctionsRouteTypedIdentifiersToOwningPorts()
     {
+        var intakeProcessor = new RecordingIntakeProcessor();
         var processor = new RecordingCustodyProcessor();
         var workStore = new RecordingExternalWorkStore();
+        var intakeId = Guid.NewGuid();
         var workId = Guid.NewGuid();
 
-        await new ExternalWorkFunction(processor).RunAsync(workId.ToString("D"), CancellationToken.None);
+        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync(
+            UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.Intake, intakeId),
+            CancellationToken.None);
+        await new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync(
+            UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.External, workId),
+            CancellationToken.None);
         var poisonReconciler = new ReconcilePoisonedQueueWork(
             null!,
             new ReconcilePoisonedExternalWork(workStore, TimeProvider.System));
-        await new ExternalPoisonFunction(poisonReconciler)
-            .RunAsync(workId.ToString("N"), CancellationToken.None);
+        await new UnifiedWorkPoisonFunction(poisonReconciler, null!, TimeProvider.System)
+            .RunAsync(UnifiedWorkQueueMessage.Format(UnifiedWorkQueueKind.External, workId), CancellationToken.None);
         await Assert.ThrowsAsync<InvalidDataException>(() =>
-            new ExternalWorkFunction(processor).RunAsync("not-a-work-id", CancellationToken.None));
+            new UnifiedWorkFunction(intakeProcessor, processor, null!, null!, TimeProvider.System).RunAsync("not-a-work-id", CancellationToken.None));
 
+        Assert.Equal([intakeId], intakeProcessor.ProcessedIds);
         Assert.Equal([workId], processor.ProcessedIds);
         Assert.Equal([workId], workStore.PoisonedIds);
+    }
+
+    [Fact]
+    public void UnifiedWorkQueueCarriesCanonicalMailboxWakeIdentifiers()
+    {
+        var mailboxId = Guid.NewGuid();
+        var subscriptionId = Guid.NewGuid();
+        var message = UnifiedWorkQueueMessage.FormatMailbox(
+            mailboxId,
+            subscriptionId,
+            MailboxWakeKind.SubscriptionRemoved);
+
+        Assert.True(UnifiedWorkQueueMessage.TryParseMailbox(
+            message,
+            out var parsedMailboxId,
+            out var parsedSubscriptionId,
+            out var parsedKind));
+        Assert.Equal(mailboxId, parsedMailboxId);
+        Assert.Equal(subscriptionId, parsedSubscriptionId);
+        Assert.Equal(MailboxWakeKind.SubscriptionRemoved, parsedKind);
+        Assert.False(UnifiedWorkQueueMessage.TryParseMailbox(
+            message.ToUpperInvariant(),
+            out _,
+            out _,
+            out _));
+    }
+
+    private sealed class RecordingIntakeProcessor : IProcessQueuedIntake
+    {
+        public List<Guid> ProcessedIds { get; } = [];
+
+        public Task<QueuedIntakeProcessingOutcome> ExecuteAsync(
+            Guid stagedReceiptId,
+            CancellationToken cancellationToken)
+        {
+            ProcessedIds.Add(stagedReceiptId);
+            return Task.FromResult(default(QueuedIntakeProcessingOutcome));
+        }
     }
 
     private sealed class RecordingCustodyProcessor : IProcessQueuedExternalWork

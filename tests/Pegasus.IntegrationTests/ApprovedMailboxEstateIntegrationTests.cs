@@ -11,9 +11,7 @@ namespace Pegasus.IntegrationTests;
 /// <summary>
 /// The approved estate, not deployment configuration, decides which mailboxes inbound
 /// intake polls. These prove that against the real database: two mailboxes with
-/// separate cursors, a disabled mailbox that stops without losing anything, and the
-/// read-only configuration fallback that keeps the already-deployed mailbox polling
-/// while its identities are unset.
+/// separate cursors and a disabled mailbox that stops without losing anything.
 /// </summary>
 [Trait("Category", "SqlServer")]
 public sealed class ApprovedMailboxEstateIntegrationTests
@@ -54,16 +52,16 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         Assert.Equal(
             SeededAddress,
             await database.ScalarAsync<string>(
-                "SELECT MailboxAddress FROM ApprovedInboxPollStates WHERE MailboxId = 'instructions'"));
+                $"SELECT MailboxAddress FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = '{TestMailboxId.From("instructions"):D}'"));
         Assert.Equal(
             SecondAddress,
             await database.ScalarAsync<string>(
-                $"SELECT MailboxAddress FROM ApprovedInboxPollStates WHERE MailboxId = '{SecondMailboxId}'"));
+                $"SELECT MailboxAddress FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = '{SecondMailboxRowId:D}'"));
         Assert.NotEqual(
             await database.ScalarAsync<string>(
-                "SELECT [Cursor] FROM ApprovedInboxPollStates WHERE MailboxId = 'instructions'"),
+                $"SELECT [Cursor] FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = '{TestMailboxId.From("instructions"):D}'"),
             await database.ScalarAsync<string>(
-                $"SELECT [Cursor] FROM ApprovedInboxPollStates WHERE MailboxId = '{SecondMailboxId}'"));
+                $"SELECT [Cursor] FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = '{SecondMailboxRowId:D}'"));
         Assert.Equal(
             2L,
             await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
@@ -125,35 +123,12 @@ public sealed class ApprovedMailboxEstateIntegrationTests
     }
 
     [Fact]
-    public async Task ConfigurationSuppliesIdentitiesOnlyForTheMatchingUnsetMailbox()
+    public async Task SavedIdentitiesDefineThePollableMailbox()
     {
         using var workspace = new MailboxWorkspace();
         await using var database = await CreateDatabaseAsync(workspace);
 
-        // A second Approved inbound row with no identities and no configuration match.
-        await database.ExecuteAsync(AddSecondMailboxSql(
-            state: "Approved",
-            mailboxIdentity: null,
-            inboxFolderIdentity: null));
-
-        await using var scope = database.CreateAsyncScope();
-        var pollable = await scope.ServiceProvider
-            .GetRequiredService<IApprovedIntakeMailboxes>()
-            .ListPollableAsync(CancellationToken.None);
-
-        var only = Assert.Single(pollable);
-        Assert.Equal(SeededAddress, only.Address);
-        Assert.Equal("instructions", only.MailboxId);
-        Assert.Equal(DefaultFolder, only.InboxFolderIdentity);
-    }
-
-    [Fact]
-    public async Task SavedIdentitiesWinOverConfigurationForTheSameAddress()
-    {
-        using var workspace = new MailboxWorkspace();
-        await using var database = await CreateDatabaseAsync(workspace);
-
-        // The seeded row now carries identities that differ from configuration.
+        // The seeded row becomes pollable once its identities are saved.
         await database.ExecuteAsync(
             """
             UPDATE ApprovedMailboxes
@@ -167,81 +142,13 @@ public sealed class ApprovedMailboxEstateIntegrationTests
             .ListPollableAsync(CancellationToken.None);
 
         var only = Assert.Single(pollable);
-        Assert.Equal("saved-mailbox", only.MailboxId);
+        Assert.Equal("saved-mailbox", only.GraphMailboxId);
         Assert.Equal("saved-inbox", only.InboxFolderIdentity);
-    }
-
-    [Fact]
-    public async Task SavingARealIdentityAdoptsTheExistingPollStateInsteadOfStartingASecond()
-    {
-        using var workspace = new MailboxWorkspace();
-        workspace.WriteMessage(DefaultFolder, "0001-before.eml");
-
-        await using var database = await CreateDatabaseAsync(workspace);
-
-        // Today's deployed shape: an approved row with no saved identities,
-        // polled under the identity the deployment configured.
-        await using (var scope = database.CreateAsyncScope())
-        {
-            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
-            Assert.Equal(1, await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None));
-        }
-
-        var receiptsBefore = await database.ScalarAsync<long>(
-            "SELECT COUNT(*) FROM IntakeStagedReceipts");
-        var retainedBefore = await database.ScalarAsync<long>(
-            "SELECT COUNT(*) FROM RetainedMailboxMessages WHERE MailboxId = 'instructions'");
-        // The rows that reference the poll state are what made re-keying it
-        // impossible before; the test is worth nothing if there are none.
-        Assert.Equal(1L, retainedBefore);
-
-        // The administrator saves the mailbox's real identity for the first
-        // time. That is the documented retirement of the configuration
-        // fallback, and it is the moment the identity the poll state is keyed
-        // by stops matching the identity the estate offers.
-        await database.ExecuteAsync(
-            $"""
-            UPDATE ApprovedMailboxes
-            SET MailboxIdentity = 'graph-instructions', InboxFolderIdentity = '{DefaultFolder}'
-            WHERE Address = '{SeededAddress}';
-            """);
-        workspace.WriteMessage(DefaultFolder, "0002-after.eml");
-
-        await using (var scope = database.CreateAsyncScope())
-        {
-            var poll = scope.ServiceProvider.GetRequiredService<PollApprovedInbox>();
-            // Only the message posted since. Inserting a second poll state would
-            // have violated the unique index on the address instead, on this tick
-            // and on every tick after it, stopping all inbound intake.
-            Assert.Equal(1, await poll.ExecuteAsync(10, WorkerActor, CancellationToken.None));
-        }
-
-        // One poll state for the address, now under the saved identity, and the
-        // mail it had already taken in came with it rather than being orphaned.
-        Assert.Equal(
-            1L,
-            await database.ScalarAsync<long>("SELECT COUNT(*) FROM ApprovedInboxPollStates"));
-        Assert.Equal(
-            "graph-instructions",
-            await database.ScalarAsync<string>(
-                $"SELECT MailboxId FROM ApprovedInboxPollStates WHERE MailboxAddress = '{SeededAddress}'"));
-        Assert.Equal(
-            receiptsBefore + 1,
-            await database.ScalarAsync<long>("SELECT COUNT(*) FROM IntakeStagedReceipts"));
-        Assert.Equal(
-            0L,
-            await database.ScalarAsync<long>(
-                "SELECT COUNT(*) FROM RetainedMailboxMessages WHERE MailboxId = 'instructions'"));
-        Assert.Equal(
-            retainedBefore + 1,
-            await database.ScalarAsync<long>(
-                "SELECT COUNT(*) FROM RetainedMailboxMessages WHERE MailboxId = 'graph-instructions'"));
     }
 
     [Fact]
     public async Task WebReadsTheEstateAsSavedAndNeverBorrowsConfiguredIdentities()
     {
-        // No AddLocalApprovedInbox, so no configuration fallback: this is the Web shape.
         await using var database = await LocalDbTestDatabase.CreateAsync();
 
         await using var scope = database.CreateAsyncScope();
@@ -258,10 +165,11 @@ public sealed class ApprovedMailboxEstateIntegrationTests
 
     private static Task<string> SecondCursorAsync(LocalDbTestDatabase database) =>
         database.ScalarAsync<string>(
-            $"SELECT [Cursor] FROM ApprovedInboxPollStates WHERE MailboxId = '{SecondMailboxId}'");
+            $"SELECT [Cursor] FROM ApprovedInboxPollStates WHERE ApprovedMailboxId = '{SecondMailboxRowId:D}'");
 
-    private static Task<LocalDbTestDatabase> CreateDatabaseAsync(MailboxWorkspace workspace) =>
-        LocalDbTestDatabase.CreateAsync(
+    private static async Task<LocalDbTestDatabase> CreateDatabaseAsync(MailboxWorkspace workspace)
+    {
+        var database = await LocalDbTestDatabase.CreateAsync(
             localArtifactRootFactory: _ => workspace.ArtifactRoot,
             configureServices: services =>
             {
@@ -274,6 +182,15 @@ public sealed class ApprovedMailboxEstateIntegrationTests
                     workspace.Root,
                     DefaultFolder));
             });
+        await database.ExecuteAsync(
+            $"""
+            UPDATE ApprovedMailboxes
+            SET MailboxIdentity = 'instructions', InboxFolderIdentity = '{DefaultFolder}',
+                ActivatedAtUtc = '2000-01-01T00:00:00+00:00'
+            WHERE Id = '{TestMailboxId.From("instructions"):D}';
+            """);
+        return database;
+    }
 
     private static string AddSecondMailboxSql(
         string state,
@@ -282,10 +199,11 @@ public sealed class ApprovedMailboxEstateIntegrationTests
         $"""
         INSERT INTO ApprovedMailboxes
             (Id, Address, AllowInboundIntake, AllowSentEvidence, State,
-             MailboxIdentity, InboxFolderIdentity, SentFolderIdentity, Version)
+             MailboxIdentity, InboxFolderIdentity, SentFolderIdentity, ActivatedAtUtc, Version)
         VALUES
             ('{SecondMailboxRowId:D}', '{SecondAddress}', 1, 0, '{state}',
-             {Literal(mailboxIdentity)}, {Literal(inboxFolderIdentity)}, NULL, 1);
+             {Literal(mailboxIdentity)}, {Literal(inboxFolderIdentity)}, NULL,
+             '2000-01-01T00:00:00+00:00', 1);
         """;
 
     private static string Literal(string? value) =>

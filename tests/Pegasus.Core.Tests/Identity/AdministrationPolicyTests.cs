@@ -361,6 +361,7 @@ public sealed class AdministrationPolicyTests
                 request.InboxFolderIdentity,
                 request.SentFolderIdentity,
                 request.MailboxIdentity is not null,
+                request.State == ApprovedMailboxState.Approved ? DateTimeOffset.UtcNow : null,
                 request.ExpectedVersion + 1,
                 request.FolderBindings?.ToArray() ?? []));
         }

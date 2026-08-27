@@ -113,10 +113,11 @@ queue claim, source reading, identification, classification, extraction,
 association/allocation, case creation, custody hand-off, and terminal state.
 Those timings contain identifiers and bounded outcome data, never source
 content. From durable receipt, ordinary supported QDOS email and manual-upload
-work reaches Complete with its case destination, or its truthful terminal
-non-case outcome, within ten seconds at p95. A large, retrying, or legitimately
-incomplete item remains Received or Processing with no older terminal outcome
-projected over it.
+work reaches its case destination, or its truthful terminal non-case outcome,
+within five seconds at p95. Case custody confirmation is measured as the final
+best-effort segment and any Box/provider delay is attributed separately. A
+large, retrying, or legitimately incomplete item remains Received or Processing
+with no older terminal outcome projected over it.
 
 ### Mandatory pre-case gates
 

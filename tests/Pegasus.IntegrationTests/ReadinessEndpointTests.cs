@@ -325,7 +325,6 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["AzureIdentity:WebClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
             ["TransportStorage:AccountName"] = "pegasustransporttest",
             ["IntakeQueue:ServiceUri"] = "https://pegasustransporttest.queue.core.windows.net/",
-            ["ExternalWorkQueue:ServiceUri"] = "https://pegasustransporttest.queue.core.windows.net/",
             ["CustodyStorage:AccountName"] = "pegasuscustodytest",
             ["CustodyStorage:ServiceUri"] = "https://pegasuscustodytest.blob.core.windows.net/",
             // The Production profile composes Box-backed custody, so a host needs
@@ -336,7 +335,9 @@ internal sealed class ConfiguredWebApplicationFactory(
             ["Box:RootFolderId"] = "405543781910",
             ["Box:ConfigJson"] = TestBoxConfigJson,
             ["Box:ClientSecret"] = "test-client-secret",
-            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/"
+            ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
+            ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+            ["Graph:ChangeNotificationClientState"] = "integration-client-state"
         };
         foreach (var setting in settings)
         {

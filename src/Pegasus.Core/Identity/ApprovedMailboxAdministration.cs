@@ -23,6 +23,7 @@ public sealed record ApprovedMailbox(
     string? InboxFolderIdentity,
     string? SentFolderIdentity,
     bool IdentityIsBound,
+    DateTimeOffset? ActivatedAtUtc,
     int Version,
     IReadOnlyList<ApprovedMailboxFolderBinding> FolderBindings);
 
@@ -50,14 +51,22 @@ public sealed record UpdateApprovedMailboxRequest(
 /// inbound-intake rows are ever offered.
 /// </summary>
 public sealed record ApprovedIntakeMailbox(
-    string MailboxId,
+    Guid ApprovedMailboxId,
+    string GraphMailboxId,
     string Address,
-    string InboxFolderIdentity);
+    string InboxFolderIdentity,
+    DateTimeOffset ActivatedAtUtc);
 
 public interface IApprovedIntakeMailboxes
 {
     Task<IReadOnlyList<ApprovedIntakeMailbox>> ListPollableAsync(
         CancellationToken cancellationToken);
+
+    async Task<ApprovedIntakeMailbox?> GetPollableAsync(
+        Guid approvedMailboxId,
+        CancellationToken cancellationToken) =>
+        (await ListPollableAsync(cancellationToken))
+            .SingleOrDefault(item => item.ApprovedMailboxId == approvedMailboxId);
 }
 
 /// <summary>
@@ -65,7 +74,7 @@ public interface IApprovedIntakeMailboxes
 /// administration surface reports it, and nothing writes it from there.
 /// </summary>
 public sealed record ApprovedMailboxPollStatus(
-    string MailboxIdentity,
+    Guid ApprovedMailboxId,
     string MailboxAddress,
     DateTimeOffset DueAtUtc,
     DateTimeOffset? LastCompletedAtUtc,

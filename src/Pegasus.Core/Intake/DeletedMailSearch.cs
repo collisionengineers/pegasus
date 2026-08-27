@@ -9,7 +9,7 @@ public enum DeletedMailSearchState
 }
 
 public sealed record DeletedMailSearchItem(
-    string MailboxId,
+    Guid MailboxId,
     string MailboxAddress,
     string ImmutableMessageId,
     string? SenderAddress,
@@ -32,7 +32,7 @@ public interface IDeletedMailSearchSource
         CancellationToken cancellationToken);
 
     Task<DeletedMailSourceResult> SearchAsync(
-        string? mailboxId,
+        Guid? mailboxId,
         string searchTerm,
         int maximumMessages,
         CancellationToken cancellationToken);
@@ -65,7 +65,7 @@ public sealed class SearchDeletedMail(IDeletedMailSearchSource source)
 
     public async Task<DeletedMailSearchPage> ExecuteAsync(
         ActionActor actor,
-        string? mailboxId,
+        Guid? mailboxId,
         string searchTerm,
         int page,
         int pageSize,
@@ -89,7 +89,7 @@ public sealed class SearchDeletedMail(IDeletedMailSearchSource source)
         }
 
         var result = await source.SearchAsync(
-            string.IsNullOrWhiteSpace(mailboxId) ? null : mailboxId.Trim(),
+            mailboxId,
             term,
             MaximumMessages,
             cancellationToken);
@@ -113,7 +113,7 @@ public sealed class UnavailableDeletedMailSearchSource : IDeletedMailSearchSourc
         CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<RetainedMailMailbox>>([]);
 
     public Task<DeletedMailSourceResult> SearchAsync(
-        string? mailboxId,
+        Guid? mailboxId,
         string searchTerm,
         int maximumMessages,
         CancellationToken cancellationToken) =>
