@@ -175,7 +175,7 @@ public sealed class MailWorkspaceWebTests
             client,
             $"/Inbox/{messageId:D}?mailbox={FirstMailboxFilter}&pageNumber=2&caseQuery=MAIL31001");
         Assert.Contains(">MAIL31001</strong>", search, StringComparison.Ordinal);
-        Assert.Contains("mailbox=instructions", search, StringComparison.Ordinal);
+        Assert.Contains($"mailbox={FirstMailboxFilter}", search, StringComparison.Ordinal);
         Assert.Contains("pageNumber=2", search, StringComparison.Ordinal);
 
         var target = await GetHtmlAsync(
