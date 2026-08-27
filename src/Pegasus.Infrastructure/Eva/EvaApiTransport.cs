@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Pegasus.Core.Eva;
 
@@ -354,7 +355,18 @@ internal sealed partial class EvaApiTransport(
     /// </summary>
     private sealed record EvaEnvelope(int? StatusCode, string? Message, string? Id);
 
-    private sealed record EvaToken(string? AccessToken, int ExpiresIn);
+    /// <summary>
+    /// The token response, whose members are snake_case.
+    ///
+    /// Named explicitly rather than left to case-insensitive matching, which
+    /// does not bridge an underscore: <c>access_token</c> would not have bound
+    /// to <c>AccessToken</c>, every token would have read as malformed, and
+    /// every submission would have failed as Unknown without ever reaching
+    /// EVA.
+    /// </summary>
+    private sealed record EvaToken(
+        [property: JsonPropertyName("access_token")] string? AccessToken,
+        [property: JsonPropertyName("expires_in")] int ExpiresIn);
 }
 
 /// <summary>

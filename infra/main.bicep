@@ -1,4 +1,4 @@
-targetScope = 'subscription'
+﻿targetScope = 'subscription'
 
 @allowed([
   'prod'
@@ -62,6 +62,12 @@ param dvlaApiKeySecretUri string
 param dvsaClientIdSecretUri string
 @description('Versioned Key Vault secret URI containing the DVSA OAuth client secret.')
 param dvsaClientSecretSecretUri string
+param evaClientIdSecretUri string
+param evaClientSecretSecretUri string
+param evaBaseUri string
+param evaRequestFrom string
+param evaInspectionType string
+param evaInstructionEmail string
 @description('Versioned Key Vault secret URI containing the DVSA API key.')
 param dvsaApiKeySecretUri string
 @description('Approved DVSA OAuth token endpoint.')
@@ -108,6 +114,12 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     dvlaApiKeySecretUri: dvlaApiKeySecretUri
     dvsaClientIdSecretUri: dvsaClientIdSecretUri
     dvsaClientSecretSecretUri: dvsaClientSecretSecretUri
+    evaClientIdSecretUri: evaClientIdSecretUri
+    evaClientSecretSecretUri: evaClientSecretSecretUri
+    evaBaseUri: evaBaseUri
+    evaRequestFrom: evaRequestFrom
+    evaInspectionType: evaInspectionType
+    evaInstructionEmail: evaInstructionEmail
     dvsaApiKeySecretUri: dvsaApiKeySecretUri
     dvsaTokenUri: dvsaTokenUri
     dvsaScope: dvsaScope
