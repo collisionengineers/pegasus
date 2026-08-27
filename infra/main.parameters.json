@@ -41,6 +41,9 @@
     "graphSentFolderId": {
       "value": "${GRAPH_SENT_FOLDER_ID}"
     },
+    "graphChangeNotificationClientStateSecretUri": {
+      "value": "${GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI}"
+    },
     "boxConfigJsonSecretUri": {
       "value": "${BOX_CONFIG_JSON_SECRET_URI}"
     },

@@ -1654,16 +1654,20 @@ internal static class AllocationTestData
         IServiceProvider services,
         IntakeReceipt receipt)
     {
-        const string mailboxId = "allocation-recovery";
+        var mailboxId = TestMailboxId.From("allocation-recovery");
         const string mailboxAddress = "allocation-recovery@example.invalid";
         await using (var scope = services.CreateAsyncScope())
         {
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<PegasusDbContext>>();
             await using var context = await factory.CreateDbContextAsync();
+            await TestMailboxId.EnsureApprovedAsync(
+                context, "allocation-recovery", mailboxAddress, receipt.ReceivedAtUtc.AddDays(-1));
             context.ApprovedInboxPollStates.Add(new()
             {
-                MailboxId = mailboxId,
+                ApprovedMailboxId = mailboxId,
                 MailboxAddress = mailboxAddress,
+                ScopeFingerprint = new string('A', 64),
+                ActivatedAtUtc = receipt.ReceivedAtUtc.AddDays(-1),
                 DueAtUtc = receipt.ReceivedAtUtc,
                 LastCompletedAtUtc = receipt.ReceivedAtUtc
             });

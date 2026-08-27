@@ -896,7 +896,7 @@ public sealed class MessageModel(
             && detail.Summary.CurrentFolderType is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
-                && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))
+                && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
             || !MatchesQueue(detail.Classification);
 
