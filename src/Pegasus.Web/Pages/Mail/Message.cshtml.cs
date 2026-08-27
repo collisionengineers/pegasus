@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.WebUtilities;
 using Pegasus.Core.Actors;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Identity;
@@ -30,8 +29,6 @@ public sealed class MessageModel(
     IReverseIntakeLink reverseIntakeLink) : StaffPageModel
 {
     public const string LinkAssociationAction = "Link";
-    private string? mailboxRouteValue;
-    private bool mailboxRouteValueInitialized;
 
     public const string UnlinkAssociationAction = "Unlink";
 
@@ -172,10 +169,7 @@ public sealed class MessageModel(
         }
 
         ListFolder = listFolder;
-        var mailbox = Request.Query["mailbox"].ToString();
-        mailboxRouteValue = string.IsNullOrWhiteSpace(mailbox) ? null : mailbox.Trim();
-        mailboxRouteValueInitialized = true;
-        MailboxFilter = mailboxRouteValue;
+        MailboxFilter = string.IsNullOrWhiteSpace(MailboxFilter) ? null : MailboxFilter.Trim();
 
         RetainedMailDetail? detail;
         try
@@ -902,7 +896,7 @@ public sealed class MessageModel(
             && detail.Summary.CurrentFolderType is not null)
             || detail.Folder != listFolder
             || (MailboxFilter is { } mailbox
-                && !string.Equals(mailbox, detail.Summary.MailboxId, StringComparison.Ordinal))
+                && !string.Equals(mailbox, detail.Summary.MailboxId.ToString("D"), StringComparison.OrdinalIgnoreCase))
             || (SearchTerm is not null && detail.Summary.Matches.Count == 0)
             || !MatchesQueue(detail.Classification);
 
@@ -975,21 +969,6 @@ public sealed class MessageModel(
         ListFolder == MailFolderScope.Inbox ? null : IndexModel.FolderCode(ListFolder);
 
     public int? PageRouteValue => PageNumber is > 1 ? PageNumber : null;
-
-    public string AssociationCandidateUrl(Guid messageId, Guid caseId) =>
-        QueryHelpers.AddQueryString(
-            $"/Inbox/{messageId:D}",
-            new Dictionary<string, string?>
-            {
-                ["mailbox"] = mailboxRouteValueInitialized ? mailboxRouteValue : MailboxFilter,
-                ["folder"] = FolderRouteValue,
-                ["pageNumber"] = PageRouteValue?.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                ["search"] = SearchTerm,
-                ["queue"] = QueueFilter,
-                ["section"] = "case",
-                ["caseQuery"] = CaseQuery,
-                ["targetCaseId"] = caseId.ToString("D")
-            });
 
     public static string ClassificationLabel(MailClassificationOutcome? outcome) => outcome switch
     {
