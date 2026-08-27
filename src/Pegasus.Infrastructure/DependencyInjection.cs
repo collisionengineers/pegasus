@@ -1,4 +1,4 @@
-using Pegasus.Core.AiWork;
+﻿using Pegasus.Core.AiWork;
 using Pegasus.Core.Assessment;
 using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
@@ -391,9 +391,13 @@ public static class DependencyInjection
             services.AddScoped<IIntakeSourceReader, MimeKitPdfPigOpenXmlIntakeSourceReader>();
             services.AddScoped<ProcessIntake>();
 
+            // Shared by both EVA routes so the archive and the API submission
+            // cannot state the same case differently.
+            services.AddScoped<EvaCaseImageReader>();
             services.AddScoped<EvaHandoffStore>();
             services.AddScoped<IExportCaseBundle>(provider =>
                 provider.GetRequiredService<EvaHandoffStore>());
+
 
             services.AddScoped<EfDocumentCustodyStore>();
             services.AddScoped<IAddCaseDocument>(provider =>
@@ -540,6 +544,46 @@ public static class DependencyInjection
             provider.GetRequiredService<BoxContentClient>()));
         services.AddSingleton<IDocumentContentStore>(provider => new BoxDocumentContentStore(
             provider.GetRequiredService<BoxContentClient>()));
+        return services;
+    }
+
+    /// <summary>
+    /// EXT-04: the EVA API submission route.
+    ///
+    /// Composed separately from the document surface and from the other
+    /// external adapters, because it is the one route that is switched on per
+    /// principal rather than per deployment. A host that does not call this
+    /// has no <see cref="ISubmitCaseToEva"/> at all, which is the honest
+    /// shape: the case page then offers only the export, and a principal's
+    /// toggles are unreachable rather than half-working.
+    ///
+    /// The options come through a factory rather than a value so they are
+    /// parsed at first use. Parsing at host build is what crash-looped the
+    /// worker when the platform handed over an unresolved Key Vault reference
+    /// (PLAT-013), and EVA's credentials arrive by exactly that route.
+    /// </summary>
+    public static IServiceCollection AddEvaApiSubmission(
+        this IServiceCollection services,
+        Func<IServiceProvider, EvaApiOptions> optionsFactory)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(optionsFactory);
+
+        services.AddSingleton(optionsFactory);
+        services.AddSingleton(provider =>
+            provider.GetRequiredService<EvaApiOptions>().Instruction);
+        services.TryAddSingleton(static _ => new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(100)
+        });
+        services.AddSingleton<IEvaApiTransport>(provider => new EvaApiTransport(
+            provider.GetRequiredService<EvaApiOptions>(),
+            provider.GetRequiredService<HttpClient>(),
+            provider.GetRequiredService<TimeProvider>()));
+        services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
+        services.AddScoped<EvaSubmissionStore>();
+        services.AddScoped<ISubmitCaseToEva>(provider =>
+            provider.GetRequiredService<EvaSubmissionStore>());
         return services;
     }
 
