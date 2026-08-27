@@ -718,6 +718,18 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     instead of a stack trace. The two alert rules are blind for the same window.
     Raising the quota is a billing decision and is left with the operator.
 
+    Taken on 2026-08-27 (MAIL-020), correcting the paragraph above: the
+    **component** cap, not the workspace quota, was the limit actually hit —
+    a second 0.1 GB limit resetting at 00:00Z (the workspace's resets at
+    03:00Z), gone by ~05:30Z, with `AppDependencies` (the Worker's per-query
+    SQL records) two thirds of the volume. The Worker now drops successful SQL dependency
+    telemetry (`SqlDependencyTelemetryFilter`; failed calls, HTTP
+    dependencies, requests, exceptions and traces are untouched), and
+    `platform.bicep` declares a single 0.5 GB daily cap for both the
+    component and the workspace, with the 90% warning and cap-hit
+    notifications kept on. The live caps stay at 0.1 GB until the next
+    provision, or an approved `az` update, applies the declared value.
+
   - **Release 18** (2026-08-22, source `1f3be493`, image `sha256:818fe360…`)
     carried the QDOS26009 operator findings. An automatically created case can
     now reach Review: the automatic route had recorded all four completeness
@@ -1174,8 +1186,11 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   eight resource batches completed, 30 delete-classified role assignments
   removed, 7 retained; the archive manifest hash is recorded in the runbook
   (git history).
-- **Monitoring/cost:** 31-day retention, adaptive sampling, 0.1 GB/day
-  Application Insights cap, £75 monthly budget notifying
+- **Monitoring/cost:** 31-day retention, adaptive sampling, a 0.5 GB/day
+  cap declared once in `infra/modules/platform.bicep` for both the
+  Application Insights component (resets 00:00Z) and the Log Analytics
+  workspace (resets 03:00Z) — live caps still 0.1 GB until the next
+  provision applies it — £75 monthly budget notifying
   `digital@collisionengineers.co.uk` at actual 50/80/100% and forecast 100%.
   Since release 16 the Sev1 application-exception scheduled-query rule
   deduplicates by operation and normalized signature over a 15-minute
