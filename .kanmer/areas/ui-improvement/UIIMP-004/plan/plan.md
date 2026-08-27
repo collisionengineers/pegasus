@@ -62,3 +62,28 @@ The exact corrupt GUID is `DevelopmentOfflineIdentity.AdministratorId`, proving 
 ### Null mailbox distinction
 
 Independent review identified that a nullable snapshot alone cannot distinguish an initialized GET with no mailbox from a non-GET render. Track initialization separately: an initialized GET uses its captured nullable value, while only a render without any GET snapshot may fall back to the bound property. Extend the existing no-mailbox case-candidate test to assert the exact result anchor has no mailbox parameter. Both focused candidate tests must pass.
+
+## Scope correction — 2026-08-27
+
+Every section above from "CI-resolution scope expansion" onward is withdrawn.
+The GitHub failure was never a Message-page defect: the candidate URL the
+diagnostic printed carried `mailbox=49f47eb9-c5b0-464f-b8f0-8c90ba061728`,
+which is `TestMailboxId.From("instructions")` — the value the test itself
+requested. MAIL-013 had switched the request to the stable GUID and left one
+assertion expecting the literal `mailbox=instructions`. That assertion is
+corrected under [[MAIL-016]] (PR #567). The private route snapshot, the
+initialized flag, the `QueryHelpers` candidate builder and the regex-based test
+were reverted, so `src/` carries no diff against `origin/dev`; the ticket is
+back to its planned Test UI scope.
+
+## Review dispositions — codex comments on PR #562
+
+All 18 P1/P2 findings are quality/determinism issues in the test-only tooling,
+not correctness of any product path. Disposition: **defer to [[UIIMP-005]]**
+(nondeterministic tokens and trace ids, fabricated fixture data in
+`TestUiFocusedRenderTests`, missing `Category!=Corpus` and browser thread cap
+in the update script, concurrent capture collisions, no CI verify, orphaned
+snapshots, CRLF, offline auto-refresh/preview/JSON endpoints, image fallback,
+AGENTS.md convention). Reason: the tooling was independently approved at
+`44d16f46`; the operator chose to merge the reviewed scope and harden it on its
+own record.

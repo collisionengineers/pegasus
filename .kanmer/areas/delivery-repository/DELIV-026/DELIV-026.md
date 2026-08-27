@@ -21,12 +21,14 @@ refs:
   - docs/operations.md
 commits:
   - 85bda6b1
+  - ba5a38d5
+  - c07a9490
 prs:
   - '565'
 deployment: production
 archived: false
 created: '2026-08-26T18:45:00.176Z'
-updated: '2026-08-26T18:46:46.482Z'
+updated: '2026-08-27T08:27:18.319Z'
 ---
 
 ## Purpose
