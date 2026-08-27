@@ -195,6 +195,7 @@ public static class DependencyInjection
         services.AddScoped<IUpdateOrganizationRoles, UpdateOrganizationRoles>();
         services.AddScoped<ICreatePrincipal, CreatePrincipal>();
         services.AddScoped<IReplacePrincipal, ReplacePrincipal>();
+        services.AddScoped<IUpdatePrincipalEvaSubmission, UpdatePrincipalEvaSubmission>();
         services.AddScoped<IListOrganizations, ListOrganizations>();
         services.AddScoped<IGetOrganization, GetOrganization>();
         services.AddScoped<EfStandaloneAuditEvidenceStore>();
