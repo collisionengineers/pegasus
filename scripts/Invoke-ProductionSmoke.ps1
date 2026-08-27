@@ -129,6 +129,55 @@ if ($WorkerOnly) {
     return
 }
 
+# Inbox intake liveness (MAIL-019). Releases 33 and 34 passed every gate above
+# while no Graph subscription existed and no inbound poll ran, because a
+# setting readback proves configuration, not that the recovery timer did its
+# job. This reads the live rows (read-only, same access-token pattern as
+# Invoke-AzureDatabaseBootstrap.ps1) and fails when an intake mailbox is
+# approved but never activated (the release-33 defect), when no unexpired
+# Active subscription exists, or when the newest completed poll is older than
+# three recovery intervals (15 min, RetainedMail.StaleAfter) — one interval of
+# grace is expected right after a deploy.
+if (-not (Get-Command Invoke-Sqlcmd -ErrorAction SilentlyContinue)) {
+    throw 'The SqlServer PowerShell module is required for the inbox intake liveness smoke.'
+}
+$accessToken = (& az account get-access-token --resource https://database.windows.net/ --query accessToken --output tsv).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($accessToken)) {
+    throw 'Unable to obtain an Azure SQL access token from the approved Azure CLI identity.'
+}
+$intake = Invoke-Sqlcmd `
+    -ServerInstance 'tcp:pegasus-prod-sql-252ow37gij.database.windows.net,1433' `
+    -Database 'pegasus' `
+    -AccessToken $accessToken `
+    -AbortOnError `
+    -ErrorAction Stop `
+    -Query @'
+SET NOCOUNT ON;
+SELECT
+    (SELECT COUNT(*) FROM ApprovedMailboxes
+     WHERE State = N'Approved' AND AllowInboundIntake = 1 AND ActivatedAtUtc IS NULL) AS UnactivatedIntakeMailboxes,
+    (SELECT COUNT(*) FROM ApprovedMailboxSubscriptions
+     WHERE LifecycleState = N'Active' AND ExpiresAtUtc > SYSDATETIMEOFFSET()) AS ActiveSubscriptions,
+    (SELECT MIN(ExpiresAtUtc) FROM ApprovedMailboxSubscriptions
+     WHERE LifecycleState = N'Active' AND ExpiresAtUtc > SYSDATETIMEOFFSET()) AS EarliestSubscriptionExpiryUtc,
+    (SELECT MAX(LastCompletedAtUtc) FROM ApprovedInboxPollStates) AS LastPollCompletedAtUtc,
+    SYSDATETIMEOFFSET() AS DatabaseNowUtc;
+'@
+if ([int]$intake.UnactivatedIntakeMailboxes -ne 0) {
+    throw "$($intake.UnactivatedIntakeMailboxes) approved intake mailbox(es) have no ActivatedAtUtc: inbound intake never started."
+}
+if ([int]$intake.ActiveSubscriptions -eq 0) {
+    throw 'No unexpired Active row exists in ApprovedMailboxSubscriptions: the Graph webhook has no subscription.'
+}
+if ($intake.LastPollCompletedAtUtc -is [DBNull]) {
+    throw 'No inbound poll has ever completed (ApprovedInboxPollStates.LastCompletedAtUtc is NULL).'
+}
+$pollAge = [DateTimeOffset]$intake.DatabaseNowUtc - [DateTimeOffset]$intake.LastPollCompletedAtUtc
+if ($pollAge -gt [TimeSpan]::FromMinutes(15)) {
+    throw "The newest inbound poll completed $([int]$pollAge.TotalMinutes) minutes ago; the recovery timer is not running."
+}
+Write-Output "Inbox intake liveness smoke passed (last poll $(([DateTimeOffset]$intake.LastPollCompletedAtUtc).ToString('u')), subscription expires $(([DateTimeOffset]$intake.EarliestSubscriptionExpiryUtc).ToString('u')))."
+
 # Redirects must surface raw: with auto-redirect on, the anonymous-denial
 # check would follow the sign-in redirect and mistake the login page's 200
 # for anonymous access (it only "passed" before release 3 because the

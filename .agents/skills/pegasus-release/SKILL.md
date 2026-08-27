@@ -215,8 +215,11 @@ az containerapp show --subscription $subscriptionId `
 ```
 
 The scripts at the released SHA own the exact Worker function and schedule
-census. Do not duplicate a function count in the skill. Smoke proves the right
-bytes and configuration, not the changed user journey. Run only the focused live
+census. Do not duplicate a function count in the skill. The full smoke also
+reads the production database (read-only) and fails unless an intake mailbox
+is activated, an unexpired `Active` Graph subscription exists, and an inbound
+poll completed within 15 minutes. Smoke proves the right bytes, configuration,
+and intake liveness, not the changed user journey. Run only the focused live
 behavioural check required by the released change and record its result without
 overclaiming.
 
