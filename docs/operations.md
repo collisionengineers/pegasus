@@ -364,9 +364,9 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
     `PendingWorkRecoverySchedule=0 * * * * *`,
     `IntakeStagedArtifactReconciliationSchedule=*/10 * * * * *`,
     `ApprovedInboxPollSchedule=0 */5 * * * * *` — **seven fields, invalid
-    NCRONTAB**, the MAIL-015 release defect; the six-field correction is on
-    `dev` and reaches the live Worker only with the next provision —
-    `SentEvidencePollSchedule=15 * * * * *`, and
+    NCRONTAB**, the MAIL-015 release defect; the six-field correction is
+    MAIL-015 (PR #566) and reaches the live Worker only with the first
+    provision after it merges — `SentEvidencePollSchedule=15 * * * * *`, and
     `DueWorkSweepSchedule=0 */5 * * * *`; production smoke matched the exact source
     and product version. This proves deployment, schema, permissions, configuration
     and technical health. It does not prove that the Inbox recovery timer fires,
