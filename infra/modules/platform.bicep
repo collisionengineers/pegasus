@@ -537,7 +537,7 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         // Recovery only: every committing caller attempts exact-ID publication.
         { name: 'PendingWorkRecoverySchedule', value: '0 * * * * *' }
         { name: 'IntakeStagedArtifactReconciliationSchedule', value: '*/10 * * * * *' }
-        { name: 'ApprovedInboxPollSchedule', value: '0 */5 * * * * *' }
+        { name: 'ApprovedInboxPollSchedule', value: '0 */5 * * * *' }
         { name: 'SentEvidencePollSchedule', value: '15 * * * * *' }
         { name: 'DueWorkSweepSchedule', value: '0 */5 * * * *' }
         { name: 'AzureWebJobs.PendingWorkRecoveryFunction.Disabled', value: workerActivationApproved ? 'false' : 'true' }
