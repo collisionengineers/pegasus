@@ -4,12 +4,15 @@ type: ticket
 title: >-
   Reactivate the identity-bound approved mailbox de-activated by the release-33
   migration
-status: preparing
+status: implementing
 area: mail-communications
-assignee: ''
+assignee: claude-code
 profile: fix
 stageEntered:
   preparing: '2026-08-27T10:06:28.781Z'
+taken_at: '2026-08-27T10:07:42.344Z'
+branch: task/mail-017-reactivate-mailbox
+worktree: 'C:/Users/Alex/Documents/GitHub/pegasus-worktrees/mail-017-reactivate-mailbox'
 labels:
   - mailbox
   - release-defect
@@ -20,7 +23,7 @@ refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
 archived: false
 created: '2026-08-27T10:06:22.772Z'
-updated: '2026-08-27T10:06:28.781Z'
+updated: '2026-08-27T10:07:42.344Z'
 ---
 
 ## Problem
