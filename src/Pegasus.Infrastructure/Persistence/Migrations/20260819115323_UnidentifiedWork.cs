@@ -238,7 +238,7 @@ WHERE item.RegistrationOperationKey LIKE 'unidentified-migration:%';");
             //   IRegisterUnidentified, which only ProcessIntake consumes, and
             //   ProcessIntake's sole production caller is
             //   ProcessQueuedIntake.ExecuteAsync (DurableIntake.cs, run by
-            //   Worker's IntakeWorkFunction) via ExecuteRetainedAsync — hence
+            //   Worker's UnifiedWorkFunction) via ExecuteRetainedAsync — hence
             //   SELECT (its existing-by-operation/-origin lookups) and INSERT.
             //   Worker also gets UPDATE: ProcessQueuedIntake.SynchronizeUnidentifiedAsync
             //   (DurableIntake.cs) calls IResolveUnidentified.ExecuteAsync to

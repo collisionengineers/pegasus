@@ -10,14 +10,12 @@ public sealed class WorkerActivationReleaseContractTests
     private static readonly string[] ExpectedFunctions =
     [
         "DueWorkSweepFunction",
-        "ExternalPoisonFunction",
-        "ExternalWorkFunction",
-        "InboxPollFunction",
-        "IntakePoisonFunction",
-        "IntakeWorkFunction",
+        "InboxRecoveryFunction",
         "PendingWorkRecoveryFunction",
         "SentEvidencePollFunction",
-        "StagedArtifactReconciliationFunction"
+        "StagedArtifactReconciliationFunction",
+        "UnifiedWorkFunction",
+        "UnifiedWorkPoisonFunction"
     ];
     private static readonly string[] ExpectedSettingNames = ExpectedFunctions
         .Select(name => $"AzureWebJobs.{name}.Disabled")
@@ -50,7 +48,7 @@ public sealed class WorkerActivationReleaseContractTests
     }
 
     [Fact]
-    public void WorkerActivationTemplateControlsExactNineFunctionCensus()
+    public void WorkerActivationTemplateControlsExactSevenFunctionCensus()
     {
         var platformBicep = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
@@ -75,10 +73,26 @@ public sealed class WorkerActivationReleaseContractTests
             .Order(StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal(9, nameMatches.Count);
+        Assert.Equal(7, nameMatches.Count);
         Assert.Equal(ExpectedFunctions, actualFunctions);
-        Assert.Equal(9, conditionalMatches.Count);
+        Assert.Equal(7, conditionalMatches.Count);
         Assert.Equal(ExpectedFunctions, conditionalFunctions);
+    }
+
+    [Fact]
+    public void WorkerTemplateKeepsTheUnifiedQueueConsumerWarm()
+    {
+        var platformBicep = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "infra",
+            "modules",
+            "platform.bicep"));
+
+        Assert.Matches(
+            @"scaleAndConcurrency:\s*\{[\s\S]*?instanceMemoryMB:\s*2048[\s\S]*?" +
+            @"alwaysReady:\s*\[[\s\S]*?name:\s*'function:UnifiedWorkFunction'[\s\S]*?" +
+            @"instanceCount:\s*1",
+            platformBicep);
     }
 
     [Fact]
@@ -169,7 +183,7 @@ public sealed class WorkerActivationReleaseContractTests
             Assert.NotEqual(0, process.ExitCode);
             Assert.True(
                 diagnostic.Contains(
-                    "exact nine-function disabled-setting name census",
+                    "exact seven-function disabled-setting name census",
                     StringComparison.Ordinal),
                 diagnostic);
             Assert.DoesNotContain("Rogue-Function", diagnostic, StringComparison.Ordinal);
@@ -291,7 +305,7 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var settings = ExactSettings("true");
         settings.RemoveAll(setting =>
-            setting.Name == "AzureWebJobs.InboxPollFunction.Disabled");
+            setting.Name == "AzureWebJobs.InboxRecoveryFunction.Disabled");
         settings.Add(new("AzureWebJobs.inboxpollfunction.Disabled", "true"));
 
         AssertCensusRejected(settings, "AzureWebJobs.inboxpollfunction.Disabled");
@@ -302,18 +316,18 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var settings = ExactSettings("true");
         settings.RemoveAll(setting =>
-            setting.Name == "AzureWebJobs.InboxPollFunction.Disabled");
+            setting.Name == "AzureWebJobs.InboxRecoveryFunction.Disabled");
 
-        AssertCensusRejected(settings, "AzureWebJobs.InboxPollFunction.Disabled");
+        AssertCensusRejected(settings, "AzureWebJobs.InboxRecoveryFunction.Disabled");
     }
 
     [Fact]
     public void WorkerSmokeRejectsDuplicateDisabledSetting()
     {
         var settings = ExactSettings("true");
-        settings.Add(new("AzureWebJobs.InboxPollFunction.Disabled", "true"));
+        settings.Add(new("AzureWebJobs.InboxRecoveryFunction.Disabled", "true"));
 
-        AssertCensusRejected(settings, "AzureWebJobs.InboxPollFunction.Disabled");
+        AssertCensusRejected(settings, "AzureWebJobs.InboxRecoveryFunction.Disabled");
     }
 
     [Fact]
@@ -321,7 +335,7 @@ public sealed class WorkerActivationReleaseContractTests
     {
         var settings = ExactSettings("true");
         var index = settings.FindIndex(setting =>
-            setting.Name == "AzureWebJobs.InboxPollFunction.Disabled");
+            setting.Name == "AzureWebJobs.InboxRecoveryFunction.Disabled");
         settings[index] = settings[index] with { Value = "false" };
 
         var result = RunWorkerSmoke(settings, "disabled");
@@ -332,7 +346,7 @@ public sealed class WorkerActivationReleaseContractTests
             "do not match the intended 'disabled' activation value",
             output,
             StringComparison.Ordinal);
-        Assert.DoesNotContain("InboxPollFunction", output, StringComparison.Ordinal);
+        Assert.DoesNotContain("InboxRecoveryFunction", output, StringComparison.Ordinal);
         Assert.DoesNotContain("false", output, StringComparison.Ordinal);
     }
 
@@ -345,7 +359,7 @@ public sealed class WorkerActivationReleaseContractTests
 
         Assert.NotEqual(0, result.ExitCode);
         Assert.Contains(
-            "census differs from the exact nine-function release contract",
+            "census differs from the exact seven-function release contract",
             output,
             StringComparison.Ordinal);
         Assert.DoesNotContain(protectedSettingName, output, StringComparison.Ordinal);
@@ -435,6 +449,7 @@ public sealed class WorkerActivationReleaseContractTests
                 Path.Combine(testRoot, "az.cmd"),
                 "@echo off\r\n" +
                 "> \"%PEGASUS_TEST_AZ_ARGUMENTS_PATH%\" echo %*\r\n" +
+                "echo %* | findstr /c:\"PendingWorkRecoverySchedule\" >nul && (echo 0 * * * * * & exit /b 0)\r\n" +
                 "echo %PEGASUS_TEST_AZ_SETTINGS_JSON%\r\n" +
                 "exit /b 0\r\n");
             return;
@@ -445,6 +460,7 @@ public sealed class WorkerActivationReleaseContractTests
             path,
             "#!/bin/sh\n" +
             "printf '%s\\n' \"$*\" > \"$PEGASUS_TEST_AZ_ARGUMENTS_PATH\"\n" +
+            "case \"$*\" in *PendingWorkRecoverySchedule*) printf '%s\\n' '0 * * * * *'; exit 0;; esac\n" +
             "printf '%s\\n' \"$PEGASUS_TEST_AZ_SETTINGS_JSON\"\n");
         File.SetUnixFileMode(
             path,

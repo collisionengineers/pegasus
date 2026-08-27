@@ -10,12 +10,10 @@ namespace Pegasus.Worker;
 internal sealed record WorkerAzureProductionOptions(
     Guid WorkerClientId,
     Uri IntakeStorageServiceUri,
-    Uri IntakeQueueServiceUri,
-    Uri ExternalWorkQueueServiceUri);
+    Uri IntakeQueueServiceUri);
 
 internal sealed record WorkerQueueClients(
-    QueueClient IntakeWorkQueue,
-    QueueClient ExternalWorkQueue);
+    QueueClient WorkQueue);
 
 internal sealed class WorkerStorageProvisioning(bool allowLocalCreateIfNotExists)
 {
@@ -74,21 +72,18 @@ internal static class WorkerAzureClientFactory
     internal const string WorkerClientIdKey = "AzureIdentity:WorkerClientId";
     internal const string IntakeStorageServiceUriKey = "IntakeStorage:ServiceUri";
     internal const string IntakeQueueServiceUriKey = "IntakeQueue:ServiceUri";
-    internal const string ExternalWorkQueueServiceUriKey = "ExternalWorkQueue:ServiceUri";
 
     private const string DevelopmentStorageKey = "AzureWebJobsStorage";
     private const string IntakeStorageConnectionStringKey = "IntakeStorage:ConnectionString";
     private const string IntakeArtifactContainerName = "transient-intake";
     private const string IntakeWorkQueueName = "intake-work";
-    private const string ExternalWorkQueueName = "external-work";
     private const string AzuriteAccountName = "devstoreaccount1";
 
     private static readonly string[] ProductionOnlyKeys =
     [
         WorkerClientIdKey,
         IntakeStorageServiceUriKey,
-        IntakeQueueServiceUriKey,
-        ExternalWorkQueueServiceUriKey
+        IntakeQueueServiceUriKey
     ];
 
     internal static WorkerAzureClientRegistration CreateProduction(IConfiguration configuration)
@@ -99,8 +94,7 @@ internal static class WorkerAzureClientFactory
         var productionOptions = new WorkerAzureProductionOptions(
             ParseWorkerClientId(configuration),
             ParseProductionServiceUri(configuration, IntakeStorageServiceUriKey),
-            ParseProductionServiceUri(configuration, IntakeQueueServiceUriKey),
-            ParseProductionServiceUri(configuration, ExternalWorkQueueServiceUriKey));
+            ParseProductionServiceUri(configuration, IntakeQueueServiceUriKey));
         var credentialOptions = new DefaultAzureCredentialOptions
         {
             ManagedIdentityClientId = productionOptions.WorkerClientId.ToString("D"),
@@ -123,9 +117,7 @@ internal static class WorkerAzureClientFactory
             .GetBlobContainerClient(IntakeArtifactContainerName);
         var queueClients = new WorkerQueueClients(
             new QueueServiceClient(productionOptions.IntakeQueueServiceUri, credential)
-                .GetQueueClient(IntakeWorkQueueName),
-            new QueueServiceClient(productionOptions.ExternalWorkQueueServiceUri, credential)
-                .GetQueueClient(ExternalWorkQueueName));
+                .GetQueueClient(IntakeWorkQueueName));
 
         return new(
             queueClients,
@@ -159,8 +151,7 @@ internal static class WorkerAzureClientFactory
 
         return new(
             new WorkerQueueClients(
-                new QueueClient(queueConnectionString, IntakeWorkQueueName),
-                new QueueClient(queueConnectionString, ExternalWorkQueueName)),
+                new QueueClient(queueConnectionString, IntakeWorkQueueName)),
             new WorkerStorageProvisioning(allowLocalCreateIfNotExists: true));
     }
 

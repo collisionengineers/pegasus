@@ -96,7 +96,7 @@ internal sealed class EfRetainedMailFolderMoveStore(
 
         var approved = await context.ApprovedMailboxes
             .Include(item => item.FolderBindings)
-            .SingleOrDefaultAsync(item => item.MailboxIdentity == retained.MailboxId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == retained.MailboxId, cancellationToken);
         if (approved is null
             || approved.State != ApprovedMailboxState.Approved.ToString()
             || approved.Version != request.ExpectedMailboxVersion)
@@ -133,7 +133,8 @@ internal sealed class EfRetainedMailFolderMoveStore(
             ExpectedRecommendationPolicyKey = request.ExpectedRecommendationPolicyKey,
             ExpectedRecommendationPolicyVersion = request.ExpectedRecommendationPolicyVersion,
             ExpectedMailboxVersion = request.ExpectedMailboxVersion,
-            MailboxId = retained.MailboxId,
+            MailboxId = approved.MailboxIdentity
+                ?? throw new RetainedMailFolderMoveException("The approved mailbox identity is unavailable."),
             ImmutableMessageId = retained.ImmutableMessageId,
             SourceFolderId = currentFolderId,
             DestinationFolderId = destination,

@@ -10,7 +10,6 @@ using Pegasus.Core.Workflow;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Worker;
-using Pegasus.Worker.Functions;
 
 namespace Pegasus.ArchitectureTests;
 
@@ -58,14 +57,12 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<ProcessQueuedIntake>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalPoisonFunction>(scopedServices));
         }
         finally
         {
@@ -136,14 +133,12 @@ public sealed class WorkerCompositionTests
             Assert.NotNull(scopedServices.GetRequiredService<ReconcileStagedArtifacts>());
 
             Assert.NotNull(ActivatorUtilities.CreateInstance<PendingWorkRecoveryFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakeWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<IntakePoisonFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<UnifiedWorkPoisonFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<StagedArtifactReconciliationFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxPollFunction>(scopedServices));
+            Assert.NotNull(ActivatorUtilities.CreateInstance<InboxRecoveryFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<SentEvidencePollFunction>(scopedServices));
             Assert.NotNull(ActivatorUtilities.CreateInstance<DueWorkSweepFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalWorkFunction>(scopedServices));
-            Assert.NotNull(ActivatorUtilities.CreateInstance<ExternalPoisonFunction>(scopedServices));
         }
         finally
         {
@@ -223,7 +218,6 @@ public sealed class WorkerCompositionTests
         ["AzureIdentity:WorkerClientId"] = "10213243-5465-7687-98a9-bacbdcedfe0f",
         ["IntakeStorage:ServiceUri"] = "https://custody.example.test/",
         ["IntakeQueue:ServiceUri"] = "https://transport.example.test/",
-        ["ExternalWorkQueue:ServiceUri"] = "https://transport.example.test/",
         ["Graph:BaseUri"] = "https://graph.microsoft.com/v1.0/",
         ["Graph:MailboxId"] = "mailbox-object-id",
         ["Graph:MailboxAddress"] = "instructions@collisionengineers.co.uk",

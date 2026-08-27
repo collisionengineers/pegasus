@@ -123,6 +123,8 @@ public sealed class IntakeWebApplicationFactory : WebApplicationFactory<Program>
                 ["Features:LocalDocumentCustody"] = environment.Equals(
                     "Development",
                     StringComparison.OrdinalIgnoreCase).ToString(),
+                ["Graph:TenantId"] = "858cf5b3-aa0a-47a6-9b40-4851fd0afa94",
+                ["Graph:ChangeNotificationClientState"] = "integration-client-state",
                 ["DocumentRequests:AcceptedLimitsVersion"] = "integration-fixture-v1",
                 ["DocumentRequests:LimitsVersion"] = "integration-fixture-v1",
                 ["DocumentRequests:LifetimeHours"] = "1",

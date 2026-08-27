@@ -35,14 +35,12 @@ $ErrorActionPreference = 'Stop'
 
 $expectedWorkerSettings = @(
     'AzureWebJobs.PendingWorkRecoveryFunction.Disabled',
-    'AzureWebJobs.IntakeWorkFunction.Disabled',
-    'AzureWebJobs.IntakePoisonFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkFunction.Disabled',
+    'AzureWebJobs.UnifiedWorkPoisonFunction.Disabled',
     'AzureWebJobs.StagedArtifactReconciliationFunction.Disabled',
-    'AzureWebJobs.InboxPollFunction.Disabled',
+    'AzureWebJobs.InboxRecoveryFunction.Disabled',
     'AzureWebJobs.SentEvidencePollFunction.Disabled',
-    'AzureWebJobs.DueWorkSweepFunction.Disabled',
-    'AzureWebJobs.ExternalWorkFunction.Disabled',
-    'AzureWebJobs.ExternalPoisonFunction.Disabled'
+    'AzureWebJobs.DueWorkSweepFunction.Disabled'
 )
 $workerAppName = 'pegasus-prod-worker-252ow37gij'
 
@@ -89,7 +87,7 @@ foreach ($expectedName in $expectedWorkerSettings) {
     }
 }
 if (-not $ActivationOnly -and -not $censusIsExact) {
-    throw 'The live Worker disabled-setting census differs from the exact nine-function release contract.'
+    throw 'The live Worker disabled-setting census differs from the exact seven-function release contract.'
 }
 
 $expectedDisabledValue = if ($ExpectedWorkerActivation -eq 'approved-live-worker') {
@@ -147,6 +145,14 @@ try {
     $version = $client.GetStringAsync([uri]::new($BaseUri, 'diagnostics/version')).GetAwaiter().GetResult() | ConvertFrom-Json
     if ($version.sourceSha -ne $ExpectedSourceRevision -or $version.version -ne $ExpectedVersion) {
         throw 'The deployed version endpoint does not match the immutable release manifest.'
+    }
+    $validationToken = 'pegasus-release-validation'
+    $graphValidation = $client.PostAsync(
+        [uri]::new($BaseUri, "hooks/microsoft-graph/mail?validationToken=$validationToken"),
+        [Net.Http.StringContent]::new('')).GetAwaiter().GetResult()
+    $graphValidationBody = $graphValidation.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    if (-not $graphValidation.IsSuccessStatusCode -or $graphValidationBody -cne $validationToken) {
+        throw 'The Microsoft Graph webhook validation handshake is not active on the deployed Web revision.'
     }
     $anonymous = $client.GetAsync([uri]::new($BaseUri, 'Cases')).GetAwaiter().GetResult()
     if ($anonymous.StatusCode -notin @([Net.HttpStatusCode]::Redirect, [Net.HttpStatusCode]::Unauthorized, [Net.HttpStatusCode]::Forbidden)) {
