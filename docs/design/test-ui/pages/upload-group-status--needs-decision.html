@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Browser preview message · Pegasus</title>
+    <title>Upload received · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -40,7 +40,7 @@
                 <a class="rail-link" href="dashboard--default.html">
                     <span>Dashboard</span>
                 </a>
-                    <a class="rail-link" aria-current="page" href="inbox--default.html">
+                    <a class="rail-link" href="inbox--default.html">
                         <span>Inbox</span>
                     </a>
                     <a class="rail-link" href="upload--default.html">
@@ -61,7 +61,7 @@
                     </a>
             </nav>
             <div class="app-rail__user" role="group" aria-label="User">
-                    <span class="app-rail__name">integration-user</span>
+                    <span class="app-rail__name">development-offline-administrator</span>
                     <a class="app-rail__action" href="password-change--default.html">Change password</a>
                     <form method="post" action="#">
                         <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
@@ -70,66 +70,96 @@
         </header>
         <main id="main-content" class="app-rail-main" tabindex="-1">
 
-<a class="back-link" href="inbox--default.html">
-    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
-    Back to Inbox
-</a>
+<header class="page-heading">
+    <h1>Upload received</h1>
+</header>
 
 
-<article class="record" data-state="not-ready">
-    <header class="record__head">
-        <h1 class="wrap">Browser preview message</h1>
-        <span class="record__head-end">
-                <span class="status-chip status-chip--amber">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
-                    Not yet processed
-                </span>
-        </span>
-    </header>
-    <div class="record__accent"></div>
-
-    <nav class="tabs" aria-label="Sections">
-        <a aria-current="page" href="inbox-message--default.html">Message</a>
-        <a href="inbox-message--default.html">
-            Attachments
-                <span class="count">1</span>
-        </a>
-        <a href="inbox-message--default.html">Thread</a>
-    </nav>
-
-    <div class="record__body">
-
-
-            <div class="split-main">
-                <div>
-                    <div class="mail-from">sender@example.invalid</div>
-                        <div class="mail-route">To browser-mail@collisionengineers.co.uk</div>
-
-                        <div class="mail-body">
-                                <p>The browser preview preserves this retained excerpt.</p>
-                        </div>
-                </div>
-
-                <aside>
-                    <div class="decision">
-                        <div class="facts">
-                            <h2>Decision</h2>
-                            <dl>
-                                <div><dt>Classification</dt><dd>Not yet processed</dd></div>
-                                <div>
-                                    <dt>Filed to</dt>
-                                        <dd class="quiet">No case</dd>
-                                </div>
-                            </dl>
-                        </div>
+<div class="form-column">
+        <section class="panel form-panel" aria-labelledby="group-decision-title" data-refresh-hold>
+            <h2 id="group-decision-title" class="section-label">This submission</h2>
+                <form method="post" class="upload-group-register" action="upload-group-status--default.html">
+                    <label for="group-registration">Vehicle registration</label>
+                    <input id="group-registration"
+                           name="vehicleRegistration"
+                           type="text"
+                           maxlength="20"
+                           required
+                           autocomplete="off"
+                           spellcheck="false" />
+                    <label for="group-registration-reason">Reason</label>
+                    <input id="group-registration-reason" name="reason" maxlength="500" required />
+                    <div class="button-row">
+                        <button type="submit" class="primary-action">Create a vehicle-image case</button>
                     </div>
-
-                </aside>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            <details class="upload-attach" data-refresh-hold>
+                <summary class="secondary-action">Add to an existing case</summary>
+                <form method="post" class="upload-attach__form" data-case-search data-case-search-url="upload-group-status--default.html" action="upload-group-status--default.html">
+                    <input type="hidden" name="caseId" value="" data-case-search-value />
+                    <label for="group-attach-input">Case</label>
+                    <input id="group-attach-input"
+                           name="reference"
+                           type="text"
+                           maxlength="60"
+                           required
+                           autocomplete="off"
+                           spellcheck="false"
+                           data-case-search-input />
+                    <ul id="group-attach-list" class="case-search-list" hidden data-case-search-list></ul>
+                    <label for="group-attach-reason">Reason</label>
+                    <textarea id="group-attach-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                    <div class="button-row">
+                        <button type="submit" class="secondary-action">Add the submission to this case</button>
+                    </div>
+                <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
+            </details>
+            <div class="button-row">
+                <a class="secondary-action" href="upload--default.html">Cancel</a>
             </div>
-    </div>
-</article>
+        </section>
+    <section class="panel"
+             aria-labelledby="group-status-title"
+             data-auto-refresh="">
+        <h2 id="group-status-title" class="section-label">Files in this submission</h2>
+        <ol class="upload-outcome-list">
+                <li>
+                        <a class="upload-thumb" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" target="_blank">
+                            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                                 loading="lazy"
+                                 alt="overview.png" />
+                        </a>
+                        <p class="upload-outcome__file">overview.png</p>
+                        <div class="upload-outcome">
+        <span class="status-chip status-chip--amber">
+    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+    <span>Unidentified</span>
+</span>
 
+    <p class="upload-outcome__message">This could not be matched automatically and needs a staff decision.</p>
+</div>
 
+                </li>
+                <li>
+                        <a class="upload-thumb" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=" target="_blank">
+                            <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                                 loading="lazy"
+                                 alt="close-up.png" />
+                        </a>
+                        <p class="upload-outcome__file">close-up.png</p>
+                        <div class="upload-outcome">
+        <span class="status-chip status-chip--amber">
+    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+    <span>Unidentified</span>
+</span>
+
+    <p class="upload-outcome__message">This could not be matched automatically and needs a staff decision.</p>
+</div>
+
+                </li>
+        </ol>
+    </section>
+</div>
 
         </main>
     </div>

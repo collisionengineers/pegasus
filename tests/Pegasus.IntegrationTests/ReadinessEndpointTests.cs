@@ -352,6 +352,12 @@ internal sealed class ConfiguredWebApplicationFactory(
         builder.ConfigureAppConfiguration((_, configuration) =>
             configuration.AddInMemoryCollection(effectiveSettings));
         builder.ConfigureServices(services =>
-            services.AddDataProtection().UseEphemeralDataProtectionProvider());
+        {
+            services.AddDataProtection().UseEphemeralDataProtectionProvider();
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PEGASUS_TEST_UI_CAPTURE_DIR")))
+            {
+                services.AddTransient<IStartupFilter, TestUiResponseCaptureStartupFilter>();
+            }
+        });
     }
 }
