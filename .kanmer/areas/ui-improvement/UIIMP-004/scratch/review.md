@@ -244,3 +244,23 @@ Add/adjust focused coverage for a candidate-search GET with no mailbox query to 
 ## Verdict
 
 The prior blocker is fully resolved. No correctness, simplicity, scope, or plan-alignment finding remains at `5287ee81`. Merge remains conditional on the fresh GitHub run, especially SQL shard 1, completing green.
+
+# Independent review of the reduced branch — db2c3757 — 2026-08-27
+
+Reviewer: fresh general-purpose agent, read-only.
+
+- `git diff origin/dev...HEAD -- src global.json .github` is empty: the nine
+  `fix(mail)` commits are fully undone by `a1b8e9b2`; `src/` is byte-identical
+  to `origin/dev`.
+- 77 files, all inside the planned footprint (test-ui pages, design README,
+  runbook, README, two scripts, seven integration-test files).
+- Capture middleware is registered only inside test factories behind
+  `PEGASUS_TEST_UI_CAPTURE_DIR`; nothing in `src/` references it.
+- `QdosCustodialWebTests` 3→4 query count is justified by the added invalid
+  POST (`Request.cshtml.cs:54` queries before validation); sign-in test is
+  additive. No assertion weakened.
+- `CapturedRazorResponsesMatchCommittedTestUiSnapshots` is a no-op in CI
+  (`PEGASUS_TEST_UI_MODE` unset) — known, deferred to [[UIIMP-005]].
+- Merge with `origin/dev` lost no dev content.
+
+Verdict: **APPROVE**; merge conditional on green CI after #567 lands.
