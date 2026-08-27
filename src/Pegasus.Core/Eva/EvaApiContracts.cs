@@ -181,6 +181,34 @@ public interface ISubmitCaseToEva
 }
 
 /// <summary>
+/// What a case's last EVA submission attempt achieved, for the case surface
+/// to show. Deliberately a read model: it carries no bytes, no payload and no
+/// way to submit anything.
+/// </summary>
+public sealed record EvaSubmissionRecord(
+    EvaSubmissionOutcome Outcome,
+    string? EvaId,
+    string? FileReference,
+    string? FailureCode,
+    DateTimeOffset SubmittedAtUtc)
+{
+    public bool IsSucceeded => Outcome == EvaSubmissionOutcome.Succeeded;
+}
+
+public interface IEvaSubmissionQueries
+{
+    /// <summary>
+    /// The most recent attempt for a case, or null when it has never been
+    /// submitted. A succeeded attempt is the one that matters — the once-per-
+    /// case rule means there can only ever be one — but a failed last attempt
+    /// is what an operator needs to see to decide whether to try again.
+    /// </summary>
+    Task<EvaSubmissionRecord?> GetLatestAsync(
+        Guid caseId,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
 /// A case whose principal has not enabled the act that was attempted.
 /// </summary>
 public sealed class EvaSubmissionNotEnabledException(Guid caseId)

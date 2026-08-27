@@ -161,6 +161,8 @@ public static class DependencyInjection
         // Infrastructure.
         services.AddScoped<IAcceptIntake, AcceptIntake>();
         services.AddScoped<IProviderInspectionModeStore, EfProviderInspectionModeStore>();
+        services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
+        services.AddScoped<IEvaSubmissionQueries, EfEvaSubmissionQueries>();
         services.AddScoped<EfStaffAccountAdministration>();
         // UserManager-free: safe for hosts (the Worker; Infrastructure-only test
         // hosts) that never compose ASP.NET Identity, unlike EfStaffAccountAdministration.
@@ -580,7 +582,6 @@ public static class DependencyInjection
             provider.GetRequiredService<EvaApiOptions>(),
             provider.GetRequiredService<HttpClient>(),
             provider.GetRequiredService<TimeProvider>()));
-        services.AddScoped<IEvaSubmissionModeStore, EfEvaSubmissionModeStore>();
         services.AddScoped<EvaSubmissionStore>();
         services.AddScoped<ISubmitCaseToEva>(provider =>
             provider.GetRequiredService<EvaSubmissionStore>());

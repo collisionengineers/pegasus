@@ -1,0 +1,81 @@
+@page "/Cases/{caseId:guid}/Eva/Send"
+@using Pegasus.Core.Eva
+@model Pegasus.Web.Pages.Cases.Eva.SendModel
+@{
+    ViewData["Title"] = $"Send {Model.Reference} to EVA";
+    ViewData["Eyebrow"] = "Case";
+}
+
+<a class="back-link" asp-page="/Cases/Details" asp-route-id="@Model.CaseId">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to @Model.Reference
+</a>
+
+<partial name="Shared/_PageHeader" />
+
+@* A case that already reached EVA still offers the export — an operator may
+   need the archive for their own records — but the API button is gone, and
+   this states why rather than leaving a missing control unexplained. The
+   reference is what an operator quotes to EVA, so it is the value shown. *@
+@if (Model.LastSubmission is { IsSucceeded: true } sent)
+{
+    <div class="status-card" role="status">
+        <dl class="record__facts">
+            <div>
+                <dt>Sent to EVA</dt>
+                <dd>@sent.SubmittedAtUtc.UtcDateTime.ToString("dd/MM/yyyy HH:mm")</dd>
+            </div>
+            @if (sent.FileReference is { } fileReference)
+            {
+                <div>
+                    <dt>File reference</dt>
+                    <dd>@fileReference</dd>
+                </div>
+            }
+        </dl>
+    </div>
+}
+else if (Model.LastSubmission is { } attempted)
+{
+    <div class="status-card status-card--attention" role="status">
+        <dl class="record__facts">
+            <div>
+                <dt>Last attempt</dt>
+                <dd>@attempted.SubmittedAtUtc.UtcDateTime.ToString("dd/MM/yyyy HH:mm")</dd>
+            </div>
+            <div>
+                <dt>Outcome</dt>
+                <dd>@OutcomeLabel(attempted.Outcome)</dd>
+            </div>
+        </dl>
+    </div>
+}
+
+<div class="panel">
+    <div class="button-row">
+        @if (Model.CanSubmitToApi)
+        {
+            <form method="post" asp-page-handler="Submit" asp-route-caseId="@Model.CaseId">
+                <input type="hidden" name="operationKey" value="@Model.SubmitOperationKey" />
+                <button type="submit" class="btn btn--dark">Submit to EVA API</button>
+            </form>
+        }
+        @* The export route is unchanged and reaches its own handler directly,
+           so the archive an operator drags into EVA is the same archive it has
+           always been. *@
+        <form method="post" asp-page="/Cases/Documents/Export"
+              asp-route-caseId="@Model.CaseId" asp-page-handler="Bundle">
+            <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
+            <button type="submit" class="btn">Download export</button>
+        </form>
+    </div>
+</div>
+
+@functions {
+    private static string OutcomeLabel(EvaSubmissionOutcome outcome) => outcome switch
+    {
+        EvaSubmissionOutcome.Rejected => "Refused by EVA",
+        EvaSubmissionOutcome.Partial => "Sent, no reference returned",
+        _ => "EVA could not be reached"
+    };
+}

@@ -105,7 +105,6 @@ public sealed partial class DetailsModel(
 
     public string RenewLeaseOperationKey { get; private set; } = NewOperationKey();
 
-    public string ExportOperationKey { get; } = NewOperationKey();
 
     public Guid ReportApprovalId { get; } = Guid.NewGuid();
 
