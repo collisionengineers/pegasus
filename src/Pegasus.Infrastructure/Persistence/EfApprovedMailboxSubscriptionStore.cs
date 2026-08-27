@@ -29,6 +29,17 @@ internal sealed class EfApprovedMailboxSubscriptionStore(
         return entity is null ? null : Map(entity);
     }
 
+    public async Task<IReadOnlyList<ApprovedMailboxSubscription>> ListAsync(
+        CancellationToken cancellationToken)
+    {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
+        var entities = await context.ApprovedMailboxSubscriptions
+            .AsNoTracking()
+            .OrderBy(item => item.ApprovedMailboxId)
+            .ToListAsync(cancellationToken);
+        return entities.Select(Map).ToArray();
+    }
+
     public async Task<IReadOnlyList<ApprovedMailboxSubscriptionMaintenanceCandidate>>
         ListMaintenanceCandidatesAsync(
             DateTimeOffset nowUtc,

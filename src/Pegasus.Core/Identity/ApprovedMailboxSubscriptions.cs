@@ -25,6 +25,13 @@ public sealed record ApprovedMailboxSubscriptionMaintenanceCandidate(
 
 public interface IApprovedMailboxSubscriptionStore
 {
+    /// <summary>
+    /// Every subscription row, one per approved mailbox, for the administration surface
+    /// to report. Read-only there: Web holds SELECT alone on the table.
+    /// </summary>
+    Task<IReadOnlyList<ApprovedMailboxSubscription>> ListAsync(
+        CancellationToken cancellationToken);
+
     Task<ApprovedMailboxSubscription?> GetActiveAsync(
         string subscriptionId,
         DateTimeOffset nowUtc,
