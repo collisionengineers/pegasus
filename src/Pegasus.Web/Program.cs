@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore;
@@ -35,6 +35,7 @@ using Azure.Storage.Queues;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Transport;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -148,7 +149,16 @@ if (productionProfile)
         "Box:UploadUri",
         "Box:RootFolderId",
         "Box:ConfigJson",
-        "Box:ClientSecret"
+        "Box:ClientSecret",
+        // EXT-04. Listed here so a deployment missing EVA's credentials fails
+        // at startup naming the key, rather than at the first submission with
+        // a case in front of an operator.
+        "Eva:BaseUri",
+        "Eva:ClientId",
+        "Eva:ClientSecret",
+        "Eva:RequestFrom",
+        "Eva:InspectionType",
+        "Eva:InstructionEmail"
     })
     {
         if (string.IsNullOrWhiteSpace(builder.Configuration[key]))
@@ -591,6 +601,23 @@ documentStorage: !productionProfile
             builder.Configuration["Box:RootFolderId"],
             builder.Configuration["Box:ConfigJson"],
             builder.Configuration["Box:ClientSecret"]))));
+// EXT-04: the manual Send to EVA route. Production only — the offline
+// profile reaches no vendor — and the options are read lazily for the same
+// PLAT-013 reason as Box's.
+if (productionProfile)
+{
+    builder.Services.AddEvaApiSubmission(_ => EvaApiOptions.Create(
+        new Dictionary<string, string?>(StringComparer.Ordinal)
+        {
+            ["Eva:BaseUri"] = builder.Configuration["Eva:BaseUri"],
+            ["Eva:ClientId"] = builder.Configuration["Eva:ClientId"],
+            ["Eva:ClientSecret"] = builder.Configuration["Eva:ClientSecret"],
+            ["Eva:RequestFrom"] = builder.Configuration["Eva:RequestFrom"],
+            ["Eva:InspectionType"] = builder.Configuration["Eva:InspectionType"],
+            ["Eva:InstructionEmail"] = builder.Configuration["Eva:InstructionEmail"]
+        }));
+}
+
 builder.Services.AddPegasusReportRendering();
 if (developmentOfflineProfile)
 {

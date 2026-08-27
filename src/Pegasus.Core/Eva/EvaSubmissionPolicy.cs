@@ -1,4 +1,5 @@
-using System.Net;
+﻿using System.Net;
+using Pegasus.Core.Identity;
 
 namespace Pegasus.Core.Eva;
 
@@ -75,6 +76,24 @@ public static class EvaSubmissionPolicy
         ArgumentNullException.ThrowIfNull(modes);
         return modes.Automatic;
     }
+
+    /// <summary>
+    /// Which access right the act requires.
+    ///
+    /// The two triggers are performed by different kinds of actor, so they
+    /// cannot share one right. A manual submission is casework: a member of
+    /// staff, or the Automation actor acting for one. An automatic submission
+    /// is the Worker running scheduled work, and a SystemWorker actor holds
+    /// <see cref="StaffAccessRight.ExecuteSystemWork"/> and deliberately not
+    /// <see cref="StaffAccessRight.PerformCasework"/> — granting it casework
+    /// to make this compile would widen what every background process may do.
+    /// </summary>
+    public static StaffAccessRight RequiredRight(EvaSubmissionTrigger trigger) => trigger switch
+    {
+        EvaSubmissionTrigger.Manual => StaffAccessRight.PerformCasework,
+        EvaSubmissionTrigger.Automatic => StaffAccessRight.ExecuteSystemWork,
+        _ => throw new ArgumentOutOfRangeException(nameof(trigger))
+    };
 
     /// <summary>
     /// Whether the principal's settings authorise the act being attempted.

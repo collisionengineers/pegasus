@@ -223,6 +223,8 @@ public static class DependencyInjection
         services.AddScoped<IAutomaticVehicleLookupStore>(
             provider => provider.GetRequiredService<EfVehicleWorkflowStore>());
         services.AddScoped<ReconcileAutomaticVehicleLookups>();
+        services.AddScoped<IAutomaticEvaSubmissionStore, EfAutomaticEvaSubmissionStore>();
+        services.AddScoped<ReconcileAutomaticEvaSubmissions>();
         services.AddScoped<IRequestVehicleLookup, RequestVehicleLookup>();
         services.AddScoped<IAcceptVehicleSuggestion, AcceptVehicleSuggestion>();
         services.AddScoped<IVehicleLookupWorkStore, EfVehicleLookupWorkStore>();
@@ -586,6 +588,7 @@ public static class DependencyInjection
         services.AddScoped<EvaSubmissionStore>();
         services.AddScoped<ISubmitCaseToEva>(provider =>
             provider.GetRequiredService<EvaSubmissionStore>());
+        services.AddScoped<IEvaSubmissionWorkStore, EfEvaSubmissionWorkStore>();
         return services;
     }
 

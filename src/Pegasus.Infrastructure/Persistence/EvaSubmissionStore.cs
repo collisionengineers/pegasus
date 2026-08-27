@@ -57,7 +57,9 @@ public sealed class EvaSubmissionStore(
             throw new ArgumentException("The operation key is invalid.", nameof(request));
         }
 
-        StaffAuthorization.Require(request.Actor, StaffAccessRight.PerformCasework);
+        StaffAuthorization.Require(
+            request.Actor,
+            EvaSubmissionPolicy.RequiredRight(request.Trigger));
         var caseData = await caseDataQueries.GetAsync(request.CaseId, cancellationToken);
         if (caseData is null)
         {

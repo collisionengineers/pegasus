@@ -1,4 +1,4 @@
-using Pegasus.Core.Intake;
+﻿using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 
 namespace Pegasus.Core.Custody;
@@ -73,7 +73,7 @@ public sealed class ProcessQueuedExternalWork(
     IQueuedExternalWorkReader workReader,
     IProcessQueuedCustody custody,
     IProcessQueuedVehicleLookup vehicle,
-    IProcessQueuedEvaSubmission eva) : IProcessQueuedExternalWork
+    IProcessQueuedEvaSubmission? eva = null) : IProcessQueuedExternalWork
 {
     public async Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
     {
@@ -103,7 +103,12 @@ public sealed class ProcessQueuedExternalWork(
             case ExternalWorkKinds.VehicleLookup:
                 await vehicle.ExecuteAsync(workItemId, cancellationToken);
                 return;
-            case ExternalWorkKinds.SubmitCaseToEva:
+            // EXT-04 composes only where EVA credentials exist, so a host
+            // without them has no handler. A row of this kind reaching such a
+            // host is the same fail-closed case as an unrecognized kind: it is
+            // refused rather than quietly completed, because completing it
+            // would record a case as dealt with that nothing ever sent.
+            case ExternalWorkKinds.SubmitCaseToEva when eva is not null:
                 await eva.ExecuteAsync(workItemId, cancellationToken);
                 return;
             default:
