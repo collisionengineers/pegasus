@@ -647,10 +647,12 @@ public sealed class GetRetainedMailFreshness(
     /// current.
     /// </summary>
     /// <remarks>
-    /// PROVISIONAL. Inbound polling is a one-minute timer, so fifteen minutes is
-    /// fifteen consecutive missed ticks — long enough that a single slow or skipped
-    /// run never shows a chip, short enough that a stopped Worker is visible within
-    /// a quarter of an hour. No operator statement fixes this number; it is recorded
+    /// PROVISIONAL. Graph change notifications are the primary wake; the recovery
+    /// poll (<c>InboxRecoveryFunction</c>, <c>ApprovedInboxPollSchedule</c>) runs
+    /// every five minutes, so fifteen minutes is three consecutive missed recovery
+    /// ticks — long enough that a single slow or skipped run never shows a chip,
+    /// short enough that a stopped Worker is visible within a quarter of an hour.
+    /// No operator statement fixes this number; it is recorded
     /// as open in docs/open-decisions.md and moves when observed behaviour, not
     /// taste, says it should.
     /// </remarks>
