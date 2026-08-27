@@ -1038,21 +1038,24 @@ public sealed class QdosAllocationRecoveryTests
                 "PAIRED");
             await AllocationTestData.SeedAutomaticAuditEvidenceAsync(factory.Services, audit.Id);
 
-            var results = await Task.WhenAll(AllocateAsync(inspection.Id), AllocateAsync(audit.Id));
+            var inspectionAllocation = AllocateAsync(inspection.Id);
+            var auditAllocation = AllocateAsync(audit.Id);
+            var results = await Task.WhenAll(inspectionAllocation, auditAllocation);
 
-            var failures = string.Join(
-                Environment.NewLine,
-                logs.Entries
-                    .Where(entry => entry.EventId.Id == 4721)
-                    .Select(entry => entry.Exception?.ToString()));
-            Assert.True(
-                results.All(result => result?.State.Status == IntakeAllocationProjectionStatus.Succeeded),
-                $"Round {round}: "
-                + string.Join(", ", results.Select(result =>
-                    $"{result?.State.Status}/{result?.State.FailureKind}/{result?.State.RecoveryDisposition}"))
-                + Environment.NewLine
-                + failures);
-            Assert.StartsWith("a.", results[1]!.State.CaseReference, StringComparison.Ordinal);
+            if (results.Any(result => result?.State.Status != IntakeAllocationProjectionStatus.Succeeded))
+            {
+                Assert.Fail(
+                    $"Round {round}: "
+                    + string.Join(", ", results.Select(result =>
+                        $"{result?.State.Status}/{result?.State.FailureKind}/{result?.State.RecoveryDisposition}"))
+                    + Environment.NewLine
+                    + string.Join(
+                        Environment.NewLine,
+                        logs.Entries
+                            .Where(entry => entry.EventId.Id == 4721)
+                            .Select(entry => entry.Exception?.ToString())));
+            }
+            Assert.StartsWith("a.", (await auditAllocation)!.State.CaseReference, StringComparison.Ordinal);
         }
 
         Assert.Equal(rounds * 2, await AllocationTestData.CountAsync(factory.Services, "Cases"));
