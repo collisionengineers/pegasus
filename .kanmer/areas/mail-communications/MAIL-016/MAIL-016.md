@@ -2,10 +2,12 @@
 id: MAIL-016
 type: ticket
 title: Correct the stale mailbox assertion left by MAIL-013
-status: preparing
+status: implementing
 area: mail-communications
 assignee: claude-fable-5
 profile: fix
+stageEntered:
+  implementing: '2026-08-27T08:25:49.385Z'
 taken_at: '2026-08-27T08:17:32.053Z'
 branch: task/mail-016-stale-mailbox-assertion
 worktree: ../pegasus-worktrees/mail-016-stale-mailbox-assertion
@@ -18,10 +20,14 @@ links:
   - UIIMP-004
 refs:
   - docs/frd/frd-08-email-mailbox-and-background-processing.md
+commits:
+  - 78c734cc
+prs:
+  - '567'
 deployment: n/a
 archived: false
 created: '2026-08-27T08:16:52.507Z'
-updated: '2026-08-27T08:17:32.053Z'
+updated: '2026-08-27T08:26:15.686Z'
 ---
 
 ## Problem
