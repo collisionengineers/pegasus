@@ -292,7 +292,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   no cold start), FC1 .NET 10 isolated Worker, Basic ACR, S0 Azure SQL, two Standard
   LRS storage accounts, distinct Web/Worker managed identities, a Pegasus Key
   Vault, Log Analytics, and Application Insights.
-- **Deployed evidence:** the estate currently serves **release 33**. A branch
+- **Deployed evidence:** the estate currently serves **release 34**. A branch
   head ahead of the newest row is expected and is not a missing release:
   **a source revision is a release claim only when it changes something under
   `src/`.** Documentation-only commits build no artifact, so they ride the
@@ -310,6 +310,7 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
 
   | Release | Date | Source revision | Image digest | Web revision | Migration |
   |---|---|---|---|---|---|
+  | 34 | 2026-08-27 | `1ec65dc894f121f4bb5b31ae82c818a401d08beb` | `sha256:b04bad2c2ee8109d3309eb99b3d6610aca8f1319869f92db7c12e17fcb9d2bf0` | `pegasus-prod-web-252ow37gij--1ec65dc894f1` | none (head unchanged at `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`) |
   | 33 | 2026-08-26 | `ee8067eca799eaa614a96488364d333093e21aaa` | `sha256:dd38dc6db0e4fb777fdfcfc193d800f4c46373d79dd5df2b676dcae5f3ba50d6` | `pegasus-prod-web-252ow37gij--ee8067eca799` | `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions` |
   | 32 | 2026-08-26 | `cfb3e6cfd838dfdcf7ffa64aa9164bfdc2bc9223` | `sha256:bac866eeb11215c2b0dbaf949e769280aefef246c34f6cbf9436d28a486274bf` | `pegasus-prod-web-252ow37gij--cfb3e6cfd838` | none (head unchanged at `20260825145216_MailboxImageIntake`) |
   | 31 | 2026-08-25 | `7dbb7c39…` | `sha256:a10dce43…` | `pegasus-prod-web-252ow37gij--7dbb7c3952fb` | `20260825145216_MailboxImageIntake` |
@@ -345,6 +346,39 @@ Executed 2026-08-02 (full runbook and evidence hashes: git history,
   | 1 | 2026-08-02 | `94997dd0…` | — | — | initial |
 
   What each release proved beyond smoke:
+
+  - **Release 34** (2026-08-27, source
+    `1ec65dc894f121f4bb5b31ae82c818a401d08beb`, image
+    `sha256:b04bad2c2ee8109d3309eb99b3d6610aca8f1319869f92db7c12e17fcb9d2bf0`,
+    manifest SHA-256
+    `B3984E24EC795C2E12A641039868341D116D3E84BC286133EF1D0031EA821CE2`)
+    corrected the MAIL-015 release defect: `azd provision` carried the
+    six-field `ApprovedInboxPollSchedule=0 */5 * * * *` to the live Worker,
+    and the host indexed all seven functions including
+    `InboxRecoveryFunction` (read back after the `config-zip` deployment).
+    No migration: the head stayed at
+    `20260826151807_ApprovedMailboxStableIdentityAndSubscriptions`. The only
+    `src/` change was the Worker example settings file; the release otherwise
+    carried the MAIL-016 test correction, the regenerated Test UI (UIIMP-004),
+    the release-33 record and the restored design authority (DELIV-028) after
+    the design-system removal in `9eec6dc2`. Two route traps fired again: the
+    workstation's azd environment held release 26's digest and suffix and
+    lacked `GRAPH_CHANGE_NOTIFICATION_CLIENT_STATE_SECRET_URI` — set from the
+    live Worker's Key Vault reference before provisioning, otherwise the
+    explicit `env` array would have dropped the Graph `clientState` binding.
+    Azure read-back matched the immutable digest; the sole Web revision is
+    Healthy with 100% traffic; production smoke matched the exact source and
+    product version. **The fourth operator-approved test-data wipe**
+    (PLAT-045) ran after the smoke: **65 of 97 tables, 623 rows**, preserving
+    32 identity, automation-client, mailbox-configuration (now including
+    `ApprovedMailboxSubscriptions`), principal, provider-reference,
+    workflow-configuration, audit, schema and sequence tables, so the next
+    case is **QDOS26024** and no reference is reused. `transient-intake`
+    already held 0 blobs and the four queues were empty before and after;
+    poll cursors and Graph subscriptions were preserved so nothing is
+    re-ingested; Outlook and Box were untouched. Smoke passed again on the
+    emptied estate. This proves deployment, configuration and technical
+    health; it does not prove that the recovery timer fires on schedule.
 
   - **Release 33** (2026-08-26, source
     `ee8067eca799eaa614a96488364d333093e21aaa`, image
