@@ -50,7 +50,7 @@ flowchart LR
 
 The current repository exposes an ASP.NET Core Razor Pages host and a .NET 10 isolated Azure Functions Worker. The Worker has timer and queue-trigger callers that translate bounded work into Core use cases. Any provider API caller remains separately gated. The Automation MCP ingress is implemented inside `Pegasus.Web` behind a composition gate that is off by default; when the gate is off no automation route exists, and live activation remains separately approved.
 
-The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment by exact-SHA fast-forward releases of `main`; this topology was rechecked after release 32 on 2026-08-26 and is unchanged. The current production state (release, revision, migration head, gate settings) is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
+The repository identifies its package and release target as `0.1.0-alpha.1`. Pegasus is deployed to its sole production environment by exact-SHA fast-forward releases of `main`; this topology was rechecked after release 33 on 2026-08-26 and is unchanged. The current production state (release, revision, migration head, gate settings) is owned exclusively by [operations § Production environment](operations.md#production-environment) and is not restated here. Operator acceptance remains outstanding.
 
 ## Components and dependency direction
 
@@ -121,7 +121,7 @@ in force here:
 
 ### Worker callers
 
-`src/Pegasus.Worker/Program.cs` constructs the Functions host. The concrete functions in `IntakeFunctions.cs`, `MailboxFunctions.cs`, `EmailEvidenceFunctions.cs`, and `Functions/ExternalWorkFunctions.cs` are the caller evidence for their timer and queue paths. Registration and host startup alone remain insufficient evidence of external-system activation or operator acceptance.
+`src/Pegasus.Worker/Program.cs` constructs the Functions host. The concrete functions in `IntakeFunctions.cs`, `MailboxFunctions.cs`, and `EmailEvidenceFunctions.cs` are the caller evidence for their timer and queue paths. Registration and host startup alone remain insufficient evidence of external-system activation or operator acceptance.
 
 A Worker `local.settings.json` is unnecessary at this baseline. Copy `src/Pegasus.Worker/local.settings.example.json` to the ignored `local.settings.json` only when an actual trigger requires local Functions storage.
 
@@ -452,21 +452,18 @@ released alone and the rest of the tick continues
 ([ADR-0022](adr/0022-approved-mailbox-identity-and-enablement-database-setting.md)).
 Sent-evidence polling remains configuration-driven for one mailbox.
 
-The current implementation uses the Graph mailbox identity as the inbound
-poll-state key, carries a cursor when the configured fallback identity is
-adopted, and builds the receipt token from that identity. The target is the
-stable-identity model — `ApprovedMailbox.Id` as the durable source identity, a
-versioned Graph cursor-scope fingerprint, an immutable receipt-token identity,
-and one explicit fresh-start activation time per mailbox, with global Worker,
-individual-Function, and per-mailbox controls kept separate. That technical
+Inbound state uses `ApprovedMailbox.Id` as its durable source identity, with a
+versioned Graph cursor-scope fingerprint, immutable receipt-token identity and
+an explicit fresh-start activation time per mailbox. The Web validates Graph
+change and lifecycle notifications and places a targeted mailbox wake on the
+existing unified work queue; Worker owns the exact-Inbox subscription and the
+same polling use case that recovery invokes. The five-minute Inbox timer is a
+recovery path, while six-hour maintenance renews subscriptions. Global Worker,
+individual-Function and per-mailbox controls remain separate. The technical
 decision is
-[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md)
-and the required behaviour is specified in
-[FRD-08](frd/frd-08-email-mailbox-and-background-processing.md); the migration to
-it is tracked on the Kanmer board and is not yet implemented. The production
-Worker is enabled (see [operations](operations.md#production-environment)); until
-that migration lands, production inbound Graph coordinates are not rebound or
-replaced and cursors are not cleared outside it.
+[ADR-0024](adr/0024-stable-approved-mailbox-identity-and-explicit-baseline.md),
+and its required behaviour is specified in
+[FRD-08](frd/frd-08-email-mailbox-and-background-processing.md).
 
 The poll also writes a retained-message read model — mailbox, folder scope,
 immutable and conversation identities, sender, recipients, subject, received
