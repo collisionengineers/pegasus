@@ -77,7 +77,7 @@ public sealed class AutomationMailIngressTests
             var mailboxes = structured.GetProperty("mailboxes").EnumerateArray().ToArray();
             Assert.Contains(
                 mailboxes,
-                item => item.GetProperty("mailboxId").GetString() == MailboxId);
+                item => item.GetProperty("mailboxId").GetString() == TestMailboxId.From(MailboxId).ToString("D"));
             Assert.Equal(
                 "current",
                 structured.GetProperty("freshness").GetProperty("state").GetString());
@@ -350,12 +350,16 @@ public sealed class AutomationMailIngressTests
             .GetRequiredService<IDbContextFactory<PegasusDbContext>>();
         await using (var context = await contextFactory.CreateDbContextAsync())
         {
-            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.MailboxId == MailboxId))
+            var approvedMailboxId = await TestMailboxId.EnsureApprovedAsync(
+                context, MailboxId, MailboxAddress, NowUtc.AddDays(-1));
+            if (!await context.ApprovedInboxPollStates.AnyAsync(item => item.ApprovedMailboxId == approvedMailboxId))
             {
                 context.ApprovedInboxPollStates.Add(new()
                 {
-                    MailboxId = MailboxId,
+                    ApprovedMailboxId = approvedMailboxId,
                     MailboxAddress = MailboxAddress,
+                    ScopeFingerprint = new string('A', 64),
+                    ActivatedAtUtc = NowUtc.AddDays(-1),
                     DueAtUtc = NowUtc,
                     LastCompletedAtUtc = NowUtc.AddMinutes(-1)
                 });
@@ -369,7 +373,7 @@ public sealed class AutomationMailIngressTests
             var identity = $"{MailboxId}-{index}";
             await store.RetainAsync(
                 new(
-                    MailboxId,
+                    TestMailboxId.From(MailboxId),
                     MailboxAddress,
                     identity,
                     $"{MailboxId.Length}:{MailboxId}{identity}",
@@ -395,7 +399,7 @@ public sealed class AutomationMailIngressTests
         await using var readContext = await contextFactory.CreateDbContextAsync();
         return await readContext.RetainedMailboxMessages
             .AsNoTracking()
-            .Where(item => item.MailboxId == MailboxId)
+            .Where(item => item.MailboxId == TestMailboxId.From(MailboxId))
             .OrderByDescending(item => item.ReceivedAtUtc)
             .Select(item => item.Id)
             .ToArrayAsync();

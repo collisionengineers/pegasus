@@ -21,7 +21,7 @@ public enum MailFolderScope
 /// <paramref name="MailboxId"/> is the default all-mailboxes view.
 /// </summary>
 public sealed record MailWorkspaceScope(
-    string? MailboxId,
+    Guid? MailboxId,
     MailFolderScope Folder,
     string? SearchTerm = null,
     MailOperationalDestination? Destination = null,
@@ -41,7 +41,7 @@ public sealed record RetainedMailSearchMatch(
 
 public sealed record RetainedMailSummary(
     Guid Id,
-    string MailboxId,
+    Guid MailboxId,
     string MailboxAddress,
     bool MailboxIsPolled,
     string? SenderAddress,
@@ -337,7 +337,7 @@ public sealed class CorrectRetainedMailClassification(
 /// read model already knows.
 /// </remarks>
 public sealed record RetainedMailMailbox(
-    string MailboxId,
+    Guid MailboxId,
     string MailboxAddress,
     bool IsPolled);
 
@@ -358,7 +358,7 @@ public sealed record MailFreshness(
 /// <see cref="GetRetainedMailFreshness"/>.
 /// </summary>
 public sealed record MailPollHealth(
-    string MailboxId,
+    Guid MailboxId,
     DateTimeOffset? LastCompletedAtUtc,
     string? LastFailureCode,
     DateTimeOffset DueAtUtc);
@@ -437,12 +437,9 @@ public sealed class ListRetainedMail(IRetainedMailQueries queries)
             }
         }
         var searchTerm = NormalizeSearchTerm(scope.SearchTerm, nameof(scope));
-        if (scope.MailboxId is { } mailboxId
-            && (string.IsNullOrWhiteSpace(mailboxId) || mailboxId.Length > 100))
+        if (scope.MailboxId == Guid.Empty)
         {
-            throw new ArgumentException(
-                "The mailbox identity is outside the supported range.",
-                nameof(scope));
+            throw new ArgumentException("The mailbox identity is required.", nameof(scope));
         }
 
         var normalizedScope = scope with
@@ -583,9 +580,7 @@ public sealed class GetRetainedMail(
         }
 
         var mailboxes = await approvedMailboxStore.ListAsync(cancellationToken);
-        var mailbox = mailboxes.SingleOrDefault(item =>
-            item.MailboxIdentity is { } identity
-            && string.Equals(identity, detail.Summary.MailboxId, StringComparison.Ordinal));
+        var mailbox = mailboxes.SingleOrDefault(item => item.Id == detail.Summary.MailboxId);
         if (mailbox is null || mailbox.State != ApprovedMailboxState.Approved)
         {
             return Unavailable(

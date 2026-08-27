@@ -46,6 +46,8 @@ param graphMailboxId string
 param graphInboxFolderId string
 @description('Exact immutable Microsoft Graph Sent Items folder ID.')
 param graphSentFolderId string
+@description('Versioned Key Vault secret URI containing the Microsoft Graph notification clientState.')
+param graphChangeNotificationClientStateSecretUri string
 @description('Versioned Key Vault secret URI containing the Box JWT configuration JSON.')
 param boxConfigJsonSecretUri string
 @description('Versioned Key Vault secret URI containing the Box client secret.')
@@ -98,6 +100,7 @@ module platform 'modules/platform.bicep' = if (activationAllowed) {
     graphMailboxId: graphMailboxId
     graphInboxFolderId: graphInboxFolderId
     graphSentFolderId: graphSentFolderId
+    graphChangeNotificationClientStateSecretUri: graphChangeNotificationClientStateSecretUri
     boxConfigJsonSecretUri: boxConfigJsonSecretUri
     boxClientSecretSecretUri: boxClientSecretSecretUri
     automationMcpClientSecretUri: automationMcpClientSecretUri

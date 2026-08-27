@@ -1,9 +1,9 @@
 ---
 id: ADR-0032
-status: accepted
+status: superseded
 date: 2026-08-25
 supersedes: []
-superseded_by: []
+superseded_by: [ADR-0033]
 related_capabilities: [INT-33]
 related_frd: [FRD-02, FRD-08]
 tags: [intake, email, queues, reliability]

@@ -91,8 +91,10 @@ public sealed class IndexModel(
         QueueFilter = normalizedQueue;
         DestinationFilter = destination;
         DetailedClassificationFilter = detailedClassification;
-        var mailbox = string.IsNullOrWhiteSpace(MailboxFilter) ? null : MailboxFilter.Trim();
-        MailboxFilter = mailbox;
+        var mailbox = Guid.TryParse(MailboxFilter, out var mailboxId) && mailboxId != Guid.Empty
+            ? mailboxId
+            : (Guid?)null;
+        MailboxFilter = mailbox?.ToString("D");
         var page = Math.Clamp(PageNumber ?? 1, 1, 10_000);
         PageNumber = page;
         if (SearchTerm is not null)

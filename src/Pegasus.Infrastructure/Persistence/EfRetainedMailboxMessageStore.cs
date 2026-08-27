@@ -351,7 +351,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         return await context.ApprovedInboxPollStates
             .AsNoTracking()
             .Select(item => new MailPollHealth(
-                item.MailboxId,
+                item.ApprovedMailboxId,
                 item.LastCompletedAtUtc,
                 item.LastFailureCode,
                 item.DueAtUtc))
@@ -629,7 +629,7 @@ internal sealed class EfRetainedMailboxMessageStore(
         var retained = context.RetainedMailboxMessages.AsNoTracking();
         if (scope.MailboxId is { } mailboxId)
         {
-            completedPolls = completedPolls.Where(item => item.MailboxId == mailboxId);
+            completedPolls = completedPolls.Where(item => item.ApprovedMailboxId == mailboxId);
             retained = retained.Where(item => item.MailboxId == mailboxId);
         }
 
@@ -908,7 +908,7 @@ internal sealed class EfRetainedMailboxMessageStore(
 
     private sealed record SummaryRow(
         Guid Id,
-        string MailboxId,
+        Guid MailboxId,
         string MailboxAddress,
         string? SenderAddress,
         string? SenderDisplayName,
