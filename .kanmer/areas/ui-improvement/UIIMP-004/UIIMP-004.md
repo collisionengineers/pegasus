@@ -19,6 +19,8 @@ labels:
   - fix
 links:
   - UIIMP-002
+  - MAIL-016
+  - UIIMP-005
 refs:
   - docs/frd/frd-12-operator-experience.md
 commits:
@@ -42,7 +44,7 @@ prs:
 deployment: n/a
 archived: false
 created: '2026-08-26T14:16:09.318Z'
-updated: '2026-08-26T21:16:01.801Z'
+updated: '2026-08-27T08:28:07.666Z'
 ---
 
 ## What
