@@ -63,9 +63,16 @@ state or version. The HTTP download includes the archive SHA-256 as
 ### Direct EVA API submission
 
 EXT-04. Pegasus submits a case to EVA over its API, carrying the same mapped
-values and the same eligible images the export carries. Activated against
-EVA's test environment on 2026-08-27; live credentials are a separate,
-operator-gated change.
+values and the same eligible images the export carries. The route was built
+against EVA's test credentials on 2026-08-27 by operator direction.
+
+**Pegasus has not yet called EVA.** The contract below is proved against the
+vendor's own recorded traffic and against its published request model; no
+submission has been made to any EVA environment, so nothing here establishes
+that EVA accepts this payload, that images land, or what it returns. That is a
+deliberate deferral (operator decision, 2026-08-27), not an oversight, and it
+is why every Principal setting defaults to off. Live credentials are a further,
+separately gated change.
 
 Each Principal carries two independent settings, both off by default:
 
@@ -136,9 +143,10 @@ is reference evidence, not proof that an API works and not authorization to
 infer an operation. External success, rejection, partial or unknown outcomes
 must remain distinct when those routes are implemented.
 
-The EVA API route was activated on 2026-08-27 against EVA's test environment,
-with its contract, authentication, failure behaviour, callers and outcome model
-recorded above. Pegasus owns the idempotency EVA does not provide. Live
-credentials remain a separate operator-gated change; EVA serves both
-environments from one host, so the swap is a credential change and nothing
-else.
+The EVA API route was built on 2026-08-27 by operator direction, with its
+contract, authentication, failure behaviour, callers and outcome model recorded
+above, and Pegasus owns the idempotency EVA does not provide. It has made no
+call: the route is proved against recorded vendor traffic only, and no
+submission to a live or test EVA environment forms part of its evidence. Both
+that first submission and the live-credential swap remain separately gated on
+the operator.
