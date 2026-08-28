@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 
 namespace Pegasus.Web.Mcp;
 
@@ -31,12 +31,13 @@ public static class AutomationMcp
     public const string DocumentsScope = "automation.documents";
     public const string AssessmentScope = "automation.assessment";
     public const string MailScope = "automation.mail";
+    public const string JobsScope = "automation.jobs";
     public const int RequestsPerClientPerMinute = 120;
     public static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromMinutes(10);
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(14);
 
     public static IReadOnlyList<string> Scopes { get; } =
-        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope];
+        [CasesScope, IntakeScope, DocumentsScope, AssessmentScope, MailScope, JobsScope];
 }
 
 /// <summary>

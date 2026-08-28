@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using ModelContextProtocol.AspNetCore.Authentication;
 using OpenIddict.Abstractions;
 using OpenIddict.Validation.AspNetCore;
@@ -115,7 +115,8 @@ public static class AutomationMcpExtensions
             .WithTools<AssessmentMcpTools>()
             .WithTools<MailMcpTools>()
             .WithTools<UnidentifiedMcpTools>()
-            .WithTools<TriageMcpTools>();
+            .WithTools<TriageMcpTools>()
+            .WithTools<AiJobMcpTools>();
         return services;
     }
 
