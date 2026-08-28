@@ -54,17 +54,14 @@ public sealed class OperatorJourneyTests
         var response = await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
         Assert.Equal(200, response.Status);
         var initialText = await support.Page.Locator("main").InnerTextAsync();
-        Assert.Contains("Case evidence", initialText, StringComparison.Ordinal);
-        Assert.Contains("failed", initialText, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("temporarily unavailable", initialText, StringComparison.OrdinalIgnoreCase);
-        // CASE-007: the read-only view carries no EVA preparation detail.
-        //
-        // EXT-04 renamed the action to "Send to EVA" at the operator's
-        // direction, so the destination is now named on the control itself.
-        // The rule this pins is unchanged and still worth pinning: EVA is
-        // named exactly once, on that one control, and nothing about a
-        // submission - its state, its references, the fields it would carry -
-        // reaches a case that is not ready to send.
+        // CASE-007 carried the rule here and CASE-012 keeps it on the new
+        // workspace: EVA is named exactly once — on the Review handoff
+        // control — and nothing about a submission (its state, its
+        // references, the fields it would carry) reaches a case that is not
+        // ready to send. The dialog's own wording is hidden markup, not
+        // rendered text, so it does not count. The case speaks its own
+        // identity, never its identifier.
+        Assert.Contains(accepted.Reference, initialText, StringComparison.Ordinal);
         Assert.Equal(
             1,
             Regex.Count(initialText, "EVA", RegexOptions.None, TimeSpan.FromSeconds(1)));
@@ -85,43 +82,61 @@ public sealed class OperatorJourneyTests
 
         await SeedEligibleImageAsync(
             support.Services, accepted.CaseId, repositoryFixture);
-        await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
-        await EnterEditModeByKeyboardAsync(support.Page);
+
+        // CASE-012: custody recovery is Operations work now. Attention
+        // required carries the failure where the case page used to, and its
+        // retry is one keyboard-operable control — no reason field, because
+        // requeueing operational work is not a case edit.
+        var operationsResponse = await support.GoToAsync("/Operations");
+        Assert.Equal(200, operationsResponse.Status);
+        var attentionText = await support.Page.Locator("main").InnerTextAsync();
+        // The section label is uppercased by the design system
+        // (.section-label), and innerText returns the rendered form — so
+        // normalize both sides, the same way the read-order assertions on
+        // the Work Centre lower them.
+        Assert.Contains("ATTENTION REQUIRED", attentionText.ToUpperInvariant(), StringComparison.Ordinal);
+        Assert.Contains(accepted.Reference, attentionText, StringComparison.Ordinal);
+        Assert.Contains("temporarily unavailable", attentionText, StringComparison.OrdinalIgnoreCase);
+        AssertOperatorSafe(attentionText, accepted.CaseId);
         var retryButton = support.Page.GetByRole(
             AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Retry custody", Exact = true });
-        var retryForm = retryButton.Locator("xpath=ancestor::form");
-        var retryReason = retryForm.GetByLabel("Reason", new() { Exact = true });
-        Assert.NotNull(await retryReason.GetAttributeAsync("required"));
-        await retryReason.FillAsync("Staff reviewed the visible custody failure and approved recovery.");
+            new PageGetByRoleOptions { Name = "Retry this work", Exact = true });
         await retryButton.FocusAsync();
         await retryButton.PressAsync("Enter");
         await support.Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        Assert.Contains("pending", await support.Page.Locator("main").InnerTextAsync(),
+        Assert.Contains("scheduled for retry", await support.Page.Locator("main").InnerTextAsync(),
             StringComparison.OrdinalIgnoreCase);
+
+        // The retried work leaves the retryable list whether it is pending
+        // or completed, and it stays gone once the queued custody has run.
+        await support.GoToAsync("/Operations");
+        Assert.DoesNotContain("Retry this work", await support.Page.Locator("main").InnerTextAsync(),
+            StringComparison.Ordinal);
 
         await using (var scope = support.Services.CreateAsyncScope())
         {
             await scope.ServiceProvider.GetRequiredService<IProcessQueuedCustody>()
                 .ExecuteAsync(accepted.CustodyWorkId, CancellationToken.None);
         }
-        await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
-        var confirmedText = await support.Page.Locator("main").InnerTextAsync();
-        // CASE-018: this used to assert the bare word "confirmed", which the
-        // custody row has never carried - it names the work state, and that
-        // state is "Completed". The assertion was passing on the read-only
-        // Vehicle evidence panel's "Confirmed registration / make / model /
-        // mileage" labels, which restated the vehicle a third time and are
-        // gone. Assert the custody row itself, which is what this step is
-        // actually about: the failed custody recovered.
-        Assert.Contains("Case evidence \u2014 Completed", confirmedText, StringComparison.Ordinal);
-        Assert.DoesNotContain("Case evidence \u2014 Failed", confirmedText, StringComparison.Ordinal);
-        Assert.DoesNotContain("Case custody has not been confirmed", confirmedText, StringComparison.Ordinal);
+        await support.GoToAsync("/Operations");
+        Assert.DoesNotContain("Retry this work", await support.Page.Locator("main").InnerTextAsync(),
+            StringComparison.Ordinal);
+
+        // The recovered custody is confirmed where the case carries its
+        // files: the Box folder link replaces the preparing state (the old
+        // custody row went with the panel that showed it).
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?section=case-files");
+        var filesText = await support.Page.Locator("main").InnerTextAsync();
+        Assert.Contains("Open Box case folder", filesText, StringComparison.Ordinal);
+        Assert.DoesNotContain("preparing", filesText, StringComparison.OrdinalIgnoreCase);
+        AssertOperatorSafe(filesText, accepted.CaseId);
 
         // ENG-016: one act, and it answers with the file rather than a
-        // redirect. The gated hand-off's generate/replay/download sequence is
-        // gone. EXT-04 moved the control: the action bar carries one Send to
-        // EVA link, and the export's form post lives on the page it opens.
+        // redirect. The case's handoff dialog needs script and this journey
+        // runs without it, so the export starts from the Send page — the
+        // one route that still works scriptless (reported to review: with
+        // script off, nothing on the case links there).
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}/Eva/Send");
         var firstDownload = await ExportByKeyboardAsync(support.Page);
         Assert.Equal($"EVA-{accepted.Reference}.zip", firstDownload.SuggestedFilename);
         Assert.DoesNotContain(accepted.CaseId.ToString("D"), firstDownload.SuggestedFilename,
@@ -279,7 +294,10 @@ public sealed class OperatorJourneyTests
 
         await support.GoToAsync($"/Cases/{accepted.CaseId:D}");
         await EnterEditModeByKeyboardAsync(support.Page);
-        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?tab=evidence");
+        // CASE-012: the documents live on the case-files section of the
+        // workspace; the remove-document dialog is the page-rendered reason
+        // dialog this journey exercises.
+        await support.GoToAsync($"/Cases/{accepted.CaseId:D}?section=case-files");
 
         var removeTrigger = support.Page.Locator("[data-dialog-open^='remove-doc-']").First;
         await removeTrigger.ClickAsync();
@@ -419,7 +437,7 @@ public sealed class OperatorJourneyTests
     {
         var button = page.GetByRole(
             AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Edit case", Exact = true });
+            new PageGetByRoleOptions { Name = "Edit Case", Exact = true });
         await button.FocusAsync();
         await button.PressAsync("Enter");
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -430,30 +448,19 @@ public sealed class OperatorJourneyTests
     /// <summary>
     /// Exports by keyboard alone and returns the file it answers with.
     ///
-    /// Two steps since EXT-04: the action bar carries one Send to EVA control,
-    /// and the choice between the API submission and the export is made on the
-    /// page it opens. Both steps must be reachable and operable by keyboard,
-    /// which is what this proves. Neither carries a reason field: an export is
-    /// a label and a control, and the design authority bans copy beyond that.
+    /// CASE-012: the case's handoff is a dialog that needs script, and this
+    /// journey runs without it, so the caller navigates to the Send page —
+    /// the one route that still works with script off — before the export.
+    /// The act itself is unchanged and must stay reachable and operable by
+    /// keyboard: neither step carries a reason field, because an export is
+    /// a label and a control, and the design authority bans copy beyond
+    /// that.
     /// </summary>
     private static async Task<IDownload> ExportByKeyboardAsync(IPage page)
     {
-        // The export answers with a file rather than a redirect, so a second
-        // export starts where the first left off - already on the Send page.
-        // Both routes are entered the same way from the case, and this walks
-        // that step only when it is the step actually in front of the operator.
-        if (!page.Url.Contains("/Eva/Send", StringComparison.OrdinalIgnoreCase))
-        {
-            var send = page.GetByRole(
-                AriaRole.Link,
-                new PageGetByRoleOptions { Name = "Send to EVA", Exact = true });
-            Assert.True(await send.IsVisibleAsync(), await page.Locator("main").InnerTextAsync());
-            await send.FocusAsync();
-            await send.PressAsync("Enter");
-            await page.WaitForURLAsync(
-                value => value.Contains("/Eva/Send", StringComparison.OrdinalIgnoreCase));
-        }
-
+        Assert.True(
+            page.Url.Contains("/Eva/Send", StringComparison.OrdinalIgnoreCase),
+            "The export journey must be on the Send page.");
         var button = page.GetByRole(
             AriaRole.Button,
             new PageGetByRoleOptions { Name = "Download export", Exact = true });

@@ -154,7 +154,7 @@ public sealed class EvaHandoffStore(
         }
 
         var aggregateId = request.CaseId.ToString("D");
-        const string eventKind = "eva_bundle_exported";
+        var eventKind = EvaHandoffPolicy.BundleExportedHistoryEventKind;
         var afterJson = DocumentActionHistory.Serialize(new
         {
             CaseVersion = caseData.Version,

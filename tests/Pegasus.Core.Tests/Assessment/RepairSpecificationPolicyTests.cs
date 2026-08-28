@@ -40,6 +40,23 @@ public sealed class RepairSpecificationPolicyTests
     }
 
     [Fact]
+    public void OnlyDocumentRoutesRequireArtifactEvidence()
+    {
+        var manual = RepairSpecificationPolicy.ValidateSource(
+            new(RepairSpecificationSourceRoute.Manual, null, null, null));
+        Assert.Null(manual.Sha256);
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationPolicy.ValidateSource(
+            new(RepairSpecificationSourceRoute.AudatexPdf, "estimate-import:1", "v1", null)));
+        Assert.Throws<InvalidOperationException>(() => RepairSpecificationPolicy.ValidateSource(
+            new(RepairSpecificationSourceRoute.Json, "estimate-import:1", "v1", null)));
+        var typed = Draft() with
+        {
+            Source = new(RepairSpecificationSourceRoute.AiDraft, null, null, null),
+        };
+        RepairSpecificationPolicy.ValidateAcceptance(typed, Engineer);
+    }
+
+    [Fact]
     public void CalculationBasisMustMatchRawInputsAndRecordedVat()
     {
         Assert.Throws<InvalidOperationException>(() =>
@@ -76,7 +93,8 @@ public sealed class RepairSpecificationPolicyTests
         new(RepairSpecificationSourceRoute.Manual, "case://estimate/1", "v1", new string('a', 64)),
         [Line("new_part", 1)],
         new(100m, 20m, 10m, 0m, true, 26m, 156m, "calc/v1"),
-        "engineer", DateTimeOffset.UtcNow, null, null, null, null);
+        "engineer", DateTimeOffset.UtcNow, null, null, null, null,
+        new("Estimate 1", null, null, null, null, null, 20m, null));
 
     private static CaseEstimateLineRecord Line(
         string type,
