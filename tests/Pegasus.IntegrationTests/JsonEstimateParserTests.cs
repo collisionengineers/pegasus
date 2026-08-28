@@ -69,20 +69,26 @@ public sealed class JsonEstimateParserTests
         Assert.Equal(5, AssessmentPolicy.NormalizeRepairSpecificationLines(result.Lines).Count);
     }
 
+    // The reason leads each case: xUnit truncates long arguments in the
+    // display name, so the shared JSON prefix alone would collapse these
+    // cases to identical names and break the test-shard partitioner.
     [Theory]
-    [InlineData("{ not json")]
-    [InlineData("""{ "schema": "other/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x" } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "lines": [ { "operation": "Repair", "description": "x" } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Weld", "description": "x" } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "type": "weld", "description": "x" } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair" } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "price": -1 } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "price": 1.005 } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x", "labourHours": 1.25 } ] }""")]
-    [InlineData("""{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "quantity": 0 } ] }""")]
-    public void AnythingAmbiguousRejectsTheWholeImport(string document) =>
-        Assert.Throws<EstimateParseRejectedException>(() => parser.Parse(Bytes(document)));
+    [InlineData("not json", "{ not json")]
+    [InlineData("wrong schema", """{ "schema": "other/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x" } ] }""")]
+    [InlineData("missing source version", """{ "schema": "pegasus-estimate/1", "lines": [ { "operation": "Repair", "description": "x" } ] }""")]
+    [InlineData("empty lines", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [] }""")]
+    [InlineData("unknown operation", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Weld", "description": "x" } ] }""")]
+    [InlineData("unknown type", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "type": "weld", "description": "x" } ] }""")]
+    [InlineData("missing description", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair" } ] }""")]
+    [InlineData("negative price", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "price": -1 } ] }""")]
+    [InlineData("sub-cent price", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "price": 1.005 } ] }""")]
+    [InlineData("quarter-hour labour", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Repair", "description": "x", "labourHours": 1.25 } ] }""")]
+    [InlineData("zero quantity", """{ "schema": "pegasus-estimate/1", "sourceVersion": "v", "lines": [ { "operation": "Replace", "description": "x", "quantity": 0 } ] }""")]
+    public void AnythingAmbiguousRejectsTheWholeImport(string reason, string document)
+    {
+        var rejected = Record.Exception(() => parser.Parse(Bytes(document)));
+        Assert.True(rejected is EstimateParseRejectedException, reason);
+    }
 
     private static ReadOnlyMemory<byte> Bytes(string document) => Encoding.UTF8.GetBytes(document);
 }
