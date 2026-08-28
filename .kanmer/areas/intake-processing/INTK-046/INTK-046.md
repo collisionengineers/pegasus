@@ -2,13 +2,14 @@
 id: INTK-046
 type: ticket
 title: 'Port Triage, Unidentified, Received and the image-record pages'
-status: implementing
+status: review
 area: intake-processing
 assignee: zcode
 profile: feature
 stageEntered:
   preparing: '2026-08-28T18:33:22.013Z'
   implementing: '2026-08-28T18:41:16.131Z'
+  review: '2026-08-28T21:35:36.002Z'
 taken_at: '2026-08-28T18:41:19.404Z'
 branch: task/intk-046-record-pages
 worktree: ../pegasus-worktrees/intk-046-record-pages
@@ -30,11 +31,12 @@ commits:
   - fc24dc65169ee89aa770cf7503dcfe53ba42e66d
   - d1591f24b775879962610dcd7f36650c9cf2990d
   - 72addf22dd75e83ea35fb5119717e41916c8dd2a
+  - 0578835e114018ed20d57871209dfc55326ac57a
 prs:
   - '#605'
 archived: false
 created: '2026-08-28T08:35:23.884Z'
-updated: '2026-08-28T19:00:54.141Z'
+updated: '2026-08-28T21:35:36.002Z'
 ---
 
 ## What
