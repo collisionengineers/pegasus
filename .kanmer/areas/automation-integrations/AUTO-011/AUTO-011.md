@@ -2,12 +2,13 @@
 id: AUTO-011
 type: ticket
 title: AI job ledger and automation.jobs connector tools
-status: implementing
+status: review
 area: automation-integrations
 assignee: claude-code
 profile: feature
 stageEntered:
   preparing: '2026-08-28T08:36:05.746Z'
+  review: '2026-08-28T08:55:41.485Z'
 taken_at: '2026-08-28T08:40:07.967Z'
 branch: task/auto-011-ai-job-ledger
 worktree: ../pegasus-worktrees/auto-011-ai-job-ledger
@@ -25,9 +26,11 @@ links:
 refs:
   - docs/frd/frd-10-mcp-automation-and-actor-boundary.md
   - docs/frd/frd-11-reports-correspondence-and-reviewed-proposals.md
+prs:
+  - '590'
 archived: false
 created: '2026-08-28T08:35:47.092Z'
-updated: '2026-08-28T08:40:07.967Z'
+updated: '2026-08-28T08:55:41.485Z'
 ---
 
 ## What
