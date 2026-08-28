@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Text.Json;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -560,6 +560,14 @@ OperationKey = $"{work.OperationKey}:poisoned:{beforeAuditVersion}",
                     failedAtUtc,
                     "queue_poisoned",
                     "Vehicle lookup exhausted the queue retry policy.");
+                break;
+
+            case ExternalWorkKinds.SubmitCaseToEva:
+                FailWork(
+                    work,
+                    failedAtUtc,
+                    "queue_poisoned",
+                    "EVA submission exhausted the queue retry policy.");
                 break;
 
             default:

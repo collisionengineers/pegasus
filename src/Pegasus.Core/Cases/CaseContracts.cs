@@ -1,4 +1,4 @@
-using Pegasus.Core.Identity;
+﻿using Pegasus.Core.Identity;
 using Pegasus.Core.Lifecycle;
 using Pegasus.Core.Workflow;
 
@@ -25,7 +25,9 @@ public sealed record Principal(
     Guid? SuccessorId,
     bool IsActive,
     long Version,
-    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress);
+    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
+    bool EvaManualSubmission = false,
+    bool EvaAutomaticSubmission = false);
 
 public enum CaseType
 {
@@ -274,7 +276,26 @@ public sealed record CreatePrincipalRequest(
     string Code,
     ActionActor Actor,
     string OperationKey,
-    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress);
+    CaseInspectionMode InspectionMode = CaseInspectionMode.PhysicalAddress,
+    bool EvaManualSubmission = false,
+    bool EvaAutomaticSubmission = false);
+
+/// <summary>
+/// EXT-04: change an existing principal's EVA submission settings.
+///
+/// ADR-0018 deferred a post-creation edit for the inspection mode and left a
+/// production change as a runbook action. These settings get one, because a
+/// route that can only be switched on while creating a principal cannot be
+/// switched on for the principals that already exist — and QDOS already does.
+/// </summary>
+public sealed record UpdatePrincipalEvaSubmissionRequest(
+    Guid PrincipalId,
+    long ExpectedVersion,
+    ActionActor Actor,
+    string OperationKey,
+    string Reason,
+    bool EvaManualSubmission,
+    bool EvaAutomaticSubmission);
 
 public sealed record ReplacePrincipalRequest(
     Guid PrincipalId,
@@ -362,6 +383,16 @@ public interface ICreatePrincipal
 public interface IReplacePrincipal
 {
     Task<Principal> ExecuteAsync(ReplacePrincipalRequest request, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// EXT-04: switch a principal's EVA submission settings without replacing it.
+/// </summary>
+public interface IUpdatePrincipalEvaSubmission
+{
+    Task<Principal> ExecuteAsync(
+        UpdatePrincipalEvaSubmissionRequest request,
+        CancellationToken cancellationToken);
 }
 
 public interface IRecordEngineerFinding

@@ -1,4 +1,5 @@
-using Microsoft.Extensions.Logging;
+using Pegasus.Core.Eva;
+﻿using Microsoft.Extensions.Logging;
 using Pegasus.Core.ImageIntake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Core.Intake;
@@ -82,7 +83,11 @@ public sealed class StagedArtifactReconciliationFunctionTests
                 typeof(ReconcileGroupedImageIntake),
                 typeof(ReconcileUnidentifiedDestinations),
                 typeof(ReconcileAutomaticVehicleLookups),
-                typeof(ILogger<StagedArtifactReconciliationFunction>)
+                typeof(ILogger<StagedArtifactReconciliationFunction>),
+                // EXT-04: optional, because EVA composes only where its
+                // credentials exist. A host without them runs the same timer
+                // and simply sweeps nothing.
+                typeof(ReconcileAutomaticEvaSubmissions)
             ],
             constructor.GetParameters().Select(parameter => parameter.ParameterType));
     }

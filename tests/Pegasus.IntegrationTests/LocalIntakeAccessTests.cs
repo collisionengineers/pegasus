@@ -1,4 +1,4 @@
-using System.Data.Common;
+﻿using System.Data.Common;
 using System.Net;
 using Microsoft.AspNetCore.Routing;
 using Pegasus.Infrastructure.Persistence;
@@ -114,7 +114,13 @@ public sealed class LocalIntakeAccessTests
     [InlineData("Box:RootFolderId")]
     [InlineData("Box:ConfigJson")]
     [InlineData("Box:ClientSecret")]
-    public void ProductionFailsClosedWithoutTheBoxCustodyConfigurationItComposes(string missingKey)
+    [InlineData("Eva:BaseUri")]
+    [InlineData("Eva:ClientId")]
+    [InlineData("Eva:ClientSecret")]
+    [InlineData("Eva:RequestFrom")]
+    [InlineData("Eva:InspectionType")]
+    [InlineData("Eva:InstructionEmail")]
+    public void ProductionFailsClosedWithoutTheExternalConfigurationItComposes(string missingKey)
     {
         // Production now composes Box-backed custody and managed document content,
         // so a missing Box setting must stop startup rather than silently leaving
@@ -136,7 +142,13 @@ public sealed class LocalIntakeAccessTests
             ["Box:UploadUri"] = "https://upload.box.com/api/2.0/",
             ["Box:RootFolderId"] = "405543781910",
             ["Box:ConfigJson"] = "{}",
-            ["Box:ClientSecret"] = "client-secret"
+            ["Box:ClientSecret"] = "client-secret",
+            ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
+            ["Eva:ClientId"] = "eva-client",
+            ["Eva:ClientSecret"] = "eva-secret",
+            ["Eva:RequestFrom"] = "COLLENGAPI",
+            ["Eva:InspectionType"] = "Vehicle Damage Inspection",
+            ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
         };
         configuration[missingKey] = null;
 

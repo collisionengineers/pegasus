@@ -1,4 +1,5 @@
-﻿using System.Globalization;
+﻿using System.Text.RegularExpressions;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
@@ -57,7 +58,19 @@ public sealed class OperatorJourneyTests
         Assert.Contains("failed", initialText, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("temporarily unavailable", initialText, StringComparison.OrdinalIgnoreCase);
         // CASE-007: the read-only view carries no EVA preparation detail.
-        Assert.DoesNotContain("EVA", initialText, StringComparison.Ordinal);
+        //
+        // EXT-04 renamed the action to "Send to EVA" at the operator's
+        // direction, so the destination is now named on the control itself.
+        // The rule this pins is unchanged and still worth pinning: EVA is
+        // named exactly once, on that one control, and nothing about a
+        // submission - its state, its references, the fields it would carry -
+        // reaches a case that is not ready to send.
+        Assert.Equal(
+            1,
+            Regex.Count(initialText, "EVA", RegexOptions.None, TimeSpan.FromSeconds(1)));
+        Assert.Contains("Send to EVA", initialText, StringComparison.Ordinal);
+        Assert.DoesNotContain("File reference", initialText, StringComparison.Ordinal);
+        Assert.DoesNotContain("Sent to EVA", initialText, StringComparison.Ordinal);
         AssertOperatorSafe(initialText, accepted.CaseId);
 
         await EnterEditModeByKeyboardAsync(support.Page);
@@ -105,9 +118,10 @@ public sealed class OperatorJourneyTests
         Assert.DoesNotContain("Case evidence \u2014 Failed", confirmedText, StringComparison.Ordinal);
         Assert.DoesNotContain("Case custody has not been confirmed", confirmedText, StringComparison.Ordinal);
 
-        // ENG-016: one act. Export is a form post in the action bar -- it was
-        // an anchor, and it answers with the file rather than a redirect. The
-        // gated hand-off's generate/replay/download sequence is gone.
+        // ENG-016: one act, and it answers with the file rather than a
+        // redirect. The gated hand-off's generate/replay/download sequence is
+        // gone. EXT-04 moved the control: the action bar carries one Send to
+        // EVA link, and the export's form post lives on the page it opens.
         var firstDownload = await ExportByKeyboardAsync(support.Page);
         Assert.Equal($"EVA-{accepted.Reference}.zip", firstDownload.SuggestedFilename);
         Assert.DoesNotContain(accepted.CaseId.ToString("D"), firstDownload.SuggestedFilename,
@@ -364,15 +378,35 @@ public sealed class OperatorJourneyTests
     }
 
     /// <summary>
-    /// Presses Export in the action bar by keyboard and returns the file it
-    /// answers with. It carries no reason field: an export is a label and a
-    /// control, and the design authority bans copy beyond that.
+    /// Exports by keyboard alone and returns the file it answers with.
+    ///
+    /// Two steps since EXT-04: the action bar carries one Send to EVA control,
+    /// and the choice between the API submission and the export is made on the
+    /// page it opens. Both steps must be reachable and operable by keyboard,
+    /// which is what this proves. Neither carries a reason field: an export is
+    /// a label and a control, and the design authority bans copy beyond that.
     /// </summary>
     private static async Task<IDownload> ExportByKeyboardAsync(IPage page)
     {
+        // The export answers with a file rather than a redirect, so a second
+        // export starts where the first left off - already on the Send page.
+        // Both routes are entered the same way from the case, and this walks
+        // that step only when it is the step actually in front of the operator.
+        if (!page.Url.Contains("/Eva/Send", StringComparison.OrdinalIgnoreCase))
+        {
+            var send = page.GetByRole(
+                AriaRole.Link,
+                new PageGetByRoleOptions { Name = "Send to EVA", Exact = true });
+            Assert.True(await send.IsVisibleAsync(), await page.Locator("main").InnerTextAsync());
+            await send.FocusAsync();
+            await send.PressAsync("Enter");
+            await page.WaitForURLAsync(
+                value => value.Contains("/Eva/Send", StringComparison.OrdinalIgnoreCase));
+        }
+
         var button = page.GetByRole(
             AriaRole.Button,
-            new PageGetByRoleOptions { Name = "Export", Exact = true });
+            new PageGetByRoleOptions { Name = "Download export", Exact = true });
         Assert.True(await button.IsVisibleAsync(), await page.Locator("main").InnerTextAsync());
         Assert.True(await button.IsEnabledAsync(), await page.Locator("main").InnerTextAsync());
         var responseTask = page.WaitForResponseAsync(value =>

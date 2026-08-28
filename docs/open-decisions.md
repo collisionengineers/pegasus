@@ -226,24 +226,36 @@ The examples establish the presence and order of `VRM`, but do not by themselves
 |---|---|---|---|
 | Operator acceptance of every source-field mapping, especially whether `Reference` maps to EVA Claim No rather than Case/PO; null and empty handling; date and mileage normalization; image selection, naming, and order; treatment of uncertain VRM values; and a real drag-and-drop run. | An incorrect or guessed mapping could create or alter EVA work with the wrong claim, vehicle, dates, mileage, or images. | Keep generation review-gated. Do not allow a guessed mapping, including a guessed VRM mapping, to create or alter EVA work. | Has an operator accepted every mapping and normalization rule through a real drag-and-drop run? |
 
-## EVA API activation (`0.7.0` / `EXT-04`)
+## EVA API activation (`EXT-04`) — resolved 2026-08-27
 
-Direct EVA API use is allocated only as an optional, non-blocking `0.7.0`
-branch. Vendor test credentials exist, but the route remains blocked until EVA
-developers deliver a vendor-confirmed usable operation meeting the accepted
-contract. The retained vendor schema is non-authoritative reference evidence:
-it does not select an operation or grant permission to call EVA.
+**Resolved.** The operator directed activation on 2026-08-27 against EVA's test
+environment. The decided operation is `POST /Instruction/Inspection` and only
+that one: a case and its eligible images, submitted at most once.
 
-In particular, no allowed accepted source currently establishes a proxy-only
-case/vehicle/inspection fetch, a create-with-children operation, its
-parent/child validation or atomicity, a separate picture-upload contract, a
-report-with-PDF handoff, a structured Pegasus success/failure model, or the
-meaning of any returned identifier. None of those observations may create,
-select, or alter a Pegasus case/reference.
+What settled each of the boundaries this decision was held open for:
 
-| Evidence needed | Impact | Recommended default | Decision question |
-|---|---|---|---|
-| A vendor-confirmed usable operation and exact direction/scope; request and response contract; identity and authorization target; validation and atomicity; attachment/picture/report-PDF distinctions; correlation identifiers; structured success/failure; idempotency; recovery; coexistence or migration; and live evidence. | An assumed API could disclose, duplicate, lose, or corrupt EVA work, attach evidence to the wrong record, infer a Pegasus identity, or prematurely remove the manual path. | Continue the deterministic manual JSON/image handoff. Make no EVA call and infer no case/reference or external success from the supplied schema. | Which exact EVA operation, if any, is vendor-supported, caller-proved, and accepted with these boundaries? |
+- **Operation and direction.** One outbound submission. No fetch, no
+  create-with-children, no report-with-PDF handoff.
+- **Contract and authentication.** Recorded in
+  [FRD-07](frd/frd-07-eva-and-external-engineering-handoff.md#direct-eva-api-submission)
+  and proved against the vendor's own recorded traffic, which differs from its
+  documentation in several ways.
+- **Attachments.** Inline base64 on the same request; EVA resolved the
+  server-side defect that previously refused them.
+- **Structured success/failure.** Four distinct outcomes — succeeded,
+  rejected, partial, unknown — persisted per attempt.
+- **Idempotency.** EVA provides none, so Pegasus owns it: at most one
+  successful submission per case, enforced by a unique index, and only an
+  unknown outcome is ever retried.
+- **Coexistence.** The manual export is unchanged and remains available to
+  every Principal, from the same Send to EVA control.
+
+Two things remain open and are tracked as their own work, not here: live
+credentials (operator-gated, a credential swap only) and real EVA fields for
+the inspection date and mileage, which currently travel as note lines.
+
+No returned EVA identifier creates, selects, or alters a Pegasus case or
+reference; they are recorded against the case as evidence of delivery.
 
 ## External data, submission, and report contracts
 

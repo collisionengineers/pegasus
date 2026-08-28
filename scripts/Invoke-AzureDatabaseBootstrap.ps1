@@ -339,6 +339,17 @@ function Get-MigrationPermissionMatrix {
         $expected.Add("pegasus_worker_runtime_role|G|$permission|ApprovedMailboxSubscriptions")
     }
     $expected.Add('pegasus_worker_runtime_role|D|DELETE|ApprovedMailboxSubscriptions')
+    # 20260827143200_GrantEvaSubmissions: EXT-04 gave a case a second route to
+    # EVA. Web writes an attempt when an operator sends by hand, the Worker
+    # when a principal's automatic setting submits a case that reached Review,
+    # and both read prior attempts for the once-per-case and replay checks. An
+    # attempt is a fact about a moment and is never edited, so neither role is
+    # granted UPDATE or DELETE.
+    foreach ($role in @('pegasus_web_runtime_role', 'pegasus_worker_runtime_role')) {
+        foreach ($permission in @('SELECT', 'INSERT')) {
+            $expected.Add("$role|G|$permission|EvaSubmissions")
+        }
+    }
     return @($expected | Sort-Object -Unique)
 }
 

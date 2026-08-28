@@ -1,4 +1,4 @@
-using Pegasus.Core.Cases;
+﻿using Pegasus.Core.Cases;
 using Pegasus.Core.Custody;
 using Pegasus.Core.Identity;
 using Pegasus.Core.Vehicle;
@@ -269,18 +269,28 @@ public sealed class VehicleWorkflowTests
         var workId = Guid.NewGuid();
         var custody = new RecordingCustodyProcessor();
         var vehicle = new RecordingVehicleProcessor();
+        var eva = new RecordingEvaProcessor();
         var reader = new MutableExternalWorkReader(new(workId, ExternalWorkKinds.VehicleLookup));
-        var dispatcher = new ProcessQueuedExternalWork(reader, custody, vehicle);
+        var dispatcher = new ProcessQueuedExternalWork(reader, custody, vehicle, eva);
 
         await dispatcher.ExecuteAsync(workId, CancellationToken.None);
         Assert.Empty(custody.ProcessedIds);
+        Assert.Empty(eva.ProcessedIds);
         Assert.Equal([workId], vehicle.ProcessedIds);
+
+        // EXT-04's arm routes to its own handler and to no other.
+        reader.Work = new(workId, ExternalWorkKinds.SubmitCaseToEva);
+        await dispatcher.ExecuteAsync(workId, CancellationToken.None);
+        Assert.Empty(custody.ProcessedIds);
+        Assert.Equal([workId], vehicle.ProcessedIds);
+        Assert.Equal([workId], eva.ProcessedIds);
 
         reader.Work = new(workId, "not_registered");
         await Assert.ThrowsAsync<UnknownExternalWorkKindException>(() =>
             dispatcher.ExecuteAsync(workId, CancellationToken.None));
         Assert.Empty(custody.ProcessedIds);
         Assert.Equal([workId], vehicle.ProcessedIds);
+        Assert.Equal([workId], eva.ProcessedIds);
     }
 
     public static TheoryData<VehicleLookupResult, int, VehicleLookupWorkState> QueueOutcomes()
@@ -490,6 +500,17 @@ public sealed class VehicleWorkflowTests
     }
 
     private sealed class RecordingVehicleProcessor : IProcessQueuedVehicleLookup
+    {
+        public List<Guid> ProcessedIds { get; } = [];
+
+        public Task ExecuteAsync(Guid workItemId, CancellationToken cancellationToken)
+        {
+            ProcessedIds.Add(workItemId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingEvaProcessor : IProcessQueuedEvaSubmission
     {
         public List<Guid> ProcessedIds { get; } = [];
 
