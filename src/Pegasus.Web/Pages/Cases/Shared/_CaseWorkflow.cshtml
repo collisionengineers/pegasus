@@ -1,9 +1,7 @@
-﻿@model Pegasus.Web.Pages.Cases.DetailsModel
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@using System.Globalization
 @using Pegasus.Core.Cases
-@using Pegasus.Core.Custody
 @using Pegasus.Core.Lifecycle
-@using Pegasus.Core.Tasks
-@using Pegasus.Core.Vehicle
 @using Pegasus.Core.Workflow
 @using Pegasus.Web.Pages
 @{
@@ -12,371 +10,321 @@
     var data = details.Data;
     var leaseToken = Model.LeaseToken;
     var mayEdit = !string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null;
+    var state = workflow.State;
+    var requirements = Model.OutstandingRequirements;
+
+    // The stepper speaks the display vocabulary (D3): Report preparation and
+    // Post report both read "With Engineer", Post-report complete reads
+    // "Complete". Core's states are untouched.
+    var stage = state switch
+    {
+        CaseLifecycleState.Review => 1,
+        CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport => 2,
+        CaseLifecycleState.PostReportComplete => 3,
+        _ => 0
+    };
+    (string Label, string Icon)[] steps =
+    [
+        ("Not ready", "icon-alert-circle"),
+        ("Review", "icon-eye"),
+        ("With Engineer", "icon-user"),
+        ("Complete", "icon-check")
+    ];
 }
 
-@* Edit mode is a toggle on the case action bar (CASE-007); this
-   partial renders only the sections that carry content or an action in the
-   current mode. *@
+<div class="stack">
+    @* A refused save (stale version) is a non-destructive conflict: the
+       proposed values are retained beside what the case now holds, with no
+       way to apply or force them — re-entering edit mode is the only path. *@
+    @if (Model.ProposedValuesWereDropped)
+    {
+        <section class="panel" aria-labelledby="case-proposed-values-title">
+            <div class="panel-head"><h2 id="case-proposed-values-title">Your change was not applied</h2></div>
+            <div class="panel-body">
+                <div class="notice notice--warning">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                    <span>The values you submitted were too large to keep and are not shown here; enter edit mode again and re-enter them.</span>
+                </div>
+            </div>
+        </section>
+    }
+    else if (Model.ProposedValues.Count > 0)
+    {
+        <section class="panel" aria-labelledby="case-proposed-values-title">
+            <div class="panel-head"><h2 id="case-proposed-values-title">Your change was not applied</h2></div>
+            <div class="panel-body stack">
+                @if (Model.ProposedValuesWereShortened)
+                {
+                    <div class="notice notice--warning">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                        <span>Some values were too long to keep in full and are shown shortened; re-enter those in full.</span>
+                    </div>
+                }
+                <div class="table-wrap">
+                    <table>
+                        <thead><tr><th>Field</th><th>You proposed</th><th>The case now holds</th></tr></thead>
+                        <tbody>
+                            @foreach (var proposed in Model.ProposedValues)
+                            {
+                                <tr>
+                                    <th>@proposed.Label</th>
+                                    <td>@proposed.Proposed</td>
+                                    <td>@(string.IsNullOrWhiteSpace(proposed.Current) ? "—" : proposed.Current)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    }
 
-@if (Model.ProposedValuesWereDropped)
-{
-    <section class="panel form-panel" aria-labelledby="case-proposed-values-title">
-        <h2 id="case-proposed-values-title" class="section-label">Your change was not applied</h2>
-        <p>The values you submitted were too large to keep and are not shown here; enter edit mode again and re-enter them.</p>
-    </section>
-}
-else if (Model.ProposedValues.Count > 0)
-{
-    <section class="panel form-panel" aria-labelledby="case-proposed-values-title">
-        <h2 id="case-proposed-values-title" class="section-label">Your change was not applied</h2>
-        <p>Nothing here can be applied; enter edit mode again and re-enter the values you still want.</p>
-        @if (Model.ProposedValuesWereShortened)
+    <ol class="workflow-stepper" aria-label="Case workflow">
+        @for (var index = 0; index < steps.Length; index++)
         {
-            <p class="notice">Some values were too long to keep in full and are shown shortened; re-enter those in full.</p>
+            var current = index == stage;
+            var complete = index < stage;
+            <li class="workflow-step @(complete ? "is-complete" : null) @(current ? "is-current" : null)">
+                <span class="workflow-step-icon">
+                    <svg class="icon" aria-hidden="true"><use href="#@(complete ? "icon-check" : steps[index].Icon)" /></svg>
+                </span>
+                <span>@steps[index].Label</span>
+            </li>
         }
-        <div class="table-wrap">
-            <table>
-                <thead><tr><th>Field</th><th>You proposed</th><th>The case now holds</th></tr></thead>
-                <tbody>
-                    @foreach (var proposed in Model.ProposedValues)
-                    {
-                        <tr>
-                            <th>@proposed.Label</th>
-                            <td>@proposed.Proposed</td>
-                            <td>@(string.IsNullOrWhiteSpace(proposed.Current) ? "—" : proposed.Current)</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+    </ol>
+    @if (state == CaseLifecycleState.Held)
+    {
+        <div class="workflow-exception">
+            <svg class="icon" aria-hidden="true"><use href="#icon-pause" /></svg>
+            <strong>Held</strong>
         </div>
-    </section>
-}
-
-@* Only an editor now, so it renders only for an editor. *@
-@if (data is not null && mayEdit)
-{
-    <section class="panel form-panel" aria-labelledby="case-data-title">
-        <h2 id="case-data-title" class="section-label">Case detail</h2>
-        @*
-            CASE-018: this section used to restate the whole case-data
-            projection above its edit forms, so every fact on the page above
-            appeared here a second time and registration appeared a third time
-            in Vehicle evidence. The read-only rows are gone; the block-grid in
-            _CaseSummary is the one place a case fact is read. What remains is
-            the editor, which only renders under an edit lease.
-        *@
-        <form method="post" asp-page-handler="Save" class="form-grid">
-                <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Claimant<input name="claimantName" maxlength="300" value="@data.Claimant.Name.Confirmed?.Value" /></label>
-                <label>Claim number<input name="claimNumber" maxlength="200" value="@data.Claim.Number.Confirmed?.Value" /></label>
-                <label>Registration<input name="vehicleRegistration" maxlength="20" value="@data.Vehicle.Registration.Confirmed?.Value" /></label>
-                <label>Vehicle make<input name="vehicleMake" maxlength="100" value="@data.Vehicle.Make.Confirmed?.Value" /></label>
-                <label>Vehicle model<input name="vehicleModel" maxlength="100" value="@data.Vehicle.Model.Confirmed?.Value" /></label>
-                <label>Mileage<input type="number" min="0" name="vehicleMileage" value="@data.Vehicle.Mileage.Confirmed?.Value" /></label>
-                <label>Mileage unit<input name="vehicleMileageUnit" maxlength="20" value="@data.Vehicle.MileageUnit.Confirmed?.Value" /></label>
-                <label>Incident date<input type="date" name="incidentDate" value="@data.Accident.IncidentDate.Confirmed?.Value.ToString("yyyy-MM-dd")" /></label>
-                <label>Contact name<input name="contactName" maxlength="300" value="@data.Contact.Name.Confirmed?.Value" /></label>
-                <label>Contact email<input type="email" name="contactEmailAddress" maxlength="320" value="@data.Contact.EmailAddress.Confirmed?.Value" /></label>
-                <label>Contact phone<input name="contactPhoneNumber" maxlength="100" value="@data.Contact.PhoneNumber.Confirmed?.Value" /></label>
-                <label>Instruction date<input type="date" name="instructionDate" value="@data.Instruction.InstructionDate.Confirmed?.Value.ToString("yyyy-MM-dd")" /></label>
-                <label>VAT status<input name="vatStatus" maxlength="100" value="@data.Instruction.VatStatus.Confirmed?.Value" /></label>
-                <label>Inspection date<input type="date" name="inspectionDate" value="@data.Inspection.InspectionDate.Confirmed?.Value.ToString("yyyy-MM-dd")" /></label>
-                <label>Inspection deadline<input type="date" name="inspectionDeadline" value="@data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd")" /></label>
-                <label>Inspection address<input name="inspectionAddress" maxlength="1000" value="@data.Inspection.Address.Confirmed?.Value" /></label>
-                <label>Inspection mode
-                    <select name="inspectionMode">
-                        @if (data.Inspection.Mode.Confirmed is null)
-                        {
-                            <option value="" selected>Not recorded</option>
-                        }
-                        else
-                        {
-                            <option value="">Not recorded</option>
-                        }
-                        @if (data.Inspection.Mode.Confirmed?.Value == CaseInspectionMode.PhysicalAddress)
-                        {
-                            <option value="PhysicalAddress" selected>Physical address</option>
-                        }
-                        else
-                        {
-                            <option value="PhysicalAddress">Physical address</option>
-                        }
-                        @if (data.Inspection.Mode.Confirmed?.Value == CaseInspectionMode.ImageBasedAssessment)
-                        {
-                            <option value="ImageBasedAssessment" selected>Image Based Assessment</option>
-                        }
-                        else
-                        {
-                            <option value="ImageBasedAssessment">Image Based Assessment</option>
-                        }
-                    </select>
-                </label>
-                <label class="field-wide">Accident circumstances<textarea name="accidentCircumstances" maxlength="2000">@data.Accident.Circumstances.Confirmed?.Value</textarea></label>
-                <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>
-                <button type="submit" class="primary-action">Save case data</button>
-            </form>
-
-            <form method="post" asp-page-handler="ConfirmCompleteness" class="form-grid">
-                <input type="hidden" name="id" value="@workflow.CaseId" />
-                <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-                <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-@* Each checkbox carries a trailing hidden false so an unchecked box still submits its value: the
-   binder takes the first entry, and a refused save can show what the editor actually proposed. *@
-                <label><input type="checkbox" name="instructionComplete" value="true" checked="@data.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionComplete" value="false" />
-                <label><input type="checkbox" name="imagesComplete" value="true" checked="@data.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" />
-                <label><input type="checkbox" name="instructionConfirmedByStaff" value="true" checked="@data.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionConfirmedByStaff" value="false" />
-                <label><input type="checkbox" name="imagesConfirmedByStaff" value="true" checked="@data.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesConfirmedByStaff" value="false" />
-                <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>
-            <button type="submit" class="primary-action">Confirm completeness</button>
-        </form>
-    </section>
-}
-
-@if (mayEdit)
-{
-<section class="panel form-panel" aria-labelledby="case-workflow-title">
-    <h2 id="case-workflow-title" class="section-label">Lifecycle actions</h2>
-    <div class="form-grid">
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="Hold">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Hold case</button>
-            </form>
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="ReleaseHold">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Release hold</button>
-            </form>
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="StartWork">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Transition to report preparation</button>
-            </form>
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="ReturnToReview">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label><input type="checkbox" name="instructionsComplete" value="true" checked="@data?.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionsComplete" value="false" /><label><input type="checkbox" name="imagesComplete" value="true" checked="@data?.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" /><label><input type="checkbox" name="instructionsReviewedByStaff" value="true" checked="@data?.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionsReviewedByStaff" value="false" /><label><input type="checkbox" name="imagesReviewedByStaff" value="true" checked="@data?.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesReviewedByStaff" value="false" /><label>Evidence reference<input name="evidenceReference" required maxlength="500" value="case-completeness-projection" /></label>
-                <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Transition to Review</button>
-            </form>
-            <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Close">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Outcome<select name="outcome"><option value="PostReportComplete">Post-report complete</option><option value="ProviderCancelled">Provider cancelled</option><option value="CollisionEngineersRejected">Collision Engineers rejected</option></select></label>
-                <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Close case</button>
-            </form>
-            <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Reopen">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label><input type="checkbox" name="instructionsComplete" value="true" checked="@data?.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionsComplete" value="false" /><label><input type="checkbox" name="imagesComplete" value="true" checked="@data?.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" /><label><input type="checkbox" name="instructionsReviewedByStaff" value="true" checked="@data?.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionsReviewedByStaff" value="false" /><label><input type="checkbox" name="imagesReviewedByStaff" value="true" checked="@data?.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesReviewedByStaff" value="false" /><label>Evidence reference<input name="evidenceReference" maxlength="500" value="case-completeness-projection" /></label>
-                <label>Destination<select name="destination"><option value="NotReady">Not ready</option><option value="Review">Review</option><option value="ReportPreparation">Report preparation</option><option value="PostReport">Post report</option></select></label>
-                <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Reopen case</button>
-            </form>
-            <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="Archive">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Archive terminal case</button>
-            </form>
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="CreateLinkedReplacement">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Replacement principal code<input name="replacementPrincipalCode" required maxlength="100" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Create linked replacement</button>
-            </form>
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="AssignEngineer">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Engineer ID<input type="text" name="engineerId" required /></label><label><input type="checkbox" name="instructionsComplete" value="true" checked="@data?.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionsComplete" value="false" /><label><input type="checkbox" name="imagesComplete" value="true" checked="@data?.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" /><label><input type="checkbox" name="instructionsReviewedByStaff" value="true" checked="@data?.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionsReviewedByStaff" value="false" /><label><input type="checkbox" name="imagesReviewedByStaff" value="true" checked="@data?.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesReviewedByStaff" value="false" /><label>Evidence reference<input name="evidenceReference" required maxlength="500" value="case-completeness-projection" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Assign Engineer</button>
-            </form>
-            <form method="post" asp-page="/Cases/Workflow" asp-route-id="@workflow.CaseId" asp-page-handler="RecordEngineerFinding">
-                <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                <label>Assessment<select name="assessment"><option value="Repairable">Repairable</option><option value="TotalLoss">Total loss</option></select></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Record Engineer finding</button>
-            </form>
-    </div>
-</section>
-}
-
-@if (workflow.ReportApproval is not null
-    || (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation))
-{
-<section class="panel form-panel" aria-labelledby="case-report-approval-title">
-    <h2 id="case-report-approval-title" class="section-label">Report approval</h2>
-    @if (workflow.ReportApproval is { } approval)
-    {
-        <p>Report <strong>@approval.ArtifactIdentity</strong> was approved at @OperatorLabels.OfficeTime(approval.ApprovedAtUtc); this does not confirm the report was sent.</p>
     }
-    else if (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation)
-    {
-        <form method="post" asp-page="/Cases/Closure" asp-route-id="@workflow.CaseId" asp-page-handler="RecordReportApproval" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" />
-            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <input type="hidden" name="approvalId" value="@Model.ReportApprovalId" />
-            <label>Report identity<input name="artifactIdentity" required maxlength="200" /></label>
-            <label>Report SHA-256<input name="artifactSha256" required minlength="64" maxlength="64" pattern="[0-9A-Fa-f]{64}" /></label>
-            <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>
-            <button type="submit" class="primary-action">Approve report</button>
-        </form>
-    }
-</section>
-}
 
-@if (details.AvailableReportSentEvidence.Count > 0
-    || (workflow.ReportSentEvidence is not null && mayEdit && workflow.State is not CaseLifecycleState.Held && !CaseLifecycleRules.IsTerminal(workflow.State)))
-{
-<section class="panel form-panel" aria-labelledby="case-report-evidence-title">
-    <h2 id="case-report-evidence-title" class="section-label">Report-Sent evidence</h2>
-    @if (details.AvailableReportSentEvidence.Count > 0)
+    @if (requirements.Count > 0)
     {
-        <ul>
-        @foreach (var evidence in details.AvailableReportSentEvidence)
-        {
-            <li>
-                <strong>@OperatorLabels.OfficeTime(evidence.SentAtUtc)</strong> — @evidence.MailboxIdentity / @evidence.ImmutableItemIdentity
-                @if (mayEdit && workflow.State == CaseLifecycleState.ReportPreparation)
+        <section class="panel" aria-labelledby="case-requirements-title">
+            <div class="panel-head">
+                <h2 id="case-requirements-title">Outstanding requirements</h2>
+                <partial name="Shared/_StatusChip" view-data='new ViewDataDictionary(ViewData) { ["StatusTone"] = "amber" }' model="@(requirements.Count.ToString(CultureInfo.InvariantCulture) + " outstanding")" />
+            </div>
+            <div class="panel-body">
+                <ul class="blocker-list">
+                    @foreach (var requirement in requirements)
+                    {
+                        <li class="blocker">
+                            <strong>@requirement.Title</strong>
+                            <small>
+                                <b>Source:</b> @requirement.Source
+                                @if (!string.IsNullOrWhiteSpace(requirement.Why))
+                                {
+                                    <br /><b>Why:</b> @requirement.Why
+                                }
+                                <br /><b>Resolve:</b> Confirm completeness
+                            </small>
+                        </li>
+                    }
+                </ul>
+                @if (mayEdit && data is not null)
                 {
-                    <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="LinkReportEvidence">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="evidenceId" value="@evidence.EvidenceId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Link exact evidence</button>
-                    </form>
-                }
-            </li>
-        }
-        </ul>
-    }
-    @if (workflow.ReportSentEvidence is { } linkedEvidence && mayEdit && workflow.State is not CaseLifecycleState.Held && !CaseLifecycleRules.IsTerminal(workflow.State))
-    {
-        <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="UnlinkReportEvidence">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="evidenceId" value="@linkedEvidence.EvidenceId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Unlink current evidence</button>
-        </form>
-    }
-</section>
-}
-
-@if (details.Tasks.Count > 0 || (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null))
-{
-<section class="panel form-panel" aria-labelledby="case-tasks-title">
-    <h2 id="case-tasks-title" class="section-label">Case tasks</h2>
-    @if (details.Tasks.Count > 0)
-    {
-        <ul>
-        @foreach (var task in details.Tasks)
-        {
-            <li>
-                <strong>@task.Description</strong> — @OperatorLabels.Humanise(task.State.ToString()) — assignee @(task.AssigneeId?.ToString("D") ?? "unassigned")
-                @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null && task.State == CaseTaskState.Open)
-                {
-                    <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="AssignTask">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <label>Assignee ID<input type="text" name="assigneeId" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Assign task</button>
-                    </form>
-                    <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="CompleteTask">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Complete task</button>
-                    </form>
-                    <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="CancelTask">
-                        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@task.Id" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="expectedTaskVersion" value="@task.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Cancel task</button>
-                    </form>
-                }
-            </li>
-        }
-        </ul>
-    }
-    @if (!string.IsNullOrWhiteSpace(leaseToken) && workflow.Archive is null)
-    {
-        <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="CreateTask" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="taskId" value="@Guid.NewGuid()" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Description<input name="description" required maxlength="1000" /></label><label>Assignee ID<input type="text" name="assigneeId" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="primary-action">Create task</button>
-        </form>
-    }
-</section>
-}
-
-@if (details.LatestChaser is { } chaser)
-{
-    <section class="panel" aria-labelledby="case-chaser-title">
-        <h2 id="case-chaser-title" class="section-label">Latest generated chase draft</h2>
-        <dl><dt>Generated</dt><dd>@OperatorLabels.OfficeTime(chaser.GeneratedAtUtc)</dd><dt>Next chase</dt><dd>@OperatorLabels.OfficeTime(chaser.NextChaseAtUtc)</dd></dl>
-        <pre>@chaser.CopyableText</pre>
-        <p>Copyable text only; nothing has been sent.</p>
-    </section>
-}
-
-@if (workflow.DueWork is { State: CaseDueWorkState.Scheduled } && mayEdit)
-{
-    <section class="panel form-panel" aria-labelledby="case-manual-chase-title">
-        <h2 id="case-manual-chase-title" class="section-label">Record manual chase</h2>
-        <p>Recording an attempt updates the chase schedule; nothing is sent.</p>
-        <form method="post" asp-page="/Cases/Tasks" asp-route-id="@workflow.CaseId" asp-page-handler="RecordManualChase" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" />
-            <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-            <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
-            <input type="hidden" name="attemptedAtUtc" value="@Model.ManualChaseAttemptedAtUtc.ToString("O")" />
-            <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Channel<input name="channel" required maxlength="100" /></label>
-            <label>Target party or address<input name="targetPartyOrAddress" required maxlength="500" /></label>
-            <label>Outcome<input name="outcome" required maxlength="500" /></label>
-            <label>Note<textarea name="note" maxlength="1000"></textarea></label>
-            <label class="field-wide">Reason<input name="reason" required maxlength="500" /></label>
-            <button type="submit" class="primary-action">Record chase attempt</button>
-        </form>
-    </section>
-}
-
-@* CASE-018: this section used to restate the confirmed registration, make,
-   model and mileage, and then the lookup observation's copy of the same four
-   values — the second and third places the operator saw a registration. The
-   values now live once, on the Vehicle block in _CaseSummary, where ENG-013's
-   lookup fills whatever the documents did not carry. What is left here is the
-   only thing that block cannot carry: the decisions. *@
-@if (mayEdit)
-{
-<section class="panel form-panel" aria-labelledby="case-vehicle-evidence-title">
-    <h2 id="case-vehicle-evidence-title" class="section-label">Vehicle evidence</h2>
-    @if (details.VehicleEvidence?.LatestObservation is { } observation)
-    {
-        <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Accept" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="primary-action">Accept vehicle suggestion</button>
-        </form>
-        <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="AcceptVehicleSuggestion" class="form-grid">
-            <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="lookupObservationId" value="@observation.Id" /><input type="hidden" name="decision" value="Correct" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-            <label>Registration<input name="registration" required maxlength="20" value="@observation.Registration" /></label><label>Make<input name="make" maxlength="100" value="@observation.Vehicle?.Make" /></label><label>Model<input name="model" maxlength="100" value="@observation.Vehicle?.Model" /></label><label>Mileage<input type="number" min="0" name="mileage" value="@observation.Mileage?.Value" /></label><label>Mileage unit<input name="mileageUnit" maxlength="20" value="@observation.Mileage?.Unit" /></label><label>Reason<input name="reason" required maxlength="500" /></label><button type="submit" class="secondary-action">Confirm corrected vehicle values</button>
-        </form>
-    }
-    <form method="post" asp-page="/Cases/Vehicle" asp-route-id="@workflow.CaseId" asp-page-handler="RequestVehicleLookup" class="form-grid">
-        <input type="hidden" name="id" value="@workflow.CaseId" /><input type="hidden" name="expectedVersion" value="@workflow.Version" /><input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" /><input type="hidden" name="editLeaseToken" value="@leaseToken" />
-        <label>Registration<input name="registration" required maxlength="20" value="@(details.VehicleEvidence?.Confirmed?.Registration.Value ?? data?.Vehicle.Registration.Current?.Value)" /></label><button type="submit" class="primary-action">Request vehicle lookup</button>
-    </form>
-</section>
-}
-
-@if (details.Custody.Count > 0)
-{
-<section class="panel form-panel" aria-labelledby="case-custody-title">
-    <h2 id="case-custody-title" class="section-label">Case custody</h2>
-    @{
-        <ul class="action-list">
-        @foreach (var custody in details.Custody)
-        {
-            <li>
-                <strong>@(custody.TargetKind == CustodyTargetKind.CaseSource ? "Case evidence" : "Audit reference")</strong>
-                — @OperatorLabels.Humanise(custody.State.ToString())
-                @if (!string.IsNullOrWhiteSpace(custody.SafeFailureReason))
-                {
-                    <span>— @custody.SafeFailureReason</span>
-                }
-                @if (mayEdit && custody.CanRetry)
-                {
-                    <form method="post" asp-page="/Cases/Custody" asp-route-id="@workflow.CaseId" asp-page-handler="RetryCustody" class="form-grid">
+                    <form method="post" asp-page="/Cases/Details" asp-page-handler="ConfirmCompleteness"
+                          asp-route-id="@workflow.CaseId" class="stack blocker-actions">
                         <input type="hidden" name="id" value="@workflow.CaseId" />
                         <input type="hidden" name="expectedVersion" value="@workflow.Version" />
-                        <input type="hidden" name="targetKind" value="@custody.TargetKind" />
                         <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
                         <input type="hidden" name="editLeaseToken" value="@leaseToken" />
-                        <label>Reason<input name="reason" required maxlength="500" /></label>
-                        <button type="submit" class="secondary-action">Retry custody</button>
+                        <div class="grid grid-2">
+                            @* Each checkbox carries a trailing hidden false so an unchecked box still submits its value. *@
+                            <label class="choice"><input type="checkbox" name="instructionComplete" value="true" checked="@data.Completeness.Values.InstructionComplete" /> Instructions complete</label><input type="hidden" name="instructionComplete" value="false" />
+                            <label class="choice"><input type="checkbox" name="imagesComplete" value="true" checked="@data.Completeness.Values.ImagesComplete" /> Images complete</label><input type="hidden" name="imagesComplete" value="false" />
+                            <label class="choice"><input type="checkbox" name="instructionConfirmedByStaff" value="true" checked="@data.Completeness.Values.InstructionConfirmedByStaff" /> Instructions staff-reviewed</label><input type="hidden" name="instructionConfirmedByStaff" value="false" />
+                            <label class="choice"><input type="checkbox" name="imagesConfirmedByStaff" value="true" checked="@data.Completeness.Values.ImagesConfirmedByStaff" /> Images staff-reviewed</label><input type="hidden" name="imagesConfirmedByStaff" value="false" />
+                            <div class="field"><label class="req" for="completeness-reason">Reason</label><input id="completeness-reason" name="reason" required maxlength="500" /></div>
+                        </div>
+                        <div class="button-row">
+                            <button type="submit" class="btn btn--primary">Confirm completeness</button>
+                        </div>
                     </form>
                 }
-            </li>
-        }
-        </ul>
+            </div>
+        </section>
     }
-</section>
+
+    @if (data is not null && mayEdit)
+    {
+        <section class="panel" aria-labelledby="case-edit-title">
+            <div class="panel-head"><h2 id="case-edit-title">Edit Case data</h2></div>
+            <div class="panel-body stack">
+                @* The save overwrites every editable value, so the fields the
+                   drawn editor does not carry post back unchanged beside the
+                   six the operator edits. *@
+                <form method="post" asp-page="/Cases/Details" asp-page-handler="Save"
+                      asp-route-id="@workflow.CaseId" id="case-edit-form" data-edit-save class="stack">
+                    <input type="hidden" name="id" value="@workflow.CaseId" />
+                    <input type="hidden" name="expectedVersion" value="@workflow.Version" />
+                    <input type="hidden" name="operationKey" value="@CaseMutationPageModel.NewOperationKey()" />
+                    <input type="hidden" name="editLeaseToken" value="@leaseToken" />
+                    <input type="hidden" name="vehicleMileage" value="@data.Vehicle.Mileage.Confirmed?.Value" />
+                    <input type="hidden" name="vehicleMileageUnit" value="@data.Vehicle.MileageUnit.Confirmed?.Value" />
+                    <input type="hidden" name="incidentDate" value="@data.Accident.IncidentDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="contactName" value="@data.Contact.Name.Confirmed?.Value" />
+                    <input type="hidden" name="contactEmailAddress" value="@data.Contact.EmailAddress.Confirmed?.Value" />
+                    <input type="hidden" name="contactPhoneNumber" value="@data.Contact.PhoneNumber.Confirmed?.Value" />
+                    <input type="hidden" name="instructionDate" value="@data.Instruction.InstructionDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="vatStatus" value="@data.Instruction.VatStatus.Confirmed?.Value" />
+                    <input type="hidden" name="inspectionDate" value="@data.Inspection.InspectionDate.Confirmed?.Value.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="inspectionDeadline" value="@data.Inspection.Deadline.Confirmed?.Value.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="inspectionAddress" value="@data.Inspection.Address.Confirmed?.Value" />
+                    <input type="hidden" name="inspectionMode" value="@data.Inspection.Mode.Confirmed?.Value" />
+                    <div class="grid grid-2">
+                        <div class="field"><label for="edit-claimant">Claimant</label><input id="edit-claimant" name="claimantName" maxlength="300" value="@data.Claimant.Name.Confirmed?.Value" /></div>
+                        <div class="field"><label for="edit-provider-reference">Provider reference</label><input id="edit-provider-reference" name="claimNumber" maxlength="200" value="@data.Claim.Number.Confirmed?.Value" /></div>
+                        <div class="field"><label for="edit-registration">Registration</label><input id="edit-registration" name="vehicleRegistration" maxlength="20" value="@data.Vehicle.Registration.Confirmed?.Value" /></div>
+                        <div class="field"><label for="edit-make">Make</label><input id="edit-make" name="vehicleMake" maxlength="100" value="@data.Vehicle.Make.Confirmed?.Value" /></div>
+                        <div class="field"><label for="edit-model">Model</label><input id="edit-model" name="vehicleModel" maxlength="100" value="@data.Vehicle.Model.Confirmed?.Value" /></div>
+                        <div class="field"><label class="req" for="edit-reason">Reason</label><input id="edit-reason" name="reason" required maxlength="500" /></div>
+                    </div>
+                    <div class="field">
+                        <label for="edit-circumstances">Accident circumstances</label>
+                        <textarea id="edit-circumstances" name="accidentCircumstances" maxlength="2000" rows="4">@data.Accident.Circumstances.Confirmed?.Value</textarea>
+                    </div>
+                    @if (state == CaseLifecycleState.Review)
+                    {
+                        @* One consequence sentence, from the closed necessary-copy intent:
+                           a save demotes the case to Not ready until completeness is
+                           confirmed again. *@
+                        <div class="notice notice--warning">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-alert-triangle" /></svg>
+                            <span>Saving returns the case to Not ready.</span>
+                        </div>
+                    }
+                    <div class="button-row">
+                        <button type="submit" class="btn btn--primary">
+                            <svg class="icon" aria-hidden="true"><use href="#icon-save" /></svg>
+                            <span>Save case data</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </section>
+    }
+
+    @* Undrawn in the prototype, but the only surface for three real Core
+       paths: the Review → With Engineer transition, its return, and the
+       correction of a wrongly linked report-Sent item. Archiving ends a
+       terminal case's editability. Offered only in edit context. *@
+    @if (mayEdit && !CaseLifecycleRules.IsTerminal(state))
+    {
+        <section class="panel" aria-labelledby="case-lifecycle-title">
+            <div class="panel-head"><h2 id="case-lifecycle-title">Lifecycle actions</h2></div>
+            <div class="panel-body button-row">
+                @if (state == CaseLifecycleState.Review)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-start-work-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg>
+                        <span>Start report preparation</span>
+                    </button>
+                }
+                @if (state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-return-review-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-reply" /></svg>
+                        <span>Return to Review</span>
+                    </button>
+                }
+                @if (workflow.ReportSentEvidence is { } linked && state is not CaseLifecycleState.Held)
+                {
+                    <button type="button" class="btn" data-dialog-open="case-unlink-evidence-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-x" /></svg>
+                        <span>Unlink report evidence</span>
+                    </button>
+                }
+            </div>
+        </section>
+    }
+    else if (mayEdit && workflow.Archive is null)
+    {
+        <section class="panel" aria-labelledby="case-lifecycle-title">
+            <div class="panel-head"><h2 id="case-lifecycle-title">Lifecycle actions</h2></div>
+            <div class="panel-body button-row">
+                <button type="button" class="btn" data-dialog-open="case-archive-dialog">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-archive" /></svg>
+                    <span>Archive case</span>
+                </button>
+            </div>
+        </section>
+    }
+</div>
+
+@if (mayEdit)
+{
+    @if (state == CaseLifecycleState.Review)
+    {
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-start-work-dialog",
+            ["DialogTitle"] = "Start report preparation",
+            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "StartWork", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["id"] = workflow.CaseId.ToString(),
+                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                ["editLeaseToken"] = leaseToken
+            }
+        })" />
+    }
+    @if (state is CaseLifecycleState.ReportPreparation or CaseLifecycleState.PostReport)
+    {
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-return-review-dialog",
+            ["DialogTitle"] = "Return to Review",
+            ["DialogActionUrl"] = Url.Page("/Cases/Workflow", "ReturnToReview", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["id"] = workflow.CaseId.ToString(),
+                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                ["editLeaseToken"] = leaseToken,
+                ["instructionsComplete"] = data?.Completeness.Values.InstructionComplete.ToString() ?? false.ToString(),
+                ["imagesComplete"] = data?.Completeness.Values.ImagesComplete.ToString() ?? false.ToString(),
+                ["instructionsReviewedByStaff"] = data?.Completeness.Values.InstructionConfirmedByStaff.ToString() ?? false.ToString(),
+                ["imagesReviewedByStaff"] = data?.Completeness.Values.ImagesConfirmedByStaff.ToString() ?? false.ToString(),
+                ["evidenceReference"] = "case-completeness-projection"
+            }
+        })" />
+    }
+    @if (workflow.ReportSentEvidence is { } unlinked && state is not CaseLifecycleState.Held && !CaseLifecycleRules.IsTerminal(state))
+    {
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-unlink-evidence-dialog",
+            ["DialogTitle"] = "Unlink report evidence",
+            ["DialogActionUrl"] = Url.Page("/Cases/Tasks", "UnlinkReportEvidence", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["id"] = workflow.CaseId.ToString(),
+                ["evidenceId"] = unlinked.EvidenceId.ToString(),
+                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                ["editLeaseToken"] = leaseToken
+            }
+        })" />
+    }
+    @if (CaseLifecycleRules.IsTerminal(state) && workflow.Archive is null)
+    {
+        <partial name="Shared/_ReasonDialog" view-data="@(new ViewDataDictionary(ViewData)
+        {
+            ["DialogId"] = "case-archive-dialog",
+            ["DialogTitle"] = "Archive case",
+            ["DialogActionUrl"] = Url.Page("/Cases/Closure", "Archive", new { id = workflow.CaseId }),
+            ["DialogHiddenFields"] = new Dictionary<string, string?>
+            {
+                ["id"] = workflow.CaseId.ToString(),
+                ["expectedVersion"] = workflow.Version.ToString(CultureInfo.InvariantCulture),
+                ["operationKey"] = CaseMutationPageModel.NewOperationKey(),
+                ["editLeaseToken"] = leaseToken
+            }
+        })" />
+    }
 }

@@ -1,0 +1,29 @@
+@*
+    The Case workspace's six sections, as the prototype draws them: one
+    sticky nav beside the main content and the context column. The non-
+    Overview sections are owned by later lanes (CASE-027, wave 4); the link
+    is the frame's part and the section body is delivered by theirs.
+*@
+@model Pegasus.Web.Pages.Cases.DetailsModel
+@{
+    var caseId = Model.Case!.Summary.CaseId;
+    (string Key, string Label, string Icon)[] sections =
+    [
+        ("overview", "Case Overview", "icon-layout-dashboard"),
+        ("vehicle", "Vehicle", "icon-car"),
+        ("valuations", "Valuations", "icon-file-text"),
+        ("inspection-address", "Inspection address", "icon-map-pin"),
+        ("case-files", "Case Files", "icon-folder"),
+        ("notes", "Notes", "icon-history")
+    ];
+}
+<nav class="case-section-nav" aria-label="Case sections">
+    @foreach (var (key, label, icon) in sections)
+    {
+        <a asp-page="/Cases/Details" asp-route-id="@caseId" asp-route-section="@key"
+           aria-current="@(Model.Section == key ? "page" : null)">
+            <svg class="icon" aria-hidden="true"><use href="#@icon" /></svg>
+            <span>@label</span>
+        </a>
+    }
+</nav>

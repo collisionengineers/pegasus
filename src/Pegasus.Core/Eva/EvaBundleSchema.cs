@@ -100,6 +100,13 @@ public sealed record EvaHandoffImageCandidate(
 
 public static class EvaHandoffPolicy
 {
+    /// <summary>
+    /// The history event a successful bundle export writes. The one spelling,
+    /// so a surface asking "has this case been exported?" reads the same word
+    /// the export wrote.
+    /// </summary>
+    public const string BundleExportedHistoryEventKind = "eva_bundle_exported";
+
     /// <summary>The one wording for "this case has no photographs to send".</summary>
     public const string NoRetainedImagesReason =
         "At least one stored vehicle image is required.";
