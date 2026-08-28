@@ -42,3 +42,52 @@ failures were runner flakes per the reviewer and were not touched.
 No gaps: every retired surface has a Work Centre equivalent still pinned.
 UploadDropzoneBrowserTests' `.page-heading` use targets /Upload (lane G),
 not this page.
+
+## Conflict resolution + first real CI — PR #610 (2026-08-28)
+
+PR #610 was CONFLICTING, 10 ahead / 64 behind, and the branch head had
+never scheduled a CI run (`gh pr checks 610` → "no checks reported"; two
+empty `ci: retrigger` commits, `812e3516` and `57a51500`, produced zero
+runs — an empty commit does not schedule one here).
+
+Merged `origin/dev` (not rebased — `c07b4488`, `f524b343`, `5a9ff906`
+must stay reachable). Merge commit `11f1f7de`; now 12 ahead / 0 behind,
+`mergeable: MERGEABLE`.
+
+One conflict: `TriageQueuesWebTests.cs`. Dev's CASE-025 rewrite renamed
+`NotReadyBadgeCount…` → `NotReadyRailCountMatchesRowsAcrossBothOrigins`
+and swapped the badge assertion for a `.scope-button` rail regex, on the
+same lines this lane edited. Neither side was takeable: dev's surviving
+test still scrapes `/` with `data-state="not-ready"…metric__value` —
+markup this lane replaces — so "theirs" merges clean and fails at
+runtime; "ours" reverts CASE-025's rail rewrite. Hand-merged from dev's
+file with only this lane's three edits re-applied (tile regex →
+`data-value="not_ready"…metric-value`, assert message, summary/comment
+wording). Dev's test name, `.scope-button` assertion, `row-button` count
+and `railCount` kept; `badgeCount` discarded. Diff vs `origin/dev` is
+exactly those three hunks.
+
+Auto-merges checked by inspection, all additions-only over dev:
+`DashboardCounts.cs` (dev's `Complete = 0` + this lane's NeedsAttention
+types), `OperatorLabels.cs` (dev's TriageState/CaseRequirement(s)/
+RequestOperationState/four ServiceHealth* + this lane's six),
+`Browser/OperatorJourneyTests.cs`.
+
+Post-merge defect fixed: both sides had appended
+`using Pegasus.Core.Operations;`, so the merged `OperatorLabels.cs`
+declared it twice → `CS0105` build failure. Dev's sorted entry kept, the
+trailing duplicate deleted (`b8c0cf77`); nothing reordered.
+
+Evidence — Release build exit 0 (0 warnings, 0 errors); focused runs all
+exit 0: TriageQueuesWebTests 8/8, DashboardBoundaryTests 8/8,
+DashboardCountersWebTests 2/2, HealthEndpointTests 3/3. The
+TriageQueuesWebTests pass is the load-bearing one: that test scrapes
+CASE-025's rail markup and this lane's metric markup in the same run.
+
+CI run 33212916874 scheduled by the content-bearing merge push — the
+first real run this head has had.
+
+For the orchestrator: `waves.md` allocates `DashboardCounts.cs` to
+wave-2 lane A (this ticket), but CASE-025 (lane C1) edited it in
+`95f69958` and also edited `TriageQueuesWebTests.cs`. That breach caused
+this conflict.

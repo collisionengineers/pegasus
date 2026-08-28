@@ -100,3 +100,22 @@ Findings and dispositions:
    PLAT-048) since the merge base with zero overlap with this lane's seven
    files; the PR merges cleanly without pulling the migrations in, so no
    merge was performed.
+
+## Addendum — origin/dev merged 2026-08-28
+
+Simplification-pass finding 6 above ("n/a — no merge of `origin/dev`";
+"zero overlap with this lane's seven files") is **superseded and was
+wrong by the time it mattered**. Dev moved on: CASE-025 (`c56b5d5b`,
+`5c685460`, `95f69958`) edited two of this lane's files —
+`src/Pegasus.Core/Operations/DashboardCounts.cs` and
+`tests/Pegasus.IntegrationTests/TriageQueuesWebTests.cs` — and the PR
+went CONFLICTING at 64 behind.
+
+`origin/dev` is now merged (merge commit `11f1f7de`; a merge, not a
+rebase, so `c07b4488`, `f524b343` and `5a9ff906` stay reachable). The one
+conflict was hand-resolved and the three auto-merged files were verified
+by inspection; the full account, the evidence table and the reported
+file-ownership breach are in `post-implementation-report/`.
+
+Finding 5 (`ListQueueAsync` unbounded) is unchanged and still out of
+lane.
