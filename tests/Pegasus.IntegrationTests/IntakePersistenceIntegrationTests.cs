@@ -105,7 +105,8 @@ public sealed class IntakePersistenceIntegrationTests
                 "20260827143132_EvaApiSubmissions",
                 "20260827143200_GrantEvaSubmissions",
                 "20260828084601_AiJobs",
-                "20260828084644_GrantAiJobs"
+                "20260828084644_GrantAiJobs",
+                "20260828112103_NamedEstimates"
             ],
             (await context.Database.GetAppliedMigrationsAsync()).ToArray());
         Assert.Empty(await context.Database.GetPendingMigrationsAsync());
