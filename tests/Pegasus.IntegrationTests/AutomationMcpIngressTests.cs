@@ -28,6 +28,8 @@ public sealed class AutomationMcpIngressTests
         "pegasus_document_add",
         "pegasus_document_download",
         "pegasus_document_export",
+        "pegasus_estimate_list",
+        "pegasus_estimate_save",
         "pegasus_assessment_get",
         "pegasus_assessment_update",
         "pegasus_mail_list",
