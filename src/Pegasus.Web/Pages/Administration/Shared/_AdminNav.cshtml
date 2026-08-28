@@ -1,0 +1,40 @@
+@*
+    The administration area rail (§1.12). Only areas whose page exists are
+    listed — Service health, Action Logs and Reports join here when their
+    pages land (wave 4), never as dead links. Automation follows the existing
+    composition rule: absent when the ingress is not composed.
+
+    ViewData["AdminArea"] — the current area key for aria-current:
+    accounts | principals | configuration | mail | automation.
+    ViewData["AdminAutomationComposed"] — whether to list Automation & AI.
+*@
+@{
+    var area = ViewData["AdminArea"] as string;
+    var automationComposed = ViewData["AdminAutomationComposed"] is true;
+    string? Current(string key) => area == key ? "page" : null;
+}
+<nav class="admin-nav panel" aria-label="Administration areas">
+    <a asp-page="/Administration/Accounts/Index" aria-current="@Current("accounts")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-user" /></svg>
+        <span>@OperatorLabels.Admin.Accounts</span>
+    </a>
+    <a asp-page="/Administration/Principals/Index" aria-current="@Current("principals")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-shield" /></svg>
+        <span>@OperatorLabels.Admin.Principals</span>
+    </a>
+    <a asp-page="/Administration/Configuration" aria-current="@Current("configuration")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-settings" /></svg>
+        <span>@OperatorLabels.Admin.Configuration</span>
+    </a>
+    <a asp-page="/Administration/Mailboxes" aria-current="@Current("mail")">
+        <svg class="icon" aria-hidden="true"><use href="#icon-mail" /></svg>
+        <span>@OperatorLabels.Admin.Mail</span>
+    </a>
+    @if (automationComposed)
+    {
+        <a asp-page="/Administration/Automation/Index" aria-current="@Current("automation")">
+            <svg class="icon" aria-hidden="true"><use href="#icon-sparkles" /></svg>
+            <span>@OperatorLabels.Admin.Automation</span>
+        </a>
+    }
+</nav>

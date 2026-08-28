@@ -1,29 +1,54 @@
+@*
+    One metric tile in a .metric-strip: a label with its glyph, the figure, and
+    an optional meta line. A tile with a destination is a link; an absent
+    figure renders a muted dash, never a zero the query did not return.
+
+    ViewData["MetricLabel"], ["MetricValue"], ["MetricUnavailable"],
+    ["MetricUrl"], ["MetricIcon"] (sprite id, default icon-activity),
+    ["MetricMeta"], ["MetricKey"] (data-value, e.g. not_ready).
+*@
 @{
     var label = ViewData["MetricLabel"] as string ?? "Metric";
     var value = ViewData["MetricValue"];
     var isUnavailable = ViewData["MetricUnavailable"] as bool? ?? false;
-    var url = ViewData["MetricUrl"] as string ?? "#";
-    var theme = ViewData["MetricTheme"] as string ?? "amber"; // amber, blue, red, green
-
-    var cardClass = theme switch
-    {
-        "blue" => "queue-card--blue",
-        "red" => "queue-card--red",
-        "green" => "queue-card--green",
-        _ => ""
-    };
+    var url = ViewData["MetricUrl"] as string;
+    var icon = ViewData["MetricIcon"] as string ?? "icon-activity";
+    var meta = ViewData["MetricMeta"] as string;
+    var key = ViewData["MetricKey"] as string;
 }
-<a href="@url" class="queue-card @cardClass" title="Filter queue by @label">
-    <div>
-        <span>@label</span>
+@if (!string.IsNullOrEmpty(url))
+{
+    <a class="metric" href="@url" data-value="@key">
+        <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#@icon" /></svg><span>@label</span></span>
         @if (isUnavailable)
         {
-            <strong class="queue-card__value--absent">—</strong>
+            <span class="metric-value muted">—</span>
         }
         else
         {
-            <strong>@(value ?? 0)</strong>
+            <span class="metric-value">@(value ?? 0)</span>
+        }
+        @if (!string.IsNullOrEmpty(meta))
+        {
+            <span class="metric-meta">@meta</span>
+        }
+    </a>
+}
+else
+{
+    <div class="metric" data-value="@key">
+        <span class="metric-label"><svg class="icon" aria-hidden="true"><use href="#@icon" /></svg><span>@label</span></span>
+        @if (isUnavailable)
+        {
+            <span class="metric-value muted">—</span>
+        }
+        else
+        {
+            <span class="metric-value">@(value ?? 0)</span>
+        }
+        @if (!string.IsNullOrEmpty(meta))
+        {
+            <span class="metric-meta">@meta</span>
         }
     </div>
-    <svg class="icon queue-card__chevron" aria-hidden="true"><use href="#icon-chevron-right"/></svg>
-</a>
+}

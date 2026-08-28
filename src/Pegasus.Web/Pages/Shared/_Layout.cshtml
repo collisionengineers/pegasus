@@ -8,10 +8,12 @@
     var inboxEnabled = Environment.IsProduction()
         || (Environment.IsDevelopment()
             && Configuration.GetValue<bool>("Features:LocalIntake"));
+    ViewData["ShellInboxEnabled"] = inboxEnabled;
+    var isAdministrator = User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator);
 
     // Marks the route the operator is on. aria-current is the accessible signal;
-    // site.css pairs it with a weight change and the rail's red left border, so
-    // the current route is never signalled by colour alone.
+    // site.css pairs it with the white ground, the red left border and the red
+    // icon well, so the current route is never signalled by colour alone.
     var currentPage = ViewContext.RouteData.Values["page"] as string ?? string.Empty;
     string? CurrentWhen(params string[] pagePrefixes) =>
         pagePrefixes.Any(prefix =>
@@ -24,8 +26,21 @@
     // a number the shell invents. FRD-12 forbids a stale zero placeholder, so an
     // absent count renders nothing at all rather than "0".
     var railCounts = ViewData["RailCounts"] as IReadOnlyDictionary<string, int>;
-    int? CountFor(string route) =>
-        railCounts is not null && railCounts.TryGetValue(route, out var value) ? value : null;
+    int? CountFor(string key) =>
+        railCounts is not null && railCounts.TryGetValue(key, out var value) ? value : null;
+
+    // The request time is the freshness the shell can honestly state; it is
+    // stamped by RailCountsPageFilter and falls back to now for the rare page
+    // that renders outside the filter.
+    var renderedAt = ViewData["ShellRenderedAtUtc"] as DateTimeOffset? ?? DateTimeOffset.UtcNow;
+    var clock = OperatorLabels.OfficeClock(renderedAt);
+
+    var userName = User.Identity?.Name ?? string.Empty;
+    var role = OperatorLabels.StaffRole(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value);
+
+    // A page that is a record announces itself so the workspace-tab strip can
+    // remember it (site.js, max 4, LRU).
+    var workspaceRecord = ViewData["WorkspaceRecord"] as (string Href, string Label)?;
 }
 <html lang="en">
 <head>
@@ -37,97 +52,133 @@
 <body>
     <partial name="Shared/_LucideSprite" />
     <a class="skip-link" href="#main-content">Skip to main content</a>
-    <div class="app-rail-shell">
-        @* A header, exactly as the top bar was: the rail is the page banner
-           turned on its side, carrying the brand, the primary navigation and
-           the signed-in controls. A div left that content outside every
-           landmark; an aside made it a second unnamed complementary one. *@
+    <div class="app-shell" data-app-shell>
         <header class="app-rail">
-            @* The commissioned lockup, cropped to its head; the wordmark beside
-               it carries the name. *@
-            <a class="app-rail__brand" asp-page="/Index" aria-label="Pegasus dashboard">
-                <span>
-                    <img class="mark" src="~/images/marks/pegasus-lockup.png" asp-append-version="true" alt="" aria-hidden="true" />
-                </span>
-                <b>Pegasus</b>
+            <a class="brand" asp-page="/Index" aria-label="Pegasus home">
+                <img src="~/images/marks/pegasus-lockup.png" asp-append-version="true" alt="" aria-hidden="true" />
+                <span class="brand-copy"><strong>PEGASUS</strong><span>Case management</span></span>
             </a>
-            @* The settled route order (design authority, 2026-08-04): Dashboard,
-               Inbox, Upload, Queues, Cases, Operations, Administration. *@
-            <nav class="app-rail__nav" aria-label="Primary">
-                <a class="rail-link" asp-page="/Index" aria-current="@CurrentWhen("/Index")">
-                    <span>Dashboard</span>
+            <nav class="primary-nav" aria-label="Primary">
+                <div class="nav-label">@OperatorLabels.Nav.Work</div>
+                <a class="nav-link" asp-page="/Index" aria-current="@CurrentWhen("/Index")">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>@OperatorLabels.Nav.WorkCentre</span>
                 </a>
                 @if (inboxEnabled)
                 {
-                    <a class="rail-link" asp-page="/Mail/Index" aria-current="@CurrentWhen("/Mail")">
-                        <span>Inbox</span>
+                    <a class="nav-link" asp-page="/Mail/Index" aria-current="@CurrentWhen("/Mail")">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-inbox" /></svg>
+                        <span>@OperatorLabels.Nav.Inbox</span>
                         @if (CountFor("Inbox") is { } inboxCount)
                         {
-                            <span class="rail-link__count">@inboxCount</span>
+                            <span class="nav-count" aria-label="@inboxCount outstanding">@inboxCount</span>
                         }
                     </a>
-                    <a class="rail-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">
-                        <span>Upload</span>
+                    <a class="nav-link" asp-page="/Upload" aria-current="@CurrentWhen("/Upload")">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                        <span>@OperatorLabels.Nav.Upload</span>
                     </a>
                 }
-                <a class="rail-link" asp-page="/Triage/Index" aria-current="@CurrentWhen("/Triage")">
-                    <span>Queues</span>
-                    @if (CountFor("Queues") is { } queuesCount)
-                    {
-                        <span class="rail-link__count rail-link__count--waiting">@queuesCount</span>
-                    }
-                </a>
-                <a class="rail-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Search")">
-                    <span>Cases</span>
+                <a class="nav-link" asp-page="/Cases/Index" aria-current="@CurrentWhen("/Cases", "/Triage", "/Unidentified", "/ImageIntake", "/Intake")">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-list" /></svg>
+                    <span>@OperatorLabels.Nav.Cases</span>
                     @if (CountFor("Cases") is { } casesCount)
                     {
-                        <span class="rail-link__count">@casesCount</span>
+                        <span class="nav-count" aria-label="@casesCount outstanding">@casesCount</span>
                     }
+                </a>
+                <a class="nav-link" asp-page="/Search/Index" aria-current="@CurrentWhen("/Search")">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-folder-open" /></svg>
+                    <span>@OperatorLabels.Nav.Search</span>
                 </a>
                 @if (inboxEnabled)
                 {
-                    <a class="rail-link" asp-page="/Operations/Index" aria-current="@CurrentWhen("/Operations")">
-                        <span>Operations</span>
+                    <a class="nav-link" asp-page="/Operations/Index" aria-current="@CurrentWhen("/Operations")">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-loader" /></svg>
+                        <span>@OperatorLabels.Nav.Operations</span>
+                        @if (CountFor("Operations") is { } operationsCount)
+                        {
+                            <span class="nav-count" aria-label="@operationsCount outstanding">@operationsCount</span>
+                        }
                     </a>
                 }
-                @if (User.IsInRole(Pegasus.Core.Identity.StaffRoleNames.Administrator))
+                @if (isAdministrator)
                 {
-                    <a class="rail-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">
-                        <span>Administration</span>
+                    <div class="nav-label">@OperatorLabels.Nav.Manage</div>
+                    <a class="nav-link" asp-page="/Administration/Index" aria-current="@CurrentWhen("/Administration")">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-layout-grid" /></svg>
+                        <span>@OperatorLabels.Nav.Administration</span>
                     </a>
                 }
             </nav>
-            @* The signed-in identity and its controls stay one named group, as
-               they were in the top bar: who you are and how to stop being them
-               belong together however the shell is laid out. *@
-            <div class="app-rail__user" role="group" aria-label="User">
-                @if (User.Identity?.IsAuthenticated == true)
-                {
-                    <span class="app-rail__name">@User.Identity.Name</span>
-                    <a class="app-rail__action" asp-page="/Account/PasswordChange">Change password</a>
-                    <form method="post" asp-page="/Account/SignOut">
-                        <button class="app-rail__action app-rail__action--quiet" type="submit">Sign out</button>
-                    </form>
-                }
-                else
-                {
-                    <a class="app-rail__action" asp-page="/Account/SignIn">Sign in</a>
-                }
+            <div class="rail-spacer"></div>
+            <div class="rail-health">
+                <div class="rail-health-line"><span class="health-dot"></span><span>@OperatorLabels.Freshness.Current · @clock</span></div>
             </div>
-        </header>
-        <main id="main-content" class="app-rail-main" tabindex="-1">
-            @if (TempData["Confirmation"] is string confirmation)
+            @if (User.Identity?.IsAuthenticated == true)
             {
-                @* One-time confirmation of an action completed on another page.
-                   Green is the confirmed-completion role and is earned here. *@
-                <p class="status-card status-card--done" role="status">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-check-circle" /></svg>
-                    <span>@confirmation</span>
-                </p>
+                <div class="rail-user" role="group" aria-label="User">
+                    <span class="avatar" aria-hidden="true">@OperatorLabels.Initials(userName)</span>
+                    <div><strong>@userName</strong><small>@role</small></div>
+                    <button type="button" class="icon-button" data-dialog-open="account-dialog" aria-label="Account menu">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-more-horizontal" /></svg>
+                    </button>
+                </div>
             }
-            @RenderBody()
-        </main>
+        </header>
+        <div class="app-column">
+            <section class="utility-bar" aria-label="Utility bar">
+                <div class="utility-freshness"><span class="health-dot"></span><span>@OperatorLabels.Freshness.Current · @clock</span></div>
+                <form class="utility-search" role="search" method="get" action="/Search">
+                    <label class="sr-only" for="global-search">Search Pegasus</label>
+                    <svg class="icon" aria-hidden="true"><use href="#icon-search" /></svg>
+                    <input id="global-search" type="search" name="query" data-command-input aria-label="Search Pegasus" autocomplete="off" />
+                    <span class="shortcut-hint" aria-hidden="true">Ctrl K</span>
+                </form>
+                <div class="utility-actions">
+                    <button type="button" class="btn btn--primary" data-dialog-open="add-dialog">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                        <span>Add</span>
+                    </button>
+                    <button type="button" class="icon-button" data-dialog-open="notifications-dialog" aria-label="Notifications">
+                        <svg class="icon" aria-hidden="true"><use href="#icon-bell" /></svg>
+                    </button>
+                </div>
+            </section>
+            <nav class="workspace-tabs" aria-label="Open work" data-workspace-tabs>
+                <a class="workspace-tab" asp-page="/Index" aria-current="@CurrentWhen("/Index")">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-layout-dashboard" /></svg>
+                    <span>@OperatorLabels.Nav.WorkCentre</span>
+                </a>
+                <button type="button" class="workspace-tab" data-dialog-open="command-dialog" data-workspace-open aria-label="Open another record">
+                    <svg class="icon" aria-hidden="true"><use href="#icon-plus" /></svg>
+                    <span>Open</span>
+                </button>
+            </nav>
+            @* Razor omits an attribute whose value is null, so a page that is
+               not a record renders a plain main. *@
+            <main id="main-content" class="app-main" tabindex="-1"
+                  data-workspace-record="@(workspaceRecord is null ? null : "true")"
+                  data-workspace-href="@workspaceRecord?.Href"
+                  data-workspace-label="@workspaceRecord?.Label">
+                <div class="content">
+                    @if (TempData["Confirmation"] is string confirmation)
+                    {
+                        @* One-time confirmation of an action completed on another
+                           page. Green is the confirmed-completion role and is
+                           earned here; site.js also raises it as a toast. *@
+                        <div class="notice notice--success mb-2" role="status" data-confirmation>
+                            <svg class="icon" aria-hidden="true"><use href="#icon-check" /></svg>
+                            <span>@confirmation</span>
+                        </div>
+                    }
+                    @RenderBody()
+                </div>
+            </main>
+        </div>
     </div>
+    <partial name="Shared/_ShellDialogs" />
+    <div class="toast-region" aria-live="polite" data-toast-region></div>
 
     <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)

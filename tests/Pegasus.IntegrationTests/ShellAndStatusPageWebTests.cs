@@ -19,9 +19,11 @@ public sealed class ShellAndStatusPageWebTests
         response.EnsureSuccessStatusCode();
         var html = await response.Content.ReadAsStringAsync();
 
-        Assert.Contains(">Dashboard<", html, StringComparison.Ordinal);
+        Assert.Contains(">Work Centre<", html, StringComparison.Ordinal);
         Assert.Contains(">Inbox<", html, StringComparison.Ordinal);
-        Assert.Contains(">Queues<", html, StringComparison.Ordinal);
+        Assert.Contains(">Cases<", html, StringComparison.Ordinal);
+        Assert.Contains(">Search<", html, StringComparison.Ordinal);
+        Assert.Contains("aria-label=\"Primary\"", html, StringComparison.Ordinal);
 
         // "intake" is internal code vocabulary; the office does not have intake
         // queues, because intake is automatic and nothing queues.
@@ -60,7 +62,7 @@ public sealed class ShellAndStatusPageWebTests
         // the confirmation. It is a one-time state of the sign-in page, not a
         // page of its own, so a bookmark cannot assert a sign-out that did not
         // just happen.
-        var signOutPage = await client.GetStringAsync("/Cases");
+        var signOutPage = await client.GetStringAsync("/Search");
         using var content = new FormUrlEncodedContent(new Dictionary<string, string>
         {
             ["__RequestVerificationToken"] = AntiforgeryValue(signOutPage)
