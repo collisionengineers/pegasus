@@ -304,7 +304,13 @@ public sealed class IndexModel(
             .Where(file => file.Occurrence.SemanticRole == DocumentSemanticRole.Instruction)
             .ToList();
         EvidenceImages = await evidenceImageQueries.ListForCaseAsync(id, cancellationToken);
-        ReportDraftPreparation = AssessmentReportProjection.Prepare(Assessment, costs: null);
+        // The same inputs the projection source hands Project (Costs null,
+        // the Current estimate as the cost block, ENG-026), so the control's
+        // condition cannot disagree with what generating would decide.
+        ReportDraftPreparation = AssessmentReportProjection.Prepare(
+            Assessment,
+            costs: null,
+            currentEstimate: AcceptedSpecification);
         await EvaluateRecordBarConditionsAsync(cancellationToken);
         return Page();
     }
