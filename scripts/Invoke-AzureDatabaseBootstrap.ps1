@@ -350,6 +350,16 @@ function Get-MigrationPermissionMatrix {
             $expected.Add("$role|G|$permission|EvaSubmissions")
         }
     }
+    # 20260828084644_GrantAiJobs: AUTO-011 added the pull-based AI job ledger
+    # (ADR-0035). Only Web touches it — staff create, cancel and confirm from
+    # the application and external AI clients claim and finish jobs through
+    # the /mcp ingress that Web hosts; the Worker runs no AI timer. Rows are
+    # created once and then move through their states in place, so Web holds
+    # SELECT, INSERT and UPDATE. A job is a permanent record: DELETE stays
+    # denied via the baseline matrix, and the Worker is granted nothing.
+    foreach ($permission in @('SELECT', 'INSERT', 'UPDATE')) {
+        $expected.Add("pegasus_web_runtime_role|G|$permission|AiJobs")
+    }
     return @($expected | Sort-Object -Unique)
 }
 
