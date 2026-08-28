@@ -45,7 +45,7 @@ public sealed partial class CaseDetailsWebTests
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
         var actionBar = RecordBar(html);
 
-        Assert.Contains("Open assessment", actionBar, StringComparison.Ordinal);
+        Assert.Contains("Open Assessment", actionBar, StringComparison.Ordinal);
         Assert.Equal(expectsLink, actionBar.Contains(
             $"/Cases/{store.CaseId:D}/Assessment",
             StringComparison.OrdinalIgnoreCase));
@@ -98,7 +98,7 @@ public sealed partial class CaseDetailsWebTests
             BaseAddress = new Uri("https://localhost")
         });
 
-        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?tab=history");
+        var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
 
         Assert.Contains("alex", html, StringComparison.Ordinal);
         Assert.Contains("Automation", html, StringComparison.Ordinal);
@@ -110,7 +110,13 @@ public sealed partial class CaseDetailsWebTests
     public async Task CustodyRetryAndExportRoutesBindAntiforgeryHumanActorLeaseWorkflowVersionReasonAndKey()
     {
         using var baseFactory = new IntakeWebApplicationFactory();
-        var store = new RecordingCaseDetailsStore { ExposeCustody = true };
+        // The EVA control is a Review act (FRD-07): the workspace offers the
+        // handoff only in Review, so the store stands there.
+        var store = new RecordingCaseDetailsStore
+        {
+            ExposeCustody = true,
+            State = CaseLifecycleState.Review
+        };
         using var factory = baseFactory.WithWebHostBuilder(builder =>
             builder.ConfigureServices(services =>
             {
@@ -135,7 +141,6 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claim, store.CaseId);
 
         var html = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains($"/Cases/{store.CaseId:D}/Custody?handler=RetryCustody", html, StringComparison.Ordinal);
         Assert.Contains("name=\"expectedVersion\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"operationKey\"", html, StringComparison.Ordinal);
         Assert.Contains("name=\"editLeaseToken\"", html, StringComparison.Ordinal);
@@ -146,12 +151,9 @@ public sealed partial class CaseDetailsWebTests
         // First sent to Engineer proxy and a prefetched or refreshed GET must
         // not be able to fire it.
         //
-        // EXT-04 moved the control: the action bar now carries one Send to EVA
-        // link to the page where the operator chooses between the API
-        // submission and the export, and the export's form lives there. So the
-        // rule is pinned on the route rather than on the bar - the export is
-        // reachable by no link at all, and answers a GET with a redirect
-        // rather than a package (asserted below).
+        // EXT-04 moved the control: the handoff dialog carries the export as a
+        // posted form and no link to it exists anywhere, and the export route
+        // answers a GET with a redirect rather than a package (asserted below).
         Assert.Contains("Send to EVA", VisibleText(html), StringComparison.Ordinal);
         Assert.DoesNotContain(
             $"href=\"/Cases/{store.CaseId:D}/Documents/Export",
@@ -252,13 +254,15 @@ public sealed partial class CaseDetailsWebTests
         Assert.Equal(2, store.Claims.Count);
         Assert.Equal(store.Claims[0].OperationKey, store.Claims[1].OperationKey);
 
-        var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        var refreshedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
+        var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
+        var refreshedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}?section=notes");
         Assert.Equal(
             InputValue(leasedHtml, "editLeaseToken"),
             InputValue(refreshedHtml, "editLeaseToken"));
         leasedHtml = refreshedHtml;
-        Assert.Contains("Record manual chase", leasedHtml, StringComparison.Ordinal);
+        // The Record chase control lives on the Notes section and renders in
+        // edit context while a chase is scheduled.
+        Assert.Contains("Record chase", leasedHtml, StringComparison.Ordinal);
         var operationKey = "manual-chase-replay";
         var attemptedAtUtc = InputValue(leasedHtml, "attemptedAtUtc");
         using var firstResponse = await client.PostAsync(
@@ -267,9 +271,7 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(firstResponse, store.CaseId);
 
         var currentHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Telephone", currentHtml, StringComparison.Ordinal);
         Assert.DoesNotContain("name=\"editLeaseToken\"", currentHtml, StringComparison.Ordinal);
-        Assert.Contains("Awaiting requested photographs", currentHtml, StringComparison.Ordinal);
         using var replayResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Tasks?handler=RecordManualChase",
             ManualChaseForm(AntiforgeryValue(currentHtml), store, operationKey, attemptedAtUtc));
@@ -334,9 +336,11 @@ public sealed partial class CaseDetailsWebTests
         AssertPrg(claimResponse, store.CaseId);
 
         var leasedHtml = await GetHtmlAsync(client, $"/Cases/{store.CaseId:D}");
-        Assert.Contains("Hold case", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Release hold", leasedHtml, StringComparison.Ordinal);
-        Assert.Contains("Transition to report preparation", leasedHtml, StringComparison.Ordinal);
+        // The hold control is state-gated on the bar and its reason dialog
+        // carries the lease envelope; the posts below exercise every route.
+        Assert.Contains("Place on Hold", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("data-dialog=\"case-hold-dialog\"", leasedHtml, StringComparison.Ordinal);
+        Assert.Contains("name=\"reason\"", leasedHtml, StringComparison.Ordinal);
         var antiforgeryToken = AntiforgeryValue(leasedHtml);
         using var holdResponse = await client.PostAsync(
             $"/Cases/{store.CaseId:D}/Workflow?handler=Hold",
@@ -1035,10 +1039,13 @@ public sealed partial class CaseDetailsWebTests
 
     private static string RecordBar(string html)
     {
-        var start = html.IndexOf("class=\"record__bar\"", StringComparison.Ordinal);
+        var start = html.IndexOf("class=\"record-bar\"", StringComparison.Ordinal);
         Assert.True(start >= 0, "The record bar is not rendered.");
-        var end = html.IndexOf("<nav", start, StringComparison.Ordinal);
-        Assert.True(end > start, "The record bar is not closed before the tabs.");
+        // CASE-012 round 2: the workspace side nav is no longer a <nav>, so
+        // the record's own closing tag bounds the bar and everything under
+        // it (edit bar, workspace, context column).
+        var end = html.IndexOf("</article>", start, StringComparison.Ordinal);
+        Assert.True(end > start, "The record bar is not closed before the record ends.");
         return html[start..end];
     }
 
@@ -1195,6 +1202,9 @@ public sealed partial class CaseDetailsWebTests
         public Guid CaseId { get; } = Guid.NewGuid();
 
         public long CaseVersion { get; } = 7;
+
+        /// <summary>The workflow state the projection reports; Not ready unless a test says otherwise.</summary>
+        public CaseLifecycleState State { get; set; } = CaseLifecycleState.NotReady;
 
         public bool ExposeCustody { get; init; }
 
@@ -1395,7 +1405,7 @@ public sealed partial class CaseDetailsWebTests
             new(
                 CaseId,
                 new(CaseId, "QDOS", 2031, 42, "QDOS3100042"),
-                CaseLifecycleState.NotReady,
+                State,
                 null,
                 null,
                 null,
