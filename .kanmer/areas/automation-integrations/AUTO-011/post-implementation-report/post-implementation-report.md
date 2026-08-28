@@ -108,3 +108,14 @@ Queued; repeat take refused; consent text corrected). Recorded decisions:
   `IAiJobQueries.ListForSubjectAsync` / `ListRecentAsync` (PLAT-049
   Operations list), `GetCountsAsync` (AUTO-010 Automation & AI counts).
   Wave 4 supplies the callers and their activation evidence.
+
+## Wave-loop round — 2026-08-28 (cb788581 → 4b8f69c4)
+
+- `IntakePersistenceIntegrationTests.CommittedMigrationCreatesTheSqlServerSchema`
+  census extended with `20260828084601_AiJobs` and `20260828084644_GrantAiJobs`.
+- `pegasus_ai_job_complete` / `pegasus_ai_job_release`: `resultReference`,
+  `resultText` and `reason` were nullable but had no default, so the MCP
+  schema marked them required and a call omitting one was refused before
+  the Core result-kind rule ran. They now default to `null` (the operation
+  key precedes them). The FRD-11 result shape (kind + reference and/or
+  text, PascalCase kind names) is unchanged; the assertion was not relaxed.
