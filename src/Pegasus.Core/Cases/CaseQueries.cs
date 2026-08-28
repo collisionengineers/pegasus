@@ -63,7 +63,17 @@ public sealed record CaseSearchItem(
     DateOnly? InstructionDate,
     string Origin,
     DateTimeOffset CreatedAtUtc,
-    DateTimeOffset? NextChaseAtUtc = null);
+    DateTimeOffset? NextChaseAtUtc = null)
+{
+    /// <summary>
+    /// The case's recorded completeness facts (<see cref="CaseCompleteness"/>),
+    /// so a Not ready list can say what each case is still missing without a
+    /// second query per row. Null when the store did not project them.
+    /// </summary>
+    public bool? InstructionComplete { get; init; }
+
+    public bool? ImagesComplete { get; init; }
+}
 
 public sealed record SearchCasesResult(
     IReadOnlyList<CaseSearchItem> Items,
@@ -72,8 +82,14 @@ public sealed record SearchCasesResult(
     bool HasPreviousPage,
     bool HasNextPage);
 
+/// <summary>
+/// A live lease as other readers see it. <paramref name="HolderKind"/> is null only for a lease
+/// retained before the holder's kind was recorded; such a holder is nobody's and stays read-only
+/// to every actor until the lease expires.
+/// </summary>
 public sealed record CaseEditLeaseSnapshot(
     string Holder,
+    ActorKind? HolderKind,
     DateTimeOffset ExpiresAtUtc,
     string OperationKey);
 

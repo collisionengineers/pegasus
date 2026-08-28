@@ -33,6 +33,7 @@ internal static class CaseWorkflowModelConfiguration
             entity.Property(item => item.EditLeaseTokenHash).HasMaxLength(64).IsFixedLength();
             entity.Property(item => item.EditLeaseRequestHash).HasMaxLength(64).IsFixedLength();
             entity.Property(item => item.EditLeaseHolder).HasMaxLength(200);
+            entity.Property(item => item.EditLeaseHolderKind).HasMaxLength(40);
             entity.Property(item => item.EditLeaseOperationKey).HasMaxLength(100);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.Property(item => item.ConcurrencyToken).IsConcurrencyToken().ValueGeneratedNever();

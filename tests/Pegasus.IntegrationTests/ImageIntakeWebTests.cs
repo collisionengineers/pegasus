@@ -138,7 +138,7 @@ public sealed class ImageIntakeWebTests
         var receiptPage = await GetAsync(client, $"/Received/{receiptId:D}");
         Assert.Contains("Associated with Case", receiptPage);
         Assert.Contains("AB12CDE-01", receiptPage);
-        var casePage = await GetAsync(client, $"/Cases/{caseId:D}?tab=evidence");
+        var casePage = await GetAsync(client, $"/Cases/{caseId:D}?section=case-files");
         Assert.Contains("AB12CDE-01", casePage);
     }
 

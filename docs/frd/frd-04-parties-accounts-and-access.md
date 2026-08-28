@@ -49,7 +49,9 @@ The Principal settings dialog carries:
   never again; only its hash is retained. The credential is delivered with the
   submission endpoint it authenticates
   ([FRD-09 API-01](frd-09-provider-and-intermediary-routes.md#provider-api-principal-and-contract-boundary))
-  and confers no staff access.
+  and confers no staff access. A reset of a paused credential returns it to
+  active; a revoked credential may be reissued, which starts a new secret and
+  clears the revocation.
 
 Every change is a permanent action-history event with actor, time, reason, and
 before/after values.
