@@ -77,8 +77,7 @@
 
 <div class="form-column">
     <section class="panel"
-             aria-labelledby="group-status-title"
-             data-auto-refresh="2000">
+             aria-labelledby="group-status-title">
         <h2 id="group-status-title" class="section-label">Files in this submission</h2>
         <ol class="upload-outcome-list">
                 <li>
@@ -104,23 +103,23 @@
         </div>
         <details class="upload-attach" data-refresh-hold>
             <summary class="secondary-action">Add to an existing case</summary>
-            <form method="post" class="upload-attach__form" data-case-search data-case-search-url="upload-group-status--default.html" action="upload-group-status--default.html">
+            <form method="post" class="upload-attach__form" data-case-search action="upload-group-status--default.html">
                 <input type="hidden" name="receiptId" value="test-ui-guid-3" />
                 <input type="hidden" name="caseId" value="" data-case-search-value />
-                <label for="case-attach-1f05d8a258834aaf9524451a7d61b153-input">Case</label>
-                <input id="case-attach-1f05d8a258834aaf9524451a7d61b153-input"
+                <label for="case-attach-test-ui-guid-4-input">Case</label>
+                <input id="case-attach-test-ui-guid-4-input"
                        name="reference"
                        type="text"
                        maxlength="60"
                        required
                        autocomplete="off"
                        spellcheck="false"
-                       aria-describedby="case-attach-1f05d8a258834aaf9524451a7d61b153-hint"
+                       aria-describedby="case-attach-test-ui-guid-4-hint"
                        data-case-search-input />
-                <p id="case-attach-1f05d8a258834aaf9524451a7d61b153-hint" class="field-hint">Search by case reference, registration or claimant, then choose the case this belongs to.</p>
-                <ul id="case-attach-1f05d8a258834aaf9524451a7d61b153-list" class="case-search-list" hidden data-case-search-list></ul>
-                <label for="case-attach-1f05d8a258834aaf9524451a7d61b153-reason">Reason for adding to this case</label>
-                <textarea id="case-attach-1f05d8a258834aaf9524451a7d61b153-reason" name="reason" maxlength="500" rows="2" required></textarea>
+                <p id="case-attach-test-ui-guid-4-hint" class="field-hint">Search by case reference, registration or claimant, then choose the case this belongs to.</p>
+                <ul id="case-attach-test-ui-guid-4-list" class="case-search-list" hidden data-case-search-list></ul>
+                <label for="case-attach-test-ui-guid-4-reason">Reason for adding to this case</label>
+                <textarea id="case-attach-test-ui-guid-4-reason" name="reason" maxlength="500" rows="2" required></textarea>
                 <div class="button-row">
                     <button type="submit" class="primary-action">Add to this case</button>
                 </div>

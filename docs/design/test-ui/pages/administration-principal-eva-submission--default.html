@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Upload · Pegasus</title>
+    <title>EVA API submission · Pegasus</title>
     <link rel="stylesheet" href="../../../../src/Pegasus.Web/wwwroot/css/site.css" />
 </head>
 <body>
@@ -43,7 +43,7 @@
                     <a class="rail-link" href="inbox--default.html">
                         <span>Inbox</span>
                     </a>
-                    <a class="rail-link" aria-current="page" href="upload--default.html">
+                    <a class="rail-link" href="upload--default.html">
                         <span>Upload</span>
                     </a>
                 <a class="rail-link" href="queues--default.html">
@@ -56,7 +56,7 @@
                     <a class="rail-link" href="operations--default.html">
                         <span>Operations</span>
                     </a>
-                    <a class="rail-link" href="administration--default.html">
+                    <a class="rail-link" aria-current="page" href="administration--default.html">
                         <span>Administration</span>
                     </a>
             </nav>
@@ -70,43 +70,51 @@
         </header>
         <main id="main-content" class="app-rail-main" tabindex="-1">
 
-<header class="page-heading">
-    <h1>Upload</h1>
-</header>
+<a class="back-link" href="administration-principals--default.html">
+    <svg class="icon" aria-hidden="true"><use href="#icon-arrow-right" /></svg>
+    Back to Principals
+</a>
 
-<div class="upload-layout">
-    <section class="panel" aria-labelledby="upload-title">
-        <h2 id="upload-title" class="section-label">Upload documents or images</h2>
-        <form method="post" enctype="multipart/form-data" data-upload-progress>
-            <input type="hidden" data-val="true" data-val-required="The ExternalReceiptToken field is required." id="ExternalReceiptToken" name="ExternalReceiptToken" value="{{externalreceipttoken}}" />
+    <div class="page-heading">
+        <div>
+            <h1>EVA API submission for WEBP</h1>
+        </div>
+        <div class="page-heading-actions">
+            <span class="status-chip status-chip--neutral">
+    <svg class="icon" aria-hidden="true"><use href="#icon-info" /></svg>
+    <span>Active</span>
+</span>
 
-            <div class="dropzone" data-dropzone>
-                <span class="dropzone__glyph" aria-hidden="true"><svg class="icon icon--lg"><use href="#icon-upload" /></svg></span>
-                <label for="Upload">Drag files here, or choose them</label>
-                <span class="field-hint">E-mail, Word document, PDF or image — up to 10.0 MB.</span>
-                <input type="file" multiple accept=".eml,.pdf,.docx,.doc,.msg,.jpg,.jpeg,.png,message/rfc822,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,application/vnd.ms-outlook,image/jpeg,image/png" data-val="true" data-val-required="The Upload field is required." id="Upload" name="Upload" />
-                <button type="button" class="btn dropzone__browse" hidden data-dropzone-browse>Choose files</button>
-                <p class="dropzone__file" role="status" aria-live="polite" hidden data-dropzone-file></p>
+        </div>
+    </div>
+    <div class="panel form-panel">
+        <form method="post" action="administration-principal-eva-submission--default.html">
+            <div class="status-card status-card--error validation-summary-valid" role="alert" data-valmsg-summary="true"><ul><li style="display:none"></li>
+</ul></div>
+            <input type="hidden" data-val="true" data-val-required="The ExpectedVersion field is required." id="ExpectedVersion" name="ExpectedVersion" value="0" />
+            <input type="hidden" data-val="true" data-val-required="The OperationKey field is required." id="OperationKey" name="OperationKey" value="{{operationkey}}" />
+            <div>
+                <label>
+                    <input type="checkbox" data-val="true" data-val-required="The EvaManualSubmission field is required." id="EvaManualSubmission" name="EvaManualSubmission" value="true" />
+                    Manual API submission
+                </label>
             </div>
-            <span class="field-validation-error field-validation-valid" data-valmsg-for="Upload" data-valmsg-replace="true"></span>
-            <button type="submit" class="primary-action primary-action--block">Upload</button>
-        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
-    </section>
-
-    <section class="panel" aria-labelledby="upload-next-title">
-        <h2 id="upload-next-title" class="section-label">What happens next</h2>
-        <ol class="upload-steps">
-            <li><b>Each file is safely stored.</b><span>Its row ticks the moment it is stored; a failed file states why.</span></li>
-            <li><b>It is processed in the background.</b><span>The status page refreshes itself until processing is complete.</span></li>
-            <li><b>Decide where it goes.</b><span>You'll see a case it was matched to, or be offered to create one; a failure is stated clearly.</span></li>
-        </ol>
-        <h2 class="section-label section-gap">Accepted files</h2>
-        <ul class="accepted-list" aria-label="Accepted file types">
-            <li>.eml</li><li>.msg</li><li>.pdf</li><li>.doc</li><li>.docx</li><li>.jpg</li><li>.png</li>
-        </ul>
-        <p class="field-hint">Up to 10.0 MB each, and up to 20 files per submission.</p>
-    </section>
-</div>
+            <div>
+                <label>
+                    <input type="checkbox" data-val="true" data-val-required="The EvaAutomaticSubmission field is required." id="EvaAutomaticSubmission" name="EvaAutomaticSubmission" value="true" />
+                    Automatic API submission
+                </label>
+            </div>
+            <div>
+                <label for="Reason">Reason</label>
+                <input autocomplete="off" type="text" data-val="true" data-val-length="The field Reason must be a string with a minimum length of 1 and a maximum length of 500." data-val-length-max="500" data-val-length-min="1" data-val-required="The Reason field is required." id="Reason" maxlength="500" name="Reason" value="" />
+                <span class="field-validation-valid" data-valmsg-for="Reason" data-valmsg-replace="true"></span>
+            </div>
+            <div class="button-row">
+                <button type="submit" class="primary-action">Save settings</button>
+            </div>
+        <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /><input name="EvaManualSubmission" type="hidden" value="false" /><input name="EvaAutomaticSubmission" type="hidden" value="false" /></form>
+    </div>
 
         </main>
     </div>

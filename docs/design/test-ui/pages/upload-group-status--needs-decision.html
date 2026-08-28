@@ -95,7 +95,7 @@
                 <input name="__RequestVerificationToken" type="hidden" value="{{antiforgery-token}}" /></form>
             <details class="upload-attach" data-refresh-hold>
                 <summary class="secondary-action">Add to an existing case</summary>
-                <form method="post" class="upload-attach__form" data-case-search data-case-search-url="upload-group-status--default.html" action="upload-group-status--default.html">
+                <form method="post" class="upload-attach__form" data-case-search action="upload-group-status--default.html">
                     <input type="hidden" name="caseId" value="" data-case-search-value />
                     <label for="group-attach-input">Case</label>
                     <input id="group-attach-input"
@@ -119,8 +119,7 @@
             </div>
         </section>
     <section class="panel"
-             aria-labelledby="group-status-title"
-             data-auto-refresh="">
+             aria-labelledby="group-status-title">
         <h2 id="group-status-title" class="section-label">Files in this submission</h2>
         <ol class="upload-outcome-list">
                 <li>
