@@ -4,10 +4,12 @@ type: ticket
 title: >-
   External-work state vocabulary has three copies in Infrastructure — one
   internal owner
-status: preparing
+status: implementing
 area: platform-operations
 assignee: claude-code
 profile: fix
+stageEntered:
+  implementing: '2026-08-28T21:37:08.893Z'
 taken_at: '2026-08-28T21:36:22.183Z'
 branch: task/plat-053-external-work-vocabulary
 worktree: >-
@@ -21,9 +23,11 @@ links:
   - PLAT-048
 refs:
   - docs/frd/frd-12-operator-experience.md
+commits:
+  - 8a358ad4
 archived: false
 created: '2026-08-28T10:58:39.368Z'
-updated: '2026-08-28T21:36:22.183Z'
+updated: '2026-08-28T21:37:35.340Z'
 ---
 
 ## What
