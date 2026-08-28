@@ -46,11 +46,16 @@ public sealed class MailWorkspaceBrowserTests
             await preview.Locator("[data-mail-preview-association]").TextContentAsync());
         Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
 
+        // The port wrapped the preview in the drawn third pane with its own
+        // "Message preview" head, so the side-by-side relationship is measured
+        // between the panes — the preview article itself starts below that
+        // head by design.
         var desktopRelationship = await support.Page.EvaluateAsync<bool>(
             "(() => {" +
             " const messages = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(2)').getBoundingClientRect();" +
+            " const previewPane = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(3)').getBoundingClientRect();" +
             " const preview = document.querySelector('[data-mail-preview]').getBoundingClientRect();" +
-            " return Math.abs(messages.top - preview.top) < 2 && preview.left >= messages.right;" +
+            " return Math.abs(messages.top - previewPane.top) < 2 && previewPane.left >= messages.right && preview.left >= messages.right;" +
             "})()");
         Assert.True(desktopRelationship);
 
@@ -69,8 +74,8 @@ public sealed class MailWorkspaceBrowserTests
         Assert.True(await support.Page.EvaluateAsync<bool>(
             "(() => {" +
             " const messages = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(2)').getBoundingClientRect();" +
-            " const preview = document.querySelector('[data-mail-preview]').getBoundingClientRect();" +
-            " return preview.top >= messages.bottom;" +
+            " const previewPane = document.querySelector('[data-mail-preview-workspace] > .pane:nth-child(3)').getBoundingClientRect();" +
+            " return previewPane.top >= messages.bottom;" +
             "})()"));
         Assert.Empty(await support.FindAccessibilityViolationIdsAsync());
     }

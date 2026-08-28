@@ -581,16 +581,17 @@ public sealed class MailWorkspaceWebTests
 
         // The sort toggle flips the received order server-side. The arrow is
         // rendered through the HTML encoder (an expression, not markup text),
-        // so the page carries the entity form of the glyph.
+        // so the page carries the entity form of the glyph; the literal
+        // chunk is "Received " followed by that entity.
         var oldest = await GetHtmlAsync(client, "/Inbox?sort=oldest");
         var newestIndex = oldest.IndexOf("Message 2 from instructions", StringComparison.Ordinal);
         var middleIndex = oldest.IndexOf("Message 1 from instructions", StringComparison.Ordinal);
         Assert.True(newestIndex > middleIndex, "sort=oldest must list the newest message last.");
-        Assert.Contains(">Received &#x2191;", oldest, StringComparison.Ordinal);
+        Assert.Contains("Received &#x2191;", oldest, StringComparison.Ordinal);
         Assert.DoesNotContain("&#x2193;", oldest, StringComparison.Ordinal);
         Assert.Contains("sort=oldest", oldest, StringComparison.Ordinal);
         var newest = await GetHtmlAsync(client, "/Inbox");
-        Assert.Contains(">Received &#x2193;", newest, StringComparison.Ordinal);
+        Assert.Contains("Received &#x2193;", newest, StringComparison.Ordinal);
 
         // An unknown sort or unread value is refused, like an unknown folder.
         using var badSort = await client.GetAsync("/Inbox?sort=newest-first");
