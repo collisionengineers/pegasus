@@ -2,10 +2,12 @@
 id: UIIMP-008
 type: ticket
 title: Port the Work Centre (/) to the Integrated Operations Workspace
-status: backlog
+status: preparing
 area: ui-improvement
 assignee: ''
 profile: feature
+stageEntered:
+  preparing: '2026-08-28T11:25:45.448Z'
 labels:
   - ui
   - wave-2
@@ -17,7 +19,7 @@ refs:
   - docs/frd/frd-12-operator-experience.md
 archived: false
 created: '2026-08-28T08:35:23.813Z'
-updated: '2026-08-28T08:35:23.813Z'
+updated: '2026-08-28T11:25:45.448Z'
 ---
 
 ## What
