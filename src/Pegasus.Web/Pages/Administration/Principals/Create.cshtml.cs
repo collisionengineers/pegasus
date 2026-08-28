@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Pegasus.Core.Cases;
@@ -25,6 +25,17 @@ public sealed class CreateModel(
 
     [BindProperty]
     public CaseInspectionMode InspectionMode { get; set; } = CaseInspectionMode.PhysicalAddress;
+
+    /// <summary>
+    /// EXT-04. Independent by operator decision, so all four combinations are
+    /// legal — including automatic without manual, which submits unattended
+    /// and offers no button.
+    /// </summary>
+    [BindProperty]
+    public bool EvaManualSubmission { get; set; }
+
+    [BindProperty]
+    public bool EvaAutomaticSubmission { get; set; }
 
     [BindProperty]
     public string OperationKey { get; set; } = NewOperationKey();
@@ -65,7 +76,14 @@ public sealed class CreateModel(
             try
             {
                 await createPrincipal.ExecuteAsync(
-                    new(OrganizationId, Code, actor, OperationKey, InspectionMode),
+                    new(
+                        OrganizationId,
+                        Code,
+                        actor,
+                        OperationKey,
+                        InspectionMode,
+                        EvaManualSubmission,
+                        EvaAutomaticSubmission),
                     cancellationToken);
                 TempData["AdministrationStatus"] = "The principal was created.";
                 return RedirectToPage("Index");

@@ -1,4 +1,4 @@
-@page "/Cases/{id:guid}"
+﻿@page "/Cases/{id:guid}"
 @using Pegasus.Web.Presentation
 @model Pegasus.Web.Pages.Cases.DetailsModel
 @{
@@ -29,11 +29,11 @@
     var stage = OperatorLabels.CaseStage(workflow.State);
     var tab = Model.Tab;
 
-    // Export is offered only in Review. The rule is a Core precondition; this
-    // control reflects it rather than defining it, and states the condition
-    // instead of vanishing — the case will offer export once it reaches
-    // Review, so removing the button would say something false.
-    var canExport = workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.Review;
+    // Sending is offered only in Review. The rule is a Core precondition;
+    // this control reflects it rather than defining it, and states the
+    // condition instead of vanishing — the case will offer sending once it
+    // reaches Review, so removing the button would say something false.
+    var canSend = workflow.State == Pegasus.Core.Workflow.CaseLifecycleState.Review;
 }
 
 <nav class="crumb" aria-label="Breadcrumb">
@@ -45,7 +45,7 @@
    The lede - "Read-only evidence remains visible without edit mode. Every
    change uses the current version and an active lease where required." -
    narrated concurrency mechanics and is gone. *@
-<article class="record" data-state="@(canExport ? "review" : "not-ready")">
+<article class="record" data-state="@(canSend ? "review" : "not-ready")">
     <header class="record__head">
         <h1>@workflow.Identity.Reference</h1>
         <span class="record__identity">
@@ -119,22 +119,19 @@
         @* CASE-019: the route parameter is caseId, not id. Sending id meant
            link generation had nothing to fill the route with, so the control
            rendered without an href at all and pressing it did nothing.
-           ENG-016: a form post, not an anchor — the export records the
-           once-per-case First sent to Engineer proxy, so a prefetched or
-           refreshed GET must not be able to fire it. *@
-        <span class="gated" data-condition="@(canExport ? null : "Available in Review")">
-            <form method="post" asp-page="/Cases/Documents/Export"
-                  asp-route-caseId="@summary.CaseId" asp-page-handler="Bundle"
-                  class="record__bar-form">
-                <input type="hidden" name="operationKey" value="@Model.ExportOperationKey" />
-                @* `.btn:disabled` is the styling for a real control;
-                   `.btn.is-disabled` is the fallback for a disabled anchor,
-                   which this stopped being. *@
-                <button type="submit" class="btn" disabled="@(canExport ? null : "disabled")">
-                    <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
-                    Export
-                </button>
-            </form>
+           EXT-04: an anchor again, and legitimately so. It was a form post
+           because the export recorded the once-per-case First sent to Engineer
+           proxy and a prefetched GET must not fire that. This control records
+           nothing — it opens the page where the operator chooses between the
+           API submission and the export, and both of those are still POSTs. *@
+        <span class="gated" data-condition="@(canSend ? null : "Available in Review")">
+            <a class="btn @(canSend ? string.Empty : "is-disabled")"
+               asp-page="@(canSend ? "/Cases/Eva/Send" : null)"
+               asp-route-caseId="@(canSend ? summary.CaseId : (Guid?)null)"
+               aria-disabled="@(canSend ? "false" : "true")">
+                <svg class="icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+                Send to EVA
+            </a>
         </span>
         <span class="record__bar-end">
             <span class="record__bar-rule" aria-hidden="true"></span>

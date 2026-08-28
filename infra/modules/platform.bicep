@@ -1,4 +1,4 @@
-param location string
+﻿param location string
 param tags object
 param sqlAdministratorObjectId string
 param sqlAdministratorLogin string
@@ -25,6 +25,14 @@ param dvsaClientSecretSecretUri string
 param dvsaApiKeySecretUri string
 param dvsaTokenUri string
 param dvsaScope string
+// EXT-04. EVA serves test and live from one host, so the environment is
+// decided entirely by which credential pair these two URIs resolve to.
+param evaClientIdSecretUri string
+param evaClientSecretSecretUri string
+param evaBaseUri string
+param evaRequestFrom string
+param evaInspectionType string
+param evaInstructionEmail string
 
 var suffix = take(uniqueString(subscription().subscriptionId, resourceGroup().id, 'prod'), 10)
 var prefix = 'pegasus-prod'
@@ -412,6 +420,16 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
           keyVaultUrl: graphChangeNotificationClientStateSecretUri
           identity: webIdentity.id
         }
+        {
+          name: 'eva-client-id'
+          keyVaultUrl: evaClientIdSecretUri
+          identity: webIdentity.id
+        }
+        {
+          name: 'eva-client-secret'
+          keyVaultUrl: evaClientSecretSecretUri
+          identity: webIdentity.id
+        }
       ]
     }
     template: {
@@ -449,6 +467,12 @@ resource webContainerApp 'Microsoft.App/containerApps@2025-01-01' = if (webActiv
             { name: 'Features__AutomationMcp', value: 'true' }
             { name: 'AutomationMcp__ClientId', value: 'pegasus-automation' }
             { name: 'AutomationMcp__ClientSecret', secretRef: 'automation-mcp-client-secret' }
+            { name: 'Eva__ClientId', secretRef: 'eva-client-id' }
+            { name: 'Eva__ClientSecret', secretRef: 'eva-client-secret' }
+            { name: 'Eva__BaseUri', value: evaBaseUri }
+            { name: 'Eva__RequestFrom', value: evaRequestFrom }
+            { name: 'Eva__InspectionType', value: evaInspectionType }
+            { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
             { name: 'AutomationMcp__PublicOrigin', value: 'https://${prefix}-web-${suffix}.${containerEnvironment.properties.defaultDomain}/' }
             { name: 'AutomationMcp__RedirectUris', value: automationMcpRedirectUris }
           ]
@@ -587,6 +611,12 @@ resource workerApp 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'Dvsa__TokenUri', value: dvsaTokenUri }
         { name: 'Dvsa__ClientId', value: '@Microsoft.KeyVault(SecretUri=${dvsaClientIdSecretUri})' }
         { name: 'Dvsa__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${dvsaClientSecretSecretUri})' }
+        { name: 'Eva__ClientId', value: '@Microsoft.KeyVault(SecretUri=${evaClientIdSecretUri})' }
+        { name: 'Eva__ClientSecret', value: '@Microsoft.KeyVault(SecretUri=${evaClientSecretSecretUri})' }
+        { name: 'Eva__BaseUri', value: evaBaseUri }
+        { name: 'Eva__RequestFrom', value: evaRequestFrom }
+        { name: 'Eva__InspectionType', value: evaInspectionType }
+        { name: 'Eva__InstructionEmail', value: evaInstructionEmail }
         { name: 'Dvsa__ApiKey', value: '@Microsoft.KeyVault(SecretUri=${dvsaApiKeySecretUri})' }
         { name: 'Dvsa__Scope', value: dvsaScope }
       ]

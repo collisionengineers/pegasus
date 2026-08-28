@@ -872,6 +872,8 @@ The following contracts must be proved through the owning Core policy and actual
 - Case and later-Audit custody use the immutable business reference hierarchy with the database-stored remote folder id as the identity authority (no marker files inside folders), and recover a lost folder-create response only through the predeclared transient creation-owner marker; a persisted custody failure is re-entered only by an authenticated, reasoned, lease- and version-guarded human staff command;
 - manual EVA generation is refused outside `Review` or without readable bytes for an eligible Case image; there is no separate EVA activation, mapping-acceptance or custody-readiness gate, and download is an authenticated, idempotent command over the reviewed case that records permanent history;
 - the first successful EVA export generation records one `First sent to Engineer` proxy event, not receipt;
+- EVA API submission is refused outside `Review`, without an eligible Case image, for a Principal that has not enabled the attempted act, and for a case that already reached EVA — the last enforced by a unique index as well as by policy, because EVA has no idempotency and a second accepted instruction creates a second claim that no call can withdraw;
+- an EVA API submission records one of four distinct outcomes and only an unknown one is retried; a succeeded, rejected or partial outcome is never resent, and the export stays the only route by which a changed case reaches EVA again;
 - repeated EVA export proves byte-identical ordered UTF-8 JSON and image order for the same accepted inputs, the image eligibility/duplication/video-screenshot rules, no EVA network call, and no duplicate `First sent to Engineer` event;
 - absent or ambiguous automatic report evidence requires an exact manual link and reason;
 - `sentDateTime` is authoritative while discovery and link times remain distinct;
@@ -969,6 +971,15 @@ Two route facts recorded by release 9 (details in operations):
   provisioning, confirm every `*_SECRET_URI` azd input names
   `pegasusprodkv252ow37g` — the local azd environment is not authoritative and
   once carried the retired adopted vaults.
+- EXT-04 added six `Eva:*` keys to the Production fail-fast list, so a host
+  without them refuses to start and the whole app crash-loops, not only the
+  EVA route. The first release carrying EXT-04 must, before provisioning,
+  create the `eva-client-id` and `eva-client-secret` secrets in
+  `pegasusprodkv252ow37g` and `azd env set` the four inputs that have no
+  default: `EVA_CLIENT_ID_SECRET_URI`, `EVA_CLIENT_SECRET_SECRET_URI`,
+  `EVA_REQUEST_FROM` and `EVA_INSTRUCTION_EMAIL`. `EVA_BASE_URI` and
+  `EVA_INSPECTION_TYPE` default correctly. The credential pair alone decides
+  whether the deployment addresses EVA test or live.
 
 ### Durable Worker activation and rollback
 

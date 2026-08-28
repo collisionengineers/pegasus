@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Configuration;
+﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -235,7 +235,15 @@ public sealed class WorkerCompositionTests
         ["Dvsa:ClientId"] = "resolved-key-vault-reference",
         ["Dvsa:ClientSecret"] = "resolved-key-vault-reference",
         ["Dvsa:ApiKey"] = "resolved-key-vault-reference",
-        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default"
+        ["Dvsa:Scope"] = "https://tapi.dvsa.gov.uk/.default",
+        // EXT-04: production now composes the EVA API submission route,
+        // so its configuration is part of what a production Worker needs.
+        ["Eva:BaseUri"] = "https://sentry.evasoftware.co.uk/api/",
+        ["Eva:ClientId"] = "eva-client",
+        ["Eva:ClientSecret"] = "eva-secret",
+        ["Eva:RequestFrom"] = "COLLENGAPI",
+        ["Eva:InspectionType"] = "Vehicle Damage Inspection",
+        ["Eva:InstructionEmail"] = "digital@collisionengineers.co.uk"
     };
 
     private static string CreateTemporaryRoot()

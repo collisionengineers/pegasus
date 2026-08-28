@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 using System.Net;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -142,11 +142,19 @@ public sealed partial class CaseDetailsWebTests
         Assert.Contains("name=\"reason\"", html, StringComparison.Ordinal);
         Assert.DoesNotContain(store.CaseId.ToString("D"), VisibleText(html), StringComparison.OrdinalIgnoreCase);
 
-        // ENG-016: Export posts. The action bar renders a form, not an anchor,
-        // because the export records the once-per-case First sent to Engineer
-        // proxy and a prefetched or refreshed GET must not be able to fire it.
-        Assert.Contains(
-            $"action=\"/Cases/{store.CaseId:D}/Documents/Export?handler=Bundle\"",
+        // ENG-016: the export must post, because it records the once-per-case
+        // First sent to Engineer proxy and a prefetched or refreshed GET must
+        // not be able to fire it.
+        //
+        // EXT-04 moved the control: the action bar now carries one Send to EVA
+        // link to the page where the operator chooses between the API
+        // submission and the export, and the export's form lives there. So the
+        // rule is pinned on the route rather than on the bar - the export is
+        // reachable by no link at all, and answers a GET with a redirect
+        // rather than a package (asserted below).
+        Assert.Contains("Send to EVA", VisibleText(html), StringComparison.Ordinal);
+        Assert.DoesNotContain(
+            $"href=\"/Cases/{store.CaseId:D}/Documents/Export",
             html,
             StringComparison.Ordinal);
 

@@ -1,14 +1,16 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Pegasus.Core.Custody;
+using Pegasus.Core.Eva;
 using Pegasus.Core.Intake;
 using Pegasus.Core.Vehicle;
 using Pegasus.Infrastructure;
 using Pegasus.Infrastructure.Intake;
 using Pegasus.Infrastructure.Email;
 using Pegasus.Infrastructure.Custody;
+using Pegasus.Infrastructure.Eva;
 using Pegasus.Infrastructure.Persistence;
 using Pegasus.Infrastructure.Vehicle;
 using Pegasus.Infrastructure.Transport;
@@ -83,6 +85,13 @@ public static class WorkerDependencyInjection
                 productionOptions!.Value.Graph,
                 productionOptions.Value.Vehicle);
             services.AddScoped<IProcessQueuedVehicleLookup, ProcessQueuedVehicleLookup>();
+
+            // EXT-04. Composed only in production, and only when EVA is
+            // configured: the offline profile reaches no vendor, so it has no
+            // EVA handler and a row of that kind fails closed rather than
+            // being quietly completed.
+            services.AddEvaApiSubmission(_ => GetEvaApiOptions(configuration));
+            services.AddScoped<IProcessQueuedEvaSubmission, ProcessQueuedEvaSubmission>();
             services.AddScoped<IProcessQueuedExternalWork, ProcessQueuedExternalWork>();
         }
 
@@ -157,6 +166,16 @@ public static class WorkerDependencyInjection
         };
         return new(graph, DvlaDvsaProductionOptions.Create(vehicleValues));
     }
+
+    /// <summary>
+    /// EXT-04: EVA's credentials and the three instruction values that are
+    /// deployment configuration rather than case data. Read lazily by
+    /// <c>AddEvaApiSubmission</c>, because these arrive as Key Vault
+    /// references and parsing one at host build is what crash-looped the
+    /// worker in PLAT-013.
+    /// </summary>
+    private static EvaApiOptions GetEvaApiOptions(IConfiguration configuration) =>
+        EvaApiOptions.Create(key => configuration[key]);
 
     private static BoxCustodyOptions CreateBoxCustodyOptions(IConfiguration configuration) =>
         BoxCustodyOptions.Create(

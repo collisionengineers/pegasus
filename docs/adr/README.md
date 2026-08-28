@@ -41,6 +41,7 @@ never renumbered or reused.
 | [0030](0030-non-additive-schema-changes-before-cutover.md) | Non-additive schema changes before cutover | — |
 | [0031](0031-automation-actor-contract-without-eva-export-tools.md) | Automation Actor contract without EVA export tools | FRD-07, FRD-10, FRD-11 |
 | [0033](0033-warm-unified-work-queue-for-five-second-intake.md) | Warm unified work queue for five-second intake | FRD-02, FRD-08 |
+| [0034](0034-per-principal-eva-api-submission-settings.md) | Per-Principal EVA API submission settings | FRD-07 |
 
 ## Superseded and relocated
 

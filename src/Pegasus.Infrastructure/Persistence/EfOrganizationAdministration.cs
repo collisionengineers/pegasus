@@ -1,4 +1,4 @@
-using System.Data;
+﻿using System.Data;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -19,6 +19,7 @@ public sealed class EfOrganizationAdministration(
     private const string CreateOrganizationKind = "create_organization";
     private const string UpdateOrganizationRolesKind = "update_organization_roles";
     private const string CreatePrincipalKind = "create_principal";
+    private const string UpdatePrincipalEvaSubmissionKind = "update_principal_eva_submission";
     private const string ReplacePrincipalKind = "replace_principal";
     private const string PolicyVersion = "organization-principal-administration/v1";
     private const int MaximumProjectedPrincipals = 100;
@@ -56,6 +57,13 @@ public sealed class EfOrganizationAdministration(
         CancellationToken cancellationToken) =>
         ExecuteWithConcurrencyRetryAsync(
             token => ReplacePrincipalOnceAsync(request, token),
+            cancellationToken);
+
+    public Task<Principal> UpdatePrincipalEvaSubmissionAsync(
+        UpdatePrincipalEvaSubmissionRequest request,
+        CancellationToken cancellationToken) =>
+        ExecuteWithConcurrencyRetryAsync(
+            token => UpdatePrincipalEvaSubmissionOnceAsync(request, token),
             cancellationToken);
 
     private async Task<Organization> CreateOrganizationOnceAsync(
@@ -230,7 +238,9 @@ public sealed class EfOrganizationAdministration(
             actor = ActorMaterial(request.Actor),
             request.OrganizationId,
             request.Code,
-            inspectionMode = ProviderInspectionModePolicy.ToCode(request.InspectionMode)
+            inspectionMode = ProviderInspectionModePolicy.ToCode(request.InspectionMode),
+            request.EvaManualSubmission,
+            request.EvaAutomaticSubmission
         });
 
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
@@ -262,7 +272,9 @@ public sealed class EfOrganizationAdministration(
             ToOrganization(organization),
             request.Code,
             codeAlreadyExists,
-            request.InspectionMode);
+            request.InspectionMode,
+            request.EvaManualSubmission,
+            request.EvaAutomaticSubmission);
         var lineage = new PrincipalSequenceLineageEntity
         {
             Id = lineageId,
@@ -278,6 +290,8 @@ public sealed class EfOrganizationAdministration(
             SuccessorId = result.SuccessorId,
             IsActive = result.IsActive,
             InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
+            EvaManualSubmission = result.EvaManualSubmission,
+            EvaAutomaticSubmission = result.EvaAutomaticSubmission,
             Version = result.Version
         };
         context.PrincipalSequenceLineages.Add(lineage);
@@ -300,6 +314,89 @@ public sealed class EfOrganizationAdministration(
             reason: null,
             before: null,
             after: result);
+        await SaveChangesAsync(context, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return result;
+    }
+
+    /// <summary>
+    /// EXT-04: switch a principal's EVA submission settings.
+    ///
+    /// The only principal attribute that changes in place. Everything else
+    /// about a principal is immutable once work has been allocated against it,
+    /// and a wrong principal is closed and replaced rather than edited — but a
+    /// delivery route is not part of who the work belongs to, and a setting
+    /// that could only be chosen at creation could never be switched on for
+    /// the principals that already exist.
+    ///
+    /// It writes the same attributed permanent history every other
+    /// administration operation writes, so switching the route on is as
+    /// traceable as creating the principal was.
+    /// </summary>
+    private async Task<Principal> UpdatePrincipalEvaSubmissionOnceAsync(
+        UpdatePrincipalEvaSubmissionRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        var requestHash = HashRequest(new
+        {
+            command = UpdatePrincipalEvaSubmissionKind,
+            actor = ActorMaterial(request.Actor),
+            request.PrincipalId,
+            request.ExpectedVersion,
+            request.EvaManualSubmission,
+            request.EvaAutomaticSubmission,
+            request.Reason
+        });
+
+        await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+        await using var transaction = await context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+        var receipt = await FindReceiptAsync(context, request.OperationKey, cancellationToken);
+        if (receipt is not null)
+        {
+            var replay = ReadReplay<Principal>(
+                receipt,
+                UpdatePrincipalEvaSubmissionKind,
+                requestHash);
+            await transaction.CommitAsync(cancellationToken);
+            return replay;
+        }
+
+        var entity = await context.Principals
+            .SingleOrDefaultAsync(item => item.Id == request.PrincipalId, cancellationToken)
+            ?? throw Error(OrganizationAdministrationError.PrincipalNotFound);
+        var before = ToPrincipal(entity);
+        var result = OrganizationAdministrationPolicy.PlanPrincipalEvaSubmissionUpdate(
+            before,
+            request.ExpectedVersion,
+            request.EvaManualSubmission,
+            request.EvaAutomaticSubmission);
+
+        entity.EvaManualSubmission = result.EvaManualSubmission;
+        entity.EvaAutomaticSubmission = result.EvaAutomaticSubmission;
+        entity.Version = result.Version;
+
+        var now = _timeProvider.GetUtcNow();
+        AddReceipt(
+            context,
+            request.OperationKey,
+            UpdatePrincipalEvaSubmissionKind,
+            requestHash,
+            result,
+            now);
+        AddHistory(
+            context,
+            "principal",
+            entity.Id,
+            "principal_eva_submission_updated",
+            request.Actor,
+            request.OperationKey,
+            now,
+            request.Reason,
+            before,
+            result);
         await SaveChangesAsync(context, cancellationToken);
         await transaction.CommitAsync(cancellationToken);
         return result;
@@ -369,6 +466,8 @@ public sealed class EfOrganizationAdministration(
             SuccessorId = result.SuccessorId,
             IsActive = result.IsActive,
             InspectionMode = ProviderInspectionModePolicy.ToCode(result.InspectionMode),
+            EvaManualSubmission = result.EvaManualSubmission,
+            EvaAutomaticSubmission = result.EvaAutomaticSubmission,
             Version = result.Version
         };
         var predecessorAfter = replacement.Predecessor;
@@ -452,7 +551,9 @@ public sealed class EfOrganizationAdministration(
                         // per principal: up to 25 organizations x 101
                         // principals of them on a single page load.
                         0,
-                        principal.InspectionMode))
+                        principal.InspectionMode,
+                        principal.EvaManualSubmission,
+                        principal.EvaAutomaticSubmission))
                     .ToArray()))
             .ToArrayAsync(cancellationToken);
 
@@ -539,7 +640,9 @@ public sealed class EfOrganizationAdministration(
                         principal.IsActive,
                         principal.Version,
                         principal.Cases.Count,
-                        principal.InspectionMode))
+                        principal.InspectionMode,
+                        principal.EvaManualSubmission,
+                        principal.EvaAutomaticSubmission))
                     .ToArray()))
             .SingleOrDefaultAsync(cancellationToken);
         if (row is null)
@@ -576,7 +679,9 @@ public sealed class EfOrganizationAdministration(
             row.IsActive,
             row.Version,
             row.AllocatedCaseCount,
-            ProviderInspectionModePolicy.Parse(row.InspectionMode));
+            ProviderInspectionModePolicy.Parse(row.InspectionMode),
+            row.EvaManualSubmission,
+            row.EvaAutomaticSubmission);
 
     private static Organization ToOrganization(OrganizationEntity entity) =>
         new(
@@ -595,7 +700,9 @@ public sealed class EfOrganizationAdministration(
             entity.SuccessorId,
             entity.IsActive,
             entity.Version,
-            ProviderInspectionModePolicy.Parse(entity.InspectionMode));
+            ProviderInspectionModePolicy.Parse(entity.InspectionMode),
+            entity.EvaManualSubmission,
+            entity.EvaAutomaticSubmission);
 
     private static OrganizationRole[] ParseRoles(IEnumerable<string> roles) =>
         roles.Select(ParseRole).OrderBy(role => role).ToArray();
@@ -838,5 +945,7 @@ public sealed class EfOrganizationAdministration(
         bool IsActive,
         long Version,
         int AllocatedCaseCount,
-        string InspectionMode);
+        string InspectionMode,
+        bool EvaManualSubmission,
+        bool EvaAutomaticSubmission);
 }
